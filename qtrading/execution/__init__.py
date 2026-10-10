@@ -5,11 +5,51 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from qtrading.config import get_settings
 from qtrading.strategy import Order, OrderSide, OrderStatus, OrderType
+
+if TYPE_CHECKING:
+    from qtrading.execution.algorithms import (
+        AlgorithmFactory,
+        AlgorithmSlice,
+        AlgorithmState,
+        AlgorithmStateSnapshot,
+        AlgorithmType,
+        BaseExecutionAlgorithm,
+        ExecutionAlgorithmConfig,
+        ImplementationShortfallAlgorithm,
+        POVAlgorithm,
+        TWAPAlgorithm,
+        VWAPAlgorithm,
+    )
+    from qtrading.execution.oms import (
+        OMSOrder,
+        OMSOrderState,
+        OrderEvent,
+        OrderManager,
+    )
+    from qtrading.execution.paper_engine import (
+        LatencyConfig,
+        PaperOrderBook,
+        PaperTradingConfig,
+        PaperTradingEngine,
+        PartialFillConfig,
+    )
+    from qtrading.execution.smart_router import (
+        RoutingDecision,
+        RoutingStrategy,
+        SimulatedVenueConnector,
+        SmartOrderRouter,
+        SmartOrderRouterConfig,
+        VenueConfig,
+        VenueConnector,
+        VenueQuote,
+        VenueType,
+    )
 
 
 class ExecutionMode(StrEnum):
@@ -172,7 +212,6 @@ class SimulationEngine(ExecutionEngine):
 class OrderRouter:
     def __init__(self, config_path: str | None = None):
         settings = get_settings(config_path)
-        # Default to simulation mode for backtesting
         self.mode = ExecutionMode.SIMULATION
         self.timeout = settings.execution.timeout_seconds
         self.retry_attempts = settings.execution.retry_attempts
@@ -232,6 +271,9 @@ class OrderRouter:
         if isinstance(self.engine, SimulationEngine):
             self.engine.update_price(symbol, price)
 
+    def set_engine(self, engine: ExecutionEngine) -> None:
+        self.engine = engine
+
 
 class PortfolioManager:
     def __init__(self, initial_capital: Decimal):
@@ -278,3 +320,80 @@ class PortfolioManager:
 
     def get_position(self, symbol: str) -> Decimal:
         return self.positions.get(symbol, Decimal("0"))
+
+
+from qtrading.execution.algorithms import (  # noqa: E402
+    AlgorithmFactory,
+    AlgorithmSlice,
+    AlgorithmState,
+    AlgorithmStateSnapshot,
+    AlgorithmType,
+    BaseExecutionAlgorithm,
+    ExecutionAlgorithmConfig,
+    ImplementationShortfallAlgorithm,
+    POVAlgorithm,
+    TWAPAlgorithm,
+    VWAPAlgorithm,
+)
+from qtrading.execution.oms import (  # noqa: E402
+    OMSOrder,
+    OMSOrderState,
+    OrderEvent,
+    OrderManager,
+)
+from qtrading.execution.paper_engine import (  # noqa: E402
+    LatencyConfig,
+    PaperOrderBook,
+    PaperTradingConfig,
+    PaperTradingEngine,
+    PartialFillConfig,
+)
+from qtrading.execution.smart_router import (  # noqa: E402
+    RoutingDecision,
+    RoutingStrategy,
+    SimulatedVenueConnector,
+    SmartOrderRouter,
+    SmartOrderRouterConfig,
+    VenueConfig,
+    VenueConnector,
+    VenueQuote,
+    VenueType,
+)
+
+__all__ = [
+    "ExecutionMode",
+    "ExecutionReport",
+    "ExecutionEngine",
+    "SimulationEngine",
+    "OrderRouter",
+    "PortfolioManager",
+    "PaperTradingConfig",
+    "PaperTradingEngine",
+    "PaperOrderBook",
+    "LatencyConfig",
+    "PartialFillConfig",
+    "OrderManager",
+    "OMSOrder",
+    "OMSOrderState",
+    "OrderEvent",
+    "SmartOrderRouter",
+    "SmartOrderRouterConfig",
+    "VenueConfig",
+    "VenueType",
+    "RoutingStrategy",
+    "VenueQuote",
+    "RoutingDecision",
+    "VenueConnector",
+    "SimulatedVenueConnector",
+    "BaseExecutionAlgorithm",
+    "TWAPAlgorithm",
+    "VWAPAlgorithm",
+    "POVAlgorithm",
+    "ImplementationShortfallAlgorithm",
+    "AlgorithmFactory",
+    "AlgorithmType",
+    "AlgorithmState",
+    "ExecutionAlgorithmConfig",
+    "AlgorithmSlice",
+    "AlgorithmStateSnapshot",
+]
