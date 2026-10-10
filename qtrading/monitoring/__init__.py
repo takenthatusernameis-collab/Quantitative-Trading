@@ -12,6 +12,15 @@ from loguru import logger
 from prometheus_client import Counter, Gauge, Histogram, start_http_server
 
 from qtrading.config import get_settings
+from qtrading.monitoring.dashboard import (
+    DashboardMetrics,
+    DashboardState,
+    PortfolioState,
+    RiskDashboard,
+    WebSocketManager,
+    dashboard_session,
+    run_dashboard,
+)
 
 
 @dataclass
@@ -295,3 +304,20 @@ async def monitoring_session(config_path: str | None = None):
         }
     finally:
         await health_checker.stop()
+
+
+__all__ = [
+    "MetricSnapshot",
+    "MetricsCollector",
+    "StructuredLogger",
+    "HealthChecker",
+    "AlertManager",
+    "monitoring_session",
+    "RiskDashboard",
+    "DashboardState",
+    "PortfolioState",
+    "DashboardMetrics",
+    "WebSocketManager",
+    "dashboard_session",
+    "run_dashboard",
+]

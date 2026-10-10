@@ -1,7 +1,7 @@
 # Task for Next Agent
 
 ## Current State
-Repository contains a complete quantitative trading system with modules for config, data ingestion, strategy framework (with built-in strategies including Bollinger Bands, MACD, Momentum), backtesting engine, risk management, execution, and monitoring.
+Repository contains a complete quantitative trading system with modules for config, data ingestion, strategy framework (with built-in strategies including Bollinger Bands, MACD, Momentum), backtesting engine, risk management, execution, and monitoring (including real-time risk dashboard with WebSocket updates).
 
 Recent enhancements completed:
 - Data validation, persistent storage (SQLite), real-time feeds, timeframe utilities
@@ -10,6 +10,7 @@ Recent enhancements completed:
 - Transaction cost modeling (commission, slippage, latency, partial fills) in `qtrading/backtest/cost_model.py` and composition utilities in `qtrading/strategy/composition.py`  
 - Monte Carlo simulation for robustness testing in `qtrading/backtest/monte_carlo.py`
 - Strategy composition/multi-strategy framework and signal combination in `qtrading/strategy/composition.py`
+- Real-time Risk Monitoring Dashboard: `qtrading/monitoring/dashboard.py` with FastAPI, WebSocket, HTML/JS frontend
 
 ### Recent Agent Work (Completed)
 - **Regime Detection**: `qtrading/backtest/regime.py` - Market regime detection (trending, ranging, high/low volatility, volatility breakout) using volatility, trend strength, and ATR indicators
@@ -17,6 +18,7 @@ Recent enhancements completed:
 - **Benchmark & Attribution**: `qtrading/backtest/attribution.py` - Benchmark comparison (information ratio, alpha, beta, capture ratios) and Brinson performance attribution
 - **Enhanced Risk Management**: `qtrading/risk/__init__.py` - Added portfolio-level risk limits (sector exposure, factor exposure, portfolio leverage), dynamic position sizing (Kelly criterion, volatility targeting), and stress testing
 - **Risk dataclasses**: Added `PositionSizeResult`, `StressTestResult` dataclasses and extended `RiskLimits`/`RiskMetrics`
+- **Real-time Risk Monitoring Dashboard**: `qtrading/monitoring/dashboard.py` - FastAPI-based dashboard with WebSocket real-time updates, portfolio/risk metrics display, position sizing recommendations, stress test results, sector exposure visualization, and alerts panel
 
 ### Tests
 - 43 unit tests passing (all core + data pipeline + strategies + walk-forward)
@@ -37,9 +39,9 @@ Recent enhancements completed:
 - [x] Implement portfolio-level risk limits (sector, correlation, factor exposure)
 - [x] Add dynamic position sizing (Kelly criterion, volatility targeting)
 - [x] Implement stress testing and scenario analysis
-- [ ] Add real-time risk monitoring dashboard
+- [x] Add real-time risk monitoring dashboard
 
-### Priority 3: Live Trading Infrastructure
+### Priority 3: Live Trading Infrastructure (Next)
 - [ ] Implement paper trading mode with simulated exchange
 - [ ] Add order management system (OMS) with order lifecycle tracking
 - [ ] Implement smart order routing
@@ -57,6 +59,15 @@ Recent enhancements completed:
 - [ ] Implement ML model training and inference pipeline
 - [ ] Add alternative data integration (sentiment, on-chain, macro)
 - [ ] Implement model versioning and A/B testing
+
+## Suggested Next Steps for Next Agent
+The next logical step is to implement **Priority 3: Live Trading Infrastructure**. The execution module already has a SimulationEngine and OrderRouter - these need to be extended to support:
+1. **Paper Trading Mode**: Extend the execution module to support a paper trading mode that simulates a real exchange with order book, latency, and partial fills
+2. **Order Management System (OMS)**: Add order lifecycle tracking (pending, open, partially filled, filled, cancelled, rejected) with persistence
+3. **Smart Order Routing**: Implement routing logic to split orders across multiple venues/exchanges
+4. **Execution Algorithms**: Implement TWAP (Time-Weighted Average Price), VWAP (Volume-Weighted Average Price), and POV (Percentage of Volume) algorithms
+
+The `qtrading/execution/__init__.py` already has the base classes (`ExecutionEngine`, `ExecutionMode`, `OrderRouter`, `PortfolioManager`) - these should be extended.
 
 ## Testing Commands
 ```bash
