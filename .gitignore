@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+qtrading.egg-info/
+.pytest_cache/
+.coverage
+.env
+data/cache/
