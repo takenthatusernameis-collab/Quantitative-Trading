@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum, StrEnum
-from typing import Optional
+from enum import StrEnum
 
 import pandas as pd
 from pydantic import BaseModel, Field
@@ -159,9 +159,11 @@ class StrategyRegistry:
     @classmethod
     def register(cls, name: str, strategy_class: type[Strategy] = None) -> None:
         if strategy_class is None:
+
             def decorator(cls_):
                 cls._strategies[name] = cls_
                 return cls_
+
             return decorator
         cls._strategies[name] = strategy_class
 
@@ -179,3 +181,14 @@ class StrategyRegistry:
         if strategy_class is None:
             raise ValueError(f"Strategy '{name}' not found")
         return strategy_class(params)
+
+
+with suppress(Exception):
+    from qtrading.strategy.composition import (  # noqa: F401
+        CostModelType,
+        MultiStrategy,
+        TransactionCost,
+        TransactionCostConfig,
+        TransactionCostModel,
+        combine_signals,
+    )

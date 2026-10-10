@@ -1,9 +1,8 @@
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
-from typing import Optional
 
-from qtrading.strategy import Order, OrderSide, OrderType
+from qtrading.strategy import Order, OrderSide
 
 
 class CostModelType(StrEnum):
@@ -165,7 +164,9 @@ class CostAggregator:
             "total_cost": self.total_cost,
             "order_count": self.order_count,
             "partial_fill_count": self.partial_fill_count,
-            "avg_cost_per_order": self.total_cost / self.order_count if self.order_count > 0 else Decimal("0"),
+            "avg_cost_per_order": self.total_cost / self.order_count
+            if self.order_count > 0
+            else Decimal("0"),
         }
 
 

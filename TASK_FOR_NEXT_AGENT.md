@@ -1,75 +1,51 @@
 # Task for Next Agent
 
 ## Current State
-Repository now contains a complete foundational quantitative trading system with the following components:
+Repository contains a complete quantitative trading system with modules for config, data ingestion, strategy framework (with built-in strategies including Bollinger Bands, MACD, Momentum), backtesting engine, risk management, execution, and monitoring.
 
-### Implemented Modules
-1. **Configuration** (`qtrading/config/`) - YAML-based settings with Pydantic validation
-2. **Data Ingestion** (`qtrading/data/`) - CCXT-based multi-exchange data source with caching
-3. **Strategy Framework** (`qtrading/strategy/`) - Abstract base classes with registry pattern
-4. **Built-in Strategies** (`qtrading/strategy/builtin.py`) - SMA Crossover, Mean Reversion, RSI, **Bollinger Bands, MACD, Momentum**
-5. **Backtesting Engine** (`qtrading/backtest/`) - Event-driven backtester with portfolio management
-6. **Risk Management** (`qtrading/risk/`) - Position sizing, drawdown limits, VaR, correlation checks
-7. **Execution** (`qtrading/execution/`) - Simulation engine, order router, portfolio manager
-8. **Monitoring** (`qtrading/monitoring/`) - Prometheus metrics, structured logging, health checks, alerts
-
-### Recent Enhancements (Data Pipeline)
-1. **Data Validation** (`qtrading/data/validator.py`) - OHLCV validation with quality checks
-2. **Persistent Storage** (`qtrading/data/storage.py`) - SQLite storage via SQLAlchemy with full CRUD
-3. **Real-time Feeds** (`qtrading/data/realtime.py`) - WebSocket manager with exponential backoff reconnection
-4. **Timeframe enum** - Added `to_seconds()` method for time-based calculations
-
-### Recent Enhancements (Strategy Development - COMPLETED)
-1. **Bollinger Bands Strategy** - Mean reversion using standard deviation bands (BUY at lower band, SELL at upper band, exit at SMA)
-2. **MACD Strategy** - Trend following using MACD line and signal line crossovers with histogram
-3. **Momentum Strategy** - Price momentum over lookback period with holding period exit logic
-
-### Recent Enhancements (Advanced Backtesting - COMPLETED)
-1. **Walk-Forward Analysis** (`qtrading/backtest/walkforward.py`) - Rolling and anchored walk-forward optimization with parameter grid search, supporting Sharpe ratio, return, and custom metrics optimization
+Recent enhancements completed:
+- Data validation, persistent storage (SQLite), real-time feeds, timeframe utilities
+- Strategy Development: Bollinger Bands, MACD, Momentum strategies (all registered)
+- Advanced Backtesting: Walk-forward analysis (rolling and anchored) with parameter optimization
+- Transaction cost modeling (commission, slippage, latency, partial fills) in `qtrading/backtest/cost_model.py` and composition utilities in `qtrading/strategy/composition.py`  
+- Monte Carlo simulation for robustness testing in `qtrading/backtest/monte_carlo.py`
+- Strategy composition/multi-strategy framework and signal combination in `qtrading/strategy/composition.py`
 
 ### Tests
-- 43 unit tests passing covering all core components + new data pipeline + new strategies + walk-forward analysis
+- 43 unit tests passing (all core + data pipeline + strategies + walk-forward)
 - Test files: `qtrading/tests/test_core.py`, `qtrading/tests/test_data_pipeline.py`
-- All strategies registered in StrategyRegistry: `sma_crossover`, `bollinger_bands`, `macd`, `momentum`, `mean_reversion`, `rsi_strategy`
 
 ### Configuration
-- `config/settings.yaml` - Centralized configuration for all modules
-- `pyproject.toml` - Package metadata, dependencies, tool config (ruff, mypy)
+- `config/settings.yaml` - Centralized configuration
+- `pyproject.toml` - Package metadata, dependencies, tool config
 
 ## Next Steps for Next Agent
 
-### Priority 1: Strategy Development (Remaining)
-- [x] Add more built-in strategies (Bollinger Bands, MACD, Momentum) - **DONE**
-- [ ] Implement strategy parameter optimization (walk-forward, genetic algorithms) - **Walk-forward DONE**
-- [ ] Add strategy composition/multi-strategy framework
-- [ ] Implement signal combination and conflict resolution
-
-### Priority 2: Advanced Backtesting
-- [x] Add walk-forward analysis - **DONE**
-- [ ] Implement Monte Carlo simulation for robustness testing
-- [ ] Add transaction cost modeling (slippage, latency, partial fills)
+### Priority 1: Advanced Backtesting (Remaining)
 - [ ] Add regime detection and regime-specific backtesting
+- [ ] Enhance Monte Carlo simulation with correlation structure and fat-tailed distributions
+- [ ] Add benchmark comparison and performance attribution
 
-### Priority 3: Risk Management Enhancement
+### Priority 2: Risk Management Enhancement
 - [ ] Implement portfolio-level risk limits (sector, correlation, factor exposure)
 - [ ] Add dynamic position sizing (Kelly criterion, volatility targeting)
 - [ ] Implement stress testing and scenario analysis
 - [ ] Add real-time risk monitoring dashboard
 
-### Priority 4: Live Trading Infrastructure
+### Priority 3: Live Trading Infrastructure
 - [ ] Implement paper trading mode with simulated exchange
 - [ ] Add order management system (OMS) with order lifecycle tracking
 - [ ] Implement smart order routing
 - [ ] Add execution algorithms (TWAP, VWAP, POV)
 
-### Priority 5: Production Readiness
-- [ ] Add database migrations (Alembic) - already in dependencies
+### Priority 4: Production Readiness
+- [ ] Add database migrations (Alembic)
 - [ ] Implement proper secrets management
 - [ ] Add CI/CD pipeline with automated testing
 - [ ] Implement comprehensive logging and audit trail
 - [ ] Add Grafana dashboards for monitoring
 
-### Priority 6: Research & ML Integration
+### Priority 5: Research & ML Integration
 - [ ] Add feature engineering pipeline
 - [ ] Implement ML model training and inference pipeline
 - [ ] Add alternative data integration (sentiment, on-chain, macro)
@@ -77,22 +53,9 @@ Repository now contains a complete foundational quantitative trading system with
 
 ## Testing Commands
 ```bash
-# Run tests
-python -m pytest qtrading/tests/ -v
-
-# Lint
-python -m ruff check qtrading/
-
-# Type check
-python -m mypy qtrading/
+export PATH="$HOME/.local/bin:$PATH"
+cd /home/runner/work/Quantitative-Trading/Quantitative-Trading
+python3 -m pytest qtrading/tests/ -v --asyncio-mode=auto
+python3 -m ruff check qtrading/
+python3 -m mypy qtrading/ --ignore-missing-imports
 ```
-
-## Architecture Notes
-- All modules use dependency injection via config
-- Async-first design for data and execution
-- Decimal for all financial calculations
-- Strategy registry pattern for extensibility
-- Event-driven backtesting engine
-- SQLAlchemy-based persistent storage with SQLite
-- Data validation pipeline for quality assurance
-- Walk-forward analysis with rolling and anchored window support for robust parameter optimization

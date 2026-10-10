@@ -1,9 +1,8 @@
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
-from typing import Optional
 
-from qtrading.strategy import Order, OrderSide, OrderType
+from qtrading.strategy import Order, OrderSide, SignalType
 
 
 class CostModelType(StrEnum):
@@ -125,7 +124,6 @@ class TransactionCostModel:
         fill_price: Decimal,
         fill_ratio: Decimal,
     ) -> TransactionCost:
-        """Apply a partial fill ratio to an order."""
         filled_quantity = order.quantity * fill_ratio
         return self.calculate_costs(order, fill_price, filled_quantity)
 
@@ -137,52 +135,52 @@ class TransactionCostModel:
         return random.random() < self.config.partial_fill_probability
 
 
-class CostAggregator:
-    """Aggregates transaction costs across multiple orders."""
+class MultiStrategy:
+    """Combine multiple strategies into a single strategy with signal aggregation."""
 
     def __init__(self):
-        self.total_commission = Decimal("0")
-        self.total_slippage = Decimal("0")
-        self.total_latency_cost = Decimal("0")
-        self.total_cost = Decimal("0")
-        self.order_count = 0
-        self.partial_fill_count = 0
+        self.strategies: list = []
 
-    def add_cost(self, cost: TransactionCost) -> None:
-        self.total_commission += cost.commission
-        self.total_slippage += cost.slippage
-        self.total_latency_cost += cost.latency_cost
-        self.total_cost += cost.total_cost
-        self.order_count += 1
-        if cost.is_partial_fill:
-            self.partial_fill_count += 1
+    def add_strategy(self, strategy) -> "MultiStrategy":
+        self.strategies.append(strategy)
+        return self
 
-    def get_summary(self) -> dict:
-        return {
-            "total_commission": self.total_commission,
-            "total_slippage": self.total_slippage,
-            "total_latency_cost": self.total_latency_cost,
-            "total_cost": self.total_cost,
-            "order_count": self.order_count,
-            "partial_fill_count": self.partial_fill_count,
-            "avg_cost_per_order": self.total_cost / self.order_count if self.order_count > 0 else Decimal("0"),
-        }
+    def generate_signals(self, data):
+
+        if data.empty:
+            return []
+
+        combined_signals = []
+        for strategy in self.strategies:
+            try:
+                signals = strategy.generate_signals(data)
+                combined_signals.extend(signals)
+            except Exception:
+                continue
+        return combined_signals
+
+    def get_weight(self, symbol: str) -> float:
+        return 1.0 / len(self.strategies) if self.strategies else 0.0
 
 
-def create_cost_model(config: TransactionCostConfig | None = None) -> TransactionCostModel:
-    return TransactionCostModel(config)
+def combine_signals(
+    signals,
+    method: str = "majority",
+):
+    """Combine multiple signals using specified method."""
+    if not signals:
+        return None
 
-
-def create_tiered_cost_model(
-    commission_rate: Decimal = Decimal("0.001"),
-    slippage_rate: Decimal = Decimal("0.0005"),
-    tiers: list[tuple[Decimal, Decimal]] | None = None,
-) -> TransactionCostModel:
-    tiered_rates = [TieredCost(threshold=t[0], rate=t[1]) for t in (tiers or [])]
-    config = TransactionCostConfig(
-        model_type=CostModelType.TIERED,
-        commission_rate=commission_rate,
-        slippage_rate=slippage_rate,
-        tiered_rates=tiered_rates,
-    )
-    return TransactionCostModel(config)
+    if method == "majority":
+        buys = sum(1 for s in signals if s.signal == SignalType.BUY)
+        sells = sum(1 for s in signals if s.signal == SignalType.SELL)
+        if buys > sells and buys > 0:
+            return signals[0]
+        if sells > buys and sells > 0:
+            return signals[0]
+    elif method == "unanimous":
+        if all(s.signal == signals[0].signal for s in signals):
+            return signals[0]
+    elif method == "weighted":
+        return signals[0] if signals else None
+    return signals[0] if signals else None

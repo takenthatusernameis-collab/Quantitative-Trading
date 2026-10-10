@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
+from qtrading.backtest.monte_carlo import MonteCarloResult, MonteCarloSimulator  # noqa: F401
 from qtrading.backtest.walkforward import (
     WalkForwardAnalyzer,
     WalkForwardResult,
@@ -16,10 +17,8 @@ from qtrading.config import get_settings
 from qtrading.strategy import (
     Order,
     OrderSide,
-    OrderStatus,
     OrderType,
     Position,
-    Signal,
     SignalType,
     Strategy,
     StrategyContext,
@@ -113,7 +112,9 @@ class Portfolio:
                     strategy_id=position.strategy_id,
                 )
 
-    def execute_order(self, order: Order, fill_price: Decimal, current_time: datetime) -> Trade | None:
+    def execute_order(
+        self, order: Order, fill_price: Decimal, current_time: datetime
+    ) -> Trade | None:
         commission = fill_price * order.quantity * self.commission_rate
         slippage = fill_price * order.quantity * self.slippage_rate
         total_cost = fill_price * order.quantity + commission + slippage
@@ -128,7 +129,9 @@ class Portfolio:
                 pos = self.positions[order.symbol]
                 if pos.side == "long":
                     new_quantity = pos.quantity + order.quantity
-                    new_entry = (pos.entry_price * pos.quantity + fill_price * order.quantity) / new_quantity
+                    new_entry = (
+                        pos.entry_price * pos.quantity + fill_price * order.quantity
+                    ) / new_quantity
                     self.positions[order.symbol] = Position(
                         symbol=pos.symbol,
                         quantity=new_quantity,
@@ -143,7 +146,9 @@ class Portfolio:
                 else:
                     new_quantity = pos.quantity + order.quantity
                     if new_quantity == 0:
-                        realized = (pos.entry_price - fill_price) * abs(pos.quantity) - pos.realized_pnl
+                        realized = (pos.entry_price - fill_price) * abs(
+                            pos.quantity
+                        ) - pos.realized_pnl
                         trade = Trade(
                             symbol=order.symbol,
                             entry_time=pos.timestamp,
@@ -217,7 +222,9 @@ class Portfolio:
                 pos = self.positions[order.symbol]
                 if pos.side == "short":
                     new_quantity = pos.quantity - order.quantity
-                    new_entry = (pos.entry_price * abs(pos.quantity) + fill_price * order.quantity) / abs(new_quantity)
+                    new_entry = (
+                        pos.entry_price * abs(pos.quantity) + fill_price * order.quantity
+                    ) / abs(new_quantity)
                     self.positions[order.symbol] = Position(
                         symbol=pos.symbol,
                         quantity=new_quantity,
@@ -346,6 +353,7 @@ class BacktestEngine:
         end_date: datetime | None = None,
     ) -> BacktestResult:
         import asyncio
+
         all_timestamps = set()
         for df in market_data.values():
             if not df.empty:
@@ -391,7 +399,9 @@ class BacktestEngine:
                 order = None
                 if signal.signal_type == SignalType.BUY and not has_position:
                     available = self.portfolio.get_available_capital()
-                    position_value = available * Decimal(str(strategy.params.parameters.get("position_size", 0.1)))
+                    position_value = available * Decimal(
+                        str(strategy.params.parameters.get("position_size", 0.1))
+                    )
                     quantity = position_value / price
                     order = Order(
                         id=f"{strategy.params.name}_{signal.symbol}_{ts.timestamp()}",
@@ -403,7 +413,9 @@ class BacktestEngine:
                     )
                 elif signal.signal_type == SignalType.SELL and not has_position:
                     available = self.portfolio.get_available_capital()
-                    position_value = available * Decimal(str(strategy.params.parameters.get("position_size", 0.1)))
+                    position_value = available * Decimal(
+                        str(strategy.params.parameters.get("position_size", 0.1))
+                    )
                     quantity = position_value / price
                     order = Order(
                         id=f"{strategy.params.name}_{signal.symbol}_{ts.timestamp()}",
@@ -413,7 +425,11 @@ class BacktestEngine:
                         quantity=quantity,
                         strategy_id=strategy.params.name,
                     )
-                elif signal.signal_type == SignalType.CLOSE_LONG and has_position and position.quantity > 0:
+                elif (
+                    signal.signal_type == SignalType.CLOSE_LONG
+                    and has_position
+                    and position.quantity > 0
+                ):
                     order = Order(
                         id=f"{strategy.params.name}_{signal.symbol}_{ts.timestamp()}",
                         symbol=signal.symbol,
@@ -422,7 +438,11 @@ class BacktestEngine:
                         quantity=position.quantity,
                         strategy_id=strategy.params.name,
                     )
-                elif signal.signal_type == SignalType.CLOSE_SHORT and has_position and position.quantity < 0:
+                elif (
+                    signal.signal_type == SignalType.CLOSE_SHORT
+                    and has_position
+                    and position.quantity < 0
+                ):
                     order = Order(
                         id=f"{strategy.params.name}_{signal.symbol}_{ts.timestamp()}",
                         symbol=signal.symbol,
@@ -463,7 +483,11 @@ class BacktestEngine:
         return self._calculate_results()
 
     def _calculate_results(self) -> BacktestResult:
-        final_capital = self.portfolio.equity_curve[-1][1] if self.portfolio.equity_curve else self.initial_capital
+        final_capital = (
+            self.portfolio.equity_curve[-1][1]
+            if self.portfolio.equity_curve
+            else self.initial_capital
+        )
         total_return = final_capital - self.initial_capital
         total_return_pct = float(total_return / self.initial_capital * 100)
 
@@ -476,7 +500,9 @@ class BacktestEngine:
                 sharpe_ratio = float(np.mean(daily_returns) / np.std(daily_returns) * np.sqrt(252))
                 downside_returns = daily_returns[daily_returns < 0]
                 if len(downside_returns) > 0 and np.std(downside_returns) > 0:
-                    sortino_ratio = float(np.mean(daily_returns) / np.std(downside_returns) * np.sqrt(252))
+                    sortino_ratio = float(
+                        np.mean(daily_returns) / np.std(downside_returns) * np.sqrt(252)
+                    )
                 else:
                     sortino_ratio = 0.0
             else:
@@ -497,9 +523,19 @@ class BacktestEngine:
         winning_trades = [t for t in self.portfolio.trades if t.pnl and t.pnl > 0]
         losing_trades = [t for t in self.portfolio.trades if t.pnl and t.pnl <= 0]
 
-        win_rate = len(winning_trades) / len(self.portfolio.trades) * 100 if self.portfolio.trades else 0
-        avg_win = Decimal(str(np.mean([float(t.pnl) for t in winning_trades]))) if winning_trades else Decimal("0")
-        avg_loss = Decimal(str(np.mean([float(t.pnl) for t in losing_trades]))) if losing_trades else Decimal("0")
+        win_rate = (
+            len(winning_trades) / len(self.portfolio.trades) * 100 if self.portfolio.trades else 0
+        )
+        avg_win = (
+            Decimal(str(np.mean([float(t.pnl) for t in winning_trades])))
+            if winning_trades
+            else Decimal("0")
+        )
+        avg_loss = (
+            Decimal(str(np.mean([float(t.pnl) for t in losing_trades])))
+            if losing_trades
+            else Decimal("0")
+        )
 
         gross_profit = sum(float(t.pnl) for t in winning_trades) if winning_trades else 0
         gross_loss = abs(sum(float(t.pnl) for t in losing_trades)) if losing_trades else 1
