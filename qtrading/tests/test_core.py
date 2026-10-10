@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from qtrading.backtest import BacktestEngine, BacktestResult, Portfolio
+from qtrading.backtest import BacktestEngine, BacktestResult, Portfolio, WalkForwardAnalyzer
 from qtrading.config import (
     BacktestConfig,
     DataConfig,
@@ -182,7 +182,12 @@ class TestBuiltinStrategies:
         strategy = MeanReversionStrategy(StrategyParams(
             name="mr_test",
             symbols=["BTC/USDT"],
-            parameters={"lookback": 20, "entry_zscore": 2.0, "exit_zscore": 0.5, "position_size": 0.1},
+            parameters={
+                "lookback": 20,
+                "entry_zscore": 2.0,
+                "exit_zscore": 0.5,
+                "position_size": 0.1,
+            },
         ))
         signals = await strategy.run(context)
         assert isinstance(signals, list)
@@ -395,6 +400,111 @@ class TestConfig:
         )
         assert settings.trading.symbols == ["BTC/USDT"]
         assert settings.backtest.initial_capital == 100000
+
+
+class TestWalkForwardAnalyzer:
+    @pytest.fixture
+    def sample_market_data(self):
+        dates = pd.date_range("2024-01-01", periods=300, freq="1h")
+        np.random.seed(42)
+        trend = np.linspace(0, 5000, 300)
+        noise = np.cumsum(np.random.randn(300) * 100)
+        close = 50000 + trend + noise
+        df = pd.DataFrame({
+            "open": close + np.random.randn(300) * 10,
+            "high": close + np.abs(np.random.randn(300) * 50),
+            "low": close - np.abs(np.random.randn(300) * 50),
+            "close": close,
+            "volume": np.random.rand(300) * 100,
+        }, index=dates)
+        return {"BTC/USDT": df}
+
+    def test_walkforward_analyzer_initialization(self):
+        analyzer = WalkForwardAnalyzer(
+            SMACrossoverStrategy,
+            param_grid={"fast_period": [5, 10], "slow_period": [20, 30]},
+        )
+        assert analyzer.strategy_class == SMACrossoverStrategy
+        assert len(analyzer.param_grid) == 2
+
+    def test_generate_param_combinations(self):
+        analyzer = WalkForwardAnalyzer(
+            SMACrossoverStrategy,
+            param_grid={"fast_period": [5, 10], "slow_period": [20, 30]},
+        )
+        combinations = analyzer.generate_param_combinations()
+        assert len(combinations) == 4
+        assert {"fast_period": 5, "slow_period": 20} in combinations
+        assert {"fast_period": 10, "slow_period": 30} in combinations
+
+    def test_create_windows(self, sample_market_data):
+        analyzer = WalkForwardAnalyzer(
+            SMACrossoverStrategy,
+            param_grid={"fast_period": [5, 10], "slow_period": [20, 30]},
+        )
+        windows = analyzer.create_windows(
+            sample_market_data,
+            train_window_size=100,
+            test_window_size=50,
+            step_size=50,
+        )
+        assert len(windows) > 0
+        for window in windows:
+            assert window.train_start < window.train_end
+            assert window.test_start > window.train_end
+            assert window.test_end > window.test_start
+            assert "BTC/USDT" in window.train_data
+            assert "BTC/USDT" in window.test_data
+
+    def test_run_walkforward(self, sample_market_data):
+        analyzer = WalkForwardAnalyzer(
+            SMACrossoverStrategy,
+            param_grid={"fast_period": [5, 10], "slow_period": [20, 30]},
+            initial_capital=100000,
+        )
+        strategy_params = StrategyParams(
+            name="sma_test",
+            symbols=["BTC/USDT"],
+            parameters={"position_size": 0.1},
+        )
+        summary = analyzer.run_walkforward(
+            sample_market_data,
+            strategy_params,
+            train_window_size=100,
+            test_window_size=50,
+            step_size=50,
+        )
+        assert summary.total_windows > 0
+        assert len(summary.results) == summary.total_windows
+        assert isinstance(summary.aggregate_train_return, float)
+        assert isinstance(summary.aggregate_test_return, float)
+        assert isinstance(summary.aggregate_train_sharpe, float)
+        assert isinstance(summary.aggregate_test_sharpe, float)
+        assert isinstance(summary.parameter_stability, dict)
+
+    def test_run_anchored_walkforward(self, sample_market_data):
+        analyzer = WalkForwardAnalyzer(
+            SMACrossoverStrategy,
+            param_grid={"fast_period": [5, 10], "slow_period": [20, 30]},
+            initial_capital=100000,
+        )
+        strategy_params = StrategyParams(
+            name="sma_test",
+            symbols=["BTC/USDT"],
+            parameters={"position_size": 0.1},
+        )
+        summary = analyzer.run_anchored_walkforward(
+            sample_market_data,
+            strategy_params,
+            initial_train_size=100,
+            test_window_size=50,
+            step_size=50,
+        )
+        assert summary.total_windows > 0
+        assert len(summary.results) == summary.total_windows
+        for result in summary.results:
+            assert result.train_start == summary.results[0].train_start
+            assert result.best_params is not None
 
 
 if __name__ == "__main__":

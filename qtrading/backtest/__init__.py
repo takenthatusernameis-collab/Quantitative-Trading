@@ -1,12 +1,17 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 import numpy as np
 import pandas as pd
 from loguru import logger
 
+from qtrading.backtest.walkforward import (
+    WalkForwardAnalyzer,
+    WalkForwardResult,
+    WalkForwardSummary,
+    WalkForwardWindow,
+)
 from qtrading.config import get_settings
 from qtrading.strategy import (
     Order,
@@ -521,3 +526,15 @@ class BacktestEngine:
             equity_curve=self.portfolio.equity_curve,
             daily_returns=daily_returns.tolist() if len(daily_returns) > 0 else [],
         )
+
+
+__all__ = [
+    "Trade",
+    "BacktestResult",
+    "Portfolio",
+    "BacktestEngine",
+    "WalkForwardAnalyzer",
+    "WalkForwardWindow",
+    "WalkForwardResult",
+    "WalkForwardSummary",
+]

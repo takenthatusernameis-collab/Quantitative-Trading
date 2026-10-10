@@ -24,8 +24,11 @@ Repository now contains a complete foundational quantitative trading system with
 2. **MACD Strategy** - Trend following using MACD line and signal line crossovers with histogram
 3. **Momentum Strategy** - Price momentum over lookback period with holding period exit logic
 
+### Recent Enhancements (Advanced Backtesting - COMPLETED)
+1. **Walk-Forward Analysis** (`qtrading/backtest/walkforward.py`) - Rolling and anchored walk-forward optimization with parameter grid search, supporting Sharpe ratio, return, and custom metrics optimization
+
 ### Tests
-- 38 unit tests passing covering all core components + new data pipeline + new strategies
+- 43 unit tests passing covering all core components + new data pipeline + new strategies + walk-forward analysis
 - Test files: `qtrading/tests/test_core.py`, `qtrading/tests/test_data_pipeline.py`
 - All strategies registered in StrategyRegistry: `sma_crossover`, `bollinger_bands`, `macd`, `momentum`, `mean_reversion`, `rsi_strategy`
 
@@ -37,12 +40,12 @@ Repository now contains a complete foundational quantitative trading system with
 
 ### Priority 1: Strategy Development (Remaining)
 - [x] Add more built-in strategies (Bollinger Bands, MACD, Momentum) - **DONE**
-- [ ] Implement strategy parameter optimization (walk-forward, genetic algorithms)
+- [ ] Implement strategy parameter optimization (walk-forward, genetic algorithms) - **Walk-forward DONE**
 - [ ] Add strategy composition/multi-strategy framework
 - [ ] Implement signal combination and conflict resolution
 
 ### Priority 2: Advanced Backtesting
-- [ ] Add walk-forward analysis
+- [x] Add walk-forward analysis - **DONE**
 - [ ] Implement Monte Carlo simulation for robustness testing
 - [ ] Add transaction cost modeling (slippage, latency, partial fills)
 - [ ] Add regime detection and regime-specific backtesting
@@ -92,3 +95,4 @@ python -m mypy qtrading/
 - Event-driven backtesting engine
 - SQLAlchemy-based persistent storage with SQLite
 - Data validation pipeline for quality assurance
+- Walk-forward analysis with rolling and anchored window support for robust parameter optimization
