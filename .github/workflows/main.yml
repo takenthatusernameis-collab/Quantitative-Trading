@@ -1,0 +1,153 @@
+name: Kilo 
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      agents:
+        description: "Number of sequential Kilo agents"
+        required: false
+        default: "1000"
+        type: number
+
+permissions: write-all
+
+concurrency:
+  group: kilo-repository
+  cancel-in-progress: false
+
+jobs:
+  kilo:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+
+      - env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Maximum Kilo tool permissions; GitHub credentials remain repository-scoped.
+
+          export HOME="$RUNNER_TEMP/kilo-home"
+          mkdir -p "$HOME/.config/kilo"
+
+          cat > "$HOME/.config/kilo/kilo.json" <<'EOF'
+          {"$schema":"https://app.kilo.ai/config.json","permission":"allow"}
+          EOF
+
+          npm install --prefix "$RUNNER_TEMP/kilo" @kilocode/cli@7.7.1
+          export PATH="$RUNNER_TEMP/kilo/node_modules/.bin:$PATH"
+
+          git config user.name "kilo-autonomous"
+          git config user.email "kilo-autonomous@users.noreply.github.com"
+
+          agents="${{ inputs.agents || '1000' }}"
+          command="Execute the task assigned by the previous agent and prepare a task for the next agent !"
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::GitHub did not provide the repository default branch."
+            exit 1
+          fi
+
+          echo "Repository default branch: $DEFAULT_BRANCH"
+
+          heartbeat() {
+            while true; do
+              printf '[heartbeat] %sZ\n' "$(date -u +%Y-%m-%dT%H:%M:%S)"
+              sleep 60
+            done
+          }
+
+          heartbeat &
+          heartbeat_pid=$!
+          trap 'kill "$heartbeat_pid" 2>/dev/null || true' EXIT
+
+          cutoff_epoch=$(($(date +%s) + 355 * 60))
+          failed=0
+          cutoff=0
+
+          for _ in $(seq 1 "$agents"); do
+            remaining=$((cutoff_epoch - $(date +%s)))
+
+            if [ "$remaining" -le 0 ]; then
+              cutoff=1
+              break
+            fi
+
+            set +e
+            timeout \
+              --signal=TERM \
+              --kill-after=10s \
+              "${remaining}s" \
+              kilo run \
+                --model kilo/kilo-auto/free \
+                --auto \
+                "$command"
+            rc=$?
+            set -e
+
+            if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+              cutoff=1
+            elif [ "$rc" -ne 0 ]; then
+              failed=1
+            fi
+
+            git add -A
+            git diff --cached --check
+
+            if ! git diff --cached --quiet; then
+              git commit --allow-empty-message -m ""
+            fi
+
+            # Deterministic repository-level persistence: reconcile any remote
+            # advancement before every push, then verify that the remote points
+            # to exactly the commit produced by this runner.
+            persisted=0
+            for push_attempt in 1 2 3 4 5; do
+              git fetch origin "$DEFAULT_BRANCH"
+
+              if ! git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" HEAD; then
+                if ! git rebase "origin/$DEFAULT_BRANCH"; then
+                  git rebase --abort >/dev/null 2>&1 || true
+                  if ! git merge --no-edit -X ours "origin/$DEFAULT_BRANCH"; then
+                    git merge --abort >/dev/null 2>&1 || true
+                    echo "::warning::Remote changes could not be reconciled cleanly on persistence attempt $push_attempt."
+                    continue
+                  fi
+                fi
+              fi
+
+              if git push origin "HEAD:$DEFAULT_BRANCH"; then
+                remote_sha="$(git ls-remote origin "refs/heads/$DEFAULT_BRANCH" | awk '{print $1}')"
+                local_sha="$(git rev-parse HEAD)"
+                if [ "$remote_sha" = "$local_sha" ]; then
+                  persisted=1
+                  echo "Repository persistence verified at $remote_sha."
+                  break
+                fi
+                echo "::warning::Remote $DEFAULT_BRANCH moved after push verification on attempt $push_attempt."
+              else
+                echo "::warning::Remote $DEFAULT_BRANCH advanced during push attempt $push_attempt; refetching and reconciling."
+              fi
+            done
+
+            if [ "$persisted" -ne 1 ]; then
+              echo "::error::Unable to deterministically persist this Kilo checkpoint after five reconciliation attempts."
+              exit 1
+            fi
+
+            if [ "$cutoff" -eq 1 ]; then
+              break
+            fi
+          done
+
+          if [ "$cutoff" -eq 1 ]; then
+            echo "355-minute cutoff reached; progress checkpointed."
+          fi
+
+          [ "$failed" -eq 0 ]
