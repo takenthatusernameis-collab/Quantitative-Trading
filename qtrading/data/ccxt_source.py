@@ -167,7 +167,9 @@ class CCXTDataSource(DataSource):
                     bid=Decimal(str(ticker["bid"])) if ticker["bid"] else Decimal("0"),
                     ask=Decimal(str(ticker["ask"])) if ticker["ask"] else Decimal("0"),
                     last=Decimal(str(ticker["last"])) if ticker["last"] else Decimal("0"),
-                    volume=Decimal(str(ticker["baseVolume"])) if ticker["baseVolume"] else Decimal("0"),
+                    volume=Decimal(str(ticker["baseVolume"]))
+                    if ticker["baseVolume"]
+                    else Decimal("0"),
                     timestamp=datetime.fromtimestamp(ticker["timestamp"] / 1000, tz=UTC)
                     if ticker["timestamp"]
                     else datetime.now(UTC),
@@ -193,6 +195,7 @@ class CCXTDataSource(DataSource):
 class DataManager:
     def __init__(self, config_path: str | None = None):
         from qtrading.config import get_settings
+
         self.settings = get_settings(config_path)
         self.sources: dict[Exchange, CCXTDataSource] = {}
         self.cache = DataCache(self.settings.data.cache_dir)

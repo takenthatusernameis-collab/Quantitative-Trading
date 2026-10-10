@@ -131,6 +131,7 @@ class DataSource(ABC):
 class DataCache:
     def __init__(self, cache_dir: str = "./data/cache"):
         from pathlib import Path
+
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -141,17 +142,22 @@ class DataCache:
     def save(self, data: list[OHLCV]) -> None:
         if not data:
             return
-        df = pd.DataFrame([{
-            "timestamp": ohlcv.timestamp,
-            "open": float(ohlcv.open),
-            "high": float(ohlcv.high),
-            "low": float(ohlcv.low),
-            "close": float(ohlcv.close),
-            "volume": float(ohlcv.volume),
-            "symbol": ohlcv.symbol,
-            "timeframe": ohlcv.timeframe.value,
-            "exchange": ohlcv.exchange.value,
-        } for ohlcv in data])
+        df = pd.DataFrame(
+            [
+                {
+                    "timestamp": ohlcv.timestamp,
+                    "open": float(ohlcv.open),
+                    "high": float(ohlcv.high),
+                    "low": float(ohlcv.low),
+                    "close": float(ohlcv.close),
+                    "volume": float(ohlcv.volume),
+                    "symbol": ohlcv.symbol,
+                    "timeframe": ohlcv.timeframe.value,
+                    "exchange": ohlcv.exchange.value,
+                }
+                for ohlcv in data
+            ]
+        )
         cache_path = self._get_cache_path(data[0].symbol, data[0].timeframe, data[0].exchange)
         df.to_parquet(cache_path, index=False)
 

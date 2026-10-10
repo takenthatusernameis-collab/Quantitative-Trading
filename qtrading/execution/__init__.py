@@ -1,12 +1,10 @@
 import asyncio
-import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum, StrEnum
-from typing import Optional
+from enum import StrEnum
 
 from loguru import logger
 
@@ -56,7 +54,11 @@ class ExecutionEngine(ABC):
 
 
 class SimulationEngine(ExecutionEngine):
-    def __init__(self, slippage_rate: Decimal = Decimal("0.0005"), commission_rate: Decimal = Decimal("0.001")):
+    def __init__(
+        self,
+        slippage_rate: Decimal = Decimal("0.0005"),
+        commission_rate: Decimal = Decimal("0.001"),
+    ):
         self.slippage_rate = slippage_rate
         self.commission_rate = commission_rate
         self.orders: dict[str, ExecutionReport] = {}
@@ -82,7 +84,11 @@ class SimulationEngine(ExecutionEngine):
             )
 
         if order.order_type == OrderType.MARKET:
-            fill_price = price * (Decimal("1") + self.slippage_rate) if order.side == OrderSide.BUY else price * (Decimal("1") - self.slippage_rate)
+            fill_price = (
+                price * (Decimal("1") + self.slippage_rate)
+                if order.side == OrderSide.BUY
+                else price * (Decimal("1") - self.slippage_rate)
+            )
             filled_qty = order.quantity
         elif order.order_type == OrderType.LIMIT:
             if order.price is None:
@@ -98,7 +104,12 @@ class SimulationEngine(ExecutionEngine):
                     timestamp=datetime.now(),
                     error_message="Limit price required",
                 )
-            if order.side == OrderSide.BUY and price <= order.price or order.side == OrderSide.SELL and price >= order.price:
+            if (
+                order.side == OrderSide.BUY
+                and price <= order.price
+                or order.side == OrderSide.SELL
+                and price >= order.price
+            ):
                 fill_price = order.price
                 filled_qty = order.quantity
             else:
@@ -150,7 +161,9 @@ class SimulationEngine(ExecutionEngine):
         return self.orders.get(order_id)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[ExecutionReport]:
-        orders = [o for o in self.orders.values() if o.status in (OrderStatus.OPEN, OrderStatus.PENDING)]
+        orders = [
+            o for o in self.orders.values() if o.status in (OrderStatus.OPEN, OrderStatus.PENDING)
+        ]
         if symbol:
             orders = [o for o in orders if o.symbol == symbol]
         return orders
@@ -234,13 +247,21 @@ class PortfolioManager:
         self.trade_history.append(report)
 
         if report.side == OrderSide.BUY:
-            cost = report.average_price * report.filled_quantity + report.commission + report.slippage
+            cost = (
+                report.average_price * report.filled_quantity + report.commission + report.slippage
+            )
             self.cash -= cost
-            self.positions[report.symbol] = self.positions.get(report.symbol, Decimal("0")) + report.filled_quantity
+            self.positions[report.symbol] = (
+                self.positions.get(report.symbol, Decimal("0")) + report.filled_quantity
+            )
         else:
-            proceeds = report.average_price * report.filled_quantity - report.commission - report.slippage
+            proceeds = (
+                report.average_price * report.filled_quantity - report.commission - report.slippage
+            )
             self.cash += proceeds
-            self.positions[report.symbol] = self.positions.get(report.symbol, Decimal("0")) - report.filled_quantity
+            self.positions[report.symbol] = (
+                self.positions.get(report.symbol, Decimal("0")) - report.filled_quantity
+            )
 
             if self.positions[report.symbol] == 0:
                 del self.positions[report.symbol]

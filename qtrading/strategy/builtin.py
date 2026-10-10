@@ -46,36 +46,40 @@ class SMACrossoverStrategy(Strategy):
             has_position = position is not None and position.quantity != 0
 
             if prev_fast <= prev_slow and current_fast > current_slow and not has_position:
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.BUY,
-                    strength=1.0,
-                    timestamp=context.current_time,
-                    price=current_price,
-                    metadata={
-                        "strategy": "sma_crossover",
-                        "fast": current_fast,
-                        "slow": current_slow
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.BUY,
+                        strength=1.0,
+                        timestamp=context.current_time,
+                        price=current_price,
+                        metadata={
+                            "strategy": "sma_crossover",
+                            "fast": current_fast,
+                            "slow": current_slow,
+                        },
+                    )
+                )
             elif (
                 prev_fast >= prev_slow
                 and current_fast < current_slow
                 and has_position
                 and position.side == "long"
             ):
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.CLOSE_LONG,
-                    strength=1.0,
-                    timestamp=context.current_time,
-                    price=current_price,
-                    metadata={
-                        "strategy": "sma_crossover",
-                        "fast": current_fast,
-                        "slow": current_slow
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.CLOSE_LONG,
+                        strength=1.0,
+                        timestamp=context.current_time,
+                        price=current_price,
+                        metadata={
+                            "strategy": "sma_crossover",
+                            "fast": current_fast,
+                            "slow": current_slow,
+                        },
+                    )
+                )
 
         self.signals.extend(signals)
         return signals
@@ -125,62 +129,70 @@ class BollingerBandsStrategy(Strategy):
 
             if current_price_float < lower_band and not has_long:
                 strength = min((lower_band - current_price_float) / lower_band, 2.0)
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.BUY,
-                    strength=strength,
-                    timestamp=context.current_time,
-                    price=current_price,
-                    metadata={
-                        "strategy": "bollinger_bands",
-                        "price": current_price_float,
-                        "upper": upper_band,
-                        "lower": lower_band,
-                        "sma": sma
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.BUY,
+                        strength=strength,
+                        timestamp=context.current_time,
+                        price=current_price,
+                        metadata={
+                            "strategy": "bollinger_bands",
+                            "price": current_price_float,
+                            "upper": upper_band,
+                            "lower": lower_band,
+                            "sma": sma,
+                        },
+                    )
+                )
             elif current_price_float > upper_band and not has_short:
                 strength = min((current_price_float - upper_band) / upper_band, 2.0)
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.SELL,
-                    strength=strength,
-                    timestamp=context.current_time,
-                    price=current_price,
-                    metadata={
-                        "strategy": "bollinger_bands",
-                        "price": current_price_float,
-                        "upper": upper_band,
-                        "lower": lower_band,
-                        "sma": sma
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.SELL,
+                        strength=strength,
+                        timestamp=context.current_time,
+                        price=current_price,
+                        metadata={
+                            "strategy": "bollinger_bands",
+                            "price": current_price_float,
+                            "upper": upper_band,
+                            "lower": lower_band,
+                            "sma": sma,
+                        },
+                    )
+                )
             elif has_long and current_price_float > sma:
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.CLOSE_LONG,
-                    strength=1.0,
-                    timestamp=context.current_time,
-                    price=current_price,
-                    metadata={
-                        "strategy": "bollinger_bands",
-                        "price": current_price_float,
-                        "sma": sma
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.CLOSE_LONG,
+                        strength=1.0,
+                        timestamp=context.current_time,
+                        price=current_price,
+                        metadata={
+                            "strategy": "bollinger_bands",
+                            "price": current_price_float,
+                            "sma": sma,
+                        },
+                    )
+                )
             elif has_short and current_price_float < sma:
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.CLOSE_SHORT,
-                    strength=1.0,
-                    timestamp=context.current_time,
-                    price=current_price,
-                    metadata={
-                        "strategy": "bollinger_bands",
-                        "price": current_price_float,
-                        "sma": sma
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.CLOSE_SHORT,
+                        strength=1.0,
+                        timestamp=context.current_time,
+                        price=current_price,
+                        metadata={
+                            "strategy": "bollinger_bands",
+                            "price": current_price_float,
+                            "sma": sma,
+                        },
+                    )
+                )
 
         self.signals.extend(signals)
         return signals
@@ -240,8 +252,9 @@ class MACDStrategy(Strategy):
             has_short = position is not None and position.quantity < 0
 
             if prev_macd <= prev_signal and current_macd > current_signal and not has_long:
-                    strength = min(abs(current_histogram) / (abs(current_signal) + 1e-10), 2.0)
-                    signals.append(Signal(
+                strength = min(abs(current_histogram) / (abs(current_signal) + 1e-10), 2.0)
+                signals.append(
+                    Signal(
                         symbol=symbol,
                         signal_type=SignalType.BUY,
                         strength=strength,
@@ -251,39 +264,44 @@ class MACDStrategy(Strategy):
                             "strategy": "macd",
                             "macd": current_macd,
                             "signal": current_signal,
-                            "histogram": current_histogram
-                        }
-                    ))
+                            "histogram": current_histogram,
+                        },
+                    )
+                )
             elif prev_macd >= prev_signal and current_macd < current_signal:
                 if has_long:
-                    signals.append(Signal(
-                        symbol=symbol,
-                        signal_type=SignalType.CLOSE_LONG,
-                        strength=1.0,
-                        timestamp=context.current_time,
-                        price=current_price,
-                        metadata={
-                            "strategy": "macd",
-                            "macd": current_macd,
-                            "signal": current_signal,
-                            "histogram": current_histogram
-                        }
-                    ))
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            signal_type=SignalType.CLOSE_LONG,
+                            strength=1.0,
+                            timestamp=context.current_time,
+                            price=current_price,
+                            metadata={
+                                "strategy": "macd",
+                                "macd": current_macd,
+                                "signal": current_signal,
+                                "histogram": current_histogram,
+                            },
+                        )
+                    )
                 elif not has_short:
                     strength = min(abs(current_histogram) / (abs(current_signal) + 1e-10), 2.0)
-                    signals.append(Signal(
-                        symbol=symbol,
-                        signal_type=SignalType.SELL,
-                        strength=strength,
-                        timestamp=context.current_time,
-                        price=current_price,
-                        metadata={
-                            "strategy": "macd",
-                            "macd": current_macd,
-                            "signal": current_signal,
-                            "histogram": current_histogram
-                        }
-                    ))
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            signal_type=SignalType.SELL,
+                            strength=strength,
+                            timestamp=context.current_time,
+                            price=current_price,
+                            metadata={
+                                "strategy": "macd",
+                                "macd": current_macd,
+                                "signal": current_signal,
+                                "histogram": current_histogram,
+                            },
+                        )
+                    )
 
         self.signals.extend(signals)
         return signals
@@ -334,64 +352,72 @@ class MomentumStrategy(Strategy):
                 self._entry_bars[symbol] = 0
 
             if momentum > 0.02 and not has_long and not has_short:
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.BUY,
-                    strength=min(abs(momentum) * 10, 2.0),
-                    timestamp=context.current_time,
-                    price=current_price,
-                    metadata={
-                        "strategy": "momentum",
-                        "momentum": momentum,
-                        "lookback": self.lookback
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.BUY,
+                        strength=min(abs(momentum) * 10, 2.0),
+                        timestamp=context.current_time,
+                        price=current_price,
+                        metadata={
+                            "strategy": "momentum",
+                            "momentum": momentum,
+                            "lookback": self.lookback,
+                        },
+                    )
+                )
                 self._entry_bars[symbol] = 0
             elif momentum < -0.02 and not has_short and not has_long:
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.SELL,
-                    strength=min(abs(momentum) * 10, 2.0),
-                    timestamp=context.current_time,
-                    price=current_price,
-                    metadata={
-                        "strategy": "momentum",
-                        "momentum": momentum,
-                        "lookback": self.lookback
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.SELL,
+                        strength=min(abs(momentum) * 10, 2.0),
+                        timestamp=context.current_time,
+                        price=current_price,
+                        metadata={
+                            "strategy": "momentum",
+                            "momentum": momentum,
+                            "lookback": self.lookback,
+                        },
+                    )
+                )
                 self._entry_bars[symbol] = 0
             elif has_long:
                 self._entry_bars[symbol] += 1
                 if self._entry_bars[symbol] >= self.holding_period or momentum < 0:
-                    signals.append(Signal(
-                        symbol=symbol,
-                        signal_type=SignalType.CLOSE_LONG,
-                        strength=1.0,
-                        timestamp=context.current_time,
-                        price=current_price,
-                        metadata={
-                            "strategy": "momentum",
-                            "momentum": momentum,
-                            "bars_held": self._entry_bars[symbol]
-                        }
-                    ))
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            signal_type=SignalType.CLOSE_LONG,
+                            strength=1.0,
+                            timestamp=context.current_time,
+                            price=current_price,
+                            metadata={
+                                "strategy": "momentum",
+                                "momentum": momentum,
+                                "bars_held": self._entry_bars[symbol],
+                            },
+                        )
+                    )
                     self._entry_bars[symbol] = 0
             elif has_short:
                 self._entry_bars[symbol] += 1
                 if self._entry_bars[symbol] >= self.holding_period or momentum > 0:
-                    signals.append(Signal(
-                        symbol=symbol,
-                        signal_type=SignalType.CLOSE_SHORT,
-                        strength=1.0,
-                        timestamp=context.current_time,
-                        price=current_price,
-                        metadata={
-                            "strategy": "momentum",
-                            "momentum": momentum,
-                            "bars_held": self._entry_bars[symbol]
-                        }
-                    ))
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            signal_type=SignalType.CLOSE_SHORT,
+                            strength=1.0,
+                            timestamp=context.current_time,
+                            price=current_price,
+                            metadata={
+                                "strategy": "momentum",
+                                "momentum": momentum,
+                                "bars_held": self._entry_bars[symbol],
+                            },
+                        )
+                    )
                     self._entry_bars[symbol] = 0
 
         self.signals.extend(signals)
@@ -440,57 +466,59 @@ class MeanReversionStrategy(Strategy):
             has_short = position is not None and position.quantity < 0
 
             if zscore < -self.entry_zscore and not has_long:
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.BUY,
-                    strength=min(abs(zscore) / self.entry_zscore, 2.0),
-                    timestamp=context.current_time,
-                    price=context.get_price(symbol),
-                    metadata={
-                        "strategy": "mean_reversion",
-                        "zscore": zscore,
-                        "mean": mean,
-                        "std": std
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.BUY,
+                        strength=min(abs(zscore) / self.entry_zscore, 2.0),
+                        timestamp=context.current_time,
+                        price=context.get_price(symbol),
+                        metadata={
+                            "strategy": "mean_reversion",
+                            "zscore": zscore,
+                            "mean": mean,
+                            "std": std,
+                        },
+                    )
+                )
             elif zscore > self.entry_zscore and not has_short:
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.SELL,
-                    strength=min(abs(zscore) / self.entry_zscore, 2.0),
-                    timestamp=context.current_time,
-                    price=context.get_price(symbol),
-                    metadata={
-                        "strategy": "mean_reversion",
-                        "zscore": zscore,
-                        "mean": mean,
-                        "std": std
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.SELL,
+                        strength=min(abs(zscore) / self.entry_zscore, 2.0),
+                        timestamp=context.current_time,
+                        price=context.get_price(symbol),
+                        metadata={
+                            "strategy": "mean_reversion",
+                            "zscore": zscore,
+                            "mean": mean,
+                            "std": std,
+                        },
+                    )
+                )
             elif has_long and zscore > -self.exit_zscore:
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.CLOSE_LONG,
-                    strength=1.0,
-                    timestamp=context.current_time,
-                    price=context.get_price(symbol),
-                    metadata={
-                        "strategy": "mean_reversion",
-                        "zscore": zscore
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.CLOSE_LONG,
+                        strength=1.0,
+                        timestamp=context.current_time,
+                        price=context.get_price(symbol),
+                        metadata={"strategy": "mean_reversion", "zscore": zscore},
+                    )
+                )
             elif has_short and zscore < self.exit_zscore:
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.CLOSE_SHORT,
-                    strength=1.0,
-                    timestamp=context.current_time,
-                    price=context.get_price(symbol),
-                    metadata={
-                        "strategy": "mean_reversion",
-                        "zscore": zscore
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.CLOSE_SHORT,
+                        strength=1.0,
+                        timestamp=context.current_time,
+                        price=context.get_price(symbol),
+                        metadata={"strategy": "mean_reversion", "zscore": zscore},
+                    )
+                )
 
         self.signals.extend(signals)
         return signals
@@ -542,41 +570,49 @@ class RSIStrategy(Strategy):
             has_short = position is not None and position.quantity < 0
 
             if rsi < self.oversold and not has_long:
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.BUY,
-                    strength=(self.oversold - rsi) / self.oversold,
-                    timestamp=context.current_time,
-                    price=current_price,
-                    metadata={"strategy": "rsi", "rsi": rsi}
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.BUY,
+                        strength=(self.oversold - rsi) / self.oversold,
+                        timestamp=context.current_time,
+                        price=current_price,
+                        metadata={"strategy": "rsi", "rsi": rsi},
+                    )
+                )
             elif rsi > self.overbought and not has_short:
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.SELL,
-                    strength=(rsi - self.overbought) / (100 - self.overbought),
-                    timestamp=context.current_time,
-                    price=current_price,
-                    metadata={"strategy": "rsi", "rsi": rsi}
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.SELL,
+                        strength=(rsi - self.overbought) / (100 - self.overbought),
+                        timestamp=context.current_time,
+                        price=current_price,
+                        metadata={"strategy": "rsi", "rsi": rsi},
+                    )
+                )
             elif has_long and rsi > 50:
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.CLOSE_LONG,
-                    strength=1.0,
-                    timestamp=context.current_time,
-                    price=current_price,
-                    metadata={"strategy": "rsi", "rsi": rsi}
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.CLOSE_LONG,
+                        strength=1.0,
+                        timestamp=context.current_time,
+                        price=current_price,
+                        metadata={"strategy": "rsi", "rsi": rsi},
+                    )
+                )
             elif has_short and rsi < 50:
-                signals.append(Signal(
-                    symbol=symbol,
-                    signal_type=SignalType.CLOSE_SHORT,
-                    strength=1.0,
-                    timestamp=context.current_time,
-                    price=current_price,
-                    metadata={"strategy": "rsi", "rsi": rsi}
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        signal_type=SignalType.CLOSE_SHORT,
+                        strength=1.0,
+                        timestamp=context.current_time,
+                        price=current_price,
+                        metadata={"strategy": "rsi", "rsi": rsi},
+                    )
+                )
 
         self.signals.extend(signals)
         return signals

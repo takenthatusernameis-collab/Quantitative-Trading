@@ -1,7 +1,6 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -88,7 +87,11 @@ class RiskManager:
 
     def check_daily_loss(self, portfolio_value: Decimal) -> tuple[bool, str | None]:
         daily_pnl = self.get_daily_pnl(portfolio_value)
-        max_loss = self.daily_start_value * self.limits.max_daily_loss if self.daily_start_value else Decimal("0")
+        max_loss = (
+            self.daily_start_value * self.limits.max_daily_loss
+            if self.daily_start_value
+            else Decimal("0")
+        )
 
         if daily_pnl < -max_loss:
             return False, f"Daily loss limit exceeded: {daily_pnl} < -{max_loss}"
@@ -120,7 +123,11 @@ class RiskManager:
 
             corr = new_returns.loc[common_idx].corr(existing_returns.loc[common_idx])
             if abs(corr) > self.limits.correlation_threshold:
-                return False, f"High correlation with {symbol}: {corr:.2f} > {self.limits.correlation_threshold}"
+                msg = (
+                    f"High correlation with {symbol}: {corr:.2f} > "
+                    f"{self.limits.correlation_threshold}"
+                )
+                return (False, msg)
 
         return True, None
 
@@ -173,11 +180,15 @@ class RiskManager:
         if order.side in (OrderSide.BUY, OrderSide.SELL):
             price = order.price or Decimal("0")
             if price > 0:
-                ok, err = self.check_position_size(order.symbol, order.quantity, price, portfolio_value)
+                ok, err = self.check_position_size(
+                    order.symbol, order.quantity, price, portfolio_value
+                )
                 if not ok:
                     errors.append(err)
 
-                ok, err = self.check_correlation(order.symbol, order.quantity, price, current_positions, price_history)
+                ok, err = self.check_correlation(
+                    order.symbol, order.quantity, price, current_positions, price_history
+                )
                 if not ok:
                     errors.append(err)
 
@@ -206,8 +217,11 @@ class RiskManager:
             max_correlation=0.0,
             position_count=len(positions),
             total_exposure=sum(abs(p.quantity) * p.current_price for p in positions.values()),
-            leverage=float(sum(abs(p.quantity) * p.current_price for p in positions.values()) / portfolio_value)
-            if portfolio_value > 0 else 0.0,
+            leverage=float(
+                sum(abs(p.quantity) * p.current_price for p in positions.values()) / portfolio_value
+            )
+            if portfolio_value > 0
+            else 0.0,
         )
 
     def should_reduce_positions(self, portfolio_value: Decimal) -> bool:
@@ -221,5 +235,7 @@ class RiskManager:
         elif drawdown >= self.limits.max_drawdown:
             return Decimal("0.0")
         else:
-            progress = (drawdown - self.limits.max_drawdown * Decimal("0.5")) / (self.limits.max_drawdown * Decimal("0.5"))
+            progress = (drawdown - self.limits.max_drawdown * Decimal("0.5")) / (
+                self.limits.max_drawdown * Decimal("0.5")
+            )
             return Decimal("1.0") - progress * Decimal("0.5")

@@ -127,14 +127,16 @@ class WalkForwardAnalyzer:
             if all(len(df) > 0 for df in train_data.values()) and all(
                 len(df) > 0 for df in test_data.values()
             ):
-                windows.append(WalkForwardWindow(
-                    train_start=train_start,
-                    train_end=train_end,
-                    test_start=test_start,
-                    test_end=test_end,
-                    train_data=train_data,
-                    test_data=test_data,
-                ))
+                windows.append(
+                    WalkForwardWindow(
+                        train_start=train_start,
+                        train_end=train_end,
+                        test_start=test_start,
+                        test_end=test_end,
+                        train_data=train_data,
+                        test_data=test_data,
+                    )
+                )
 
             window_idx += 1
 
@@ -172,6 +174,7 @@ class WalkForwardAnalyzer:
 
                 strategy = self.strategy_class(test_params)
                 from qtrading.backtest import BacktestEngine
+
                 engine = BacktestEngine(**self.engine_kwargs)
                 train_result = engine.run(strategy, window.train_data)
 
@@ -195,20 +198,23 @@ class WalkForwardAnalyzer:
 
             strategy = self.strategy_class(test_params)
             from qtrading.backtest import BacktestEngine
+
             engine = BacktestEngine(**self.engine_kwargs)
             test_result = engine.run(strategy, window.test_data)
 
-            results.append(WalkForwardResult(
-                window_idx=window_idx,
-                train_start=window.train_start,
-                train_end=window.train_end,
-                test_start=window.test_start,
-                test_end=window.test_end,
-                best_params=best_params,
-                train_result=best_train_result,
-                test_result=test_result,
-                param_combinations_tested=len(param_combinations),
-            ))
+            results.append(
+                WalkForwardResult(
+                    window_idx=window_idx,
+                    train_start=window.train_start,
+                    train_end=window.train_end,
+                    test_start=window.test_start,
+                    test_end=window.test_end,
+                    best_params=best_params,
+                    train_result=best_train_result,
+                    test_result=test_result,
+                    param_combinations_tested=len(param_combinations),
+                )
+            )
 
         return self._calculate_summary(results)
 
@@ -320,6 +326,7 @@ class WalkForwardAnalyzer:
 
                     strategy = self.strategy_class(test_params)
                     from qtrading.backtest import BacktestEngine
+
                     engine = BacktestEngine(**self.engine_kwargs)
                     train_result = engine.run(strategy, train_data)
 
@@ -341,20 +348,23 @@ class WalkForwardAnalyzer:
 
                     strategy = self.strategy_class(test_params)
                     from qtrading.backtest import BacktestEngine
+
                     engine = BacktestEngine(**self.engine_kwargs)
                     test_result = engine.run(strategy, test_data)
 
-                    results.append(WalkForwardResult(
-                        window_idx=window_idx,
-                        train_start=train_start,
-                        train_end=train_end,
-                        test_start=test_start,
-                        test_end=test_end,
-                        best_params=best_params,
-                        train_result=best_train_result,
-                        test_result=test_result,
-                        param_combinations_tested=len(param_combinations),
-                    ))
+                    results.append(
+                        WalkForwardResult(
+                            window_idx=window_idx,
+                            train_start=train_start,
+                            train_end=train_end,
+                            test_start=test_start,
+                            test_end=test_end,
+                            best_params=best_params,
+                            train_result=best_train_result,
+                            test_result=test_result,
+                            param_combinations_tested=len(param_combinations),
+                        )
+                    )
 
             train_end_idx += step_size
             window_idx += 1

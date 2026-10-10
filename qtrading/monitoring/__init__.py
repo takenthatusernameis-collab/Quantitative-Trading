@@ -1,14 +1,15 @@
 import asyncio
 import json
+import sys
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any
 
 from loguru import logger
-from prometheus_client import Counter, Gauge, Histogram, Summary, start_http_server
+from prometheus_client import Counter, Gauge, Histogram, start_http_server
 
 from qtrading.config import get_settings
 
@@ -35,22 +36,34 @@ class MetricsCollector:
         self.port = settings.monitoring.metrics_port
         self._server_started = False
 
-        self.portfolio_value = Gauge('qtrading_portfolio_value', 'Current portfolio value')
-        self.cash = Gauge('qtrading_cash', 'Available cash')
-        self.daily_pnl = Gauge('qtrading_daily_pnl', 'Daily P&L')
-        self.total_pnl = Gauge('qtrading_total_pnl', 'Total P&L')
-        self.drawdown = Gauge('qtrading_drawdown', 'Current drawdown')
-        self.position_count = Gauge('qtrading_position_count', 'Number of open positions')
-        self.open_orders = Gauge('qtrading_open_orders', 'Number of open orders')
-        self.filled_orders = Counter('qtrading_filled_orders_total', 'Total filled orders', ['symbol', 'side'])
-        self.rejected_orders = Counter('qtrading_rejected_orders_total', 'Total rejected orders', ['symbol', 'side'])
-        self.strategy_signals = Counter('qtrading_strategy_signals_total', 'Total strategy signals', ['strategy', 'signal_type'])
-        self.order_latency = Histogram('qtrading_order_latency_seconds', 'Order execution latency')
-        self.data_fetch_latency = Histogram('qtrading_data_fetch_latency_seconds', 'Data fetch latency')
-        self.strategy_latency = Histogram('qtrading_strategy_latency_seconds', 'Strategy execution latency')
-        self.risk_var = Gauge('qtrading_risk_var', 'Portfolio Value at Risk')
-        self.risk_leverage = Gauge('qtrading_risk_leverage', 'Portfolio leverage')
-        self.risk_correlation = Gauge('qtrading_risk_max_correlation', 'Maximum position correlation')
+        self.portfolio_value = Gauge("qtrading_portfolio_value", "Current portfolio value")
+        self.cash = Gauge("qtrading_cash", "Available cash")
+        self.daily_pnl = Gauge("qtrading_daily_pnl", "Daily P&L")
+        self.total_pnl = Gauge("qtrading_total_pnl", "Total P&L")
+        self.drawdown = Gauge("qtrading_drawdown", "Current drawdown")
+        self.position_count = Gauge("qtrading_position_count", "Number of open positions")
+        self.open_orders = Gauge("qtrading_open_orders", "Number of open orders")
+        self.filled_orders = Counter(
+            "qtrading_filled_orders_total", "Total filled orders", ["symbol", "side"]
+        )
+        self.rejected_orders = Counter(
+            "qtrading_rejected_orders_total", "Total rejected orders", ["symbol", "side"]
+        )
+        self.strategy_signals = Counter(
+            "qtrading_strategy_signals_total", "Total strategy signals", ["strategy", "signal_type"]
+        )
+        self.order_latency = Histogram("qtrading_order_latency_seconds", "Order execution latency")
+        self.data_fetch_latency = Histogram(
+            "qtrading_data_fetch_latency_seconds", "Data fetch latency"
+        )
+        self.strategy_latency = Histogram(
+            "qtrading_strategy_latency_seconds", "Strategy execution latency"
+        )
+        self.risk_var = Gauge("qtrading_risk_var", "Portfolio Value at Risk")
+        self.risk_leverage = Gauge("qtrading_risk_leverage", "Portfolio leverage")
+        self.risk_correlation = Gauge(
+            "qtrading_risk_max_correlation", "Maximum position correlation"
+        )
 
     def start_server(self) -> None:
         if not self._server_started:
@@ -58,7 +71,9 @@ class MetricsCollector:
             self._server_started = True
             logger.info(f"Metrics server started on port {self.port}")
 
-    def record_portfolio(self, value: Decimal, cash: Decimal, positions: dict[str, Decimal]) -> None:
+    def record_portfolio(
+        self, value: Decimal, cash: Decimal, positions: dict[str, Decimal]
+    ) -> None:
         self.portfolio_value.set(float(value))
         self.cash.set(float(cash))
         self.position_count.set(len(positions))
@@ -99,13 +114,19 @@ class StructuredLogger:
     def _setup_logger(self) -> None:
         logger.remove()
         logger.add(
-            lambda msg: print(msg, end=""),
+            lambda msg: sys.stdout.write(msg),
             level=self.log_level,
-            format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+            format=(
+                "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | "
+                "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+                "<level>{message}</level>"
+            ),
             colorize=True,
         )
 
-    def log_trade(self, symbol: str, side: str, quantity: Decimal, price: Decimal, strategy: str) -> None:
+    def log_trade(
+        self, symbol: str, side: str, quantity: Decimal, price: Decimal, strategy: str
+    ) -> None:
         logger.info(
             f"TRADE | {symbol} | {side} | {quantity} @ {price} | Strategy: {strategy}",
             extra={
@@ -115,7 +136,7 @@ class StructuredLogger:
                 "quantity": str(quantity),
                 "price": str(price),
                 "strategy": strategy,
-            }
+            },
         )
 
     def log_signal(self, symbol: str, signal_type: str, strength: float, strategy: str) -> None:
@@ -127,10 +148,12 @@ class StructuredLogger:
                 "signal_type": signal_type,
                 "strength": strength,
                 "strategy": strategy,
-            }
+            },
         )
 
-    def log_order(self, order_id: str, symbol: str, side: str, status: str, details: str = "") -> None:
+    def log_order(
+        self, order_id: str, symbol: str, side: str, status: str, details: str = ""
+    ) -> None:
         logger.info(
             f"ORDER | {order_id} | {symbol} | {side} | {status} | {details}",
             extra={
@@ -140,25 +163,35 @@ class StructuredLogger:
                 "side": side,
                 "status": status,
                 "details": details,
-            }
+            },
         )
 
     def log_risk(self, event: str, details: dict[str, Any]) -> None:
         logger.warning(
             f"RISK | {event} | {json.dumps(details)}",
-            extra={"event_type": "risk", "risk_event": event, **details}
+            extra={"event_type": "risk", "risk_event": event, **details},
         )
 
     def log_error(self, component: str, error: Exception, context: dict[str, Any] = None) -> None:
         logger.error(
             f"ERROR | {component} | {type(error).__name__}: {error}",
-            extra={"event_type": "error", "component": component, "error": str(error), **(context or {})}
+            extra={
+                "event_type": "error",
+                "component": component,
+                "error": str(error),
+                **(context or {}),
+            },
         )
 
     def log_performance(self, component: str, latency: float, success: bool) -> None:
         logger.debug(
             f"PERF | {component} | {latency:.4f}s | {'OK' if success else 'FAIL'}",
-            extra={"event_type": "performance", "component": component, "latency": latency, "success": success}
+            extra={
+                "event_type": "performance",
+                "component": component,
+                "latency": latency,
+                "success": success,
+            },
         )
 
 
@@ -211,7 +244,9 @@ class AlertManager:
     def add_handler(self, handler: Callable[[dict[str, Any]], Awaitable[None]]) -> None:
         self._handlers.append(handler)
 
-    async def send_alert(self, level: str, title: str, message: str, metadata: dict[str, Any] = None) -> None:
+    async def send_alert(
+        self, level: str, title: str, message: str, metadata: dict[str, Any] = None
+    ) -> None:
         alert = {
             "timestamp": datetime.now().isoformat(),
             "level": level,
@@ -227,7 +262,9 @@ class AlertManager:
             except Exception as e:
                 logger.error(f"Alert handler failed: {e}")
 
-    def get_alerts(self, since: datetime | None = None, level: str | None = None) -> list[dict[str, Any]]:
+    def get_alerts(
+        self, since: datetime | None = None, level: str | None = None
+    ) -> list[dict[str, Any]]:
         alerts = self._alerts
         if since:
             alerts = [a for a in alerts if datetime.fromisoformat(a["timestamp"]) >= since]

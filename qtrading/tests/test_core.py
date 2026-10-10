@@ -134,11 +134,14 @@ class TestStrategyFramework:
         assert "mean_reversion" in strategies
         assert "rsi_strategy" in strategies
 
-        strategy = StrategyRegistry.create("sma_crossover", StrategyParams(
-            name="test",
-            symbols=["BTC/USDT"],
-            parameters={"fast_period": 10, "slow_period": 30},
-        ))
+        strategy = StrategyRegistry.create(
+            "sma_crossover",
+            StrategyParams(
+                name="test",
+                symbols=["BTC/USDT"],
+                parameters={"fast_period": 10, "slow_period": 30},
+            ),
+        )
         assert isinstance(strategy, SMACrossoverStrategy)
 
 
@@ -148,13 +151,16 @@ class TestBuiltinStrategies:
         dates = pd.date_range("2024-01-01", periods=100, freq="1h")
         np.random.seed(42)
         close = 50000 + np.cumsum(np.random.randn(100) * 100)
-        df = pd.DataFrame({
-            "open": close + np.random.randn(100) * 10,
-            "high": close + np.abs(np.random.randn(100) * 50),
-            "low": close - np.abs(np.random.randn(100) * 50),
-            "close": close,
-            "volume": np.random.rand(100) * 100,
-        }, index=dates)
+        df = pd.DataFrame(
+            {
+                "open": close + np.random.randn(100) * 10,
+                "high": close + np.abs(np.random.randn(100) * 50),
+                "low": close - np.abs(np.random.randn(100) * 50),
+                "close": close,
+                "volume": np.random.rand(100) * 100,
+            },
+            index=dates,
+        )
         return {"BTC/USDT": df}
 
     @pytest.fixture
@@ -169,36 +175,42 @@ class TestBuiltinStrategies:
 
     @pytest.mark.asyncio
     async def test_sma_crossover(self, context):
-        strategy = SMACrossoverStrategy(StrategyParams(
-            name="sma_test",
-            symbols=["BTC/USDT"],
-            parameters={"fast_period": 5, "slow_period": 20, "position_size": 0.1},
-        ))
+        strategy = SMACrossoverStrategy(
+            StrategyParams(
+                name="sma_test",
+                symbols=["BTC/USDT"],
+                parameters={"fast_period": 5, "slow_period": 20, "position_size": 0.1},
+            )
+        )
         signals = await strategy.run(context)
         assert isinstance(signals, list)
 
     @pytest.mark.asyncio
     async def test_mean_reversion(self, context):
-        strategy = MeanReversionStrategy(StrategyParams(
-            name="mr_test",
-            symbols=["BTC/USDT"],
-            parameters={
-                "lookback": 20,
-                "entry_zscore": 2.0,
-                "exit_zscore": 0.5,
-                "position_size": 0.1,
-            },
-        ))
+        strategy = MeanReversionStrategy(
+            StrategyParams(
+                name="mr_test",
+                symbols=["BTC/USDT"],
+                parameters={
+                    "lookback": 20,
+                    "entry_zscore": 2.0,
+                    "exit_zscore": 0.5,
+                    "position_size": 0.1,
+                },
+            )
+        )
         signals = await strategy.run(context)
         assert isinstance(signals, list)
 
     @pytest.mark.asyncio
     async def test_rsi_strategy(self, context):
-        strategy = RSIStrategy(StrategyParams(
-            name="rsi_test",
-            symbols=["BTC/USDT"],
-            parameters={"period": 14, "overbought": 70, "oversold": 30, "position_size": 0.1},
-        ))
+        strategy = RSIStrategy(
+            StrategyParams(
+                name="rsi_test",
+                symbols=["BTC/USDT"],
+                parameters={"period": 14, "overbought": 70, "oversold": 30, "position_size": 0.1},
+            )
+        )
         signals = await strategy.run(context)
         assert isinstance(signals, list)
 
@@ -211,13 +223,16 @@ class TestBacktestEngine:
         trend = np.linspace(0, 5000, 200)
         noise = np.cumsum(np.random.randn(200) * 100)
         close = 50000 + trend + noise
-        df = pd.DataFrame({
-            "open": close + np.random.randn(200) * 10,
-            "high": close + np.abs(np.random.randn(200) * 50),
-            "low": close - np.abs(np.random.randn(200) * 50),
-            "close": close,
-            "volume": np.random.rand(200) * 100,
-        }, index=dates)
+        df = pd.DataFrame(
+            {
+                "open": close + np.random.randn(200) * 10,
+                "high": close + np.abs(np.random.randn(200) * 50),
+                "low": close - np.abs(np.random.randn(200) * 50),
+                "close": close,
+                "volume": np.random.rand(200) * 100,
+            },
+            index=dates,
+        )
         return {"BTC/USDT": df}
 
     def test_backtest_engine_initialization(self):
@@ -230,11 +245,13 @@ class TestBacktestEngine:
 
     def test_backtest_run(self, sample_market_data):
         engine = BacktestEngine(initial_capital=Decimal("100000"))
-        strategy = SMACrossoverStrategy(StrategyParams(
-            name="sma_test",
-            symbols=["BTC/USDT"],
-            parameters={"fast_period": 10, "slow_period": 30, "position_size": 0.1},
-        ))
+        strategy = SMACrossoverStrategy(
+            StrategyParams(
+                name="sma_test",
+                symbols=["BTC/USDT"],
+                parameters={"fast_period": 10, "slow_period": 30, "position_size": 0.1},
+            )
+        )
         result = engine.run(strategy, sample_market_data)
 
         assert isinstance(result, BacktestResult)
@@ -410,13 +427,16 @@ class TestWalkForwardAnalyzer:
         trend = np.linspace(0, 5000, 300)
         noise = np.cumsum(np.random.randn(300) * 100)
         close = 50000 + trend + noise
-        df = pd.DataFrame({
-            "open": close + np.random.randn(300) * 10,
-            "high": close + np.abs(np.random.randn(300) * 50),
-            "low": close - np.abs(np.random.randn(300) * 50),
-            "close": close,
-            "volume": np.random.rand(300) * 100,
-        }, index=dates)
+        df = pd.DataFrame(
+            {
+                "open": close + np.random.randn(300) * 10,
+                "high": close + np.abs(np.random.randn(300) * 50),
+                "low": close - np.abs(np.random.randn(300) * 50),
+                "close": close,
+                "volume": np.random.rand(300) * 100,
+            },
+            index=dates,
+        )
         return {"BTC/USDT": df}
 
     def test_walkforward_analyzer_initialization(self):

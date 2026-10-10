@@ -153,19 +153,19 @@ class DataStorage:
     def get_available_symbols(self) -> list[str]:
         """Get list of all available symbols in storage."""
         with self.SessionLocal() as session:
-            results = session.execute(
-                select(OHLCVModel.symbol).distinct()
-            ).scalars().all()
+            results = session.execute(select(OHLCVModel.symbol).distinct()).scalars().all()
             return list(results)
 
     def get_available_timeframes(self, symbol: str) -> list[str]:
         """Get list of available timeframes for a symbol."""
         with self.SessionLocal() as session:
-            results = session.execute(
-                select(OHLCVModel.timeframe).where(
-                    OHLCVModel.symbol == symbol
-                ).distinct()
-            ).scalars().all()
+            results = (
+                session.execute(
+                    select(OHLCVModel.timeframe).where(OHLCVModel.symbol == symbol).distinct()
+                )
+                .scalars()
+                .all()
+            )
             return list(results)
 
     def close(self) -> None:

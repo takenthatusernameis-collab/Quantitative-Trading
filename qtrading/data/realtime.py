@@ -94,7 +94,7 @@ class RealTimeDataFeed:
                     logger.error(f"Max reconnection attempts reached for {key}")
                     break
                 self._reconnect_count[key] = count + 1
-                delay = self.reconnect_delay * (self.backoff_multiplier ** count)
+                delay = self.reconnect_delay * (self.backoff_multiplier**count)
                 logger.info(f"Reconnecting to {key} in {delay:.1f}s (attempt {count + 1})")
                 await asyncio.sleep(delay)
 
