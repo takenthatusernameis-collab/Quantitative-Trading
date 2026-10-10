@@ -11,6 +11,13 @@ Recent enhancements completed:
 - Monte Carlo simulation for robustness testing in `qtrading/backtest/monte_carlo.py`
 - Strategy composition/multi-strategy framework and signal combination in `qtrading/strategy/composition.py`
 
+### Recent Agent Work (Completed)
+- **Regime Detection**: `qtrading/backtest/regime.py` - Market regime detection (trending, ranging, high/low volatility, volatility breakout) using volatility, trend strength, and ATR indicators
+- **Enhanced Monte Carlo**: `qtrading/backtest/monte_carlo.py` - Added support for normal, Student-t, and fat-tailed distributions with correlation structure support
+- **Benchmark & Attribution**: `qtrading/backtest/attribution.py` - Benchmark comparison (information ratio, alpha, beta, capture ratios) and Brinson performance attribution
+- **Enhanced Risk Management**: `qtrading/risk/__init__.py` - Added portfolio-level risk limits (sector exposure, factor exposure, portfolio leverage), dynamic position sizing (Kelly criterion, volatility targeting), and stress testing
+- **Risk dataclasses**: Added `PositionSizeResult`, `StressTestResult` dataclasses and extended `RiskLimits`/`RiskMetrics`
+
 ### Tests
 - 43 unit tests passing (all core + data pipeline + strategies + walk-forward)
 - Test files: `qtrading/tests/test_core.py`, `qtrading/tests/test_data_pipeline.py`
@@ -22,14 +29,14 @@ Recent enhancements completed:
 ## Next Steps for Next Agent
 
 ### Priority 1: Advanced Backtesting (Remaining)
-- [ ] Add regime detection and regime-specific backtesting
-- [ ] Enhance Monte Carlo simulation with correlation structure and fat-tailed distributions
-- [ ] Add benchmark comparison and performance attribution
+- [x] Add regime detection and regime-specific backtesting
+- [x] Enhance Monte Carlo simulation with correlation structure and fat-tailed distributions
+- [x] Add benchmark comparison and performance attribution
 
 ### Priority 2: Risk Management Enhancement
-- [ ] Implement portfolio-level risk limits (sector, correlation, factor exposure)
-- [ ] Add dynamic position sizing (Kelly criterion, volatility targeting)
-- [ ] Implement stress testing and scenario analysis
+- [x] Implement portfolio-level risk limits (sector, correlation, factor exposure)
+- [x] Add dynamic position sizing (Kelly criterion, volatility targeting)
+- [x] Implement stress testing and scenario analysis
 - [ ] Add real-time risk monitoring dashboard
 
 ### Priority 3: Live Trading Infrastructure

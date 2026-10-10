@@ -4,6 +4,22 @@ from qtrading.backtest import (
     Portfolio,
     Trade,
 )
+from qtrading.backtest.attribution import (
+    AttributionResult,
+    BenchmarkComparator,
+    PerformanceAttributor,
+)
+from qtrading.backtest.monte_carlo import (
+    DistributionType,
+    MonteCarloResult,
+    MonteCarloSimulator,
+)
+from qtrading.backtest.regime import (
+    MarketRegime,
+    RegimeAnalysis,
+    RegimeAwareBacktest,
+    RegimeDetector,
+)
 from qtrading.config import Settings, get_settings, reload_settings
 from qtrading.data import (
     OHLCV,
@@ -33,9 +49,11 @@ from qtrading.monitoring import (
     monitoring_session,
 )
 from qtrading.risk import (
+    PositionSizeResult,
     RiskLimits,
     RiskManager,
     RiskMetrics,
+    StressTestResult,
 )
 from qtrading.strategy import (
     Order,
@@ -92,6 +110,8 @@ __all__ = [
     "RiskManager",
     "RiskLimits",
     "RiskMetrics",
+    "PositionSizeResult",
+    "StressTestResult",
     "ExecutionEngine",
     "SimulationEngine",
     "OrderRouter",
@@ -104,4 +124,14 @@ __all__ = [
     "AlertManager",
     "monitoring_session",
     "MetricSnapshot",
+    "MarketRegime",
+    "RegimeDetector",
+    "RegimeAwareBacktest",
+    "RegimeAnalysis",
+    "DistributionType",
+    "MonteCarloResult",
+    "MonteCarloSimulator",
+    "BenchmarkComparator",
+    "PerformanceAttributor",
+    "AttributionResult",
 ]
