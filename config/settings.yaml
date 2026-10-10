@@ -1,0 +1,41 @@
+trading:
+  symbols:
+    - "BTC/USDT"
+    - "ETH/USDT"
+  timeframes:
+    - "1m"
+    - "5m"
+    - "1h"
+    - "1d"
+  exchanges:
+    - "binance"
+    - "bybit"
+
+data:
+  cache_dir: "./data/cache"
+  lookback_days: 365
+  update_interval_seconds: 60
+
+backtest:
+  initial_capital: 100000
+  commission_rate: 0.001
+  slippage_rate: 0.0005
+  max_positions: 10
+
+risk:
+  max_drawdown: 0.15
+  max_position_size: 0.1
+  max_daily_loss: 0.05
+  var_confidence: 0.95
+  correlation_threshold: 0.7
+
+execution:
+  order_type: "limit"
+  timeout_seconds: 30
+  retry_attempts: 3
+  retry_delay_seconds: 1
+
+monitoring:
+  log_level: "INFO"
+  metrics_port: 9090
+  health_check_interval: 30

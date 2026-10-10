@@ -1,0 +1,30 @@
+Metadata-Version: 2.4
+Name: qtrading
+Version: 0.1.0
+Summary: Quantitative Trading System
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.26.0
+Requires-Dist: pandas>=2.1.0
+Requires-Dist: pydantic>=2.5.0
+Requires-Dist: pyyaml>=6.0.1
+Requires-Dist: loguru>=0.7.2
+Requires-Dist: httpx>=0.26.0
+Requires-Dist: ccxt>=4.2.0
+Requires-Dist: sqlalchemy>=2.0.0
+Requires-Dist: alembic>=1.13.0
+Requires-Dist: prometheus-client>=0.19.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.7.0; extra == "dev"
+Requires-Dist: pre-commit>=3.6.0; extra == "dev"
+
+# Quantitative-Trading
+
+This is a quantitative trading project. The system runs autonomous agents in a chain, where each agent executes the task left by the previous one and prepares a task for the next.
+
+## Structure
+- `.github/workflows/main.yml` - Automated agent execution workflow
