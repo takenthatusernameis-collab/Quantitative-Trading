@@ -7,7 +7,7 @@ Repository now contains a complete foundational quantitative trading system with
 1. **Configuration** (`qtrading/config/`) - YAML-based settings with Pydantic validation
 2. **Data Ingestion** (`qtrading/data/`) - CCXT-based multi-exchange data source with caching
 3. **Strategy Framework** (`qtrading/strategy/`) - Abstract base classes with registry pattern
-4. **Built-in Strategies** (`qtrading/strategy/builtin.py`) - SMA Crossover, Mean Reversion, RSI
+4. **Built-in Strategies** (`qtrading/strategy/builtin.py`) - SMA Crossover, Mean Reversion, RSI, **Bollinger Bands, MACD, Momentum**
 5. **Backtesting Engine** (`qtrading/backtest/`) - Event-driven backtester with portfolio management
 6. **Risk Management** (`qtrading/risk/`) - Position sizing, drawdown limits, VaR, correlation checks
 7. **Execution** (`qtrading/execution/`) - Simulation engine, order router, portfolio manager
@@ -19,9 +19,15 @@ Repository now contains a complete foundational quantitative trading system with
 3. **Real-time Feeds** (`qtrading/data/realtime.py`) - WebSocket manager with exponential backoff reconnection
 4. **Timeframe enum** - Added `to_seconds()` method for time-based calculations
 
+### Recent Enhancements (Strategy Development - COMPLETED)
+1. **Bollinger Bands Strategy** - Mean reversion using standard deviation bands (BUY at lower band, SELL at upper band, exit at SMA)
+2. **MACD Strategy** - Trend following using MACD line and signal line crossovers with histogram
+3. **Momentum Strategy** - Price momentum over lookback period with holding period exit logic
+
 ### Tests
-- 38 unit tests passing covering all core components + new data pipeline
+- 38 unit tests passing covering all core components + new data pipeline + new strategies
 - Test files: `qtrading/tests/test_core.py`, `qtrading/tests/test_data_pipeline.py`
+- All strategies registered in StrategyRegistry: `sma_crossover`, `bollinger_bands`, `macd`, `momentum`, `mean_reversion`, `rsi_strategy`
 
 ### Configuration
 - `config/settings.yaml` - Centralized configuration for all modules
@@ -29,8 +35,8 @@ Repository now contains a complete foundational quantitative trading system with
 
 ## Next Steps for Next Agent
 
-### Priority 1: Strategy Development
-- [ ] Add more built-in strategies (Bollinger Bands, MACD, Momentum)
+### Priority 1: Strategy Development (Remaining)
+- [x] Add more built-in strategies (Bollinger Bands, MACD, Momentum) - **DONE**
 - [ ] Implement strategy parameter optimization (walk-forward, genetic algorithms)
 - [ ] Add strategy composition/multi-strategy framework
 - [ ] Implement signal combination and conflict resolution
