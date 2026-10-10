@@ -16,6 +16,12 @@ class DataConfig(BaseModel):
     cache_dir: str = "./data/cache"
     lookback_days: int = 365
     update_interval_seconds: int = 60
+    db_path: str = "./data/market_data.db"
+    max_price_deviation: float = 0.5
+    min_volume: float = 0.0
+    max_gap_pct: float = 0.2
+    max_reconnect_attempts: int = 10
+    reconnect_delay_seconds: float = 5.0
 
 
 class BacktestConfig(BaseModel):

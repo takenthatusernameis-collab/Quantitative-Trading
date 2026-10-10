@@ -13,9 +13,15 @@ Repository now contains a complete foundational quantitative trading system with
 7. **Execution** (`qtrading/execution/`) - Simulation engine, order router, portfolio manager
 8. **Monitoring** (`qtrading/monitoring/`) - Prometheus metrics, structured logging, health checks, alerts
 
+### Recent Enhancements (Data Pipeline)
+1. **Data Validation** (`qtrading/data/validator.py`) - OHLCV validation with quality checks
+2. **Persistent Storage** (`qtrading/data/storage.py`) - SQLite storage via SQLAlchemy with full CRUD
+3. **Real-time Feeds** (`qtrading/data/realtime.py`) - WebSocket manager with exponential backoff reconnection
+4. **Timeframe enum** - Added `to_seconds()` method for time-based calculations
+
 ### Tests
-- 24 unit tests passing covering all core components
-- Test file: `qtrading/tests/test_core.py`
+- 38 unit tests passing covering all core components + new data pipeline
+- Test files: `qtrading/tests/test_core.py`, `qtrading/tests/test_data_pipeline.py`
 
 ### Configuration
 - `config/settings.yaml` - Centralized configuration for all modules
@@ -23,44 +29,38 @@ Repository now contains a complete foundational quantitative trading system with
 
 ## Next Steps for Next Agent
 
-### Priority 1: Data Pipeline Enhancement
-- [ ] Implement real-time WebSocket data feeds for live trading
-- [ ] Add data validation and quality checks
-- [ ] Implement data storage (SQLite/PostgreSQL) for historical data
-- [ ] Add support for more exchanges (Coinbase, Kraken, etc.)
-
-### Priority 2: Strategy Development
+### Priority 1: Strategy Development
 - [ ] Add more built-in strategies (Bollinger Bands, MACD, Momentum)
 - [ ] Implement strategy parameter optimization (walk-forward, genetic algorithms)
 - [ ] Add strategy composition/multi-strategy framework
 - [ ] Implement signal combination and conflict resolution
 
-### Priority 3: Advanced Backtesting
+### Priority 2: Advanced Backtesting
 - [ ] Add walk-forward analysis
 - [ ] Implement Monte Carlo simulation for robustness testing
 - [ ] Add transaction cost modeling (slippage, latency, partial fills)
 - [ ] Add regime detection and regime-specific backtesting
 
-### Priority 4: Risk Management Enhancement
+### Priority 3: Risk Management Enhancement
 - [ ] Implement portfolio-level risk limits (sector, correlation, factor exposure)
 - [ ] Add dynamic position sizing (Kelly criterion, volatility targeting)
 - [ ] Implement stress testing and scenario analysis
 - [ ] Add real-time risk monitoring dashboard
 
-### Priority 5: Live Trading Infrastructure
+### Priority 4: Live Trading Infrastructure
 - [ ] Implement paper trading mode with simulated exchange
 - [ ] Add order management system (OMS) with order lifecycle tracking
 - [ ] Implement smart order routing
 - [ ] Add execution algorithms (TWAP, VWAP, POV)
 
-### Priority 6: Production Readiness
-- [ ] Add database migrations (Alembic)
+### Priority 5: Production Readiness
+- [ ] Add database migrations (Alembic) - already in dependencies
 - [ ] Implement proper secrets management
 - [ ] Add CI/CD pipeline with automated testing
 - [ ] Implement comprehensive logging and audit trail
 - [ ] Add Grafana dashboards for monitoring
 
-### Priority 7: Research & ML Integration
+### Priority 6: Research & ML Integration
 - [ ] Add feature engineering pipeline
 - [ ] Implement ML model training and inference pipeline
 - [ ] Add alternative data integration (sentiment, on-chain, macro)
@@ -84,3 +84,5 @@ python -m mypy qtrading/
 - Decimal for all financial calculations
 - Strategy registry pattern for extensibility
 - Event-driven backtesting engine
+- SQLAlchemy-based persistent storage with SQLite
+- Data validation pipeline for quality assurance
