@@ -21,6 +21,7 @@ concurrency:
 jobs:
   kilo:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
 
     steps:
       - uses: actions/checkout@v6
@@ -88,54 +89,32 @@ jobs:
           heartbeat_pid=$!
           trap 'kill "$heartbeat_pid" 2>/dev/null || true' EXIT
 
-          cutoff_epoch=$(($(date +%s) + 355 * 60))
-          AGENT_TIMEOUT_SECONDS=1500
-          failed=0
           consecutive_failures=0
-          cutoff=0
+          total_failed_sessions=0
 
+          # No per-session timeout or internal cutoff: the GitHub Actions job
+          # timeout above is the only hard runtime limit.
           for _ in $(seq 1 "$agents"); do
-            remaining=$((cutoff_epoch - $(date +%s)))
-
-            if [ "$remaining" -le 0 ]; then
-              cutoff=1
-              break
-            fi
-
-            # Cap each agent session so a stuck model/tool request cannot consume
-            # the full runner window. The overall cutoff remains 355 minutes.
-            session_timeout="$remaining"
-            if [ "$session_timeout" -gt "$AGENT_TIMEOUT_SECONDS" ]; then
-              session_timeout="$AGENT_TIMEOUT_SECONDS"
-            fi
 
             # Snapshot the workflow tree for this agent session. The standard
             # GITHUB_TOKEN cannot push commits that add/change Actions workflows.
             WORKFLOW_BASE_SHA="$(git rev-parse HEAD)"
 
+            # Let Kilo run until it exits or the GitHub Actions job timeout fires.
+            # A nonzero exit counts as a failed session; checkpoint and retry by
+            # starting the next fresh session without a consecutive-failure cap.
             set +e
-            timeout \
-              --signal=TERM \
-              --kill-after=10s \
-              "${session_timeout}s" \
-              kilo run \
-                --model kilo/kilo-auto/free \
-                --auto \
-                "$command"
+            kilo run \
+              --model kilo/kilo-auto/free \
+              --auto \
+              "$command"
             rc=$?
             set -e
 
-            if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
-              if [ "$remaining" -le "$AGENT_TIMEOUT_SECONDS" ]; then
-                cutoff=1
-                echo "Overall runner cutoff reached; saving the final checkpoint."
-              else
-                consecutive_failures=$((consecutive_failures + 1))
-                echo "::warning::Agent session reached its ${session_timeout}s limit (failure streak: $consecutive_failures/5). Saving the checkpoint and continuing with a fresh session."
-              fi
-            elif [ "$rc" -ne 0 ]; then
+            if [ "$rc" -ne 0 ]; then
               consecutive_failures=$((consecutive_failures + 1))
-              echo "::warning::Kilo session exited with status $rc (failure streak: $consecutive_failures/5). Saving its checkpoint and continuing."
+              total_failed_sessions=$((total_failed_sessions + 1))
+              echo "::warning::Kilo session exited with status $rc (failure streak: $consecutive_failures; no consecutive-failure cutoff). Saving its checkpoint and continuing."
             else
               consecutive_failures=0
             fi
@@ -228,30 +207,20 @@ jobs:
               exit 1
             fi
 
-            if [ "$cutoff" -eq 1 ]; then
-              break
-            fi
-
-            if [ "$consecutive_failures" -ge 5 ]; then
-              echo "::error::Five consecutive Kilo sessions failed. The latest checkpoint has been persisted; stopping rather than consuming the remaining runner window on repeated failures."
-              failed=1
-              break
-            fi
-
+            # Back off indefinitely after failed sessions, but saturate the delay
+            # safely rather than calculating an unbounded exponent.
             if [ "$consecutive_failures" -gt 0 ]; then
-              backoff_seconds=$((15 * (2 ** (consecutive_failures - 1))))
-              if [ "$backoff_seconds" -gt 120 ]; then
-                backoff_seconds=120
-              fi
+              case "$consecutive_failures" in
+                1) backoff_seconds=15 ;;
+                2) backoff_seconds=30 ;;
+                3) backoff_seconds=60 ;;
+                *) backoff_seconds=120 ;;
+              esac
               jitter_seconds=$((RANDOM % 8))
               backoff_seconds=$((backoff_seconds + jitter_seconds))
-              echo "Waiting ${backoff_seconds}s before the next agent session to reduce transient provider/network contention."
+              echo "Waiting ${backoff_seconds}s before the next agent session (failure streak: $consecutive_failures); continuing without a failure-count cutoff."
               sleep "$backoff_seconds"
             fi
           done
 
-          if [ "$cutoff" -eq 1 ]; then
-            echo "355-minute cutoff reached; progress checkpointed."
-          fi
-
-          [ "$failed" -eq 0 ]
+          echo "Configured Kilo session loop completed. Failed sessions: $total_failed_sessions."
