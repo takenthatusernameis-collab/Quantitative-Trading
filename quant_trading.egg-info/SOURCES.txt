@@ -28,4 +28,7 @@ quant_trading/utils/__init__.py
 quant_trading/utils/formatting.py
 quant_trading/utils/logging.py
 tests/test_backtest_engine.py
+tests/test_limits.py
+tests/test_rebalancer.py
+tests/test_strategies_examples.py
 tests/test_utils.py

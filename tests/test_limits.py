@@ -1,10 +1,9 @@
 """Tests for risk limits."""
 
-from datetime import datetime
 
 import pytest
 
-from quant_trading.risk.limits import CheckResult, PositionLimit, PortfolioLimit
+from quant_trading.risk.limits import CheckResult, PortfolioLimit, PositionLimit
 from quant_trading.strategies.base import Position
 
 
@@ -43,7 +42,7 @@ class TestPositionLimit:
         """Test check detects position size violation."""
         limit = PositionLimit(max_size=0.1, max_value=50000.0)
         # Position worth 20% of portfolio
-        position = Position(symbol="AAPL", quantity=200, avg_price=150.0, current_price=155.0)
+        position = Position(symbol="AAPL", quantity=200, avg_price=150.0, current_price=100.0)
         violations = limit.check(position, 100000.0)
         assert len(violations) == 1
         assert "exceeds max" in violations[0]
@@ -104,7 +103,7 @@ class TestPortfolioLimit:
 
     def test_check_too_many_positions(self):
         """Test check detects too many positions."""
-        limit = PortfolioLimit(max_positions=2)
+        limit = PortfolioLimit(max_positions=2, max_position_size=1.0)
         positions = {
             "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=155.0),
             "MSFT": Position(symbol="MSFT", quantity=50, avg_price=300.0, current_price=310.0),
@@ -118,15 +117,16 @@ class TestPortfolioLimit:
     def test_check_position_size_violation(self):
         """Test check detects individual position size violation."""
         limit = PortfolioLimit(max_positions=10, max_position_size=0.1)
-        # AAPL is 20% of portfolio
+        # AAPL is 31% of portfolio, MSFT is 15.5%
         positions = {
             "AAPL": Position(symbol="AAPL", quantity=200, avg_price=150.0, current_price=155.0),
             "MSFT": Position(symbol="MSFT", quantity=50, avg_price=300.0, current_price=310.0),
         }
         violations = limit.check(positions, 100000.0, 100000.0)
-        assert len(violations) == 1
-        assert "AAPL" in violations[0]
-        assert "exceeds max" in violations[0]
+        assert len(violations) == 2
+        assert any("AAPL" in v for v in violations)
+        assert any("MSFT" in v for v in violations)
+        assert all("exceeds max" in v for v in violations)
 
     def test_check_drawdown_violation(self):
         """Test check detects drawdown violation."""

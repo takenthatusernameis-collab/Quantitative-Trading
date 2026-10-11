@@ -63,10 +63,12 @@ class Rebalancer:
     def generate_rebalance_actions(
         self,
         signals: list[Signal] | None = None,
+        prices: dict[str, float] | None = None,
     ) -> list[RebalanceAction]:
         """Generate rebalancing actions based on target allocation."""
         actions = []
         targets = self.calculate_target_values()
+        prices = prices or {}
 
         # Process target allocations
         for symbol in self.target_allocation:
@@ -76,38 +78,39 @@ class Rebalancer:
 
             if abs(diff) / self.portfolio.total_value > self.rebalance_threshold:
                 if diff > 0:
-                    actions.append(
-                        RebalanceAction(
-                            symbol=symbol,
-                            action="buy",
-                            quantity=(
-                                diff / self.portfolio.holdings[symbol].current_price
-                                if symbol in self.portfolio.holdings
-                                else (
-                                    diff
-                                    / sum(
-                                        s.price for s in signals if s.symbol == symbol and s.price
-                                    )
-                                    if signals
-                                    else 0
-                                )
-                            ),
-                            reason="target_allocation",
+                    if symbol in self.portfolio.holdings:
+                        quantity = diff / self.portfolio.holdings[symbol].current_price
+                    elif symbol in prices and prices[symbol] > 0:
+                        quantity = diff / prices[symbol]
+                    elif signals:
+                        signal_prices = [s.price for s in signals if s.symbol == symbol and s.price]
+                        if signal_prices:
+                            quantity = diff / (sum(signal_prices) / len(signal_prices))
+                        else:
+                            quantity = 0
+                    else:
+                        quantity = 0
+
+                    if quantity > 0:
+                        actions.append(
+                            RebalanceAction(
+                                symbol=symbol,
+                                action="buy",
+                                quantity=quantity,
+                                reason="target_allocation",
+                            )
                         )
-                    )
                 elif diff < 0:
-                    actions.append(
-                        RebalanceAction(
-                            symbol=symbol,
-                            action="sell",
-                            quantity=(
-                                abs(diff) / self.portfolio.holdings[symbol].current_price
-                                if symbol in self.portfolio.holdings
-                                else 0
-                            ),
-                            reason="target_allocation",
+                    if symbol in self.portfolio.holdings:
+                        quantity = abs(diff) / self.portfolio.holdings[symbol].current_price
+                        actions.append(
+                            RebalanceAction(
+                                symbol=symbol,
+                                action="sell",
+                                quantity=quantity,
+                                reason="target_allocation",
+                            )
                         )
-                    )
 
         # Process signals for additional buys/sells
         if signals:

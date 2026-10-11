@@ -80,7 +80,7 @@ class TestRebalancer:
         """Test generate_rebalance_actions with no current holdings."""
         self.portfolio.cash = 100000.0
         self.portfolio.total_value = 100000.0
-        actions = self.rebalancer.generate_rebalance_actions()
+        actions = self.rebalancer.generate_rebalance_actions(prices={"AAPL": 150.0, "MSFT": 300.0})
         assert len(actions) == 2
         buy_actions = [a for a in actions if a.action == "buy"]
         assert len(buy_actions) == 2
@@ -117,7 +117,9 @@ class TestRebalancer:
         signals = [
             Signal(symbol="GOOGL", action="buy", strength=0.8, price=140.0),
         ]
-        actions = self.rebalancer.generate_rebalance_actions(signals=signals)
+        actions = self.rebalancer.generate_rebalance_actions(
+            signals=signals, prices={"AAPL": 150.0, "MSFT": 300.0}
+        )
 
         # Should have actions for AAPL, MSFT (target) + GOOGL (signal)
         assert len(actions) >= 3
