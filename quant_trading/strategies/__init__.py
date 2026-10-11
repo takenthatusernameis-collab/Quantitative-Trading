@@ -1,14 +1,14 @@
 """Strategies module for trading strategy implementations."""
 
-from .base import Strategy, StrategyManager, Signal, Position
-from .examples import MovingAverageCrossover, RSIStrategy, BollingerBandsStrategy
+from .base import Position, Signal, Strategy, StrategyManager
+from .examples import BollingerBandsStrategy, MovingAverageCrossover, RSIStrategy
 
 __all__ = [
+    "BollingerBandsStrategy",
+    "MovingAverageCrossover",
+    "Position",
+    "RSIStrategy",
+    "Signal",
     "Strategy",
     "StrategyManager",
-    "Signal",
-    "Position",
-    "MovingAverageCrossover",
-    "RSIStrategy",
-    "BollingerBandsStrategy",
 ]

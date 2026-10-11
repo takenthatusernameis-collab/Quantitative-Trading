@@ -1,12 +1,14 @@
 """Risk management orchestration."""
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
-from quant_trading.strategies.base import Position, Signal
-from quant_trading.risk.limits import PositionLimit, PortfolioLimit, CheckResult
+import pandas as pd
+
+from quant_trading.risk.limits import CheckResult, PortfolioLimit, PositionLimit
 from quant_trading.risk.metrics import RiskMetrics, calculate_all_metrics
+from quant_trading.strategies.base import Position, Signal
 
 
 @dataclass
@@ -57,14 +59,14 @@ class RiskManager:
             cash=initial_capital,
             peak_value=initial_capital,
         )
-        self.positions: Dict[str, Position] = {}
-        self.equity_curve: List[float] = [initial_capital]
+        self.positions: dict[str, Position] = {}
+        self.equity_curve: list[float] = [initial_capital]
         self.peak_value = initial_capital
-        self.risk_metrics: Optional[RiskMetrics] = None
+        self.risk_metrics: RiskMetrics | None = None
         self.risk_enabled = True
-        self.history: List[Dict[str, Any]] = []
+        self.history: list[dict[str, Any]] = []
 
-    def update_portfolio_value(self, positions: Dict[str, Position], cash: float) -> None:
+    def update_portfolio_value(self, positions: dict[str, Position], cash: float) -> None:
         """Update portfolio value and track equity curve."""
         self.positions = positions
         positions_value = sum(p.market_value for p in positions.values())
@@ -82,8 +84,7 @@ class RiskManager:
         )
 
         self.equity_curve.append(total_value)
-        if total_value > self.peak_value:
-            self.peak_value = total_value
+        self.peak_value = max(self.peak_value, total_value)
 
         self.history.append({
             "timestamp": datetime.now(),
@@ -93,7 +94,7 @@ class RiskManager:
             "drawdown": self.portfolio_risk.current_drawdown,
         })
 
-    def check_signal(self, signal: Signal, portfolio_value: Optional[float] = None) -> CheckResult:
+    def check_signal(self, signal: Signal, portfolio_value: float | None = None) -> CheckResult:
         """Check if a trading signal passes risk limits."""
         result = CheckResult(passed=True)
 
@@ -108,6 +109,9 @@ class RiskManager:
         if signal.action == "buy":
             # Check position size limit
             position = self.positions.get(signal.symbol)
+            if signal.price is None:
+                result.add_violation("Buy signal has no price")
+                return result
             current_size = position.quantity * signal.price if position else 0
             new_size = current_size + (signal.strength * value * self.position_limit.max_size)
 
@@ -146,10 +150,8 @@ class RiskManager:
 
         return result
 
-    def calculate_metrics(self, market_returns: Optional[pd.Series] = None) -> RiskMetrics:
+    def calculate_metrics(self, market_returns: pd.Series | None = None) -> RiskMetrics:
         """Calculate current risk metrics from equity curve."""
-        import pandas as pd
-
         equity_series = pd.Series(self.equity_curve)
         self.risk_metrics = calculate_all_metrics(
             equity_series,
@@ -158,14 +160,14 @@ class RiskManager:
         )
         return self.risk_metrics
 
-    def get_position_stop_loss(self, symbol: str) -> Optional[float]:
+    def get_position_stop_loss(self, symbol: str) -> float | None:
         """Get stop loss price for a position."""
         position = self.positions.get(symbol)
         if position is None or position.avg_price <= 0:
             return None
         return position.avg_price * (1 - self.position_limit.stop_loss_pct)
 
-    def get_position_take_profit(self, symbol: str) -> Optional[float]:
+    def get_position_take_profit(self, symbol: str) -> float | None:
         """Get take profit price for a position."""
         position = self.positions.get(symbol)
         if position is None or position.avg_price <= 0:

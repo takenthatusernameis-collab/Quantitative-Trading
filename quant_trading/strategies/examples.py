@@ -1,9 +1,9 @@
 """Example trading strategies."""
 
+
 import pandas as pd
-import numpy as np
-from typing import Dict, List, Optional
-from .base import Strategy, Signal
+
+from .base import Signal, Strategy
 
 
 class MovingAverageCrossover(Strategy):
@@ -26,7 +26,7 @@ class MovingAverageCrossover(Strategy):
         self.fast_period = fast_period
         self.slow_period = slow_period
 
-    def generate_signals(self, data: Dict[str, pd.DataFrame]) -> List[Signal]:
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals = []
 
         for symbol, df in data.items():
@@ -110,7 +110,7 @@ class RSIStrategy(Strategy):
         rsi = 100 - (100 / (1 + rs))
         return rsi
 
-    def generate_signals(self, data: Dict[str, pd.DataFrame]) -> List[Signal]:
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals = []
 
         for symbol, df in data.items():
@@ -174,7 +174,7 @@ class BollingerBandsStrategy(Strategy):
         self.period = period
         self.std_dev = std_dev
 
-    def generate_signals(self, data: Dict[str, pd.DataFrame]) -> List[Signal]:
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals = []
 
         for symbol, df in data.items():

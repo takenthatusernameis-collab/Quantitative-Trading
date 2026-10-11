@@ -1,0 +1,11 @@
+pandas>=2.0.0
+numpy>=1.24.0
+yfinance>=0.2.0
+PyYAML>=6.0
+
+[dev]
+pytest>=7.0.0
+pytest-cov>=4.0.0
+black>=23.0.0
+ruff>=0.1.0
+mypy>=1.0.0

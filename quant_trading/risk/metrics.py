@@ -1,7 +1,7 @@
 """Risk metrics calculation utilities."""
 
 from dataclasses import dataclass
-from typing import List, Optional
+
 import numpy as np
 import pandas as pd
 
@@ -135,7 +135,7 @@ def calculate_calmar_ratio(returns: pd.Series, equity_curve: pd.Series) -> float
 
 def calculate_all_metrics(
     equity_curve: pd.Series,
-    market_returns: Optional[pd.Series] = None,
+    market_returns: pd.Series | None = None,
     risk_free_rate: float = 0.02,
 ) -> RiskMetrics:
     """Calculate all risk metrics from an equity curve."""

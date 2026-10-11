@@ -1,7 +1,6 @@
 """Position and portfolio risk limits."""
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 from datetime import datetime
 
 from quant_trading.strategies.base import Position
@@ -16,9 +15,9 @@ class PositionLimit:
     stop_loss_pct: float = 0.05  # Stop loss percentage
     take_profit_pct: float = 0.15  # Take profit percentage
 
-    def check(self, position: Position, portfolio_value: float) -> List[str]:
+    def check(self, position: Position, portfolio_value: float) -> list[str]:
         """Check if position violates limits. Returns list of violations."""
-        violations = []
+        violations: list[str] = []
 
         if position.quantity == 0:
             return violations
@@ -51,10 +50,10 @@ class PortfolioLimit:
 
     def check(
         self,
-        positions: Dict[str, Position],
+        positions: dict[str, Position],
         portfolio_value: float,
         peak_value: float,
-    ) -> List[str]:
+    ) -> list[str]:
         """Check if portfolio violates limits. Returns list of violations."""
         violations = []
 
@@ -87,7 +86,7 @@ class CheckResult:
     """Result of a risk check."""
 
     passed: bool
-    violations: List[str] = field(default_factory=list)
+    violations: list[str] = field(default_factory=list)
     timestamp: datetime = field(default_factory=datetime.now)
 
     @property

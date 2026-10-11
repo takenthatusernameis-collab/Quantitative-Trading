@@ -1,12 +1,12 @@
 """Data module for fetching and processing market data."""
 
-from .providers import DataProvider, DataManager, MarketData
-from .yfinance_provider import YFinanceProvider, AlphaVantageProvider
+from .providers import DataManager, DataProvider, MarketData
+from .yfinance_provider import AlphaVantageProvider, YFinanceProvider
 
 __all__ = [
-    "DataProvider",
+    "AlphaVantageProvider",
     "DataManager",
+    "DataProvider",
     "MarketData",
     "YFinanceProvider",
-    "AlphaVantageProvider",
 ]

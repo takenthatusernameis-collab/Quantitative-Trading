@@ -1,8 +1,7 @@
 """Portfolio rebalancing logic."""
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Callable
+from datetime import datetime
 
 from quant_trading.portfolio.portfolio import Portfolio
 from quant_trading.strategies.base import Signal
@@ -26,15 +25,15 @@ class Rebalancer:
         self,
         portfolio: Portfolio,
         frequency: str = "monthly",
-        target_allocation: Optional[Dict[str, float]] = None,
+        target_allocation: dict[str, float] | None = None,
         rebalance_threshold: float = 0.05,  # Rebalance if deviation > 5%
     ):
         self.portfolio = portfolio
         self.frequency = frequency
         self.target_allocation = target_allocation or {}
         self.rebalance_threshold = rebalance_threshold
-        self.last_rebalance: Optional[datetime] = None
-        self.rebalance_history: List[Dict] = []
+        self.last_rebalance: datetime | None = None
+        self.rebalance_history: list[dict] = []
 
     def should_rebalance(self) -> bool:
         """Check if it's time to rebalance."""
@@ -53,7 +52,7 @@ class Rebalancer:
         else:
             return False
 
-    def calculate_target_values(self) -> Dict[str, float]:
+    def calculate_target_values(self) -> dict[str, float]:
         """Calculate target values based on target allocation."""
         total_value = self.portfolio.total_value
         targets = {}
@@ -63,15 +62,14 @@ class Rebalancer:
 
     def generate_rebalance_actions(
         self,
-        signals: Optional[List[Signal]] = None,
-    ) -> List[RebalanceAction]:
+        signals: list[Signal] | None = None,
+    ) -> list[RebalanceAction]:
         """Generate rebalancing actions based on target allocation."""
         actions = []
-        current_allocation = self.portfolio.get_allocation()
         targets = self.calculate_target_values()
 
         # Process target allocations
-        for symbol, target_pct in self.target_allocation.items():
+        for symbol in self.target_allocation:
             current_value = self.portfolio.get_position_value(symbol)
             target_value = targets[symbol]
             diff = target_value - current_value
@@ -132,7 +130,7 @@ class Rebalancer:
 
         return actions
 
-    def set_target_allocation(self, allocation: Dict[str, float]) -> None:
+    def set_target_allocation(self, allocation: dict[str, float]) -> None:
         """Set target allocation."""
         total = sum(allocation.values())
         if abs(total - 1.0) > 0.01:
@@ -140,7 +138,7 @@ class Rebalancer:
             allocation = {k: v / total for k, v in allocation.items()}
         self.target_allocation = allocation
 
-    def get_current_deviation(self) -> Dict[str, float]:
+    def get_current_deviation(self) -> dict[str, float]:
         """Get current deviation from target allocation."""
         current = self.portfolio.get_allocation()
         deviations = {}
@@ -154,7 +152,7 @@ class Rebalancer:
         if not self.target_allocation:
             return False
         deviations = self.get_current_deviation()
-        for symbol, dev in deviations.items():
+        for dev in deviations.values():
             if abs(dev) > self.rebalance_threshold:
                 return True
         return False

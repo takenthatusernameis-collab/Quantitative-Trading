@@ -3,7 +3,8 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import Any
+
 import pandas as pd
 
 
@@ -14,7 +15,7 @@ class MarketData:
     data: pd.DataFrame
     source: str
     fetched_at: datetime
-    metadata: Dict[str, Any] = None
+    metadata: dict[str, Any] | None = None
 
     def __post_init__(self):
         if self.metadata is None:
@@ -27,38 +28,35 @@ class DataProvider(ABC):
     @abstractmethod
     def fetch(
         self,
-        symbols: List[str],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        symbols: list[str],
+        start: datetime | None = None,
+        end: datetime | None = None,
         interval: str = "1d",
-    ) -> Dict[str, MarketData]:
+    ) -> dict[str, MarketData]:
         """Fetch market data for given symbols."""
-        pass
 
     @abstractmethod
-    def fetch_latest(self, symbols: List[str]) -> Dict[str, MarketData]:
+    def fetch_latest(self, symbols: list[str]) -> dict[str, MarketData]:
         """Fetch latest market data for given symbols."""
-        pass
 
     @property
     @abstractmethod
     def name(self) -> str:
         """Return provider name."""
-        pass
 
 
 class DataManager:
     """Manages data fetching and caching from multiple providers."""
 
-    def __init__(self, providers: Optional[List[DataProvider]] = None):
+    def __init__(self, providers: list[DataProvider] | None = None):
         self.providers = providers or []
-        self._cache: Dict[str, MarketData] = {}
+        self._cache: dict[str, dict[str, MarketData]] = {}
 
     def add_provider(self, provider: DataProvider) -> None:
         """Add a data provider."""
         self.providers.append(provider)
 
-    def get_provider(self, name: str) -> Optional[DataProvider]:
+    def get_provider(self, name: str) -> DataProvider | None:
         """Get provider by name."""
         for provider in self.providers:
             if provider.name == name:
@@ -67,13 +65,13 @@ class DataManager:
 
     def fetch(
         self,
-        symbols: List[str],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        symbols: list[str],
+        start: datetime | None = None,
+        end: datetime | None = None,
         interval: str = "1d",
-        provider_name: Optional[str] = None,
+        provider_name: str | None = None,
         use_cache: bool = True,
-    ) -> Dict[str, MarketData]:
+    ) -> dict[str, MarketData]:
         """Fetch market data using specified or first available provider."""
         provider = None
         if provider_name:

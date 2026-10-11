@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any
 
 from quant_trading.strategies.base import Position
 
@@ -54,14 +54,16 @@ class Portfolio:
     """Portfolio state and operations."""
 
     cash: float = 0.0
-    holdings: Dict[str, Holding] = field(default_factory=dict)
+    holdings: dict[str, Holding] = field(default_factory=dict)
     total_value: float = 0.0
     initial_capital: float = 0.0
-    last_rebalance: Optional[datetime] = None
+    last_rebalance: datetime | None = None
 
     def __post_init__(self):
         if self.initial_capital == 0 and self.cash == 0:
             self.initial_capital = 0.0
+        elif self.initial_capital == 0 and self.cash > 0:
+            self.initial_capital = self.cash
         if self.total_value == 0:
             self.total_value = self.cash + self.get_holdings_value()
 
@@ -125,18 +127,18 @@ class Portfolio:
         self.total_value = self.cash + self.get_holdings_value()
         return proceeds
 
-    def update_prices(self, prices: Dict[str, float]) -> None:
+    def update_prices(self, prices: dict[str, float]) -> None:
         """Update prices for all holdings."""
         for symbol, price in prices.items():
             if symbol in self.holdings:
                 self.holdings[symbol].update_price(price)
         self.total_value = self.cash + self.get_holdings_value()
 
-    def get_positions(self) -> Dict[str, Position]:
+    def get_positions(self) -> dict[str, Position]:
         """Get all positions as Position objects."""
         return {sym: h.to_position() for sym, h in self.holdings.items()}
 
-    def get_allocation(self) -> Dict[str, float]:
+    def get_allocation(self) -> dict[str, float]:
         """Get portfolio allocation percentages."""
         if self.total_value <= 0:
             return {}
@@ -153,7 +155,7 @@ class Portfolio:
         self.initial_capital = capital
         self.last_rebalance = None
 
-    def summary(self) -> Dict[str, any]:
+    def summary(self) -> dict[str, Any]:
         """Get portfolio summary."""
         return {
             "total_value": self.total_value,

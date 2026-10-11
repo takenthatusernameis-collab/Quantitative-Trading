@@ -1,18 +1,18 @@
 """Backtest metrics calculation."""
 
-from dataclasses import dataclass, field
-from typing import Dict, Any
-import numpy as np
+from dataclasses import dataclass
+from typing import Any
+
 import pandas as pd
 
 from quant_trading.risk.metrics import (
-    calculate_returns,
-    calculate_volatility,
+    calculate_calmar_ratio,
     calculate_max_drawdown,
+    calculate_returns,
     calculate_sharpe_ratio,
     calculate_sortino_ratio,
-    calculate_calmar_ratio,
     calculate_var,
+    calculate_volatility,
 )
 
 
@@ -48,7 +48,7 @@ class BacktestMetrics:
     largest_loss: float = 0.0
     var_95: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "total_return": self.total_return,
             "total_return_pct": self.total_return_pct,
@@ -75,7 +75,7 @@ class BacktestMetrics:
 
 def calculate_backtest_metrics(
     equity_curve: pd.Series,
-    trades: Optional[pd.DataFrame] = None,
+    trades: pd.DataFrame | None = None,
     risk_free_rate: float = 0.02,
     periods_per_year: int = 252,
 ) -> BacktestMetrics:
@@ -104,23 +104,22 @@ def calculate_backtest_metrics(
         metrics.var_95 = calculate_var(returns, 0.95)
 
     # Trade statistics
-    if trades is not None and len(trades) > 0:
-        if 'pnl' in trades.columns:
-            winning = trades[trades['pnl'] > 0]
-            losing = trades[trades['pnl'] < 0]
+    if trades is not None and len(trades) > 0 and 'pnl' in trades.columns:
+        winning = trades[trades['pnl'] > 0]
+        losing = trades[trades['pnl'] < 0]
 
-            metrics.num_trades = len(trades)
-            metrics.num_winning_trades = len(winning)
-            metrics.num_losing_trades = len(losing)
-            metrics.win_rate = len(winning) / len(trades) if len(trades) > 0 else 0
+        metrics.num_trades = len(trades)
+        metrics.num_winning_trades = len(winning)
+        metrics.num_losing_trades = len(losing)
+        metrics.win_rate = len(winning) / len(trades) if len(trades) > 0 else 0
 
-            metrics.avg_win = winning['pnl'].mean() if len(winning) > 0 else 0
-            metrics.avg_loss = losing['pnl'].mean() if len(losing) > 0 else 0
-            metrics.largest_win = winning['pnl'].max() if len(winning) > 0 else 0
-            metrics.largest_loss = losing['pnl'].min() if len(losing) > 0 else 0
+        metrics.avg_win = winning['pnl'].mean() if len(winning) > 0 else 0
+        metrics.avg_loss = losing['pnl'].mean() if len(losing) > 0 else 0
+        metrics.largest_win = winning['pnl'].max() if len(winning) > 0 else 0
+        metrics.largest_loss = losing['pnl'].min() if len(losing) > 0 else 0
 
-            gross_profit = winning['pnl'].sum() if len(winning) > 0 else 0
-            gross_loss = abs(losing['pnl'].sum()) if len(losing) > 0 else 0
-            metrics.profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0
+        gross_profit = winning['pnl'].sum() if len(winning) > 0 else 0
+        gross_loss = abs(losing['pnl'].sum()) if len(losing) > 0 else 0
+        metrics.profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0
 
     return metrics

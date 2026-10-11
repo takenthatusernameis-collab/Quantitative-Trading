@@ -3,4 +3,4 @@
 from .engine import BacktestEngine, BacktestResult
 from .metrics import BacktestMetrics
 
-__all__ = ["BacktestEngine", "BacktestResult", "BacktestMetrics"]
+__all__ = ["BacktestEngine", "BacktestMetrics", "BacktestResult"]

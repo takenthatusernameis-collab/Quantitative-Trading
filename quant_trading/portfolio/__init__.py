@@ -1,6 +1,6 @@
 """Portfolio management module."""
 
-from .portfolio import Portfolio, Holding
-from .rebalancer import Rebalancer, RebalanceAction
+from .portfolio import Holding, Portfolio
+from .rebalancer import RebalanceAction, Rebalancer
 
-__all__ = ["Portfolio", "Holding", "Rebalancer", "RebalanceAction"]
+__all__ = ["Holding", "Portfolio", "RebalanceAction", "Rebalancer"]

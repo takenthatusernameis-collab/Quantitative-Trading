@@ -1,8 +1,6 @@
 """Yahoo Finance data provider implementation."""
 
 from datetime import datetime
-from typing import List, Optional, Dict, Any
-import pandas as pd
 
 from .providers import DataProvider, MarketData
 
@@ -30,11 +28,11 @@ class YFinanceProvider(DataProvider):
 
     def fetch(
         self,
-        symbols: List[str],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        symbols: list[str],
+        start: datetime | None = None,
+        end: datetime | None = None,
         interval: str = "1d",
-    ) -> Dict[str, MarketData]:
+    ) -> dict[str, MarketData]:
         """Fetch market data from Yahoo Finance."""
         yf = self._get_yf()
         result = {}
@@ -64,13 +62,13 @@ class YFinanceProvider(DataProvider):
                     fetched_at=datetime.now(),
                     metadata=metadata,
                 )
-            except Exception as e:
+            except (ValueError, RuntimeError, KeyError, ImportError) as e:
                 print(f"Error fetching {symbol}: {e}")
                 continue
 
         return result
 
-    def fetch_latest(self, symbols: List[str]) -> Dict[str, MarketData]:
+    def fetch_latest(self, symbols: list[str]) -> dict[str, MarketData]:
         """Fetch latest market data (last 1 day)."""
         from datetime import timedelta
         end = datetime.now()
@@ -90,12 +88,12 @@ class AlphaVantageProvider(DataProvider):
 
     def fetch(
         self,
-        symbols: List[str],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        symbols: list[str],
+        start: datetime | None = None,
+        end: datetime | None = None,
         interval: str = "1d",
-    ) -> Dict[str, MarketData]:
+    ) -> dict[str, MarketData]:
         raise NotImplementedError("Alpha Vantage provider not yet implemented")
 
-    def fetch_latest(self, symbols: List[str]) -> Dict[str, MarketData]:
+    def fetch_latest(self, symbols: list[str]) -> dict[str, MarketData]:
         raise NotImplementedError("Alpha Vantage provider not yet implemented")
