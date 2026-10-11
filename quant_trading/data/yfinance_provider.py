@@ -20,7 +20,7 @@ class YFinanceProvider(DataProvider):
         """Lazy import yfinance."""
         if self._yf is None:
             try:
-                import yfinance as yf
+                import yfinance as yf  # type: ignore[import-untyped]
                 self._yf = yf
             except ImportError:
                 raise ImportError("yfinance is not installed. Install with: pip install yfinance")

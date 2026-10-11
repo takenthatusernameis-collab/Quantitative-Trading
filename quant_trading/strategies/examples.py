@@ -107,7 +107,7 @@ class RSIStrategy(Strategy):
         gain = (delta.where(delta > 0, 0)).rolling(window=self.period).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=self.period).mean()
         rs = gain / loss
-        rsi = 100 - (100 / (1 + rs))
+        rsi: pd.Series = 100 - (100 / (1 + rs))
         return rsi
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
