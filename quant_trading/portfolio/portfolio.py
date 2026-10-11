@@ -142,10 +142,7 @@ class Portfolio:
         """Get portfolio allocation percentages."""
         if self.total_value <= 0:
             return {}
-        return {
-            sym: h.market_value / self.total_value
-            for sym, h in self.holdings.items()
-        }
+        return {sym: h.market_value / self.total_value for sym, h in self.holdings.items()}
 
     def reset(self, capital: float) -> None:
         """Reset portfolio to initial state."""
@@ -164,7 +161,9 @@ class Portfolio:
             "num_positions": len(self.holdings),
             "allocation": self.get_allocation(),
             "pnl": self.total_value - self.initial_capital,
-            "pnl_pct": (self.total_value - self.initial_capital) / self.initial_capital
-            if self.initial_capital > 0
-            else 0,
+            "pnl_pct": (
+                (self.total_value - self.initial_capital) / self.initial_capital
+                if self.initial_capital > 0
+                else 0
+            ),
         }

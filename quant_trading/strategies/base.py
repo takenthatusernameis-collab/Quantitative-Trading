@@ -11,6 +11,7 @@ import pandas as pd
 @dataclass
 class Signal:
     """Trading signal."""
+
     symbol: str
     action: str  # 'buy', 'sell', 'hold'
     strength: float = 1.0  # 0.0 to 1.0
@@ -26,6 +27,7 @@ class Signal:
 @dataclass
 class Position:
     """Current position in a symbol."""
+
     symbol: str
     quantity: float = 0.0
     avg_price: float = 0.0

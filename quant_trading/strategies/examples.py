@@ -1,6 +1,5 @@
 """Example trading strategies."""
 
-
 import pandas as pd
 
 from .base import Signal, Strategy
@@ -19,10 +18,13 @@ class MovingAverageCrossover(Strategy):
         slow_period: int = 30,
         name: str = "MA_Crossover",
     ):
-        super().__init__(name, {
-            "fast_period": fast_period,
-            "slow_period": slow_period,
-        })
+        super().__init__(
+            name,
+            {
+                "fast_period": fast_period,
+                "slow_period": slow_period,
+            },
+        )
         self.fast_period = fast_period
         self.slow_period = slow_period
 
@@ -33,7 +35,7 @@ class MovingAverageCrossover(Strategy):
             if len(df) < self.slow_period:
                 continue
 
-            close = df['close']
+            close = df["close"]
             fast_ma = close.rolling(window=self.fast_period).mean()
             slow_ma = close.rolling(window=self.slow_period).mean()
 
@@ -49,32 +51,36 @@ class MovingAverageCrossover(Strategy):
             # Crossover detection
             if fast_prev <= slow_prev and fast_current > slow_current:
                 # Golden cross - buy signal
-                signals.append(Signal(
-                    symbol=symbol,
-                    action='buy',
-                    strength=min(1.0, (fast_current - slow_current) / slow_current * 10),
-                    price=current_price,
-                    timestamp=timestamp,
-                    metadata={
-                        'fast_ma': fast_current,
-                        'slow_ma': slow_current,
-                        'crossover_type': 'golden_cross',
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=min(1.0, (fast_current - slow_current) / slow_current * 10),
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "fast_ma": fast_current,
+                            "slow_ma": slow_current,
+                            "crossover_type": "golden_cross",
+                        },
+                    )
+                )
             elif fast_prev >= slow_prev and fast_current < slow_current:
                 # Death cross - sell signal
-                signals.append(Signal(
-                    symbol=symbol,
-                    action='sell',
-                    strength=min(1.0, (slow_current - fast_current) / slow_current * 10),
-                    price=current_price,
-                    timestamp=timestamp,
-                    metadata={
-                        'fast_ma': fast_current,
-                        'slow_ma': slow_current,
-                        'crossover_type': 'death_cross',
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=min(1.0, (slow_current - fast_current) / slow_current * 10),
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "fast_ma": fast_current,
+                            "slow_ma": slow_current,
+                            "crossover_type": "death_cross",
+                        },
+                    )
+                )
 
         return signals
 
@@ -92,11 +98,14 @@ class RSIStrategy(Strategy):
         overbought: float = 70,
         name: str = "RSI_MeanReversion",
     ):
-        super().__init__(name, {
-            "period": period,
-            "oversold": oversold,
-            "overbought": overbought,
-        })
+        super().__init__(
+            name,
+            {
+                "period": period,
+                "oversold": oversold,
+                "overbought": overbought,
+            },
+        )
         self.period = period
         self.oversold = oversold
         self.overbought = overbought
@@ -117,7 +126,7 @@ class RSIStrategy(Strategy):
             if len(df) < self.period + 1:
                 continue
 
-            close = df['close']
+            close = df["close"]
             rsi = self._calculate_rsi(close)
 
             current_rsi = rsi.iloc[-1]
@@ -127,30 +136,36 @@ class RSIStrategy(Strategy):
 
             # Oversold - buy signal
             if prev_rsi <= self.oversold and current_rsi > self.oversold:
-                signals.append(Signal(
-                    symbol=symbol,
-                    action='buy',
-                    strength=min(1.0, (self.oversold - prev_rsi) / self.oversold + 0.5),
-                    price=current_price,
-                    timestamp=timestamp,
-                    metadata={
-                        'rsi': current_rsi,
-                        'signal_type': 'oversold_bounce',
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=min(1.0, (self.oversold - prev_rsi) / self.oversold + 0.5),
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "rsi": current_rsi,
+                            "signal_type": "oversold_bounce",
+                        },
+                    )
+                )
             # Overbought - sell signal
             elif prev_rsi >= self.overbought and current_rsi < self.overbought:
-                signals.append(Signal(
-                    symbol=symbol,
-                    action='sell',
-                    strength=min(1.0, (prev_rsi - self.overbought) / (100 - self.overbought) + 0.5),
-                    price=current_price,
-                    timestamp=timestamp,
-                    metadata={
-                        'rsi': current_rsi,
-                        'signal_type': 'overbought_rejection',
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=min(
+                            1.0, (prev_rsi - self.overbought) / (100 - self.overbought) + 0.5
+                        ),
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "rsi": current_rsi,
+                            "signal_type": "overbought_rejection",
+                        },
+                    )
+                )
 
         return signals
 
@@ -167,10 +182,13 @@ class BollingerBandsStrategy(Strategy):
         std_dev: float = 2.0,
         name: str = "Bollinger_Bands",
     ):
-        super().__init__(name, {
-            "period": period,
-            "std_dev": std_dev,
-        })
+        super().__init__(
+            name,
+            {
+                "period": period,
+                "std_dev": std_dev,
+            },
+        )
         self.period = period
         self.std_dev = std_dev
 
@@ -181,7 +199,7 @@ class BollingerBandsStrategy(Strategy):
             if len(df) < self.period:
                 continue
 
-            close = df['close']
+            close = df["close"]
             sma = close.rolling(window=self.period).mean()
             std = close.rolling(window=self.period).std()
 
@@ -197,34 +215,38 @@ class BollingerBandsStrategy(Strategy):
             # Price at lower band - buy signal
             if current_price <= current_lower * 1.005:  # Small buffer
                 strength = min(1.0, (current_lower - current_price) / current_lower + 0.5)
-                signals.append(Signal(
-                    symbol=symbol,
-                    action='buy',
-                    strength=strength,
-                    price=current_price,
-                    timestamp=timestamp,
-                    metadata={
-                        'upper_band': current_upper,
-                        'lower_band': current_lower,
-                        'sma': current_sma,
-                        'signal_type': 'lower_band_touch',
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "upper_band": current_upper,
+                            "lower_band": current_lower,
+                            "sma": current_sma,
+                            "signal_type": "lower_band_touch",
+                        },
+                    )
+                )
             # Price at upper band - sell signal
             elif current_price >= current_upper * 0.995:  # Small buffer
                 strength = min(1.0, (current_price - current_upper) / current_upper + 0.5)
-                signals.append(Signal(
-                    symbol=symbol,
-                    action='sell',
-                    strength=strength,
-                    price=current_price,
-                    timestamp=timestamp,
-                    metadata={
-                        'upper_band': current_upper,
-                        'lower_band': current_lower,
-                        'sma': current_sma,
-                        'signal_type': 'upper_band_touch',
-                    }
-                ))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "upper_band": current_upper,
+                            "lower_band": current_lower,
+                            "sma": current_sma,
+                            "signal_type": "upper_band_touch",
+                        },
+                    )
+                )
 
         return signals

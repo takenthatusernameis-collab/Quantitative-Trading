@@ -21,6 +21,7 @@ class YFinanceProvider(DataProvider):
         if self._yf is None:
             try:
                 import yfinance as yf  # type: ignore[import-untyped]
+
                 self._yf = yf
             except ImportError:
                 raise ImportError("yfinance is not installed. Install with: pip install yfinance")
@@ -47,12 +48,12 @@ class YFinanceProvider(DataProvider):
                     continue
 
                 # Standardize column names
-                hist.columns = [col.lower().replace(' ', '_') for col in hist.columns]
+                hist.columns = [col.lower().replace(" ", "_") for col in hist.columns]
 
                 metadata = {
-                    'info': ticker.info,
-                    'currency': ticker.info.get('currency', 'USD'),
-                    'exchange': ticker.info.get('exchange', 'UNKNOWN'),
+                    "info": ticker.info,
+                    "currency": ticker.info.get("currency", "USD"),
+                    "exchange": ticker.info.get("exchange", "UNKNOWN"),
                 }
 
                 result[symbol] = MarketData(
@@ -71,6 +72,7 @@ class YFinanceProvider(DataProvider):
     def fetch_latest(self, symbols: list[str]) -> dict[str, MarketData]:
         """Fetch latest market data (last 1 day)."""
         from datetime import timedelta
+
         end = datetime.now()
         start = end - timedelta(days=2)
         return self.fetch(symbols, start=start, end=end, interval="1m")

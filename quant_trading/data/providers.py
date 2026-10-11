@@ -11,6 +11,7 @@ import pandas as pd
 @dataclass
 class MarketData:
     """Container for market data."""
+
     symbol: str
     data: pd.DataFrame
     source: str

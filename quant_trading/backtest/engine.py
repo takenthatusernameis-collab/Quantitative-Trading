@@ -16,6 +16,7 @@ from quant_trading.strategies.base import Signal, Strategy
 @dataclass
 class Trade:
     """Represents a single trade."""
+
     symbol: str
     action: str  # 'buy' or 'sell'
     quantity: float
@@ -29,7 +30,7 @@ class Trade:
     def cost(self) -> float:
         """Total cost including commission and slippage."""
         base = self.quantity * self.price
-        if self.action == 'buy':
+        if self.action == "buy":
             return base * (1 + self.commission + self.slippage)
         else:
             return base * (1 - self.commission - self.slippage)
@@ -43,6 +44,7 @@ class Trade:
 @dataclass
 class BacktestResult:
     """Result of a backtest run."""
+
     equity_curve: pd.Series
     trades: pd.DataFrame
     positions: dict[str, Any]
@@ -91,6 +93,7 @@ class BacktestEngine:
         # Fetch data
         if self.data_manager is None:
             from quant_trading.data.yfinance_provider import YFinanceProvider
+
             provider = YFinanceProvider()
             self.data_manager = DataManager([provider])
 
@@ -135,7 +138,7 @@ class BacktestEngine:
 
             # Update portfolio value
             prices = {
-                symbol: df.loc[current_date, 'close']
+                symbol: df.loc[current_date, "close"]
                 for symbol, df in current_data.items()
                 if current_date in df.index
             }
@@ -150,19 +153,25 @@ class BacktestEngine:
 
         # Create result
         equity_series = pd.Series(equity_curve, index=[start] + list(dates))
-        trades_df = pd.DataFrame([{
-            'symbol': t.symbol,
-            'action': t.action,
-            'quantity': t.quantity,
-            'price': t.price,
-            'timestamp': t.timestamp,
-            'commission': t.commission,
-            'slippage': t.slippage,
-            'cost': t.cost,
-            'pnl': t.pnl,
-        } for t in trades_list])
+        trades_df = pd.DataFrame(
+            [
+                {
+                    "symbol": t.symbol,
+                    "action": t.action,
+                    "quantity": t.quantity,
+                    "price": t.price,
+                    "timestamp": t.timestamp,
+                    "commission": t.commission,
+                    "slippage": t.slippage,
+                    "cost": t.cost,
+                    "pnl": t.pnl,
+                }
+                for t in trades_list
+            ]
+        )
 
         from quant_trading.backtest.metrics import calculate_backtest_metrics
+
         metrics = calculate_backtest_metrics(
             equity_series,
             trades_df,
@@ -200,9 +209,11 @@ class BacktestEngine:
         if price is None or price <= 0:
             return
 
-        if signal.action == 'buy':
+        if signal.action == "buy":
             # Calculate position size based on signal strength and risk limits
-            max_position_value = self.portfolio.total_value * self.risk_manager.position_limit.max_size
+            max_position_value = (
+                self.portfolio.total_value * self.risk_manager.position_limit.max_size
+            )
             target_value = max_position_value * signal.strength
             current_value = self.portfolio.get_position_value(symbol)
             available_value = target_value - current_value
@@ -214,22 +225,26 @@ class BacktestEngine:
             cost = quantity * price * (1 + self.config.commission + self.config.slippage)
 
             if cost > self.portfolio.cash:
-                quantity = self.portfolio.cash / (price * (1 + self.config.commission + self.config.slippage))
+                quantity = self.portfolio.cash / (
+                    price * (1 + self.config.commission + self.config.slippage)
+                )
                 if quantity <= 0:
                     return
 
             self.portfolio.add_holding(symbol, quantity, price)
-            trades_list.append(Trade(
-                symbol=symbol,
-                action='buy',
-                quantity=quantity,
-                price=price,
-                timestamp=timestamp,
-                commission=self.config.commission,
-                slippage=self.config.slippage,
-            ))
+            trades_list.append(
+                Trade(
+                    symbol=symbol,
+                    action="buy",
+                    quantity=quantity,
+                    price=price,
+                    timestamp=timestamp,
+                    commission=self.config.commission,
+                    slippage=self.config.slippage,
+                )
+            )
 
-        elif signal.action == 'sell':
+        elif signal.action == "sell":
             holding = self.portfolio.holdings.get(symbol)
             if holding is None or holding.quantity <= 0:
                 return
@@ -244,16 +259,18 @@ class BacktestEngine:
                 quantity * price * (1 - self.config.commission - self.config.slippage)
                 - avg_cost * quantity
             )
-            trades_list.append(Trade(
-                symbol=symbol,
-                action='sell',
-                quantity=quantity,
-                price=price,
-                timestamp=timestamp,
-                commission=self.config.commission,
-                slippage=self.config.slippage,
-                realized_pnl=realized_pnl,
-            ))
+            trades_list.append(
+                Trade(
+                    symbol=symbol,
+                    action="sell",
+                    quantity=quantity,
+                    price=price,
+                    timestamp=timestamp,
+                    commission=self.config.commission,
+                    slippage=self.config.slippage,
+                    realized_pnl=realized_pnl,
+                )
+            )
 
 
 def run_backtest(

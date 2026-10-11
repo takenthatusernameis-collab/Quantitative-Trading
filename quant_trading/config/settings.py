@@ -10,6 +10,7 @@ import yaml
 @dataclass
 class DataConfig:
     """Data source configuration."""
+
     provider: str = "yfinance"
     cache_dir: str = "./data/cache"
     default_interval: str = "1d"
@@ -19,6 +20,7 @@ class DataConfig:
 @dataclass
 class BacktestConfig:
     """Backtesting configuration."""
+
     initial_capital: float = 100000.0
     commission: float = 0.001
     slippage: float = 0.0005
@@ -28,6 +30,7 @@ class BacktestConfig:
 @dataclass
 class RiskConfig:
     """Risk management configuration."""
+
     max_position_size: float = 0.1
     max_portfolio_risk: float = 0.02
     stop_loss_pct: float = 0.05
@@ -38,6 +41,7 @@ class RiskConfig:
 @dataclass
 class PortfolioConfig:
     """Portfolio management configuration."""
+
     rebalance_frequency: str = "monthly"
     max_positions: int = 20
     min_position_size: float = 0.01
@@ -46,6 +50,7 @@ class PortfolioConfig:
 @dataclass
 class Config:
     """Main configuration class."""
+
     data: DataConfig = field(default_factory=DataConfig)
     backtest: BacktestConfig = field(default_factory=BacktestConfig)
     risk: RiskConfig = field(default_factory=RiskConfig)
@@ -56,14 +61,14 @@ class Config:
     @classmethod
     def from_yaml(cls, path: str) -> "Config":
         """Load configuration from YAML file."""
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             data = yaml.safe_load(f)
         return cls(**data)
 
     def to_yaml(self, path: str) -> None:
         """Save configuration to YAML file."""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             yaml.dump(self.__dict__, f, default_flow_style=False)
 
     def update(self, **kwargs: Any) -> None:

@@ -104,22 +104,22 @@ def calculate_backtest_metrics(
         metrics.var_95 = calculate_var(returns, 0.95)
 
     # Trade statistics
-    if trades is not None and len(trades) > 0 and 'pnl' in trades.columns:
-        winning = trades[trades['pnl'] > 0]
-        losing = trades[trades['pnl'] < 0]
+    if trades is not None and len(trades) > 0 and "pnl" in trades.columns:
+        winning = trades[trades["pnl"] > 0]
+        losing = trades[trades["pnl"] < 0]
 
         metrics.num_trades = len(trades)
         metrics.num_winning_trades = len(winning)
         metrics.num_losing_trades = len(losing)
         metrics.win_rate = len(winning) / len(trades) if len(trades) > 0 else 0
 
-        metrics.avg_win = winning['pnl'].mean() if len(winning) > 0 else 0
-        metrics.avg_loss = losing['pnl'].mean() if len(losing) > 0 else 0
-        metrics.largest_win = winning['pnl'].max() if len(winning) > 0 else 0
-        metrics.largest_loss = losing['pnl'].min() if len(losing) > 0 else 0
+        metrics.avg_win = winning["pnl"].mean() if len(winning) > 0 else 0
+        metrics.avg_loss = losing["pnl"].mean() if len(losing) > 0 else 0
+        metrics.largest_win = winning["pnl"].max() if len(winning) > 0 else 0
+        metrics.largest_loss = losing["pnl"].min() if len(losing) > 0 else 0
 
-        gross_profit = winning['pnl'].sum() if len(winning) > 0 else 0
-        gross_loss = abs(losing['pnl'].sum()) if len(losing) > 0 else 0
+        gross_profit = winning["pnl"].sum() if len(winning) > 0 else 0
+        gross_loss = abs(losing["pnl"].sum()) if len(losing) > 0 else 0
         metrics.profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0
 
     return metrics

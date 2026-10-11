@@ -1,3 +1,4 @@
+README.md
 pyproject.toml
 quant_trading/__init__.py
 quant_trading.egg-info/PKG-INFO
@@ -24,4 +25,7 @@ quant_trading/strategies/__init__.py
 quant_trading/strategies/base.py
 quant_trading/strategies/examples.py
 quant_trading/utils/__init__.py
+quant_trading/utils/formatting.py
+quant_trading/utils/logging.py
 tests/test_backtest_engine.py
+tests/test_utils.py

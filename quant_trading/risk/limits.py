@@ -26,9 +26,7 @@ class PositionLimit:
         position_pct = position_value / portfolio_value if portfolio_value > 0 else 0
 
         if position_pct > self.max_size:
-            violations.append(
-                f"Position size {position_pct:.2%} exceeds max {self.max_size:.2%}"
-            )
+            violations.append(f"Position size {position_pct:.2%} exceeds max {self.max_size:.2%}")
 
         if position_value > self.max_value:
             violations.append(
@@ -74,9 +72,7 @@ class PortfolioLimit:
         if peak_value > 0:
             drawdown = (portfolio_value - peak_value) / peak_value
             if drawdown < -self.max_drawdown:
-                violations.append(
-                    f"Drawdown {drawdown:.2%} exceeds max {self.max_drawdown:.2%}"
-                )
+                violations.append(f"Drawdown {drawdown:.2%} exceeds max {self.max_drawdown:.2%}")
 
         return violations
 

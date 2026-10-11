@@ -77,22 +77,24 @@ class RiskManager:
             cash=cash,
             positions_value=positions_value,
             leverage=positions_value / total_value if total_value > 0 else 0,
-            current_drawdown=(total_value - self.peak_value) / self.peak_value
-            if self.peak_value > 0
-            else 0,
+            current_drawdown=(
+                (total_value - self.peak_value) / self.peak_value if self.peak_value > 0 else 0
+            ),
             peak_value=self.peak_value,
         )
 
         self.equity_curve.append(total_value)
         self.peak_value = max(self.peak_value, total_value)
 
-        self.history.append({
-            "timestamp": datetime.now(),
-            "total_value": total_value,
-            "cash": cash,
-            "positions_value": positions_value,
-            "drawdown": self.portfolio_risk.current_drawdown,
-        })
+        self.history.append(
+            {
+                "timestamp": datetime.now(),
+                "total_value": total_value,
+                "cash": cash,
+                "positions_value": positions_value,
+                "drawdown": self.portfolio_risk.current_drawdown,
+            }
+        )
 
     def check_signal(self, signal: Signal, portfolio_value: float | None = None) -> CheckResult:
         """Check if a trading signal passes risk limits."""
