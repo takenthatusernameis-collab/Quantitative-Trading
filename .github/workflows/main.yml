@@ -54,11 +54,28 @@ jobs:
             fi
             rm -f "$directory/.kilo-write-test"
           done
-          for utility in git npm node python3 timeout; do
-            if ! command -v "$utility" >/dev/null 2>&1; then
-              echo "::error::Required runner utility is missing: $utility"
-              exit 1
+          # Retry runner preflight until the safety deadline. If the host image
+          # remains fundamentally broken, report a warning and end cleanly rather
+          # than manufacture a failed Kilo task run.
+          while true; do
+            missing_utilities=()
+            for utility in git npm node python3 timeout; do
+              if ! command -v "$utility" >/dev/null 2>&1; then
+                missing_utilities+=("$utility")
+              fi
+            done
+            if [ "${#missing_utilities[@]}" -eq 0 ]; then
+              break
             fi
+            remaining=$((cutoff_epoch - $(date +%s)))
+            if [ "$remaining" -le 0 ]; then
+              echo "::warning::Runner preflight did not recover before the 355-minute cutoff; missing: ${missing_utilities[*]}."
+              exit 0
+            fi
+            delay=30
+            if [ "$remaining" -lt "$delay" ]; then delay="$remaining"; fi
+            echo "::warning::Runner preflight missing ${missing_utilities[*]}; rechecking in ${delay}s."
+            sleep "$delay"
           done
 
           # Ignore runner-local dependency/cache/database artifacts without changing
@@ -84,16 +101,25 @@ jobs:
           {"$schema":"https://app.kilo.ai/config.json","permission":"allow"}
           EOF
 
+          # Never stop after an arbitrary package-install attempt count. Retry
+          # with capped backoff until installation succeeds or the 355-minute cutoff.
           install_attempt=0
-          until npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/kilo" @kilocode/cli@7.7.1; do
+          install_backoff=5
+          while ! npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/kilo" @kilocode/cli@7.7.1; do
             install_attempt=$((install_attempt + 1))
-            if [ "$install_attempt" -ge 3 ]; then
-              echo "::error::Kilo CLI installation failed after 3 attempts."
-              exit 1
+            remaining=$((cutoff_epoch - $(date +%s)))
+            if [ "$remaining" -le 0 ]; then
+              echo "::warning::Kilo CLI installation did not recover before the safety cutoff; no agent session could be started."
+              exit 0
             fi
-            delay=$((5 * install_attempt))
-            echo "::warning::Kilo CLI installation attempt $install_attempt failed; retrying in ${delay}s."
+            delay="$install_backoff"
+            if [ "$remaining" -lt "$delay" ]; then delay="$remaining"; fi
+            echo "::warning::Kilo CLI installation attempt $install_attempt failed; retrying in ${delay}s (no attempt-count cutoff)."
             sleep "$delay"
+            if [ "$install_backoff" -lt 60 ]; then
+              install_backoff=$((install_backoff * 2))
+              if [ "$install_backoff" -gt 60 ]; then install_backoff=60; fi
+            fi
           done
           export PATH="$RUNNER_TEMP/kilo/node_modules/.bin:$PATH"
 
@@ -102,12 +128,15 @@ jobs:
 
           agents="${{ inputs.agents || '1000' }}"
           if ! [[ "$agents" =~ ^[0-9]+$ ]]; then
-            echo "::error::The agents input must be an integer from 1 to 1000."
-            exit 1
+            echo "::warning::Invalid agents input; using the safe default of 1000 instead of failing the workflow."
+            agents=1000
           fi
-          if [ "$agents" -lt 1 ] || [ "$agents" -gt 1000 ]; then
-            echo "::error::The agents input must be between 1 and 1000."
-            exit 1
+          if [ "$agents" -lt 1 ]; then
+            echo "::warning::Agents input was below 1; clamping to 1."
+            agents=1
+          elif [ "$agents" -gt 1000 ]; then
+            echo "::warning::Agents input was above 1000; clamping to 1000."
+            agents=1000
           fi
           command=$(cat <<'PROMPT'
           Execute the task assigned by the previous agent and prepare a task for the next agent !
@@ -115,13 +144,13 @@ jobs:
           Reliability rules:
           - Before each tool call, satisfy its required schema and argument names.
           - File writes must include complete content; edits must include the required filePath; shell calls must include the command.
-          - If a tool rejects arguments, inspect the error/schema and correct the call. Never repeat the same malformed call unchanged; retry a rejected call at most twice.
+          - If a tool rejects arguments, inspect the exact error/schema and correct the call before retrying. Never repeat an unchanged malformed call. There is no global retry budget for evidence-based recovery; stop only when the approach is demonstrably non-recoverable, no new information can be obtained, or the external run deadline is reached.
           - Work in small verified steps, limit repeated network requests, and checkpoint meaningful progress.
           - Do not manually commit or push, and do not modify .github/workflows; the outer workflow handles checkpointing and preserves workflow definitions.
           - Before finishing, record what changed, what remains, and a clear task for the next agent.
           Recurring-error prevention checklist (based on prior Actions failures):
           - Malformed tool arguments: before every call, check the exact tool schema and all required field names. For write/edit/shell tools, include complete content, the exact file path, and a non-empty command respectively. After a rejected call, read the error, correct the schema/value, and never replay the identical invalid call; if repeated rejection persists, switch to a supported tool or report the blocker.
-          - Upstream idle timeouts, connection loss, provider errors, EOFs, and transient API/network failures: treat these as transient unless logs show otherwise. Preserve any partial work, make one bounded retry after a short delay, then continue with a fresh session or another useful task. Do not loop on an unchanged request or claim workflow settings can disable a provider-side timeout.
+          - Upstream idle timeouts, connection loss, provider errors, EOFs, and transient API/network failures: preserve partial work and exact evidence; retry with a changed/revalidated approach and appropriate backoff while useful. If the session cannot recover, finish with a compact handoff and let the controller start the next fresh session. Do not loop on an unchanged request or claim workflow settings can disable a provider-side timeout.
           - Rate limits: recognize explicit rate-limit responses, stop rapid repeated requests, honor Retry-After/reset information when available, and use bounded backoff. Avoid parallel calls to a rate-limited provider unless independence and limits are clear.
           - Python/test failures: reproduce the failing test or smallest relevant command, inspect the first real traceback/root cause, fix the cause rather than masking it, rerun the focused test, then run the broader relevant suite when practical. Check for undefined names, missing imports/modules, fixture/environment assumptions, and stale tests.
           - Whitespace/EOF failures: run `git diff --check` before checkpointing; normalize trailing whitespace and excess blank lines only in changed text files, then re-stage and verify. Do not silently rewrite unrelated or binary files.
@@ -255,11 +284,16 @@ jobs:
             # Keep Actions workflow definitions maintainer-managed. Restore tracked
             # workflow files to the revision at session start and remove agent-created
             # workflow files before creating the checkpoint commit.
-            git restore --source="$WORKFLOW_BASE_SHA" --staged --worktree -- .github/workflows
-            git clean -fd -- .github/workflows
+            if ! git restore --source="$WORKFLOW_BASE_SHA" --staged --worktree -- .github/workflows; then
+              echo "::warning::Could not fully restore workflow files; workflow paths are excluded from checkpoint staging."
+            fi
+            if ! git clean -fd -- .github/workflows; then
+              echo "::warning::Could not remove every agent-created workflow file; those paths remain excluded from checkpoint staging."
+            fi
 
           stage_repository_changes() {
             git add -A -- . \
+              ':(exclude).github/workflows/**' \
               ':(exclude).venv/**' ':(exclude)**/.venv/**' \
               ':(exclude)venv/**' ':(exclude)**/venv/**' \
               ':(exclude)__pycache__/**' ':(exclude)**/__pycache__/**' \
@@ -271,13 +305,17 @@ jobs:
               ':(exclude)**/*.pyc' ':(exclude)**/*.pyo'
           }
 
-          stage_repository_changes
+          checkpoint_ready=1
+          if ! stage_repository_changes; then
+            echo "::warning::Could not stage repository changes; preserving the worktree and continuing with the next agent."
+            checkpoint_ready=0
+          fi
 
-            # Repair generated trailing whitespace and extra blank lines at EOF
-            # before enforcing the staged-diff check.
-            if ! git diff --cached --check; then
-              echo "::warning::Normalizing trailing whitespace and blank lines at EOF in changed text files."
-              python - <<'PY'
+          # Repair generated trailing whitespace and extra blank lines at EOF,
+          # but never turn a repair failure into a campaign-ending shell error.
+          if [ "$checkpoint_ready" -eq 1 ] && ! git diff --cached --check; then
+            echo "::warning::Normalizing whitespace/EOF in changed text files before checkpointing."
+            if python - <<'PY'
           import os
           import subprocess
           from pathlib import Path
@@ -294,12 +332,9 @@ jobs:
                   continue
 
               original = path.read_bytes()
-              # Do not rewrite binaries, which may contain NUL bytes.
               if b"\0" in original:
                   continue
 
-              # Preserve each file's existing newline convention while trimming
-              # spaces/tabs immediately before every line ending or EOF.
               normalized_lines = []
               for line in original.splitlines(keepends=True):
                   if line.endswith(b"\r\n"):
@@ -316,67 +351,114 @@ jobs:
               if normalized != original:
                   path.write_bytes(normalized)
           PY
-              stage_repository_changes
+            then
+              if ! stage_repository_changes; then
+                echo "::warning::Restaging after normalization failed; checkpoint deferred."
+                checkpoint_ready=0
+              fi
+            else
+              echo "::warning::Whitespace normalizer failed; checkpoint deferred."
+              checkpoint_ready=0
             fi
+          fi
 
-            if ! git diff --cached --check; then
-              echo "::error::Staged changes still contain whitespace errors after normalization."
-              exit 1
+          if [ "$checkpoint_ready" -eq 1 ] && ! git diff --cached --check; then
+            echo "::warning::Staged whitespace check still fails after normalization; deferring this checkpoint and continuing with a fresh agent."
+            checkpoint_ready=0
+          fi
+
+          committed_this_iteration=0
+          if [ "$checkpoint_ready" -eq 1 ] && ! git diff --cached --quiet; then
+            if git -c user.name="kilo-autonomous" -c user.email="kilo-autonomous@users.noreply.github.com" commit --allow-empty-message -m ""; then
+              committed_this_iteration=1
+            else
+              echo "::warning::Checkpoint commit failed; retaining the worktree and continuing instead of failing the workflow."
+              checkpoint_ready=0
+              git reset --mixed HEAD >/dev/null 2>&1 || true
             fi
+          fi
 
-            if ! git diff --cached --quiet; then
-              git commit --allow-empty-message -m ""
-            fi
-
-            # Keep retrying transient remote races instead of failing after an
-            # arbitrary number of pushes. Retries use bounded backoff; the 360-minute
-            # Actions job limit is the ultimate hard ceiling.
+          if [ "$checkpoint_ready" -eq 1 ] && [ "$committed_this_iteration" -eq 1 ]; then
             persisted=0
             push_attempt=0
+
+            # Retry fetch/reconciliation/push indefinitely until verified persistence
+            # or the 355-minute safety cutoff. No fixed push-attempt cap.
             while [ "$persisted" -ne 1 ]; do
+              remaining=$((cutoff_epoch - $(date +%s)))
+              if [ "$remaining" -le 15 ]; then
+                cutoff=1
+                echo "::warning::Checkpoint persistence could not be verified before the safety cutoff; ending the campaign cleanly with diagnostic evidence."
+                break
+              fi
               push_attempt=$((push_attempt + 1))
 
               if ! git fetch origin "$DEFAULT_BRANCH"; then
                 echo "::warning::Could not fetch origin/$DEFAULT_BRANCH on persistence attempt $push_attempt; retrying."
-                sleep 10
-                continue
-              fi
-
-              if ! git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" HEAD; then
+                delay=10
+              elif ! git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" HEAD; then
                 if ! git rebase "origin/$DEFAULT_BRANCH"; then
                   git rebase --abort >/dev/null 2>&1 || true
                   if ! git merge --no-edit -X ours "origin/$DEFAULT_BRANCH"; then
                     git merge --abort >/dev/null 2>&1 || true
                     echo "::warning::Remote changes could not be reconciled on persistence attempt $push_attempt; retrying."
-                    sleep 10
-                    continue
+                    delay=10
+                  else
+                    delay=0
                   fi
+                else
+                  delay=0
+                fi
+              else
+                delay=0
+              fi
+
+              if [ "$delay" -eq 0 ]; then
+                if git push origin "HEAD:$DEFAULT_BRANCH"; then
+                  if ! remote_sha="$(git ls-remote origin "refs/heads/$DEFAULT_BRANCH" 2>/dev/null | awk '{print $1}')"; then
+                    remote_sha=""
+                  fi
+                  local_sha="$(git rev-parse HEAD)"
+                  if [ -n "$remote_sha" ] && [ "$remote_sha" = "$local_sha" ]; then
+                    persisted=1
+                    echo "Repository persistence verified at $remote_sha."
+                    break
+                  fi
+                  echo "::warning::Could not verify the remote head or $DEFAULT_BRANCH moved during persistence attempt $push_attempt; refetching and reconciling."
+                else
+                  echo "::warning::Push to $DEFAULT_BRANCH failed on persistence attempt $push_attempt; refetching and reconciling."
+                fi
+
+                if [ "$push_attempt" -le 3 ]; then
+                  delay=$((5 * push_attempt))
+                else
+                  delay=20
                 fi
               fi
 
-              if git push origin "HEAD:$DEFAULT_BRANCH"; then
-                if ! remote_sha="$(git ls-remote origin "refs/heads/$DEFAULT_BRANCH" 2>/dev/null | awk '{print $1}')"; then
-                  remote_sha=""
-                fi
-                local_sha="$(git rev-parse HEAD)"
-                if [ -n "$remote_sha" ] && [ "$remote_sha" = "$local_sha" ]; then
-                  persisted=1
-                  echo "Repository persistence verified at $remote_sha."
-                  break
-                fi
-                echo "::warning::Could not verify the remote head or $DEFAULT_BRANCH moved during persistence attempt $push_attempt; refetching and reconciling."
-              else
-                echo "::warning::Push to $DEFAULT_BRANCH failed on attempt $push_attempt; refetching and reconciling."
+              remaining=$((cutoff_epoch - $(date +%s)))
+              if [ "$remaining" -le 0 ]; then
+                cutoff=1
+                echo "::warning::Safety cutoff reached before the next checkpoint retry."
+                break
               fi
-
-              if [ "$push_attempt" -le 3 ]; then
-                push_backoff_seconds=$((5 * push_attempt))
-              else
-                push_backoff_seconds=20
+              if [ "$delay" -gt "$remaining" ]; then delay="$remaining"; fi
+              if [ "$delay" -gt 0 ]; then
+                echo "Retrying checkpoint persistence in \${delay}s (no fixed attempt limit)."
+                sleep "$delay"
               fi
-              echo "Retrying checkpoint persistence in ${push_backoff_seconds}s (no fixed attempt limit)."
-              sleep "$push_backoff_seconds"
             done
+
+            if [ "$persisted" -ne 1 ]; then
+              cutoff=1
+              echo "::warning::The latest commit was not confirmed on the remote; stopping further edits so the workflow cannot falsely report persistence."
+            fi
+          elif [ "$checkpoint_ready" -eq 1 ]; then
+            echo "No repository changes to checkpoint after agent session \${agent_index}."
+          else
+            git reset --mixed HEAD >/dev/null 2>&1 || true
+            echo "::warning::This session's checkpoint was deferred. The worktree is retained for the next agent while time remains."
+          fi
 
             if [ "$(date +%s)" -ge "$cutoff_epoch" ]; then
               cutoff=1
@@ -431,6 +513,7 @@ jobs:
 
       - name: Upload Kilo failure transcripts
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: kilo-failure-transcripts-${{ github.run_id }}
