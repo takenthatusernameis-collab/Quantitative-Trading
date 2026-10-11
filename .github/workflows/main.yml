@@ -1,4 +1,4 @@
-name: Kilo
+name: Kilo 
 
 on:
   schedule:
@@ -25,26 +25,19 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-        continue-on-error: true
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: true
 
       - id: kilo_controller
-        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -Eeuo pipefail
-          # Start the single overall work deadline before installing Kilo.
           cutoff_epoch=$(($(date +%s) + 355 * 60))
-
-          # Kilo uses only the repository-scoped GITHUB_TOKEN. Workflow definitions are maintainer-managed because this token cannot grant workflows permission.
-
-          # Give Kilo explicit, writable state and temp roots. This also pre-creates
-          # the normal SQLite parent directory, avoiding first-run database open errors.
           umask 077
+          # Kilo uses only the repository-scoped GITHUB_TOKEN. Workflow definitions are maintainer-managed because this token cannot grant workflows permission.
           export HOME="$RUNNER_TEMP/kilo-home"
           export XDG_CONFIG_HOME="$HOME/.config"
           export XDG_DATA_HOME="$HOME/.local/share"
@@ -53,72 +46,72 @@ jobs:
           mkdir -p "$XDG_CONFIG_HOME/kilo" "$XDG_DATA_HOME/kilo" "$XDG_CACHE_HOME/kilo" "$TMPDIR" "$RUNNER_TEMP/kilo"
           for directory in "$HOME" "$XDG_CONFIG_HOME/kilo" "$XDG_DATA_HOME/kilo" "$XDG_CACHE_HOME/kilo" "$TMPDIR" "$RUNNER_TEMP/kilo"; do
             if ! ( : > "$directory/.kilo-write-test" ) 2>/dev/null; then
-              echo "::error::Kilo runtime directory is not writable: $directory"
-              exit 1
+              echo "::warning::Runtime directory is not writable: $directory; continuing with a clean no-op rather than a hard workflow failure."
+              exit 0
             fi
             rm -f "$directory/.kilo-write-test"
           done
-          # Retry runner preflight until the safety deadline. If the host image
-          # remains fundamentally broken, report a warning and end cleanly rather
-          # than manufacture a failed Kilo task run.
-          while true; do
-            missing_utilities=()
-            for utility in git npm node python3 timeout; do
-              if ! command -v "$utility" >/dev/null 2>&1; then
-                missing_utilities+=("$utility")
-              fi
-            done
-            if [ "${#missing_utilities[@]}" -eq 0 ]; then
-              break
-            fi
-            remaining=$((cutoff_epoch - $(date +%s)))
-            if [ "$remaining" -le 0 ]; then
-              echo "::warning::Runner preflight did not recover before the 355-minute cutoff; missing: ${missing_utilities[*]}."
+
+          # A durable marker opts this single activation into exactly two sessions.
+          one_shot_mode=0
+          if [ -f ".kilo/TWO_AGENT_ONCE" ]; then
+            one_shot_mode=1
+            echo "::notice::One-shot marker detected; setting the sequential session count to exactly two."
+          fi
+          if [ "$one_shot_mode" -eq 0 ] && [ -f ".kilo/SKIP_NEXT_ROUTINE_KILO" ]; then
+            echo "::notice::Consuming the one-time post-smoke skip; this activation will not start Kilo."
+            git config user.name "kilo-autonomous"
+            git config user.email "kilo-autonomous@users.noreply.github.com"
+            DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+            if [ -z "$DEFAULT_BRANCH" ]; then
+              echo "::warning::Default branch is unavailable; retaining the skip marker for a later activation."
               exit 0
             fi
-            delay=30
-            if [ "$remaining" -lt "$delay" ]; then delay="$remaining"; fi
-            echo "::warning::Runner preflight missing ${missing_utilities[*]}; rechecking in ${delay}s."
-            sleep "$delay"
-          done
-
-          # Ignore runner-local dependency/cache/database artifacts without changing
-          # repository .gitignore files or hiding already-tracked source files.
-          exclude_file="$(git rev-parse --git-path info/exclude)"
-          mkdir -p "$(dirname "$exclude_file")"
-          if ! grep -Fqx '# Kilo transient runtime artifacts' "$exclude_file" 2>/dev/null; then
-            printf '\n# Kilo transient runtime artifacts\n' >> "$exclude_file"
-          fi
-          for pattern in \
-            '.venv/' '**/.venv/' 'venv/' '**/venv/' \
-            '__pycache__/' '**/__pycache__/' '.pytest_cache/' '**/.pytest_cache/' \
-            '.mypy_cache/' '**/.mypy_cache/' '.ruff_cache/' '**/.ruff_cache/' \
-            '.tox/' '**/.tox/' 'node_modules/' '**/node_modules/' \
-            '.coverage' 'coverage.xml' '*.py[cod]' '*.sqlite' '*.sqlite3' '*.db' \
-            '*.sqlite-wal' '*.sqlite-shm' '*.sqlite3-wal' '*.sqlite3-shm' '*.db-wal' '*.db-shm' '*.tmp'; do
-            if ! grep -Fqx "$pattern" "$exclude_file" 2>/dev/null; then
-              printf '%s\n' "$pattern" >> "$exclude_file"
+            if ! git rm -f -- .kilo/SKIP_NEXT_ROUTINE_KILO || ! git commit -m "chore(kilo): consume one-time post-run skip"; then
+              echo "::warning::Could not create the skip-marker consumption commit; the next routine activation will retry."
+              exit 0
             fi
-          done
+            delay=5
+            while true; do
+              remaining=$((cutoff_epoch - $(date +%s)))
+              if [ "$remaining" -le 0 ]; then
+                echo "::warning::Could not verify skip-marker persistence before the cutoff; stopping safely."
+                exit 0
+              fi
+              if git fetch origin "$DEFAULT_BRANCH" && git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" HEAD && git push origin "HEAD:$DEFAULT_BRANCH"; then
+                remote_sha="$(git ls-remote origin "refs/heads/$DEFAULT_BRANCH" 2>/dev/null | awk 'NR==1 {print $1}')"
+                local_sha="$(git rev-parse HEAD)"
+                if [ -n "$remote_sha" ] && [ "$remote_sha" = "$local_sha" ]; then
+                  echo "Verified one-time skip-marker removal at $remote_sha."
+                  break
+                fi
+              fi
+              echo "::warning::Could not verify skip-marker removal; retrying without a fixed attempt limit."
+              remaining=$((cutoff_epoch - $(date +%s)))
+              if [ "$remaining" -le 0 ]; then exit 0; fi
+              if [ "$delay" -gt "$remaining" ]; then delay="$remaining"; fi
+              sleep "$delay"
+              if [ "$delay" -lt 30 ]; then delay=$((delay * 2)); if [ "$delay" -gt 30 ]; then delay=30; fi; fi
+            done
+            exit 0
+          fi
 
           cat > "$HOME/.config/kilo/kilo.json" <<'EOF'
           {"$schema":"https://app.kilo.ai/config.json","permission":"allow"}
           EOF
 
-          # Never stop after an arbitrary package-install attempt count. Retry
-          # with capped backoff until installation succeeds or the 355-minute cutoff.
           install_attempt=0
           install_backoff=5
-          while ! npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/kilo" @kilocode/cli@7.7.1; do
+          until npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/kilo" @kilocode/cli@7.7.1; do
             install_attempt=$((install_attempt + 1))
             remaining=$((cutoff_epoch - $(date +%s)))
             if [ "$remaining" -le 0 ]; then
-              echo "::warning::Kilo CLI installation did not recover before the safety cutoff; no agent session could be started."
+              echo "::warning::Kilo installation did not recover before the 355-minute cutoff; no agent session was started."
               exit 0
             fi
             delay="$install_backoff"
             if [ "$remaining" -lt "$delay" ]; then delay="$remaining"; fi
-            echo "::warning::Kilo CLI installation attempt $install_attempt failed; retrying in ${delay}s (no attempt-count cutoff)."
+            echo "::warning::Kilo CLI installation attempt $install_attempt failed; retrying in ${delay}s (no attempt-count cap)."
             sleep "$delay"
             if [ "$install_backoff" -lt 60 ]; then
               install_backoff=$((install_backoff * 2))
@@ -132,68 +125,33 @@ jobs:
 
           agents="${{ inputs.agents || '1000' }}"
           if ! [[ "$agents" =~ ^[0-9]+$ ]]; then
-            echo "::warning::Invalid agents input; using the safe default of 1000 instead of failing the workflow."
-            agents=1000
-          fi
-          if [ "$agents" -lt 1 ]; then
-            echo "::warning::Agents input was below 1; clamping to 1."
+            echo "::warning::Invalid agent count; using a safe value."
             agents=1
-          elif [ "$agents" -gt 1000 ]; then
-            echo "::warning::Agents input was above 1000; clamping to 1000."
-            agents=1000
           fi
+          if [ "$agents" -lt 1 ]; then agents=1; fi
+          if [ "$agents" -gt 1000 ]; then agents=1000; fi
+          if [ "$one_shot_mode" -eq 1 ]; then agents=2; fi
+          echo "Configured sequential Kilo sessions: $agents (one-shot mode: $one_shot_mode)."
           command=$(cat <<'PROMPT'
           Execute the task assigned by the previous agent and prepare a task for the next agent !
 
           Reliability rules:
-          - Before each tool call, satisfy its required schema and argument names.
-          - File writes must include complete content; edits must include the required filePath; shell calls must include the command.
-          - If a tool rejects arguments, inspect the exact error/schema and correct the call before retrying. Never repeat an unchanged malformed call. There is no global retry budget for evidence-based recovery; stop only when the approach is demonstrably non-recoverable, no new information can be obtained, or the external run deadline is reached.
-          - Work in small verified steps, limit repeated network requests, and checkpoint meaningful progress.
-          - Do not manually commit or push, and do not modify .github/workflows; the outer workflow handles checkpointing and preserves workflow definitions.
-          - Before finishing, record what changed, what remains, and a clear task for the next agent.
-          Recurring-error prevention checklist (based on prior Actions failures):
-          - Malformed tool arguments: before every call, check the exact tool schema and all required field names. For write/edit/shell tools, include complete content, the exact file path, and a non-empty command respectively. After a rejected call, read the error, correct the schema/value, and never replay the identical invalid call; if repeated rejection persists, switch to a supported tool or report the blocker.
-          - Upstream idle timeouts, connection loss, provider errors, EOFs, and transient API/network failures: preserve partial work and exact evidence; retry with a changed/revalidated approach and appropriate backoff while useful. If the session cannot recover, finish with a compact handoff and let the controller start the next fresh session. Do not loop on an unchanged request or claim workflow settings can disable a provider-side timeout.
-          - Rate limits: recognize explicit rate-limit responses, stop rapid repeated requests, honor Retry-After/reset information when available, and use bounded backoff. Avoid parallel calls to a rate-limited provider unless independence and limits are clear.
-          - Python/test failures: reproduce the failing test or smallest relevant command, inspect the first real traceback/root cause, fix the cause rather than masking it, rerun the focused test, then run the broader relevant suite when practical. Check for undefined names, missing imports/modules, fixture/environment assumptions, and stale tests.
-          - Whitespace/EOF failures: run `git diff --check` before checkpointing; normalize trailing whitespace and excess blank lines only in changed text files, then re-stage and verify. Do not silently rewrite unrelated or binary files.
-          - Git persistence conflicts: fetch the target default branch before each push attempt, reconcile remote advancement without discarding unrelated work, retry transient fetch/push races with bounded backoff, and verify the remote ref equals the persisted commit. Never claim persistence succeeded without that verification.
-          - Checkpoint safety: before staging, inspect `git status --short` and the diff; keep workflow definitions protected as instructed; commit meaningful changes before the overall cutoff where possible. If persistence cannot finish, preserve diagnostic details and do not falsely report the work as saved.
-          - Repository/API permissions: distinguish code defects from GitHub App/GITHUB_TOKEN permission limits. Do not repeatedly retry a forbidden operation or try to bypass permissions; make a safe in-scope fix and state the exact permission/maintainer action needed.
-          - Self-modification: do not change workflow definitions, permission boundaries, checkpoint logic, or safety instructions to make a failed run appear successful. Propose control-plane changes separately for maintainer review.
-          - Evidence and completion: capture the failing run ID, job/step, relevant log excerpt, root cause, exact fix, focused verification result, and whether a later run confirms the recurrence is gone. Clearly label unverified assumptions and external blockers.
-
-          Additional recurring project failure prevention:
-          - SQLite/database open errors: resolve relative paths deliberately; create the parent directory before opening the database; verify the path is writable; use a temporary database for tests and a stable ignored path for local caches; close connections reliably; preserve existing databases and migrations; add a regression test for missing-parent and read-only-path cases. Do not "fix" the error by deleting user data.
-          - HOME, sandbox, Bubblewrap, and temporary paths: keep HOME under a runner-writable temporary directory, create it before configuring tools, and verify write access. Use explicit absolute paths where practical. If a sandbox executable or permission fails, capture the exact command, executable lookup, HOME/TMP paths, and permissions once; distinguish runner/tooling defects from repo defects and do not loop on unchanged sandbox configuration.
-          - API and market-data failures: validate symbols against the provider/exchange's current metadata before requesting candles. Treat deterministic HTTP 400/invalid-symbol responses as input/data problems, not transient outages; do not retry the same invalid symbol or silently substitute another instrument. Distinguish 401/403 permissions, 429/provider quotas, 5xx/outages, empty data, pagination limits, and malformed candles. Honor Retry-After/reset hints, back off on transient failures, and record provider, symbol, timeframe, requested window, and response status.
-          - Tests, snapshots, and sentinel counts: define the expected baseline and expected delta explicitly; count only new records attributable to the test rather than all matching records; snapshot state immediately before mutation; use unique temporary paths/run IDs; assert rollback/restoration after both success and failure; clean up in a finally/teardown path. Never overwrite the only known-good snapshot before validating the replacement.
-          - Python quality/test commands: do not pipe pytest or another test command into tail/head unless pipefail is enabled and the exit status is preserved. Reproduce the first actionable failure, fix the root cause in small steps, then rerun the focused test and the relevant suite. Avoid broad automatic --unsafe-fixes passes unless each change is reviewed and behavior-sensitive tests pass.
-          - Quantitative research/backtests: reset cash, positions, pending orders, equity, and model state independently for every walk-forward fold; a zero-trade fold must not inherit returns or positions; freeze each universe using only information available at the decision time; separate training/validation/test roles; include fees, spread, slippage, and realistic fills; validate no lookahead/data leakage and preserve data provenance. Record null/rejected findings as valid outcomes rather than tuning repeatedly against the holdout.
-          - Dependency/runtime artifacts: never commit virtual environments, package installations, bytecode, test caches, runtime databases, or transient logs unless explicitly required as deliverables. Add focused ignore rules or exclusions instead of letting a dependency install or backtest accidentally create a massive commit. Do not normalize or otherwise rewrite unrelated/binary files.
-          - Provider model quotas (including 402/400-style model-capacity errors): classify the exact provider response, reduce unnecessary context and tool-call bursts, preserve a compact checkpoint, and honor the provider's documented reset. Do not spawn extra parallel requests or repeat an identical rejected request hoping it will succeed.
-          - Failure evidence: for each recurring defect, preserve the run ID, failing step/command, minimal relevant excerpt, root cause, repair, and verification. Do not report that a fix worked until the focused check actually passed; if a failure is external or unreproducible, label it clearly and move to another useful task.
-          Selective subagent delegation:
-          - If the current Kilo CLI/model session exposes the Task tool or subagent delegation, use it selectively for independent, bounded tasks where a second context is likely to improve reliability. Do not assume delegation is available; if the tool is missing or delegation fails, continue directly without repeatedly retrying it.
-          - When available, delegate a read-only audit of recent GitHub Actions failures early in the session. Ask the subagent to use `gh run list --limit 10` and targeted logs from `gh run view RUN_ID --log-failed`, then return run IDs, exact evidence, likely root causes, and prevention ideas. The main agent must verify material claims and own the fix.
-          - For substantial changes, consider a separate read-only review/test audit to check the diff, confirm it addresses the observed failure, and identify missing regression coverage. The main agent integrates findings and performs final focused verification.
-          - Prefer read-only diagnosis and review. Subagents may share the parent's working directory, so do not assign concurrent edits to the same files unless separate worktrees are explicitly available. Avoid spawning agents for trivial tasks or allowing delegation to replace verification.
-          - Delegation is an extra reasoning/checking layer, not a cure for provider outages, upstream idle timeouts, broken tool infrastructure, missing secrets/permissions, or hard runner limits.
-
-          GitHub Actions error feedback loop:
-          - At the start of each session, inspect recent runs in this repository with `gh run list --limit 10`. For recent, relevant failed runs, retrieve targeted logs with `gh run view RUN_ID --log-failed`; prioritize repeat failures and errors related to the assigned task. If there are no accessible failed runs, continue the assigned task.
-          - Use the logs as evidence, not just as a status report: identify the likely root cause, fix it in repository code, tests, scripts, configuration, or documentation when it is within scope, add a regression test or deterministic guard where appropriate, and run focused checks.
-          - Do not merely record a fixable error. If the cause is external/transient, or requires workflow changes, secrets, permissions, or another out-of-scope action, document the exact evidence and a concrete maintainer action, then continue other safe, useful work.
-          - Before ending, re-check recent runs when a newer completed run is available and note whether the previously observed error recurred. Do not claim to have inspected logs that were inaccessible; the current run's final logs may not exist until that run ends.
-          - Keep investigation targeted: avoid dumping large unrelated logs, and do not modify `.github/workflows`; these definitions remain maintainer-managed.
+          - Before every tool call, check the exact schema, required arguments, and value types. After a rejection, inspect the actual error/schema, change the invalid argument, and never repeat an identical malformed call.
+          - For network, provider, EOF, rate-limit, idle-timeout, and tool errors, preserve partial progress, classify the error, honor Retry-After/reset hints, use appropriate backoff, and change the approach before retrying. Do not amplify provider outages with parallel calls.
+          - Do not claim a test or log review passed without evidence. Reproduce the smallest failure, fix its root cause, rerun the focused check, then broader checks when useful.
+          - For SQLite, explicitly create and verify writable parent directories; do not delete existing databases to "fix" open errors. Keep runtime data out of commits.
+          - Validate exchange symbols/market-data availability before candle requests; do not retry deterministic invalid-symbol 400s unchanged. Distinguish permissions (401/403), quotas (429/402), transient 5xx, empty data, and malformed data.
+          - Backtests must reset positions, cash, pending orders, equity, and model state per fold; zero-trade folds inherit nothing. Prevent lookahead/universe leakage and include fees, spread, slippage, depth, and fill assumptions.
+          - Before checkpointing inspect status/diff; exclude environments, caches, databases, SQLite sidecars, and runtime logs; run git diff --check; protect .github/workflows and verify the remote commit after push.
+          - Do not modify .github/workflows, permissions, checkpoint controls, or safety policy. If a task is not recoverable, leave a compact evidenced handoff and let the next fresh session continue.
+          - At session end state what changed, verification performed, blockers, and a precise next task.
           PROMPT
           )
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
 
           if [ -z "$DEFAULT_BRANCH" ]; then
-            echo "::error::GitHub did not provide the repository default branch."
-            exit 1
+            echo "::warning::GitHub did not provide the default branch; preserving the repository and ending this activation safely."
+            exit 0
           fi
 
           echo "Repository default branch: $DEFAULT_BRANCH"
@@ -209,78 +167,59 @@ jobs:
           heartbeat_pid=$!
           trap 'kill "$heartbeat_pid" 2>/dev/null || true' EXIT
 
+          failed_sessions=0
           consecutive_failures=0
-          total_failed_sessions=0
           provider_pressure_streak=0
           cutoff=0
 
-          # No fixed per-session cap. Each session may run until the single
-          # 355-minute overall deadline, after which Kilo is stopped to checkpoint.
           for agent_index in $(seq 1 "$agents"); do
             remaining=$((cutoff_epoch - $(date +%s)))
             if [ "$remaining" -le 0 ]; then
               cutoff=1
-              echo "355-minute cutoff reached before the next agent; saving the latest checkpoint."
               break
             fi
-
-            # Snapshot the workflow tree for this agent session. The standard
-            # GITHUB_TOKEN cannot push commits that add/change Actions workflows.
+            session_timeout="$remaining"
             WORKFLOW_BASE_SHA="$(git rev-parse HEAD)"
-
-            # The timeout is dynamically set to the remaining overall budget;
-            # there is no separate, fixed session timeout.
-            # Keep a per-session transcript for exact diagnosis, while preserving
-            # the Kilo/timeout exit status rather than tee's exit status.
             session_log="$RUNNER_TEMP/kilo-session-${agent_index}.log"
             provider_pressure=0
-            echo "Starting Kilo session ${agent_index}/${agents}; transcript: $session_log"
+            echo "Starting sequential Kilo session ${agent_index}/${agents}; remaining safety budget ${remaining}s."
+
             set +e
             timeout \
               --signal=TERM \
               --kill-after=10s \
-              "${remaining}s" \
+              "${session_timeout}s" \
               kilo run \
                 --model kilo/kilo-auto/free \
                 --auto \
                 "$command" 2>&1 | tee "$session_log"
             rc=${PIPESTATUS[0]}
             set -e
-
-            # Do not amplify a provider-side quota/capacity error with short,
-            # repeated sessions. Distinguish it from ordinary task failures.
-            if [ "$rc" -ne 0 ] && grep -Eiq '(^|[^0-9])429([^0-9]|$)|rate[ _-]?limit|resource[_ -]?exhausted|quota.*(exceed|limit)|current[:= ]*402.*limit[:= ]*400' "$session_log"; then
-              provider_pressure=1
-              provider_pressure_streak=$((provider_pressure_streak + 1))
-              echo "::warning::Detected provider rate-limit/quota/capacity wording in the Kilo transcript; a longer cooldown will be used."
-            elif [ "$rc" -eq 0 ]; then
-              provider_pressure_streak=0
-            else
-              provider_pressure_streak=0
-            fi
-
-            # Keep bounded diagnostic tails from failed sessions as durable CI
-            # artifacts; full transcripts remain visible in the Actions step log.
             if [ "$rc" -ne 0 ]; then
               mkdir -p "$RUNNER_TEMP/kilo-failure-logs"
-              if ! tail -n 2000 "$session_log" > "$RUNNER_TEMP/kilo-failure-logs/session-${agent_index}.log"; then
-                echo "::warning::Could not save a diagnostic tail for Kilo session ${agent_index}."
+              tail -n 2000 "$session_log" > "$RUNNER_TEMP/kilo-failure-logs/session-${agent_index}.log" || true
+              if grep -Eiq '(^|[^0-9])429([^0-9]|$)|rate[ _-]?limit|resource[_ -]?exhausted|quota.*(exceed|limit)|current[:= ]*402.*limit[:= ]*400' "$session_log"; then
+                provider_pressure=1
+                provider_pressure_streak=$((provider_pressure_streak + 1))
+                echo "::warning::Provider quota/capacity failure detected; applying a longer cooldown."
               fi
+            elif [ "$rc" -eq 0 ]; then
+              provider_pressure_streak=0
             fi
 
             if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
               if [ "$(date +%s)" -ge "$cutoff_epoch" ]; then
                 cutoff=1
-                echo "355-minute overall cutoff reached; stopping Kilo and saving the final checkpoint."
+                echo "::warning::355-minute safety cutoff reached; saving the last possible checkpoint."
               else
                 consecutive_failures=$((consecutive_failures + 1))
-                total_failed_sessions=$((total_failed_sessions + 1))
-                echo "::warning::Kilo session timed out or was terminated before the overall cutoff (failure streak: $consecutive_failures). Saving its checkpoint and continuing."
+                failed_sessions=$((failed_sessions + 1))
+                echo "::warning::Session reached the current safety deadline or was terminated (failure streak: $consecutive_failures); continuing with a fresh session when time remains."
               fi
             elif [ "$rc" -ne 0 ]; then
               consecutive_failures=$((consecutive_failures + 1))
-              total_failed_sessions=$((total_failed_sessions + 1))
-              echo "::warning::Kilo session exited with status $rc (failure streak: $consecutive_failures; no failure-count cutoff). Saving its checkpoint and continuing."
+              failed_sessions=$((failed_sessions + 1))
+              echo "::warning::Kilo session exited with status $rc (failure streak: $consecutive_failures; no failure-count cutoff)."
             else
               consecutive_failures=0
             fi
@@ -289,38 +228,53 @@ jobs:
             # workflow files to the revision at session start and remove agent-created
             # workflow files before creating the checkpoint commit.
             if ! git restore --source="$WORKFLOW_BASE_SHA" --staged --worktree -- .github/workflows; then
-              echo "::warning::Could not fully restore workflow files; workflow paths are excluded from checkpoint staging."
+              echo "::warning::Could not fully restore workflow files; workflow paths remain excluded."
             fi
-            if ! git clean -fd -- .github/workflows; then
-              echo "::warning::Could not remove every agent-created workflow file; those paths remain excluded from checkpoint staging."
+            git clean -fd -- .github/workflows || true
+
+            # Signal routine activations to skip after session two (or if the global
+            # cutoff ends this one-shot early). The skip marker is written first.
+            if [ "$one_shot_mode" -eq 1 ] && { [ "$agent_index" -eq 2 ] || [ "$(date +%s)" -ge "$cutoff_epoch" ]; }; then
+              mkdir -p .kilo
+              if printf '%s\n' 'Skip one routine Kilo activation after the one-shot two-agent reliability run.' > .kilo/SKIP_NEXT_ROUTINE_KILO; then
+                rm -f -- .kilo/TWO_AGENT_ONCE || echo "::warning::Could not remove the one-shot marker; routine activations remain safely gated."
+              else
+                echo "::warning::Could not write the post-run skip marker; retaining the one-shot marker for recovery."
+              fi
             fi
 
-          stage_repository_changes() {
-            git add -A -- . \
-              ':(exclude).github/workflows/**' \
-              ':(exclude).venv/**' ':(exclude)**/.venv/**' \
-              ':(exclude)venv/**' ':(exclude)**/venv/**' \
-              ':(exclude)__pycache__/**' ':(exclude)**/__pycache__/**' \
-              ':(exclude).pytest_cache/**' ':(exclude)**/.pytest_cache/**' \
-              ':(exclude).mypy_cache/**' ':(exclude)**/.mypy_cache/**' \
-              ':(exclude).ruff_cache/**' ':(exclude)**/.ruff_cache/**' \
-              ':(exclude).tox/**' ':(exclude)**/.tox/**' \
-              ':(exclude)node_modules/**' ':(exclude)**/node_modules/**' \
-              ':(exclude)**/*.pyc' ':(exclude)**/*.pyo'
-          }
+            stage_repository_changes() {
+              git add -A -- . \
+                ':(exclude).github/workflows/**' \
+                ':(exclude).venv/**' ':(exclude)**/.venv/**' \
+                ':(exclude)venv/**' ':(exclude)**/venv/**' \
+                ':(exclude)__pycache__/**' ':(exclude)**/__pycache__/**' \
+                ':(exclude).pytest_cache/**' ':(exclude)**/.pytest_cache/**' \
+                ':(exclude).mypy_cache/**' ':(exclude)**/.mypy_cache/**' \
+                ':(exclude).ruff_cache/**' ':(exclude)**/.ruff_cache/**' \
+                ':(exclude).tox/**' ':(exclude)**/.tox/**' \
+                ':(exclude)node_modules/**' ':(exclude)**/node_modules/**' \
+                ':(exclude)**/*.pyc' ':(exclude)**/*.pyo' \
+                ':(exclude)**/*.sqlite' ':(exclude)**/*.sqlite3' ':(exclude)**/*.db' \
+                ':(exclude)**/*.sqlite-wal' ':(exclude)**/*.sqlite-shm' \
+                ':(exclude)**/*.sqlite3-wal' ':(exclude)**/*.sqlite3-shm' \
+                ':(exclude)**/*.db-wal' ':(exclude)**/*.db-shm' \
+                ':(exclude)**/*.tmp' ':(exclude)**/coverage.xml' ':(exclude)**/.coverage' \
+                ':(exclude)**/kilo-session-*.log'
+            }
+            checkpoint_ready=1
+            if ! stage_repository_changes; then
+              echo "::warning::Staging failed; preserving worktree and allowing the next session to retry."
+              checkpoint_ready=0
+            fi
 
-          checkpoint_ready=1
-          if ! stage_repository_changes; then
-            echo "::warning::Could not stage repository changes; preserving the worktree and continuing with the next agent."
-            checkpoint_ready=0
-          fi
-
-          # Repair generated trailing whitespace and extra blank lines at EOF,
-          # but never turn a repair failure into a campaign-ending shell error.
-          if [ "$checkpoint_ready" -eq 1 ] && ! git diff --cached --check; then
-            echo "::warning::Normalizing whitespace/EOF in changed text files before checkpointing."
-            if python - <<'PY'
+            # Repair generated trailing whitespace and extra blank lines at EOF
+            # before enforcing the staged-diff check.
+            if ! git diff --cached --check; then
+              echo "::warning::Normalizing trailing whitespace and blank lines at EOF in changed text files."
+              if ! python - <<'PY'
           import os
+          import re
           import subprocess
           from pathlib import Path
 
@@ -335,171 +289,106 @@ jobs:
               if path.is_symlink() or not path.is_file():
                   continue
 
-              original = path.read_bytes()
-              if b"\0" in original:
+              content = path.read_bytes()
+              if b"\0" in content:
                   continue
 
-              normalized_lines = []
-              for line in original.splitlines(keepends=True):
-                  if line.endswith(b"\r\n"):
-                      body, ending = line[:-2], b"\r\n"
-                  elif line.endswith(b"\n"):
-                      body, ending = line[:-1], b"\n"
-                  elif line.endswith(b"\r"):
-                      body, ending = line[:-1], b"\r"
-                  else:
-                      body, ending = line, b""
-                  normalized_lines.append(body.rstrip(b" \t") + ending)
-
-              normalized = b"".join(normalized_lines)
-              if normalized != original:
-                  path.write_bytes(normalized)
+              cleaned = re.sub(rb"[ \t]+(?=\r?$)", b"", content, flags=re.MULTILINE)
+              # Collapse trailing empty/whitespace-only lines to a single final newline.
+              cleaned = re.sub(rb"(?:[ \t]*\r?\n)+\Z", b"\n", cleaned)
+              if cleaned != content:
+                  path.write_bytes(cleaned)
           PY
-            then
+              then
+                echo "::warning::Whitespace normalizer failed; deferring checkpoint to a fresh session."
+                checkpoint_ready=0
+              else
               if ! stage_repository_changes; then
-                echo "::warning::Restaging after normalization failed; checkpoint deferred."
+                echo "::warning::Restaging after whitespace repair failed; deferring this checkpoint."
                 checkpoint_ready=0
               fi
-            else
-              echo "::warning::Whitespace normalizer failed; checkpoint deferred."
-              checkpoint_ready=0
-            fi
-          fi
-
-          if [ "$checkpoint_ready" -eq 1 ] && ! git diff --cached --check; then
-            echo "::warning::Staged whitespace check still fails after normalization; deferring this checkpoint and continuing with a fresh agent."
-            checkpoint_ready=0
-          fi
-
-          committed_this_iteration=0
-          if [ "$checkpoint_ready" -eq 1 ] && ! git diff --cached --quiet; then
-            if git -c user.name="kilo-autonomous" -c user.email="kilo-autonomous@users.noreply.github.com" commit --allow-empty-message -m ""; then
-              committed_this_iteration=1
-            else
-              echo "::warning::Checkpoint commit failed; retaining the worktree and continuing instead of failing the workflow."
-              checkpoint_ready=0
-              git reset --mixed HEAD >/dev/null 2>&1 || true
-            fi
-          fi
-
-          if [ "$checkpoint_ready" -eq 1 ] && [ "$committed_this_iteration" -eq 1 ]; then
-            persisted=0
-            push_attempt=0
-
-            # Retry fetch/reconciliation/push indefinitely until verified persistence
-            # or the 355-minute safety cutoff. No fixed push-attempt cap.
-            while [ "$persisted" -ne 1 ]; do
-              remaining=$((cutoff_epoch - $(date +%s)))
-              if [ "$remaining" -le 15 ]; then
-                cutoff=1
-                echo "::warning::Checkpoint persistence could not be verified before the safety cutoff; ending the campaign cleanly with diagnostic evidence."
-                break
               fi
-              push_attempt=$((push_attempt + 1))
+            fi
 
-              if ! git fetch origin "$DEFAULT_BRANCH"; then
-                echo "::warning::Could not fetch origin/$DEFAULT_BRANCH on persistence attempt $push_attempt; retrying."
-                delay=10
-              elif ! git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" HEAD; then
-                if ! git rebase "origin/$DEFAULT_BRANCH"; then
-                  git rebase --abort >/dev/null 2>&1 || true
-                  if ! git merge --no-edit -X ours "origin/$DEFAULT_BRANCH"; then
-                    git merge --abort >/dev/null 2>&1 || true
-                    echo "::warning::Remote changes could not be reconciled on persistence attempt $push_attempt; retrying."
-                    delay=10
-                  else
-                    delay=0
-                  fi
-                else
-                  delay=0
-                fi
+            if [ "$checkpoint_ready" -eq 1 ] && ! git diff --cached --check; then
+              echo "::warning::Whitespace check still fails after normalization; deferring this checkpoint and continuing with a fresh session."
+              checkpoint_ready=0
+            fi
+
+            committed_this_iteration=0
+            if [ "$checkpoint_ready" -eq 1 ] && ! git diff --cached --quiet; then
+              if git commit --allow-empty-message -m ""; then
+                committed_this_iteration=1
               else
-                delay=0
+                echo "::warning::Checkpoint commit failed; retaining worktree for the next session."
+                checkpoint_ready=0
               fi
+            fi
 
-              if [ "$delay" -eq 0 ]; then
-                if git push origin "HEAD:$DEFAULT_BRANCH"; then
-                  if ! remote_sha="$(git ls-remote origin "refs/heads/$DEFAULT_BRANCH" 2>/dev/null | awk '{print $1}')"; then
-                    remote_sha=""
+            # Deterministic repository-level persistence: reconcile any remote
+            # advancement before every push, then verify that the remote points
+            # to exactly the commit produced by this runner.
+            persisted=1
+            if [ "$checkpoint_ready" -eq 1 ] && [ "$committed_this_iteration" -eq 1 ]; then
+              persisted=0
+              push_attempt=0
+              delay=5
+              while [ "$persisted" -ne 1 ]; do
+                remaining=$((cutoff_epoch - $(date +%s)))
+                if [ "$remaining" -le 0 ]; then
+                  cutoff=1
+                  echo "::warning::Safety cutoff reached before checkpoint persistence could be confirmed."
+                  break
+                fi
+                push_attempt=$((push_attempt + 1))
+                if ! git fetch origin "$DEFAULT_BRANCH"; then
+                  echo "::warning::Fetch failed on persistence attempt $push_attempt; retrying."
+                elif ! git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" HEAD; then
+                  if ! git rebase "origin/$DEFAULT_BRANCH"; then
+                    git rebase --abort >/dev/null 2>&1 || true
+                    echo "::warning::Rebase conflict during persistence attempt $push_attempt; preserving worktree and retrying with fresh remote state."
                   fi
+                elif git push origin "HEAD:$DEFAULT_BRANCH"; then
+                  remote_sha="$(git ls-remote origin "refs/heads/$DEFAULT_BRANCH" 2>/dev/null | awk 'NR==1 {print $1}')"
                   local_sha="$(git rev-parse HEAD)"
                   if [ -n "$remote_sha" ] && [ "$remote_sha" = "$local_sha" ]; then
                     persisted=1
-                    echo "Repository persistence verified at $remote_sha."
+                    echo "Repository persistence verified at $remote_sha after $push_attempt attempt(s)."
                     break
                   fi
-                  echo "::warning::Could not verify the remote head or $DEFAULT_BRANCH moved during persistence attempt $push_attempt; refetching and reconciling."
+                  echo "::warning::Remote head did not match the local checkpoint after attempt $push_attempt; refetching."
                 else
-                  echo "::warning::Push to $DEFAULT_BRANCH failed on persistence attempt $push_attempt; refetching and reconciling."
+                  echo "::warning::Push failed on persistence attempt $push_attempt; fetching and reconciling again."
                 fi
-
-                if [ "$push_attempt" -le 3 ]; then
-                  delay=$((5 * push_attempt))
-                else
-                  delay=20
-                fi
-              fi
-
-              remaining=$((cutoff_epoch - $(date +%s)))
-              if [ "$remaining" -le 0 ]; then
-                cutoff=1
-                echo "::warning::Safety cutoff reached before the next checkpoint retry."
-                break
-              fi
-              if [ "$delay" -gt "$remaining" ]; then delay="$remaining"; fi
-              if [ "$delay" -gt 0 ]; then
-                echo "Retrying checkpoint persistence in \${delay}s (no fixed attempt limit)."
-                sleep "$delay"
-              fi
-            done
-
-            if [ "$persisted" -ne 1 ]; then
-              cutoff=1
-              echo "::warning::The latest commit was not confirmed on the remote; stopping further edits so the workflow cannot falsely report persistence."
+                remaining=$((cutoff_epoch - $(date +%s)))
+                if [ "$remaining" -le 0 ]; then cutoff=1; break; fi
+                if [ "$delay" -gt "$remaining" ]; then delay="$remaining"; fi
+                if [ "$delay" -gt 0 ]; then sleep "$delay"; fi
+                if [ "$delay" -lt 30 ]; then delay=$((delay * 2)); if [ "$delay" -gt 30 ]; then delay=30; fi; fi
+              done
             fi
-          elif [ "$checkpoint_ready" -eq 1 ]; then
-            echo "No repository changes to checkpoint after agent session \${agent_index}."
-          else
-            git reset --mixed HEAD >/dev/null 2>&1 || true
-            echo "::warning::This session's checkpoint was deferred. The worktree is retained for the next agent while time remains."
-          fi
-
-            if [ "$(date +%s)" -ge "$cutoff_epoch" ]; then
+            if [ "$persisted" -ne 1 ]; then
+              echo "::warning::Checkpoint persistence was not confirmed. No success claim is made; stopping edits and preserving diagnostics before the cutoff."
               cutoff=1
             fi
 
             if [ "$cutoff" -eq 1 ]; then
-              echo "355-minute cutoff reached; progress checkpointed."
               break
             fi
 
-            # Provider quotas need a much longer cooldown than ordinary task
-            # failures. Honor a Retry-After hint if the CLI transcript exposes one.
             if [ "$provider_pressure" -eq 1 ]; then
               case "$provider_pressure_streak" in
                 1) backoff_seconds=300 ;;
                 2) backoff_seconds=600 ;;
                 *) backoff_seconds=900 ;;
               esac
-              retry_after_seconds="$(
-                grep -Eio 'retry[-_ ]after[^0-9]{0,12}[0-9]+' "$session_log" 2>/dev/null |
-                  tail -n 1 | grep -Eo '[0-9]+' | tail -n 1 || true
-              )"
-              if [[ "$retry_after_seconds" =~ ^[0-9]+$ ]] && [ "$retry_after_seconds" -gt "$backoff_seconds" ]; then
-                backoff_seconds="$retry_after_seconds"
-              else
-                backoff_seconds=$((backoff_seconds + RANDOM % 30))
-              fi
-              remaining_sleep=$((cutoff_epoch - $(date +%s)))
-              if [ "$remaining_sleep" -lt "$backoff_seconds" ]; then
-                backoff_seconds="$remaining_sleep"
-              fi
+              remaining=$((cutoff_epoch - $(date +%s)))
+              if [ "$backoff_seconds" -gt "$remaining" ]; then backoff_seconds="$remaining"; fi
               if [ "$backoff_seconds" -gt 0 ]; then
-                echo "Provider cooldown: waiting ${backoff_seconds}s (provider-pressure streak: $provider_pressure_streak)."
+                echo "Provider cooldown: waiting ${backoff_seconds}s; no fixed failure-count limit."
                 sleep "$backoff_seconds"
               fi
             elif [ "$consecutive_failures" -gt 0 ]; then
-              # Ordinary non-provider failures use a shorter bounded delay.
               case "$consecutive_failures" in
                 1) backoff_seconds=15 ;;
                 2) backoff_seconds=30 ;;
@@ -508,14 +397,18 @@ jobs:
               esac
               jitter_seconds=$((RANDOM % 8))
               backoff_seconds=$((backoff_seconds + jitter_seconds))
-              echo "Waiting ${backoff_seconds}s before the next agent session (failure streak: $consecutive_failures); continuing without a failure-count cutoff."
+              echo "Waiting ${backoff_seconds}s before the next agent session to reduce transient provider/network contention."
               sleep "$backoff_seconds"
             fi
           done
 
-          echo "Configured Kilo session loop completed. Failed sessions: $total_failed_sessions."
+          if [ "$cutoff" -eq 1 ]; then
+            echo "355-minute cutoff reached; progress checkpointed."
+          fi
 
-      - name: Summarize controller outcome without blocking recovery
+          echo "Kilo controller completed. Failed agent sessions: $failed_sessions. This controller does not fail solely because an agent session failed."
+
+      - name: Summarize controller outcome
         if: always()
         continue-on-error: true
         env:
@@ -525,15 +418,14 @@ jobs:
           {
             echo "## Kilo controller health"
             echo "- Controller step outcome: \`$CONTROLLER_OUTCOME\`"
+            echo "- Configured agent sessions: ${{ inputs.agents || '1000' }} (the one-shot marker, when present, overrides this to exactly 2)."
             if [ "$CONTROLLER_OUTCOME" = "success" ]; then
-              echo "- Controller finished; verify task-level results from the session logs and persisted checkpoints."
+              echo "- Controller ended normally. Review the session receipts and verified checkpoint messages for task-level status."
             else
-              echo "- Controller ended early. This run is non-blocking so a fresh scheduled activation can recover; inspect logs and diagnostic artifacts."
+              echo "- Controller step failed early. This job is non-blocking; inspect the logs/artifacts and allow the next scheduled activation to recover."
+              echo "::warning::Kilo controller failure retained for diagnosis; it will not fail the whole workflow."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$CONTROLLER_OUTCOME" != "success" ]; then
-            echo "::warning::The Kilo controller ended with outcome $CONTROLLER_OUTCOME. See logs/artifacts; the next activation can retry from durable state."
-          fi
 
       - name: Upload Kilo failure transcripts
         if: always()
@@ -544,3 +436,4 @@ jobs:
           path: ${{ runner.temp }}/kilo-failure-logs/
           if-no-files-found: ignore
           retention-days: 7
+
