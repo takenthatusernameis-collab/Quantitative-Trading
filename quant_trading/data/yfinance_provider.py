@@ -2,7 +2,11 @@
 
 from datetime import datetime
 
+from quant_trading.utils.logging import get_logger
+
 from .providers import DataProvider, MarketData
+
+logger = get_logger(__name__)
 
 
 class YFinanceProvider(DataProvider):
@@ -44,7 +48,7 @@ class YFinanceProvider(DataProvider):
                 hist = ticker.history(start=start, end=end, interval=interval)
 
                 if hist.empty:
-                    print(f"Warning: No data found for {symbol}")
+                    logger.warning("No data found for %s", symbol)
                     continue
 
                 # Standardize column names
@@ -64,7 +68,7 @@ class YFinanceProvider(DataProvider):
                     metadata=metadata,
                 )
             except (ValueError, RuntimeError, KeyError, ImportError) as e:
-                print(f"Error fetching {symbol}: {e}")
+                logger.error("Error fetching %s: %s", symbol, e)
                 continue
 
         return result

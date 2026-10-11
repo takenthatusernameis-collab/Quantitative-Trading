@@ -98,6 +98,15 @@ black quant_trading/
 
 See `examples/run_backtest.py` for a complete example of running backtests with multiple strategies.
 
+For a deterministic, network-free demonstration, see
+`examples/run_backtest_offline.py`. It runs the three built-in
+strategies against seeded synthetic data and produces the same
+output on every run:
+
+```bash
+python examples/run_backtest_offline.py
+```
+
 ## Configuration
 
 Create a `config.yaml` file:
