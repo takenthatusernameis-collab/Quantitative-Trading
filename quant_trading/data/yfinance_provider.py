@@ -1,9 +1,14 @@
-"""Yahoo Finance data provider implementation."""
+"""Yahoo Finance and Alpha Vantage data provider implementations."""
 
+import json as _json
 import os
 import pickle
+import urllib.error
+import urllib.parse
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 
