@@ -1,0 +1,257 @@
+
+name: Kilo 
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      agents:
+        description: "Number of sequential Kilo agents"
+        required: false
+        default: "1000"
+        type: number
+
+permissions: write-all
+
+concurrency:
+  group: kilo-repository
+  cancel-in-progress: false
+
+jobs:
+  kilo:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Kilo uses only the repository-scoped GITHUB_TOKEN. Workflow definitions are maintainer-managed because this token cannot grant workflows permission.
+
+          export HOME="$RUNNER_TEMP/kilo-home"
+          mkdir -p "$HOME/.config/kilo"
+
+          cat > "$HOME/.config/kilo/kilo.json" <<'EOF'
+          {"$schema":"https://app.kilo.ai/config.json","permission":"allow"}
+          EOF
+
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/kilo" @kilocode/cli@7.8.8
+          export PATH="$RUNNER_TEMP/kilo/node_modules/.bin:$PATH"
+
+          git config user.name "kilo-autonomous"
+          git config user.email "kilo-autonomous@users.noreply.github.com"
+
+          agents="${{ inputs.agents || '1000' }}"
+          if ! [[ "$agents" =~ ^[0-9]+$ ]]; then
+            echo "::error::The agents input must be an integer from 1 to 1000."
+            exit 1
+          fi
+          if [ "$agents" -lt 1 ] || [ "$agents" -gt 1000 ]; then
+            echo "::error::The agents input must be between 1 and 1000."
+            exit 1
+          fi
+          command=$(cat <<'PROMPT'
+          Execute the task assigned by the previous agent and prepare a task for the next agent !
+
+          Reliability rules:
+          - Before each tool call, satisfy its required schema and argument names.
+          - File writes must include complete content; edits must include the required filePath; shell calls must include the command.
+          - If a tool rejects arguments, inspect the error/schema and correct the call. Never repeat the same malformed call unchanged; retry a rejected call at most twice.
+          - Work in small verified steps, limit repeated network requests, and checkpoint meaningful progress.
+          - Do not manually commit or push, and do not modify .github/workflows; the outer workflow handles checkpointing and preserves workflow definitions.
+          - Before finishing, record what changed, what remains, and a clear task for the next agent.
+          PROMPT
+          )
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::GitHub did not provide the repository default branch."
+            exit 1
+          fi
+
+          echo "Repository default branch: $DEFAULT_BRANCH"
+
+          heartbeat() {
+            while true; do
+              printf '[heartbeat] %sZ\n' "$(date -u +%Y-%m-%dT%H:%M:%S)"
+              sleep 60
+            done
+          }
+
+          heartbeat &
+          heartbeat_pid=$!
+          trap 'kill "$heartbeat_pid" 2>/dev/null || true' EXIT
+
+          cutoff_epoch=$(($(date +%s) + 355 * 60))
+          AGENT_TIMEOUT_SECONDS=1500
+          failed=0
+          consecutive_failures=0
+          cutoff=0
+
+          for _ in $(seq 1 "$agents"); do
+            remaining=$((cutoff_epoch - $(date +%s)))
+
+            if [ "$remaining" -le 0 ]; then
+              cutoff=1
+              break
+            fi
+
+            # Cap each agent session so a stuck model/tool request cannot consume
+            # the full runner window. The overall cutoff remains 355 minutes.
+            session_timeout="$remaining"
+            if [ "$session_timeout" -gt "$AGENT_TIMEOUT_SECONDS" ]; then
+              session_timeout="$AGENT_TIMEOUT_SECONDS"
+            fi
+
+            # Snapshot the workflow tree for this agent session. The standard
+            # GITHUB_TOKEN cannot push commits that add/change Actions workflows.
+            WORKFLOW_BASE_SHA="$(git rev-parse HEAD)"
+
+            set +e
+            timeout \
+              --signal=TERM \
+              --kill-after=10s \
+              "${session_timeout}s" \
+              kilo run \
+                --model kilo/kilo-auto/free \
+                --auto \
+                "$command"
+            rc=$?
+            set -e
+
+            if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+              if [ "$remaining" -le "$AGENT_TIMEOUT_SECONDS" ]; then
+                cutoff=1
+                echo "Overall runner cutoff reached; saving the final checkpoint."
+              else
+                consecutive_failures=$((consecutive_failures + 1))
+                echo "::warning::Agent session reached its ${session_timeout}s limit (failure streak: $consecutive_failures/5). Saving the checkpoint and continuing with a fresh session."
+              fi
+            elif [ "$rc" -ne 0 ]; then
+              consecutive_failures=$((consecutive_failures + 1))
+              echo "::warning::Kilo session exited with status $rc (failure streak: $consecutive_failures/5). Saving its checkpoint and continuing."
+            else
+              consecutive_failures=0
+            fi
+
+            # Keep Actions workflow definitions maintainer-managed. Restore tracked
+            # workflow files to the revision at session start and remove agent-created
+            # workflow files before creating the checkpoint commit.
+            git restore --source="$WORKFLOW_BASE_SHA" --staged --worktree -- .github/workflows
+            git clean -fd -- .github/workflows
+
+            git add -A
+
+            # Repair generated trailing whitespace and extra blank lines at EOF
+            # before enforcing the staged-diff check.
+            if ! git diff --cached --check; then
+              echo "::warning::Normalizing trailing whitespace and blank lines at EOF in changed text files."
+              python - <<'PY'
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          staged_paths = subprocess.check_output(
+              ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"]
+          ).split(b"\0")
+
+          for raw_path in staged_paths:
+              if not raw_path:
+                  continue
+              path = Path(os.fsdecode(raw_path))
+              if path.is_symlink() or not path.is_file():
+                  continue
+
+              content = path.read_bytes()
+              if b"\0" in content:
+                  continue
+
+              cleaned = re.sub(rb"[ \t]+(?=\r?$)", b"", content, flags=re.MULTILINE)
+              # Collapse trailing empty/whitespace-only lines to a single final newline.
+              cleaned = re.sub(rb"(?:[ \t]*\r?\n)+\Z", b"\n", cleaned)
+              if cleaned != content:
+                  path.write_bytes(cleaned)
+          PY
+              git add -A
+            fi
+
+            if ! git diff --cached --check; then
+              echo "::error::Staged changes still contain whitespace errors after normalization."
+              exit 1
+            fi
+
+            if ! git diff --cached --quiet; then
+              git commit --allow-empty-message -m ""
+            fi
+
+            # Deterministic repository-level persistence: reconcile any remote
+            # advancement before every push, then verify that the remote points
+            # to exactly the commit produced by this runner.
+            persisted=0
+            for push_attempt in 1 2 3 4 5; do
+              git fetch origin "$DEFAULT_BRANCH"
+
+              if ! git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" HEAD; then
+                if ! git rebase "origin/$DEFAULT_BRANCH"; then
+                  git rebase --abort >/dev/null 2>&1 || true
+                  if ! git merge --no-edit -X ours "origin/$DEFAULT_BRANCH"; then
+                    git merge --abort >/dev/null 2>&1 || true
+                    echo "::warning::Remote changes could not be reconciled cleanly on persistence attempt $push_attempt."
+                    continue
+                  fi
+                fi
+              fi
+
+              if git push origin "HEAD:$DEFAULT_BRANCH"; then
+                remote_sha="$(git ls-remote origin "refs/heads/$DEFAULT_BRANCH" | awk '{print $1}')"
+                local_sha="$(git rev-parse HEAD)"
+                if [ "$remote_sha" = "$local_sha" ]; then
+                  persisted=1
+                  echo "Repository persistence verified at $remote_sha."
+                  break
+                fi
+                echo "::warning::Remote $DEFAULT_BRANCH moved after push verification on attempt $push_attempt."
+              else
+                echo "::warning::Remote $DEFAULT_BRANCH advanced during push attempt $push_attempt; refetching and reconciling."
+              fi
+            done
+
+            if [ "$persisted" -ne 1 ]; then
+              echo "::error::Unable to deterministically persist this Kilo checkpoint after five reconciliation attempts."
+              exit 1
+            fi
+
+            if [ "$cutoff" -eq 1 ]; then
+              break
+            fi
+
+            if [ "$consecutive_failures" -ge 5 ]; then
+              echo "::error::Five consecutive Kilo sessions failed. The latest checkpoint has been persisted; stopping rather than consuming the remaining runner window on repeated failures."
+              failed=1
+              break
+            fi
+
+            if [ "$consecutive_failures" -gt 0 ]; then
+              backoff_seconds=$((15 * (2 ** (consecutive_failures - 1))))
+              if [ "$backoff_seconds" -gt 120 ]; then
+                backoff_seconds=120
+              fi
+              jitter_seconds=$((RANDOM % 8))
+              backoff_seconds=$((backoff_seconds + jitter_seconds))
+              echo "Waiting ${backoff_seconds}s before the next agent session to reduce transient provider/network contention."
+              sleep "$backoff_seconds"
+            fi
+          done
+
+          if [ "$cutoff" -eq 1 ]; then
+            echo "355-minute cutoff reached; progress checkpointed."
+          fi
+
+          [ "$failed" -eq 0 ]
