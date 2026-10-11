@@ -41,7 +41,7 @@ jobs:
           {"$schema":"https://app.kilo.ai/config.json","permission":"allow"}
           EOF
 
-          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/kilo" @kilocode/cli@7.8.8
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/kilo" @kilocode/cli@7.7.1
           export PATH="$RUNNER_TEMP/kilo/node_modules/.bin:$PATH"
 
           git config user.name "kilo-autonomous"
