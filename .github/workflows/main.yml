@@ -24,11 +24,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        continue-on-error: true
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: true
 
-      - env:
+      - id: kilo_controller
+        continue-on-error: true
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -510,6 +513,26 @@ jobs:
           done
 
           echo "Configured Kilo session loop completed. Failed sessions: $total_failed_sessions."
+
+      - name: Summarize controller outcome without blocking recovery
+        if: always()
+        continue-on-error: true
+        env:
+          CONTROLLER_OUTCOME: ${{ steps.kilo_controller.outcome }}
+        shell: bash
+        run: |
+          {
+            echo "## Kilo controller health"
+            echo "- Controller step outcome: \`$CONTROLLER_OUTCOME\`"
+            if [ "$CONTROLLER_OUTCOME" = "success" ]; then
+              echo "- Controller finished; verify task-level results from the session logs and persisted checkpoints."
+            else
+              echo "- Controller ended early. This run is non-blocking so a fresh scheduled activation can recover; inspect logs and diagnostic artifacts."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CONTROLLER_OUTCOME" != "success" ]; then
+            echo "::warning::The Kilo controller ended with outcome $CONTROLLER_OUTCOME. See logs/artifacts; the next activation can retry from durable state."
+          fi
 
       - name: Upload Kilo failure transcripts
         if: always()
