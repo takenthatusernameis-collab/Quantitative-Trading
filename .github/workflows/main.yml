@@ -226,6 +226,15 @@ jobs:
               provider_pressure_streak=0
             fi
 
+            # Keep bounded diagnostic tails from failed sessions as durable CI
+            # artifacts; full transcripts remain visible in the Actions step log.
+            if [ "$rc" -ne 0 ]; then
+              mkdir -p "$RUNNER_TEMP/kilo-failure-logs"
+              if ! tail -n 2000 "$session_log" > "$RUNNER_TEMP/kilo-failure-logs/session-${agent_index}.log"; then
+                echo "::warning::Could not save a diagnostic tail for Kilo session ${agent_index}."
+              fi
+            fi
+
             if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
               if [ "$(date +%s)" -ge "$cutoff_epoch" ]; then
                 cutoff=1
@@ -419,3 +428,12 @@ jobs:
           done
 
           echo "Configured Kilo session loop completed. Failed sessions: $total_failed_sessions."
+
+      - name: Upload Kilo failure transcripts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kilo-failure-transcripts-${{ github.run_id }}
+          path: ${{ runner.temp }}/kilo-failure-logs/
+          if-no-files-found: ignore
+          retention-days: 7
