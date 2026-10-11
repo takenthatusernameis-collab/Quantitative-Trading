@@ -33,6 +33,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Start the single overall work deadline before installing Kilo.
+          cutoff_epoch=$(($(date +%s) + 355 * 60))
+
           # Kilo uses only the repository-scoped GITHUB_TOKEN. Workflow definitions are maintainer-managed because this token cannot grant workflows permission.
 
           export HOME="$RUNNER_TEMP/kilo-home"
@@ -91,30 +94,49 @@ jobs:
 
           consecutive_failures=0
           total_failed_sessions=0
+          cutoff=0
 
-          # No per-session timeout or internal cutoff: the GitHub Actions job
-          # timeout above is the only hard runtime limit.
+          # No fixed per-session cap. Each session may run until the single
+          # 355-minute overall deadline, after which Kilo is stopped to checkpoint.
           for _ in $(seq 1 "$agents"); do
+            remaining=$((cutoff_epoch - $(date +%s)))
+            if [ "$remaining" -le 0 ]; then
+              cutoff=1
+              echo "355-minute cutoff reached before the next agent; saving the latest checkpoint."
+              break
+            fi
 
             # Snapshot the workflow tree for this agent session. The standard
             # GITHUB_TOKEN cannot push commits that add/change Actions workflows.
             WORKFLOW_BASE_SHA="$(git rev-parse HEAD)"
 
-            # Let Kilo run until it exits or the GitHub Actions job timeout fires.
-            # A nonzero exit counts as a failed session; checkpoint and retry by
-            # starting the next fresh session without a consecutive-failure cap.
+            # The timeout is dynamically set to the remaining overall budget;
+            # there is no separate, fixed session timeout.
             set +e
-            kilo run \
-              --model kilo/kilo-auto/free \
-              --auto \
-              "$command"
+            timeout \
+              --signal=TERM \
+              --kill-after=10s \
+              "${remaining}s" \
+              kilo run \
+                --model kilo/kilo-auto/free \
+                --auto \
+                "$command"
             rc=$?
             set -e
 
-            if [ "$rc" -ne 0 ]; then
+            if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+              if [ "$(date +%s)" -ge "$cutoff_epoch" ]; then
+                cutoff=1
+                echo "355-minute overall cutoff reached; stopping Kilo and saving the final checkpoint."
+              else
+                consecutive_failures=$((consecutive_failures + 1))
+                total_failed_sessions=$((total_failed_sessions + 1))
+                echo "::warning::Kilo session timed out or was terminated before the overall cutoff (failure streak: $consecutive_failures). Saving its checkpoint and continuing."
+              fi
+            elif [ "$rc" -ne 0 ]; then
               consecutive_failures=$((consecutive_failures + 1))
               total_failed_sessions=$((total_failed_sessions + 1))
-              echo "::warning::Kilo session exited with status $rc (failure streak: $consecutive_failures; no consecutive-failure cutoff). Saving its checkpoint and continuing."
+              echo "::warning::Kilo session exited with status $rc (failure streak: $consecutive_failures; no failure-count cutoff). Saving its checkpoint and continuing."
             else
               consecutive_failures=0
             fi
@@ -170,19 +192,27 @@ jobs:
               git commit --allow-empty-message -m ""
             fi
 
-            # Deterministic repository-level persistence: reconcile any remote
-            # advancement before every push, then verify that the remote points
-            # to exactly the commit produced by this runner.
+            # Keep retrying transient remote races instead of failing after an
+            # arbitrary number of pushes. Retries use bounded backoff; the 360-minute
+            # Actions job limit is the ultimate hard ceiling.
             persisted=0
-            for push_attempt in 1 2 3 4 5; do
-              git fetch origin "$DEFAULT_BRANCH"
+            push_attempt=0
+            while [ "$persisted" -ne 1 ]; do
+              push_attempt=$((push_attempt + 1))
+
+              if ! git fetch origin "$DEFAULT_BRANCH"; then
+                echo "::warning::Could not fetch origin/$DEFAULT_BRANCH on persistence attempt $push_attempt; retrying."
+                sleep 10
+                continue
+              fi
 
               if ! git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" HEAD; then
                 if ! git rebase "origin/$DEFAULT_BRANCH"; then
                   git rebase --abort >/dev/null 2>&1 || true
                   if ! git merge --no-edit -X ours "origin/$DEFAULT_BRANCH"; then
                     git merge --abort >/dev/null 2>&1 || true
-                    echo "::warning::Remote changes could not be reconciled cleanly on persistence attempt $push_attempt."
+                    echo "::warning::Remote changes could not be reconciled on persistence attempt $push_attempt; retrying."
+                    sleep 10
                     continue
                   fi
                 fi
@@ -191,24 +221,36 @@ jobs:
               if git push origin "HEAD:$DEFAULT_BRANCH"; then
                 remote_sha="$(git ls-remote origin "refs/heads/$DEFAULT_BRANCH" | awk '{print $1}')"
                 local_sha="$(git rev-parse HEAD)"
-                if [ "$remote_sha" = "$local_sha" ]; then
+                if [ -n "$remote_sha" ] && [ "$remote_sha" = "$local_sha" ]; then
                   persisted=1
                   echo "Repository persistence verified at $remote_sha."
                   break
                 fi
-                echo "::warning::Remote $DEFAULT_BRANCH moved after push verification on attempt $push_attempt."
+                echo "::warning::Remote $DEFAULT_BRANCH moved during persistence attempt $push_attempt; refetching and reconciling."
               else
-                echo "::warning::Remote $DEFAULT_BRANCH advanced during push attempt $push_attempt; refetching and reconciling."
+                echo "::warning::Push to $DEFAULT_BRANCH failed on attempt $push_attempt; refetching and reconciling."
               fi
+
+              if [ "$push_attempt" -le 3 ]; then
+                push_backoff_seconds=$((5 * push_attempt))
+              else
+                push_backoff_seconds=20
+              fi
+              echo "Retrying checkpoint persistence in ${push_backoff_seconds}s (no fixed attempt limit)."
+              sleep "$push_backoff_seconds"
             done
 
-            if [ "$persisted" -ne 1 ]; then
-              echo "::error::Unable to deterministically persist this Kilo checkpoint after five reconciliation attempts."
-              exit 1
+            if [ "$(date +%s)" -ge "$cutoff_epoch" ]; then
+              cutoff=1
             fi
 
-            # Back off indefinitely after failed sessions, but saturate the delay
-            # safely rather than calculating an unbounded exponent.
+            if [ "$cutoff" -eq 1 ]; then
+              echo "355-minute cutoff reached; progress checkpointed."
+              break
+            fi
+
+            # Back off indefinitely after failed sessions. Delay saturates at
+            # 120 seconds, so a long failure streak cannot overflow arithmetic.
             if [ "$consecutive_failures" -gt 0 ]; then
               case "$consecutive_failures" in
                 1) backoff_seconds=15 ;;
