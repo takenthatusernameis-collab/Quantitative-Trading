@@ -32,19 +32,59 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -Eeuo pipefail
           # Start the single overall work deadline before installing Kilo.
           cutoff_epoch=$(($(date +%s) + 355 * 60))
 
           # Kilo uses only the repository-scoped GITHUB_TOKEN. Workflow definitions are maintainer-managed because this token cannot grant workflows permission.
 
           export HOME="$RUNNER_TEMP/kilo-home"
-          mkdir -p "$HOME/.config/kilo"
+          mkdir -p "$HOME/.config/kilo" "$RUNNER_TEMP/kilo"
+          if ! ( : > "$HOME/.kilo-write-test" ); then
+            echo "::error::Kilo HOME is not writable: $HOME"
+            exit 1
+          fi
+          rm -f "$HOME/.kilo-write-test"
+          for utility in git npm node python3 timeout; do
+            if ! command -v "$utility" >/dev/null 2>&1; then
+              echo "::error::Required runner utility is missing: $utility"
+              exit 1
+            fi
+          done
+
+          # Ignore runner-local dependency/cache/database artifacts without changing
+          # repository .gitignore files or hiding already-tracked source files.
+          exclude_file="$(git rev-parse --git-path info/exclude)"
+          mkdir -p "$(dirname "$exclude_file")"
+          if ! grep -Fqx '# Kilo transient runtime artifacts' "$exclude_file" 2>/dev/null; then
+            printf '\n# Kilo transient runtime artifacts\n' >> "$exclude_file"
+          fi
+          for pattern in \
+            '.venv/' '**/.venv/' 'venv/' '**/venv/' \
+            '__pycache__/' '**/__pycache__/' '.pytest_cache/' '**/.pytest_cache/' \
+            '.mypy_cache/' '**/.mypy_cache/' '.ruff_cache/' '**/.ruff_cache/' \
+            '.tox/' '**/.tox/' 'node_modules/' '**/node_modules/' \
+            '.coverage' 'coverage.xml' '*.py[cod]' '*.sqlite' '*.sqlite3' '*.db' '*.tmp'; do
+            if ! grep -Fqx "$pattern" "$exclude_file" 2>/dev/null; then
+              printf '%s\n' "$pattern" >> "$exclude_file"
+            fi
+          done
 
           cat > "$HOME/.config/kilo/kilo.json" <<'EOF'
           {"$schema":"https://app.kilo.ai/config.json","permission":"allow"}
           EOF
 
-          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/kilo" @kilocode/cli@7.7.1
+          install_attempt=0
+          until npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/kilo" @kilocode/cli@7.7.1; do
+            install_attempt=$((install_attempt + 1))
+            if [ "$install_attempt" -ge 3 ]; then
+              echo "::error::Kilo CLI installation failed after 3 attempts."
+              exit 1
+            fi
+            delay=$((5 * install_attempt))
+            echo "::warning::Kilo CLI installation attempt $install_attempt failed; retrying in ${delay}s."
+            sleep "$delay"
+          done
           export PATH="$RUNNER_TEMP/kilo/node_modules/.bin:$PATH"
 
           git config user.name "kilo-autonomous"
@@ -81,6 +121,16 @@ jobs:
           - Self-modification: do not change workflow definitions, permission boundaries, checkpoint logic, or safety instructions to make a failed run appear successful. Propose control-plane changes separately for maintainer review.
           - Evidence and completion: capture the failing run ID, job/step, relevant log excerpt, root cause, exact fix, focused verification result, and whether a later run confirms the recurrence is gone. Clearly label unverified assumptions and external blockers.
 
+          Additional recurring project failure prevention:
+          - SQLite/database open errors: resolve relative paths deliberately; create the parent directory before opening the database; verify the path is writable; use a temporary database for tests and a stable ignored path for local caches; close connections reliably; preserve existing databases and migrations; add a regression test for missing-parent and read-only-path cases. Do not "fix" the error by deleting user data.
+          - HOME, sandbox, Bubblewrap, and temporary paths: keep HOME under a runner-writable temporary directory, create it before configuring tools, and verify write access. Use explicit absolute paths where practical. If a sandbox executable or permission fails, capture the exact command, executable lookup, HOME/TMP paths, and permissions once; distinguish runner/tooling defects from repo defects and do not loop on unchanged sandbox configuration.
+          - API and market-data failures: validate symbols against the provider/exchange's current metadata before requesting candles. Treat deterministic HTTP 400/invalid-symbol responses as input/data problems, not transient outages; do not retry the same invalid symbol or silently substitute another instrument. Distinguish 401/403 permissions, 429/provider quotas, 5xx/outages, empty data, pagination limits, and malformed candles. Honor Retry-After/reset hints, back off on transient failures, and record provider, symbol, timeframe, requested window, and response status.
+          - Tests, snapshots, and sentinel counts: define the expected baseline and expected delta explicitly; count only new records attributable to the test rather than all matching records; snapshot state immediately before mutation; use unique temporary paths/run IDs; assert rollback/restoration after both success and failure; clean up in a finally/teardown path. Never overwrite the only known-good snapshot before validating the replacement.
+          - Python quality/test commands: do not pipe pytest or another test command into tail/head unless pipefail is enabled and the exit status is preserved. Reproduce the first actionable failure, fix the root cause in small steps, then rerun the focused test and the relevant suite. Avoid broad automatic --unsafe-fixes passes unless each change is reviewed and behavior-sensitive tests pass.
+          - Quantitative research/backtests: reset cash, positions, pending orders, equity, and model state independently for every walk-forward fold; a zero-trade fold must not inherit returns or positions; freeze each universe using only information available at the decision time; separate training/validation/test roles; include fees, spread, slippage, and realistic fills; validate no lookahead/data leakage and preserve data provenance. Record null/rejected findings as valid outcomes rather than tuning repeatedly against the holdout.
+          - Dependency/runtime artifacts: never commit virtual environments, package installations, bytecode, test caches, runtime databases, or transient logs unless explicitly required as deliverables. Add focused ignore rules or exclusions instead of letting a dependency install or backtest accidentally create a massive commit. Do not normalize or otherwise rewrite unrelated/binary files.
+          - Provider model quotas (including 402/400-style model-capacity errors): classify the exact provider response, reduce unnecessary context and tool-call bursts, preserve a compact checkpoint, and honor the provider's documented reset. Do not spawn extra parallel requests or repeat an identical rejected request hoping it will succeed.
+          - Failure evidence: for each recurring defect, preserve the run ID, failing step/command, minimal relevant excerpt, root cause, repair, and verification. Do not report that a fix worked until the focused check actually passed; if a failure is external or unreproducible, label it clearly and move to another useful task.
           Selective subagent delegation:
           - If the current Kilo CLI/model session exposes the Task tool or subagent delegation, use it selectively for independent, bounded tasks where a second context is likely to improve reliability. Do not assume delegation is available; if the tool is missing or delegation fails, continue directly without repeatedly retrying it.
           - When available, delegate a read-only audit of recent GitHub Actions failures early in the session. Ask the subagent to use `gh run list --limit 10` and targeted logs from `gh run view RUN_ID --log-failed`, then return run IDs, exact evidence, likely root causes, and prevention ideas. The main agent must verify material claims and own the fix.
@@ -171,7 +221,20 @@ jobs:
             git restore --source="$WORKFLOW_BASE_SHA" --staged --worktree -- .github/workflows
             git clean -fd -- .github/workflows
 
-            git add -A
+          stage_repository_changes() {
+            git add -A -- . \
+              ':(exclude).venv/**' ':(exclude)**/.venv/**' \
+              ':(exclude)venv/**' ':(exclude)**/venv/**' \
+              ':(exclude)__pycache__/**' ':(exclude)**/__pycache__/**' \
+              ':(exclude).pytest_cache/**' ':(exclude)**/.pytest_cache/**' \
+              ':(exclude).mypy_cache/**' ':(exclude)**/.mypy_cache/**' \
+              ':(exclude).ruff_cache/**' ':(exclude)**/.ruff_cache/**' \
+              ':(exclude).tox/**' ':(exclude)**/.tox/**' \
+              ':(exclude)node_modules/**' ':(exclude)**/node_modules/**' \
+              ':(exclude)**/*.pyc' ':(exclude)**/*.pyo'
+          }
+
+          stage_repository_changes
 
             # Repair generated trailing whitespace and extra blank lines at EOF
             # before enforcing the staged-diff check.
@@ -179,7 +242,6 @@ jobs:
               echo "::warning::Normalizing trailing whitespace and blank lines at EOF in changed text files."
               python - <<'PY'
           import os
-          import re
           import subprocess
           from pathlib import Path
 
@@ -194,17 +256,30 @@ jobs:
               if path.is_symlink() or not path.is_file():
                   continue
 
-              content = path.read_bytes()
-              if b"\0" in content:
+              original = path.read_bytes()
+              # Do not rewrite binaries, which may contain NUL bytes.
+              if b"\0" in original:
                   continue
 
-              cleaned = re.sub(rb"[ \t]+(?=\r?$)", b"", content, flags=re.MULTILINE)
-              # Collapse trailing empty/whitespace-only lines to a single final newline.
-              cleaned = re.sub(rb"(?:[ \t]*\r?\n)+\Z", b"\n", cleaned)
-              if cleaned != content:
-                  path.write_bytes(cleaned)
+              # Preserve each file's existing newline convention while trimming
+              # spaces/tabs immediately before every line ending or EOF.
+              normalized_lines = []
+              for line in original.splitlines(keepends=True):
+                  if line.endswith(b"\r\n"):
+                      body, ending = line[:-2], b"\r\n"
+                  elif line.endswith(b"\n"):
+                      body, ending = line[:-1], b"\n"
+                  elif line.endswith(b"\r"):
+                      body, ending = line[:-1], b"\r"
+                  else:
+                      body, ending = line, b""
+                  normalized_lines.append(body.rstrip(b" \t") + ending)
+
+              normalized = b"".join(normalized_lines)
+              if normalized != original:
+                  path.write_bytes(normalized)
           PY
-              git add -A
+              stage_repository_changes
             fi
 
             if ! git diff --cached --check; then
