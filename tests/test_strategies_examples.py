@@ -8,6 +8,7 @@ import pytest
 
 from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
+    MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
 )
@@ -191,6 +192,131 @@ class TestBollingerBandsStrategy:
         signals = strategy.generate_signals(data)
         symbols = {s.symbol for s in signals}
         assert symbols.issubset({"AAPL", "MSFT"})
+
+
+def create_macd_data(symbol: str, days: int = 100) -> pd.DataFrame:
+    """Create mock price data that produces a MACD bullish crossover at the end.
+
+    Prices are held constant for most of the series (so MACD/signal settle at
+    zero), then a single massive final bar forces the MACD line to cross above
+    the signal line on the last bar.
+    """
+    dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
+    prices = np.array([100.0] * (days - 1), dtype=float)
+    prices = np.concatenate([prices, [300.0]])
+
+    df = pd.DataFrame(
+        {
+            "open": prices * (1 + np.random.uniform(-0.005, 0.005, days)),
+            "high": prices * (1 + np.random.uniform(0, 0.01, days)),
+            "low": prices * (1 - np.random.uniform(0, 0.01, days)),
+            "close": prices,
+            "volume": np.random.randint(1000000, 10000000, days),
+        },
+        index=dates,
+    )
+    return df
+
+
+def create_macd_falling_data(symbol: str, days: int = 100) -> pd.DataFrame:
+    """Create mock price data that produces a MACD bearish crossover at the end.
+
+    Prices are held constant for most of the series (so MACD/signal settle at
+    zero), then a single massive final bar forces the MACD line to cross below
+    the signal line on the last bar.
+    """
+    dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
+    prices = np.array([200.0] * (days - 1), dtype=float)
+    prices = np.concatenate([prices, [1.0]])
+
+    df = pd.DataFrame(
+        {
+            "open": prices * (1 + np.random.uniform(-0.005, 0.005, days)),
+            "high": prices * (1 + np.random.uniform(0, 0.01, days)),
+            "low": prices * (1 - np.random.uniform(0, 0.01, days)),
+            "close": prices,
+            "volume": np.random.randint(1000000, 10000000, days),
+        },
+        index=dates,
+    )
+    return df
+
+
+class TestMACDStrategy:
+    """Tests for MACDStrategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = MACDStrategy(fast_period=12, slow_period=26, signal_period=9, name="Test_MACD")
+        assert strategy.name == "Test_MACD"
+        assert strategy.fast_period == 12
+        assert strategy.slow_period == 26
+        assert strategy.signal_period == 9
+        assert strategy.parameters["fast_period"] == 12
+        assert strategy.parameters["slow_period"] == 26
+        assert strategy.parameters["signal_period"] == 9
+        assert strategy.use_zero_line is False
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with insufficient data."""
+        strategy = MACDStrategy(fast_period=12, slow_period=26, signal_period=9)
+        data = {"AAPL": create_macd_data("AAPL", days=20)}  # Less than slow+signal
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_bullish_crossover(self):
+        """Test generate_signals detects MACD bullish crossover (buy signal)."""
+        strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5)
+        data = {"AAPL": create_macd_data("AAPL", days=100)}
+        signals = strategy.generate_signals(data)
+
+        # Should have at least one signal due to the accelerated tail
+        assert len(signals) >= 1
+        for signal in signals:
+            assert signal.symbol == "AAPL"
+            assert signal.action in ("buy", "sell")
+            assert 0.0 <= signal.strength <= 1.0
+            assert signal.price is not None
+            assert signal.timestamp is not None
+            if signal.action == "buy":
+                assert signal.metadata.get("crossover_type") == "bullish"
+                assert "macd" in signal.metadata
+                assert "signal" in signal.metadata
+                assert "histogram" in signal.metadata
+
+    def test_generate_signals_bearish_crossover(self):
+        """Test generate_signals detects MACD bearish crossover (sell signal)."""
+        strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5)
+        data = {"AAPL": create_macd_falling_data("AAPL", days=100)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) >= 1
+        for signal in signals:
+            assert signal.symbol == "AAPL"
+            assert signal.action in ("buy", "sell")
+            if signal.action == "sell":
+                assert signal.metadata.get("crossover_type") == "bearish"
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals with multiple symbols."""
+        strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5)
+        data = {
+            "AAPL": create_macd_data("AAPL", days=100),
+            "MSFT": create_macd_data("MSFT", days=100),
+        }
+        signals = strategy.generate_signals(data)
+        symbols = {s.symbol for s in signals}
+        assert symbols.issubset({"AAPL", "MSFT"})
+
+    def test_zero_line_option(self):
+        """Test that use_zero_line enables zero-line crossovers."""
+        strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5, use_zero_line=True)
+        assert strategy.use_zero_line is True
+        data = {"AAPL": create_macd_data("AAPL", days=100)}
+        signals = strategy.generate_signals(data)
+        # With zero-line enabled, more signal types may appear
+        for signal in signals:
+            assert signal.action in ("buy", "sell")
 
 
 class TestStrategyParameters:

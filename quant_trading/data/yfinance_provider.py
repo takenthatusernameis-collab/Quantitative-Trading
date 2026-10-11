@@ -333,6 +333,7 @@ class AlphaVantageProvider(DataProvider):
     - TIME_SERIES_INTRADAY for intraday historical data (1min, 5min, 15min, 30min, 60min)
     - GLOBAL_QUOTE for real-time single symbol quotes
     - BATCH_STOCK_PRICES for real-time batch quotes
+    - SYMBOL_SEARCH for symbol lookup by name or ticker
 
     Alpha Vantage provides a free demo key ("demo") for testing.
     """
@@ -501,6 +502,15 @@ class AlphaVantageProvider(DataProvider):
         return {
             "function": "GLOBAL_QUOTE",
             "symbol": symbol,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_symbol_search_params(self, query: str) -> dict[str, str]:
+        """Build parameters for SYMBOL_SEARCH endpoint."""
+        return {
+            "function": "SYMBOL_SEARCH",
+            "keywords": query,
             "apikey": self._api_key,
             "datatype": "json",
         }
@@ -820,6 +830,30 @@ class AlphaVantageProvider(DataProvider):
         df.columns = [col.lower().replace(" ", "_") for col in df.columns]
         return cast(pd.DataFrame, df)
 
+    def _parse_symbol_search_response(
+        self, data: dict[str, Any]
+    ) -> list[dict[str, str]]:
+        """Parse SYMBOL_SEARCH response into a list of symbol matches.
+
+        Each match is a dict with keys: symbol, name, type, region, market,
+        currency, match_score.
+        """
+        best_matches = data.get("bestMatches", [])
+        results: list[dict[str, str]] = []
+        for item in best_matches:
+            results.append(
+                {
+                    "symbol": item.get("1. symbol", ""),
+                    "name": item.get("2. name", ""),
+                    "type": item.get("3. type", ""),
+                    "region": item.get("4. region", ""),
+                    "market": item.get("5. market", ""),
+                    "currency": item.get("6. currency", ""),
+                    "match_score": item.get("7. matchScore", ""),
+                }
+            )
+        return results
+
     def _fetch_single(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
@@ -1110,6 +1144,37 @@ class AlphaVantageProvider(DataProvider):
                 logger.error("Error fetching %s: %s", symbol, e)
                 result.errors[symbol] = e
         return result
+
+    def search_symbols(self, query: str) -> list[dict[str, str]]:
+        """Search for symbols matching a query using SYMBOL_SEARCH endpoint.
+
+        Args:
+            query: Search query (company name or ticker symbol fragment).
+
+        Returns:
+            List of matching symbols, each a dict with keys:
+            symbol, name, type, region, market, currency, match_score.
+            Sorted by match score (best first). Empty list on error.
+        """
+        try:
+            params = self._build_symbol_search_params(query)
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if "Error Message" in data:
+                logger.error("SYMBOL_SEARCH API error: %s", data["Error Message"])
+                return []
+            if "Note" in data:
+                logger.error("SYMBOL_SEARCH rate limit: %s", data["Note"])
+                return []
+
+            matches = self._parse_symbol_search_response(data)
+            logger.debug("SYMBOL_SEARCH for %r returned %d matches", query, len(matches))
+            return matches
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+            logger.error("Error searching symbols for %r: %s", query, e)
+            return []
 
     def fetch(
         self,

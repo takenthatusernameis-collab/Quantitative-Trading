@@ -278,6 +278,31 @@ GLOBAL_QUOTE_RESPONSE = {
     }
 }
 
+SYMBOL_SEARCH_RESPONSE = {
+    "bestMatches": [
+        {
+            "1. symbol": "AAPL",
+            "2. name": "Apple Inc.",
+            "3. type": "Equity",
+            "4. region": "United States",
+            "5. market": "NASDAQ",
+            "6. currency": "USD",
+            "7. matchScore": "1.0000",
+        },
+        {
+            "1. symbol": "AAPL",
+            "2. name": "Apple Inc. - Class A",
+            "3. type": "Equity",
+            "4. region": "United States",
+            "5. market": "NASDAQ",
+            "6. currency": "USD",
+            "7. matchScore": "0.8500",
+        },
+    ]
+}
+
+SYMBOL_SEARCH_EMPTY_RESPONSE = {"bestMatches": []}
+
 
 class TestAlphaVantageProvider:
     """Tests for AlphaVantageProvider."""
@@ -1110,6 +1135,100 @@ class TestAlphaVantageProvider:
         """Test default API key is demo when None provided."""
         provider = AlphaVantageProvider(cache_dir=str(tmp_path), warn_on_demo=False)
         assert provider._api_key == "demo"
+
+    # Symbol Search tests
+    def test_search_symbols(self, provider):
+        """Test searching symbols (SYMBOL_SEARCH endpoint)."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(SYMBOL_SEARCH_RESPONSE)
+
+            results = provider.search_symbols("Apple")
+
+            assert len(results) == 2
+            assert results[0]["symbol"] == "AAPL"
+            assert results[0]["name"] == "Apple Inc."
+            assert results[0]["type"] == "Equity"
+            assert results[0]["region"] == "United States"
+            assert results[0]["market"] == "NASDAQ"
+            assert results[0]["currency"] == "USD"
+            assert results[0]["match_score"] == "1.0000"
+            assert results[1]["symbol"] == "AAPL"
+            assert results[1]["match_score"] == "0.8500"
+            mock_get.assert_called_once()
+
+    def test_search_symbols_empty_response(self, provider):
+        """Test searching symbols with empty response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(SYMBOL_SEARCH_EMPTY_RESPONSE)
+
+            results = provider.search_symbols("NONEXISTENT")
+
+            assert results == []
+            mock_get.assert_called_once()
+
+    def test_search_symbols_api_error(self, provider):
+        """Test handling of API error for symbol search."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+
+            results = provider.search_symbols("Apple")
+
+            assert results == []
+            mock_get.assert_called_once()
+
+    def test_search_symbols_rate_limit(self, provider):
+        """Test handling of rate limit for symbol search."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            results = provider.search_symbols("Apple")
+
+            assert results == []
+            mock_get.assert_called_once()
+
+    def test_search_symbols_network_error(self, provider):
+        """Test handling of network errors for symbol search."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            import requests
+            mock_get.side_effect = requests.ConnectionError("Network unreachable")
+
+            results = provider.search_symbols("Apple")
+
+            assert results == []
+            mock_get.assert_called_once()
+
+    def test_build_symbol_search_params(self, provider):
+        """Test _build_symbol_search_params method."""
+        params = provider._build_symbol_search_params("Apple")
+        assert params["function"] == "SYMBOL_SEARCH"
+        assert params["keywords"] == "Apple"
+        assert params["apikey"] == "test_key"
+        assert params["datatype"] == "json"
+
+    def test_parse_symbol_search_response(self, provider):
+        """Test _parse_symbol_search_response method."""
+        results = provider._parse_symbol_search_response(SYMBOL_SEARCH_RESPONSE)
+
+        assert len(results) == 2
+        assert results[0]["symbol"] == "AAPL"
+        assert results[0]["name"] == "Apple Inc."
+        assert results[0]["type"] == "Equity"
+        assert results[0]["region"] == "United States"
+        assert results[0]["market"] == "NASDAQ"
+        assert results[0]["currency"] == "USD"
+        assert results[0]["match_score"] == "1.0000"
+        assert results[1]["symbol"] == "AAPL"
+        assert results[1]["match_score"] == "0.8500"
+
+    def test_parse_symbol_search_response_empty(self, provider):
+        """Test _parse_symbol_search_response with empty response."""
+        results = provider._parse_symbol_search_response(SYMBOL_SEARCH_EMPTY_RESPONSE)
+        assert results == []
+
+    def test_parse_symbol_search_response_missing_key(self, provider):
+        """Test _parse_symbol_search_response with missing bestMatches key."""
+        results = provider._parse_symbol_search_response({})
+        assert results == []
 
 
 class TestAlphaVantageProviderIntegration:

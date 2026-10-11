@@ -250,3 +250,153 @@ class BollingerBandsStrategy(Strategy):
                 )
 
         return signals
+
+
+class MACDStrategy(Strategy):
+    """MACD (Moving Average Convergence Divergence) Strategy.
+
+    Generates buy signals when the MACD line crosses above the signal line
+    (bullish crossover), and sell signals when the MACD line crosses below the
+    signal line (bearish crossover). Optionally also reacts to the MACD line
+    crossing the zero axis.
+    """
+
+    def __init__(
+        self,
+        fast_period: int = 12,
+        slow_period: int = 26,
+        signal_period: int = 9,
+        use_zero_line: bool = False,
+        name: str = "MACD",
+    ):
+        super().__init__(
+            name,
+            {
+                "fast_period": fast_period,
+                "slow_period": slow_period,
+                "signal_period": signal_period,
+                "use_zero_line": use_zero_line,
+            },
+        )
+        self.fast_period = fast_period
+        self.slow_period = slow_period
+        self.signal_period = signal_period
+        self.use_zero_line = use_zero_line
+
+    def _ema(self, close: pd.Series, period: int) -> pd.Series:
+        """Calculate Exponential Moving Average."""
+        return close.ewm(span=period, adjust=False).mean()
+
+    def _calculate_macd(self, close: pd.Series) -> tuple[pd.Series, pd.Series, pd.Series]:
+        """Calculate MACD line, signal line, and histogram.
+
+        Returns:
+            Tuple of (macd_line, signal_line, histogram).
+        """
+        fast_ema = self._ema(close, self.fast_period)
+        slow_ema = self._ema(close, self.slow_period)
+        macd_line = fast_ema - slow_ema
+        signal_line = self._ema(macd_line, self.signal_period)
+        histogram = macd_line - signal_line
+        return macd_line, signal_line, histogram
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals = []
+
+        for symbol, df in data.items():
+            # Need enough data for the slow EMA plus signal smoothing
+            min_required = self.slow_period + self.signal_period + 2
+            if len(df) < min_required:
+                continue
+
+            close = df["close"]
+            macd_line, signal_line, histogram = self._calculate_macd(close)
+
+            macd_current = macd_line.iloc[-1]
+            macd_prev = macd_line.iloc[-2]
+            signal_current = signal_line.iloc[-1]
+            signal_prev = signal_line.iloc[-2]
+            hist_current = histogram.iloc[-1]
+            hist_prev = histogram.iloc[-2]
+
+            current_price = close.iloc[-1]
+            timestamp = df.index[-1]
+
+            # Bullish crossover: MACD line crosses above signal line
+            if macd_prev <= signal_prev and macd_current > signal_current:
+                strength = min(1.0, abs(macd_current - signal_current) / abs(signal_current) + 0.5)
+                metadata = {
+                    "macd": macd_current,
+                    "signal": signal_current,
+                    "histogram": hist_current,
+                    "crossover_type": "bullish",
+                }
+                if self.use_zero_line and macd_current > 0:
+                    metadata["zero_line"] = "above"
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata=metadata,
+                    )
+                )
+            # Bearish crossover: MACD line crosses below signal line
+            elif macd_prev >= signal_prev and macd_current < signal_current:
+                strength = min(1.0, abs(signal_current - macd_current) / abs(signal_current) + 0.5)
+                metadata = {
+                    "macd": macd_current,
+                    "signal": signal_current,
+                    "histogram": hist_current,
+                    "crossover_type": "bearish",
+                }
+                if self.use_zero_line and macd_current < 0:
+                    metadata["zero_line"] = "below"
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata=metadata,
+                    )
+                )
+            # Optional zero-line crossover when no signal-line crossover occurred
+            elif self.use_zero_line:
+                if macd_prev <= 0 and macd_current > 0:
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="buy",
+                            strength=min(1.0, abs(macd_current) / abs(macd_current) + 0.3),
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "macd": macd_current,
+                                "signal": signal_current,
+                                "histogram": hist_current,
+                                "crossover_type": "zero_line_bullish",
+                            },
+                        )
+                    )
+                elif macd_prev >= 0 and macd_current < 0:
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="sell",
+                            strength=min(1.0, abs(macd_current) / abs(macd_current) + 0.3),
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "macd": macd_current,
+                                "signal": signal_current,
+                                "histogram": hist_current,
+                                "crossover_type": "zero_line_bearish",
+                            },
+                        )
+                    )
+
+        return signals
