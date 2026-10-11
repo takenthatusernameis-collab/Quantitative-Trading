@@ -11,7 +11,8 @@ on:
         default: "1000"
         type: number
 
-permissions: write-all
+permissions:
+  contents: write
 
 concurrency:
   group: kilo-repository
@@ -116,7 +117,7 @@ jobs:
 
           install_attempt=0
           install_backoff=5
-          until npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/kilo" @kilocode/cli@7.7.1; do
+          until timeout --signal=TERM --kill-after=10s 180s npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/kilo" @kilocode/cli@7.7.1; do
             install_attempt=$((install_attempt + 1))
             remaining=$((cutoff_epoch - $(date +%s)))
             if [ "$remaining" -le 0 ]; then
@@ -193,6 +194,18 @@ jobs:
               break
             fi
             session_timeout="$remaining"
+            # In the guarded two-agent run, reserve half of the remaining budget
+            # for each still-unstarted session. A fast first session gives its
+            # unused time back to the overall pool for the second session.
+            if [ "$one_shot_mode" -eq 1 ]; then
+              sessions_remaining=$((agents - agent_index + 1))
+              session_timeout=$((remaining / sessions_remaining))
+              if [ "$session_timeout" -lt 1 ]; then
+                echo "::warning::Insufficient safety budget remains to start the next one-shot session."
+                cutoff=1
+                break
+              fi
+            fi
             WORKFLOW_BASE_SHA="$(git rev-parse HEAD)"
             session_log="$RUNNER_TEMP/kilo-session-${agent_index}.log"
             provider_pressure=0
