@@ -317,7 +317,6 @@ class MACDStrategy(Strategy):
             signal_current = signal_line.iloc[-1]
             signal_prev = signal_line.iloc[-2]
             hist_current = histogram.iloc[-1]
-            hist_prev = histogram.iloc[-2]
 
             current_price = close.iloc[-1]
             timestamp = df.index[-1]

@@ -113,30 +113,42 @@ python examples/cli.py --strategy bb --bb-period 20 --bb-std 2.5 --initial-capit
 
 ### Data Providers
 
-```bash
-# Use Yahoo Finance (default, requires network)
-python examples/cli.py --provider yfinance
+ ```bash
+ # Use Yahoo Finance (default, requires network)
+ python examples/cli.py --provider yfinance
 
-# Use Alpha Vantage (supports daily, weekly, monthly, intraday, and real-time)
-python examples/cli.py --provider alphavantage --interval 5m --days 30
+ # Use Alpha Vantage (supports daily, weekly, monthly, intraday, and real-time)
+ python examples/cli.py --provider alphavantage --interval 5m --days 30
 
-# Use Alpha Vantage with weekly data
-python examples/cli.py --provider alphavantage --interval weekly --days 365
+ # Use Alpha Vantage with weekly data
+ python examples/cli.py --provider alphavantage --interval weekly --days 365
 
-# Use Alpha Vantage with monthly adjusted data (includes dividends/splits)
-python examples/cli.py --provider alphavantage --interval monthly_adjusted --days 1095
+ # Use Alpha Vantage with monthly adjusted data (includes dividends/splits)
+ python examples/cli.py --provider alphavantage --interval monthly_adjusted --days 1095
 
-# Use Alpha Vantage with real-time quote
-python examples/cli.py --provider alphavantage --interval quote
+ # Use Alpha Vantage with real-time quote
+ python examples/cli.py --provider alphavantage --interval quote
 
-# Use Alpha Vantage with your own API key
-python examples/cli.py --provider alphavantage --alphavantage-key YOUR_API_KEY --interval 1h
+ # Use Alpha Vantage with market status
+ python examples/cli.py --provider alphavantage --interval market_status
 
-# Run offline with synthetic data (deterministic, no network required)
-python examples/cli.py --offline
-# or
-python examples/cli.py --provider synthetic
-```
+ # Use Alpha Vantage with FX daily data
+ python examples/cli.py --provider alphavantage --interval fx_daily --symbols USD/EUR GBP/USD
+
+ # Use Alpha Vantage with FX intraday data
+ python examples/cli.py --provider alphavantage --interval fx_5m --symbols USD/EUR
+
+ # Use Alpha Vantage with crypto data
+ python examples/cli.py --provider alphavantage --interval crypto_daily --symbols BTC ETH
+
+ # Use Alpha Vantage with your own API key
+ python examples/cli.py --provider alphavantage --alphavantage-key YOUR_API_KEY --interval 1h
+
+ # Run offline with synthetic data (deterministic, no network required)
+ python examples/cli.py --offline
+ # or
+ python examples/cli.py --provider synthetic
+ ```
 
 ### Utility Commands
 
@@ -178,19 +190,26 @@ python examples/cli.py --combined --output comparison.json
 
 ### Alpha Vantage Specifics
 
-Alpha Vantage provider supports:
-- **Daily data**: `1d` / `daily` intervals via TIME_SERIES_DAILY_ADJUSTED
-- **Weekly data**: `1w`, `weekly`, `week` intervals via TIME_SERIES_WEEKLY
-- **Weekly adjusted data**: `1wa`, `weekly_adjusted` intervals via TIME_SERIES_WEEKLY_ADJUSTED (includes dividends/splits)
-- **Monthly data**: `1mo`, `monthly`, `month` intervals via TIME_SERIES_MONTHLY
-- **Monthly adjusted data**: `1ma`, `monthly_adjusted` intervals via TIME_SERIES_MONTHLY_ADJUSTED (includes dividends/splits)
-- **Intraday data**: `1m`, `5m`, `15m`, `30m`, `1h` / `60m` intervals via TIME_SERIES_INTRADAY
-- **Global Quote**: `quote`, `realtime`, `rt` intervals via GLOBAL_QUOTE (real-time single symbol quotes)
-- **Batch Quotes**: any other interval uses BATCH_STOCK_PRICES endpoint
-- **Demo key**: Works out of the box with `"demo"` key (rate limited, warning logged)
-- **API key validation**: Optional warning when using demo key (configurable via `warn_on_demo`)
+ Alpha Vantage provider supports:
+ - **Daily data**: `1d` / `daily` intervals via TIME_SERIES_DAILY_ADJUSTED
+ - **Weekly data**: `1w`, `weekly`, `week` intervals via TIME_SERIES_WEEKLY
+ - **Weekly adjusted data**: `1wa`, `weekly_adjusted` intervals via TIME_SERIES_WEEKLY_ADJUSTED (includes dividends/splits)
+ - **Monthly data**: `1mo`, `monthly`, `month` intervals via TIME_SERIES_MONTHLY
+ - **Monthly adjusted data**: `1ma`, `monthly_adjusted` intervals via TIME_SERIES_MONTHLY_ADJUSTED (includes dividends/splits)
+ - **Intraday data**: `1m`, `5m`, `15m`, `30m`, `1h` / `60m` intervals via TIME_SERIES_INTRADAY
+ - **Global Quote**: `quote`, `realtime`, `rt` intervals via GLOBAL_QUOTE (real-time single symbol quotes)
+ - **Market Status**: `market_status`, `marketstatus` intervals via MARKET_STATUS (global market hours/status)
+ - **FX Daily**: `fx_daily`, `fx`, `forex_daily` intervals via FX_DAILY (symbols as "FROM/TO", e.g., "USD/EUR")
+ - **FX Intraday**: `fx_intraday`, `fx_1m`, `fx_5m`, `fx_15m`, `fx_30m`, `fx_60m` intervals via FX_INTRADAY
+ - **Currency Exchange Rate**: real-time forex rates via CURRENCY_EXCHANGE_RATE (use `get_currency_exchange_rate()`)
+ - **Crypto Daily**: `crypto_daily`, `digital_daily` intervals via DIGITAL_CURRENCY_DAILY (symbols like "BTC", "ETH")
+ - **Crypto Weekly**: `crypto_weekly`, `digital_weekly` intervals via DIGITAL_CURRENCY_WEEKLY
+ - **Crypto Monthly**: `crypto_monthly`, `digital_monthly` intervals via DIGITAL_CURRENCY_MONTHLY
+ - **Crypto Intraday**: `crypto_intraday`, `digital_intraday` intervals via DIGITAL_CURRENCY_INTRADAY
+ - **Demo key**: Works out of the box with `"demo"` key (rate limited, warning logged)
+ - **API key validation**: Optional warning when using demo key (configurable via `warn_on_demo`)
 
-For production use, get a free API key from [Alpha Vantage](https://www.alphavantage.co/support/#api-key) and pass it via `--alphavantage-key` or config file.
+ For production use, get a free API key from [Alpha Vantage](https://www.alphavantage.co/support/#api-key) and pass it via `--alphavantage-key` or config file.
 
 ### Example Scripts
 
@@ -250,54 +269,84 @@ manager.clear_cache()
 
 ### Alpha Vantage Provider
 
-The `AlphaVantageProvider` supports multiple endpoints:
+ The `AlphaVantageProvider` supports multiple endpoints:
 
-```python
-from quant_trading.data.yfinance_provider import AlphaVantageProvider
+ ```python
+ from quant_trading.data.yfinance_provider import AlphaVantageProvider
 
-# Uses demo key by default (rate limited, logs warning)
-provider = AlphaVantageProvider()  # api_key defaults to "demo"
+ # Uses demo key by default (rate limited, logs warning)
+ provider = AlphaVantageProvider()  # api_key defaults to "demo"
 
-# Or provide your own key
-provider = AlphaVantageProvider(api_key="YOUR_API_KEY")
+ # Or provide your own key
+ provider = AlphaVantageProvider(api_key="YOUR_API_KEY")
 
-# Disable demo key warning
-provider = AlphaVantageProvider(api_key="demo", warn_on_demo=False)
+ # Disable demo key warning
+ provider = AlphaVantageProvider(api_key="demo", warn_on_demo=False)
 
-# Fetch daily data
-result = provider.fetch(["AAPL"], interval="1d")
+ # Fetch daily data
+ result = provider.fetch(["AAPL"], interval="1d")
 
-# Fetch weekly data
-result = provider.fetch(["AAPL"], interval="weekly")
+ # Fetch weekly data
+ result = provider.fetch(["AAPL"], interval="weekly")
 
-# Fetch weekly adjusted data (includes dividends/splits)
-result = provider.fetch(["AAPL"], interval="weekly_adjusted")
+ # Fetch weekly adjusted data (includes dividends/splits)
+ result = provider.fetch(["AAPL"], interval="weekly_adjusted")
 
-# Fetch monthly data
-result = provider.fetch(["AAPL"], interval="monthly")
+ # Fetch monthly data
+ result = provider.fetch(["AAPL"], interval="monthly")
 
-# Fetch monthly adjusted data (includes dividends/splits)
-result = provider.fetch(["AAPL"], interval="monthly_adjusted")
+ # Fetch monthly adjusted data (includes dividends/splits)
+ result = provider.fetch(["AAPL"], interval="monthly_adjusted")
 
-# Fetch intraday data (1m, 5m, 15m, 30m, 1h)
-result = provider.fetch(["AAPL"], interval="5m")
+ # Fetch intraday data (1m, 5m, 15m, 30m, 1h)
+ result = provider.fetch(["AAPL"], interval="5m")
 
-# Fetch real-time single symbol quote
-result = provider.fetch(["AAPL"], interval="quote")
+ # Fetch real-time single symbol quote
+ result = provider.fetch(["AAPL"], interval="quote")
 
-# Fetch latest real-time quotes (batch)
-result = provider.fetch_latest(["AAPL", "MSFT"])
-```
+ # Fetch latest real-time quotes (batch)
+ result = provider.fetch_latest(["AAPL", "MSFT"])
 
-Supported intervals:
-- Daily: `1d`, `daily`
-- Weekly: `1w`, `weekly`, `week`
-- Weekly Adjusted: `1wa`, `weekly_adjusted`
-- Monthly: `1mo`, `monthly`, `month`
-- Monthly Adjusted: `1ma`, `monthly_adjusted`
-- Intraday: `1m`, `5m`, `15m`, `30m`, `1h`, `60m`
-- Global Quote: `quote`, `realtime`, `rt`
-- Real-time Batch: any other interval uses `BATCH_STOCK_PRICES`
+ # Get market status
+ df = provider.get_market_status()
+
+ # Get real-time currency exchange rate
+ df = provider.get_currency_exchange_rate("USD", "EUR")
+
+ # Fetch FX daily data (symbols as "FROM/TO")
+ result = provider.fetch(["USD/EUR", "GBP/USD"], interval="fx_daily")
+
+ # Fetch FX intraday data
+ result = provider.fetch(["USD/EUR"], interval="fx_5m")
+
+ # Fetch crypto data
+ result = provider.fetch(["BTC", "ETH"], interval="crypto_daily")
+ result = provider.fetch(["BTC"], interval="crypto_weekly")
+ result = provider.fetch(["BTC"], interval="crypto_monthly")
+ result = provider.fetch(["BTC"], interval="crypto_intraday")
+ ```
+
+ Supported intervals:
+ - Daily: `1d`, `daily`
+ - Weekly: `1w`, `weekly`, `week`
+ - Weekly Adjusted: `1wa`, `weekly_adjusted`
+ - Monthly: `1mo`, `monthly`, `month`
+ - Monthly Adjusted: `1ma`, `monthly_adjusted`
+ - Intraday: `1m`, `5m`, `15m`, `30m`, `1h`, `60m`
+ - Global Quote: `quote`, `realtime`, `rt`
+ - Market Status: `market_status`, `marketstatus`
+ - FX Daily: `fx_daily`, `fx`, `forex_daily` (symbols as "FROM/TO")
+ - FX Intraday: `fx_intraday`, `fx_1m`, `fx_5m`, `fx_15m`, `fx_30m`, `fx_60m`
+ - Crypto Daily: `crypto_daily`, `digital_daily`
+ - Crypto Weekly: `crypto_weekly`, `digital_weekly`
+ - Crypto Monthly: `crypto_monthly`, `digital_monthly`
+ - Crypto Intraday: `crypto_intraday`, `digital_intraday`
+ - Real-time Batch: any other interval uses `BATCH_STOCK_PRICES`
+
+ Additional methods:
+ - `get_market_status()` - Returns DataFrame with global market hours/status
+ - `get_currency_exchange_rate(from_currency, to_currency)` - Returns real-time FX rate
+ - `search_symbols(query)` - Search for symbols by name or ticker
 
 ## Configuration
 

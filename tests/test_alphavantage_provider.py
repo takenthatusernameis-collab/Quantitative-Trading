@@ -303,6 +303,217 @@ SYMBOL_SEARCH_RESPONSE = {
 
 SYMBOL_SEARCH_EMPTY_RESPONSE = {"bestMatches": []}
 
+MARKET_STATUS_RESPONSE = {
+    "markets": [
+        {
+            "market_type": "Equity",
+            "region": "United States",
+            "market": "NASDAQ",
+            "primary_exchanges": "NASDAQ, NYSE",
+            "local_open": "09:30",
+            "local_close": "16:00",
+            "current_status": "open",
+            "notes": "Regular trading hours",
+        },
+        {
+            "market_type": "Equity",
+            "region": "United States",
+            "market": "NYSE",
+            "primary_exchanges": "NYSE",
+            "local_open": "09:30",
+            "local_close": "16:00",
+            "current_status": "open",
+            "notes": "Regular trading hours",
+        },
+        {
+            "market_type": "Forex",
+            "region": "Global",
+            "market": "FX",
+            "primary_exchanges": "Interbank",
+            "local_open": "17:00 (Sun)",
+            "local_close": "17:00 (Fri)",
+            "current_status": "open",
+            "notes": "24/5 trading",
+        },
+    ]
+}
+
+FX_DAILY_RESPONSE = {
+    "Meta Data": {
+        "1. Information": "FX Daily Prices",
+        "2. From Symbol": "USD",
+        "3. To Symbol": "EUR",
+        "4. Last Refreshed": "2024-01-15",
+        "5. Time Zone": "UTC",
+    },
+    "Time Series FX (Daily)": {
+        "2024-01-15": {
+            "1. open": "0.9200",
+            "2. high": "0.9250",
+            "3. low": "0.9150",
+            "4. close": "0.9220",
+        },
+        "2024-01-12": {
+            "1. open": "0.9150",
+            "2. high": "0.9200",
+            "3. low": "0.9100",
+            "4. close": "0.9180",
+        },
+    },
+}
+
+FX_INTRADAY_RESPONSE = {
+    "Meta Data": {
+        "1. Information": "FX Intraday (5min) Prices",
+        "2. From Symbol": "USD",
+        "3. To Symbol": "EUR",
+        "4. Last Refreshed": "2024-01-15 19:55:00",
+        "5. Interval": "5min",
+        "6. Time Zone": "UTC",
+    },
+    "Time Series FX (5min)": {
+        "2024-01-15 19:55:00": {
+            "1. open": "0.9200",
+            "2. high": "0.9210",
+            "3. low": "0.9195",
+            "4. close": "0.9205",
+        },
+        "2024-01-15 19:50:00": {
+            "1. open": "0.9195",
+            "2. high": "0.9205",
+            "3. low": "0.9190",
+            "4. close": "0.9198",
+        },
+    },
+}
+
+CURRENCY_EXCHANGE_RATE_RESPONSE = {
+    "Realtime Currency Exchange Rate": {
+        "1. From_Currency Code": "USD",
+        "2. From_Currency Name": "United States Dollar",
+        "3. To_Currency Code": "EUR",
+        "4. To_Currency Name": "Euro",
+        "5. Exchange Rate": "0.9205",
+        "6. Last Refreshed": "2024-01-15 19:55:00",
+        "7. Time Zone": "UTC",
+        "8. Bid Price": "0.9200",
+        "9. Ask Price": "0.9210",
+    }
+}
+
+CRYPTO_DAILY_RESPONSE = {
+    "Meta Data": {
+        "1. Information": "Digital Currency Daily",
+        "2. Digital Currency Code": "BTC",
+        "3. Digital Currency Name": "Bitcoin",
+        "4. Market Code": "USD",
+        "5. Market Name": "United States Dollar",
+        "6. Last Refreshed": "2024-01-15",
+        "7. Time Zone": "UTC",
+    },
+    "Time Series (Digital Currency Daily)": {
+        "2024-01-15": {
+            "1a. open (USD)": "42000.00",
+            "2a. high (USD)": "43000.00",
+            "3a. low (USD)": "41500.00",
+            "4a. close (USD)": "42500.00",
+            "5. volume": "25000.00",
+        },
+        "2024-01-14": {
+            "1a. open (USD)": "41000.00",
+            "2a. high (USD)": "42200.00",
+            "3a. low (USD)": "40800.00",
+            "4a. close (USD)": "42000.00",
+            "5. volume": "30000.00",
+        },
+    },
+}
+
+CRYPTO_WEEKLY_RESPONSE = {
+    "Meta Data": {
+        "1. Information": "Digital Currency Weekly",
+        "2. Digital Currency Code": "BTC",
+        "3. Digital Currency Name": "Bitcoin",
+        "4. Market Code": "USD",
+        "5. Market Name": "United States Dollar",
+        "6. Last Refreshed": "2024-01-12",
+        "7. Time Zone": "UTC",
+    },
+    "Time Series (Digital Currency Weekly)": {
+        "2024-01-12": {
+            "1a. open (USD)": "40000.00",
+            "2a. high (USD)": "43500.00",
+            "3a. low (USD)": "39500.00",
+            "4a. close (USD)": "42500.00",
+            "5. volume": "180000.00",
+        },
+        "2024-01-05": {
+            "1a. open (USD)": "39000.00",
+            "2a. high (USD)": "41000.00",
+            "3a. low (USD)": "38500.00",
+            "4a. close (USD)": "40000.00",
+            "5. volume": "160000.00",
+        },
+    },
+}
+
+CRYPTO_MONTHLY_RESPONSE = {
+    "Meta Data": {
+        "1. Information": "Digital Currency Monthly",
+        "2. Digital Currency Code": "BTC",
+        "3. Digital Currency Name": "Bitcoin",
+        "4. Market Code": "USD",
+        "5. Market Name": "United States Dollar",
+        "6. Last Refreshed": "2024-01-31",
+        "7. Time Zone": "UTC",
+    },
+    "Time Series (Digital Currency Monthly)": {
+        "2024-01-31": {
+            "1a. open (USD)": "38000.00",
+            "2a. high (USD)": "44000.00",
+            "3a. low (USD)": "37500.00",
+            "4a. close (USD)": "42500.00",
+            "5. volume": "750000.00",
+        },
+        "2023-12-31": {
+            "1a. open (USD)": "35000.00",
+            "2a. high (USD)": "40000.00",
+            "3a. low (USD)": "34000.00",
+            "4a. close (USD)": "38000.00",
+            "5. volume": "800000.00",
+        },
+    },
+}
+
+CRYPTO_INTRADAY_RESPONSE = {
+    "Meta Data": {
+        "1. Information": "Digital Currency Intraday (5min)",
+        "2. Digital Currency Code": "BTC",
+        "3. Digital Currency Name": "Bitcoin",
+        "4. Market Code": "USD",
+        "5. Market Name": "United States Dollar",
+        "6. Last Refreshed": "2024-01-15 19:55:00",
+        "7. Interval": "5min",
+        "8. Time Zone": "UTC",
+    },
+    "Time Series (Digital Currency Intraday)": {
+        "2024-01-15 19:55:00": {
+            "1a. open (USD)": "42500.00",
+            "2a. high (USD)": "42550.00",
+            "3a. low (USD)": "42450.00",
+            "4a. close (USD)": "42520.00",
+            "5. volume": "50.00",
+        },
+        "2024-01-15 19:50:00": {
+            "1a. open (USD)": "42480.00",
+            "2a. high (USD)": "42520.00",
+            "3a. low (USD)": "42440.00",
+            "4a. close (USD)": "42500.00",
+            "5. volume": "45.00",
+        },
+    },
+}
+
 
 class TestAlphaVantageProvider:
     """Tests for AlphaVantageProvider."""
@@ -1229,6 +1440,562 @@ class TestAlphaVantageProvider:
         """Test _parse_symbol_search_response with missing bestMatches key."""
         results = provider._parse_symbol_search_response({})
         assert results == []
+
+    # Market Status tests
+    def test_get_market_status(self, provider):
+        """Test getting market status (MARKET_STATUS endpoint)."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(MARKET_STATUS_RESPONSE)
+
+            df = provider.get_market_status()
+
+            assert df is not None
+            assert isinstance(df, pd.DataFrame)
+            assert len(df) == 3
+            assert "market_type" in df.columns
+            assert "region" in df.columns
+            assert "market" in df.columns
+            assert "current_status" in df.columns
+            assert df.iloc[0]["market"] == "NASDAQ"
+            assert df.iloc[2]["market_type"] == "Forex"
+            mock_get.assert_called_once()
+
+    def test_get_market_status_api_error(self, provider):
+        """Test handling of API error for market status."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+
+            df = provider.get_market_status()
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_market_status_rate_limit(self, provider):
+        """Test handling of rate limit for market status."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            df = provider.get_market_status()
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_market_status_network_error(self, provider):
+        """Test handling of network errors for market status."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            import requests
+            mock_get.side_effect = requests.ConnectionError("Network unreachable")
+
+            df = provider.get_market_status()
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_parse_market_status_response(self, provider):
+        """Test _parse_market_status_response method."""
+        df = provider._parse_market_status_response(MARKET_STATUS_RESPONSE)
+
+        assert df is not None
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 3
+        assert list(df.columns) == [
+            "market_type", "region", "market", "primary_exchanges",
+            "local_open", "local_close", "current_status", "notes"
+        ]
+
+    def test_parse_market_status_response_empty(self, provider):
+        """Test _parse_market_status_response with empty response."""
+        df = provider._parse_market_status_response({"markets": []})
+        assert df is None
+
+    def test_parse_market_status_response_missing_key(self, provider):
+        """Test _parse_market_status_response with missing markets key."""
+        df = provider._parse_market_status_response({})
+        assert df is None
+
+    def test_build_market_status_params(self, provider):
+        """Test _build_market_status_params method."""
+        params = provider._build_market_status_params()
+        assert params["function"] == "MARKET_STATUS"
+        assert params["apikey"] == "test_key"
+        assert params["datatype"] == "json"
+
+    def test_fetch_market_status_interval(self, provider):
+        """Test fetch with market_status interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(MARKET_STATUS_RESPONSE)
+
+            result = provider.fetch(["AAPL"], interval="market_status")
+
+            assert "AAPL" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["AAPL"]
+            assert md.metadata.get("function") == "MARKET_STATUS"
+            mock_get.assert_called_once()
+
+    def test_fetch_marketstatus_alias(self, provider):
+        """Test fetch with marketstatus alias."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(MARKET_STATUS_RESPONSE)
+
+            result = provider.fetch(["AAPL"], interval="marketstatus")
+
+            assert "AAPL" in result.data
+            md = result.data["AAPL"]
+            assert md.metadata.get("function") == "MARKET_STATUS"
+
+    # FX Daily tests
+    def test_fetch_fx_daily(self, provider):
+        """Test fetching FX daily data (FX_DAILY)."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(FX_DAILY_RESPONSE)
+
+            start = datetime(2024, 1, 10)
+            end = datetime(2024, 1, 15)
+            result = provider.fetch(["USD/EUR"], start=start, end=end, interval="fx_daily")
+
+            assert "USD/EUR" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["USD/EUR"]
+            assert md.symbol == "USD/EUR"
+            assert isinstance(md.data, pd.DataFrame)
+            assert len(md.data) == 2
+            assert list(md.data.columns) == ["open", "high", "low", "close"]
+            assert md.metadata.get("function") == "FX_DAILY"
+            assert md.metadata.get("from_symbol") == "USD"
+            assert md.metadata.get("to_symbol") == "EUR"
+            mock_get.assert_called_once()
+
+    def test_fetch_fx_daily_fx_alias(self, provider):
+        """Test fetching FX daily with fx alias."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(FX_DAILY_RESPONSE)
+
+            result = provider.fetch(["EUR/USD"], interval="fx")
+
+            assert "EUR/USD" in result.data
+            md = result.data["EUR/USD"]
+            assert md.metadata.get("function") == "FX_DAILY"
+            assert md.metadata.get("from_symbol") == "EUR"
+            assert md.metadata.get("to_symbol") == "USD"
+
+    def test_fetch_fx_daily_forex_alias(self, provider):
+        """Test fetching FX daily with forex_daily alias."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(FX_DAILY_RESPONSE)
+
+            result = provider.fetch(["GBP/USD"], interval="forex_daily")
+
+            assert "GBP/USD" in result.data
+            md = result.data["GBP/USD"]
+            assert md.metadata.get("function") == "FX_DAILY"
+
+    def test_fetch_fx_daily_invalid_format(self, provider):
+        """Test fetching FX daily with invalid symbol format."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            result = provider.fetch(["INVALID"], interval="fx_daily")
+
+            assert "INVALID" in result.errors
+            assert isinstance(result.errors["INVALID"], ValueError)
+            mock_get.assert_not_called()
+
+    def test_fetch_fx_daily_date_filtering(self, provider):
+        """Test that FX daily response is filtered by start/end dates."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(FX_DAILY_RESPONSE)
+
+            start = datetime(2024, 1, 14)
+            end = datetime(2024, 1, 15)
+            result = provider.fetch(["USD/EUR"], start=start, end=end, interval="fx_daily")
+
+            assert "USD/EUR" in result.data
+            md = result.data["USD/EUR"]
+            assert len(md.data) == 1  # Only 2024-01-15
+            for idx in md.data.index:
+                assert start <= idx <= end
+
+    def test_build_fx_daily_params(self, provider):
+        """Test _build_fx_daily_params method."""
+        params = provider._build_fx_daily_params("USD", "EUR")
+        assert params["function"] == "FX_DAILY"
+        assert params["from_symbol"] == "USD"
+        assert params["to_symbol"] == "EUR"
+        assert params["apikey"] == "test_key"
+        assert params["datatype"] == "json"
+
+    def test_parse_fx_daily_response(self, provider):
+        """Test _parse_fx_daily_response method."""
+        start = datetime(2024, 1, 10)
+        end = datetime(2024, 1, 15)
+        df = provider._parse_fx_daily_response("USD", "EUR", FX_DAILY_RESPONSE, start, end)
+
+        assert df is not None
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 2
+        assert list(df.columns) == ["open", "high", "low", "close"]
+        assert df.index.name == "date"
+        assert df.index.is_monotonic_increasing
+
+    # FX Intraday tests
+    def test_fetch_fx_intraday(self, provider):
+        """Test fetching FX intraday data (FX_INTRADAY)."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(FX_INTRADAY_RESPONSE)
+
+            start = datetime(2024, 1, 15, 19, 40)
+            end = datetime(2024, 1, 15, 20, 0)
+            result = provider.fetch(["USD/EUR"], start=start, end=end, interval="fx_5m")
+
+            assert "USD/EUR" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["USD/EUR"]
+            assert md.symbol == "USD/EUR"
+            assert isinstance(md.data, pd.DataFrame)
+            assert len(md.data) == 2
+            assert list(md.data.columns) == ["open", "high", "low", "close"]
+            assert md.metadata.get("function") == "FX_INTRADAY"
+            assert md.metadata.get("interval") == "5min"
+            mock_get.assert_called_once()
+
+    def test_fetch_fx_intraday_15m_alias(self, provider):
+        """Test fetching FX intraday with fx_15m alias."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(FX_INTRADAY_RESPONSE)
+
+            result = provider.fetch(["USD/EUR"], interval="fx_15m")
+
+            assert "USD/EUR" in result.data
+            md = result.data["USD/EUR"]
+            assert md.metadata.get("interval") == "15min"
+
+    def test_fetch_fx_intraday_30m_alias(self, provider):
+        """Test fetching FX intraday with fx_30m alias."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(FX_INTRADAY_RESPONSE)
+
+            result = provider.fetch(["USD/EUR"], interval="fx_30m")
+
+            assert "USD/EUR" in result.data
+            md = result.data["USD/EUR"]
+            assert md.metadata.get("interval") == "30min"
+
+    def test_fetch_fx_intraday_60m_alias(self, provider):
+        """Test fetching FX intraday with fx_60m alias."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(FX_INTRADAY_RESPONSE)
+
+            result = provider.fetch(["USD/EUR"], interval="fx_60m")
+
+            assert "USD/EUR" in result.data
+            md = result.data["USD/EUR"]
+            assert md.metadata.get("interval") == "60min"
+
+    def test_build_fx_intraday_params(self, provider):
+        """Test _build_fx_intraday_params method."""
+        params = provider._build_fx_intraday_params("USD", "EUR", "fx_5m")
+        assert params["function"] == "FX_INTRADAY"
+        assert params["from_symbol"] == "USD"
+        assert params["to_symbol"] == "EUR"
+        assert params["interval"] == "5min"
+        assert params["apikey"] == "test_key"
+        assert params["datatype"] == "json"
+
+    def test_parse_fx_intraday_response(self, provider):
+        """Test _parse_fx_intraday_response method."""
+        start = datetime(2024, 1, 15, 19, 40)
+        end = datetime(2024, 1, 15, 20, 0)
+        df = provider._parse_fx_intraday_response("USD", "EUR", FX_INTRADAY_RESPONSE, start, end)
+
+        assert df is not None
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 2
+        assert list(df.columns) == ["open", "high", "low", "close"]
+        assert df.index.name == "date"
+        assert df.index.is_monotonic_increasing
+
+    # Currency Exchange Rate tests
+    def test_get_currency_exchange_rate(self, provider):
+        """Test getting currency exchange rate (CURRENCY_EXCHANGE_RATE endpoint)."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(CURRENCY_EXCHANGE_RATE_RESPONSE)
+
+            df = provider.get_currency_exchange_rate("USD", "EUR")
+
+            assert df is not None
+            assert isinstance(df, pd.DataFrame)
+            assert len(df) == 1
+            assert "from_currency_code" in df.columns
+            assert "to_currency_code" in df.columns
+            assert "exchange_rate" in df.columns
+            assert "bid_price" in df.columns
+            assert "ask_price" in df.columns
+            assert df.iloc[0]["from_currency_code"] == "USD"
+            assert df.iloc[0]["to_currency_code"] == "EUR"
+            assert df.iloc[0]["exchange_rate"] == 0.9205
+            mock_get.assert_called_once()
+
+    def test_get_currency_exchange_rate_api_error(self, provider):
+        """Test handling of API error for currency exchange rate."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+
+            df = provider.get_currency_exchange_rate("USD", "EUR")
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_currency_exchange_rate_rate_limit(self, provider):
+        """Test handling of rate limit for currency exchange rate."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            df = provider.get_currency_exchange_rate("USD", "EUR")
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_build_currency_exchange_rate_params(self, provider):
+        """Test _build_currency_exchange_rate_params method."""
+        params = provider._build_currency_exchange_rate_params("USD", "EUR")
+        assert params["function"] == "CURRENCY_EXCHANGE_RATE"
+        assert params["from_currency"] == "USD"
+        assert params["to_currency"] == "EUR"
+        assert params["apikey"] == "test_key"
+        assert params["datatype"] == "json"
+
+    def test_parse_currency_exchange_rate_response(self, provider):
+        """Test _parse_currency_exchange_rate_response method."""
+        df = provider._parse_currency_exchange_rate_response("USD", "EUR", CURRENCY_EXCHANGE_RATE_RESPONSE)
+
+        assert df is not None
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 1
+        assert "from_currency_code" in df.columns
+        assert "to_currency_code" in df.columns
+        assert "exchange_rate" in df.columns
+        assert "bid_price" in df.columns
+        assert "ask_price" in df.columns
+
+    # Crypto / Digital Currency tests
+    def test_fetch_crypto_daily(self, provider):
+        """Test fetching crypto daily data (DIGITAL_CURRENCY_DAILY)."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(CRYPTO_DAILY_RESPONSE)
+
+            start = datetime(2024, 1, 10)
+            end = datetime(2024, 1, 15)
+            result = provider.fetch(["BTC"], start=start, end=end, interval="crypto_daily")
+
+            assert "BTC" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["BTC"]
+            assert md.symbol == "BTC"
+            assert isinstance(md.data, pd.DataFrame)
+            assert len(md.data) == 2
+            assert "open" in md.data.columns
+            assert "high" in md.data.columns
+            assert "low" in md.data.columns
+            assert "close" in md.data.columns
+            assert "volume" in md.data.columns
+            assert md.metadata.get("function") == "DIGITAL_CURRENCY_DAILY"
+            assert md.metadata.get("market") == "USD"
+            mock_get.assert_called_once()
+
+    def test_fetch_crypto_daily_digital_alias(self, provider):
+        """Test fetching crypto daily with digital_daily alias."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(CRYPTO_DAILY_RESPONSE)
+
+            result = provider.fetch(["ETH"], interval="digital_daily")
+
+            assert "ETH" in result.data
+            md = result.data["ETH"]
+            assert md.metadata.get("function") == "DIGITAL_CURRENCY_DAILY"
+
+    def test_fetch_crypto_weekly(self, provider):
+        """Test fetching crypto weekly data (DIGITAL_CURRENCY_WEEKLY)."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(CRYPTO_WEEKLY_RESPONSE)
+
+            start = datetime(2024, 1, 1)
+            end = datetime(2024, 1, 15)
+            result = provider.fetch(["BTC"], start=start, end=end, interval="crypto_weekly")
+
+            assert "BTC" in result.data
+            md = result.data["BTC"]
+            assert len(md.data) == 2
+            assert md.metadata.get("function") == "DIGITAL_CURRENCY_WEEKLY"
+            mock_get.assert_called_once()
+
+    def test_fetch_crypto_weekly_digital_alias(self, provider):
+        """Test fetching crypto weekly with digital_weekly alias."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(CRYPTO_WEEKLY_RESPONSE)
+
+            result = provider.fetch(["BTC"], interval="digital_weekly")
+
+            assert "BTC" in result.data
+            md = result.data["BTC"]
+            assert md.metadata.get("function") == "DIGITAL_CURRENCY_WEEKLY"
+
+    def test_fetch_crypto_monthly(self, provider):
+        """Test fetching crypto monthly data (DIGITAL_CURRENCY_MONTHLY)."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(CRYPTO_MONTHLY_RESPONSE)
+
+            start = datetime(2023, 12, 1)
+            end = datetime(2024, 1, 31)
+            result = provider.fetch(["BTC"], start=start, end=end, interval="crypto_monthly")
+
+            assert "BTC" in result.data
+            md = result.data["BTC"]
+            assert len(md.data) == 2
+            assert md.metadata.get("function") == "DIGITAL_CURRENCY_MONTHLY"
+            mock_get.assert_called_once()
+
+    def test_fetch_crypto_monthly_digital_alias(self, provider):
+        """Test fetching crypto monthly with digital_monthly alias."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(CRYPTO_MONTHLY_RESPONSE)
+
+            result = provider.fetch(["BTC"], interval="digital_monthly")
+
+            assert "BTC" in result.data
+            md = result.data["BTC"]
+            assert md.metadata.get("function") == "DIGITAL_CURRENCY_MONTHLY"
+
+    def test_fetch_crypto_intraday(self, provider):
+        """Test fetching crypto intraday data (DIGITAL_CURRENCY_INTRADAY)."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(CRYPTO_INTRADAY_RESPONSE)
+
+            start = datetime(2024, 1, 15, 19, 40)
+            end = datetime(2024, 1, 15, 20, 0)
+            result = provider.fetch(["BTC"], start=start, end=end, interval="crypto_intraday")
+
+            assert "BTC" in result.data
+            md = result.data["BTC"]
+            assert len(md.data) == 2
+            assert md.metadata.get("function") == "DIGITAL_CURRENCY_INTRADAY"
+            mock_get.assert_called_once()
+
+    def test_fetch_crypto_intraday_digital_alias(self, provider):
+        """Test fetching crypto intraday with digital_intraday alias."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(CRYPTO_INTRADAY_RESPONSE)
+
+            result = provider.fetch(["BTC"], interval="digital_intraday")
+
+            assert "BTC" in result.data
+            md = result.data["BTC"]
+            assert md.metadata.get("function") == "DIGITAL_CURRENCY_INTRADAY"
+
+    def test_build_crypto_daily_params(self, provider):
+        """Test _build_crypto_daily_params method."""
+        params = provider._build_crypto_daily_params("BTC", "USD")
+        assert params["function"] == "DIGITAL_CURRENCY_DAILY"
+        assert params["symbol"] == "BTC"
+        assert params["market"] == "USD"
+        assert params["apikey"] == "test_key"
+        assert params["datatype"] == "json"
+
+    def test_build_crypto_weekly_params(self, provider):
+        """Test _build_crypto_weekly_params method."""
+        params = provider._build_crypto_weekly_params("BTC", "USD")
+        assert params["function"] == "DIGITAL_CURRENCY_WEEKLY"
+        assert params["symbol"] == "BTC"
+        assert params["market"] == "USD"
+        assert params["apikey"] == "test_key"
+        assert params["datatype"] == "json"
+
+    def test_build_crypto_monthly_params(self, provider):
+        """Test _build_crypto_monthly_params method."""
+        params = provider._build_crypto_monthly_params("BTC", "USD")
+        assert params["function"] == "DIGITAL_CURRENCY_MONTHLY"
+        assert params["symbol"] == "BTC"
+        assert params["market"] == "USD"
+        assert params["apikey"] == "test_key"
+        assert params["datatype"] == "json"
+
+    def test_build_crypto_intraday_params(self, provider):
+        """Test _build_crypto_intraday_params method."""
+        params = provider._build_crypto_intraday_params("BTC", "USD", "5min")
+        assert params["function"] == "DIGITAL_CURRENCY_INTRADAY"
+        assert params["symbol"] == "BTC"
+        assert params["market"] == "USD"
+        assert params["interval"] == "5min"
+        assert params["apikey"] == "test_key"
+        assert params["datatype"] == "json"
+
+    def test_parse_crypto_response(self, provider):
+        """Test _parse_crypto_response method for daily data."""
+        start = datetime(2024, 1, 10)
+        end = datetime(2024, 1, 15)
+        df = provider._parse_crypto_response("BTC", "USD", CRYPTO_DAILY_RESPONSE, start, end)
+
+        assert df is not None
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 2
+        assert list(df.columns) == ["open", "high", "low", "close", "volume"]
+        assert df.index.name == "date"
+        assert df.index.is_monotonic_increasing
+
+    def test_parse_crypto_response_weekly(self, provider):
+        """Test _parse_crypto_response method for weekly data."""
+        start = datetime(2024, 1, 1)
+        end = datetime(2024, 1, 15)
+        df = provider._parse_crypto_response("BTC", "USD", CRYPTO_WEEKLY_RESPONSE, start, end)
+
+        assert df is not None
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 2
+        assert list(df.columns) == ["open", "high", "low", "close", "volume"]
+
+    def test_parse_crypto_response_monthly(self, provider):
+        """Test _parse_crypto_response method for monthly data."""
+        start = datetime(2023, 12, 1)
+        end = datetime(2024, 1, 31)
+        df = provider._parse_crypto_response("BTC", "USD", CRYPTO_MONTHLY_RESPONSE, start, end)
+
+        assert df is not None
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 2
+        assert list(df.columns) == ["open", "high", "low", "close", "volume"]
+
+    def test_parse_crypto_response_intraday(self, provider):
+        """Test _parse_crypto_response method for intraday data."""
+        start = datetime(2024, 1, 15, 19, 40)
+        end = datetime(2024, 1, 15, 20, 0)
+        df = provider._parse_crypto_response("BTC", "USD", CRYPTO_INTRADAY_RESPONSE, start, end)
+
+        assert df is not None
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 2
+        assert list(df.columns) == ["open", "high", "low", "close", "volume"]
+
+    def test_parse_crypto_response_fallback_keys(self, provider):
+        """Test _parse_crypto_response falls back to generic keys when market-specific keys missing."""
+        # Response without market-specific keys (e.g., "1a. open (USD)")
+        fallback_response = {
+            "Meta Data": {},
+            "Time Series (Digital Currency Daily)": {
+                "2024-01-15": {
+                    "1. open": "42000.00",
+                    "2. high": "43000.00",
+                    "3. low": "41500.00",
+                    "4. close": "42500.00",
+                    "5. volume": "25000.00",
+                },
+            },
+        }
+        df = provider._parse_crypto_response("BTC", "USD", fallback_response, None, None)
+        assert df is not None
+        assert len(df) == 1
+        assert df.iloc[0]["open"] == 42000.00
 
 
 class TestAlphaVantageProviderIntegration:

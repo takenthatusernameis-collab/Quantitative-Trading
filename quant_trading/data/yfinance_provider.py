@@ -352,6 +352,11 @@ class AlphaVantageProvider(DataProvider):
     WEEKLY_INTERVALS: ClassVar[set[str]] = {"1w", "weekly", "week"}
     MONTHLY_INTERVALS: ClassVar[set[str]] = {"1mo", "monthly", "month"}
     QUOTE_INTERVALS: ClassVar[set[str]] = {"quote", "realtime", "rt"}
+    MARKET_STATUS_INTERVALS: ClassVar[set[str]] = {"market_status", "marketstatus"}
+    FX_DAILY_INTERVALS: ClassVar[set[str]] = {"fx_daily", "fx", "forex_daily"}
+    FX_INTRADAY_INTERVALS: ClassVar[set[str]] = {"fx_intraday", "fx_1m", "fx_5m", "fx_15m", "fx_30m", "fx_60m"}
+    CRYPTO_INTERVALS: ClassVar[set[str]] = {"crypto_daily", "crypto_weekly", "crypto_monthly", "crypto_intraday"}
+    DIGITAL_CURRENCY_INTERVALS: ClassVar[set[str]] = {"digital_daily", "digital_weekly", "digital_monthly", "digital_intraday"}
 
     def __init__(
         self,
@@ -511,6 +516,87 @@ class AlphaVantageProvider(DataProvider):
         return {
             "function": "SYMBOL_SEARCH",
             "keywords": query,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_market_status_params(self) -> dict[str, str]:
+        """Build parameters for MARKET_STATUS endpoint."""
+        return {
+            "function": "MARKET_STATUS",
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_fx_daily_params(self, from_symbol: str, to_symbol: str) -> dict[str, str]:
+        """Build parameters for FX_DAILY endpoint."""
+        return {
+            "function": "FX_DAILY",
+            "from_symbol": from_symbol,
+            "to_symbol": to_symbol,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_fx_intraday_params(self, from_symbol: str, to_symbol: str, interval: str) -> dict[str, str]:
+        """Build parameters for FX_INTRADAY endpoint."""
+        av_interval = self.INTRADAY_INTERVALS.get(interval.replace("fx_", ""), interval)
+        return {
+            "function": "FX_INTRADAY",
+            "from_symbol": from_symbol,
+            "to_symbol": to_symbol,
+            "interval": av_interval,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_currency_exchange_rate_params(self, from_currency: str, to_currency: str) -> dict[str, str]:
+        """Build parameters for CURRENCY_EXCHANGE_RATE endpoint."""
+        return {
+            "function": "CURRENCY_EXCHANGE_RATE",
+            "from_currency": from_currency,
+            "to_currency": to_currency,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_crypto_daily_params(self, symbol: str, market: str = "USD") -> dict[str, str]:
+        """Build parameters for CRYPTO_DAILY endpoint (DIGITAL_CURRENCY_DAILY)."""
+        return {
+            "function": "DIGITAL_CURRENCY_DAILY",
+            "symbol": symbol,
+            "market": market,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_crypto_weekly_params(self, symbol: str, market: str = "USD") -> dict[str, str]:
+        """Build parameters for CRYPTO_WEEKLY endpoint (DIGITAL_CURRENCY_WEEKLY)."""
+        return {
+            "function": "DIGITAL_CURRENCY_WEEKLY",
+            "symbol": symbol,
+            "market": market,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_crypto_monthly_params(self, symbol: str, market: str = "USD") -> dict[str, str]:
+        """Build parameters for CRYPTO_MONTHLY endpoint (DIGITAL_CURRENCY_MONTHLY)."""
+        return {
+            "function": "DIGITAL_CURRENCY_MONTHLY",
+            "symbol": symbol,
+            "market": market,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_crypto_intraday_params(self, symbol: str, market: str = "USD", interval: str = "5min") -> dict[str, str]:
+        """Build parameters for CRYPTO_INTRADAY endpoint (DIGITAL_CURRENCY_INTRADAY)."""
+        return {
+            "function": "DIGITAL_CURRENCY_INTRADAY",
+            "symbol": symbol,
+            "market": market,
+            "interval": interval,
             "apikey": self._api_key,
             "datatype": "json",
         }
@@ -854,6 +940,228 @@ class AlphaVantageProvider(DataProvider):
             )
         return results
 
+    def _parse_market_status_response(self, data: dict[str, Any]) -> pd.DataFrame | None:
+        """Parse MARKET_STATUS response into DataFrame.
+
+        Returns a DataFrame with market status information for various regions/markets.
+        """
+        markets = data.get("markets", [])
+        if not markets:
+            return None
+
+        records = []
+        for market in markets:
+            records.append(
+                {
+                    "market_type": market.get("market_type", ""),
+                    "region": market.get("region", ""),
+                    "market": market.get("market", ""),
+                    "primary_exchanges": market.get("primary_exchanges", ""),
+                    "local_open": market.get("local_open", ""),
+                    "local_close": market.get("local_close", ""),
+                    "current_status": market.get("current_status", ""),
+                    "notes": market.get("notes", ""),
+                }
+            )
+
+        if not records:
+            return None
+
+        df = pd.DataFrame(records)
+        df.columns = [col.lower().replace(" ", "_") for col in df.columns]
+        return cast(pd.DataFrame, df)
+
+    def _parse_fx_daily_response(
+        self,
+        from_symbol: str,
+        to_symbol: str,
+        data: dict[str, Any],
+        start: datetime | None,
+        end: datetime | None,
+    ) -> pd.DataFrame | None:
+        """Parse FX_DAILY response into DataFrame."""
+        time_series = data.get("Time Series FX (Daily)")
+        if not time_series:
+            return None
+
+        records = []
+        for date_str, values in time_series.items():
+            try:
+                date = datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                continue
+
+            if start and date < start:
+                continue
+            if end and date > end:
+                continue
+
+            records.append(
+                {
+                    "date": date,
+                    "open": float(values.get("1. open", 0)),
+                    "high": float(values.get("2. high", 0)),
+                    "low": float(values.get("3. low", 0)),
+                    "close": float(values.get("4. close", 0)),
+                }
+            )
+
+        if not records:
+            return None
+
+        df = pd.DataFrame(records)
+        df = df.set_index("date").sort_index()
+        new_cols = [col.lower().replace(" ", "_") for col in df.columns]
+        df.columns = new_cols
+        return cast(pd.DataFrame, df)
+
+    def _parse_fx_intraday_response(
+        self,
+        from_symbol: str,
+        to_symbol: str,
+        data: dict[str, Any],
+        start: datetime | None,
+        end: datetime | None,
+    ) -> pd.DataFrame | None:
+        """Parse FX_INTRADAY response into DataFrame."""
+        time_series_key = None
+        for key in data:
+            if key.startswith("Time Series FX"):
+                time_series_key = key
+                break
+
+        if not time_series_key:
+            return None
+
+        time_series = data.get(time_series_key)
+        if not time_series:
+            return None
+
+        records = []
+        for date_str, values in time_series.items():
+            try:
+                date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                continue
+
+            if start and date < start:
+                continue
+            if end and date > end:
+                continue
+
+            records.append(
+                {
+                    "date": date,
+                    "open": float(values.get("1. open", 0)),
+                    "high": float(values.get("2. high", 0)),
+                    "low": float(values.get("3. low", 0)),
+                    "close": float(values.get("4. close", 0)),
+                }
+            )
+
+        if not records:
+            return None
+
+        df = pd.DataFrame(records)
+        df = df.set_index("date").sort_index()
+        new_cols = [col.lower().replace(" ", "_") for col in df.columns]
+        df.columns = new_cols
+        return cast(pd.DataFrame, df)
+
+    def _parse_currency_exchange_rate_response(
+        self, from_currency: str, to_currency: str, data: dict[str, Any]
+    ) -> pd.DataFrame | None:
+        """Parse CURRENCY_EXCHANGE_RATE response into DataFrame."""
+        rate = data.get("Realtime Currency Exchange Rate")
+        if not rate:
+            return None
+
+        df = pd.DataFrame(
+            [
+                {
+                    "date": datetime.now().date(),
+                    "from_currency_code": rate.get("1. From_Currency Code", from_currency),
+                    "from_currency_name": rate.get("2. From_Currency Name", ""),
+                    "to_currency_code": rate.get("3. To_Currency Code", to_currency),
+                    "to_currency_name": rate.get("4. To_Currency Name", ""),
+                    "exchange_rate": float(rate.get("5. Exchange Rate", 0)),
+                    "last_refreshed": rate.get("6. Last Refreshed", ""),
+                    "time_zone": rate.get("7. Time Zone", ""),
+                    "bid_price": float(rate.get("8. Bid Price", 0)),
+                    "ask_price": float(rate.get("9. Ask Price", 0)),
+                }
+            ]
+        )
+        df = df.set_index("date")
+        df.columns = [col.lower().replace(" ", "_") for col in df.columns]
+        return cast(pd.DataFrame, df)
+
+    def _parse_crypto_response(
+        self,
+        symbol: str,
+        market: str,
+        data: dict[str, Any],
+        start: datetime | None,
+        end: datetime | None,
+    ) -> pd.DataFrame | None:
+        """Parse DIGITAL_CURRENCY_DAILY/WEEKLY/MONTHLY/INTRADAY response into DataFrame."""
+        # Find the time series key
+        time_series_key = None
+        for key in data:
+            if "Time Series" in key and "Digital" in key:
+                time_series_key = key
+                break
+
+        if not time_series_key:
+            return None
+
+        time_series = data.get(time_series_key)
+        if not time_series:
+            return None
+
+        records = []
+        date_format = "%Y-%m-%d"
+        if "Intraday" in time_series_key:
+            date_format = "%Y-%m-%d %H:%M:%S"
+
+        for date_str, values in time_series.items():
+            try:
+                date = datetime.strptime(date_str, date_format)
+            except ValueError:
+                continue
+
+            if start and date < start:
+                continue
+            if end and date > end:
+                continue
+
+            # Digital currency responses have both regular and market-specific values
+            # Use the market-specific values (e.g., "1a. open (USD)")
+            open_key = f"1a. open ({market})"
+            high_key = f"2a. high ({market})"
+            low_key = f"3a. low ({market})"
+            close_key = f"4a. close ({market})"
+            volume_key = "5. volume"
+
+            record = {
+                "date": date,
+                "open": float(values.get(open_key, values.get("1. open", 0))),
+                "high": float(values.get(high_key, values.get("2. high", 0))),
+                "low": float(values.get(low_key, values.get("3. low", 0))),
+                "close": float(values.get(close_key, values.get("4. close", 0))),
+                "volume": float(values.get(volume_key, 0)),
+            }
+            records.append(record)
+
+        if not records:
+            return None
+
+        df = pd.DataFrame(records)
+        df = df.set_index("date").sort_index()
+        new_cols = [col.lower().replace(" ", "_") for col in df.columns]
+        df.columns = new_cols
+        return cast(pd.DataFrame, df)
+
     def _fetch_single(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
@@ -1176,6 +1484,342 @@ class AlphaVantageProvider(DataProvider):
             logger.error("Error searching symbols for %r: %s", query, e)
             return []
 
+    def get_market_status(self) -> pd.DataFrame | None:
+        """Get current market status for various regions/markets using MARKET_STATUS endpoint.
+
+        Returns:
+            DataFrame with market status information, or None on error.
+        """
+        try:
+            params = self._build_market_status_params()
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if "Error Message" in data:
+                logger.error("MARKET_STATUS API error: %s", data["Error Message"])
+                return None
+            if "Note" in data:
+                logger.error("MARKET_STATUS rate limit: %s", data["Note"])
+                return None
+
+            df = self._parse_market_status_response(data)
+            logger.debug("MARKET_STATUS returned %d markets", len(df) if df is not None else 0)
+            return df
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+            logger.error("Error fetching market status: %s", e)
+            return None
+
+    def get_currency_exchange_rate(self, from_currency: str, to_currency: str) -> pd.DataFrame | None:
+        """Get real-time currency exchange rate using CURRENCY_EXCHANGE_RATE endpoint.
+
+        Args:
+            from_currency: Source currency code (e.g., "USD")
+            to_currency: Target currency code (e.g., "EUR")
+
+        Returns:
+            DataFrame with exchange rate information, or None on error.
+        """
+        try:
+            params = self._build_currency_exchange_rate_params(from_currency, to_currency)
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if "Error Message" in data:
+                logger.error("CURRENCY_EXCHANGE_RATE API error: %s", data["Error Message"])
+                return None
+            if "Note" in data:
+                logger.error("CURRENCY_EXCHANGE_RATE rate limit: %s", data["Note"])
+                return None
+
+            df = self._parse_currency_exchange_rate_response(from_currency, to_currency, data)
+            logger.debug("CURRENCY_EXCHANGE_RATE %s/%s: %s", from_currency, to_currency, "success" if df is not None else "failed")
+            return df
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+            logger.error("Error fetching currency exchange rate: %s", e)
+            return None
+
+    def _fetch_market_status(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using MARKET_STATUS endpoint."""
+        result = FetchResult()
+        try:
+            params = self._build_market_status_params()
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if "Error Message" in data:
+                raise ValueError(f"API error: {data['Error Message']}")
+            if "Note" in data:
+                raise RuntimeError(f"API rate limit: {data['Note']}")
+
+            df = self._parse_market_status_response(data)
+            if df is None or df.empty:
+                logger.warning("No market status data found")
+                result.missing.extend(symbols)
+                return result
+
+            # Market status doesn't use symbols, but we return the same data for all requested symbols
+            metadata = {"function": "MARKET_STATUS", "interval": interval}
+            for symbol in symbols:
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+            logger.error("Error fetching market status: %s", e)
+            for symbol in symbols:
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_fx_daily(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using FX_DAILY endpoint per symbol pair.
+
+        Symbols should be in format "FROM/TO" (e.g., "USD/EUR", "EUR/USD").
+        """
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                # Parse symbol pair
+                if "/" not in symbol:
+                    logger.error("Invalid FX symbol format: %s (expected FROM/TO)", symbol)
+                    result.errors[symbol] = ValueError(f"Invalid FX symbol format: {symbol} (expected FROM/TO)")
+                    continue
+                from_symbol, to_symbol = symbol.split("/", 1)
+
+                params = self._build_fx_daily_params(from_symbol, to_symbol)
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_fx_daily_response(from_symbol, to_symbol, data, start, end)
+                if df is None or df.empty:
+                    logger.warning("No FX data found for %s/%s", from_symbol, to_symbol)
+                    result.missing.append(symbol)
+                    continue
+
+                metadata = {"function": "FX_DAILY", "interval": interval, "from_symbol": from_symbol, "to_symbol": to_symbol}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching FX daily for %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_fx_intraday(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using FX_INTRADAY endpoint per symbol pair.
+
+        Symbols should be in format "FROM/TO" (e.g., "USD/EUR", "EUR/USD").
+        Interval should be like "fx_5m", "fx_15m", etc.
+        """
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                # Parse symbol pair
+                if "/" not in symbol:
+                    logger.error("Invalid FX symbol format: %s (expected FROM/TO)", symbol)
+                    result.errors[symbol] = ValueError(f"Invalid FX symbol format: {symbol} (expected FROM/TO)")
+                    continue
+                from_symbol, to_symbol = symbol.split("/", 1)
+
+                params = self._build_fx_intraday_params(from_symbol, to_symbol, interval)
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_fx_intraday_response(from_symbol, to_symbol, data, start, end)
+                if df is None or df.empty:
+                    logger.warning("No FX intraday data found for %s/%s", from_symbol, to_symbol)
+                    result.missing.append(symbol)
+                    continue
+
+                av_interval = self.INTRADAY_INTERVALS.get(interval.replace("fx_", ""), interval)
+                metadata = {"function": "FX_INTRADAY", "interval": av_interval, "from_symbol": from_symbol, "to_symbol": to_symbol}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching FX intraday for %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_crypto_daily(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using DIGITAL_CURRENCY_DAILY endpoint per symbol.
+
+        Symbols should be in format "SYMBOL" (e.g., "BTC", "ETH").
+        Market is USD by default.
+        """
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                params = self._build_crypto_daily_params(symbol, "USD")
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_crypto_response(symbol, "USD", data, start, end)
+                if df is None or df.empty:
+                    logger.warning("No crypto data found for %s", symbol)
+                    result.missing.append(symbol)
+                    continue
+
+                metadata = {"function": "DIGITAL_CURRENCY_DAILY", "interval": interval, "symbol": symbol, "market": "USD"}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching crypto daily for %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_crypto_weekly(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using DIGITAL_CURRENCY_WEEKLY endpoint per symbol."""
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                params = self._build_crypto_weekly_params(symbol, "USD")
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_crypto_response(symbol, "USD", data, start, end)
+                if df is None or df.empty:
+                    logger.warning("No crypto weekly data found for %s", symbol)
+                    result.missing.append(symbol)
+                    continue
+
+                metadata = {"function": "DIGITAL_CURRENCY_WEEKLY", "interval": interval, "symbol": symbol, "market": "USD"}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching crypto weekly for %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_crypto_monthly(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using DIGITAL_CURRENCY_MONTHLY endpoint per symbol."""
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                params = self._build_crypto_monthly_params(symbol, "USD")
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_crypto_response(symbol, "USD", data, start, end)
+                if df is None or df.empty:
+                    logger.warning("No crypto monthly data found for %s", symbol)
+                    result.missing.append(symbol)
+                    continue
+
+                metadata = {"function": "DIGITAL_CURRENCY_MONTHLY", "interval": interval, "symbol": symbol, "market": "USD"}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching crypto monthly for %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_crypto_intraday(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using DIGITAL_CURRENCY_INTRADAY endpoint per symbol."""
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                params = self._build_crypto_intraday_params(symbol, "USD", "5min")
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_crypto_response(symbol, "USD", data, start, end)
+                if df is None or df.empty:
+                    logger.warning("No crypto intraday data found for %s", symbol)
+                    result.missing.append(symbol)
+                    continue
+
+                metadata = {"function": "DIGITAL_CURRENCY_INTRADAY", "interval": interval, "symbol": symbol, "market": "USD"}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching crypto intraday for %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
     def fetch(
         self,
         symbols: list[str],
@@ -1193,6 +1837,13 @@ class AlphaVantageProvider(DataProvider):
         - Monthly Adjusted: "1ma", "monthly_adjusted" -> TIME_SERIES_MONTHLY_ADJUSTED
         - Intraday: "1m", "5m", "15m", "30m", "1h", "60m" -> TIME_SERIES_INTRADAY
         - Global Quote: "quote", "realtime", "rt" -> GLOBAL_QUOTE (single symbol real-time)
+        - Market Status: "market_status", "marketstatus" -> MARKET_STATUS
+        - FX Daily: "fx_daily", "fx", "forex_daily" -> FX_DAILY (symbols as "FROM/TO")
+        - FX Intraday: "fx_intraday", "fx_1m", "fx_5m", "fx_15m", "fx_30m", "fx_60m" -> FX_INTRADAY
+        - Crypto Daily: "crypto_daily" -> DIGITAL_CURRENCY_DAILY
+        - Crypto Weekly: "crypto_weekly" -> DIGITAL_CURRENCY_WEEKLY
+        - Crypto Monthly: "crypto_monthly" -> DIGITAL_CURRENCY_MONTHLY
+        - Crypto Intraday: "crypto_intraday" -> DIGITAL_CURRENCY_INTRADAY
         - Batch Quotes: any other interval -> BATCH_STOCK_PRICES
 
         Uses disk caching if cache_dir is configured.
@@ -1211,6 +1862,9 @@ class AlphaVantageProvider(DataProvider):
         is_weekly = interval in self.WEEKLY_INTERVALS
         is_monthly = interval in self.MONTHLY_INTERVALS
         is_quote = interval in self.QUOTE_INTERVALS
+        is_market_status = interval in self.MARKET_STATUS_INTERVALS
+        is_fx_daily = interval in self.FX_DAILY_INTERVALS
+        is_fx_intraday = interval in self.FX_INTRADAY_INTERVALS
 
         if interval in ("1d", "daily"):
             fetch_result = self._fetch_single(symbols, start, end, interval)
@@ -1226,6 +1880,20 @@ class AlphaVantageProvider(DataProvider):
             fetch_result = self._fetch_intraday(symbols, start, end, interval)
         elif is_quote:
             fetch_result = self._fetch_global_quote(symbols, start, end, interval)
+        elif is_market_status:
+            fetch_result = self._fetch_market_status(symbols, start, end, interval)
+        elif is_fx_daily:
+            fetch_result = self._fetch_fx_daily(symbols, start, end, interval)
+        elif is_fx_intraday:
+            fetch_result = self._fetch_fx_intraday(symbols, start, end, interval)
+        elif interval == "crypto_daily" or interval == "digital_daily":
+            fetch_result = self._fetch_crypto_daily(symbols, start, end, interval)
+        elif interval == "crypto_weekly" or interval == "digital_weekly":
+            fetch_result = self._fetch_crypto_weekly(symbols, start, end, interval)
+        elif interval == "crypto_monthly" or interval == "digital_monthly":
+            fetch_result = self._fetch_crypto_monthly(symbols, start, end, interval)
+        elif interval == "crypto_intraday" or interval == "digital_intraday":
+            fetch_result = self._fetch_crypto_intraday(symbols, start, end, interval)
         else:
             # BATCH_STOCK_PRICES only returns latest quote, ignore start/end
             fetch_result = self._fetch_batch(symbols, start, end, interval)
@@ -1250,6 +1918,7 @@ class AlphaVantageProvider(DataProvider):
         For intraday intervals, fetches each symbol individually via TIME_SERIES_INTRADAY.
         For real-time quotes, uses BATCH_STOCK_PRICES per group.
         For global quote, fetches per symbol via GLOBAL_QUOTE endpoint.
+        For market status, FX, and crypto endpoints, fetches per symbol.
         """
         results: dict[str, FetchResult] = {}
 
@@ -1270,6 +1939,11 @@ class AlphaVantageProvider(DataProvider):
             is_weekly = interval in self.WEEKLY_INTERVALS
             is_monthly = interval in self.MONTHLY_INTERVALS
             is_quote = interval in self.QUOTE_INTERVALS
+            is_market_status = interval in self.MARKET_STATUS_INTERVALS
+            is_fx_daily = interval in self.FX_DAILY_INTERVALS
+            is_fx_intraday = interval in self.FX_INTRADAY_INTERVALS
+            is_crypto = interval in self.CRYPTO_INTERVALS
+            is_digital = interval in self.DIGITAL_CURRENCY_INTERVALS
 
             if interval in ("1d", "daily", "1wa", "weekly_adjusted") or is_weekly or is_monthly:
                 # No batch historical endpoint; fall back to per-symbol
@@ -1283,6 +1957,11 @@ class AlphaVantageProvider(DataProvider):
                     results[key] = self.fetch(symbols, start, end, interval)
             elif is_quote:
                 # GLOBAL_QUOTE is per-symbol; fall back to per-symbol
+                for symbols, start, end, interval in reqs:
+                    key = self._request_key(symbols, start, end, interval)
+                    results[key] = self.fetch(symbols, start, end, interval)
+            elif is_market_status or is_fx_daily or is_fx_intraday or is_crypto or is_digital:
+                # These endpoints are per-symbol/pair; fall back to per-symbol
                 for symbols, start, end, interval in reqs:
                     key = self._request_key(symbols, start, end, interval)
                     results[key] = self.fetch(symbols, start, end, interval)
