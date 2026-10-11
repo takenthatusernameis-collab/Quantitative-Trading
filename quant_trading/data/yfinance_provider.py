@@ -473,14 +473,16 @@ class AlphaVantageProvider(DataProvider):
             if end and date > end:
                 continue
 
-            records.append({
-                "date": date,
-                "open": float(values.get("1. open", 0)),
-                "high": float(values.get("2. high", 0)),
-                "low": float(values.get("3. low", 0)),
-                "close": float(values.get("4. close", 0)),
-                "volume": int(values.get("5. volume", 0)),
-            })
+            records.append(
+                {
+                    "date": date,
+                    "open": float(values.get("1. open", 0)),
+                    "high": float(values.get("2. high", 0)),
+                    "low": float(values.get("3. low", 0)),
+                    "close": float(values.get("4. close", 0)),
+                    "volume": int(values.get("5. volume", 0)),
+                }
+            )
 
         if not records:
             return None
@@ -511,17 +513,19 @@ class AlphaVantageProvider(DataProvider):
             if end and date > end:
                 continue
 
-            records.append({
-                "date": date,
-                "open": float(values.get("1. open", 0)),
-                "high": float(values.get("2. high", 0)),
-                "low": float(values.get("3. low", 0)),
-                "close": float(values.get("4. close", 0)),
-                "adjusted_close": float(values.get("5. adjusted close", 0)),
-                "volume": int(values.get("6. volume", 0)),
-                "dividend_amount": float(values.get("7. dividend amount", 0)),
-                "split_coefficient": float(values.get("8. split coefficient", 0)),
-            })
+            records.append(
+                {
+                    "date": date,
+                    "open": float(values.get("1. open", 0)),
+                    "high": float(values.get("2. high", 0)),
+                    "low": float(values.get("3. low", 0)),
+                    "close": float(values.get("4. close", 0)),
+                    "adjusted_close": float(values.get("5. adjusted close", 0)),
+                    "volume": int(values.get("6. volume", 0)),
+                    "dividend_amount": float(values.get("7. dividend amount", 0)),
+                    "split_coefficient": float(values.get("8. split coefficient", 0)),
+                }
+            )
 
         if not records:
             return None
@@ -542,14 +546,18 @@ class AlphaVantageProvider(DataProvider):
         for item in stock_prices:
             symbol = item.get("1. symbol")
             if symbol in symbols:
-                df = pd.DataFrame([{
-                    "date": datetime.now().date(),
-                    "open": float(item.get("2. open", 0)),
-                    "high": float(item.get("3. high", 0)),
-                    "low": float(item.get("4. low", 0)),
-                    "price": float(item.get("5. price", 0)),
-                    "volume": int(item.get("6. volume", 0)),
-                }])
+                df = pd.DataFrame(
+                    [
+                        {
+                            "date": datetime.now().date(),
+                            "open": float(item.get("2. open", 0)),
+                            "high": float(item.get("3. high", 0)),
+                            "low": float(item.get("4. low", 0)),
+                            "price": float(item.get("5. price", 0)),
+                            "volume": int(item.get("6. volume", 0)),
+                        }
+                    ]
+                )
                 df = df.set_index("date")
                 df.columns = [col.lower().replace(" ", "_") for col in df.columns]
                 result[symbol] = df
