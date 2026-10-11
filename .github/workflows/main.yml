@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   kilo:
+    continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
