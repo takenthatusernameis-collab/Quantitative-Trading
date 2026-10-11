@@ -117,8 +117,17 @@ python examples/cli.py --strategy bb --bb-period 20 --bb-std 2.5 --initial-capit
 # Use Yahoo Finance (default, requires network)
 python examples/cli.py --provider yfinance
 
-# Use Alpha Vantage (supports daily and intraday intervals, demo key works for testing)
+# Use Alpha Vantage (supports daily, weekly, monthly, intraday, and real-time)
 python examples/cli.py --provider alphavantage --interval 5m --days 30
+
+# Use Alpha Vantage with weekly data
+python examples/cli.py --provider alphavantage --interval weekly --days 365
+
+# Use Alpha Vantage with monthly adjusted data (includes dividends/splits)
+python examples/cli.py --provider alphavantage --interval monthly_adjusted --days 1095
+
+# Use Alpha Vantage with real-time quote
+python examples/cli.py --provider alphavantage --interval quote
 
 # Use Alpha Vantage with your own API key
 python examples/cli.py --provider alphavantage --alphavantage-key YOUR_API_KEY --interval 1h
@@ -171,9 +180,15 @@ python examples/cli.py --combined --output comparison.json
 
 Alpha Vantage provider supports:
 - **Daily data**: `1d` / `daily` intervals via TIME_SERIES_DAILY_ADJUSTED
+- **Weekly data**: `1w`, `weekly`, `week` intervals via TIME_SERIES_WEEKLY
+- **Weekly adjusted data**: `1wa`, `weekly_adjusted` intervals via TIME_SERIES_WEEKLY_ADJUSTED (includes dividends/splits)
+- **Monthly data**: `1mo`, `monthly`, `month` intervals via TIME_SERIES_MONTHLY
+- **Monthly adjusted data**: `1ma`, `monthly_adjusted` intervals via TIME_SERIES_MONTHLY_ADJUSTED (includes dividends/splits)
 - **Intraday data**: `1m`, `5m`, `15m`, `30m`, `1h` / `60m` intervals via TIME_SERIES_INTRADAY
-- **Real-time quotes**: `BATCH_STOCK_PRICES` endpoint (interval other than daily/intraday)
-- **Demo key**: Works out of the box with `"demo"` key (rate limited)
+- **Global Quote**: `quote`, `realtime`, `rt` intervals via GLOBAL_QUOTE (real-time single symbol quotes)
+- **Batch Quotes**: any other interval uses BATCH_STOCK_PRICES endpoint
+- **Demo key**: Works out of the box with `"demo"` key (rate limited, warning logged)
+- **API key validation**: Optional warning when using demo key (configurable via `warn_on_demo`)
 
 For production use, get a free API key from [Alpha Vantage](https://www.alphavantage.co/support/#api-key) and pass it via `--alphavantage-key` or config file.
 
@@ -240,26 +255,49 @@ The `AlphaVantageProvider` supports multiple endpoints:
 ```python
 from quant_trading.data.yfinance_provider import AlphaVantageProvider
 
-# Uses demo key by default (rate limited)
+# Uses demo key by default (rate limited, logs warning)
 provider = AlphaVantageProvider()  # api_key defaults to "demo"
 
 # Or provide your own key
 provider = AlphaVantageProvider(api_key="YOUR_API_KEY")
 
+# Disable demo key warning
+provider = AlphaVantageProvider(api_key="demo", warn_on_demo=False)
+
 # Fetch daily data
 result = provider.fetch(["AAPL"], interval="1d")
+
+# Fetch weekly data
+result = provider.fetch(["AAPL"], interval="weekly")
+
+# Fetch weekly adjusted data (includes dividends/splits)
+result = provider.fetch(["AAPL"], interval="weekly_adjusted")
+
+# Fetch monthly data
+result = provider.fetch(["AAPL"], interval="monthly")
+
+# Fetch monthly adjusted data (includes dividends/splits)
+result = provider.fetch(["AAPL"], interval="monthly_adjusted")
 
 # Fetch intraday data (1m, 5m, 15m, 30m, 1h)
 result = provider.fetch(["AAPL"], interval="5m")
 
-# Fetch latest real-time quotes
+# Fetch real-time single symbol quote
+result = provider.fetch(["AAPL"], interval="quote")
+
+# Fetch latest real-time quotes (batch)
 result = provider.fetch_latest(["AAPL", "MSFT"])
 ```
 
 Supported intervals:
 - Daily: `1d`, `daily`
+- Weekly: `1w`, `weekly`, `week`
+- Weekly Adjusted: `1wa`, `weekly_adjusted`
+- Monthly: `1mo`, `monthly`, `month`
+- Monthly Adjusted: `1ma`, `monthly_adjusted`
 - Intraday: `1m`, `5m`, `15m`, `30m`, `1h`, `60m`
-- Real-time: any other interval uses `BATCH_STOCK_PRICES`
+- Global Quote: `quote`, `realtime`, `rt`
+- Real-time Batch: any other interval uses `BATCH_STOCK_PRICES`
 
 ## Configuration
 

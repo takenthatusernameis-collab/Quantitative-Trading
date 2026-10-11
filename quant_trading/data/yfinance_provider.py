@@ -326,8 +326,13 @@ class AlphaVantageProvider(DataProvider):
 
     Supports:
     - TIME_SERIES_DAILY_ADJUSTED for daily historical data
+    - TIME_SERIES_WEEKLY for weekly historical data
+    - TIME_SERIES_WEEKLY_ADJUSTED for weekly adjusted historical data
+    - TIME_SERIES_MONTHLY for monthly historical data
+    - TIME_SERIES_MONTHLY_ADJUSTED for monthly adjusted historical data
     - TIME_SERIES_INTRADAY for intraday historical data (1min, 5min, 15min, 30min, 60min)
-    - BATCH_STOCK_PRICES for real-time quotes
+    - GLOBAL_QUOTE for real-time single symbol quotes
+    - BATCH_STOCK_PRICES for real-time batch quotes
 
     Alpha Vantage provides a free demo key ("demo") for testing.
     """
@@ -343,19 +348,31 @@ class AlphaVantageProvider(DataProvider):
         "60m": "60min",
     }
 
+    WEEKLY_INTERVALS: ClassVar[set[str]] = {"1w", "weekly", "week"}
+    MONTHLY_INTERVALS: ClassVar[set[str]] = {"1mo", "monthly", "month"}
+    QUOTE_INTERVALS: ClassVar[set[str]] = {"quote", "realtime", "rt"}
+
     def __init__(
         self,
         api_key: str | None = None,
         cache_dir: str = "./data/cache",
         cache_ttl_hours: float = 24.0,
         timeout: float = 30.0,
+        warn_on_demo: bool = True,
     ):
         self._api_key = api_key or "demo"
         self._cache_dir = cache_dir
         self._cache_ttl = timedelta(hours=cache_ttl_hours)
         self._timeout = timeout
+        self._warn_on_demo = warn_on_demo
         if cache_dir:
             os.makedirs(cache_dir, exist_ok=True)
+        if self._warn_on_demo and self._api_key == "demo":
+            logger.warning(
+                "Using Alpha Vantage demo API key. "
+                "This key is rate limited (5 calls/min, 500 calls/day). "
+                "For production use, get a free API key from https://www.alphavantage.co/support/#api-key"
+            )
 
     @property
     def name(self) -> str:
@@ -440,6 +457,51 @@ class AlphaVantageProvider(DataProvider):
             "interval": av_interval,
             "apikey": self._api_key,
             "outputsize": "full",
+            "datatype": "json",
+        }
+
+    def _build_weekly_params(self, symbol: str) -> dict[str, str]:
+        """Build parameters for TIME_SERIES_WEEKLY endpoint."""
+        return {
+            "function": "TIME_SERIES_WEEKLY",
+            "symbol": symbol,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_weekly_adjusted_params(self, symbol: str) -> dict[str, str]:
+        """Build parameters for TIME_SERIES_WEEKLY_ADJUSTED endpoint."""
+        return {
+            "function": "TIME_SERIES_WEEKLY_ADJUSTED",
+            "symbol": symbol,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_monthly_params(self, symbol: str) -> dict[str, str]:
+        """Build parameters for TIME_SERIES_MONTHLY endpoint."""
+        return {
+            "function": "TIME_SERIES_MONTHLY",
+            "symbol": symbol,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_monthly_adjusted_params(self, symbol: str) -> dict[str, str]:
+        """Build parameters for TIME_SERIES_MONTHLY_ADJUSTED endpoint."""
+        return {
+            "function": "TIME_SERIES_MONTHLY_ADJUSTED",
+            "symbol": symbol,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_global_quote_params(self, symbol: str) -> dict[str, str]:
+        """Build parameters for GLOBAL_QUOTE endpoint."""
+        return {
+            "function": "GLOBAL_QUOTE",
+            "symbol": symbol,
+            "apikey": self._api_key,
             "datatype": "json",
         }
 
@@ -563,6 +625,201 @@ class AlphaVantageProvider(DataProvider):
                 result[symbol] = df
         return result
 
+    def _parse_weekly_response(
+        self, symbol: str, data: dict[str, Any], start: datetime | None, end: datetime | None
+    ) -> pd.DataFrame | None:
+        """Parse TIME_SERIES_WEEKLY response into DataFrame."""
+        time_series = data.get("Weekly Time Series")
+        if not time_series:
+            return None
+
+        records = []
+        for date_str, values in time_series.items():
+            try:
+                date = datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                continue
+
+            if start and date < start:
+                continue
+            if end and date > end:
+                continue
+
+            records.append(
+                {
+                    "date": date,
+                    "open": float(values.get("1. open", 0)),
+                    "high": float(values.get("2. high", 0)),
+                    "low": float(values.get("3. low", 0)),
+                    "close": float(values.get("4. close", 0)),
+                    "volume": int(values.get("5. volume", 0)),
+                }
+            )
+
+        if not records:
+            return None
+
+        df = pd.DataFrame(records)
+        df = df.set_index("date").sort_index()
+        new_cols = [col.lower().replace(" ", "_") for col in df.columns]
+        df.columns = new_cols
+        return cast(pd.DataFrame, df)
+
+    def _parse_weekly_adjusted_response(
+        self, symbol: str, data: dict[str, Any], start: datetime | None, end: datetime | None
+    ) -> pd.DataFrame | None:
+        """Parse TIME_SERIES_WEEKLY_ADJUSTED response into DataFrame."""
+        time_series = data.get("Weekly Adjusted Time Series")
+        if not time_series:
+            return None
+
+        records = []
+        for date_str, values in time_series.items():
+            try:
+                date = datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                continue
+
+            if start and date < start:
+                continue
+            if end and date > end:
+                continue
+
+            records.append(
+                {
+                    "date": date,
+                    "open": float(values.get("1. open", 0)),
+                    "high": float(values.get("2. high", 0)),
+                    "low": float(values.get("3. low", 0)),
+                    "close": float(values.get("4. close", 0)),
+                    "adjusted_close": float(values.get("5. adjusted close", 0)),
+                    "volume": int(values.get("6. volume", 0)),
+                    "dividend_amount": float(values.get("7. dividend amount", 0)),
+                    "split_coefficient": float(values.get("8. split coefficient", 0)),
+                }
+            )
+
+        if not records:
+            return None
+
+        df = pd.DataFrame(records)
+        df = df.set_index("date").sort_index()
+        new_cols = [col.lower().replace(" ", "_") for col in df.columns]
+        df.columns = new_cols
+        return cast(pd.DataFrame, df)
+
+    def _parse_monthly_response(
+        self, symbol: str, data: dict[str, Any], start: datetime | None, end: datetime | None
+    ) -> pd.DataFrame | None:
+        """Parse TIME_SERIES_MONTHLY response into DataFrame."""
+        time_series = data.get("Monthly Time Series")
+        if not time_series:
+            return None
+
+        records = []
+        for date_str, values in time_series.items():
+            try:
+                date = datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                continue
+
+            if start and date < start:
+                continue
+            if end and date > end:
+                continue
+
+            records.append(
+                {
+                    "date": date,
+                    "open": float(values.get("1. open", 0)),
+                    "high": float(values.get("2. high", 0)),
+                    "low": float(values.get("3. low", 0)),
+                    "close": float(values.get("4. close", 0)),
+                    "volume": int(values.get("5. volume", 0)),
+                }
+            )
+
+        if not records:
+            return None
+
+        df = pd.DataFrame(records)
+        df = df.set_index("date").sort_index()
+        new_cols = [col.lower().replace(" ", "_") for col in df.columns]
+        df.columns = new_cols
+        return cast(pd.DataFrame, df)
+
+    def _parse_monthly_adjusted_response(
+        self, symbol: str, data: dict[str, Any], start: datetime | None, end: datetime | None
+    ) -> pd.DataFrame | None:
+        """Parse TIME_SERIES_MONTHLY_ADJUSTED response into DataFrame."""
+        time_series = data.get("Monthly Adjusted Time Series")
+        if not time_series:
+            return None
+
+        records = []
+        for date_str, values in time_series.items():
+            try:
+                date = datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                continue
+
+            if start and date < start:
+                continue
+            if end and date > end:
+                continue
+
+            records.append(
+                {
+                    "date": date,
+                    "open": float(values.get("1. open", 0)),
+                    "high": float(values.get("2. high", 0)),
+                    "low": float(values.get("3. low", 0)),
+                    "close": float(values.get("4. close", 0)),
+                    "adjusted_close": float(values.get("5. adjusted close", 0)),
+                    "volume": int(values.get("6. volume", 0)),
+                    "dividend_amount": float(values.get("7. dividend amount", 0)),
+                    "split_coefficient": float(values.get("8. split coefficient", 0)),
+                }
+            )
+
+        if not records:
+            return None
+
+        df = pd.DataFrame(records)
+        df = df.set_index("date").sort_index()
+        new_cols = [col.lower().replace(" ", "_") for col in df.columns]
+        df.columns = new_cols
+        return cast(pd.DataFrame, df)
+
+    def _parse_global_quote_response(
+        self, symbol: str, data: dict[str, Any]
+    ) -> pd.DataFrame | None:
+        """Parse GLOBAL_QUOTE response into DataFrame."""
+        quote = data.get("Global Quote")
+        if not quote:
+            return None
+
+        # GLOBAL_QUOTE returns a single data point with current price info
+        df = pd.DataFrame(
+            [
+                {
+                    "date": datetime.now().date(),
+                    "open": float(quote.get("02. open", 0)),
+                    "high": float(quote.get("03. high", 0)),
+                    "low": float(quote.get("04. low", 0)),
+                    "price": float(quote.get("05. price", 0)),
+                    "volume": int(quote.get("06. volume", 0)),
+                    "latest_trading_day": quote.get("07. latest trading day", ""),
+                    "previous_close": float(quote.get("08. previous close", 0)),
+                    "change": float(quote.get("09. change", 0)),
+                    "change_percent": quote.get("10. change percent", "0%"),
+                }
+            ]
+        )
+        df = df.set_index("date")
+        df.columns = [col.lower().replace(" ", "_") for col in df.columns]
+        return cast(pd.DataFrame, df)
+
     def _fetch_single(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
@@ -674,6 +931,186 @@ class AlphaVantageProvider(DataProvider):
                 result.errors[symbol] = e
         return result
 
+    def _fetch_weekly(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using TIME_SERIES_WEEKLY endpoint per symbol."""
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                params = self._build_weekly_params(symbol)
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_weekly_response(symbol, data, start, end)
+                if df is None or df.empty:
+                    logger.warning("No data found for %s", symbol)
+                    result.missing.append(symbol)
+                    continue
+
+                metadata = {"function": "TIME_SERIES_WEEKLY", "interval": interval}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_weekly_adjusted(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using TIME_SERIES_WEEKLY_ADJUSTED endpoint per symbol."""
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                params = self._build_weekly_adjusted_params(symbol)
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_weekly_adjusted_response(symbol, data, start, end)
+                if df is None or df.empty:
+                    logger.warning("No data found for %s", symbol)
+                    result.missing.append(symbol)
+                    continue
+
+                metadata = {"function": "TIME_SERIES_WEEKLY_ADJUSTED", "interval": interval}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_monthly(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using TIME_SERIES_MONTHLY endpoint per symbol."""
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                params = self._build_monthly_params(symbol)
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_monthly_response(symbol, data, start, end)
+                if df is None or df.empty:
+                    logger.warning("No data found for %s", symbol)
+                    result.missing.append(symbol)
+                    continue
+
+                metadata = {"function": "TIME_SERIES_MONTHLY", "interval": interval}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_monthly_adjusted(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using TIME_SERIES_MONTHLY_ADJUSTED endpoint per symbol."""
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                params = self._build_monthly_adjusted_params(symbol)
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_monthly_adjusted_response(symbol, data, start, end)
+                if df is None or df.empty:
+                    logger.warning("No data found for %s", symbol)
+                    result.missing.append(symbol)
+                    continue
+
+                metadata = {"function": "TIME_SERIES_MONTHLY_ADJUSTED", "interval": interval}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_global_quote(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using GLOBAL_QUOTE endpoint per symbol (real-time single quote)."""
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                params = self._build_global_quote_params(symbol)
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_global_quote_response(symbol, data)
+                if df is None or df.empty:
+                    logger.warning("No data found for %s", symbol)
+                    result.missing.append(symbol)
+                    continue
+
+                metadata = {"function": "GLOBAL_QUOTE", "interval": interval}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
     def fetch(
         self,
         symbols: list[str],
@@ -683,9 +1120,16 @@ class AlphaVantageProvider(DataProvider):
     ) -> FetchResult:
         """Fetch market data from Alpha Vantage.
 
-        For daily intervals, uses TIME_SERIES_DAILY_ADJUSTED per symbol.
-        For intraday intervals (1m, 5m, 15m, 30m, 1h), uses TIME_SERIES_INTRADAY.
-        For latest quotes, uses BATCH_STOCK_PRICES.
+        Supported intervals:
+        - Daily: "1d", "daily" -> TIME_SERIES_DAILY_ADJUSTED
+        - Weekly: "1w", "weekly", "week" -> TIME_SERIES_WEEKLY
+        - Weekly Adjusted: "1wa", "weekly_adjusted" -> TIME_SERIES_WEEKLY_ADJUSTED
+        - Monthly: "1mo", "monthly", "month" -> TIME_SERIES_MONTHLY
+        - Monthly Adjusted: "1ma", "monthly_adjusted" -> TIME_SERIES_MONTHLY_ADJUSTED
+        - Intraday: "1m", "5m", "15m", "30m", "1h", "60m" -> TIME_SERIES_INTRADAY
+        - Global Quote: "quote", "realtime", "rt" -> GLOBAL_QUOTE (single symbol real-time)
+        - Batch Quotes: any other interval -> BATCH_STOCK_PRICES
+
         Uses disk caching if cache_dir is configured.
         """
         # Try cache first
@@ -699,11 +1143,24 @@ class AlphaVantageProvider(DataProvider):
                     return cached
 
         is_intraday = interval in self.INTRADAY_INTERVALS
+        is_weekly = interval in self.WEEKLY_INTERVALS
+        is_monthly = interval in self.MONTHLY_INTERVALS
+        is_quote = interval in self.QUOTE_INTERVALS
 
         if interval in ("1d", "daily"):
             fetch_result = self._fetch_single(symbols, start, end, interval)
+        elif interval in ("1wa", "weekly_adjusted"):
+            fetch_result = self._fetch_weekly_adjusted(symbols, start, end, interval)
+        elif is_weekly:
+            fetch_result = self._fetch_weekly(symbols, start, end, interval)
+        elif interval in ("1ma", "monthly_adjusted"):
+            fetch_result = self._fetch_monthly_adjusted(symbols, start, end, interval)
+        elif is_monthly:
+            fetch_result = self._fetch_monthly(symbols, start, end, interval)
         elif is_intraday:
             fetch_result = self._fetch_intraday(symbols, start, end, interval)
+        elif is_quote:
+            fetch_result = self._fetch_global_quote(symbols, start, end, interval)
         else:
             # BATCH_STOCK_PRICES only returns latest quote, ignore start/end
             fetch_result = self._fetch_batch(symbols, start, end, interval)
@@ -723,10 +1180,11 @@ class AlphaVantageProvider(DataProvider):
     ) -> dict[str, FetchResult]:
         """Fetch multiple requests using batched endpoints where possible.
 
-        Groups requests by interval. For daily intervals, fetches each symbol
+        Groups requests by interval. For daily/weekly/monthly intervals, fetches each symbol
         individually (Alpha Vantage doesn't support batch historical).
         For intraday intervals, fetches each symbol individually via TIME_SERIES_INTRADAY.
-        For real-time, uses BATCH_STOCK_PRICES per group.
+        For real-time quotes, uses BATCH_STOCK_PRICES per group.
+        For global quote, fetches per symbol via GLOBAL_QUOTE endpoint.
         """
         results: dict[str, FetchResult] = {}
 
@@ -744,14 +1202,22 @@ class AlphaVantageProvider(DataProvider):
         for interval, reqs in groups.items():
             all_symbols = sorted({s for symbols, _, _, _ in reqs for s in symbols})
             is_intraday = interval in self.INTRADAY_INTERVALS
+            is_weekly = interval in self.WEEKLY_INTERVALS
+            is_monthly = interval in self.MONTHLY_INTERVALS
+            is_quote = interval in self.QUOTE_INTERVALS
 
-            if interval in ("1d", "daily"):
+            if interval in ("1d", "daily", "1wa", "weekly_adjusted") or is_weekly or is_monthly:
                 # No batch historical endpoint; fall back to per-symbol
                 for symbols, start, end, interval in reqs:
                     key = self._request_key(symbols, start, end, interval)
                     results[key] = self.fetch(symbols, start, end, interval)
             elif is_intraday:
                 # No batch historical intraday endpoint; fall back to per-symbol
+                for symbols, start, end, interval in reqs:
+                    key = self._request_key(symbols, start, end, interval)
+                    results[key] = self.fetch(symbols, start, end, interval)
+            elif is_quote:
+                # GLOBAL_QUOTE is per-symbol; fall back to per-symbol
                 for symbols, start, end, interval in reqs:
                     key = self._request_key(symbols, start, end, interval)
                     results[key] = self.fetch(symbols, start, end, interval)
