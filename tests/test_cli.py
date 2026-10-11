@@ -1,0 +1,467 @@
+"""Tests for CLI functionality."""
+
+import argparse
+import json
+import tempfile
+from unittest.mock import MagicMock, patch
+
+from examples.cli import (
+    create_config,
+    create_strategy,
+    init_config,
+    list_providers,
+    list_strategies,
+    main,
+    parse_args,
+    run_combined,
+)
+from quant_trading.config.settings import Config
+from quant_trading.strategies.examples import (
+    BollingerBandsStrategy,
+    MovingAverageCrossover,
+    RSIStrategy,
+)
+
+
+class TestParseArgs:
+    """Tests for argument parsing."""
+
+    def test_default_args(self):
+        with patch("sys.argv", ["cli.py"]):
+            args = parse_args()
+        assert args.symbols == ["AAPL", "MSFT", "GOOGL"]
+        assert args.days == 365
+        assert args.initial_capital == 100000.0
+        assert args.commission == 0.001
+        assert args.slippage == 0.0005
+        assert args.interval == "1d"
+        assert args.strategy == "ma"
+        assert args.fast_period == 10
+        assert args.slow_period == 30
+        assert args.provider is None
+        assert args.offline is False
+        assert args.alphavantage_key is None
+        assert args.combined is False
+
+    def test_list_strategies_flag(self):
+        with patch("sys.argv", ["cli.py", "--list-strategies"]):
+            args = parse_args()
+        assert args.list_strategies is True
+
+    def test_list_providers_flag(self):
+        with patch("sys.argv", ["cli.py", "--list-providers"]):
+            args = parse_args()
+        assert args.list_providers is True
+
+    def test_init_config_flag(self):
+        with patch("sys.argv", ["cli.py", "--init-config", "config.yaml"]):
+            args = parse_args()
+        assert args.init_config == "config.yaml"
+
+    def test_combined_flag(self):
+        with patch("sys.argv", ["cli.py", "--combined"]):
+            args = parse_args()
+        assert args.combined is True
+
+    def test_custom_symbols(self):
+        with patch("sys.argv", ["cli.py", "--symbols", "AAPL", "TSLA", "NVDA"]):
+            args = parse_args()
+        assert args.symbols == ["AAPL", "TSLA", "NVDA"]
+
+    def test_provider_choices(self):
+        with patch("sys.argv", ["cli.py", "--provider", "alphavantage"]):
+            args = parse_args()
+        assert args.provider == "alphavantage"
+
+        with patch("sys.argv", ["cli.py", "--provider", "synthetic"]):
+            args = parse_args()
+        assert args.provider == "synthetic"
+
+    def test_offline_flag(self):
+        with patch("sys.argv", ["cli.py", "--offline"]):
+            args = parse_args()
+        assert args.offline is True
+
+    def test_alphavantage_key(self):
+        with patch("sys.argv", ["cli.py", "--alphavantage-key", "MY_KEY"]):
+            args = parse_args()
+        assert args.alphavantage_key == "MY_KEY"
+
+    def test_strategy_params(self):
+        with patch("sys.argv", ["cli.py", "--strategy", "rsi", "--rsi-period", "21", "--rsi-oversold", "25"]):
+            args = parse_args()
+        assert args.strategy == "rsi"
+        assert args.rsi_period == 21
+        assert args.rsi_oversold == 25
+
+
+class TestListStrategies:
+    """Tests for list_strategies function."""
+
+    def test_list_strategies_output(self, capsys):
+        result = list_strategies()
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Available strategies:" in captured.out
+        assert "ma:" in captured.out
+        assert "rsi:" in captured.out
+        assert "bb:" in captured.out
+        assert "MovingAverageCrossover" in captured.out
+        assert "RSIStrategy" in captured.out
+        assert "BollingerBandsStrategy" in captured.out
+
+
+class TestListProviders:
+    """Tests for list_providers function."""
+
+    def test_list_providers_output(self, capsys):
+        result = list_providers()
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Available data providers:" in captured.out
+        assert "yfinance:" in captured.out
+        assert "alphavantage:" in captured.out
+        assert "synthetic:" in captured.out
+        assert "YFinanceProvider" in captured.out
+        assert "AlphaVantageProvider" in captured.out
+        assert "SyntheticDataProvider" in captured.out
+
+
+class TestInitConfig:
+    """Tests for init_config function."""
+
+    def test_init_config_creates_file(self, capsys):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = f"{tmpdir}/config.yaml"
+            result = init_config(path)
+            assert result == 0
+            captured = capsys.readouterr()
+            assert f"Default config written to {path}" in captured.out
+
+            # Verify file exists and is valid YAML
+            loaded = Config.from_yaml(path)
+            assert isinstance(loaded, Config)
+            assert loaded.data.provider == "yfinance"
+
+
+class TestCreateStrategy:
+    """Tests for create_strategy function."""
+
+    def test_create_ma_strategy(self):
+        args = argparse.Namespace(
+            strategy="ma",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+        )
+        strategy = create_strategy(args)
+        assert isinstance(strategy, MovingAverageCrossover)
+        assert strategy.fast_period == 10
+        assert strategy.slow_period == 30
+        assert "MA_Crossover_10_30" in strategy.name
+
+    def test_create_rsi_strategy(self):
+        args = argparse.Namespace(
+            strategy="rsi",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=21,
+            rsi_oversold=25,
+            rsi_overbought=75,
+            bb_period=20,
+            bb_std=2.0,
+        )
+        strategy = create_strategy(args)
+        assert isinstance(strategy, RSIStrategy)
+        assert strategy.period == 21
+        assert strategy.oversold == 25
+        assert strategy.overbought == 75
+        assert "RSI_21" in strategy.name
+
+    def test_create_bb_strategy(self):
+        args = argparse.Namespace(
+            strategy="bb",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=25,
+            bb_std=2.5,
+        )
+        strategy = create_strategy(args)
+        assert isinstance(strategy, BollingerBandsStrategy)
+        assert strategy.period == 25
+        assert strategy.std_dev == 2.5
+        assert "BB_25_2.5" in strategy.name
+
+    def test_unknown_strategy_raises(self):
+        args = argparse.Namespace(strategy="unknown")
+        try:
+            create_strategy(args)
+            raise AssertionError("Expected KeyError")
+        except KeyError as e:
+            assert "unknown" in str(e)
+
+
+class TestCreateConfig:
+    """Tests for create_config function."""
+
+    def test_create_config_defaults(self):
+        args = argparse.Namespace(
+            config=None,
+            offline=False,
+            provider=None,
+            cache_dir=None,
+            synthetic_days=None,
+            synthetic_seed=None,
+            alphavantage_key=None,
+        )
+        config = create_config(args)
+        assert isinstance(config, Config)
+        assert config.data.provider == "yfinance"
+
+    def test_create_config_offline(self):
+        args = argparse.Namespace(
+            config=None,
+            offline=True,
+            provider=None,
+            cache_dir=None,
+            synthetic_days=None,
+            synthetic_seed=None,
+            alphavantage_key=None,
+        )
+        config = create_config(args)
+        assert config.data.provider == "synthetic"
+        assert config.data.offline is True
+
+    def test_create_config_provider_override(self):
+        args = argparse.Namespace(
+            config=None,
+            offline=False,
+            provider="alphavantage",
+            cache_dir=None,
+            synthetic_days=None,
+            synthetic_seed=None,
+            alphavantage_key=None,
+        )
+        config = create_config(args)
+        assert config.data.provider == "alphavantage"
+
+    def test_create_config_alphavantage_key(self):
+        args = argparse.Namespace(
+            config=None,
+            offline=False,
+            provider="alphavantage",
+            cache_dir=None,
+            synthetic_days=None,
+            synthetic_seed=None,
+            alphavantage_key="MY_API_KEY",
+        )
+        config = create_config(args)
+        assert config.data.alphavantage_api_key == "MY_API_KEY"
+
+    def test_create_config_cache_dir(self):
+        args = argparse.Namespace(
+            config=None,
+            offline=False,
+            provider=None,
+            cache_dir="./custom/cache",
+            synthetic_days=None,
+            synthetic_seed=None,
+            alphavantage_key=None,
+        )
+        config = create_config(args)
+        assert config.data.cache_dir == "./custom/cache"
+
+    def test_create_config_synthetic_days_seed(self):
+        args = argparse.Namespace(
+            config=None,
+            offline=True,
+            provider=None,
+            cache_dir=None,
+            synthetic_days=500,
+            synthetic_seed=123,
+            alphavantage_key=None,
+        )
+        config = create_config(args)
+        assert config.data.synthetic_days == 500
+        assert config.data.synthetic_seed == 123
+
+
+class TestRunCombined:
+    """Tests for run_combined function."""
+
+    @patch("examples.cli.run_backtest")
+    def test_run_combined_all_strategies(self, mock_run_backtest, capsys):
+        # Mock backtest results
+        from quant_trading.backtest.metrics import BacktestMetrics
+
+        mock_metrics = MagicMock(spec=BacktestMetrics)
+        mock_metrics.num_trades = 10
+        mock_metrics.win_rate = 0.6
+        mock_metrics.sharpe_ratio = 1.5
+        mock_metrics.max_drawdown_pct = 5.0
+        mock_metrics.profit_factor = 2.0
+
+        mock_results = []
+        for name, ret in [("MA_Crossover_10_30", 15.5), ("RSI_14", 12.3), ("BB_20_2.0", 18.7)]:
+            m = MagicMock(spec=["name", "total_return_pct", "metrics", "initial_capital", "final_value", "total_return"])
+            m.name = name
+            m.total_return_pct = ret
+            m.metrics = mock_metrics
+            m.initial_capital = 100000.0
+            m.final_value = 100000.0 * (1 + ret / 100)
+            m.total_return = 100000.0 * ret / 100
+            mock_results.append(m)
+
+        def side_effect(*args, **kwargs):
+            strategy = kwargs.get("strategy")
+            for result in mock_results:
+                if result.name == strategy.name:
+                    return result
+            raise ValueError("Unknown strategy")
+
+        mock_run_backtest.side_effect = side_effect
+
+        args = argparse.Namespace(
+            symbols=["AAPL"],
+            strategy="ma",
+            combined=True,
+            initial_capital=100000.0,
+            commission=0.001,
+            slippage=0.0005,
+            interval="1d",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            output=None,
+        )
+
+        config = Config()
+        from datetime import datetime, timedelta
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365)
+
+        result = run_combined(args, config, start_date, end_date)
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Running combined backtest for all strategies" in captured.out
+        assert "Strategy Comparison" in captured.out
+        assert "MA_Crossover_10_30" in captured.out
+        assert "RSI_14" in captured.out
+        assert "BB_20_2.0" in captured.out
+        assert "Best strategy (by Sharpe)" in captured.out
+
+    @patch("examples.cli.run_backtest")
+    def test_run_combined_with_output(self, mock_run_backtest, capsys):
+        from quant_trading.backtest.metrics import BacktestMetrics
+
+        mock_metrics = MagicMock(spec=BacktestMetrics)
+        mock_metrics.num_trades = 10
+        mock_metrics.win_rate = 0.6
+        mock_metrics.sharpe_ratio = 1.5
+        mock_metrics.max_drawdown_pct = 5.0
+        mock_metrics.profit_factor = 2.0
+
+        mock_result = MagicMock(spec=["name", "total_return_pct", "metrics", "initial_capital", "final_value", "total_return"])
+        mock_result.name = "MA_Crossover_10_30"
+        mock_result.total_return_pct = 15.5
+        mock_result.metrics = mock_metrics
+        mock_result.initial_capital = 100000.0
+        mock_result.final_value = 115500.0
+        mock_result.total_return = 15500.0
+
+        def side_effect(*args, **kwargs):
+            return mock_result
+
+        mock_run_backtest.side_effect = side_effect
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = f"{tmpdir}/results.json"
+            args = argparse.Namespace(
+                symbols=["AAPL"],
+                strategy="ma",
+                combined=True,
+                initial_capital=100000.0,
+                commission=0.001,
+                slippage=0.0005,
+                interval="1d",
+                fast_period=10,
+                slow_period=30,
+                rsi_period=14,
+                rsi_oversold=30,
+                rsi_overbought=70,
+                bb_period=20,
+                bb_std=2.0,
+                output=output_path,
+            )
+
+            config = Config()
+            from datetime import datetime, timedelta
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=365)
+
+            result = run_combined(args, config, start_date, end_date)
+            assert result == 0
+
+            # Verify output file
+            with open(output_path) as f:
+                data = json.load(f)
+            assert "comparison" in data
+            assert "best_strategy" in data
+
+
+class TestMain:
+    """Tests for main function."""
+
+    @patch("examples.cli.list_strategies")
+    def test_main_list_strategies(self, mock_list_strategies):
+        mock_list_strategies.return_value = 0
+        args = ["--list-strategies"]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+        mock_list_strategies.assert_called_once()
+
+    @patch("examples.cli.list_providers")
+    def test_main_list_providers(self, mock_list_providers):
+        mock_list_providers.return_value = 0
+        args = ["--list-providers"]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+        mock_list_providers.assert_called_once()
+
+    @patch("examples.cli.init_config")
+    def test_main_init_config(self, mock_init_config):
+        mock_init_config.return_value = 0
+        args = ["--init-config", "config.yaml"]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+        mock_init_config.assert_called_once_with("config.yaml")
+
+    @patch("examples.cli.run_combined")
+    def test_main_combined(self, mock_run_combined):
+        mock_run_combined.return_value = 0
+        args = ["--combined", "--offline"]
+        with patch("sys.argv", ["cli.py"] + args), patch("examples.cli.run_backtest"):
+            result = main()
+        assert result == 0
+        mock_run_combined.assert_called_once()
+
+
+if __name__ == "__main__":
+    import pytest
+
+    pytest.main([__file__, "-v"])

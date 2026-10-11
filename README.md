@@ -94,7 +94,90 @@ mypy quant_trading/
 black quant_trading/
 ```
 
-## Example Scripts
+## Command Line Interface
+
+The framework includes a CLI for running backtests with configurable data providers and strategies.
+
+### Basic Usage
+
+```bash
+# Run a backtest with default settings (MA crossover, Yahoo Finance, 1 year daily data)
+python examples/cli.py
+
+# Run with specific strategy and symbols
+python examples/cli.py --strategy rsi --symbols AAPL MSFT --days 180
+
+# Run with custom parameters
+python examples/cli.py --strategy bb --bb-period 20 --bb-std 2.5 --initial-capital 50000
+```
+
+### Data Providers
+
+```bash
+# Use Yahoo Finance (default, requires network)
+python examples/cli.py --provider yfinance
+
+# Use Alpha Vantage (supports daily and intraday intervals, demo key works for testing)
+python examples/cli.py --provider alphavantage --interval 5m --days 30
+
+# Use Alpha Vantage with your own API key
+python examples/cli.py --provider alphavantage --alphavantage-key YOUR_API_KEY --interval 1h
+
+# Run offline with synthetic data (deterministic, no network required)
+python examples/cli.py --offline
+# or
+python examples/cli.py --provider synthetic
+```
+
+### Utility Commands
+
+```bash
+# List available strategies with their default parameters
+python examples/cli.py --list-strategies
+
+# List available data providers
+python examples/cli.py --list-providers
+
+# Generate a default config.yaml file
+python examples/cli.py --init-config config.yaml
+```
+
+### Combined Mode
+
+Run all strategies together and compare results:
+
+```bash
+python examples/cli.py --combined --symbols AAPL MSFT GOOGL --days 365
+```
+
+### Configuration
+
+Load settings from a YAML config file:
+
+```bash
+python examples/cli.py --config config.yaml
+```
+
+### Output
+
+Save results to JSON:
+
+```bash
+python examples/cli.py --output results.json
+python examples/cli.py --combined --output comparison.json
+```
+
+### Alpha Vantage Specifics
+
+Alpha Vantage provider supports:
+- **Daily data**: `1d` / `daily` intervals via TIME_SERIES_DAILY_ADJUSTED
+- **Intraday data**: `1m`, `5m`, `15m`, `30m`, `1h` / `60m` intervals via TIME_SERIES_INTRADAY
+- **Real-time quotes**: `BATCH_STOCK_PRICES` endpoint (interval other than daily/intraday)
+- **Demo key**: Works out of the box with `"demo"` key (rate limited)
+
+For production use, get a free API key from [Alpha Vantage](https://www.alphavantage.co/support/#api-key) and pass it via `--alphavantage-key` or config file.
+
+### Example Scripts
 
 See `examples/run_backtest.py` for a complete example of running backtests with multiple strategies.
 
@@ -132,6 +215,51 @@ share a date range and fetch them with a single `yfinance.download(...,
 group_by="ticker")` call rather than one HTTP request per symbol. Group results
 are cached on disk (separate from per-symbol `fetch` cache keys) and each
 request's result is keyed by its stable request key.
+
+### DataManager
+
+`DataManager` manages multiple data providers and provides in-memory caching:
+
+```python
+from quant_trading.data.providers import DataManager, YFinanceProvider, AlphaVantageProvider
+
+# Create manager with providers
+manager = DataManager([YFinanceProvider(), AlphaVantageProvider()])
+
+# Fetch with specific provider
+result = manager.fetch(["AAPL"], provider_name="alphavantage", interval="5m")
+
+# Clear in-memory cache
+manager.clear_cache()
+```
+
+### Alpha Vantage Provider
+
+The `AlphaVantageProvider` supports multiple endpoints:
+
+```python
+from quant_trading.data.yfinance_provider import AlphaVantageProvider
+
+# Uses demo key by default (rate limited)
+provider = AlphaVantageProvider()  # api_key defaults to "demo"
+
+# Or provide your own key
+provider = AlphaVantageProvider(api_key="YOUR_API_KEY")
+
+# Fetch daily data
+result = provider.fetch(["AAPL"], interval="1d")
+
+# Fetch intraday data (1m, 5m, 15m, 30m, 1h)
+result = provider.fetch(["AAPL"], interval="5m")
+
+# Fetch latest real-time quotes
+result = provider.fetch_latest(["AAPL", "MSFT"])
+```
+
+Supported intervals:
+- Daily: `1d`, `daily`
+- Intraday: `1m`, `5m`, `15m`, `30m`, `1h`, `60m`
+- Real-time: any other interval uses `BATCH_STOCK_PRICES`
 
 ## Configuration
 

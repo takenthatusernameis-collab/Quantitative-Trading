@@ -9,57 +9,77 @@ GitHub Actions loop. The previous agent implemented **Alpha Vantage enhancements
 - Made Alpha Vantage API key optional in config (defaults to demo key)
 - Updated DataManager to not require API key for alphavantage provider
 
-The current agent implemented **Alpha Vantage enhancements** to improve usability and testing.
+The current agent implemented **documentation and testing improvements**:
+- Updated README with comprehensive CLI usage examples
+- Documented Alpha Vantage intraday intervals and demo key
+- Documented DataManager behavior and cache reset function
+- Added unit tests for CLI flags (--list-strategies, --list-providers, --init-config, --combined)
+- Added integration tests for combined mode
+- Added tests for Alpha Vantage intraday functionality (mock TIME_SERIES_INTRADAY responses)
 
 ## What was done in this session
 
-1. **Added TIME_SERIES_INTRADAY support** (`quant_trading/data/yfinance_provider.py`):
-   - New `INTRADAY_INTERVALS` mapping for interval conversion (user intervals → Alpha Vantage intervals)
-   - New `_build_intraday_params()` method to build API request parameters
-   - New `_parse_intraday_response()` method to parse TIME_SERIES_INTRADAY JSON response
-   - New `_fetch_intraday()` method to fetch historical intraday data per symbol
-   - Updated `fetch()` to route intraday intervals (1m, 5m, 15m, 30m, 1h) to TIME_SERIES_INTRADAY
-   - Updated `fetch_many()` to handle intraday intervals (falls back to per-symbol)
+1. **Updated README** (`README.md`):
+   - Added comprehensive CLI usage examples for all new flags
+   - Documented data providers (yfinance, alphavantage, synthetic)
+   - Documented utility commands (--list-strategies, --list-providers, --init-config)
+   - Documented combined mode (--combined)
+   - Added Alpha Vantage specifics section with supported intervals and demo key info
+   - Documented DataManager usage and cache clearing
+   - Documented AlphaVantageProvider class with code examples
 
-2. **Added demo key fallback** (`quant_trading/data/yfinance_provider.py`):
-   - Made `api_key` parameter optional in `AlphaVantageProvider.__init__` (defaults to `"demo"`)
-   - Alpha Vantage provides a free `"demo"` key for testing
+2. **Added CLI tests** (`tests/test_cli.py` - 29 new tests):
+   - Tests for argument parsing (all flags)
+   - Tests for list_strategies(), list_providers(), init_config()
+   - Tests for create_strategy() with all strategy types
+   - Tests for create_config() with various options
+   - Tests for run_combined() with mocked backtest results
+   - Tests for main() entry point with all early-exit commands
 
-3. **Removed API key requirement** (`quant_trading/data/providers.py`):
-   - Updated `create_data_manager_from_config()` to not require API key for alphavantage provider
-   - Now uses demo key by default if none provided
+3. **Added Alpha Vantage intraday tests** (`tests/test_alphavantage_provider.py` - 17 new tests):
+   - test_fetch_intraday_5min - TIME_SERIES_INTRADAY with 5min interval
+   - test_fetch_intraday_1min - 1min interval support
+   - test_fetch_intraday_15min - 15min interval support
+   - test_fetch_intraday_30min - 30min interval support
+   - test_fetch_intraday_1h - 1h (60min) interval support
+   - test_fetch_intraday_60m_alias - 60m alias for 1h
+   - test_fetch_intraday_date_filtering - start/end date filtering
+   - test_fetch_intraday_multiple_symbols - per-symbol calls
+   - test_fetch_intraday_api_error - error handling
+   - test_fetch_intraday_rate_limit - rate limit handling
+   - test_fetch_intraday_empty_response - empty response handling
+   - test_intraday_interval_mapping - INTRADAY_INTERVALS mapping verification
+   - test_build_intraday_params - parameter building method
+   - test_parse_intraday_response - response parsing method
+   - test_parse_intraday_response_different_intervals - parsing with different interval keys
 
-4. **Fixed linting** (`quant_trading/data/yfinance_provider.py`):
-   - Added `ClassVar` annotation for `INTRADAY_INTERVALS` to satisfy ruff RUF012
-   - Fixed import sorting
-
-5. **Verification**:
-   - `pytest`: 117 passed (back-compat intact)
+4. **Verification**:
+   - `pytest`: 161 passed (44 new tests added)
    - `ruff check .`: clean
    - `mypy quant_trading/`: clean (lone pre-existing note in `strategies/base.py:77`)
-   - Manual tests: Alpha Vantage works with demo key, intraday intervals supported
 
 ## What changed (file scope)
 
-- `quant_trading/data/yfinance_provider.py` — Added TIME_SERIES_INTRADAY support, demo key fallback (~100 lines added)
-- `quant_trading/data/providers.py` — Removed API key requirement for alphavantage provider
+- `README.md` — Comprehensive documentation updates (~100 lines added)
+- `tests/test_cli.py` — New test file with 29 tests for CLI functionality
+- `tests/test_alphavantage_provider.py` — Added 17 tests for intraday functionality
 
 ## What remains / suggested next work (prioritized)
 
-1. **Documentation**:
-   - Update README with CLI usage examples (new flags from previous session)
-   - Document the new Alpha Vantage intraday intervals and demo key
-   - Document the default DataManager behavior and reset function
-
-2. **Testing**:
-   - Add unit tests for the new CLI flags (--list-strategies, --list-providers, --init-config, --combined)
-   - Add integration test for combined mode
-   - Add tests for Alpha Vantage intraday functionality (mock TIME_SERIES_INTRADAY responses)
-
-3. **Alpha Vantage enhancements** (optional):
+1. **Alpha Vantage enhancements** (optional):
    - Add API key validation on init (optional, with demo key warning)
    - Add support for `TIME_SERIES_WEEKLY` and `TIME_SERIES_MONTHLY` endpoints
    - Add support for `GLOBAL_QUOTE` endpoint for real-time single symbol quotes
+
+2. **Additional testing**:
+   - Add integration tests for Alpha Vantage with real API (optional, requires network)
+   - Add tests for DataManager cache behavior with multiple providers
+   - Add performance benchmarks for backtest engine
+
+3. **Feature enhancements**:
+   - Add more built-in strategies (MACD, Stochastic, etc.)
+   - Add portfolio optimization module
+   - Add walk-forward analysis support
 
 ## Reliability rules (carry forward)
 
@@ -70,4 +90,4 @@ The current agent implemented **Alpha Vantage enhancements** to improve usabilit
 - This file lives at `.kilo/next_task.md`; overwrite it at the end of each
   session to hand off to the next agent.
 
-(End of file - total 78 lines)
+(End of file - total 105 lines)

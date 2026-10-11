@@ -90,6 +90,67 @@ ERROR_RESPONSE = {"Error Message": "Invalid API call. Please retry or visit the 
 
 RATE_LIMIT_RESPONSE = {"Note": "Thank you for using Alpha Vantage! Our standard API call frequency is 5 calls per minute."}
 
+INTRADAY_RESPONSE = {
+    "Meta Data": {
+        "1. Information": "Intraday (5min) open, high, low, close prices and volume",
+        "2. Symbol": "AAPL",
+        "3. Last Refreshed": "2024-01-15 19:55:00",
+        "4. Interval": "5min",
+        "5. Output Size": "Full size",
+        "6. Time Zone": "US/Eastern",
+    },
+    "Time Series (5min)": {
+        "2024-01-15 19:55:00": {
+            "1. open": "185.00",
+            "2. high": "185.50",
+            "3. low": "184.80",
+            "4. close": "185.20",
+            "5. volume": "100000",
+        },
+        "2024-01-15 19:50:00": {
+            "1. open": "184.50",
+            "2. high": "185.00",
+            "3. low": "184.20",
+            "4. close": "184.80",
+            "5. volume": "120000",
+        },
+        "2024-01-15 19:45:00": {
+            "1. open": "184.00",
+            "2. high": "184.60",
+            "3. low": "183.80",
+            "4. close": "184.30",
+            "5. volume": "110000",
+        },
+    },
+}
+
+INTRADAY_RESPONSE_1MIN = {
+    "Meta Data": {
+        "1. Information": "Intraday (1min) open, high, low, close prices and volume",
+        "2. Symbol": "AAPL",
+        "3. Last Refreshed": "2024-01-15 19:59:00",
+        "4. Interval": "1min",
+        "5. Output Size": "Full size",
+        "6. Time Zone": "US/Eastern",
+    },
+    "Time Series (1min)": {
+        "2024-01-15 19:59:00": {
+            "1. open": "185.00",
+            "2. high": "185.10",
+            "3. low": "184.90",
+            "4. close": "185.05",
+            "5. volume": "5000",
+        },
+        "2024-01-15 19:58:00": {
+            "1. open": "184.95",
+            "2. high": "185.05",
+            "3. low": "184.85",
+            "4. close": "184.98",
+            "5. volume": "4800",
+        },
+    },
+}
+
 
 class TestAlphaVantageProvider:
     """Tests for AlphaVantageProvider."""
@@ -355,6 +416,209 @@ class TestAlphaVantageProvider:
 
             assert "AAPL" in result.errors
             assert isinstance(result.errors["AAPL"], requests.Timeout)
+
+    def test_fetch_intraday_5min(self, provider):
+        """Test fetching intraday data with 5min interval (TIME_SERIES_INTRADAY)."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(INTRADAY_RESPONSE)
+
+            start = datetime(2024, 1, 15, 19, 40)
+            end = datetime(2024, 1, 15, 20, 0)
+            result = provider.fetch(["AAPL"], start=start, end=end, interval="5m")
+
+            assert "AAPL" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["AAPL"]
+            assert md.symbol == "AAPL"
+            assert isinstance(md.data, pd.DataFrame)
+            assert len(md.data) == 3
+            assert list(md.data.columns) == ["open", "high", "low", "close", "volume"]
+            # Check metadata indicates intraday endpoint
+            assert md.metadata.get("function") == "TIME_SERIES_INTRADAY"
+            assert md.metadata.get("interval") == "5min"
+            mock_get.assert_called_once()
+
+    def test_fetch_intraday_1min(self, provider):
+        """Test fetching intraday data with 1min interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(INTRADAY_RESPONSE_1MIN)
+
+            result = provider.fetch(["AAPL"], interval="1m")
+
+            assert "AAPL" in result.data
+            md = result.data["AAPL"]
+            assert len(md.data) == 2
+            assert md.metadata.get("interval") == "1min"
+            # Check interval mapping
+            _args, kwargs = mock_get.call_args
+            params = kwargs.get("params", {})
+            assert params.get("interval") == "1min"
+
+    def test_fetch_intraday_15min(self, provider):
+        """Test fetching intraday data with 15min interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(INTRADAY_RESPONSE)
+
+            result = provider.fetch(["AAPL"], interval="15m")
+
+            assert "AAPL" in result.data
+            md = result.data["AAPL"]
+            assert md.metadata.get("interval") == "15min"
+            _args, kwargs = mock_get.call_args
+            params = kwargs.get("params", {})
+            assert params.get("interval") == "15min"
+
+    def test_fetch_intraday_30min(self, provider):
+        """Test fetching intraday data with 30min interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(INTRADAY_RESPONSE)
+
+            result = provider.fetch(["AAPL"], interval="30m")
+
+            assert "AAPL" in result.data
+            md = result.data["AAPL"]
+            assert md.metadata.get("interval") == "30min"
+            _args, kwargs = mock_get.call_args
+            params = kwargs.get("params", {})
+            assert params.get("interval") == "30min"
+
+    def test_fetch_intraday_1h(self, provider):
+        """Test fetching intraday data with 1h interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(INTRADAY_RESPONSE)
+
+            result = provider.fetch(["AAPL"], interval="1h")
+
+            assert "AAPL" in result.data
+            md = result.data["AAPL"]
+            assert md.metadata.get("interval") == "60min"
+            _args, kwargs = mock_get.call_args
+            params = kwargs.get("params", {})
+            assert params.get("interval") == "60min"
+
+    def test_fetch_intraday_60m_alias(self, provider):
+        """Test fetching intraday data with 60m alias for 1h."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(INTRADAY_RESPONSE)
+
+            result = provider.fetch(["AAPL"], interval="60m")
+
+            assert "AAPL" in result.data
+            md = result.data["AAPL"]
+            assert md.metadata.get("interval") == "60min"
+            _args, kwargs = mock_get.call_args
+            params = kwargs.get("params", {})
+            assert params.get("interval") == "60min"
+
+    def test_fetch_intraday_date_filtering(self, provider):
+        """Test that intraday response is filtered by start/end dates."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(INTRADAY_RESPONSE)
+
+            # Request only the last 2 bars
+            start = datetime(2024, 1, 15, 19, 50)
+            end = datetime(2024, 1, 15, 19, 55)
+            result = provider.fetch(["AAPL"], start=start, end=end, interval="5m")
+
+            assert "AAPL" in result.data
+            md = result.data["AAPL"]
+            assert len(md.data) == 2  # Only 19:50 and 19:55 bars
+            # Verify dates are in range
+            for idx in md.data.index:
+                assert start <= idx <= end
+
+    def test_fetch_intraday_multiple_symbols(self, provider):
+        """Test fetching intraday data for multiple symbols."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(INTRADAY_RESPONSE)
+
+            result = provider.fetch(["AAPL", "MSFT"], interval="5m")
+
+            assert "AAPL" in result.data
+            assert "MSFT" in result.data
+            assert mock_get.call_count == 2  # Per-symbol calls
+
+    def test_fetch_intraday_api_error(self, provider):
+        """Test handling of API error for intraday endpoint."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+
+            result = provider.fetch(["AAPL"], interval="5m")
+
+            assert "AAPL" in result.errors
+            assert not result.data
+
+    def test_fetch_intraday_rate_limit(self, provider):
+        """Test handling of rate limit for intraday endpoint."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            result = provider.fetch(["AAPL"], interval="5m")
+
+            assert "AAPL" in result.errors
+            assert isinstance(result.errors["AAPL"], RuntimeError)
+
+    def test_fetch_intraday_empty_response(self, provider):
+        """Test handling of empty intraday response."""
+        empty_intraday = {
+            "Meta Data": {},
+            "Time Series (5min)": {},
+        }
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(empty_intraday)
+
+            result = provider.fetch(["AAPL"], interval="5m")
+
+            assert "AAPL" in result.missing
+            assert not result.data
+            assert not result.errors
+
+    def test_intraday_interval_mapping(self, provider):
+        """Test INTRADAY_INTERVALS mapping."""
+        assert provider.INTRADAY_INTERVALS["1m"] == "1min"
+        assert provider.INTRADAY_INTERVALS["5m"] == "5min"
+        assert provider.INTRADAY_INTERVALS["15m"] == "15min"
+        assert provider.INTRADAY_INTERVALS["30m"] == "30min"
+        assert provider.INTRADAY_INTERVALS["1h"] == "60min"
+        assert provider.INTRADAY_INTERVALS["60m"] == "60min"
+
+    def test_build_intraday_params(self, provider):
+        """Test _build_intraday_params method."""
+        params = provider._build_intraday_params("AAPL", "5m")
+        assert params["function"] == "TIME_SERIES_INTRADAY"
+        assert params["symbol"] == "AAPL"
+        assert params["interval"] == "5min"
+        assert params["apikey"] == "test_key"
+        assert params["outputsize"] == "full"
+        assert params["datatype"] == "json"
+
+    def test_parse_intraday_response(self, provider):
+        """Test _parse_intraday_response method."""
+        start = datetime(2024, 1, 15, 19, 40)
+        end = datetime(2024, 1, 15, 20, 0)
+        df = provider._parse_intraday_response("AAPL", INTRADAY_RESPONSE, start, end)
+
+        assert df is not None
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 3
+        assert list(df.columns) == ["open", "high", "low", "close", "volume"]
+        assert df.index.name == "date"
+        # Verify sorted index
+        assert df.index.is_monotonic_increasing
+
+    def test_parse_intraday_response_different_intervals(self, provider):
+        """Test parsing intraday response with different interval key names."""
+        response_1min = {
+            "Meta Data": {"4. Interval": "1min"},
+            "Time Series (1min)": {
+                "2024-01-15 19:59:00": {"1. open": "185", "2. high": "186", "3. low": "184", "4. close": "185", "5. volume": "1000"},
+            },
+        }
+        df = provider._parse_intraday_response("AAPL", response_1min, None, None)
+        assert df is not None
+        assert len(df) == 1
+        assert "1. open" not in df.columns  # Should be renamed to 'open'
 
 
 class TestAlphaVantageProviderIntegration:
