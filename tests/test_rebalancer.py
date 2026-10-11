@@ -140,6 +140,61 @@ class TestRebalancer:
         sell_actions = [a for a in actions if a.action == "sell" and a.symbol == "AAPL"]
         assert len(sell_actions) == 1
 
+    def test_generate_rebalance_actions_zero_price_holdings(self):
+        """Test generate_rebalance_actions guards against zero prices in holdings."""
+        self.portfolio.add_holding("AAPL", 100, 150.0)  # $15,000
+        # Force the holding's current_price to 0 (e.g. stale quote)
+        self.portfolio.holdings["AAPL"].current_price = 0.0
+        self.portfolio.total_value = self.portfolio.cash + self.portfolio.get_holdings_value()
+
+        actions = self.rebalancer.generate_rebalance_actions(
+            prices={"AAPL": 150.0, "MSFT": 300.0}
+        )
+        # AAPL target 40% of 100k = 40k, current 15k -> buy 25k worth.
+        # With a zero holding price, the prices dict should be used.
+        aapl_buys = [a for a in actions if a.symbol == "AAPL" and a.action == "buy"]
+        assert len(aapl_buys) == 1
+        assert aapl_buys[0].quantity > 0
+
+    def test_generate_rebalance_actions_zero_price_no_prices(self):
+        """Test generate_rebalance_actions produces no buy when no price source exists."""
+        self.portfolio.cash = 100000.0
+        self.portfolio.total_value = 100000.0
+        actions = self.rebalancer.generate_rebalance_actions()
+        # No holdings, no prices, no signals -> no actionable buys.
+        buy_actions = [a for a in actions if a.action == "buy"]
+        assert buy_actions == []
+
+    def test_generate_rebalance_actions_zero_total_value(self):
+        """Test generate_rebalance_actions is a no-op when total_value is zero."""
+        self.portfolio.cash = 0.0
+        self.portfolio.total_value = 0.0
+        actions = self.rebalancer.generate_rebalance_actions(prices={"AAPL": 150.0})
+        assert actions == []
+
+    def test_resolve_sell_quantity_zero_price(self):
+        """_resolve_sell_quantity returns 0 when the holding price is zero."""
+        self.portfolio.add_holding("AAPL", 100, 150.0)
+        self.portfolio.holdings["AAPL"].current_price = 0.0
+        assert self.rebalancer._resolve_sell_quantity("AAPL", 1000.0) == 0.0
+
+    def test_resolve_buy_quantity_no_price_source(self):
+        """_resolve_buy_quantity returns 0 when no usable price is available."""
+        self.portfolio.cash = 100000.0
+        self.portfolio.total_value = 100000.0
+        assert self.rebalancer._resolve_buy_quantity("AAPL", 1000.0, None, {}) == 0.0
+
+    def test_generate_rebalance_actions_sell_zero_price(self):
+        """Test sell actions are skipped when the holding price is zero."""
+        self.portfolio.add_holding("AAPL", 500, 150.0)  # $75,000 (75%)
+        self.portfolio.add_holding("MSFT", 100, 300.0)  # $30,000 (30%)
+        self.portfolio.holdings["AAPL"].current_price = 0.0
+        self.portfolio.total_value = self.portfolio.cash + self.portfolio.get_holdings_value()
+
+        actions = self.rebalancer.generate_rebalance_actions()
+        aapl_sells = [a for a in actions if a.symbol == "AAPL" and a.action == "sell"]
+        assert aapl_sells == []
+
     def test_set_target_allocation(self):
         """Test set_target_allocation normalizes values."""
         self.rebalancer.set_target_allocation({"AAPL": 0.3, "MSFT": 0.3, "GOOGL": 0.3})

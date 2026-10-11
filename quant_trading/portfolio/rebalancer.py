@@ -76,21 +76,11 @@ class Rebalancer:
             target_value = targets[symbol]
             diff = target_value - current_value
 
+            if self.portfolio.total_value <= 0:
+                continue
             if abs(diff) / self.portfolio.total_value > self.rebalance_threshold:
                 if diff > 0:
-                    if symbol in self.portfolio.holdings:
-                        quantity = diff / self.portfolio.holdings[symbol].current_price
-                    elif symbol in prices and prices[symbol] > 0:
-                        quantity = diff / prices[symbol]
-                    elif signals:
-                        signal_prices = [s.price for s in signals if s.symbol == symbol and s.price]
-                        if signal_prices:
-                            quantity = diff / (sum(signal_prices) / len(signal_prices))
-                        else:
-                            quantity = 0
-                    else:
-                        quantity = 0
-
+                    quantity = self._resolve_buy_quantity(symbol, diff, signals, prices)
                     if quantity > 0:
                         actions.append(
                             RebalanceAction(
@@ -101,8 +91,8 @@ class Rebalancer:
                             )
                         )
                 elif diff < 0:
-                    if symbol in self.portfolio.holdings:
-                        quantity = abs(diff) / self.portfolio.holdings[symbol].current_price
+                    quantity = self._resolve_sell_quantity(symbol, abs(diff))
+                    if quantity > 0:
                         actions.append(
                             RebalanceAction(
                                 symbol=symbol,
@@ -153,6 +143,36 @@ class Rebalancer:
         )
 
         return actions
+
+    def _resolve_buy_quantity(
+        self,
+        symbol: str,
+        diff: float,
+        signals: list[Signal] | None,
+        prices: dict[str, float],
+    ) -> float:
+        """Resolve a buy quantity for a symbol, guarding against zero prices."""
+        if symbol in self.portfolio.holdings:
+            price = self.portfolio.holdings[symbol].current_price
+            if price and price > 0:
+                return diff / price
+        if symbol in prices and prices[symbol] > 0:
+            return diff / prices[symbol]
+        if signals:
+            signal_prices = [s.price for s in signals if s.symbol == symbol and s.price]
+            if signal_prices:
+                avg_price = sum(signal_prices) / len(signal_prices)
+                if avg_price > 0:
+                    return diff / avg_price
+        return 0.0
+
+    def _resolve_sell_quantity(self, symbol: str, diff: float) -> float:
+        """Resolve a sell quantity for a symbol, guarding against zero prices."""
+        if symbol in self.portfolio.holdings:
+            price = self.portfolio.holdings[symbol].current_price
+            if price and price > 0:
+                return diff / price
+        return 0.0
 
     def set_target_allocation(self, allocation: dict[str, float]) -> None:
         """Set target allocation."""
