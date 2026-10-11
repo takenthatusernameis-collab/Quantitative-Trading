@@ -12,6 +12,32 @@ from quant_trading.portfolio.portfolio import Portfolio
 from quant_trading.risk.manager import RiskManager
 from quant_trading.strategies.base import Signal, Strategy
 
+_default_data_manager: DataManager | None = None
+
+
+def get_default_data_manager() -> DataManager:
+    """Get or create the module-level default DataManager with YFinanceProvider.
+
+    Returns a shared DataManager instance that can be reused across backtest
+    runs. The manager is created lazily on first access and uses a
+    YFinanceProvider with default cache settings.
+    """
+    global _default_data_manager
+    if _default_data_manager is None:
+        from quant_trading.data.yfinance_provider import YFinanceProvider
+
+        _default_data_manager = DataManager([YFinanceProvider()])
+    return _default_data_manager
+
+
+def reset_default_data_manager() -> None:
+    """Reset the module-level default DataManager.
+
+    Useful for testing to ensure a fresh DataManager with cleared cache.
+    """
+    global _default_data_manager
+    _default_data_manager = None
+
 
 @dataclass
 class Trade:
@@ -307,8 +333,8 @@ def run_backtest(
         slippage: Slippage rate (default: 0.0005).
         interval: Data interval (default: "1d").
         data_manager: Optional DataManager for offline/testing. If not provided
-            and no config is given, a live YFinanceProvider will be used
-            (requires network).
+            and no config is given, a shared default DataManager with
+            YFinanceProvider will be used (requires network).
         config: Optional Config or DataConfig. If provided, a DataManager will
             be created from the config (supporting offline/synthetic modes).
             Takes precedence over data_manager if both are provided.
@@ -324,9 +350,7 @@ def run_backtest(
             data_config = config.data if isinstance(config, Config) else config
             data_manager = create_data_manager_from_config(data_config)
         else:
-            from quant_trading.data.yfinance_provider import YFinanceProvider
-
-            data_manager = DataManager([YFinanceProvider()])
+            data_manager = get_default_data_manager()
 
     engine = BacktestEngine(config=backtest_config, data_manager=data_manager)
     engine.add_strategy(strategy)
