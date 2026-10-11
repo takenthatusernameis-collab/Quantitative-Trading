@@ -107,6 +107,25 @@ output on every run:
 python examples/run_backtest_offline.py
 ```
 
+## Data fetching
+
+`DataProvider.fetch_many(requests)` fetches several distinct symbol/date
+ranges in one call. Each request is a dict with optional `symbols`, `start`,
+`end`, and `interval` keys (matching `fetch` defaults). It returns a dict
+mapping a stable request key (`"symbols|start|end|interval"`) to a
+`FetchResult`. `DataManager.fetch_many` wraps the same API and applies the
+in-memory cache per request:
+
+```python
+from quant_trading.data.providers import DataManager
+
+manager = DataManager([provider])
+results = manager.fetch_many([
+    {"symbols": ["AAPL"], "start": start1, "end": end1, "interval": "1d"},
+    {"symbols": ["MSFT"], "start": start2, "end": end2, "interval": "1d"},
+])
+```
+
 ## Configuration
 
 Create a `config.yaml` file:

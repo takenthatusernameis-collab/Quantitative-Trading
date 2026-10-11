@@ -70,6 +70,43 @@ class DataProvider(ABC):
         Returns a FetchResult containing successful data, errors, and missing symbols.
         """
 
+    def fetch_many(
+        self,
+        requests: list[dict[str, Any]],
+    ) -> dict[str, FetchResult]:
+        """Fetch multiple distinct data ranges in one call.
+
+        Each request is a dict with keys ``symbols``, ``start``, ``end``,
+        ``interval`` (all optional, matching ``fetch`` defaults). The return
+        value maps a stable request key (``"symbols|start|end|interval"``) to
+        the resulting ``FetchResult``. Providers may override this to batch
+        network calls more efficiently than per-request loops.
+
+        The default implementation delegates to ``fetch`` for each request.
+        """
+        results: dict[str, FetchResult] = {}
+        for req in requests:
+            symbols = req.get("symbols", [])
+            start = req.get("start")
+            end = req.get("end")
+            interval = req.get("interval", "1d")
+            key = self._request_key(symbols, start, end, interval)
+            results[key] = self.fetch(symbols, start, end, interval)
+        return results
+
+    @staticmethod
+    def _request_key(
+        symbols: list[str],
+        start: datetime | None,
+        end: datetime | None,
+        interval: str,
+    ) -> str:
+        """Build a stable string key for a fetch request."""
+        symbols_str = ",".join(sorted(symbols))
+        start_str = start.isoformat() if start else "none"
+        end_str = end.isoformat() if end else "none"
+        return f"{symbols_str}|{start_str}|{end_str}|{interval}"
+
     @property
     @abstractmethod
     def name(self) -> str:
@@ -131,3 +168,44 @@ class DataManager:
     def clear_cache(self) -> None:
         """Clear the data cache."""
         self._cache.clear()
+
+    def fetch_many(
+        self,
+        requests: list[dict[str, Any]],
+        provider_name: str | None = None,
+        use_cache: bool = True,
+    ) -> dict[str, FetchResult]:
+        """Fetch multiple distinct data ranges via a single provider.
+
+        Delegates to ``DataProvider.fetch_many`` on the selected (or first)
+        provider, so providers can batch network calls. The in-memory cache
+        is checked per request when ``use_cache`` is True.
+        """
+        provider = None
+        if provider_name:
+            provider = self.get_provider(provider_name)
+        elif self.providers:
+            provider = self.providers[0]
+
+        if not provider:
+            raise ValueError("No data provider available")
+
+        results: dict[str, FetchResult] = {}
+        for req in requests:
+            symbols = req.get("symbols", [])
+            start = req.get("start")
+            end = req.get("end")
+            interval = req.get("interval", "1d")
+            key = provider._request_key(symbols, start, end, interval)
+            cache_key = f"{provider.name}:{key}"
+
+            if use_cache and cache_key in self._cache:
+                results[key] = self._cache[cache_key]
+                continue
+
+            result = provider.fetch(symbols, start, end, interval)
+            if use_cache:
+                self._cache[cache_key] = result
+            results[key] = result
+
+        return results
