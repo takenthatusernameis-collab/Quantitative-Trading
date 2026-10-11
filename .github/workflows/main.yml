@@ -58,6 +58,20 @@ jobs:
             one_shot_mode=1
             echo "::notice::One-shot marker detected; setting the sequential session count to exactly two."
           fi
+          # A queued schedule may check out an older commit containing the sentinel.
+          # Require it to exist on the live default branch before spending the allowance.
+          if [ "$one_shot_mode" -eq 1 ]; then
+            DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+            if [ -z "$DEFAULT_BRANCH" ] || ! git fetch origin "$DEFAULT_BRANCH"; then
+              echo "::warning::Could not verify the one-shot marker on the remote branch; deferring this activation safely."
+              exit 0
+            fi
+            if ! git cat-file -e "origin/$DEFAULT_BRANCH:.kilo/TWO_AGENT_ONCE" 2>/dev/null; then
+              echo "::notice::The one-shot marker is absent from origin/$DEFAULT_BRANCH; this is a stale/duplicate activation, exiting without invoking Kilo."
+              exit 0
+            fi
+          fi
+
           if [ "$one_shot_mode" -eq 0 ] && [ -f ".kilo/SKIP_NEXT_ROUTINE_KILO" ]; then
             echo "::notice::Consuming the one-time post-smoke skip; this activation will not start Kilo."
             git config user.name "kilo-autonomous"
