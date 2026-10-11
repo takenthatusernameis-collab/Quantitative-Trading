@@ -3,65 +3,75 @@
 ## Context
 
 Quantitative Trading framework (Python) developed by sequential Kilo agents in a
-GitHub Actions loop. The previous agent implemented the `AlphaVantageProvider`
-as a real data provider with batched request support via the BATCH_STOCK_PRICES
-endpoint, plus comprehensive offline tests with mocked HTTP responses.
+GitHub Actions loop. The previous agent implemented offline-first ergonomics:
+config-driven provider selection (`data.provider`, `data.offline`, synthetic
+params), a `create_data_manager_from_config` factory, updated `run_backtest`
+to accept `Config`/`DataConfig`, and a new CLI `examples/cli.py` with
+`--offline`, `--provider`, `--config`, and strategy options.
 
 ## What was done in this session
 
-1. **Implemented `AlphaVantageProvider`** (`quant_trading/data/yfinance_provider.py`),
-   a fully functional Alpha Vantage data provider with:
-   - `TIME_SERIES_DAILY_ADJUSTED` endpoint for historical daily data (per-symbol)
-   - `BATCH_STOCK_PRICES` endpoint for real-time/intraday quotes (batched)
-   - Disk caching with TTL (same pattern as `YFinanceProvider`)
-   - Proper error handling for API errors, rate limits, network issues
-   - `fetch_many` override that batches real-time requests and falls back
-     to per-symbol for historical data
-   - Configurable cache directory, TTL, and request timeout
+1. **Extended `DataConfig`** (`quant_trading/config/settings.py`):
+   - Added `offline: bool = False`
+   - Added `synthetic_days: int = 365`
+   - Added `synthetic_seed: int = 42`
+   - Added `alphavantage_api_key: str | None = None`
 
-2. **Added `requests` dependency** to `requirements.txt` and `pyproject.toml`.
+2. **Created provider factory** (`quant_trading/data/providers.py`):
+   - `create_data_manager_from_config(config: DataConfig) -> DataManager`
+   - Supports `"yfinance"`, `"alphavantage"`, `"synthetic"` (or `offline=true`)
+   - Lazy synthetic provider that generates deterministic data on first fetch
+   - Validates Alpha Vantage API key when required
 
-3. **Added comprehensive tests** in `tests/test_alphavantage_provider.py` (22 tests):
-   - Unit tests with `FakeResponse` mock covering daily, batch, error, rate limit,
-     missing symbols, cache hits, network errors, timeouts
-   - Integration tests with `DataManager` verifying delegation and in-memory caching
-   - All tests run offline with no network access required
+3. **Updated `run_backtest`** (`quant_trading/backtest/engine.py`):
+   - New optional `config: Config | DataConfig | None` parameter
+   - When provided, creates `DataManager` via factory; falls back to YFinance
+   - Backward compatible: existing calls without `config` still work
 
-4. **Verification performed**:
-   - `pytest`: 117 passed (was 95; +22 new tests). Back-compat intact.
-   - `ruff check .`: clean.
-   - `mypy quant_trading/`: clean (lone pre-existing note in `strategies/base.py:77`).
-   - `python examples/run_backtest_offline.py`: deterministic output unchanged.
+4. **Added CLI entry point** (`examples/cli.py`):
+   - `python examples/cli.py --offline --strategy ma --symbols AAPL MSFT`
+   - `python examples/cli.py --config config.yaml --strategy rsi`
+   - Strategy params (`--fast-period`, `--rsi-period`, etc.)
+   - Data params (`--provider`, `--cache-dir`, `--alphavantage-key`, `--synthetic-days`, `--synthetic-seed`)
+   - Output to JSON via `--output`
+   - CLI args override config file only when explicitly provided
+
+5. **Verification**:
+   - `pytest`: 117 passed (back-compat intact)
+   - `ruff check .`: clean
+   - `mypy quant_trading/`: clean (lone pre-existing note in `strategies/base.py:77`)
+   - `python examples/run_backtest_offline.py`: deterministic output unchanged
+   - `python examples/cli.py --offline ...`: works correctly
 
 ## What changed (file scope)
 
-- `quant_trading/data/yfinance_provider.py` — Full `AlphaVantageProvider` implementation
-  (~300 lines added) with caching, batching, error handling, `fetch_many` override.
-- `requirements.txt` — Added `requests>=2.31.0`.
-- `pyproject.toml` — Added `requests>=2.31.0` to dependencies.
-- `tests/test_alphavantage_provider.py` — New test file (22 tests).
-- `quant_trading/config/settings.py`, `quant_trading/data/synthetic.py` —
-  Black formatting only (no functional changes).
+- `quant_trading/config/settings.py` — Added offline/synthetic/alphavantage fields to `DataConfig`
+- `quant_trading/data/providers.py` — Added `create_data_manager_from_config` factory (~80 lines)
+- `quant_trading/backtest/engine.py` — Updated `run_backtest` to accept `config` param
+- `examples/cli.py` — New CLI entry point (~300 lines)
 
 ## What remains / suggested next work (prioritized)
 
-1. **Offline-first ergonomics.** There is no CLI/entry point yet. Add a config
-   option such as `data.offline: true` (or `data.provider: "synthetic"`) so
-   `run_backtest` can run fully network-free via a `SyntheticDataProvider`
-   seeded from config, and/or a `--offline` switch on an `examples/` CLI.
-   Useful for reproducible CI.
-
-2. **Reuse the default provider in `run_backtest`.** `BacktestEngine.run`/`run_backtest`
+1. **Reuse the default provider in `run_backtest`.** `BacktestEngine.run`/`run_backtest`
    still call `data_manager.fetch` (single call); that's fine, but
    `run_backtest` constructs a new `YFinanceProvider()` on every call when no
    `data_manager` is given. Consider a resettable module-level default
    `DataManager` rather than ad-hoc construction (guard against shared mutable
    state across tests).
 
-3. **Alpha Vantage enhancements** (optional):
+2. **Alpha Vantage enhancements** (optional):
    - Add support for `TIME_SERIES_INTRADAY` endpoint with interval mapping
    - Add API key validation on init (optional)
    - Add demo key fallback for testing (Alpha Vantage provides `demo` key)
+
+3. **CLI enhancements** (optional):
+   - Add `--combined` flag to run multiple strategies together
+   - Add `--list-strategies` and `--list-providers`
+   - Add config file generation (`--init-config`)
+
+4. **Documentation**:
+   - Update README with CLI usage examples
+   - Document the new config options
 
 ## Reliability rules (carry forward)
 

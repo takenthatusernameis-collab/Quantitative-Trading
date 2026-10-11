@@ -6,8 +6,8 @@ from typing import Any
 
 import pandas as pd
 
-from quant_trading.config.settings import BacktestConfig
-from quant_trading.data.providers import DataManager
+from quant_trading.config.settings import BacktestConfig, Config, DataConfig
+from quant_trading.data.providers import DataManager, create_data_manager_from_config
 from quant_trading.portfolio.portfolio import Portfolio
 from quant_trading.risk.manager import RiskManager
 from quant_trading.strategies.base import Signal, Strategy
@@ -293,6 +293,7 @@ def run_backtest(
     slippage: float = 0.0005,
     interval: str = "1d",
     data_manager: DataManager | None = None,
+    config: Config | DataConfig | None = None,
 ) -> BacktestResult:
     """Convenience function to run a single strategy backtest.
 
@@ -305,18 +306,28 @@ def run_backtest(
         commission: Commission rate (default: 0.001).
         slippage: Slippage rate (default: 0.0005).
         interval: Data interval (default: "1d").
-        data_manager: Optional DataManager for offline/testing. If not provided,
-            a live YFinanceProvider will be used (requires network).
+        data_manager: Optional DataManager for offline/testing. If not provided
+            and no config is given, a live YFinanceProvider will be used
+            (requires network).
+        config: Optional Config or DataConfig. If provided, a DataManager will
+            be created from the config (supporting offline/synthetic modes).
+            Takes precedence over data_manager if both are provided.
     """
-    config = BacktestConfig(
+    backtest_config = BacktestConfig(
         initial_capital=initial_capital,
         commission=commission,
         slippage=slippage,
     )
-    if data_manager is None:
-        from quant_trading.data.yfinance_provider import YFinanceProvider
 
-        data_manager = DataManager([YFinanceProvider()])
-    engine = BacktestEngine(config=config, data_manager=data_manager)
+    if data_manager is None:
+        if config is not None:
+            data_config = config.data if isinstance(config, Config) else config
+            data_manager = create_data_manager_from_config(data_config)
+        else:
+            from quant_trading.data.yfinance_provider import YFinanceProvider
+
+            data_manager = DataManager([YFinanceProvider()])
+
+    engine = BacktestEngine(config=backtest_config, data_manager=data_manager)
     engine.add_strategy(strategy)
     return engine.run(symbols, start, end, interval)

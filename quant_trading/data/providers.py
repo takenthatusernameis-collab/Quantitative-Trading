@@ -3,9 +3,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
+
+if TYPE_CHECKING:
+    from quant_trading.config.settings import DataConfig
 
 
 @dataclass
@@ -217,3 +220,78 @@ class DataManager:
                 results[key] = result
 
         return results
+
+
+def create_data_manager_from_config(config: "DataConfig") -> DataManager:
+    """Create a DataManager configured from DataConfig.
+
+    Args:
+        config: DataConfig instance with provider settings.
+
+    Returns:
+        DataManager with appropriate provider(s) configured.
+    """
+    from quant_trading.config.settings import DataConfig
+
+    providers: list[DataProvider] = []
+
+    if config.offline or config.provider == "synthetic":
+        # Offline mode: use synthetic data provider
+        from quant_trading.data.synthetic import SyntheticDataProvider
+
+        class LazySyntheticProvider(SyntheticDataProvider):
+            def __init__(self, config: DataConfig):
+                self._config = config
+                self._initialized = False
+                self._symbols: list[str] | None = None
+                super().__init__({}, name="synthetic")
+
+            def _ensure_initialized(self, symbols: list[str]) -> None:
+                if not self._initialized or set(symbols) != set(self._symbols or []):
+                    from quant_trading.data.synthetic import create_synthetic_data
+
+                    end_date = datetime.now()
+                    data = create_synthetic_data(
+                        symbols=symbols,
+                        days=self._config.synthetic_days,
+                        seed=self._config.synthetic_seed,
+                        end_date=end_date,
+                    )
+                    self._data = data
+                    self._symbols = symbols
+                    self._initialized = True
+
+            def fetch(
+                self,
+                symbols: list[str],
+                start: datetime | None = None,
+                end: datetime | None = None,
+                interval: str = "1d",
+            ) -> FetchResult:
+                self._ensure_initialized(symbols)
+                return super().fetch(symbols, start, end, interval)
+
+            def fetch_latest(self, symbols: list[str]) -> FetchResult:
+                self._ensure_initialized(symbols)
+                return super().fetch_latest(symbols)
+
+        providers.append(LazySyntheticProvider(config))
+    elif config.provider == "yfinance":
+        from quant_trading.data.yfinance_provider import YFinanceProvider
+
+        providers.append(YFinanceProvider(cache_dir=config.cache_dir))
+    elif config.provider == "alphavantage":
+        from quant_trading.data.yfinance_provider import AlphaVantageProvider
+
+        if not config.alphavantage_api_key:
+            raise ValueError("Alpha Vantage API key required when provider is 'alphavantage'")
+        providers.append(
+            AlphaVantageProvider(
+                api_key=config.alphavantage_api_key,
+                cache_dir=config.cache_dir,
+            )
+        )
+    else:
+        raise ValueError(f"Unknown data provider: {config.provider}")
+
+    return DataManager(providers)

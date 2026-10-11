@@ -15,6 +15,10 @@ class DataConfig:
     cache_dir: str = "./data/cache"
     default_interval: str = "1d"
     default_period: str = "1y"
+    offline: bool = False
+    synthetic_days: int = 365
+    synthetic_seed: int = 42
+    alphavantage_api_key: str | None = None
 
 
 def _filter_fields(dataclass_type: Any, values: dict[str, Any]) -> dict[str, Any]:
