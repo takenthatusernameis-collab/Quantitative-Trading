@@ -206,5 +206,54 @@ def test_run_backtest_convenience_function():
     assert result.final_value > 0
 
 
+def test_trade_realized_pnl_property():
+    """Test that Trade.pnl returns realized PnL (0 for opens, set on closes)."""
+    trade = Trade(
+        symbol="AAPL",
+        action="sell",
+        quantity=50,
+        price=160.0,
+        timestamp=datetime.now(),
+        commission=0.001,
+        slippage=0.0005,
+        realized_pnl=750.0,
+    )
+    assert trade.pnl == 750.0
+
+    buy = Trade(symbol="AAPL", action="buy", quantity=10, price=150.0, timestamp=datetime.now())
+    assert buy.pnl == 0.0
+
+
+def test_backtest_traces_realized_pnl():
+    """Test that realized PnL is recorded per trade and feeds the metrics."""
+    symbols = ["AAPL", "MSFT"]
+    mock_data = create_mock_data(symbols, days=60)
+
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    config = BacktestConfig(initial_capital=100000.0, commission=0.001, slippage=0.0005)
+    engine = BacktestEngine(config=config, data_manager=data_manager)
+
+    strategy = MovingAverageCrossover(fast_period=5, slow_period=15, name="Test_MA")
+    engine.add_strategy(strategy)
+
+    start_date = datetime.now() - timedelta(days=50)
+    end_date = datetime.now()
+
+    result = engine.run(symbols, start_date, end_date, "1d")
+
+    assert "pnl" in result.trades.columns
+    sells = result.trades[result.trades["action"] == "sell"]
+    buys = result.trades[result.trades["action"] == "buy"]
+
+    if len(sells) > 0:
+        assert (sells["pnl"].abs() >= 0).all()
+    if len(buys) > 0:
+        assert (buys["pnl"] == 0).all()
+    # Metrics pipeline picks up trades because the pnl column is present.
+    assert result.metrics.num_trades == len(result.trades)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

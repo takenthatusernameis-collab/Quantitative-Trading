@@ -23,6 +23,7 @@ class Trade:
     timestamp: datetime
     commission: float = 0.0
     slippage: float = 0.0
+    realized_pnl: float = 0.0
 
     @property
     def cost(self) -> float:
@@ -35,8 +36,8 @@ class Trade:
 
     @property
     def pnl(self) -> float:
-        """PnL for this trade (realized at close)."""
-        return 0.0  # Will be calculated when position is closed
+        """Realized PnL for this trade (0.0 for opens, set on closes)."""
+        return self.realized_pnl
 
 
 @dataclass
@@ -158,6 +159,7 @@ class BacktestEngine:
             'commission': t.commission,
             'slippage': t.slippage,
             'cost': t.cost,
+            'pnl': t.pnl,
         } for t in trades_list])
 
         from quant_trading.backtest.metrics import calculate_backtest_metrics
@@ -236,7 +238,12 @@ class BacktestEngine:
             if quantity <= 0:
                 return
 
+            avg_cost = holding.avg_cost
             self.portfolio.remove_holding(symbol, quantity, price)
+            realized_pnl = (
+                quantity * price * (1 - self.config.commission - self.config.slippage)
+                - avg_cost * quantity
+            )
             trades_list.append(Trade(
                 symbol=symbol,
                 action='sell',
@@ -245,6 +252,7 @@ class BacktestEngine:
                 timestamp=timestamp,
                 commission=self.config.commission,
                 slippage=self.config.slippage,
+                realized_pnl=realized_pnl,
             ))
 
 
