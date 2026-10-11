@@ -1,7 +1,7 @@
 """Base data provider interface."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
@@ -23,6 +23,30 @@ class MarketData:
             self.metadata = {}
 
 
+@dataclass
+class FetchResult:
+    """Result of a fetch operation with data, errors, and missing symbols."""
+
+    data: dict[str, MarketData] = field(default_factory=dict)
+    errors: dict[str, Exception] = field(default_factory=dict)
+    missing: list[str] = field(default_factory=list)
+
+    @property
+    def is_success(self) -> bool:
+        """Return True if all requested symbols were fetched successfully."""
+        return not self.errors and not self.missing
+
+    @property
+    def has_errors(self) -> bool:
+        """Return True if any hard errors occurred."""
+        return bool(self.errors)
+
+    @property
+    def has_missing(self) -> bool:
+        """Return True if any symbols returned no data."""
+        return bool(self.missing)
+
+
 class DataProvider(ABC):
     """Abstract base class for data providers."""
 
@@ -33,12 +57,18 @@ class DataProvider(ABC):
         start: datetime | None = None,
         end: datetime | None = None,
         interval: str = "1d",
-    ) -> dict[str, MarketData]:
-        """Fetch market data for given symbols."""
+    ) -> FetchResult:
+        """Fetch market data for given symbols.
+
+        Returns a FetchResult containing successful data, errors, and missing symbols.
+        """
 
     @abstractmethod
-    def fetch_latest(self, symbols: list[str]) -> dict[str, MarketData]:
-        """Fetch latest market data for given symbols."""
+    def fetch_latest(self, symbols: list[str]) -> FetchResult:
+        """Fetch latest market data for given symbols.
+
+        Returns a FetchResult containing successful data, errors, and missing symbols.
+        """
 
     @property
     @abstractmethod
@@ -51,7 +81,7 @@ class DataManager:
 
     def __init__(self, providers: list[DataProvider] | None = None):
         self.providers = providers or []
-        self._cache: dict[str, dict[str, MarketData]] = {}
+        self._cache: dict[str, FetchResult] = {}
 
     def add_provider(self, provider: DataProvider) -> None:
         """Add a data provider."""
@@ -72,8 +102,11 @@ class DataManager:
         interval: str = "1d",
         provider_name: str | None = None,
         use_cache: bool = True,
-    ) -> dict[str, MarketData]:
-        """Fetch market data using specified or first available provider."""
+    ) -> FetchResult:
+        """Fetch market data using specified or first available provider.
+
+        Returns a FetchResult containing successful data, errors, and missing symbols.
+        """
         provider = None
         if provider_name:
             provider = self.get_provider(provider_name)

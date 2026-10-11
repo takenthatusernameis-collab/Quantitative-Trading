@@ -89,23 +89,33 @@ class BacktestEngine:
         end: datetime,
         interval: str = "1d",
     ) -> BacktestResult:
-        """Run backtest for given symbols and date range."""
-        # Fetch data
+        """Run backtest for given symbols and date range.
+
+        Requires an explicit data_manager to be set on the engine.
+        Raises ValueError if no data_manager is configured.
+        """
         if self.data_manager is None:
-            from quant_trading.data.yfinance_provider import YFinanceProvider
+            raise ValueError(
+                "No data_manager configured. Provide a DataManager instance "
+                "to BacktestEngine or use run_backtest() with a data_manager parameter."
+            )
 
-            provider = YFinanceProvider()
-            self.data_manager = DataManager([provider])
-
-        market_data = self.data_manager.fetch(
+        fetch_result = self.data_manager.fetch(
             symbols=symbols,
             start=start,
             end=end,
             interval=interval,
         )
 
+        if fetch_result.has_errors:
+            error_msg = ", ".join(f"{s}: {e}" for s, e in fetch_result.errors.items())
+            raise RuntimeError(f"Data fetch errors: {error_msg}")
+
+        if not fetch_result.data:
+            raise ValueError("No market data retrieved for any symbol")
+
         # Prepare data dict for strategies
-        data = {symbol: md.data for symbol, md in market_data.items()}
+        data = {symbol: md.data for symbol, md in fetch_result.data.items()}
 
         # Reset portfolio and risk manager
         self.portfolio.reset(self.config.initial_capital)
@@ -282,13 +292,31 @@ def run_backtest(
     commission: float = 0.001,
     slippage: float = 0.0005,
     interval: str = "1d",
+    data_manager: DataManager | None = None,
 ) -> BacktestResult:
-    """Convenience function to run a single strategy backtest."""
+    """Convenience function to run a single strategy backtest.
+
+    Args:
+        strategy: The strategy to backtest.
+        symbols: List of symbols to trade.
+        start: Start date for backtest.
+        end: End date for backtest.
+        initial_capital: Initial capital (default: 100000.0).
+        commission: Commission rate (default: 0.001).
+        slippage: Slippage rate (default: 0.0005).
+        interval: Data interval (default: "1d").
+        data_manager: Optional DataManager for offline/testing. If not provided,
+            a live YFinanceProvider will be used (requires network).
+    """
     config = BacktestConfig(
         initial_capital=initial_capital,
         commission=commission,
         slippage=slippage,
     )
-    engine = BacktestEngine(config=config)
+    if data_manager is None:
+        from quant_trading.data.yfinance_provider import YFinanceProvider
+
+        data_manager = DataManager([YFinanceProvider()])
+    engine = BacktestEngine(config=config, data_manager=data_manager)
     engine.add_strategy(strategy)
     return engine.run(symbols, start, end, interval)

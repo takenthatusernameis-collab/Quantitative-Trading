@@ -2,84 +2,20 @@
 
 Runs the built-in strategies against deterministic synthetic price
 data, so it needs no network access and produces the same output on
-every run. The synthetic generator mirrors the helper used by the
-test suite (``tests/test_backtest_engine.py::create_mock_data``).
+every run.
 """
 
 from datetime import datetime, timedelta
 
-import numpy as np
-import pandas as pd
-
 from quant_trading.backtest.engine import BacktestEngine
 from quant_trading.config.settings import BacktestConfig
-from quant_trading.data.providers import DataManager, DataProvider, MarketData
+from quant_trading.data.providers import DataManager
+from quant_trading.data.synthetic import create_synthetic_provider
 from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
     MovingAverageCrossover,
     RSIStrategy,
 )
-
-SEED = 42
-
-
-def create_synthetic_data(symbols: list[str], days: int = 100) -> dict:
-    """Create deterministic synthetic price data (seeded random walk)."""
-    np.random.seed(SEED)
-    dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
-    data = {}
-
-    for symbol in symbols:
-        returns = np.random.normal(0.0005, 0.02, days)
-        prices = 100 * np.exp(np.cumsum(returns))
-
-        df = pd.DataFrame(
-            {
-                "open": prices * (1 + np.random.uniform(-0.005, 0.005, days)),
-                "high": prices * (1 + np.random.uniform(0, 0.01, days)),
-                "low": prices * (1 - np.random.uniform(0, 0.01, days)),
-                "close": prices,
-                "volume": np.random.randint(1000000, 10000000, days),
-            },
-            index=dates,
-        )
-
-        data[symbol] = df
-
-    return data
-
-
-class SyntheticDataProvider(DataProvider):
-    """Data provider serving pre-generated synthetic data."""
-
-    def __init__(self, data: dict):
-        self._data = data
-        self._name = "synthetic"
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    def fetch(
-        self,
-        symbols: list[str],
-        start: datetime | None = None,
-        end: datetime | None = None,
-        interval: str = "1d",
-    ) -> dict:
-        result = {}
-        for symbol in symbols:
-            if symbol in self._data:
-                result[symbol] = MarketData(
-                    symbol=symbol,
-                    data=self._data[symbol],
-                    source=self.name,
-                    fetched_at=datetime.now(),
-                )
-        return result
-
-    def fetch_latest(self, symbols: list[str]) -> dict:
-        return self.fetch(symbols)
 
 
 def _print_summary(name: str, result) -> None:
@@ -105,8 +41,7 @@ def main() -> None:
     end_date = datetime.now()
     start_date = end_date - timedelta(days=365)
 
-    synthetic_data = create_synthetic_data(symbols, days=365)
-    provider = SyntheticDataProvider(synthetic_data)
+    provider = create_synthetic_provider(symbols, days=365, seed=42)
     data_manager = DataManager([provider])
 
     config = BacktestConfig(

@@ -7,9 +7,10 @@ from datetime import datetime, timedelta
 from quant_trading.backtest.engine import BacktestEngine
 from quant_trading.config.settings import Config
 from quant_trading.data.providers import DataManager
+from quant_trading.data.synthetic import create_synthetic_data
 from quant_trading.strategies.examples import MovingAverageCrossover
 
-from .test_backtest_engine import MockDataProvider, create_mock_data
+from .test_backtest_engine import MockDataProvider
 
 
 def test_config_from_yaml_feeds_engine():
@@ -51,7 +52,7 @@ def test_config_from_yaml_feeds_engine():
     assert config.backtest.risk_free_rate == 0.03
 
     symbols = ["AAPL", "MSFT"]
-    mock_data = create_mock_data(symbols, days=60)
+    mock_data = create_synthetic_data(symbols, days=60)
     provider = MockDataProvider(mock_data)
     data_manager = DataManager([provider])
 
@@ -81,7 +82,7 @@ def test_default_config_feeds_engine():
     config = Config()
 
     symbols = ["AAPL"]
-    mock_data = create_mock_data(symbols, days=60)
+    mock_data = create_synthetic_data(symbols, days=60)
     provider = MockDataProvider(mock_data)
     data_manager = DataManager([provider])
 

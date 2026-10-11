@@ -2,13 +2,13 @@
 
 from datetime import datetime, timedelta
 
-import numpy as np
 import pandas as pd
 import pytest
 
 from quant_trading.backtest.engine import BacktestEngine, BacktestResult, Trade
 from quant_trading.config.settings import BacktestConfig
-from quant_trading.data.providers import DataManager, DataProvider, MarketData
+from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
+from quant_trading.data.synthetic import create_synthetic_data
 from quant_trading.strategies.examples import MovingAverageCrossover
 
 
@@ -29,44 +29,22 @@ class MockDataProvider(DataProvider):
         start: datetime | None = None,
         end: datetime | None = None,
         interval: str = "1d",
-    ) -> dict:
-        result = {}
+    ) -> FetchResult:
+        result = FetchResult()
         for symbol in symbols:
             if symbol in self._data:
-                result[symbol] = MarketData(
+                result.data[symbol] = MarketData(
                     symbol=symbol,
                     data=self._data[symbol],
                     source=self.name,
                     fetched_at=datetime.now(),
                 )
+            else:
+                result.missing.append(symbol)
         return result
 
-    def fetch_latest(self, symbols: list) -> dict:
+    def fetch_latest(self, symbols: list) -> FetchResult:
         return self.fetch(symbols)
-
-
-def create_mock_data(symbols: list, days: int = 100) -> dict:
-    """Create mock price data for testing."""
-    np.random.seed(42)
-    dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
-    data = {}
-
-    for symbol in symbols:
-        # Generate random walk prices
-        returns = np.random.normal(0.0005, 0.02, days)
-        prices = 100 * np.exp(np.cumsum(returns))
-
-        df = pd.DataFrame({
-            'open': prices * (1 + np.random.uniform(-0.005, 0.005, days)),
-            'high': prices * (1 + np.random.uniform(0, 0.01, days)),
-            'low': prices * (1 - np.random.uniform(0, 0.01, days)),
-            'close': prices,
-            'volume': np.random.randint(1000000, 10000000, days),
-        }, index=dates)
-
-        data[symbol] = df
-
-    return data
 
 
 def test_trade_cost_calculation():
@@ -158,7 +136,7 @@ def test_backtest_result_dataclass():
 def test_mock_backtest_run():
     """Test a full backtest run with mock data."""
     symbols = ["AAPL", "MSFT"]
-    mock_data = create_mock_data(symbols, days=60)
+    mock_data = create_synthetic_data(symbols, days=60)
 
     provider = MockDataProvider(mock_data)
     data_manager = DataManager([provider])
@@ -184,7 +162,7 @@ def test_mock_backtest_run():
 def test_run_backtest_convenience_function():
     """Test the run_backtest convenience function with mock data."""
     symbols = ["AAPL"]
-    mock_data = create_mock_data(symbols, days=60)
+    mock_data = create_synthetic_data(symbols, days=60)
 
     provider = MockDataProvider(mock_data)
     data_manager = DataManager([provider])
@@ -227,7 +205,7 @@ def test_trade_realized_pnl_property():
 def test_backtest_traces_realized_pnl():
     """Test that realized PnL is recorded per trade and feeds the metrics."""
     symbols = ["AAPL", "MSFT"]
-    mock_data = create_mock_data(symbols, days=60)
+    mock_data = create_synthetic_data(symbols, days=60)
 
     provider = MockDataProvider(mock_data)
     data_manager = DataManager([provider])

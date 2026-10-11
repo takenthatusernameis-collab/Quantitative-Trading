@@ -4,7 +4,7 @@ from datetime import datetime
 
 from quant_trading.utils.logging import get_logger
 
-from .providers import DataProvider, MarketData
+from .providers import DataProvider, FetchResult, MarketData
 
 logger = get_logger(__name__)
 
@@ -37,10 +37,14 @@ class YFinanceProvider(DataProvider):
         start: datetime | None = None,
         end: datetime | None = None,
         interval: str = "1d",
-    ) -> dict[str, MarketData]:
-        """Fetch market data from Yahoo Finance."""
+    ) -> FetchResult:
+        """Fetch market data from Yahoo Finance.
+
+        Returns a FetchResult with data, errors, and missing symbols.
+        Missing symbols (no data returned) are tracked separately from errors.
+        """
         yf = self._get_yf()
-        result = {}
+        fetch_result = FetchResult()
 
         for symbol in symbols:
             try:
@@ -49,6 +53,7 @@ class YFinanceProvider(DataProvider):
 
                 if hist.empty:
                     logger.warning("No data found for %s", symbol)
+                    fetch_result.missing.append(symbol)
                     continue
 
                 # Standardize column names
@@ -60,20 +65,20 @@ class YFinanceProvider(DataProvider):
                     "exchange": ticker.info.get("exchange", "UNKNOWN"),
                 }
 
-                result[symbol] = MarketData(
+                fetch_result.data[symbol] = MarketData(
                     symbol=symbol,
                     data=hist,
                     source=self.name,
                     fetched_at=datetime.now(),
                     metadata=metadata,
                 )
-            except (ValueError, RuntimeError, KeyError, ImportError) as e:
+            except (ValueError, RuntimeError, KeyError, ImportError, OSError, ConnectionError, TimeoutError) as e:
                 logger.error("Error fetching %s: %s", symbol, e)
-                continue
+                fetch_result.errors[symbol] = e
 
-        return result
+        return fetch_result
 
-    def fetch_latest(self, symbols: list[str]) -> dict[str, MarketData]:
+    def fetch_latest(self, symbols: list[str]) -> FetchResult:
         """Fetch latest market data (last 1 day)."""
         from datetime import timedelta
 
@@ -98,8 +103,8 @@ class AlphaVantageProvider(DataProvider):
         start: datetime | None = None,
         end: datetime | None = None,
         interval: str = "1d",
-    ) -> dict[str, MarketData]:
+    ) -> FetchResult:
         raise NotImplementedError("Alpha Vantage provider not yet implemented")
 
-    def fetch_latest(self, symbols: list[str]) -> dict[str, MarketData]:
+    def fetch_latest(self, symbols: list[str]) -> FetchResult:
         raise NotImplementedError("Alpha Vantage provider not yet implemented")
