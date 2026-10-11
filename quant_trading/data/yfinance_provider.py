@@ -3,6 +3,9 @@
 import os
 import pickle
 from datetime import datetime, timedelta
+from typing import Any
+
+import pandas as pd
 
 from quant_trading.utils.logging import get_logger
 
@@ -143,6 +146,162 @@ class YFinanceProvider(DataProvider):
             logger.debug("Cached result for %s", key)
 
         return fetch_result
+
+    def fetch_many(
+        self,
+        requests: list[dict[str, Any]],
+    ) -> dict[str, FetchResult]:
+        """Fetch multiple requests using batched multi-ticker downloads.
+
+        Requests sharing the same (start, end, interval) are grouped and
+        served by a single ``yfinance.download`` call (``group_by="ticker"``),
+        issuing one HTTP request for the group's symbols instead of N
+        per-symbol requests. Each request's result is keyed by
+        ``_request_key`` and the group result is cached on disk separately
+        from per-symbol ``fetch`` calls.
+        """
+        yf = self._get_yf()
+        results: dict[str, FetchResult] = {}
+
+        groups: dict[tuple[datetime | None, datetime | None, str], dict[str, list]] = {}
+        order: list[tuple[datetime | None, datetime | None, str]] = []
+        for req in requests:
+            symbols = req.get("symbols", [])
+            start = req.get("start")
+            end = req.get("end")
+            interval = req.get("interval", "1d")
+            range_key = (start, end, interval)
+            bucket = groups.get(range_key)
+            if bucket is None:
+                bucket = {"symbols": [], "reqs": []}
+                groups[range_key] = bucket
+                order.append(range_key)
+            bucket["symbols"].extend(symbols)
+            bucket["reqs"].append((symbols, start, end, interval))
+
+        for range_key in order:
+            start, end, interval = range_key
+            symbols = sorted(set(groups[range_key]["symbols"]))
+            group_result = self._fetch_group(yf, symbols, start, end, interval)
+            for req_symbols, r_start, r_end, r_interval in groups[range_key]["reqs"]:
+                key = self._request_key(req_symbols, r_start, r_end, r_interval)
+                results[key] = self._slice_group_result(group_result, req_symbols)
+
+        return results
+
+    def _fetch_group(
+        self,
+        yf: Any,
+        symbols: list[str],
+        start: datetime | None,
+        end: datetime | None,
+        interval: str,
+    ) -> FetchResult:
+        """Fetch all symbols for one date range with a single download call."""
+        if self._cache_dir:
+            key = self._group_cache_key(symbols, start, end, interval)
+            path = self._cache_path(key)
+            if self._is_cache_valid(path):
+                cached = self._load_cache(path)
+                if cached is not None:
+                    logger.debug("Cache hit for %s", key)
+                    return cached
+
+        result = FetchResult()
+        if symbols:
+            df = yf.download(
+                tickers=symbols,
+                start=start,
+                end=end,
+                interval=interval,
+                group_by="ticker",
+                progress=False,
+            )
+            result = self._parse_download(df, symbols)
+
+        if self._cache_dir and (result.data or result.errors):
+            key = self._group_cache_key(symbols, start, end, interval)
+            self._save_cache(self._cache_path(key), result)
+            logger.debug("Cached group result for %s", key)
+
+        return result
+
+    def _parse_download(
+        self,
+        df: pd.DataFrame | None,
+        symbols: list[str],
+    ) -> FetchResult:
+        """Convert a yfinance.download (group_by='ticker') result to a FetchResult."""
+        result = FetchResult()
+        if df is None or df.empty:
+            result.missing.extend(symbols)
+            return result
+
+        columns = df.columns
+        if isinstance(columns, pd.MultiIndex):
+            tickers = columns.get_level_values(0)
+            for symbol in symbols:
+                if symbol not in tickers:
+                    result.missing.append(symbol)
+                    continue
+                hist = df[symbol].copy()
+                hist.columns = [str(col).lower().replace(" ", "_") for col in hist.columns]
+                hist = hist.dropna(how="all")
+                if hist.empty:
+                    result.missing.append(symbol)
+                    continue
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=hist,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata={},
+                )
+        else:
+            hist = df.copy()
+            hist.columns = [str(col).lower().replace(" ", "_") for col in hist.columns]
+            hist = hist.dropna(how="all")
+            if not hist.empty:
+                symbol = symbols[0]
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=hist,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata={},
+                )
+            else:
+                result.missing.extend(symbols)
+        return result
+
+    def _group_cache_key(
+        self,
+        symbols: list[str],
+        start: datetime | None,
+        end: datetime | None,
+        interval: str,
+    ) -> str:
+        """Cache filename for a batched group download (distinct from per-symbol)."""
+        symbols_str = ",".join(sorted(symbols))
+        start_str = start.isoformat() if start else "none"
+        end_str = end.isoformat() if end else "none"
+        return f"{self.name}_group_{symbols_str}_{start_str}_{end_str}_{interval}.pkl"
+
+    def _slice_group_result(
+        self,
+        group_result: FetchResult,
+        symbols: list[str],
+    ) -> FetchResult:
+        """Pick only the requested symbols out of a group FetchResult."""
+        sliced = FetchResult()
+        for symbol in symbols:
+            if symbol in group_result.data:
+                sliced.data[symbol] = group_result.data[symbol]
+            elif symbol in group_result.errors:
+                sliced.errors[symbol] = group_result.errors[symbol]
+            else:
+                sliced.missing.append(symbol)
+        return sliced
 
     def fetch_latest(self, symbols: list[str]) -> FetchResult:
         """Fetch latest market data (last 1 day)."""

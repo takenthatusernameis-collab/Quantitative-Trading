@@ -191,6 +191,8 @@ class DataManager:
             raise ValueError("No data provider available")
 
         results: dict[str, FetchResult] = {}
+        pending: list[tuple[dict[str, Any], str, str]] = []
+
         for req in requests:
             symbols = req.get("symbols", [])
             start = req.get("start")
@@ -201,11 +203,17 @@ class DataManager:
 
             if use_cache and cache_key in self._cache:
                 results[key] = self._cache[cache_key]
-                continue
+            else:
+                pending.append((req, key, cache_key))
 
-            result = provider.fetch(symbols, start, end, interval)
-            if use_cache:
-                self._cache[cache_key] = result
-            results[key] = result
+        # Delegate the uncached requests to the provider in a single call so it
+        # can batch network requests; each result is keyed by ``_request_key``.
+        if pending:
+            provider_results = provider.fetch_many([req for req, _, _ in pending])
+            for req, key, cache_key in pending:
+                result = provider_results.get(key, FetchResult())
+                if use_cache:
+                    self._cache[cache_key] = result
+                results[key] = result
 
         return results

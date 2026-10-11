@@ -126,6 +126,13 @@ results = manager.fetch_many([
 ])
 ```
 
+`DataManager.fetch_many` delegates to `DataProvider.fetch_many`, so providers can
+batch requests. `YFinanceProvider` overrides `fetch_many` to group requests that
+share a date range and fetch them with a single `yfinance.download(...,
+group_by="ticker")` call rather than one HTTP request per symbol. Group results
+are cached on disk (separate from per-symbol `fetch` cache keys) and each
+request's result is keyed by its stable request key.
+
 ## Configuration
 
 Create a `config.yaml` file:
