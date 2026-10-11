@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/main.yml"
+      - ".github/workflows/kilo-workflow-audit.yml"
   workflow_dispatch:
 
 permissions:
@@ -16,14 +17,14 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
-      - name: Validate GitHub Actions workflow syntax and schema
+      - name: Validate Kilo workflow syntax and schema
         uses: rhysd/actionlint@v1.7.7
         with:
           args: -color .github/workflows/main.yml
       - name: Independent YAML parse
         shell: bash
         run: |
-          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/main.yml"); puts "Ruby YAML parser: OK"'
+          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/main.yml"); puts "Kilo workflow YAML: OK"'
       - name: Validate embedded Kilo shell syntax
         shell: bash
         run: |
