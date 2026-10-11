@@ -38,13 +38,22 @@ jobs:
 
           # Kilo uses only the repository-scoped GITHUB_TOKEN. Workflow definitions are maintainer-managed because this token cannot grant workflows permission.
 
+          # Give Kilo explicit, writable state and temp roots. This also pre-creates
+          # the normal SQLite parent directory, avoiding first-run database open errors.
+          umask 077
           export HOME="$RUNNER_TEMP/kilo-home"
-          mkdir -p "$HOME/.config/kilo" "$RUNNER_TEMP/kilo"
-          if ! ( : > "$HOME/.kilo-write-test" ); then
-            echo "::error::Kilo HOME is not writable: $HOME"
-            exit 1
-          fi
-          rm -f "$HOME/.kilo-write-test"
+          export XDG_CONFIG_HOME="$HOME/.config"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          export XDG_CACHE_HOME="$HOME/.cache"
+          export TMPDIR="$RUNNER_TEMP/kilo-tmp"
+          mkdir -p "$XDG_CONFIG_HOME/kilo" "$XDG_DATA_HOME/kilo" "$XDG_CACHE_HOME/kilo" "$TMPDIR" "$RUNNER_TEMP/kilo"
+          for directory in "$HOME" "$XDG_CONFIG_HOME/kilo" "$XDG_DATA_HOME/kilo" "$XDG_CACHE_HOME/kilo" "$TMPDIR" "$RUNNER_TEMP/kilo"; do
+            if ! ( : > "$directory/.kilo-write-test" ) 2>/dev/null; then
+              echo "::error::Kilo runtime directory is not writable: $directory"
+              exit 1
+            fi
+            rm -f "$directory/.kilo-write-test"
+          done
           for utility in git npm node python3 timeout; do
             if ! command -v "$utility" >/dev/null 2>&1; then
               echo "::error::Required runner utility is missing: $utility"
@@ -64,7 +73,8 @@ jobs:
             '__pycache__/' '**/__pycache__/' '.pytest_cache/' '**/.pytest_cache/' \
             '.mypy_cache/' '**/.mypy_cache/' '.ruff_cache/' '**/.ruff_cache/' \
             '.tox/' '**/.tox/' 'node_modules/' '**/node_modules/' \
-            '.coverage' 'coverage.xml' '*.py[cod]' '*.sqlite' '*.sqlite3' '*.db' '*.tmp'; do
+            '.coverage' 'coverage.xml' '*.py[cod]' '*.sqlite' '*.sqlite3' '*.db' \
+            '*.sqlite-wal' '*.sqlite-shm' '*.sqlite3-wal' '*.sqlite3-shm' '*.db-wal' '*.db-shm' '*.tmp'; do
             if ! grep -Fqx "$pattern" "$exclude_file" 2>/dev/null; then
               printf '%s\n' "$pattern" >> "$exclude_file"
             fi
@@ -168,11 +178,12 @@ jobs:
 
           consecutive_failures=0
           total_failed_sessions=0
+          provider_pressure_streak=0
           cutoff=0
 
           # No fixed per-session cap. Each session may run until the single
           # 355-minute overall deadline, after which Kilo is stopped to checkpoint.
-          for _ in $(seq 1 "$agents"); do
+          for agent_index in $(seq 1 "$agents"); do
             remaining=$((cutoff_epoch - $(date +%s)))
             if [ "$remaining" -le 0 ]; then
               cutoff=1
@@ -186,6 +197,11 @@ jobs:
 
             # The timeout is dynamically set to the remaining overall budget;
             # there is no separate, fixed session timeout.
+            # Keep a per-session transcript for exact diagnosis, while preserving
+            # the Kilo/timeout exit status rather than tee's exit status.
+            session_log="$RUNNER_TEMP/kilo-session-${agent_index}.log"
+            provider_pressure=0
+            echo "Starting Kilo session ${agent_index}/${agents}; transcript: $session_log"
             set +e
             timeout \
               --signal=TERM \
@@ -194,9 +210,21 @@ jobs:
               kilo run \
                 --model kilo/kilo-auto/free \
                 --auto \
-                "$command"
-            rc=$?
+                "$command" 2>&1 | tee "$session_log"
+            rc=${PIPESTATUS[0]}
             set -e
+
+            # Do not amplify a provider-side quota/capacity error with short,
+            # repeated sessions. Distinguish it from ordinary task failures.
+            if [ "$rc" -ne 0 ] && grep -Eiq '(^|[^0-9])429([^0-9]|$)|rate[ _-]?limit|resource[_ -]?exhausted|quota.*(exceed|limit)|current[:= ]*402.*limit[:= ]*400' "$session_log"; then
+              provider_pressure=1
+              provider_pressure_streak=$((provider_pressure_streak + 1))
+              echo "::warning::Detected provider rate-limit/quota/capacity wording in the Kilo transcript; a longer cooldown will be used."
+            elif [ "$rc" -eq 0 ]; then
+              provider_pressure_streak=0
+            else
+              provider_pressure_streak=0
+            fi
 
             if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
               if [ "$(date +%s)" -ge "$cutoff_epoch" ]; then
@@ -350,9 +378,33 @@ jobs:
               break
             fi
 
-            # Back off indefinitely after failed sessions. Delay saturates at
-            # 120 seconds, so a long failure streak cannot overflow arithmetic.
-            if [ "$consecutive_failures" -gt 0 ]; then
+            # Provider quotas need a much longer cooldown than ordinary task
+            # failures. Honor a Retry-After hint if the CLI transcript exposes one.
+            if [ "$provider_pressure" -eq 1 ]; then
+              case "$provider_pressure_streak" in
+                1) backoff_seconds=300 ;;
+                2) backoff_seconds=600 ;;
+                *) backoff_seconds=900 ;;
+              esac
+              retry_after_seconds="$(
+                grep -Eio 'retry[-_ ]after[^0-9]{0,12}[0-9]+' "$session_log" 2>/dev/null |
+                  tail -n 1 | grep -Eo '[0-9]+' | tail -n 1 || true
+              )"
+              if [[ "$retry_after_seconds" =~ ^[0-9]+$ ]] && [ "$retry_after_seconds" -gt "$backoff_seconds" ]; then
+                backoff_seconds="$retry_after_seconds"
+              else
+                backoff_seconds=$((backoff_seconds + RANDOM % 30))
+              fi
+              remaining_sleep=$((cutoff_epoch - $(date +%s)))
+              if [ "$remaining_sleep" -lt "$backoff_seconds" ]; then
+                backoff_seconds="$remaining_sleep"
+              fi
+              if [ "$backoff_seconds" -gt 0 ]; then
+                echo "Provider cooldown: waiting ${backoff_seconds}s (provider-pressure streak: $provider_pressure_streak)."
+                sleep "$backoff_seconds"
+              fi
+            elif [ "$consecutive_failures" -gt 0 ]; then
+              # Ordinary non-provider failures use a shorter bounded delay.
               case "$consecutive_failures" in
                 1) backoff_seconds=15 ;;
                 2) backoff_seconds=30 ;;
