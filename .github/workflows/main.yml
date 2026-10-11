@@ -218,14 +218,16 @@ jobs:
               fi
 
               if git push origin "HEAD:$DEFAULT_BRANCH"; then
-                remote_sha="$(git ls-remote origin "refs/heads/$DEFAULT_BRANCH" | awk '{print $1}')"
+                if ! remote_sha="$(git ls-remote origin "refs/heads/$DEFAULT_BRANCH" 2>/dev/null | awk '{print $1}')"; then
+                  remote_sha=""
+                fi
                 local_sha="$(git rev-parse HEAD)"
                 if [ -n "$remote_sha" ] && [ "$remote_sha" = "$local_sha" ]; then
                   persisted=1
                   echo "Repository persistence verified at $remote_sha."
                   break
                 fi
-                echo "::warning::Remote $DEFAULT_BRANCH moved during persistence attempt $push_attempt; refetching and reconciling."
+                echo "::warning::Could not verify the remote head or $DEFAULT_BRANCH moved during persistence attempt $push_attempt; refetching and reconciling."
               else
                 echo "::warning::Push to $DEFAULT_BRANCH failed on attempt $push_attempt; refetching and reconciling."
               fi
