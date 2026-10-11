@@ -283,8 +283,6 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
     elif config.provider == "alphavantage":
         from quant_trading.data.yfinance_provider import AlphaVantageProvider
 
-        if not config.alphavantage_api_key:
-            raise ValueError("Alpha Vantage API key required when provider is 'alphavantage'")
         providers.append(
             AlphaVantageProvider(
                 api_key=config.alphavantage_api_key,

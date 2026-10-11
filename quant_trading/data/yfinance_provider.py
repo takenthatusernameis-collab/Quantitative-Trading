@@ -3,7 +3,7 @@
 import os
 import pickle
 from datetime import datetime, timedelta
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 import pandas as pd
 import requests
@@ -324,20 +324,33 @@ class YFinanceProvider(DataProvider):
 class AlphaVantageProvider(DataProvider):
     """Alpha Vantage data provider using REST API.
 
-    Supports batched requests via the BATCH_STOCK_PRICES endpoint
-    for efficient multi-symbol fetching.
+    Supports:
+    - TIME_SERIES_DAILY_ADJUSTED for daily historical data
+    - TIME_SERIES_INTRADAY for intraday historical data (1min, 5min, 15min, 30min, 60min)
+    - BATCH_STOCK_PRICES for real-time quotes
+
+    Alpha Vantage provides a free demo key ("demo") for testing.
     """
 
     BASE_URL = "https://www.alphavantage.co/query"
 
+    INTRADAY_INTERVALS: ClassVar[dict[str, str]] = {
+        "1m": "1min",
+        "5m": "5min",
+        "15m": "15min",
+        "30m": "30min",
+        "1h": "60min",
+        "60m": "60min",
+    }
+
     def __init__(
         self,
-        api_key: str,
+        api_key: str | None = None,
         cache_dir: str = "./data/cache",
         cache_ttl_hours: float = 24.0,
         timeout: float = 30.0,
     ):
-        self._api_key = api_key
+        self._api_key = api_key or "demo"
         self._cache_dir = cache_dir
         self._cache_ttl = timedelta(hours=cache_ttl_hours)
         self._timeout = timeout
@@ -417,6 +430,66 @@ class AlphaVantageProvider(DataProvider):
             "apikey": self._api_key,
             "datatype": "json",
         }
+
+    def _build_intraday_params(self, symbol: str, interval: str) -> dict[str, str]:
+        """Build parameters for TIME_SERIES_INTRADAY endpoint."""
+        av_interval = self.INTRADAY_INTERVALS.get(interval, interval)
+        return {
+            "function": "TIME_SERIES_INTRADAY",
+            "symbol": symbol,
+            "interval": av_interval,
+            "apikey": self._api_key,
+            "outputsize": "full",
+            "datatype": "json",
+        }
+
+    def _parse_intraday_response(
+        self, symbol: str, data: dict[str, Any], start: datetime | None, end: datetime | None
+    ) -> pd.DataFrame | None:
+        """Parse TIME_SERIES_INTRADAY response into DataFrame."""
+        # Find the time series key (e.g., "Time Series (5min)")
+        time_series_key = None
+        for key in data:
+            if key.startswith("Time Series"):
+                time_series_key = key
+                break
+
+        if not time_series_key:
+            return None
+
+        time_series = data.get(time_series_key)
+        if not time_series:
+            return None
+
+        records = []
+        for date_str, values in time_series.items():
+            try:
+                date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                continue
+
+            if start and date < start:
+                continue
+            if end and date > end:
+                continue
+
+            records.append({
+                "date": date,
+                "open": float(values.get("1. open", 0)),
+                "high": float(values.get("2. high", 0)),
+                "low": float(values.get("3. low", 0)),
+                "close": float(values.get("4. close", 0)),
+                "volume": int(values.get("5. volume", 0)),
+            })
+
+        if not records:
+            return None
+
+        df = pd.DataFrame(records)
+        df = df.set_index("date").sort_index()
+        new_cols = [col.lower().replace(" ", "_") for col in df.columns]
+        df.columns = new_cols
+        return cast(pd.DataFrame, df)
 
     def _parse_daily_response(
         self, symbol: str, data: dict[str, Any], start: datetime | None, end: datetime | None
@@ -556,6 +629,43 @@ class AlphaVantageProvider(DataProvider):
                     result.errors[symbol] = e
         return result
 
+    def _fetch_intraday(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using TIME_SERIES_INTRADAY endpoint per symbol."""
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                params = self._build_intraday_params(symbol, interval)
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_intraday_response(symbol, data, start, end)
+                if df is None or df.empty:
+                    logger.warning("No data found for %s", symbol)
+                    result.missing.append(symbol)
+                    continue
+
+                av_interval = self.INTRADAY_INTERVALS.get(interval, interval)
+                metadata = {"function": "TIME_SERIES_INTRADAY", "interval": av_interval}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
     def fetch(
         self,
         symbols: list[str],
@@ -566,7 +676,8 @@ class AlphaVantageProvider(DataProvider):
         """Fetch market data from Alpha Vantage.
 
         For daily intervals, uses TIME_SERIES_DAILY_ADJUSTED per symbol.
-        For intraday or latest quotes, uses BATCH_STOCK_PRICES.
+        For intraday intervals (1m, 5m, 15m, 30m, 1h), uses TIME_SERIES_INTRADAY.
+        For latest quotes, uses BATCH_STOCK_PRICES.
         Uses disk caching if cache_dir is configured.
         """
         # Try cache first
@@ -579,9 +690,12 @@ class AlphaVantageProvider(DataProvider):
                     logger.debug("Cache hit for %s", key)
                     return cached
 
-        # Use batch endpoint for real-time/intraday, daily endpoint for historical
+        is_intraday = interval in self.INTRADAY_INTERVALS
+
         if interval in ("1d", "daily"):
             fetch_result = self._fetch_single(symbols, start, end, interval)
+        elif is_intraday:
+            fetch_result = self._fetch_intraday(symbols, start, end, interval)
         else:
             # BATCH_STOCK_PRICES only returns latest quote, ignore start/end
             fetch_result = self._fetch_batch(symbols, start, end, interval)
@@ -603,6 +717,7 @@ class AlphaVantageProvider(DataProvider):
 
         Groups requests by interval. For daily intervals, fetches each symbol
         individually (Alpha Vantage doesn't support batch historical).
+        For intraday intervals, fetches each symbol individually via TIME_SERIES_INTRADAY.
         For real-time, uses BATCH_STOCK_PRICES per group.
         """
         results: dict[str, FetchResult] = {}
@@ -620,8 +735,15 @@ class AlphaVantageProvider(DataProvider):
 
         for interval, reqs in groups.items():
             all_symbols = sorted({s for symbols, _, _, _ in reqs for s in symbols})
+            is_intraday = interval in self.INTRADAY_INTERVALS
+
             if interval in ("1d", "daily"):
                 # No batch historical endpoint; fall back to per-symbol
+                for symbols, start, end, interval in reqs:
+                    key = self._request_key(symbols, start, end, interval)
+                    results[key] = self.fetch(symbols, start, end, interval)
+            elif is_intraday:
+                # No batch historical intraday endpoint; fall back to per-symbol
                 for symbols, start, end, interval in reqs:
                     key = self._request_key(symbols, start, end, interval)
                     results[key] = self.fetch(symbols, start, end, interval)
@@ -643,5 +765,5 @@ class AlphaVantageProvider(DataProvider):
         return results
 
     def fetch_latest(self, symbols: list[str]) -> FetchResult:
-        """Fetch latest market data (real-time quotes)."""
-        return self.fetch(symbols, interval="1m")
+        """Fetch latest market data (real-time quotes) using BATCH_STOCK_PRICES."""
+        return self._fetch_batch(symbols, None, None, "1m")
