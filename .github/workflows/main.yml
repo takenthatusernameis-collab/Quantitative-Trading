@@ -69,6 +69,13 @@ jobs:
           - Work in small verified steps, limit repeated network requests, and checkpoint meaningful progress.
           - Do not manually commit or push, and do not modify .github/workflows; the outer workflow handles checkpointing and preserves workflow definitions.
           - Before finishing, record what changed, what remains, and a clear task for the next agent.
+          Selective subagent delegation:
+          - If the current Kilo CLI/model session exposes the Task tool or subagent delegation, use it selectively for independent, bounded tasks where a second context is likely to improve reliability. Do not assume delegation is available; if the tool is missing or delegation fails, continue directly without repeatedly retrying it.
+          - When available, delegate a read-only audit of recent GitHub Actions failures early in the session. Ask the subagent to use `gh run list --limit 10` and targeted logs from `gh run view RUN_ID --log-failed`, then return run IDs, exact evidence, likely root causes, and prevention ideas. The main agent must verify material claims and own the fix.
+          - For substantial changes, consider a separate read-only review/test audit to check the diff, confirm it addresses the observed failure, and identify missing regression coverage. The main agent integrates findings and performs final focused verification.
+          - Prefer read-only diagnosis and review. Subagents may share the parent's working directory, so do not assign concurrent edits to the same files unless separate worktrees are explicitly available. Avoid spawning agents for trivial tasks or allowing delegation to replace verification.
+          - Delegation is an extra reasoning/checking layer, not a cure for provider outages, upstream idle timeouts, broken tool infrastructure, missing secrets/permissions, or hard runner limits.
+
           GitHub Actions error feedback loop:
           - At the start of each session, inspect recent runs in this repository with `gh run list --limit 10`. For recent, relevant failed runs, retrieve targeted logs with `gh run view RUN_ID --log-failed`; prioritize repeat failures and errors related to the assigned task. If there are no accessible failed runs, continue the assigned task.
           - Use the logs as evidence, not just as a status report: identify the likely root cause, fix it in repository code, tests, scripts, configuration, or documentation when it is within scope, add a regression test or deterministic guard where appropriate, and run focused checks.
