@@ -91,7 +91,9 @@ class Config:
 
     def to_yaml(self, path: str) -> None:
         """Save configuration to YAML file as plain mappings."""
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        dirname = os.path.dirname(path)
+        if dirname:
+            os.makedirs(dirname, exist_ok=True)
         with open(path, "w") as f:
             yaml.dump(self._to_dict(), f, default_flow_style=False)
 

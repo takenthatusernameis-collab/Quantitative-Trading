@@ -17,11 +17,34 @@ STRATEGIES = {
     "bb": BollingerBandsStrategy,
 }
 
+PROVIDERS = {
+    "yfinance": ("YFinanceProvider", "Yahoo Finance (requires network)"),
+    "alphavantage": ("AlphaVantageProvider", "Alpha Vantage (requires API key)"),
+    "synthetic": ("SyntheticDataProvider", "Synthetic data generator (offline, deterministic)"),
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run backtests with the Quantitative Trading framework",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser.add_argument(
+        "--list-strategies",
+        action="store_true",
+        help="List available strategies and exit",
+    )
+    parser.add_argument(
+        "--list-providers",
+        action="store_true",
+        help="List available data providers and exit",
+    )
+    parser.add_argument(
+        "--init-config",
+        type=str,
+        metavar="PATH",
+        help="Generate a default config YAML file at PATH and exit",
     )
 
     parser.add_argument(
@@ -120,8 +143,14 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--combined",
+        action="store_true",
+        help="Run all available strategies together and compare results",
+    )
+
+    parser.add_argument(
         "--provider",
-        choices=["yfinance", "alphavantage", "synthetic"],
+        choices=list(PROVIDERS.keys()),
         default=None,
         help="Data provider to use (default: from config or yfinance)",
     )
@@ -194,6 +223,33 @@ def create_strategy(args: argparse.Namespace):
         raise ValueError(f"Unknown strategy: {args.strategy}")
 
 
+def list_strategies() -> int:
+    """Print available strategies and exit."""
+    print("Available strategies:")
+    for key, cls in STRATEGIES.items():
+        instance = cls()
+        params = instance.get_parameters()
+        param_str = ", ".join(f"{k}={v}" for k, v in params.items())
+        print(f"  {key}: {cls.__name__} ({param_str})")
+    return 0
+
+
+def list_providers() -> int:
+    """Print available data providers and exit."""
+    print("Available data providers:")
+    for key, (cls_name, description) in PROVIDERS.items():
+        print(f"  {key}: {cls_name} - {description}")
+    return 0
+
+
+def init_config(path: str) -> int:
+    """Generate a default config YAML file at the given path."""
+    config = Config()
+    config.to_yaml(path)
+    print(f"Default config written to {path}")
+    return 0
+
+
 def create_config(args: argparse.Namespace) -> Config:
     """Create Config from args and optional YAML file."""
     config = Config()
@@ -226,6 +282,14 @@ def create_config(args: argparse.Namespace) -> Config:
 def main() -> int:
     args = parse_args()
 
+    # Handle info commands that exit early
+    if args.list_strategies:
+        return list_strategies()
+    if args.list_providers:
+        return list_providers()
+    if args.init_config:
+        return init_config(args.init_config)
+
     # Parse dates
     end_date = datetime.strptime(args.end, "%Y-%m-%d") if args.end else datetime.now()
     if args.start:
@@ -233,11 +297,14 @@ def main() -> int:
     else:
         start_date = end_date - timedelta(days=args.days)
 
-    # Create strategy
-    strategy = create_strategy(args)
-
     # Create config
     config = create_config(args)
+
+    if args.combined:
+        return run_combined(args, config, start_date, end_date)
+
+    # Single strategy mode
+    strategy = create_strategy(args)
 
     # Run backtest
     print(f"Running backtest for {strategy.name}")
@@ -300,6 +367,87 @@ def main() -> int:
     except (ValueError, RuntimeError, KeyError) as e:
         print(f"Error running backtest: {e}")
         return 1
+
+    return 0
+
+
+def run_combined(args: argparse.Namespace, config: Config, start_date: datetime, end_date: datetime) -> int:
+    """Run all strategies and compare results."""
+    print("Running combined backtest for all strategies")
+    print(f"Symbols: {args.symbols}")
+    print(f"Date range: {start_date.date()} to {end_date.date()}")
+    print(f"Provider: {config.data.provider}")
+    if config.data.offline:
+        print("Mode: OFFLINE (synthetic data)")
+
+    results = []
+    for strategy_key in STRATEGIES:
+        # Create a copy of args with the current strategy
+        strategy_args = argparse.Namespace(**vars(args))
+        strategy_args.strategy = strategy_key
+        strategy = create_strategy(strategy_args)
+
+        try:
+            result = run_backtest(
+                strategy=strategy,
+                symbols=args.symbols,
+                start=start_date,
+                end=end_date,
+                initial_capital=args.initial_capital,
+                commission=args.commission,
+                slippage=args.slippage,
+                interval=args.interval,
+                config=config,
+            )
+            results.append((strategy.name, result))
+            print(f"  ✓ {strategy.name}: {result.total_return_pct:.2f}% return, Sharpe {result.metrics.sharpe_ratio:.2f}")
+        except (ValueError, RuntimeError, KeyError) as e:
+            print(f"  ✗ {strategy.name}: Error - {e}")
+            return 1
+
+    if not results:
+        print("No strategies completed successfully")
+        return 1
+
+    # Print comparison table
+    print(f"\n{'=' * 80}")
+    print("Strategy Comparison")
+    print(f"{'=' * 80}")
+    print(f"{'Strategy':<30} {'Return %':>10} {'Sharpe':>8} {'Max DD %':>10} {'Win Rate':>10} {'Trades':>8}")
+    print(f"{'-' * 80}")
+    for name, result in results:
+        print(
+            f"{name:<30} {result.total_return_pct:>10.2f} "
+            f"{result.metrics.sharpe_ratio:>8.2f} "
+            f"{result.metrics.max_drawdown_pct:>10.2f} "
+            f"{result.metrics.win_rate:>9.2%} "
+            f"{result.metrics.num_trades:>8}"
+        )
+
+    # Find best by Sharpe ratio
+    best = max(results, key=lambda x: x[1].metrics.sharpe_ratio)
+    print(f"\nBest strategy (by Sharpe): {best[0]} (Sharpe: {best[1].metrics.sharpe_ratio:.2f})")
+
+    if args.output:
+        import json
+
+        output_data = {
+            "comparison": [
+                {
+                    "strategy": name,
+                    "total_return_pct": result.total_return_pct,
+                    "sharpe_ratio": result.metrics.sharpe_ratio,
+                    "max_drawdown_pct": result.metrics.max_drawdown_pct,
+                    "win_rate": result.metrics.win_rate,
+                    "num_trades": result.metrics.num_trades,
+                }
+                for name, result in results
+            ],
+            "best_strategy": best[0],
+        }
+        with open(args.output, "w") as f:
+            json.dump(output_data, f, indent=2)
+        print(f"\nResults saved to {args.output}")
 
     return 0
 
