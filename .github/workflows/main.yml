@@ -69,6 +69,12 @@ jobs:
           - Work in small verified steps, limit repeated network requests, and checkpoint meaningful progress.
           - Do not manually commit or push, and do not modify .github/workflows; the outer workflow handles checkpointing and preserves workflow definitions.
           - Before finishing, record what changed, what remains, and a clear task for the next agent.
+          GitHub Actions error feedback loop:
+          - At the start of each session, inspect recent runs in this repository with `gh run list --limit 10`. For recent, relevant failed runs, retrieve targeted logs with `gh run view RUN_ID --log-failed`; prioritize repeat failures and errors related to the assigned task. If there are no accessible failed runs, continue the assigned task.
+          - Use the logs as evidence, not just as a status report: identify the likely root cause, fix it in repository code, tests, scripts, configuration, or documentation when it is within scope, add a regression test or deterministic guard where appropriate, and run focused checks.
+          - Do not merely record a fixable error. If the cause is external/transient, or requires workflow changes, secrets, permissions, or another out-of-scope action, document the exact evidence and a concrete maintainer action, then continue other safe, useful work.
+          - Before ending, re-check recent runs when a newer completed run is available and note whether the previously observed error recurred. Do not claim to have inspected logs that were inaccessible; the current run's final logs may not exist until that run ends.
+          - Keep investigation targeted: avoid dumping large unrelated logs, and do not modify `.github/workflows`; these definitions remain maintainer-managed.
           PROMPT
           )
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
