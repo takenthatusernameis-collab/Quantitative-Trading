@@ -1,16 +1,12 @@
 """Yahoo Finance and Alpha Vantage data provider implementations."""
 
-import json as _json
 import os
 import pickle
-import urllib.error
-import urllib.parse
-import urllib.request
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
-from typing import Any, Callable
+from typing import Any, cast
 
 import pandas as pd
+import requests
 
 from quant_trading.utils.logging import get_logger
 
@@ -48,7 +44,9 @@ class YFinanceProvider(DataProvider):
                 raise ImportError("yfinance is not installed. Install with: pip install yfinance")
         return self._yf
 
-    def _cache_key(self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str) -> str:
+    def _cache_key(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> str:
         """Generate a deterministic cache key."""
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
@@ -139,7 +137,15 @@ class YFinanceProvider(DataProvider):
                     fetched_at=datetime.now(),
                     metadata=metadata,
                 )
-            except (ValueError, RuntimeError, KeyError, ImportError, OSError, ConnectionError, TimeoutError) as e:
+            except (
+                ValueError,
+                RuntimeError,
+                KeyError,
+                ImportError,
+                OSError,
+                ConnectionError,
+                TimeoutError,
+            ) as e:
                 logger.error("Error fetching %s: %s", symbol, e)
                 fetch_result.errors[symbol] = e
 
@@ -316,14 +322,239 @@ class YFinanceProvider(DataProvider):
 
 
 class AlphaVantageProvider(DataProvider):
-    """Alpha Vantage data provider (placeholder for future implementation)."""
+    """Alpha Vantage data provider using REST API.
 
-    def __init__(self, api_key: str):
+    Supports batched requests via the BATCH_STOCK_PRICES endpoint
+    for efficient multi-symbol fetching.
+    """
+
+    BASE_URL = "https://www.alphavantage.co/query"
+
+    def __init__(
+        self,
+        api_key: str,
+        cache_dir: str = "./data/cache",
+        cache_ttl_hours: float = 24.0,
+        timeout: float = 30.0,
+    ):
         self._api_key = api_key
+        self._cache_dir = cache_dir
+        self._cache_ttl = timedelta(hours=cache_ttl_hours)
+        self._timeout = timeout
+        if cache_dir:
+            os.makedirs(cache_dir, exist_ok=True)
 
     @property
     def name(self) -> str:
         return "alphavantage"
+
+    def _cache_key(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> str:
+        """Generate a deterministic cache key."""
+        symbols_str = ",".join(sorted(symbols))
+        start_str = start.isoformat() if start else "none"
+        end_str = end.isoformat() if end else "none"
+        return f"{self.name}_{symbols_str}_{start_str}_{end_str}_{interval}.pkl"
+
+    def _cache_path(self, key: str) -> str:
+        """Get full cache file path."""
+        return os.path.join(self._cache_dir, key)
+
+    def _is_cache_valid(self, path: str) -> bool:
+        """Check if cache file exists and is not expired."""
+        if not os.path.exists(path):
+            return False
+        mtime = datetime.fromtimestamp(os.path.getmtime(path))
+        return datetime.now() - mtime < self._cache_ttl
+
+    def _load_cache(self, path: str) -> FetchResult | None:
+        """Load FetchResult from cache file."""
+        try:
+            with open(path, "rb") as f:
+                result = pickle.load(f)
+                if isinstance(result, FetchResult):
+                    return result
+                logger.warning("Cache file %s contains invalid data type", path)
+                return None
+        except (pickle.PickleError, EOFError, OSError) as e:
+            logger.warning("Failed to load cache from %s: %s", path, e)
+            return None
+
+    def _save_cache(self, path: str, result: FetchResult) -> None:
+        """Save FetchResult to cache file."""
+        try:
+            with open(path, "wb") as f:
+                pickle.dump(result, f)
+        except (pickle.PickleError, OSError) as e:
+            logger.warning("Failed to save cache to %s: %s", path, e)
+
+    @staticmethod
+    def _request_key(
+        symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> str:
+        """Build a stable string key for a fetch request."""
+        symbols_str = ",".join(sorted(symbols))
+        start_str = start.isoformat() if start else "none"
+        end_str = end.isoformat() if end else "none"
+        return f"{symbols_str}|{start_str}|{end_str}|{interval}"
+
+    def _build_daily_params(self, symbol: str) -> dict[str, str]:
+        """Build parameters for TIME_SERIES_DAILY_ADJUSTED endpoint."""
+        return {
+            "function": "TIME_SERIES_DAILY_ADJUSTED",
+            "symbol": symbol,
+            "apikey": self._api_key,
+            "outputsize": "full",
+            "datatype": "json",
+        }
+
+    def _build_batch_params(self, symbols: list[str]) -> dict[str, str]:
+        """Build parameters for BATCH_STOCK_PRICES endpoint."""
+        return {
+            "function": "BATCH_STOCK_PRICES",
+            "symbols": ",".join(symbols),
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _parse_daily_response(
+        self, symbol: str, data: dict[str, Any], start: datetime | None, end: datetime | None
+    ) -> pd.DataFrame | None:
+        """Parse TIME_SERIES_DAILY_ADJUSTED response into DataFrame."""
+        time_series = data.get("Time Series (Daily)")
+        if not time_series:
+            return None
+
+        records = []
+        for date_str, values in time_series.items():
+            try:
+                date = datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                continue
+
+            if start and date < start:
+                continue
+            if end and date > end:
+                continue
+
+            records.append({
+                "date": date,
+                "open": float(values.get("1. open", 0)),
+                "high": float(values.get("2. high", 0)),
+                "low": float(values.get("3. low", 0)),
+                "close": float(values.get("4. close", 0)),
+                "adjusted_close": float(values.get("5. adjusted close", 0)),
+                "volume": int(values.get("6. volume", 0)),
+                "dividend_amount": float(values.get("7. dividend amount", 0)),
+                "split_coefficient": float(values.get("8. split coefficient", 0)),
+            })
+
+        if not records:
+            return None
+
+        df = pd.DataFrame(records)
+        df = df.set_index("date").sort_index()
+        # mypy: column assignment returns Any, but we know it's DataFrame
+        new_cols = [col.lower().replace(" ", "_") for col in df.columns]
+        df.columns = new_cols
+        return cast(pd.DataFrame, df)
+
+    def _parse_batch_response(
+        self, symbols: list[str], data: dict[str, Any]
+    ) -> dict[str, pd.DataFrame]:
+        """Parse BATCH_STOCK_PRICES response into per-symbol DataFrames."""
+        result = {}
+        stock_prices = data.get("Stock Prices", [])
+        for item in stock_prices:
+            symbol = item.get("1. symbol")
+            if symbol in symbols:
+                df = pd.DataFrame([{
+                    "date": datetime.now().date(),
+                    "open": float(item.get("2. open", 0)),
+                    "high": float(item.get("3. high", 0)),
+                    "low": float(item.get("4. low", 0)),
+                    "price": float(item.get("5. price", 0)),
+                    "volume": int(item.get("6. volume", 0)),
+                }])
+                df = df.set_index("date")
+                df.columns = [col.lower().replace(" ", "_") for col in df.columns]
+                result[symbol] = df
+        return result
+
+    def _fetch_single(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using TIME_SERIES_DAILY_ADJUSTED per symbol."""
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                params = self._build_daily_params(symbol)
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_daily_response(symbol, data, start, end)
+                if df is None or df.empty:
+                    logger.warning("No data found for %s", symbol)
+                    result.missing.append(symbol)
+                    continue
+
+                metadata = {"function": "TIME_SERIES_DAILY_ADJUSTED", "interval": interval}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_batch(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using BATCH_STOCK_PRICES endpoint (real-time quotes only)."""
+        result = FetchResult()
+        try:
+            params = self._build_batch_params(symbols)
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if "Error Message" in data:
+                raise ValueError(f"API error: {data['Error Message']}")
+            if "Note" in data:
+                raise RuntimeError(f"API rate limit: {data['Note']}")
+
+            parsed = self._parse_batch_response(symbols, data)
+            for symbol in symbols:
+                df = parsed.get(symbol)
+                if df is None or df.empty:
+                    logger.warning("No data found for %s", symbol)
+                    result.missing.append(symbol)
+                    continue
+                metadata = {"function": "BATCH_STOCK_PRICES", "interval": interval}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+            logger.error("Batch fetch error: %s", e)
+            for symbol in symbols:
+                if symbol not in result.data:
+                    result.errors[symbol] = e
+        return result
 
     def fetch(
         self,
@@ -332,7 +563,85 @@ class AlphaVantageProvider(DataProvider):
         end: datetime | None = None,
         interval: str = "1d",
     ) -> FetchResult:
-        raise NotImplementedError("Alpha Vantage provider not yet implemented")
+        """Fetch market data from Alpha Vantage.
+
+        For daily intervals, uses TIME_SERIES_DAILY_ADJUSTED per symbol.
+        For intraday or latest quotes, uses BATCH_STOCK_PRICES.
+        Uses disk caching if cache_dir is configured.
+        """
+        # Try cache first
+        if self._cache_dir:
+            key = self._cache_key(symbols, start, end, interval)
+            path = self._cache_path(key)
+            if self._is_cache_valid(path):
+                cached = self._load_cache(path)
+                if cached is not None:
+                    logger.debug("Cache hit for %s", key)
+                    return cached
+
+        # Use batch endpoint for real-time/intraday, daily endpoint for historical
+        if interval in ("1d", "daily"):
+            fetch_result = self._fetch_single(symbols, start, end, interval)
+        else:
+            # BATCH_STOCK_PRICES only returns latest quote, ignore start/end
+            fetch_result = self._fetch_batch(symbols, start, end, interval)
+
+        # Save to cache
+        if self._cache_dir:
+            key = self._cache_key(symbols, start, end, interval)
+            path = self._cache_path(key)
+            self._save_cache(path, fetch_result)
+            logger.debug("Cached result for %s", key)
+
+        return fetch_result
+
+    def fetch_many(
+        self,
+        requests: list[dict[str, Any]],
+    ) -> dict[str, FetchResult]:
+        """Fetch multiple requests using batched endpoints where possible.
+
+        Groups requests by interval. For daily intervals, fetches each symbol
+        individually (Alpha Vantage doesn't support batch historical).
+        For real-time, uses BATCH_STOCK_PRICES per group.
+        """
+        results: dict[str, FetchResult] = {}
+
+        groups: dict[str, list[tuple[list[str], datetime | None, datetime | None, str]]] = {}
+        for req in requests:
+            symbols = req.get("symbols", [])
+            start = req.get("start")
+            end = req.get("end")
+            interval = req.get("interval", "1d")
+            interval_key = interval
+            bucket = groups.get(interval_key, [])
+            bucket.append((symbols, start, end, interval))
+            groups[interval_key] = bucket
+
+        for interval, reqs in groups.items():
+            all_symbols = sorted({s for symbols, _, _, _ in reqs for s in symbols})
+            if interval in ("1d", "daily"):
+                # No batch historical endpoint; fall back to per-symbol
+                for symbols, start, end, interval in reqs:
+                    key = self._request_key(symbols, start, end, interval)
+                    results[key] = self.fetch(symbols, start, end, interval)
+            else:
+                # Batch real-time quotes
+                batch_result = self._fetch_batch(all_symbols, None, None, interval)
+                for symbols, start, end, interval in reqs:
+                    key = self._request_key(symbols, start, end, interval)
+                    sliced = FetchResult()
+                    for symbol in symbols:
+                        if symbol in batch_result.data:
+                            sliced.data[symbol] = batch_result.data[symbol]
+                        elif symbol in batch_result.errors:
+                            sliced.errors[symbol] = batch_result.errors[symbol]
+                        else:
+                            sliced.missing.append(symbol)
+                    results[key] = sliced
+
+        return results
 
     def fetch_latest(self, symbols: list[str]) -> FetchResult:
-        raise NotImplementedError("Alpha Vantage provider not yet implemented")
+        """Fetch latest market data (real-time quotes)."""
+        return self.fetch(symbols, interval="1m")

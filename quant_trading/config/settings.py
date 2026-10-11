@@ -80,9 +80,7 @@ class Config:
             data=DataConfig(**_filter_fields(DataConfig, data.get("data", {}))),
             backtest=BacktestConfig(**_filter_fields(BacktestConfig, data.get("backtest", {}))),
             risk=RiskConfig(**_filter_fields(RiskConfig, data.get("risk", {}))),
-            portfolio=PortfolioConfig(
-                **_filter_fields(PortfolioConfig, data.get("portfolio", {}))
-            ),
+            portfolio=PortfolioConfig(**_filter_fields(PortfolioConfig, data.get("portfolio", {}))),
             logging_level=data.get("logging_level", "INFO"),
             output_dir=data.get("output_dir", "./output"),
         )
