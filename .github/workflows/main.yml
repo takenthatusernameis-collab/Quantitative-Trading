@@ -150,11 +150,14 @@ jobs:
           command=$(cat <<'PROMPT'
           Execute the task assigned by the previous agent and prepare a task for the next agent !
 
-          Reliability rules:
+          Reliability rules (follow these before optimizing or redesigning anything):
+          - First preserve the current sequential workflow and make the smallest task-level change that can be verified. Do not redesign orchestration, add parallel sessions, or change workflow/permission policy to work around an ordinary task failure.
           - Before every tool call, check the exact schema, required arguments, and value types. After a rejection, inspect the actual error/schema, change the invalid argument, and never repeat an identical malformed call.
           - For network, provider, EOF, rate-limit, idle-timeout, and tool errors, preserve partial progress, classify the error, honor Retry-After/reset hints, use appropriate backoff, and change the approach before retrying. Do not amplify provider outages with parallel calls.
+          - CRITICAL REPEATED-FAILURE RULE: after the same approach fails 5 consecutive times for the same underlying problem, do not repeat it a sixth time unchanged. Stop that line of attempts, record the five observed failures and their evidence, identify a materially different approach, and add or use a deterministic barrier (precondition check, assertion, bounded retry/stop condition, regression test, or explicit human/next-session handoff) that prevents the same known failure loop. A wording change, another identical retry, or waiting and repeating does not count as a different approach. If a deterministic fix cannot be justified safely, stop and hand off rather than guessing.
           - Do not claim a test or log review passed without evidence. Reproduce the smallest failure, fix its root cause, rerun the focused check, then broader checks when useful.
-          - For SQLite, explicitly create and verify writable parent directories; do not delete existing databases to "fix" open errors. Keep runtime data out of commits.
+          - For SQLite open/migration errors, create and verify the writable parent directory BEFORE the first database access or migration; inspect configured database paths and permissions, and never delete an existing database as a workaround. Keep runtime data out of commits.
+          - For Alembic migration generation, verify the configured script_location and that the required script.py.mako template exists before generating a revision. If missing, restore/create the correct template deliberately and validate it; do not repeatedly rerun revision generation without the template. Remove generated trailing whitespace before strict diff checks, then rerun the check.
           - Validate exchange symbols/market-data availability before candle requests; do not retry deterministic invalid-symbol 400s unchanged. Distinguish permissions (401/403), quotas (429/402), transient 5xx, empty data, and malformed data.
           - Backtests must reset positions, cash, pending orders, equity, and model state per fold; zero-trade folds inherit nothing. Prevent lookahead/universe leakage and include fees, spread, slippage, depth, and fill assumptions.
           - Before checkpointing inspect status/diff; exclude environments, caches, databases, SQLite sidecars, and runtime logs; run git diff --check; protect .github/workflows and verify the remote commit after push.
@@ -170,6 +173,14 @@ jobs:
           fi
 
           echo "Repository default branch: $DEFAULT_BRANCH"
+
+          # Deterministic preflight for the reported SQLite failure: create the
+          # expected project data directory before any Kilo agent can run migrations.
+          # This is runtime preparation only; database files remain excluded from commits.
+          if ! mkdir -p data || [ ! -d data ] || [ ! -w data ]; then
+            echo "::error::Repository data directory is not available and writable; refusing to start sessions that would predictably fail SQLite access."
+            exit 1
+          fi
 
           heartbeat() {
             while true; do
