@@ -357,6 +357,22 @@ class AlphaVantageProvider(DataProvider):
     FX_INTRADAY_INTERVALS: ClassVar[set[str]] = {"fx_intraday", "fx_1m", "fx_5m", "fx_15m", "fx_30m", "fx_60m"}
     CRYPTO_INTERVALS: ClassVar[set[str]] = {"crypto_daily", "crypto_weekly", "crypto_monthly", "crypto_intraday"}
     DIGITAL_CURRENCY_INTERVALS: ClassVar[set[str]] = {"digital_daily", "digital_weekly", "digital_monthly", "digital_intraday"}
+    TECHNICAL_INDICATORS: ClassVar[set[str]] = {
+        "sma", "ema", "rsi", "macd", "stoch", "bbands", "adx", "cci", "roc", "willr",
+        "mom", "trix", "obv", "ad", "adxr", "aroondown", "aroonup", "atr", "cci",
+        "mfi", "ultosc", "vwap", "plus_di", "minus_di", "plus_dm", "minus_dm",
+        "cci", "rsi", "stochf", "stochrsi", "dx", "slowk", "slowd", "fastk", "fastd"
+    }
+    SECTOR_INTERVALS: ClassVar[set[str]] = {"sector", "sector_performance", "sectors"}
+    COMMODITIES_INTERVALS: ClassVar[set[str]] = {
+        "wti", "brent", "natural_gas", "copper", "aluminum", "gold", "silver", "corn", "wheat",
+        "cotton", "sugar", "coffee", "all_commodities"
+    }
+    ECONOMIC_INDICATORS: ClassVar[set[str]] = {
+        "gdp", "real_gdp", "gdp_per_capita", "cpi", "inflation", "retail_sales",
+        "durables", "unemployment", "nonfarm_payroll", "interest_rate", "fed_funds_rate",
+        "treasury_yield", "m2", "money_supply", "recession_prob"
+    }
 
     def __init__(
         self,
@@ -600,6 +616,29 @@ class AlphaVantageProvider(DataProvider):
             "apikey": self._api_key,
             "datatype": "json",
         }
+
+    def _build_technical_indicator_params(
+        self,
+        symbol: str,
+        indicator: str = "SMA",
+        interval: str = "daily",
+        time_period: int = 20,
+        series_type: str = "close",
+        **kwargs,
+    ) -> dict[str, str]:
+        """Build parameters for a technical indicator."""
+        params = {
+            "function": indicator.upper(),
+            "symbol": symbol,
+            "interval": interval,
+            "time_period": str(time_period),
+            "series_type": series_type,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+        for k, v in kwargs.items():
+            params[k] = str(v)
+        return params
 
     def _parse_intraday_response(
         self, symbol: str, data: dict[str, Any], start: datetime | None, end: datetime | None
@@ -939,6 +978,60 @@ class AlphaVantageProvider(DataProvider):
                 }
             )
         return results
+
+    def _parse_technical_indicator_response(
+        self, symbol: str, indicator: str, data: dict[str, Any], start: datetime | None, end: datetime | None
+    ) -> pd.DataFrame | None:
+        """Parse technical indicator response into DataFrame."""
+        # Look for key like "Technical Analysis: SMA"
+        ta_key = None
+        for key in data:
+            if "Technical Analysis" in key:
+                ta_key = key
+                break
+        if not ta_key:
+            return None
+
+        ta_data = data.get(ta_key)
+        if not ta_data:
+            return None
+
+        indicator_key = None
+        for key in ta_data:
+            if key.upper() == indicator.upper() or key == indicator:
+                indicator_key = key
+                break
+        if not indicator_key:
+            return None
+
+        series = ta_data.get(indicator_key)
+        if not series:
+            return None
+
+        records = []
+        date_format = "%Y-%m-%d"
+        for date_str, values in series.items():
+            try:
+                date = datetime.strptime(date_str, date_format)
+            except ValueError:
+                try:
+                    date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    continue
+            if start and date < start:
+                continue
+            if end and date > end:
+                continue
+            # Take first value
+            value_key = next(iter(values.keys())) if values else None
+            if value_key is not None:
+                records.append({"date": date, indicator.lower(): float(values[value_key])})
+
+        if not records:
+            return None
+        df = pd.DataFrame(records)
+        df = df.set_index("date").sort_index()
+        return cast(pd.DataFrame, df)
 
     def _parse_market_status_response(self, data: dict[str, Any]) -> pd.DataFrame | None:
         """Parse MARKET_STATUS response into DataFrame.
@@ -1514,8 +1607,8 @@ class AlphaVantageProvider(DataProvider):
         """Get real-time currency exchange rate using CURRENCY_EXCHANGE_RATE endpoint.
 
         Args:
-            from_currency: Source currency code (e.g., "USD")
-            to_currency: Target currency code (e.g., "EUR")
+            from_currency: The currency code to convert from (e.g., 'USD').
+            to_currency: The currency code to convert to (e.g., 'JPY').
 
         Returns:
             DataFrame with exchange rate information, or None on error.
@@ -1538,6 +1631,75 @@ class AlphaVantageProvider(DataProvider):
             return df
         except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
             logger.error("Error fetching currency exchange rate: %s", e)
+            return None
+
+    def get_technical_indicator(
+        self,
+        symbol: str,
+        indicator: str = "SMA",
+        interval: str = "daily",
+        time_period: int = 20,
+        series_type: str = "close",
+        **kwargs,
+    ) -> pd.DataFrame | None:
+        try:
+            params = self._build_technical_indicator_params(symbol, indicator=indicator, interval=interval, time_period=time_period, series_type=series_type, **kwargs)
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+            if "Error Message" in data:
+                logger.error("TECHNICAL_INDICATOR API error: %s", data["Error Message"])
+                return None
+            if "Note" in data:
+                logger.error("TECHNICAL_INDICATOR rate limit: %s", data["Note"])
+                return None
+            df = self._parse_technical_indicator_response(symbol, indicator, data, None, None)
+            return df
+        except (Exception as e):
+            logger.error("Error fetching technical indicator: %s", e)
+            return None
+
+    def get_sma(self, symbol: str, interval: str = "daily", time_period: int = 20, series_type: str = "close") -> pd.DataFrame | None:
+        return self.get_technical_indicator(symbol, indicator="SMA", interval=interval, time_period=time_period, series_type=series_type)
+
+    def get_ema(self, symbol: str, interval: str = "daily", time_period: int = 20, series_type: str = "close") -> pd.DataFrame | None:
+        return self.get_technical_indicator(symbol, indicator="EMA", interval=interval, time_period=time_period, series_type=series_type)
+
+    def get_rsi(self, symbol: str, interval: str = "daily", time_period: int = 14, series_type: str = "close") -> pd.DataFrame | None:
+        return self.get_technical_indicator(symbol, indicator="RSI", interval=interval, time_period=time_period, series_type=series_type)
+
+    def get_macd(self, symbol: str, interval: str = "daily", series_type: str = "close") -> pd.DataFrame | None:
+        return self.get_technical_indicator(symbol, indicator="MACD", interval=interval, series_type=series_type)
+
+    def get_stoch(self, symbol: str, interval: str = "daily") -> pd.DataFrame | None:
+        return self.get_technical_indicator(symbol, indicator="STOCH", interval=interval)
+
+    def get_bbands(self, symbol: str, interval: str = "daily", time_period: int = 20, series_type: str = "close") -> pd.DataFrame | None:
+        return self.get_technical_indicator(symbol, indicator="BBANDS", interval=interval, time_period=time_period, series_type=series_type)
+
+    def get_sector_performance(self) -> pd.DataFrame | None:
+        try:
+            params = {"function": "SECTOR", "apikey": self._api_key, "datatype": "json"}
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+            if "Error Message" in data or "Note" in data:
+                return None
+            # Flatten sector performance - collect all sector keys
+            df_data = []
+            for key in ["Rank A: Real-Time Performance", "Rank B: 1 Day Performance", "Rank C: 5 Day Performance",
+                        "Rank D: 1 Month Performance", "Rank E: 3 Month Performance", "Rank F: Year-to-Date (YTD) Performance",
+                        "Rank G: 1 Year Performance", "Rank H: 3 Year Performance", "Rank I: 5 Year Performance",
+                        "Rank J: 10 Year Performance"]:
+                if key in data:
+                    for sector, perf in data[key].items():
+                        df_data.append({"sector": sector, "period": key.replace("Rank ", "").replace(" Performance", ""), "performance": perf})
+            if not df_data:
+                return None
+            df = pd.DataFrame(df_data)
+            return df
+        except Exception as e:
+            logger.error("Error fetching sector performance: %s", e)
             return None
 
     def _fetch_market_status(
@@ -1817,6 +1979,56 @@ class AlphaVantageProvider(DataProvider):
                 )
             except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
                 logger.error("Error fetching crypto intraday for %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_technical_indicator(
+        self,
+        symbols: list[str],
+        start: datetime | None,
+        end: datetime | None,
+        interval: str,
+        indicator: str = "SMA",
+    ) -> FetchResult:
+        result = FetchResult()
+        av_interval = self.INTRADAY_INTERVALS.get(interval, interval) if interval in self.INTRADAY_INTERVALS else interval
+        # map common intervals
+        if interval in ("1m", "1h"):
+            av_interval = self.INTRADAY_INTERVALS.get(interval, interval)
+        elif interval in ("1d", "daily"):
+            av_interval = "daily"
+        elif interval in ("1w", "weekly"):
+            av_interval = "weekly"
+        elif interval in ("1mo", "monthly"):
+            av_interval = "monthly"
+        else:
+            av_interval = interval
+
+        for symbol in symbols:
+            try:
+                params = self._build_technical_indicator_params(symbol, indicator=indicator.upper(), interval=av_interval)
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+                df = self._parse_technical_indicator_response(symbol, indicator, data, start, end)
+                if df is None or df.empty:
+                    logger.warning("No technical indicator data found for %s", symbol)
+                    result.missing.append(symbol)
+                    continue
+                metadata = {"function": indicator.upper(), "interval": interval, "symbol": symbol}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching technical indicator for %s: %s", symbol, e)
                 result.errors[symbol] = e
         return result
 
