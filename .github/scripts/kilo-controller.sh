@@ -10,8 +10,8 @@ export TMPDIR="$RUNNER_TEMP/kilo-tmp"
 mkdir -p "$XDG_CONFIG_HOME/kilo" "$XDG_DATA_HOME/kilo" "$XDG_CACHE_HOME/kilo" "$TMPDIR" "$RUNNER_TEMP/kilo"
 for directory in "$HOME" "$XDG_CONFIG_HOME/kilo" "$XDG_DATA_HOME/kilo" "$XDG_CACHE_HOME/kilo" "$TMPDIR" "$RUNNER_TEMP/kilo"; do
   if ! ( : > "$directory/.kilo-write-test" ) 2>/dev/null; then
-    echo "::warning::Runtime directory is not writable: $directory; continuing with a clean no-op rather than a hard workflow failure."
-    exit 0
+    echo "::error::Runtime directory is not writable: $directory."
+    exit 1
   fi
   rm -f "$directory/.kilo-write-test"
 done
@@ -36,7 +36,7 @@ if [ "$one_shot_mode" -eq 1 ]; then
   fi
 fi
 
-if [ "$one_shot_mode" -eq 0 ] && [ -f ".kilo/SKIP_NEXT_ROUTINE_KILO" ]; then
+if [ "$one_shot_mode" -eq 0 ] && [ "${GITHUB_EVENT_NAME:-${KILO_TRIGGER_EVENT:-}}" = "schedule" ] && [ -f ".kilo/SKIP_NEXT_ROUTINE_KILO" ]; then
   echo "::notice::Consuming the one-time post-smoke skip; this activation will not start Kilo."
   git config user.name "kilo-autonomous"
   git config user.email "kilo-autonomous@users.noreply.github.com"
@@ -84,8 +84,8 @@ until timeout --signal=TERM --kill-after=10s 180s npm install --no-audit --no-fu
   install_attempt=$((install_attempt + 1))
   remaining=$((cutoff_epoch - $(date +%s)))
   if [ "$remaining" -le 0 ]; then
-    echo "::warning::Kilo installation did not recover before the 355-minute cutoff; no agent session was started."
-    exit 0
+    echo "::error::Kilo installation did not recover before the 355-minute cutoff; no agent session was started."
+    exit 1
   fi
   delay="$install_backoff"
   if [ "$remaining" -lt "$delay" ]; then delay="$remaining"; fi
@@ -252,7 +252,17 @@ for agent_index in $(seq 1 "$agents"); do
     rc=${PIPESTATUS[0]}
     set -e
     if [ "$rc" -eq 0 ]; then break; fi
-    if [ "$rc" -ne 124 ] && [ "$rc" -ne 137 ] && [ "$session_attempt" -lt 3 ] && grep -Eiq 'Upstream idle timeout exceeded|upstream.{0,40}idle.{0,40}timeout|ECONNRESET|socket hang up|fetch failed' "$attempt_log"; then
+    normalized_attempt_log="$attempt_log.normalized"
+    python - "$attempt_log" "$normalized_attempt_log" <<'PY'
+import re
+import sys
+from pathlib import Path
+source, target = map(Path, sys.argv[1:3])
+text = source.read_text(encoding="utf-8", errors="replace")
+text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", text)
+target.write_text(text, encoding="utf-8")
+PY
+    if [ "$rc" -ne 124 ] && [ "$rc" -ne 137 ] && [ "$session_attempt" -lt 3 ] && grep -Eiq 'Upstream idle timeout exceeded|upstream.{0,40}idle.{0,40}timeout|ECONNRESET|socket hang up|fetch failed' "$normalized_attempt_log"; then
       idle_timeout_retry_count=$((idle_timeout_retry_count + 1))
       retry_delay=$((15 * session_attempt))
       remaining_global=$((cutoff_epoch - $(date +%s)))
