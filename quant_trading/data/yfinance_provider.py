@@ -2474,6 +2474,7 @@ class AlphaVantageProvider(DataProvider):
         start: datetime | None = None,
         end: datetime | None = None,
         interval: str = "1d",
+        **kwargs,
     ) -> FetchResult:
         """Fetch market data from Alpha Vantage.
 
@@ -2502,6 +2503,10 @@ class AlphaVantageProvider(DataProvider):
         - Batch Quotes: any other interval -> BATCH_STOCK_PRICES
 
         Uses disk caching if cache_dir is configured.
+
+        For technical indicators (interval in TECHNICAL_INDICATORS), the optional
+        keyword argument ``ti_interval`` specifies the time-series resolution
+        (e.g., "daily", "5min", "weekly", "monthly"). Defaults to "daily".
         """
         # Try cache first
         if self._cache_dir:
@@ -2566,9 +2571,10 @@ class AlphaVantageProvider(DataProvider):
         elif is_technical:
             # Technical-indicator intervals pass the indicator name (e.g. "sma",
             # "rsi") as the interval; the underlying time-series resolution
-            # defaults to daily.
+            # can be specified via ti_interval kwarg (default: "daily").
+            ti_interval = kwargs.get("ti_interval", "daily")
             fetch_result = self._fetch_technical_indicator(
-                symbols, start, end, "1d", indicator=interval
+                symbols, start, end, ti_interval, indicator=interval
             )
         else:
             # BATCH_STOCK_PRICES only returns latest quote, ignore start/end
@@ -2576,7 +2582,11 @@ class AlphaVantageProvider(DataProvider):
 
         # Save to cache
         if self._cache_dir:
-            key = self._cache_key(symbols, start, end, interval)
+            cache_interval = interval
+            if is_technical:
+                ti_interval = kwargs.get("ti_interval", "daily")
+                cache_interval = f"{interval}:{ti_interval}"
+            key = self._cache_key(symbols, start, end, cache_interval)
             path = self._cache_path(key)
             self._save_cache(path, fetch_result)
             logger.debug("Cached result for %s", key)
@@ -2590,7 +2600,7 @@ class AlphaVantageProvider(DataProvider):
         """Fetch multiple requests using batched endpoints where possible.
 
         Groups requests by interval. For daily/weekly/monthly intervals, fetches each symbol
-        individually (Alpha Vantage doesn't support batch historical).
+        individually (Alpha Vantage does not support batch historical).
         For intraday intervals, fetches each symbol individually via TIME_SERIES_INTRADAY.
         For real-time quotes, uses BATCH_STOCK_PRICES per group.
         For global quote, fetches per symbol via GLOBAL_QUOTE endpoint.
@@ -2599,19 +2609,21 @@ class AlphaVantageProvider(DataProvider):
         """
         results: dict[str, FetchResult] = {}
 
-        groups: dict[str, list[tuple[list[str], datetime | None, datetime | None, str]]] = {}
+        groups: dict[str, list[tuple[list[str], datetime | None, datetime | None, str, dict[str, Any]]]] = {}
         for req in requests:
             symbols = req.get("symbols", [])
             start = req.get("start")
             end = req.get("end")
             interval = req.get("interval", "1d")
+            # Extract any extra kwargs (e.g., ti_interval for technical indicators)
+            extra_kwargs = {k: v for k, v in req.items() if k not in ("symbols", "start", "end", "interval")}
             interval_key = interval
             bucket = groups.get(interval_key, [])
-            bucket.append((symbols, start, end, interval))
+            bucket.append((symbols, start, end, interval, extra_kwargs))
             groups[interval_key] = bucket
 
         for interval, reqs in groups.items():
-            all_symbols = sorted({s for symbols, _, _, _ in reqs for s in symbols})
+            all_symbols = sorted({s for symbols, _, _, _, _ in reqs for s in symbols})
             is_intraday = interval in self.INTRADAY_INTERVALS
             is_weekly = interval in self.WEEKLY_INTERVALS
             is_monthly = interval in self.MONTHLY_INTERVALS
@@ -2628,29 +2640,29 @@ class AlphaVantageProvider(DataProvider):
 
             if interval in ("1d", "daily", "1wa", "weekly_adjusted") or is_weekly or is_monthly:
                 # No batch historical endpoint; fall back to per-symbol
-                for symbols, start, end, interval in reqs:
+                for symbols, start, end, interval, extra_kwargs in reqs:
                     key = self._request_key(symbols, start, end, interval)
-                    results[key] = self.fetch(symbols, start, end, interval)
+                    results[key] = self.fetch(symbols, start, end, interval, **extra_kwargs)
             elif is_intraday:
                 # No batch historical intraday endpoint; fall back to per-symbol
-                for symbols, start, end, interval in reqs:
+                for symbols, start, end, interval, extra_kwargs in reqs:
                     key = self._request_key(symbols, start, end, interval)
-                    results[key] = self.fetch(symbols, start, end, interval)
+                    results[key] = self.fetch(symbols, start, end, interval, **extra_kwargs)
             elif is_quote:
                 # GLOBAL_QUOTE is per-symbol; fall back to per-symbol
-                for symbols, start, end, interval in reqs:
+                for symbols, start, end, interval, extra_kwargs in reqs:
                     key = self._request_key(symbols, start, end, interval)
-                    results[key] = self.fetch(symbols, start, end, interval)
+                    results[key] = self.fetch(symbols, start, end, interval, **extra_kwargs)
             elif is_market_status or is_sector or is_commodity or is_economic or is_fx_daily or is_fx_intraday or is_crypto or is_digital or is_technical:
                 # These endpoints are per-symbol/pair or single global result;
                 # fall back to per-symbol
-                for symbols, start, end, interval in reqs:
+                for symbols, start, end, interval, extra_kwargs in reqs:
                     key = self._request_key(symbols, start, end, interval)
-                    results[key] = self.fetch(symbols, start, end, interval)
+                    results[key] = self.fetch(symbols, start, end, interval, **extra_kwargs)
             else:
                 # Batch real-time quotes
                 batch_result = self._fetch_batch(all_symbols, None, None, interval)
-                for symbols, start, end, interval in reqs:
+                for symbols, start, end, interval, extra_kwargs in reqs:
                     key = self._request_key(symbols, start, end, interval)
                     sliced = FetchResult()
                     for symbol in symbols:

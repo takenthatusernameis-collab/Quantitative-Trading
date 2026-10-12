@@ -2274,12 +2274,107 @@ class TestAlphaVantageProvider:
             assert not result.missing
             md = result.data["AAPL"]
             assert md.metadata.get("function") == "SMA"
-            assert md.metadata.get("interval") == "1d"
+            assert md.metadata.get("interval") == "daily"
             assert list(md.data.columns) == ["sma"]
             mock_get.assert_called_once()
             params = mock_get.call_args.kwargs.get("params", {})
             assert params["function"] == "SMA"
             assert params["interval"] == "daily"
+
+    def test_fetch_technical_indicator_intraday(self, provider):
+        """Test fetch with intraday ti_interval for technical indicators."""
+        intraday_ti_response = {
+            "Meta Data": {
+                "1. Information": "SMA (20)",
+                "2. Symbol": "AAPL",
+                "3. Indicator": "SMA",
+                "4. Time Period": "20",
+                "5. Time Zone": "US/Eastern",
+            },
+            "Technical Analysis: SMA": {
+                "SMA": {
+                    "2024-01-15 19:55:00": {"SMA": "185.50"},
+                    "2024-01-15 19:50:00": {"SMA": "183.20"},
+                }
+            },
+        }
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(intraday_ti_response)
+
+            result = provider.fetch(["AAPL"], interval="sma", ti_interval="5min")
+
+            assert "AAPL" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["AAPL"]
+            assert md.metadata.get("function") == "SMA"
+            assert md.metadata.get("interval") == "5min"
+            assert list(md.data.columns) == ["sma"]
+            mock_get.assert_called_once()
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "SMA"
+            assert params["interval"] == "5min"
+
+    def test_fetch_technical_indicator_weekly(self, provider):
+        """Test fetch with weekly ti_interval for technical indicators."""
+        weekly_ti_response = {
+            "Meta Data": {
+                "1. Information": "RSI (14)",
+                "2. Symbol": "AAPL",
+                "3. Indicator": "RSI",
+                "4. Time Period": "14",
+                "5. Time Zone": "US/Eastern",
+            },
+            "Technical Analysis: RSI": {
+                "RSI": {
+                    "2024-01-12": {"RSI": "65.50"},
+                    "2024-01-05": {"RSI": "62.30"},
+                }
+            },
+        }
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(weekly_ti_response)
+
+            result = provider.fetch(["AAPL"], interval="rsi", ti_interval="weekly")
+
+            assert "AAPL" in result.data
+            md = result.data["AAPL"]
+            assert md.metadata.get("function") == "RSI"
+            assert md.metadata.get("interval") == "weekly"
+            assert list(md.data.columns) == ["rsi"]
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "RSI"
+            assert params["interval"] == "weekly"
+
+    def test_fetch_many_technical_indicator_with_ti_interval(self, provider):
+        """Test fetch_many passes ti_interval to technical indicator fetch."""
+        intraday_ti_response = {
+            "Meta Data": {
+                "1. Information": "SMA (20)",
+                "2. Symbol": "AAPL",
+                "3. Indicator": "SMA",
+                "4. Time Period": "20",
+                "5. Time Zone": "US/Eastern",
+            },
+            "Technical Analysis: SMA": {
+                "SMA": {
+                    "2024-01-15 19:55:00": {"SMA": "185.50"},
+                    "2024-01-15 19:50:00": {"SMA": "183.20"},
+                }
+            },
+        }
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(intraday_ti_response)
+
+            requests = [{"symbols": ["AAPL"], "interval": "sma", "ti_interval": "5min"}]
+            results = provider.fetch_many(requests)
+
+            assert len(results) == 1
+            key = next(iter(results.keys()))
+            md = results[key].data["AAPL"]
+            assert md.metadata.get("interval") == "5min"
+            assert list(md.data.columns) == ["sma"]
+            mock_get.assert_called_once()
 
     def test_technical_indicators_set(self, provider):
         """Test TECHNICAL_INDICATORS set contains expected indicators."""
