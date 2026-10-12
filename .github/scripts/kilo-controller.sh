@@ -221,35 +221,21 @@ for agent_index in $(seq 1 "$agents"); do
     cutoff=1
     break
   fi
-  session_timeout="$remaining"
-  # In the guarded two-agent run, reserve half of the remaining budget
-  # for each still-unstarted session. A fast first session gives its
-  # unused time back to the overall pool for the second session.
-  if [ "$one_shot_mode" -eq 1 ]; then
-    sessions_remaining=$((agents - agent_index + 1))
-    session_timeout=$((remaining / sessions_remaining))
-    if [ "$session_timeout" -lt 1 ]; then
-      echo "::warning::Insufficient safety budget remains to start the next one-shot session."
-      cutoff=1
-      break
-    fi
-  fi
   WORKFLOW_BASE_SHA="$(git rev-parse HEAD)"
   session_log="$RUNNER_TEMP/kilo-session-${agent_index}.log"
   : > "$session_log"
   provider_pressure=0
-  session_deadline=$(($(date +%s) + session_timeout))
   transient_retry_backoff=15
   session_attempt=0
   echo "Starting sequential Kilo session ${agent_index}/${agents}; remaining safety budget ${remaining}s."
   while true; do
     session_attempt=$((session_attempt + 1))
     attempt_log="$RUNNER_TEMP/kilo-session-${agent_index}-attempt-${session_attempt}.log"
-    remaining_session=$((session_deadline - $(date +%s)))
-    if [ "$remaining_session" -le 0 ]; then rc=124; echo "::warning::Session time budget exhausted before attempt ${session_attempt}."; break; fi
+    remaining_global=$((cutoff_epoch - $(date +%s)))
+    if [ "$remaining_global" -le 0 ]; then rc=124; echo "::warning::355-minute workflow cutoff reached before attempt ${session_attempt}."; break; fi
     echo "Kilo invocation attempt ${session_attempt} for session ${agent_index}; transient upstream failures retry without an attempt-count limit."
     set +e
-    timeout --signal=TERM --kill-after=10s "${remaining_session}s" kilo run --model kilo/kilo-auto/free --auto "$command" 2>&1 | tee "$attempt_log" | tee -a "$session_log"
+    timeout --signal=TERM --kill-after=10s "${remaining_global}s" kilo run --model kilo/kilo-auto/free --auto "$command" 2>&1 | tee "$attempt_log" | tee -a "$session_log"
     rc=${PIPESTATUS[0]}
     set -e
     if [ "$rc" -eq 0 ]; then break; fi
@@ -267,9 +253,8 @@ PY
       idle_timeout_retry_count=$((idle_timeout_retry_count + 1))
       retry_delay="$transient_retry_backoff"
       remaining_global=$((cutoff_epoch - $(date +%s)))
-      remaining_session=$((session_deadline - $(date +%s)))
-      if [ "$remaining_global" -le "$retry_delay" ] || [ "$remaining_session" -le "$retry_delay" ]; then echo "::warning::Transient upstream/network failure detected, but insufficient budget remains for another attempt."; break; fi
-      echo "::warning::Transient upstream/network failure in session ${agent_index}; retry #${idle_timeout_retry_count} after ${retry_delay}s. No attempt-count limit; retries continue until the session/workflow time budget is exhausted."
+      if [ "$remaining_global" -le "$retry_delay" ]; then echo "::warning::Transient upstream/network failure detected, but insufficient workflow time remains for another retry."; break; fi
+      echo "::warning::Transient upstream/network failure in session ${agent_index}; retry #${idle_timeout_retry_count} after ${retry_delay}s. No attempt-count limit; retries continue until the 355-minute workflow cutoff."
       sleep "$retry_delay"
       if [ "$transient_retry_backoff" -lt 300 ]; then
         transient_retry_backoff=$((transient_retry_backoff * 2))
@@ -298,7 +283,7 @@ PY
     else
       consecutive_failures=$((consecutive_failures + 1))
       failed_sessions=$((failed_sessions + 1))
-      echo "::warning::Session reached the current safety deadline or was terminated (failure streak: $consecutive_failures); continuing with a fresh session when time remains."
+      echo "::warning::Kilo invocation returned timeout status before the global cutoff or was terminated (failure streak: $consecutive_failures); continuing with a fresh session when time remains."
     fi
   elif [ "$rc" -ne 0 ]; then
     consecutive_failures=$((consecutive_failures + 1))
