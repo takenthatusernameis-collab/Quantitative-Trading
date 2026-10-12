@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/main.yml"
       - ".github/workflows/kilo-workflow-audit.yml"
+      - ".github/scripts/kilo-controller.sh"
   workflow_dispatch:
 
 permissions:
@@ -20,13 +21,11 @@ jobs:
       - name: Validate Kilo workflow syntax and schema
         uses: rhysd/actionlint@v1.7.7
         with:
-          args: -color .github/workflows/main.yml
+          args: -color .github/workflows/main.yml .github/workflows/kilo-workflow-audit.yml
       - name: Independent YAML parse
         shell: bash
         run: |
           ruby -e 'require "yaml"; YAML.load_file(".github/workflows/main.yml"); puts "Kilo workflow YAML: OK"'
-      - name: Validate embedded Kilo shell syntax
+      - name: Validate extracted Kilo controller Bash syntax
         shell: bash
-        run: |
-          ruby -ryaml -e 'doc = YAML.load_file(".github/workflows/main.yml"); script = doc.fetch("jobs").fetch("kilo").fetch("steps").find { |step| step["run"] }.fetch("run"); script = script.gsub(/\$\{\{.*?\}\}/, "2"); File.write(File.join(ENV.fetch("RUNNER_TEMP"), "kilo-main.sh"), script)'
-          bash -n "$RUNNER_TEMP/kilo-main.sh"
+        run: bash -n .github/scripts/kilo-controller.sh
