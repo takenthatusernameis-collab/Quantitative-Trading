@@ -365,13 +365,42 @@ class AlphaVantageProvider(DataProvider):
     }
     SECTOR_INTERVALS: ClassVar[set[str]] = {"sector", "sector_performance", "sectors"}
     COMMODITIES_INTERVALS: ClassVar[set[str]] = {
-        "wti", "brent", "natural_gas", "copper", "aluminum", "gold", "silver", "corn", "wheat",
-        "cotton", "sugar", "coffee", "all_commodities"
+        "wti", "brent", "natural_gas", "copper", "aluminum", "corn", "wheat",
+        "cotton", "sugar", "coffee", "all_commodities",
+    }
+    GOLD_INTERVALS: ClassVar[set[str]] = {"gold", "silver"}
+    COMMODITY_FUNCTION_MAP: ClassVar[dict[str, str]] = {
+        "wti": "WTI",
+        "brent": "BRENT",
+        "natural_gas": "NATURAL_GAS",
+        "copper": "COPPER",
+        "aluminum": "ALUMINUM",
+        "corn": "CORN",
+        "wheat": "WHEAT",
+        "cotton": "COTTON",
+        "sugar": "SUGAR",
+        "coffee": "COFFEE",
+        "all_commodities": "ALL_COMMODITIES",
     }
     ECONOMIC_INDICATORS: ClassVar[set[str]] = {
         "gdp", "real_gdp", "gdp_per_capita", "cpi", "inflation", "retail_sales",
-        "durables", "unemployment", "nonfarm_payroll", "interest_rate", "fed_funds_rate",
-        "treasury_yield", "m2", "money_supply", "recession_prob"
+        "durables", "unemployment", "nonfarm_payroll", "interest_rate",
+        "fed_funds_rate", "treasury_yield", "consumer_sentiment",
+    }
+    ECONOMIC_FUNCTION_MAP: ClassVar[dict[str, str]] = {
+        "gdp": "REAL_GDP",
+        "real_gdp": "REAL_GDP",
+        "gdp_per_capita": "REAL_GDP_PER_CAPITA",
+        "cpi": "CPI",
+        "inflation": "INFLATION",
+        "retail_sales": "RETAIL_SALES",
+        "durables": "DURABLES",
+        "unemployment": "UNEMPLOYMENT",
+        "nonfarm_payroll": "NONFARM_PAYROLL",
+        "interest_rate": "FEDERAL_FUNDS_RATE",
+        "fed_funds_rate": "FEDERAL_FUNDS_RATE",
+        "treasury_yield": "TREASURY_YIELD",
+        "consumer_sentiment": "CONSUMER_SENTIMENT",
     }
 
     def __init__(
@@ -543,6 +572,67 @@ class AlphaVantageProvider(DataProvider):
             "apikey": self._api_key,
             "datatype": "json",
         }
+
+    def _build_sector_params(self) -> dict[str, str]:
+        """Build parameters for SECTOR_PERFORMANCE endpoint."""
+        return {
+            "function": "SECTOR",
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_gold_spot_params(self, symbol: str) -> dict[str, str]:
+        """Build parameters for GOLD_SILVER_SPOT endpoint."""
+        return {
+            "function": "GOLD_SILVER_SPOT",
+            "symbol": symbol,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_gold_history_params(self, symbol: str, interval: str = "daily") -> dict[str, str]:
+        """Build parameters for GOLD_SILVER_HISTORY endpoint."""
+        return {
+            "function": "GOLD_SILVER_HISTORY",
+            "symbol": symbol,
+            "interval": interval,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+
+    def _build_commodity_params(self, function: str, interval: str = "monthly") -> dict[str, str]:
+        """Build parameters for a commodity endpoint (WTI, BRENT, COPPER, etc.).
+
+        The commodity functions accept an ``interval`` argument whose valid
+        values depend on the commodity (daily/weekly/monthly for energy,
+        monthly/quarterly/annual for metals and agriculture).
+        """
+        params: dict[str, str] = {
+            "function": function,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+        if interval:
+            params["interval"] = interval
+        return params
+
+    def _build_economic_indicator_params(self, function: str, **kwargs) -> dict[str, str]:
+        """Build parameters for an economic indicator endpoint.
+
+        Most economic indicators accept only ``apikey``/``datatype``; a few
+        (REAL_GDP, CPI, FEDERAL_FUNDS_RATE, TREASURY_YIELD) accept an
+        ``interval`` and, for TREASURY_YIELD, a ``maturity``. Extra keyword
+        arguments are forwarded verbatim.
+        """
+        params: dict[str, str] = {
+            "function": function,
+            "apikey": self._api_key,
+            "datatype": "json",
+        }
+        for key, value in kwargs.items():
+            if value is not None:
+                params[key] = str(value)
+        return params
 
     def _build_fx_daily_params(self, from_symbol: str, to_symbol: str) -> dict[str, str]:
         """Build parameters for FX_DAILY endpoint."""
@@ -1255,6 +1345,89 @@ class AlphaVantageProvider(DataProvider):
         df.columns = new_cols
         return cast(pd.DataFrame, df)
 
+    def _parse_single_series_response(
+        self, data: dict[str, Any], start: datetime | None, end: datetime | None
+    ) -> pd.DataFrame | None:
+        """Parse the commodity/economic indicator response envelope.
+
+        These endpoints return::
+
+            {"name": "...", "interval": "...", "unit": "...",
+             "data": [{"date": "YYYY-MM-DD", "value": "123.4"}, ...]}
+
+        Returns a DataFrame indexed by date with a single ``value`` column,
+        or None when no series is present.
+        """
+        series = data.get("data")
+        if not series:
+            return None
+
+        records = []
+        for item in series:
+            date_str = item.get("date")
+            if not date_str:
+                continue
+            try:
+                date = datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                try:
+                    date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    continue
+            if start and date < start:
+                continue
+            if end and date > end:
+                continue
+            value = item.get("value")
+            if value is None or value == ".":
+                continue
+            try:
+                records.append({"date": date, "value": float(value)})
+            except (TypeError, ValueError):
+                continue
+
+        if not records:
+            return None
+
+        df = pd.DataFrame(records)
+        df = df.set_index("date").sort_index()
+        return cast(pd.DataFrame, df)
+
+    def _parse_sector_performance_response(self, data: dict[str, Any]) -> pd.DataFrame | None:
+        """Parse SECTOR_PERFORMANCE (function=SECTOR) response into DataFrame.
+
+        The response is a mapping of rank keys (e.g. "Rank A: Real-Time
+        Performance") to a dict of ``sector -> performance``. The returned
+        DataFrame has columns ``sector``, ``period``, ``performance``.
+        """
+        if not data:
+            return None
+
+        rank_keys = [k for k in data if k.startswith("Rank ")]
+        if not rank_keys:
+            return None
+
+        records = []
+        for key in rank_keys:
+            # "Rank A: Real-Time Performance" -> "A: Real-Time"
+            period = key.replace("Rank ", "").replace(" Performance", "")
+            sectors = data.get(key)
+            if not isinstance(sectors, dict):
+                continue
+            for sector, perf in sectors.items():
+                try:
+                    records.append(
+                        {"sector": sector, "period": period, "performance": float(perf)}
+                    )
+                except (TypeError, ValueError):
+                    continue
+
+        if not records:
+            return None
+
+        df = pd.DataFrame(records)
+        return cast(pd.DataFrame, df)
+
     def _fetch_single(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
@@ -1678,29 +1851,200 @@ class AlphaVantageProvider(DataProvider):
         return self.get_technical_indicator(symbol, indicator="BBANDS", interval=interval, time_period=time_period, series_type=series_type)
 
     def get_sector_performance(self) -> pd.DataFrame | None:
+        """Get sector performance rankings using the SECTOR endpoint.
+
+        Returns:
+            DataFrame with columns ``sector``, ``period``, ``performance``,
+            or None on error.
+        """
         try:
-            params = {"function": "SECTOR", "apikey": self._api_key, "datatype": "json"}
+            params = self._build_sector_params()
             resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
             resp.raise_for_status()
             data = resp.json()
-            if "Error Message" in data or "Note" in data:
+
+            if "Error Message" in data:
+                logger.error("SECTOR API error: %s", data["Error Message"])
                 return None
-            # Flatten sector performance - collect all sector keys
-            df_data = []
-            for key in ["Rank A: Real-Time Performance", "Rank B: 1 Day Performance", "Rank C: 5 Day Performance",
-                        "Rank D: 1 Month Performance", "Rank E: 3 Month Performance", "Rank F: Year-to-Date (YTD) Performance",
-                        "Rank G: 1 Year Performance", "Rank H: 3 Year Performance", "Rank I: 5 Year Performance",
-                        "Rank J: 10 Year Performance"]:
-                if key in data:
-                    for sector, perf in data[key].items():
-                        df_data.append({"sector": sector, "period": key.replace("Rank ", "").replace(" Performance", ""), "performance": perf})
-            if not df_data:
+            if "Note" in data:
+                logger.error("SECTOR rate limit: %s", data["Note"])
                 return None
-            df = pd.DataFrame(df_data)
-            return cast(pd.DataFrame, df)
+
+            df = self._parse_sector_performance_response(data)
+            logger.debug("SECTOR returned %d sector/period rows", len(df) if df is not None else 0)
+            return df
         except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
             logger.error("Error fetching sector performance: %s", e)
             return None
+
+    def get_gold_spot(self, symbol: str = "GOLD") -> pd.DataFrame | None:
+        """Get live gold/silver spot price using GOLD_SILVER_SPOT endpoint.
+
+        Args:
+            symbol: "GOLD" or "XAU" for gold, "SILVER" or "XAG" for silver.
+
+        Returns:
+            DataFrame with a single row of spot price data, or None on error.
+        """
+        try:
+            params = self._build_gold_spot_params(symbol)
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if "Error Message" in data:
+                logger.error("GOLD_SILVER_SPOT API error: %s", data["Error Message"])
+                return None
+            if "Note" in data:
+                logger.error("GOLD_SILVER_SPOT rate limit: %s", data["Note"])
+                return None
+
+            df = self._parse_single_series_response(data, None, None)
+            logger.debug("GOLD_SILVER_SPOT %s: %s", symbol, "success" if df is not None else "failed")
+            return df
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+            logger.error("Error fetching gold/silver spot: %s", e)
+            return None
+
+    def get_gold_history(self, symbol: str = "GOLD", interval: str = "daily") -> pd.DataFrame | None:
+        """Get historical gold/silver prices using GOLD_SILVER_HISTORY endpoint.
+
+        Args:
+            symbol: "GOLD" or "XAU" for gold, "SILVER" or "XAG" for silver.
+            interval: "daily", "weekly", or "monthly".
+
+        Returns:
+            DataFrame indexed by date with a ``value`` column, or None on error.
+        """
+        try:
+            params = self._build_gold_history_params(symbol, interval=interval)
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if "Error Message" in data:
+                logger.error("GOLD_SILVER_HISTORY API error: %s", data["Error Message"])
+                return None
+            if "Note" in data:
+                logger.error("GOLD_SILVER_HISTORY rate limit: %s", data["Note"])
+                return None
+
+            df = self._parse_single_series_response(data, None, None)
+            logger.debug("GOLD_SILVER_HISTORY %s/%s: %s", symbol, interval, "success" if df is not None else "failed")
+            return df
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+            logger.error("Error fetching gold/silver history: %s", e)
+            return None
+
+    def get_commodity(self, function: str, interval: str = "monthly") -> pd.DataFrame | None:
+        """Get commodity price data (WTI, BRENT, COPPER, etc.).
+
+        Args:
+            function: Commodity function name (e.g. "WTI", "BRENT", "COPPER",
+                "GOLD" via get_gold_history, "ALL_COMMODITIES").
+            interval: Frequency of returned time series. Energy commodities
+                accept "daily"/"weekly"/"monthly"; metals and agriculture
+                accept "monthly"/"quarterly"/"annual".
+
+        Returns:
+            DataFrame indexed by date with a ``value`` column, or None on error.
+        """
+        try:
+            params = self._build_commodity_params(function, interval=interval)
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if "Error Message" in data:
+                logger.error("%s API error: %s", function, data["Error Message"])
+                return None
+            if "Note" in data:
+                logger.error("%s rate limit: %s", function, data["Note"])
+                return None
+
+            df = self._parse_single_series_response(data, None, None)
+            logger.debug("%s/%s: %s", function, interval, "success" if df is not None else "failed")
+            return df
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+            logger.error("Error fetching commodity %s: %s", function, e)
+            return None
+
+    def get_economic_indicator(self, function: str, interval: str | None = None, **kwargs) -> pd.DataFrame | None:
+        """Get an economic indicator (REAL_GDP, CPI, UNEMPLOYMENT, etc.).
+
+        Args:
+            function: Economic indicator function name (e.g. "REAL_GDP",
+                "CPI", "UNEMPLOYMENT", "FEDERAL_FUNDS_RATE", "TREASURY_YIELD").
+            interval: Optional interval (e.g. "quarterly"/"annual" for
+                REAL_GDP, "monthly"/"semiannual" for CPI,
+                "daily"/"weekly"/"monthly" for FEDERAL_FUNDS_RATE).
+            **kwargs: Additional params such as ``maturity`` for
+                TREASURY_YIELD (e.g. "3month", "10year").
+
+        Returns:
+            DataFrame indexed by date with a ``value`` column, or None on error.
+        """
+        try:
+            params = self._build_economic_indicator_params(function, interval=interval, **kwargs)
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if "Error Message" in data:
+                logger.error("%s API error: %s", function, data["Error Message"])
+                return None
+            if "Note" in data:
+                logger.error("%s rate limit: %s", function, data["Note"])
+                return None
+
+            df = self._parse_single_series_response(data, None, None)
+            logger.debug("%s: %s", function, "success" if df is not None else "failed")
+            return df
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+            logger.error("Error fetching economic indicator %s: %s", function, e)
+            return None
+
+    def _fetch_sector_performance(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using SECTOR_PERFORMANCE endpoint.
+
+        The endpoint returns a single global result that is replicated for
+        every requested symbol (mirroring the behaviour of
+        ``_fetch_market_status``).
+        """
+        result = FetchResult()
+        try:
+            params = self._build_sector_params()
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if "Error Message" in data:
+                raise ValueError(f"API error: {data['Error Message']}")
+            if "Note" in data:
+                raise RuntimeError(f"API rate limit: {data['Note']}")
+
+            df = self._parse_sector_performance_response(data)
+            if df is None or df.empty:
+                logger.warning("No sector performance data found")
+                result.missing.extend(symbols)
+                return result
+
+            metadata = {"function": "SECTOR", "interval": interval}
+            for symbol in symbols:
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+            logger.error("Error fetching sector performance: %s", e)
+            for symbol in symbols:
+                result.errors[symbol] = e
+        return result
 
     def _fetch_market_status(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
@@ -1736,6 +2080,98 @@ class AlphaVantageProvider(DataProvider):
                 )
         except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
             logger.error("Error fetching market status: %s", e)
+            for symbol in symbols:
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_commodity(
+        self,
+        symbols: list[str],
+        start: datetime | None,
+        end: datetime | None,
+        interval: str,
+        function: str = "WTI",
+    ) -> FetchResult:
+        """Fetch commodity data using the commodity endpoint (e.g. WTI, BRENT).
+
+        Commodity endpoints return a single global series; the same data is
+        replicated for every requested symbol.
+        """
+        result = FetchResult()
+        try:
+            params = self._build_commodity_params(function, interval=interval or "monthly")
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if "Error Message" in data:
+                raise ValueError(f"API error: {data['Error Message']}")
+            if "Note" in data:
+                raise RuntimeError(f"API rate limit: {data['Note']}")
+
+            df = self._parse_single_series_response(data, start, end)
+            if df is None or df.empty:
+                logger.warning("No commodity data found for %s", function)
+                result.missing.extend(symbols)
+                return result
+
+            metadata = {"function": function, "interval": interval}
+            for symbol in symbols:
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+            logger.error("Error fetching commodity %s: %s", function, e)
+            for symbol in symbols:
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_economic_indicator(
+        self,
+        symbols: list[str],
+        start: datetime | None,
+        end: datetime | None,
+        interval: str,
+        function: str = "REAL_GDP",
+    ) -> FetchResult:
+        """Fetch an economic indicator (e.g. REAL_GDP, CPI, UNEMPLOYMENT).
+
+        These endpoints return a single global series; the same data is
+        replicated for every requested symbol.
+        """
+        result = FetchResult()
+        try:
+            params = self._build_economic_indicator_params(function, interval=interval or None)
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if "Error Message" in data:
+                raise ValueError(f"API error: {data['Error Message']}")
+            if "Note" in data:
+                raise RuntimeError(f"API rate limit: {data['Note']}")
+
+            df = self._parse_single_series_response(data, start, end)
+            if df is None or df.empty:
+                logger.warning("No economic indicator data found for %s", function)
+                result.missing.extend(symbols)
+                return result
+
+            metadata = {"function": function, "interval": interval}
+            for symbol in symbols:
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+            logger.error("Error fetching economic indicator %s: %s", function, e)
             for symbol in symbols:
                 result.errors[symbol] = e
         return result
@@ -2057,6 +2493,12 @@ class AlphaVantageProvider(DataProvider):
         - Crypto Monthly: "crypto_monthly" -> DIGITAL_CURRENCY_MONTHLY
         - Crypto Intraday: "crypto_intraday" -> DIGITAL_CURRENCY_INTRADAY
         - Technical Indicators: "sma", "ema", "rsi", "macd", "bbands", "stoch", etc. -> TIME_SERIES_<INDICATOR> (default daily)
+        - Sector Performance: "sector", "sector_performance", "sectors" -> SECTOR
+        - Commodities: "wti", "brent", "natural_gas", "copper", "aluminum",
+          "corn", "wheat", "cotton", "sugar", "coffee", "all_commodities" ->
+          commodity endpoints (default granularity monthly)
+        - Economic Indicators: "gdp", "cpi", "unemployment", "fed_funds_rate",
+          "treasury_yield", etc. -> economic indicator endpoints
         - Batch Quotes: any other interval -> BATCH_STOCK_PRICES
 
         Uses disk caching if cache_dir is configured.
@@ -2079,6 +2521,9 @@ class AlphaVantageProvider(DataProvider):
         is_fx_daily = interval in self.FX_DAILY_INTERVALS
         is_fx_intraday = interval in self.FX_INTRADAY_INTERVALS
         is_technical = interval in self.TECHNICAL_INDICATORS
+        is_sector = interval in self.SECTOR_INTERVALS
+        is_commodity = interval in self.COMMODITIES_INTERVALS
+        is_economic = interval in self.ECONOMIC_INDICATORS
 
         if interval in ("1d", "daily"):
             fetch_result = self._fetch_single(symbols, start, end, interval)
@@ -2096,6 +2541,16 @@ class AlphaVantageProvider(DataProvider):
             fetch_result = self._fetch_global_quote(symbols, start, end, interval)
         elif is_market_status:
             fetch_result = self._fetch_market_status(symbols, start, end, interval)
+        elif is_sector:
+            fetch_result = self._fetch_sector_performance(symbols, start, end, interval)
+        elif is_commodity:
+            fetch_result = self._fetch_commodity(
+                symbols, start, end, interval, function=self.COMMODITY_FUNCTION_MAP[interval]
+            )
+        elif is_economic:
+            fetch_result = self._fetch_economic_indicator(
+                symbols, start, end, interval, function=self.ECONOMIC_FUNCTION_MAP[interval]
+            )
         elif is_fx_daily:
             fetch_result = self._fetch_fx_daily(symbols, start, end, interval)
         elif is_fx_intraday:
@@ -2139,7 +2594,8 @@ class AlphaVantageProvider(DataProvider):
         For intraday intervals, fetches each symbol individually via TIME_SERIES_INTRADAY.
         For real-time quotes, uses BATCH_STOCK_PRICES per group.
         For global quote, fetches per symbol via GLOBAL_QUOTE endpoint.
-        For market status, FX, and crypto endpoints, fetches per symbol.
+        For market status, sector, commodities, economic indicators, FX, and
+        crypto endpoints, fetches per symbol.
         """
         results: dict[str, FetchResult] = {}
 
@@ -2161,6 +2617,9 @@ class AlphaVantageProvider(DataProvider):
             is_monthly = interval in self.MONTHLY_INTERVALS
             is_quote = interval in self.QUOTE_INTERVALS
             is_market_status = interval in self.MARKET_STATUS_INTERVALS
+            is_sector = interval in self.SECTOR_INTERVALS
+            is_commodity = interval in self.COMMODITIES_INTERVALS
+            is_economic = interval in self.ECONOMIC_INDICATORS
             is_fx_daily = interval in self.FX_DAILY_INTERVALS
             is_fx_intraday = interval in self.FX_INTRADAY_INTERVALS
             is_crypto = interval in self.CRYPTO_INTERVALS
@@ -2182,8 +2641,9 @@ class AlphaVantageProvider(DataProvider):
                 for symbols, start, end, interval in reqs:
                     key = self._request_key(symbols, start, end, interval)
                     results[key] = self.fetch(symbols, start, end, interval)
-            elif is_market_status or is_fx_daily or is_fx_intraday or is_crypto or is_digital or is_technical:
-                # These endpoints are per-symbol/pair; fall back to per-symbol
+            elif is_market_status or is_sector or is_commodity or is_economic or is_fx_daily or is_fx_intraday or is_crypto or is_digital or is_technical:
+                # These endpoints are per-symbol/pair or single global result;
+                # fall back to per-symbol
                 for symbols, start, end, interval in reqs:
                     key = self._request_key(symbols, start, end, interval)
                     results[key] = self.fetch(symbols, start, end, interval)

@@ -553,6 +553,83 @@ SECTOR_PERFORMANCE_RESPONSE = {
     },
 }
 
+SECTOR_PERFORMANCE_EMPTY_RESPONSE = {"Information": "No sector data available."}
+
+COMMODITY_RESPONSE = {
+    "name": "Crude Oil Prices WTI",
+    "interval": "monthly",
+    "unit": "dollars per barrel",
+    "data": [
+        {"date": "2026-09-01", "value": "97.31"},
+        {"date": "2026-08-01", "value": "83.90"},
+        {"date": "2026-07-01", "value": "80.46"},
+    ],
+}
+
+COMMODITY_EMPTY_RESPONSE = {
+    "name": "Crude Oil Prices WTI",
+    "interval": "monthly",
+    "unit": "dollars per barrel",
+    "data": [],
+}
+
+COMMODITY_MISSING_VALUE_RESPONSE = {
+    "name": "Global Price of Copper",
+    "interval": "monthly",
+    "unit": "dollar per metric ton",
+    "data": [
+        {"date": "2026-07-01", "value": "13542.82"},
+        {"date": "1992-01-01", "value": "."},
+    ],
+}
+
+ECONOMIC_RESPONSE = {
+    "name": "Real Gross Domestic Product",
+    "interval": "annual",
+    "unit": "billions of dollars",
+    "data": [
+        {"date": "2025-01-01", "value": "23943.305"},
+        {"date": "2024-01-01", "value": "23394.892"},
+        {"date": "2023-01-01", "value": "22724.135"},
+    ],
+}
+
+ECONOMIC_EMPTY_RESPONSE = {
+    "name": "Real Gross Domestic Product",
+    "interval": "annual",
+    "unit": "billions of dollars",
+    "data": [],
+}
+
+ECONOMIC_QUARTERLY_RESPONSE = {
+    "name": "Real Gross Domestic Product per Capita",
+    "interval": "quarterly",
+    "unit": "chained 2012 dollars",
+    "data": [
+        {"date": "2026-04-01", "value": "71212.0"},
+        {"date": "2026-01-01", "value": "70857.0"},
+    ],
+}
+
+GOLD_SPOT_RESPONSE = {
+    "name": "Global Price of Gold",
+    "interval": "spot",
+    "unit": "dollar per troy ounce",
+    "data": [
+        {"date": "2026-10-12", "value": "2650.45"},
+    ],
+}
+
+GOLD_HISTORY_RESPONSE = {
+    "name": "Global Price of Gold",
+    "interval": "daily",
+    "unit": "dollar per troy ounce",
+    "data": [
+        {"date": "2026-10-11", "value": "2645.30"},
+        {"date": "2026-10-10", "value": "2640.10"},
+    ],
+}
+
 
 class TestAlphaVantageProvider:
     """Tests for AlphaVantageProvider."""
