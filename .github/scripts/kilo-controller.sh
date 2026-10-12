@@ -239,6 +239,7 @@ for agent_index in $(seq 1 "$agents"); do
   : > "$session_log"
   provider_pressure=0
   session_deadline=$(($(date +%s) + session_timeout))
+  transient_retry_backoff=15
   session_attempt=0
   echo "Starting sequential Kilo session ${agent_index}/${agents}; remaining safety budget ${remaining}s."
   while true; do
@@ -246,7 +247,7 @@ for agent_index in $(seq 1 "$agents"); do
     attempt_log="$RUNNER_TEMP/kilo-session-${agent_index}-attempt-${session_attempt}.log"
     remaining_session=$((session_deadline - $(date +%s)))
     if [ "$remaining_session" -le 0 ]; then rc=124; echo "::warning::Session time budget exhausted before attempt ${session_attempt}."; break; fi
-    echo "Kilo invocation attempt ${session_attempt}/3 for session ${agent_index}."
+    echo "Kilo invocation attempt ${session_attempt} for session ${agent_index}; transient upstream failures retry without an attempt-count limit."
     set +e
     timeout --signal=TERM --kill-after=10s "${remaining_session}s" kilo run --model kilo/kilo-auto/free --auto "$command" 2>&1 | tee "$attempt_log" | tee -a "$session_log"
     rc=${PIPESTATUS[0]}
@@ -262,13 +263,17 @@ text = source.read_text(encoding="utf-8", errors="replace")
 text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", text)
 target.write_text(text, encoding="utf-8")
 PY
-    if [ "$rc" -ne 124 ] && [ "$rc" -ne 137 ] && [ "$session_attempt" -lt 3 ] && grep -Eiq 'Upstream idle timeout exceeded|upstream.{0,40}idle.{0,40}timeout|ECONNRESET|socket hang up|fetch failed' "$normalized_attempt_log"; then
+    if [ "$rc" -ne 124 ] && [ "$rc" -ne 137 ] && grep -Eiq 'Upstream idle timeout exceeded|upstream.{0,40}idle.{0,40}timeout|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|socket hang up|fetch failed|temporary failure in name resolution|gateway timeout|bad gateway|service unavailable|too many requests|rate[ _-]?limit|resource[_ -]?exhausted|temporarily unavailable|HTTP.{0,12}(429|500|502|503|504)|status.{0,12}(429|500|502|503|504)' "$normalized_attempt_log"; then
       idle_timeout_retry_count=$((idle_timeout_retry_count + 1))
-      retry_delay=$((15 * session_attempt))
+      retry_delay="$transient_retry_backoff"
       remaining_global=$((cutoff_epoch - $(date +%s)))
       if [ "$remaining_global" -le "$retry_delay" ] || [ "$remaining_session" -le "$retry_delay" ]; then echo "::warning::Transient upstream/network failure detected, but insufficient budget remains for another attempt."; break; fi
-      echo "::warning::Transient upstream idle/network failure in session ${agent_index}; retrying after ${retry_delay}s (attempt ${session_attempt}/3)."
+      echo "::warning::Transient upstream/network failure in session ${agent_index}; retry #${idle_timeout_retry_count} after ${retry_delay}s. No attempt-count limit; retries continue until the session/workflow time budget is exhausted."
       sleep "$retry_delay"
+      if [ "$transient_retry_backoff" -lt 300 ]; then
+        transient_retry_backoff=$((transient_retry_backoff * 2))
+        if [ "$transient_retry_backoff" -gt 300 ]; then transient_retry_backoff=300; fi
+      fi
       continue
     fi
     break
