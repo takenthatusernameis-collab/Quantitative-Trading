@@ -309,7 +309,12 @@ class TestRunCombined:
         mock_metrics.profit_factor = 2.0
 
         mock_results = []
-        for name, ret in [("MA_Crossover_10_30", 15.5), ("RSI_14", 12.3), ("BB_20_2.0", 18.7)]:
+        for name, ret in [
+            ("MA_Crossover_10_30", 15.5),
+            ("RSI_14", 12.3),
+            ("BB_20_2.0", 18.7),
+            ("MACD_12_26_9", 10.0),
+        ]:
             m = MagicMock(spec=["name", "total_return_pct", "metrics", "initial_capital", "final_value", "total_return"])
             m.name = name
             m.total_return_pct = ret

@@ -7,6 +7,7 @@ from quant_trading.backtest.engine import run_backtest
 from quant_trading.config.settings import Config
 from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
+    MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
 )
@@ -15,6 +16,7 @@ STRATEGIES = {
     "ma": MovingAverageCrossover,
     "rsi": RSIStrategy,
     "bb": BollingerBandsStrategy,
+    "macd": MACDStrategy,
 }
 
 PROVIDERS = {
@@ -141,6 +143,29 @@ def parse_args() -> argparse.Namespace:
         default=2.0,
         help="Bollinger Bands standard deviations",
     )
+    parser.add_argument(
+        "--macd-fast",
+        type=int,
+        default=12,
+        help="MACD fast EMA period",
+    )
+    parser.add_argument(
+        "--macd-slow",
+        type=int,
+        default=26,
+        help="MACD slow EMA period",
+    )
+    parser.add_argument(
+        "--macd-signal",
+        type=int,
+        default=9,
+        help="MACD signal period",
+    )
+    parser.add_argument(
+        "--macd-zero-line",
+        action="store_true",
+        help="Enable zero-line crossover signals for MACD",
+    )
 
     parser.add_argument(
         "--combined",
@@ -218,6 +243,14 @@ def create_strategy(args: argparse.Namespace):
             period=args.bb_period,
             std_dev=args.bb_std,
             name=f"BB_{args.bb_period}_{args.bb_std}",
+        )
+    elif args.strategy == "macd":
+        return strategy_cls(
+            fast_period=getattr(args, "macd_fast", 12),
+            slow_period=getattr(args, "macd_slow", 26),
+            signal_period=getattr(args, "macd_signal", 9),
+            use_zero_line=getattr(args, "macd_zero_line", False),
+            name=f"MACD_{getattr(args, 'macd_fast', 12)}_{getattr(args, 'macd_slow', 26)}_{getattr(args, 'macd_signal', 9)}",
         )
     else:
         raise ValueError(f"Unknown strategy: {args.strategy}")
