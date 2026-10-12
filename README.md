@@ -11,6 +11,9 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 - **Portfolio Management**: Position tracking, rebalancing, and allocation
 - **Risk Management**: Position limits, portfolio limits, stop-loss/take-profit
 - **Performance Metrics**: Sharpe, Sortino, Calmar ratios, max drawdown, VaR, win rate, profit factor
+- **Market Regime Detection**: Classify equity curves into bull/bear/sideways regimes (low/high volatility)
+- **Monte Carlo Simulation**: Bootstrap and parametric simulation of backtest outcomes
+- **Parameter Optimization**: Grid search, random search, and walk-forward analysis
 - **Configuration**: YAML-based configuration system
 
 ## Installation
@@ -196,6 +199,28 @@ python examples/cli.py --output results.json
 python examples/cli.py --combined --output comparison.json
 ```
 
+### Market Regime Analysis
+
+Annotate a backtest's equity curve with market-regime labels
+(bull/bear/sideways x low/high volatility):
+
+```bash
+# Run a backtest and print the regimes its equity curve traversed
+python examples/cli.py --offline --regime --symbols AAPL --days 120
+
+# Override the auto-derived volatility/return thresholds
+python examples/cli.py --offline --regime --regime-window 30 --regime-vol-threshold 0.15 --regime-return-threshold 0.05
+```
+
+### Trade Analysis
+
+Detailed trade-level analysis including PnL statistics, holding periods, streaks, and per-symbol breakdowns:
+
+```bash
+# Run a backtest with detailed trade analysis
+python examples/cli.py --offline --trade-analysis --symbols AAPL --days 120
+```
+
 ### Alpha Vantage Specifics
 
  Alpha Vantage provider supports:
@@ -210,14 +235,17 @@ python examples/cli.py --combined --output comparison.json
  - **FX Daily**: `fx_daily`, `fx`, `forex_daily` intervals via FX_DAILY (symbols as "FROM/TO", e.g., "USD/EUR")
  - **FX Intraday**: `fx_intraday`, `fx_1m`, `fx_5m`, `fx_15m`, `fx_30m`, `fx_60m` intervals via FX_INTRADAY
  - **Currency Exchange Rate**: real-time forex rates via CURRENCY_EXCHANGE_RATE (use `get_currency_exchange_rate()`)
- - **Crypto Daily**: `crypto_daily`, `digital_daily` intervals via DIGITAL_CURRENCY_DAILY (symbols like "BTC", "ETH")
- - **Crypto Weekly**: `crypto_weekly`, `digital_weekly` intervals via DIGITAL_CURRENCY_WEEKLY
- - **Crypto Monthly**: `crypto_monthly`, `digital_monthly` intervals via DIGITAL_CURRENCY_MONTHLY
+- **Crypto Daily**: `crypto_daily`, `digital_daily` intervals via DIGITAL_CURRENCY_DAILY (symbols like "BTC", "ETH")
+  - **Crypto Weekly**: `crypto_weekly`, `digital_weekly` intervals via DIGITAL_CURRENCY_WEEKLY
+  - **Crypto Monthly**: `crypto_monthly`, `digital_monthly` intervals via DIGITAL_CURRENCY_MONTHLY
   - **Crypto Intraday**: `crypto_intraday`, `digital_intraday` intervals via DIGITAL_CURRENCY_INTRADAY
   - **Technical Indicators**: `sma`, `ema`, `rsi`, `macd`, `bbands`, `stoch`, etc. via TIME_SERIES_<INDICATOR> (default daily series resolution; use the interval as the indicator name)
   - **Sector Performance**: `sector`, `sector_performance`, `sectors` intervals via SECTOR (single global result across requested symbols)
+  - **Commodities**: `wti`, `brent`, `natural_gas`, `copper`, `aluminum`, `corn`, `wheat`, `cotton`, `sugar`, `coffee`, `all_commodities` intervals via dedicated commodity endpoints (e.g., WTI, BRENT, COPPER)
+  - **Precious Metals**: `gold`, `silver` intervals via GOLD_SILVER_SPOT (spot) and GOLD_SILVER_HISTORY (historical daily/weekly/monthly)
+  - **Economic Indicators**: `gdp`, `real_gdp`, `gdp_per_capita`, `cpi`, `inflation`, `retail_sales`, `durables`, `unemployment`, `nonfarm_payroll`, `interest_rate`, `fed_funds_rate`, `treasury_yield`, `consumer_sentiment` intervals via dedicated economic endpoints
   - **Demo key**: Works out of the box with `"demo"` key (rate limited, warning logged)
- - **API key validation**: Optional warning when using demo key (configurable via `warn_on_demo`)
+  - **API key validation**: Optional warning when using demo key (configurable via `warn_on_demo`)
 
  For production use, get a free API key from [Alpha Vantage](https://www.alphavantage.co/support/#api-key) and pass it via `--alphavantage-key` or config file.
 
@@ -326,42 +354,71 @@ manager.clear_cache()
  # Fetch FX daily data (symbols as "FROM/TO")
  result = provider.fetch(["USD/EUR", "GBP/USD"], interval="fx_daily")
 
- # Fetch FX intraday data
- result = provider.fetch(["USD/EUR"], interval="fx_5m")
+# Fetch FX intraday data
+result = provider.fetch(["USD/EUR"], interval="fx_5m")
 
- # Fetch crypto data
- result = provider.fetch(["BTC", "ETH"], interval="crypto_daily")
- result = provider.fetch(["BTC"], interval="crypto_weekly")
- result = provider.fetch(["BTC"], interval="crypto_monthly")
-  result = provider.fetch(["BTC"], interval="crypto_intraday")
+# Fetch crypto data
+result = provider.fetch(["BTC", "ETH"], interval="crypto_daily")
+result = provider.fetch(["BTC"], interval="crypto_weekly")
+result = provider.fetch(["BTC"], interval="crypto_monthly")
+result = provider.fetch(["BTC"], interval="crypto_intraday")
 
-  # Fetch technical indicators (indicator name as interval, default daily series)
-  result = provider.fetch(["AAPL"], interval="sma")
-  result = provider.fetch(["AAPL"], interval="rsi")
+# Fetch technical indicators (indicator name as interval, default daily series)
+result = provider.fetch(["AAPL"], interval="sma")
+result = provider.fetch(["AAPL"], interval="rsi")
 
-  # Get a technical indicator directly as a DataFrame
-  df = provider.get_sma("AAPL")
-  df = provider.get_rsi("AAPL")
-  df = provider.get_technical_indicator("AAPL", indicator="SMA")
+# Fetch sector performance
+result = provider.fetch(["AAPL"], interval="sector")
+
+# Fetch commodities (WTI, BRENT, Natural Gas, Copper, etc.)
+result = provider.fetch(["WTI"], interval="wti")
+result = provider.fetch(["BRENT"], interval="brent")
+result = provider.fetch(["COPPER"], interval="copper")
+
+# Fetch precious metals (gold/silver spot and history)
+result = provider.fetch(["GOLD"], interval="gold")  # symbols "GOLD"/"XAU" or "SILVER"/"XAG"
+result = provider.fetch(["SILVER"], interval="silver")
+df = provider.get_gold_spot("GOLD")  # or "XAU" for gold, "SILVER"/"XAG" for silver
+df = provider.get_gold_history("GOLD", interval="daily")  # also "weekly", "monthly"
+
+# Fetch economic indicators (GDP, CPI, Unemployment, etc.)
+result = provider.fetch(["GDP"], interval="gdp")
+result = provider.fetch(["CPI"], interval="cpi")
+df = provider.get_economic_indicator("REAL_GDP", interval="annual")
+df = provider.get_economic_indicator("TREASURY_YIELD", interval="monthly", maturity="10year")
+
+# Get a technical indicator directly as a DataFrame
+df = provider.get_sma("AAPL")
+df = provider.get_rsi("AAPL")
+df = provider.get_technical_indicator("AAPL", indicator="SMA")
+
+# Get commodity data directly
+df = provider.get_commodity("WTI", interval="monthly")
+
+# Get sector performance directly
+df = provider.get_sector_performance()
   ```
 
- Supported intervals:
- - Daily: `1d`, `daily`
- - Weekly: `1w`, `weekly`, `week`
- - Weekly Adjusted: `1wa`, `weekly_adjusted`
- - Monthly: `1mo`, `monthly`, `month`
- - Monthly Adjusted: `1ma`, `monthly_adjusted`
- - Intraday: `1m`, `5m`, `15m`, `30m`, `1h`, `60m`
- - Global Quote: `quote`, `realtime`, `rt`
- - Market Status: `market_status`, `marketstatus`
- - FX Daily: `fx_daily`, `fx`, `forex_daily` (symbols as "FROM/TO")
- - FX Intraday: `fx_intraday`, `fx_1m`, `fx_5m`, `fx_15m`, `fx_30m`, `fx_60m`
- - Crypto Daily: `crypto_daily`, `digital_daily`
- - Crypto Weekly: `crypto_weekly`, `digital_weekly`
- - Crypto Monthly: `crypto_monthly`, `digital_monthly`
+Supported intervals:
+  - Daily: `1d`, `daily`
+  - Weekly: `1w`, `weekly`, `week`
+  - Weekly Adjusted: `1wa`, `weekly_adjusted`
+  - Monthly: `1mo`, `monthly`, `month`
+  - Monthly Adjusted: `1ma`, `monthly_adjusted`
+  - Intraday: `1m`, `5m`, `15m`, `30m`, `1h`, `60m`
+  - Global Quote: `quote`, `realtime`, `rt`
+  - Market Status: `market_status`, `marketstatus`
+  - FX Daily: `fx_daily`, `fx`, `forex_daily` (symbols as "FROM/TO")
+  - FX Intraday: `fx_intraday`, `fx_1m`, `fx_5m`, `fx_15m`, `fx_30m`, `fx_60m`
+  - Crypto Daily: `crypto_daily`, `digital_daily`
+  - Crypto Weekly: `crypto_weekly`, `digital_weekly`
+  - Crypto Monthly: `crypto_monthly`, `digital_monthly`
   - Crypto Intraday: `crypto_intraday`, `digital_intraday`
   - Technical Indicators: `sma`, `ema`, `rsi`, `macd`, `bbands`, `stoch`, etc.
   - Sector Performance: `sector`, `sector_performance`, `sectors`
+  - Commodities: `wti`, `brent`, `natural_gas`, `copper`, `aluminum`, `corn`, `wheat`, `cotton`, `sugar`, `coffee`, `all_commodities`
+  - Precious Metals: `gold`, `silver` (spot via `get_gold_spot()`, history via `get_gold_history()`)
+  - Economic Indicators: `gdp`, `real_gdp`, `gdp_per_capita`, `cpi`, `inflation`, `retail_sales`, `durables`, `unemployment`, `nonfarm_payroll`, `interest_rate`, `fed_funds_rate`, `treasury_yield`, `consumer_sentiment`
   - Real-time Batch: any other interval uses `BATCH_STOCK_PRICES`
 
   Additional methods:
@@ -370,7 +427,99 @@ manager.clear_cache()
   - `get_technical_indicator(symbol, indicator="SMA", ...)` - Returns DataFrame for a TI (e.g. SMA, EMA, RSI, MACD, BBANDS, STOCH)
   - `get_sma(symbol)`, `get_ema(symbol)`, `get_rsi(symbol)`, `get_macd(symbol)`, `get_stoch(symbol)`, `get_bbands(symbol)` - Convenience wrappers for common indicators
   - `get_sector_performance()` - Returns DataFrame of sector performance rankings
+  - `get_gold_spot(symbol)` - Returns spot price for gold ("GOLD"/"XAU") or silver ("SILVER"/"XAG")
+  - `get_gold_history(symbol, interval)` - Returns historical prices for gold/silver (interval: "daily", "weekly", "monthly")
+  - `get_commodity(function, interval)` - Returns commodity data (e.g. "WTI", "BRENT", "COPPER"; interval varies by commodity)
+  - `get_economic_indicator(function, interval, **kwargs)` - Returns economic data (e.g. "REAL_GDP", "CPI", "UNEMPLOYMENT"; optional interval, maturity for treasury yields)
   - `search_symbols(query)` - Search for symbols by name or ticker
+
+## Market Regime Analysis
+
+A finished backtest can be inspected for the market regimes its equity curve
+traversed. Regimes combine a direction signal (bull/bear/sideways) with a
+volatility signal (low/high) derived from rolling-window statistics.
+
+```python
+from quant_trading.backtest import analyze_regimes
+
+analysis = analyze_regimes(result, window=20)
+print(analysis.current_regime)   # e.g. Regime.BULL_LOW_VOL
+for seg in analysis.segments:
+    print(seg.regime.value, seg.start, seg.end, seg.volatility, seg.return_pct)
+```
+
+The analysis is also available from the CLI:
+
+```bash
+python examples/cli.py --offline --regime --symbols AAPL --days 120
+```
+
+Optional explicit thresholds can be supplied to override the auto-derived
+defaults:
+
+```python
+analysis = analyze_regimes(
+    result,
+    window=20,
+    vol_threshold=0.15,
+    return_threshold=0.05,
+)
+```
+
+## Monte Carlo Simulation
+
+Run many simulated backtests by resampling the equity curve's daily
+returns (bootstrap) or drawing from a fitted normal distribution
+(parametric). This produces a distribution of outcomes — Sharpe, drawdown,
+total return — and estimates the probability of profit and the confidence
+interval around the original result.
+
+```python
+from quant_trading.monte_carlo import run_monte_carlo
+
+mc = run_monte_carlo(result, n_simulations=1000, method="bootstrap", random_state=42)
+print(f"Probability of profit: {mc.probability_of_profit():.2%}")
+lower, upper = mc.get_confidence_interval("total_return_pct")
+print(f"95% CI for total return: [{lower:.2f}%, {upper:.2f}%]")
+```
+
+The analysis is also available from the CLI:
+
+```bash
+python examples/cli.py --offline --monte-carlo --symbols AAPL --days 120
+```
+
+Override the simulation parameters:
+
+```bash
+python examples/cli.py --offline --monte-carlo --mc-simulations 500 --mc-method parametric --mc-confidence 0.99 --mc-seed 7
+```
+
+## Trade Analysis
+
+Detailed trade-level analysis including PnL statistics, holding periods, consecutive win/loss streaks, monthly/weekly returns, and per-symbol breakdowns.
+
+```python
+from quant_trading.backtest import analyze_trades, print_trade_analysis
+
+analysis = analyze_trades(result)
+print_trade_analysis(analysis)
+```
+
+The analysis is also available from the CLI:
+
+```bash
+python examples/cli.py --offline --trade-analysis --symbols AAPL --days 120
+```
+
+This provides:
+- **Overview**: Total trades, win rate, winning/losing trade counts
+- **PnL Statistics**: Total/avg/median PnL, avg win/loss, largest win/loss, profit factor, expectancy
+- **Holding Periods**: Average, median, min, max holding periods in days
+- **Streaks**: Maximum consecutive wins/losses, current streak
+- **Trade-Level Risk**: Trade-level Sharpe and Sortino ratios
+- **Monthly/Weekly Returns**: Periodic return breakdowns
+- **Per-Symbol Statistics**: Detailed breakdown by symbol
 
 ## Configuration
 

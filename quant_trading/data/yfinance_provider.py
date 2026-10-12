@@ -354,19 +354,83 @@ class AlphaVantageProvider(DataProvider):
     QUOTE_INTERVALS: ClassVar[set[str]] = {"quote", "realtime", "rt"}
     MARKET_STATUS_INTERVALS: ClassVar[set[str]] = {"market_status", "marketstatus"}
     FX_DAILY_INTERVALS: ClassVar[set[str]] = {"fx_daily", "fx", "forex_daily"}
-    FX_INTRADAY_INTERVALS: ClassVar[set[str]] = {"fx_intraday", "fx_1m", "fx_5m", "fx_15m", "fx_30m", "fx_60m"}
-    CRYPTO_INTERVALS: ClassVar[set[str]] = {"crypto_daily", "crypto_weekly", "crypto_monthly", "crypto_intraday"}
-    DIGITAL_CURRENCY_INTERVALS: ClassVar[set[str]] = {"digital_daily", "digital_weekly", "digital_monthly", "digital_intraday"}
+    FX_INTRADAY_INTERVALS: ClassVar[set[str]] = {
+        "fx_intraday",
+        "fx_1m",
+        "fx_5m",
+        "fx_15m",
+        "fx_30m",
+        "fx_60m",
+    }
+    CRYPTO_INTERVALS: ClassVar[set[str]] = {
+        "crypto_daily",
+        "crypto_weekly",
+        "crypto_monthly",
+        "crypto_intraday",
+    }
+    DIGITAL_CURRENCY_INTERVALS: ClassVar[set[str]] = {
+        "digital_daily",
+        "digital_weekly",
+        "digital_monthly",
+        "digital_intraday",
+    }
+    CURRENCY_EXCHANGE_RATE_INTERVALS: ClassVar[set[str]] = {
+        "fx_rate",
+        "currency_exchange_rate",
+        "forex_rate",
+    }
+    SYMBOL_SEARCH_INTERVALS: ClassVar[set[str]] = {
+        "symbol_search",
+        "search_symbols",
+        "symbol_lookup",
+    }
     TECHNICAL_INDICATORS: ClassVar[set[str]] = {
-        "sma", "ema", "rsi", "macd", "stoch", "bbands", "adx", "cci", "roc", "willr",
-        "mom", "trix", "obv", "ad", "adxr", "aroondown", "aroonup", "atr", "mfi",
-        "ultosc", "vwap", "plus_di", "minus_di", "plus_dm", "minus_dm",
-        "stochf", "stochrsi", "dx", "slowk", "slowd", "fastk", "fastd"
+        "sma",
+        "ema",
+        "rsi",
+        "macd",
+        "stoch",
+        "bbands",
+        "adx",
+        "cci",
+        "roc",
+        "willr",
+        "mom",
+        "trix",
+        "obv",
+        "ad",
+        "adxr",
+        "aroondown",
+        "aroonup",
+        "atr",
+        "mfi",
+        "ultosc",
+        "vwap",
+        "plus_di",
+        "minus_di",
+        "plus_dm",
+        "minus_dm",
+        "stochf",
+        "stochrsi",
+        "dx",
+        "slowk",
+        "slowd",
+        "fastk",
+        "fastd",
     }
     SECTOR_INTERVALS: ClassVar[set[str]] = {"sector", "sector_performance", "sectors"}
     COMMODITIES_INTERVALS: ClassVar[set[str]] = {
-        "wti", "brent", "natural_gas", "copper", "aluminum", "corn", "wheat",
-        "cotton", "sugar", "coffee", "all_commodities",
+        "wti",
+        "brent",
+        "natural_gas",
+        "copper",
+        "aluminum",
+        "corn",
+        "wheat",
+        "cotton",
+        "sugar",
+        "coffee",
+        "all_commodities",
     }
     GOLD_INTERVALS: ClassVar[set[str]] = {"gold", "silver"}
     COMMODITY_FUNCTION_MAP: ClassVar[dict[str, str]] = {
@@ -383,9 +447,19 @@ class AlphaVantageProvider(DataProvider):
         "all_commodities": "ALL_COMMODITIES",
     }
     ECONOMIC_INDICATORS: ClassVar[set[str]] = {
-        "gdp", "real_gdp", "gdp_per_capita", "cpi", "inflation", "retail_sales",
-        "durables", "unemployment", "nonfarm_payroll", "interest_rate",
-        "fed_funds_rate", "treasury_yield", "consumer_sentiment",
+        "gdp",
+        "real_gdp",
+        "gdp_per_capita",
+        "cpi",
+        "inflation",
+        "retail_sales",
+        "durables",
+        "unemployment",
+        "nonfarm_payroll",
+        "interest_rate",
+        "fed_funds_rate",
+        "treasury_yield",
+        "consumer_sentiment",
     }
     ECONOMIC_FUNCTION_MAP: ClassVar[dict[str, str]] = {
         "gdp": "REAL_GDP",
@@ -644,7 +718,9 @@ class AlphaVantageProvider(DataProvider):
             "datatype": "json",
         }
 
-    def _build_fx_intraday_params(self, from_symbol: str, to_symbol: str, interval: str) -> dict[str, str]:
+    def _build_fx_intraday_params(
+        self, from_symbol: str, to_symbol: str, interval: str
+    ) -> dict[str, str]:
         """Build parameters for FX_INTRADAY endpoint."""
         av_interval = self.INTRADAY_INTERVALS.get(interval.replace("fx_", ""), interval)
         return {
@@ -656,7 +732,9 @@ class AlphaVantageProvider(DataProvider):
             "datatype": "json",
         }
 
-    def _build_currency_exchange_rate_params(self, from_currency: str, to_currency: str) -> dict[str, str]:
+    def _build_currency_exchange_rate_params(
+        self, from_currency: str, to_currency: str
+    ) -> dict[str, str]:
         """Build parameters for CURRENCY_EXCHANGE_RATE endpoint."""
         return {
             "function": "CURRENCY_EXCHANGE_RATE",
@@ -696,7 +774,9 @@ class AlphaVantageProvider(DataProvider):
             "datatype": "json",
         }
 
-    def _build_crypto_intraday_params(self, symbol: str, market: str = "USD", interval: str = "5min") -> dict[str, str]:
+    def _build_crypto_intraday_params(
+        self, symbol: str, market: str = "USD", interval: str = "5min"
+    ) -> dict[str, str]:
         """Build parameters for CRYPTO_INTRADAY endpoint (DIGITAL_CURRENCY_INTRADAY)."""
         return {
             "function": "DIGITAL_CURRENCY_INTRADAY",
@@ -1045,9 +1125,7 @@ class AlphaVantageProvider(DataProvider):
         df.columns = [col.lower().replace(" ", "_") for col in df.columns]
         return cast(pd.DataFrame, df)
 
-    def _parse_symbol_search_response(
-        self, data: dict[str, Any]
-    ) -> list[dict[str, str]]:
+    def _parse_symbol_search_response(self, data: dict[str, Any]) -> list[dict[str, str]]:
         """Parse SYMBOL_SEARCH response into a list of symbol matches.
 
         Each match is a dict with keys: symbol, name, type, region, market,
@@ -1070,7 +1148,12 @@ class AlphaVantageProvider(DataProvider):
         return results
 
     def _parse_technical_indicator_response(
-        self, symbol: str, indicator: str, data: dict[str, Any], start: datetime | None, end: datetime | None
+        self,
+        symbol: str,
+        indicator: str,
+        data: dict[str, Any],
+        start: datetime | None,
+        end: datetime | None,
     ) -> pd.DataFrame | None:
         """Parse technical indicator response into DataFrame."""
         # Look for key like "Technical Analysis: SMA"
@@ -1416,9 +1499,7 @@ class AlphaVantageProvider(DataProvider):
                 continue
             for sector, perf in sectors.items():
                 try:
-                    records.append(
-                        {"sector": sector, "period": period, "performance": float(perf)}
-                    )
+                    records.append({"sector": sector, "period": period, "performance": float(perf)})
                 except (TypeError, ValueError):
                     continue
 
@@ -1776,7 +1857,9 @@ class AlphaVantageProvider(DataProvider):
             logger.error("Error fetching market status: %s", e)
             return None
 
-    def get_currency_exchange_rate(self, from_currency: str, to_currency: str) -> pd.DataFrame | None:
+    def get_currency_exchange_rate(
+        self, from_currency: str, to_currency: str
+    ) -> pd.DataFrame | None:
         """Get real-time currency exchange rate using CURRENCY_EXCHANGE_RATE endpoint.
 
         Args:
@@ -1800,7 +1883,12 @@ class AlphaVantageProvider(DataProvider):
                 return None
 
             df = self._parse_currency_exchange_rate_response(from_currency, to_currency, data)
-            logger.debug("CURRENCY_EXCHANGE_RATE %s/%s: %s", from_currency, to_currency, "success" if df is not None else "failed")
+            logger.debug(
+                "CURRENCY_EXCHANGE_RATE %s/%s: %s",
+                from_currency,
+                to_currency,
+                "success" if df is not None else "failed",
+            )
             return df
         except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
             logger.error("Error fetching currency exchange rate: %s", e)
@@ -1816,7 +1904,14 @@ class AlphaVantageProvider(DataProvider):
         **kwargs,
     ) -> pd.DataFrame | None:
         try:
-            params = self._build_technical_indicator_params(symbol, indicator=indicator, interval=interval, time_period=time_period, series_type=series_type, **kwargs)
+            params = self._build_technical_indicator_params(
+                symbol,
+                indicator=indicator,
+                interval=interval,
+                time_period=time_period,
+                series_type=series_type,
+                **kwargs,
+            )
             resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
             resp.raise_for_status()
             data = resp.json()
@@ -1832,23 +1927,75 @@ class AlphaVantageProvider(DataProvider):
             logger.error("Error fetching technical indicator: %s", e)
             return None
 
-    def get_sma(self, symbol: str, interval: str = "daily", time_period: int = 20, series_type: str = "close") -> pd.DataFrame | None:
-        return self.get_technical_indicator(symbol, indicator="SMA", interval=interval, time_period=time_period, series_type=series_type)
+    def get_sma(
+        self,
+        symbol: str,
+        interval: str = "daily",
+        time_period: int = 20,
+        series_type: str = "close",
+    ) -> pd.DataFrame | None:
+        return self.get_technical_indicator(
+            symbol,
+            indicator="SMA",
+            interval=interval,
+            time_period=time_period,
+            series_type=series_type,
+        )
 
-    def get_ema(self, symbol: str, interval: str = "daily", time_period: int = 20, series_type: str = "close") -> pd.DataFrame | None:
-        return self.get_technical_indicator(symbol, indicator="EMA", interval=interval, time_period=time_period, series_type=series_type)
+    def get_ema(
+        self,
+        symbol: str,
+        interval: str = "daily",
+        time_period: int = 20,
+        series_type: str = "close",
+    ) -> pd.DataFrame | None:
+        return self.get_technical_indicator(
+            symbol,
+            indicator="EMA",
+            interval=interval,
+            time_period=time_period,
+            series_type=series_type,
+        )
 
-    def get_rsi(self, symbol: str, interval: str = "daily", time_period: int = 14, series_type: str = "close") -> pd.DataFrame | None:
-        return self.get_technical_indicator(symbol, indicator="RSI", interval=interval, time_period=time_period, series_type=series_type)
+    def get_rsi(
+        self,
+        symbol: str,
+        interval: str = "daily",
+        time_period: int = 14,
+        series_type: str = "close",
+    ) -> pd.DataFrame | None:
+        return self.get_technical_indicator(
+            symbol,
+            indicator="RSI",
+            interval=interval,
+            time_period=time_period,
+            series_type=series_type,
+        )
 
-    def get_macd(self, symbol: str, interval: str = "daily", series_type: str = "close") -> pd.DataFrame | None:
-        return self.get_technical_indicator(symbol, indicator="MACD", interval=interval, series_type=series_type)
+    def get_macd(
+        self, symbol: str, interval: str = "daily", series_type: str = "close"
+    ) -> pd.DataFrame | None:
+        return self.get_technical_indicator(
+            symbol, indicator="MACD", interval=interval, series_type=series_type
+        )
 
     def get_stoch(self, symbol: str, interval: str = "daily") -> pd.DataFrame | None:
         return self.get_technical_indicator(symbol, indicator="STOCH", interval=interval)
 
-    def get_bbands(self, symbol: str, interval: str = "daily", time_period: int = 20, series_type: str = "close") -> pd.DataFrame | None:
-        return self.get_technical_indicator(symbol, indicator="BBANDS", interval=interval, time_period=time_period, series_type=series_type)
+    def get_bbands(
+        self,
+        symbol: str,
+        interval: str = "daily",
+        time_period: int = 20,
+        series_type: str = "close",
+    ) -> pd.DataFrame | None:
+        return self.get_technical_indicator(
+            symbol,
+            indicator="BBANDS",
+            interval=interval,
+            time_period=time_period,
+            series_type=series_type,
+        )
 
     def get_sector_performance(self) -> pd.DataFrame | None:
         """Get sector performance rankings using the SECTOR endpoint.
@@ -1900,13 +2047,17 @@ class AlphaVantageProvider(DataProvider):
                 return None
 
             df = self._parse_single_series_response(data, None, None)
-            logger.debug("GOLD_SILVER_SPOT %s: %s", symbol, "success" if df is not None else "failed")
+            logger.debug(
+                "GOLD_SILVER_SPOT %s: %s", symbol, "success" if df is not None else "failed"
+            )
             return df
         except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
             logger.error("Error fetching gold/silver spot: %s", e)
             return None
 
-    def get_gold_history(self, symbol: str = "GOLD", interval: str = "daily") -> pd.DataFrame | None:
+    def get_gold_history(
+        self, symbol: str = "GOLD", interval: str = "daily"
+    ) -> pd.DataFrame | None:
         """Get historical gold/silver prices using GOLD_SILVER_HISTORY endpoint.
 
         Args:
@@ -1930,7 +2081,12 @@ class AlphaVantageProvider(DataProvider):
                 return None
 
             df = self._parse_single_series_response(data, None, None)
-            logger.debug("GOLD_SILVER_HISTORY %s/%s: %s", symbol, interval, "success" if df is not None else "failed")
+            logger.debug(
+                "GOLD_SILVER_HISTORY %s/%s: %s",
+                symbol,
+                interval,
+                "success" if df is not None else "failed",
+            )
             return df
         except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
             logger.error("Error fetching gold/silver history: %s", e)
@@ -1969,7 +2125,9 @@ class AlphaVantageProvider(DataProvider):
             logger.error("Error fetching commodity %s: %s", function, e)
             return None
 
-    def get_economic_indicator(self, function: str, interval: str | None = None, **kwargs) -> pd.DataFrame | None:
+    def get_economic_indicator(
+        self, function: str, interval: str | None = None, **kwargs
+    ) -> pd.DataFrame | None:
         """Get an economic indicator (REAL_GDP, CPI, UNEMPLOYMENT, etc.).
 
         Args:
@@ -2176,6 +2334,62 @@ class AlphaVantageProvider(DataProvider):
                 result.errors[symbol] = e
         return result
 
+    def _fetch_gold(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using GOLD_SILVER_SPOT endpoint per symbol.
+
+        Symbols should be "GOLD"/"XAU" for gold or "SILVER"/"XAG" for
+        silver. This endpoint returns the real-time spot price; start/end
+        are ignored.
+        """
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                upper = symbol.upper()
+                if upper in ("GOLD", "XAU"):
+                    metal = "GOLD"
+                elif upper in ("SILVER", "XAG"):
+                    metal = "SILVER"
+                else:
+                    logger.error(
+                        "Invalid gold/silver symbol: %s (expected GOLD/XAU or SILVER/XAG)",
+                        symbol,
+                    )
+                    result.errors[symbol] = ValueError(
+                        f"Invalid gold/silver symbol: {symbol} (expected GOLD/XAU or SILVER/XAG)"
+                    )
+                    continue
+
+                params = self._build_gold_spot_params(metal)
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_single_series_response(data, None, None)
+                if df is None or df.empty:
+                    logger.warning("No gold/silver spot data found for %s", metal)
+                    result.missing.append(symbol)
+                    continue
+
+                metadata = {"function": "GOLD_SILVER_SPOT", "interval": interval, "symbol": metal}
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching gold/silver spot for %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
     def _fetch_fx_daily(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
@@ -2189,7 +2403,9 @@ class AlphaVantageProvider(DataProvider):
                 # Parse symbol pair
                 if "/" not in symbol:
                     logger.error("Invalid FX symbol format: %s (expected FROM/TO)", symbol)
-                    result.errors[symbol] = ValueError(f"Invalid FX symbol format: {symbol} (expected FROM/TO)")
+                    result.errors[symbol] = ValueError(
+                        f"Invalid FX symbol format: {symbol} (expected FROM/TO)"
+                    )
                     continue
                 from_symbol, to_symbol = symbol.split("/", 1)
 
@@ -2209,7 +2425,12 @@ class AlphaVantageProvider(DataProvider):
                     result.missing.append(symbol)
                     continue
 
-                metadata = {"function": "FX_DAILY", "interval": interval, "from_symbol": from_symbol, "to_symbol": to_symbol}
+                metadata = {
+                    "function": "FX_DAILY",
+                    "interval": interval,
+                    "from_symbol": from_symbol,
+                    "to_symbol": to_symbol,
+                }
                 result.data[symbol] = MarketData(
                     symbol=symbol,
                     data=df,
@@ -2236,7 +2457,9 @@ class AlphaVantageProvider(DataProvider):
                 # Parse symbol pair
                 if "/" not in symbol:
                     logger.error("Invalid FX symbol format: %s (expected FROM/TO)", symbol)
-                    result.errors[symbol] = ValueError(f"Invalid FX symbol format: {symbol} (expected FROM/TO)")
+                    result.errors[symbol] = ValueError(
+                        f"Invalid FX symbol format: {symbol} (expected FROM/TO)"
+                    )
                     continue
                 from_symbol, to_symbol = symbol.split("/", 1)
 
@@ -2257,7 +2480,12 @@ class AlphaVantageProvider(DataProvider):
                     continue
 
                 av_interval = self.INTRADAY_INTERVALS.get(interval.replace("fx_", ""), interval)
-                metadata = {"function": "FX_INTRADAY", "interval": av_interval, "from_symbol": from_symbol, "to_symbol": to_symbol}
+                metadata = {
+                    "function": "FX_INTRADAY",
+                    "interval": av_interval,
+                    "from_symbol": from_symbol,
+                    "to_symbol": to_symbol,
+                }
                 result.data[symbol] = MarketData(
                     symbol=symbol,
                     data=df,
@@ -2268,6 +2496,108 @@ class AlphaVantageProvider(DataProvider):
             except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
                 logger.error("Error fetching FX intraday for %s: %s", symbol, e)
                 result.errors[symbol] = e
+        return result
+
+    def _fetch_currency_exchange_rate(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using CURRENCY_EXCHANGE_RATE endpoint per symbol pair.
+
+        Symbols should be in format "FROM/TO" (e.g., "USD/EUR", "EUR/USD").
+        This endpoint returns real-time exchange rates; start/end are ignored.
+        """
+        result = FetchResult()
+        for symbol in symbols:
+            try:
+                # Parse symbol pair
+                if "/" not in symbol:
+                    logger.error("Invalid FX symbol format: %s (expected FROM/TO)", symbol)
+                    result.errors[symbol] = ValueError(
+                        f"Invalid FX symbol format: {symbol} (expected FROM/TO)"
+                    )
+                    continue
+                from_currency, to_currency = symbol.split("/", 1)
+
+                params = self._build_currency_exchange_rate_params(from_currency, to_currency)
+                resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "Error Message" in data:
+                    raise ValueError(f"API error: {data['Error Message']}")
+                if "Note" in data:
+                    raise RuntimeError(f"API rate limit: {data['Note']}")
+
+                df = self._parse_currency_exchange_rate_response(from_currency, to_currency, data)
+                if df is None or df.empty:
+                    logger.warning(
+                        "No currency exchange rate data found for %s/%s", from_currency, to_currency
+                    )
+                    result.missing.append(symbol)
+                    continue
+
+                metadata = {
+                    "function": "CURRENCY_EXCHANGE_RATE",
+                    "interval": interval,
+                    "from_currency": from_currency,
+                    "to_currency": to_currency,
+                }
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=df,
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                    metadata=metadata,
+                )
+            except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+                logger.error("Error fetching currency exchange rate for %s: %s", symbol, e)
+                result.errors[symbol] = e
+        return result
+
+    def _fetch_symbol_search(
+        self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
+    ) -> FetchResult:
+        """Fetch using SYMBOL_SEARCH endpoint.
+
+        The symbols list should contain a single query string (e.g., ["Apple"]).
+        This endpoint returns symbol matches; start/end are ignored.
+        """
+        result = FetchResult()
+        if not symbols:
+            logger.warning("No query provided for symbol search")
+            return result
+
+        query = symbols[0]  # Use first symbol as search query
+        try:
+            params = self._build_symbol_search_params(query)
+            resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if "Error Message" in data:
+                raise ValueError(f"API error: {data['Error Message']}")
+            if "Note" in data:
+                raise RuntimeError(f"API rate limit: {data['Note']}")
+
+            matches = self._parse_symbol_search_response(data)
+            if not matches:
+                logger.warning("No symbol matches found for query: %s", query)
+                result.missing.append(query)
+                return result
+
+            # Return matches as a DataFrame with the query as the symbol
+            df = pd.DataFrame(matches)
+            metadata = {"function": "SYMBOL_SEARCH", "interval": interval, "query": query}
+            result.data[query] = MarketData(
+                symbol=query,
+                data=df,
+                source=self.name,
+                fetched_at=datetime.now(),
+                metadata=metadata,
+            )
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
+            logger.error("Error searching symbols for %r: %s", query, e)
+            result.errors[query] = e
         return result
 
     def _fetch_crypto_daily(
@@ -2297,7 +2627,12 @@ class AlphaVantageProvider(DataProvider):
                     result.missing.append(symbol)
                     continue
 
-                metadata = {"function": "DIGITAL_CURRENCY_DAILY", "interval": interval, "symbol": symbol, "market": "USD"}
+                metadata = {
+                    "function": "DIGITAL_CURRENCY_DAILY",
+                    "interval": interval,
+                    "symbol": symbol,
+                    "market": "USD",
+                }
                 result.data[symbol] = MarketData(
                     symbol=symbol,
                     data=df,
@@ -2333,7 +2668,12 @@ class AlphaVantageProvider(DataProvider):
                     result.missing.append(symbol)
                     continue
 
-                metadata = {"function": "DIGITAL_CURRENCY_WEEKLY", "interval": interval, "symbol": symbol, "market": "USD"}
+                metadata = {
+                    "function": "DIGITAL_CURRENCY_WEEKLY",
+                    "interval": interval,
+                    "symbol": symbol,
+                    "market": "USD",
+                }
                 result.data[symbol] = MarketData(
                     symbol=symbol,
                     data=df,
@@ -2369,7 +2709,12 @@ class AlphaVantageProvider(DataProvider):
                     result.missing.append(symbol)
                     continue
 
-                metadata = {"function": "DIGITAL_CURRENCY_MONTHLY", "interval": interval, "symbol": symbol, "market": "USD"}
+                metadata = {
+                    "function": "DIGITAL_CURRENCY_MONTHLY",
+                    "interval": interval,
+                    "symbol": symbol,
+                    "market": "USD",
+                }
                 result.data[symbol] = MarketData(
                     symbol=symbol,
                     data=df,
@@ -2405,7 +2750,12 @@ class AlphaVantageProvider(DataProvider):
                     result.missing.append(symbol)
                     continue
 
-                metadata = {"function": "DIGITAL_CURRENCY_INTRADAY", "interval": interval, "symbol": symbol, "market": "USD"}
+                metadata = {
+                    "function": "DIGITAL_CURRENCY_INTRADAY",
+                    "interval": interval,
+                    "symbol": symbol,
+                    "market": "USD",
+                }
                 result.data[symbol] = MarketData(
                     symbol=symbol,
                     data=df,
@@ -2427,7 +2777,11 @@ class AlphaVantageProvider(DataProvider):
         indicator: str = "SMA",
     ) -> FetchResult:
         result = FetchResult()
-        av_interval = self.INTRADAY_INTERVALS.get(interval, interval) if interval in self.INTRADAY_INTERVALS else interval
+        av_interval = (
+            self.INTRADAY_INTERVALS.get(interval, interval)
+            if interval in self.INTRADAY_INTERVALS
+            else interval
+        )
         # map common intervals
         if interval in ("1m", "1h"):
             av_interval = self.INTRADAY_INTERVALS.get(interval, interval)
@@ -2442,7 +2796,9 @@ class AlphaVantageProvider(DataProvider):
 
         for symbol in symbols:
             try:
-                params = self._build_technical_indicator_params(symbol, indicator=indicator.upper(), interval=av_interval)
+                params = self._build_technical_indicator_params(
+                    symbol, indicator=indicator.upper(), interval=av_interval
+                )
                 resp = requests.get(self.BASE_URL, params=params, timeout=self._timeout)
                 resp.raise_for_status()
                 data = resp.json()
@@ -2500,6 +2856,9 @@ class AlphaVantageProvider(DataProvider):
           commodity endpoints (default granularity monthly)
         - Economic Indicators: "gdp", "cpi", "unemployment", "fed_funds_rate",
           "treasury_yield", etc. -> economic indicator endpoints
+        - Currency Exchange Rate: "fx_rate", "currency_exchange_rate", "forex_rate" -> CURRENCY_EXCHANGE_RATE (symbols as "FROM/TO")
+        - Symbol Search: "symbol_search", "search_symbols", "symbol_lookup" -> SYMBOL_SEARCH (single query string in symbols)
+        - Precious Metals: "gold", "silver" -> GOLD_SILVER_SPOT (symbols "GOLD"/"XAU" or "SILVER"/"XAG")
         - Batch Quotes: any other interval -> BATCH_STOCK_PRICES
 
         Uses disk caching if cache_dir is configured.
@@ -2529,6 +2888,9 @@ class AlphaVantageProvider(DataProvider):
         is_sector = interval in self.SECTOR_INTERVALS
         is_commodity = interval in self.COMMODITIES_INTERVALS
         is_economic = interval in self.ECONOMIC_INDICATORS
+        is_currency_exchange_rate = interval in self.CURRENCY_EXCHANGE_RATE_INTERVALS
+        is_symbol_search = interval in self.SYMBOL_SEARCH_INTERVALS
+        is_gold = interval in self.GOLD_INTERVALS
 
         if interval in ("1d", "daily"):
             fetch_result = self._fetch_single(symbols, start, end, interval)
@@ -2560,6 +2922,12 @@ class AlphaVantageProvider(DataProvider):
             fetch_result = self._fetch_fx_daily(symbols, start, end, interval)
         elif is_fx_intraday:
             fetch_result = self._fetch_fx_intraday(symbols, start, end, interval)
+        elif is_currency_exchange_rate:
+            fetch_result = self._fetch_currency_exchange_rate(symbols, start, end, interval)
+        elif is_symbol_search:
+            fetch_result = self._fetch_symbol_search(symbols, start, end, interval)
+        elif is_gold:
+            fetch_result = self._fetch_gold(symbols, start, end, interval)
         elif interval == "crypto_daily" or interval == "digital_daily":
             fetch_result = self._fetch_crypto_daily(symbols, start, end, interval)
         elif interval == "crypto_weekly" or interval == "digital_weekly":
@@ -2604,19 +2972,24 @@ class AlphaVantageProvider(DataProvider):
         For intraday intervals, fetches each symbol individually via TIME_SERIES_INTRADAY.
         For real-time quotes, uses BATCH_STOCK_PRICES per group.
         For global quote, fetches per symbol via GLOBAL_QUOTE endpoint.
-        For market status, sector, commodities, economic indicators, FX, and
-        crypto endpoints, fetches per symbol.
+        For market status, sector, commodities, economic indicators, FX, crypto,
+        currency exchange rate, symbol search, and precious metals endpoints,
+        fetches per symbol.
         """
         results: dict[str, FetchResult] = {}
 
-        groups: dict[str, list[tuple[list[str], datetime | None, datetime | None, str, dict[str, Any]]]] = {}
+        groups: dict[
+            str, list[tuple[list[str], datetime | None, datetime | None, str, dict[str, Any]]]
+        ] = {}
         for req in requests:
             symbols = req.get("symbols", [])
             start = req.get("start")
             end = req.get("end")
             interval = req.get("interval", "1d")
             # Extract any extra kwargs (e.g., ti_interval for technical indicators)
-            extra_kwargs = {k: v for k, v in req.items() if k not in ("symbols", "start", "end", "interval")}
+            extra_kwargs = {
+                k: v for k, v in req.items() if k not in ("symbols", "start", "end", "interval")
+            }
             interval_key = interval
             bucket = groups.get(interval_key, [])
             bucket.append((symbols, start, end, interval, extra_kwargs))
@@ -2637,6 +3010,9 @@ class AlphaVantageProvider(DataProvider):
             is_crypto = interval in self.CRYPTO_INTERVALS
             is_digital = interval in self.DIGITAL_CURRENCY_INTERVALS
             is_technical = interval in self.TECHNICAL_INDICATORS
+            is_currency_exchange_rate = interval in self.CURRENCY_EXCHANGE_RATE_INTERVALS
+            is_symbol_search = interval in self.SYMBOL_SEARCH_INTERVALS
+            is_gold = interval in self.GOLD_INTERVALS
 
             if interval in ("1d", "daily", "1wa", "weekly_adjusted") or is_weekly or is_monthly:
                 # No batch historical endpoint; fall back to per-symbol
@@ -2653,7 +3029,20 @@ class AlphaVantageProvider(DataProvider):
                 for symbols, start, end, interval, extra_kwargs in reqs:
                     key = self._request_key(symbols, start, end, interval)
                     results[key] = self.fetch(symbols, start, end, interval, **extra_kwargs)
-            elif is_market_status or is_sector or is_commodity or is_economic or is_fx_daily or is_fx_intraday or is_crypto or is_digital or is_technical:
+            elif (
+                is_market_status
+                or is_sector
+                or is_commodity
+                or is_economic
+                or is_fx_daily
+                or is_fx_intraday
+                or is_crypto
+                or is_digital
+                or is_technical
+                or is_currency_exchange_rate
+                or is_symbol_search
+                or is_gold
+            ):
                 # These endpoints are per-symbol/pair or single global result;
                 # fall back to per-symbol
                 for symbols, start, end, interval, extra_kwargs in reqs:

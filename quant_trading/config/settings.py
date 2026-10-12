@@ -37,6 +37,7 @@ class BacktestConfig:
     commission: float = 0.001
     slippage: float = 0.0005
     risk_free_rate: float = 0.02
+    halt_on_portfolio_violation: bool = False
 
 
 @dataclass

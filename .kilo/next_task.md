@@ -3,107 +3,72 @@
 ## Context
 
 Quantitative Trading framework (Python) developed by sequential Kilo agents in a
-GitHub Actions loop. The prior session added Alpha Vantage endpoints for market
-status, FX, currency exchange rate, and crypto (documented in the previous
-`next_task.md`). Its "suggested next work" item #1 was:
-
-> Add support for `TECHNICAL_INDICATORS` endpoints (SMA, EMA, RSI, MACD, etc.),
-> `SECTOR_PERFORMANCE`, `COMMODITIES`, and `ECONOMIC_INDICATORS` endpoints.
-
-The agent assigned that follow-up work committed commit `2e1d2d9`, which added the
-technical-indicator machinery and the sector/commodities/economic class constants.
-
-## This session's task
-
-Execute the previous agent's task — complete, fix, and test the Alpha Vantage
-technical-indicator (and related) support so it is fully wired and green.
+GitHub Actions loop. The working tree carries staged (uncommitted) work from
+earlier sessions. The controller script (`.github/scripts/kilo-controller.sh`)
+stages all worktree changes (`git add -A` with excludes), normalizes whitespace,
+commits, and pushes after each session — do not commit/push manually.
 
 ## What was done in this session
 
-1. **Fixed a syntax error** that made the module unimportable:
-   `except (Exception as e):` → `except Exception as e:`
-   (in `AlphaVantageProvider.get_technical_indicator`). The committed code could
-   not be imported at all (`SyntaxError`), which broke the entire test suite.
+**Assigned task (from prior handoff): inspect repository and select one
+bounded, high-value task.**
 
-2. **Fixed lint/type issues** introduced by the commit, matching the codebase's
-   existing exception-handling convention (`ValueError, RuntimeError, KeyError,
-   requests.RequestException`) instead of blind `except Exception` (BLE001), and a
-   duplicate `TECHNICAL_INDICATORS` set entry (B033), and an `Any` return (mypy
-   `no-any-return`), fixed with `cast(pd.DataFrame, ...)`.
+The prior handoff declared "no remaining self-contained, verifiable work
+items", but inspection found a genuine gap mirroring the regime-detection one
+from the previous session: the `quant_trading/monte_carlo/` module (Monte
+Carlo simulation) was **completely disconnected** — implemented and tested
+(`tests/test_monte_carlo.py`, 15 tests) but with zero CLI flag, no README
+section, and no public re-export beyond its own package. The regime detection
+and optimization modules were both documented and wired in; Monte Carlo was
+not. A prototype confirmed `run_monte_carlo(result)` works, so the fix was
+integration only.
 
-3. **Wired technical indicators into the standard API** (previously the
-   `_fetch_technical_indicator` FetchResult method existed but was never called):
-   - `fetch()` now routes `interval in TECHNICAL_INDICATORS` to
-     `_fetch_technical_indicator(...)` (series resolution defaults to daily).
-   - `fetch_many()` now routes the same intervals through the per-symbol fallback
-     (Alpha Vantage has no batch TI endpoint).
-   - Updated the `fetch()` docstring with the new Technical Indicators line and
-     normalized docstring indentation.
+Implemented and verified this session:
 
-4. **Added 19 unit tests** (`tests/test_alphavantage_provider.py`) covering:
-   `_build_technical_indicator_params`, `_parse_technical_indicator_response`
-   (hit / not-found / empty), `get_technical_indicator`/`get_sma` (success, API
-   error, rate limit, network error), `_fetch_technical_indicator` (success,
-   missing symbol, API error, network error), fetch dispatch routing
-   (`test_fetch_technical_indicator_interval`), the constants set
-   (`test_technical_indicators_set`), and `get_sector_performance` (success, API
-   error, rate limit, network error).
+- `examples/cli.py` — added `--monte-carlo`, `--mc-simulations`,
+  `--mc-confidence`, `--mc-method` (bootstrap|parametric), `--mc-seed` flags,
+  a `_print_monte_carlo_analysis()` helper that prints a "Monte Carlo
+  Simulation" block after a single-strategy backtest, and a top-level import
+  of `run_monte_carlo` from `quant_trading.monte_carlo`.
+- `README.md` — added a "Monte Carlo Simulation" section (Features already
+  listed it; added the API + CLI docs block after the Market Regime Analysis
+  section).
+- `tests/test_cli.py` — added `test_monte_carlo_flag_defaults`,
+  `test_monte_carlo_flag_explicit_params`, and an end-to-end
+  `test_main_offline_monte_carlo_analysis` running the CLI in offline mode.
+- Fixed a ruff F541 auto-fixable issue (extraneous f-string prefix) found
+  during lint.
 
-5. **Updated documentation** (`README.md`) with CLI examples and code samples for
-   technical indicators and sector performance in the Alpha Vantage sections.
+## Verification (all run this session, after the changes)
 
-## What changed (file scope)
+- `python -m pytest tests/` → **393 passed** (was 390, +3).
+- `python -m ruff check .` → All checks passed!
+- `python -m mypy quant_trading/` → Success: no issues found in 33 source
+  files.
+- `python examples/run_backtest_offline.py` → runs correctly (unchanged
+  behavior).
+- `python examples/cli.py --offline --monte-carlo --mc-simulations 60
+  --mc-seed 42 --symbols AAPL --days 120` → prints the Monte Carlo
+  Simulation block end-to-end (probability of profit, mean/median/std table,
+  95% confidence intervals, expected shortfall).
 
-- `quant_trading/data/yfinance_provider.py` — completed technical-indicator
-  support (fix + fetch/fetch_many routing + docstring); fixed sector method
-  exception/lint. (The previous commit had added the constants and the
-  `_build_*`/`_parse_*`/`_fetch_*`/`get_*` methods; this session finishes and
-  verifies them.)
-- `tests/test_alphavantage_provider.py` — 19 new tests for technical indicators
-  and sector performance.
-- `README.md` — documentation for technical-indicator and sector endpoints.
+## Next task (precise, prioritized)
 
-## Verification
+**No remaining self-contained, verifiable work items.** All three named
+enhancements (regime detection, Monte Carlo simulation, parameter
+optimization/walk-forward analysis) are now implemented, tested, integrated
+into the backtest package + CLI, and documented in the README.
 
-- `python -m ruff check quant_trading/ tests/` → All checks passed!
-- `python -m mypy quant_trading/` → Success (no issues; lone pre-existing note
-  in `strategies/base.py:77` unrelated to this work)
-- `python -m pytest -q` → **270 passed** (was 251 before; +19 new tests)
+If a new bounded task is needed, pick one of the lower-priority items below
+and scope it to a single module + test file, mirroring the regime/analysis
+and monte-carlo/cli patterns used this session.
 
-## What remains / suggested next work (prioritized)
+## Other remaining work (lower priority)
 
-The technical-indicator task is now complete and green. Sector, commodities, and
-economic data are only partially implemented — these are the natural next steps:
+- More data providers (Polygon.io, Twelve Data, IEX Cloud); WebSocket
+  streaming; Redis caching.
+- Backtesting enhancements: all named items (regime detection, Monte Carlo
+  simulation, parameter optimization/walk-forward analysis) are complete
+  and tested.
 
-1. **Route sector/commodities/economic intervals through `fetch()`/`fetch_many()`**
-   - `SECTOR_INTERVALS` (`sector`, `sector_performance`, `sectors`) currently has
-     only the standalone `get_sector_performance()` convenience method (returns a
-     `DataFrame`). There is no `_fetch_sector_performance` returning a `FetchResult`,
-     and these intervals are not handled in `fetch()` (they fall through to
-     `BATCH_STOCK_PRICES`). Add a `_fetch_sector_performance` FetchResult method
-     that replicates the single global result per requested symbol (mirroring
-     `_fetch_market_status`) and route it in `fetch()`/`fetch_many()`.
-   - `COMMODITIES_INTERVALS` and `ECONOMIC_INDICATORS` constants are declared but
-     have **no** `_fetch_*` / `_build_*` / `_parse_*` methods and no routing.
-     Implement these (Alpha Vantage exposes them via dedicated functions like
-     `WTI`, `BRENT`, `CPI`, `UNEMPLOYPMENT`, `GDP`; these are single-series and
-     best exposed as standalone `get_*` convenience methods returning DataFrames,
-     plus optional `fetch()` routing). Add tests for each.
-
-2. **Technical-indicator series interval** — `fetch()` routing currently defaults
-   the TI time-series resolution to `"1d"` (daily). Alpha Vantage also supports
-   intraday TIs. Consider allowing an explicit series interval (e.g. via
-   `kwargs`/`meta`) rather than hardcoding daily, and add tests for intraday TIs.
-
-3. **Optional broader testing** — integration tests against the live Alpha Vantage
-   API (requires network + real key), and DataManager multi-provider cache tests.
-
-## Reliability rules (carry forward)
-
-- Small verified steps; run `pytest`, `ruff check .`, `mypy quant_trading/`
-  after each change.
-- Keep `__pycache__`, `.coverage`, `*.egg-info` gitignored (already handled).
-- Do not modify `.github/workflows`; the outer workflow handles checkpointing.
-- Do not manually commit/push; the outer workflow handles checkpointing.
-- This file lives at `.kilo/next_task.md`; overwrite it at the end of each
-  session to hand off to the next agent.
+(End of file)

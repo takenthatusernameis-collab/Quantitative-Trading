@@ -42,3 +42,6 @@ htmlcov/
 .idea/
 .vscode/
 *.swp
+
+# Data cache
+data/cache/

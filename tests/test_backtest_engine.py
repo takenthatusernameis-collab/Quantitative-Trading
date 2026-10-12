@@ -9,6 +9,8 @@ from quant_trading.backtest.engine import BacktestEngine, BacktestResult, Trade
 from quant_trading.config.settings import BacktestConfig
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
 from quant_trading.data.synthetic import create_synthetic_data
+from quant_trading.risk.manager import RiskManager
+from quant_trading.strategies.base import Signal, Strategy
 from quant_trading.strategies.examples import MovingAverageCrossover
 
 
@@ -45,6 +47,28 @@ class MockDataProvider(DataProvider):
 
     def fetch_latest(self, symbols: list) -> FetchResult:
         return self.fetch(symbols)
+
+
+class FirstDayBuyStrategy(Strategy):
+    """Buys once on the first simulated date, then holds."""
+
+    def __init__(self):
+        super().__init__(name="FirstDayBuy")
+        self._bought = False
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        if self._bought:
+            return []
+        self._bought = True
+        symbol, df = next(iter(data.items()))
+        return [
+            Signal(
+                symbol=symbol,
+                action="buy",
+                strength=1.0,
+                price=float(df["close"].iloc[-1]),
+            )
+        ]
 
 
 def test_trade_cost_calculation():
@@ -231,6 +255,68 @@ def test_backtest_traces_realized_pnl():
         assert (buys["pnl"] == 0).all()
     # Metrics pipeline picks up trades because the pnl column is present.
     assert result.metrics.num_trades == len(result.trades)
+
+
+def test_portfolio_violations_collected_without_halt():
+    """Portfolio violations are recorded but the backtest runs to completion."""
+    symbols = ["AAPL"]
+    mock_data = create_synthetic_data(symbols, days=60)
+
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    config = BacktestConfig(initial_capital=100000.0)
+    engine = BacktestEngine(
+        config=config,
+        data_manager=data_manager,
+        risk_manager=RiskManager(initial_capital=100000.0, max_positions=0),
+    )
+    engine.add_strategy(FirstDayBuyStrategy())
+
+    start_date = datetime.now() - timedelta(days=50)
+    end_date = datetime.now()
+
+    result = engine.run(symbols, start_date, end_date, "1d")
+
+    assert isinstance(result, BacktestResult)
+    assert len(result.portfolio_violations) > 0
+    # Full run: one entry per simulated date plus the initial value.
+    assert len(result.equity_curve) == len(mock_data["AAPL"]) + 1
+    assert isinstance(result.equity_curve, pd.Series)
+    assert result.equity_curve.index[0] == start_date
+
+
+def test_halt_on_portfolio_violation_stops_backtest():
+    """halt_on_portfolio_violation=True stops the backtest on the first violation."""
+    symbols = ["AAPL"]
+    mock_data = create_synthetic_data(symbols, days=60)
+
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    config = BacktestConfig(
+        initial_capital=100000.0,
+        halt_on_portfolio_violation=True,
+    )
+    engine = BacktestEngine(
+        config=config,
+        data_manager=data_manager,
+        risk_manager=RiskManager(initial_capital=100000.0, max_positions=0),
+    )
+    engine.add_strategy(FirstDayBuyStrategy())
+
+    start_date = datetime.now() - timedelta(days=50)
+    end_date = datetime.now()
+
+    result = engine.run(symbols, start_date, end_date, "1d")
+
+    assert isinstance(result, BacktestResult)
+    assert len(result.portfolio_violations) > 0
+    # Halted after the first simulated date: initial value plus one update.
+    assert len(result.equity_curve) == 2
+    assert len(result.equity_curve) < len(mock_data["AAPL"]) + 1
+    assert isinstance(result.equity_curve, pd.Series)
+    assert len(result.equity_curve.index) == len(result.equity_curve)
 
 
 if __name__ == "__main__":

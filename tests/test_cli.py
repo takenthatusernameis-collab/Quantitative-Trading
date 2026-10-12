@@ -94,6 +94,57 @@ class TestParseArgs:
         assert args.rsi_period == 21
         assert args.rsi_oversold == 25
 
+    def test_regime_flag_defaults(self):
+        with patch("sys.argv", ["cli.py", "--regime"]):
+            args = parse_args()
+        assert args.regime is True
+        assert args.regime_window == 20
+        assert args.regime_vol_threshold == 0.0
+        assert args.regime_return_threshold == 0.0
+
+    def test_regime_flag_explicit_thresholds(self):
+        with patch(
+            "sys.argv",
+            ["cli.py", "--regime", "--regime-window", "30", "--regime-vol-threshold", "0.15", "--regime-return-threshold", "0.05"],
+        ):
+            args = parse_args()
+        assert args.regime is True
+        assert args.regime_window == 30
+        assert args.regime_vol_threshold == 0.15
+        assert args.regime_return_threshold == 0.05
+
+    def test_monte_carlo_flag_defaults(self):
+        with patch("sys.argv", ["cli.py", "--monte-carlo"]):
+            args = parse_args()
+        assert args.monte_carlo is True
+        assert args.mc_simulations == 1000
+        assert args.mc_confidence == 0.95
+        assert args.mc_method == "bootstrap"
+        assert args.mc_seed is None
+
+    def test_monte_carlo_flag_explicit_params(self):
+        with patch(
+            "sys.argv",
+            [
+                "cli.py",
+                "--monte-carlo",
+                "--mc-simulations",
+                "250",
+                "--mc-confidence",
+                "0.99",
+                "--mc-method",
+                "parametric",
+                "--mc-seed",
+                "7",
+            ],
+        ):
+            args = parse_args()
+        assert args.monte_carlo is True
+        assert args.mc_simulations == 250
+        assert args.mc_confidence == 0.99
+        assert args.mc_method == "parametric"
+        assert args.mc_seed == 7
+
 
 class TestListStrategies:
     """Tests for list_strategies function."""
@@ -464,6 +515,41 @@ class TestMain:
             result = main()
         assert result == 0
         mock_run_combined.assert_called_once()
+
+    def test_main_offline_regime_analysis(self, capsys):
+        """Running offline with --regime prints a Market Regime Analysis block."""
+        args = ["--offline", "--regime", "--symbols", "AAPL", "--days", "120"]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Market Regime Analysis" in captured.out
+        assert "Current Regime:" in captured.out
+        assert "Regime Segments:" in captured.out
+
+    def test_main_offline_monte_carlo_analysis(self, capsys):
+        """Running offline with --monte-carlo prints a Monte Carlo Simulation block."""
+        args = [
+            "--offline",
+            "--monte-carlo",
+            "--mc-simulations",
+            "60",
+            "--mc-seed",
+            "42",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "120",
+        ]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Monte Carlo Simulation" in captured.out
+        assert "Probability of Profit" in captured.out
+        assert "95% Confidence Intervals" in captured.out
 
 
 if __name__ == "__main__":

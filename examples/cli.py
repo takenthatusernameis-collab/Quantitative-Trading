@@ -5,6 +5,20 @@ from datetime import datetime, timedelta
 
 from quant_trading.backtest.engine import run_backtest
 from quant_trading.config.settings import Config
+from quant_trading.monte_carlo import run_monte_carlo
+from quant_trading.optimization import (
+    BayesianOptimizer,
+    GridSearch,
+    ParameterGrid,
+    RandomSearch,
+    WalkForwardOptimizer,
+    maximize_calmar,
+    maximize_profit_factor,
+    maximize_sharpe,
+    maximize_total_return,
+    maximize_win_rate,
+    minimize_max_drawdown,
+)
 from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
     MACDStrategy,
@@ -23,6 +37,21 @@ PROVIDERS = {
     "yfinance": ("YFinanceProvider", "Yahoo Finance (requires network)"),
     "alphavantage": ("AlphaVantageProvider", "Alpha Vantage (requires API key)"),
     "synthetic": ("SyntheticDataProvider", "Synthetic data generator (offline, deterministic)"),
+}
+
+OBJECTIVES = {
+    "sharpe": maximize_sharpe,
+    "return": maximize_total_return,
+    "calmar": maximize_calmar,
+    "drawdown": minimize_max_drawdown,
+    "profit_factor": maximize_profit_factor,
+    "win_rate": maximize_win_rate,
+}
+
+OPTIMIZERS = {
+    "grid": GridSearch,
+    "random": RandomSearch,
+    "bayesian": BayesianOptimizer,
 }
 
 
@@ -167,10 +196,149 @@ def parse_args() -> argparse.Namespace:
         help="Enable zero-line crossover signals for MACD",
     )
 
+    # Parameter ranges for optimization
+    parser.add_argument(
+        "--ma-fast-range",
+        type=str,
+        default="5,20,5",
+        help="Fast MA range: min,max,step (for grid search)",
+    )
+    parser.add_argument(
+        "--ma-slow-range",
+        type=str,
+        default="20,50,5",
+        help="Slow MA range: min,max,step (for grid search)",
+    )
+    parser.add_argument(
+        "--rsi-period-range",
+        type=str,
+        default="10,20,2",
+        help="RSI period range: min,max,step",
+    )
+    parser.add_argument(
+        "--rsi-oversold-range",
+        type=str,
+        default="20,35,5",
+        help="RSI oversold range: min,max,step",
+    )
+    parser.add_argument(
+        "--rsi-overbought-range",
+        type=str,
+        default="65,80,5",
+        help="RSI overbought range: min,max,step",
+    )
+    parser.add_argument(
+        "--bb-period-range",
+        type=str,
+        default="10,30,5",
+        help="BB period range: min,max,step",
+    )
+    parser.add_argument(
+        "--bb-std-range",
+        type=str,
+        default="1.5,3.0,0.5",
+        help="BB std dev range: min,max,step",
+    )
+    parser.add_argument(
+        "--macd-fast-range",
+        type=str,
+        default="8,16,2",
+        help="MACD fast range: min,max,step",
+    )
+    parser.add_argument(
+        "--macd-slow-range",
+        type=str,
+        default="20,30,2",
+        help="MACD slow range: min,max,step",
+    )
+    parser.add_argument(
+        "--macd-signal-range",
+        type=str,
+        default="7,12,1",
+        help="MACD signal range: min,max,step",
+    )
+
     parser.add_argument(
         "--combined",
         action="store_true",
         help="Run all available strategies together and compare results",
+    )
+
+    parser.add_argument(
+        "--optimize",
+        action="store_true",
+        help="Run parameter optimization for the selected strategy",
+    )
+    parser.add_argument(
+        "--optimizer",
+        choices=list(OPTIMIZERS.keys()),
+        default="grid",
+        help="Optimization method to use",
+    )
+    parser.add_argument(
+        "--objective",
+        choices=list(OBJECTIVES.keys()),
+        default="sharpe",
+        help="Objective function to optimize",
+    )
+    parser.add_argument(
+        "--n-iter",
+        type=int,
+        default=50,
+        help="Number of iterations for random search",
+    )
+    parser.add_argument(
+        "--bayesian-n-initial",
+        type=int,
+        default=10,
+        help="Number of initial random points for Bayesian optimization",
+    )
+    parser.add_argument(
+        "--bayesian-acq-func",
+        choices=["EI", "PI", "LCB", "gp_hedge"],
+        default="EI",
+        help="Acquisition function for Bayesian optimization",
+    )
+    parser.add_argument(
+        "--bayesian-acq-optimizer",
+        choices=["auto", "sampling", "lbfgs"],
+        default="auto",
+        help="Acquisition function optimizer for Bayesian optimization",
+    )
+    parser.add_argument(
+        "--walk-forward",
+        action="store_true",
+        help="Run walk-forward optimization",
+    )
+    parser.add_argument(
+        "--wf-windows",
+        type=int,
+        default=5,
+        help="Number of walk-forward windows",
+    )
+    parser.add_argument(
+        "--wf-train-size",
+        type=float,
+        default=0.7,
+        help="Training fraction for walk-forward (0-1)",
+    )
+    parser.add_argument(
+        "--wf-anchored",
+        action="store_true",
+        default=True,
+        help="Use anchored (expanding) walk-forward windows",
+    )
+    parser.add_argument(
+        "--wf-rolling",
+        action="store_false",
+        dest="wf_anchored",
+        help="Use rolling (sliding) walk-forward windows",
+    )
+    parser.add_argument(
+        "--wf-optimizer",
+        choices=["grid", "random", "bayesian"],
+        default="grid",
+        help="Optimizer to use within each walk-forward window",
     )
 
     parser.add_argument(
@@ -216,6 +384,65 @@ def parse_args() -> argparse.Namespace:
         "--output",
         type=str,
         help="Output file for results (JSON)",
+    )
+    parser.add_argument(
+        "--regime",
+        action="store_true",
+        help="Run market-regime detection on the backtest equity curve",
+    )
+    parser.add_argument(
+        "--regime-window",
+        type=int,
+        default=20,
+        help="Rolling window size for regime detection",
+    )
+    parser.add_argument(
+        "--regime-vol-threshold",
+        type=float,
+        default=0.0,
+        help="Explicit volatility threshold (<=0 auto-derives)",
+    )
+    parser.add_argument(
+        "--regime-return-threshold",
+        type=float,
+        default=0.0,
+        help="Explicit return threshold (<=0 auto-derives)",
+    )
+
+    parser.add_argument(
+        "--monte-carlo",
+        action="store_true",
+        help="Run Monte Carlo simulation on the backtest equity curve",
+    )
+    parser.add_argument(
+        "--mc-simulations",
+        type=int,
+        default=1000,
+        help="Number of Monte Carlo simulations to run",
+    )
+    parser.add_argument(
+        "--mc-confidence",
+        type=float,
+        default=0.95,
+        help="Confidence level for Monte Carlo intervals (0-1)",
+    )
+    parser.add_argument(
+        "--mc-method",
+        choices=["bootstrap", "parametric"],
+        default="bootstrap",
+        help="Monte Carlo simulation method",
+    )
+    parser.add_argument(
+        "--mc-seed",
+        type=int,
+        default=None,
+        help="Random seed for Monte Carlo reproducibility",
+    )
+
+    parser.add_argument(
+        "--trade-analysis",
+        action="store_true",
+        help="Run detailed trade analysis on the backtest results",
     )
 
     return parser.parse_args()
@@ -312,6 +539,356 @@ def create_config(args: argparse.Namespace) -> Config:
     return config
 
 
+def parse_range(range_str: str) -> tuple[float, float, float]:
+    """Parse a range string 'min,max,step' into a tuple."""
+    parts = range_str.split(",")
+    if len(parts) != 3:
+        raise ValueError(f"Invalid range format: {range_str}. Expected 'min,max,step'")
+    return float(parts[0]), float(parts[1]), float(parts[2])
+
+
+def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
+    """Create parameter grid for optimization based on strategy and args."""
+    from quant_trading.optimization import ParameterGrid, ParameterSpace
+
+    grid = ParameterGrid()
+
+    if args.strategy == "ma":
+        fast_min, fast_max, fast_step = parse_range(args.ma_fast_range)
+        slow_min, slow_max, slow_step = parse_range(args.ma_slow_range)
+        grid.add(ParameterSpace("fast_period", min_val=fast_min, max_val=fast_max, step=fast_step, param_type=int))
+        grid.add(ParameterSpace("slow_period", min_val=slow_min, max_val=slow_max, step=slow_step, param_type=int))
+    elif args.strategy == "rsi":
+        period_min, period_max, period_step = parse_range(args.rsi_period_range)
+        oversold_min, oversold_max, oversold_step = parse_range(args.rsi_oversold_range)
+        overbought_min, overbought_max, overbought_step = parse_range(args.rsi_overbought_range)
+        grid.add(ParameterSpace("period", min_val=period_min, max_val=period_max, step=period_step, param_type=int))
+        grid.add(ParameterSpace("oversold", min_val=oversold_min, max_val=oversold_max, step=oversold_step, param_type=int))
+        grid.add(ParameterSpace("overbought", min_val=overbought_min, max_val=overbought_max, step=overbought_step, param_type=int))
+    elif args.strategy == "bb":
+        period_min, period_max, period_step = parse_range(args.bb_period_range)
+        std_min, std_max, std_step = parse_range(args.bb_std_range)
+        grid.add(ParameterSpace("period", min_val=period_min, max_val=period_max, step=period_step, param_type=int))
+        grid.add(ParameterSpace("std_dev", min_val=std_min, max_val=std_max, step=std_step, param_type=float))
+    elif args.strategy == "macd":
+        fast_min, fast_max, fast_step = parse_range(args.macd_fast_range)
+        slow_min, slow_max, slow_step = parse_range(args.macd_slow_range)
+        signal_min, signal_max, signal_step = parse_range(args.macd_signal_range)
+        grid.add(ParameterSpace("fast_period", min_val=fast_min, max_val=fast_max, step=fast_step, param_type=int))
+        grid.add(ParameterSpace("slow_period", min_val=slow_min, max_val=slow_max, step=slow_step, param_type=int))
+        grid.add(ParameterSpace("signal_period", min_val=signal_min, max_val=signal_max, step=signal_step, param_type=int))
+        grid.add(ParameterSpace("use_zero_line", values=[False, True], param_type=bool))
+
+    return grid
+
+
+def run_optimization(args: argparse.Namespace, config: Config, start_date: datetime, end_date: datetime) -> int:
+    """Run parameter optimization for a strategy."""
+
+    strategy_cls = STRATEGIES[args.strategy]
+    param_grid = create_param_grid(args)
+    objective = OBJECTIVES[args.objective]
+
+    print(f"Running parameter optimization for {strategy_cls.__name__}")
+    print(f"Symbols: {args.symbols}")
+    print(f"Date range: {start_date.date()} to {end_date.date()}")
+    print(f"Provider: {config.data.provider}")
+    print(f"Optimizer: {args.optimizer}")
+    print(f"Objective: {args.objective}")
+    if config.data.offline:
+        print("Mode: OFFLINE (synthetic data)")
+    print(f"Parameter grid: {param_grid.generate_combinations().__len__()} combinations")
+
+    optimizer_cls = OPTIMIZERS[args.optimizer]
+    if args.optimizer == "random":
+        optimizer = optimizer_cls(
+            strategy_cls=strategy_cls,
+            param_grid=param_grid,
+            objective=objective,
+            symbols=args.symbols,
+            start=start_date,
+            end=end_date,
+            initial_capital=args.initial_capital,
+            commission=args.commission,
+            slippage=args.slippage,
+            interval=args.interval,
+            config=config,
+            n_iter=args.n_iter,
+            verbose=True,
+        )
+    elif args.optimizer == "bayesian":
+        optimizer = optimizer_cls(
+            strategy_cls=strategy_cls,
+            param_grid=param_grid,
+            objective=objective,
+            symbols=args.symbols,
+            start=start_date,
+            end=end_date,
+            initial_capital=args.initial_capital,
+            commission=args.commission,
+            slippage=args.slippage,
+            interval=args.interval,
+            config=config,
+            n_initial_points=args.bayesian_n_initial,
+            n_calls=args.n_iter,
+            acq_func=args.bayesian_acq_func,
+            acq_optimizer=args.bayesian_acq_optimizer,
+            verbose=True,
+        )
+    else:
+        optimizer = optimizer_cls(
+            strategy_cls=strategy_cls,
+            param_grid=param_grid,
+            objective=objective,
+            symbols=args.symbols,
+            start=start_date,
+            end=end_date,
+            initial_capital=args.initial_capital,
+            commission=args.commission,
+            slippage=args.slippage,
+            interval=args.interval,
+            config=config,
+            verbose=True,
+        )
+
+    result = optimizer.run()
+
+    print(f"\n{'=' * 60}")
+    print("Optimization Complete")
+    print(f"{'=' * 60}")
+    print(f"Best Parameters: {result.best_params}")
+    print(f"Best Score ({args.objective}): {result.best_score:.4f}")
+
+    if result.best_result:
+        print(f"Total Return:    {result.best_result.total_return_pct:.2f}%")
+        print(f"Sharpe Ratio:    {result.best_result.metrics.sharpe_ratio:.4f}")
+        print(f"Max Drawdown:    {result.best_result.metrics.max_drawdown_pct:.2f}%")
+        print(f"Win Rate:        {result.best_result.metrics.win_rate:.2%}")
+        print(f"Profit Factor:   {result.best_result.metrics.profit_factor:.4f}")
+        print(f"Total Trades:    {result.best_result.metrics.num_trades}")
+
+    # Print top 10
+    print("\nTop 10 Results:")
+    print(f"{'Rank':<5} {'Params':<50} {'Score':>10} {'Return%':>10} {'Sharpe':>8} {'MaxDD%':>10}")
+    print(f"{'-' * 90}")
+    for i, r in enumerate(result.get_top_n(10)):
+        params_str = str(r["params"])[:48]
+        print(f"{i+1:<5} {params_str:<50} {r['score']:>10.4f} {r['total_return_pct']:>10.2f} {r['sharpe_ratio']:>8.4f} {r['max_drawdown_pct']:>10.2f}")
+
+    if args.output:
+        import json
+
+        output_data = {
+            "strategy": strategy_cls.__name__,
+            "symbols": args.symbols,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "optimizer": args.optimizer,
+            "objective": args.objective,
+            "best_params": result.best_params,
+            "best_score": result.best_score,
+            "best_result": {
+                "total_return_pct": result.best_result.total_return_pct if result.best_result else None,
+                "sharpe_ratio": result.best_result.metrics.sharpe_ratio if result.best_result else None,
+                "max_drawdown_pct": result.best_result.metrics.max_drawdown_pct if result.best_result else None,
+                "win_rate": result.best_result.metrics.win_rate if result.best_result else None,
+                "profit_factor": result.best_result.metrics.profit_factor if result.best_result else None,
+                "num_trades": result.best_result.metrics.num_trades if result.best_result else None,
+            } if result.best_result else None,
+            "all_results": result.all_results,
+        }
+        with open(args.output, "w") as f:
+            json.dump(output_data, f, indent=2, default=str)
+        print(f"\nResults saved to {args.output}")
+
+    return 0
+
+
+def run_walk_forward(args: argparse.Namespace, config: Config, start_date: datetime, end_date: datetime) -> int:
+    """Run walk-forward optimization for a strategy."""
+
+    strategy_cls = STRATEGIES[args.strategy]
+    param_grid = create_param_grid(args)
+    objective = OBJECTIVES[args.objective]
+
+    print(f"Running walk-forward optimization for {strategy_cls.__name__}")
+    print(f"Symbols: {args.symbols}")
+    print(f"Date range: {start_date.date()} to {end_date.date()}")
+    print(f"Provider: {config.data.provider}")
+    print(f"Windows: {args.wf_windows}")
+    print(f"Train size: {args.wf_train_size:.0%}")
+    print(f"Anchored: {args.wf_anchored}")
+    print(f"Inner optimizer: {args.wf_optimizer}")
+    print(f"Objective: {args.objective}")
+    if config.data.offline:
+        print("Mode: OFFLINE (synthetic data)")
+
+    if args.wf_optimizer == "random":
+        optimizer_kwargs = {"n_iter": args.n_iter}
+    elif args.wf_optimizer == "bayesian":
+        optimizer_kwargs = {
+            "n_initial_points": args.bayesian_n_initial,
+            "n_calls": args.n_iter,
+            "acq_func": args.bayesian_acq_func,
+            "acq_optimizer": args.bayesian_acq_optimizer,
+        }
+    else:
+        optimizer_kwargs = {}
+
+    optimizer = WalkForwardOptimizer(
+        strategy_cls=strategy_cls,
+        param_grid=param_grid,
+        objective=objective,
+        symbols=args.symbols,
+        start=start_date,
+        end=end_date,
+        initial_capital=args.initial_capital,
+        commission=args.commission,
+        slippage=args.slippage,
+        interval=args.interval,
+        data_manager=None,
+        config=config,
+        n_windows=args.wf_windows,
+        train_size=args.wf_train_size,
+        anchored=args.wf_anchored,
+        optimizer=args.wf_optimizer,
+        optimizer_kwargs=optimizer_kwargs,
+        verbose=True,
+    )
+
+    result = optimizer.run()
+
+    print(f"\n{'=' * 60}")
+    print("Walk-Forward Optimization Complete")
+    print(f"{'=' * 60}")
+
+    # Print window results
+    df = result.to_dataframe()
+    if not df.empty:
+        print("\nWindow Results:")
+        print(f"{'Window':<7} {'Train Return%':>14} {'Train Sharpe':>13} {'Test Return%':>13} {'Test Sharpe':>12} {'Test MaxDD%':>13}")
+        print(f"{'-' * 75}")
+        for _, row in df.iterrows():
+            print(f"{int(row['window']):<7} {row['train_return_pct']:>14.2f} {row['train_sharpe']:>13.4f} "
+                  f"{row['test_return_pct']:>13.2f} {row['test_sharpe']:>12.4f} {row['test_max_dd']:>13.2f}")
+
+    summary = result.summary()
+    print("\nSummary:")
+    print(f"  Windows:           {summary['n_windows']}")
+    print(f"  Avg Test Return:   {summary['avg_test_return_pct']:.2f}%")
+    print(f"  Avg Test Sharpe:   {summary['avg_test_sharpe']:.4f}")
+    print(f"  Avg Test Max DD:   {summary['avg_test_max_dd_pct']:.2f}%")
+    print(f"  Window Win Rate:   {summary['win_rate_windows']:.2%}")
+
+    if result.combined_test_result:
+        print(f"  Combined Test Return: {summary['combined_test_return_pct']:.2f}%")
+        print(f"  Combined Test Sharpe: {summary['combined_test_sharpe']:.4f}")
+
+    if args.output:
+        import json
+
+        output_data = {
+            "strategy": strategy_cls.__name__,
+            "symbols": args.symbols,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "walk_forward": {
+                "n_windows": args.wf_windows,
+                "train_size": args.wf_train_size,
+                "anchored": args.wf_anchored,
+            },
+            "objective": args.objective,
+            "optimizer": args.optimizer,
+            "window_results": result.to_dataframe().to_dict(orient="records"),
+            "summary": summary,
+        }
+        with open(args.output, "w") as f:
+            json.dump(output_data, f, indent=2, default=str)
+        print(f"\nResults saved to {args.output}")
+
+    return 0
+
+
+def _print_regime_analysis(result, args: argparse.Namespace) -> None:
+    """Print regime detection results for a backtest's equity curve."""
+    from quant_trading.backtest import analyze_regimes
+
+    analysis = analyze_regimes(
+        result,
+        window=args.regime_window,
+        vol_threshold=args.regime_vol_threshold,
+        return_threshold=args.regime_return_threshold,
+    )
+    summary = analysis.summary()
+
+    print(f"\n{'=' * 60}")
+    print("Market Regime Analysis")
+    print(f"{'=' * 60}")
+    print(f"Current Regime:   {summary['current_regime']}")
+    print(f"Total Volatility: {summary['total_volatility']:.4f}")
+    print(f"Total Return:      {summary['total_return_pct']:.2f}%")
+    print(f"Regime Segments:   {summary['n_segments']}")
+
+    if summary["n_segments"] > 0:
+        print(f"\n{'Regime':<22} {'Start':<12} {'End':<12} {'Vol':>8} {'Ret %':>8}")
+        print(f"{'-' * 62}")
+        for seg in analysis.segments:
+            print(
+                f"{seg.regime.value:<22} {str(seg.start)[:10]:<12} {str(seg.end)[:10]:<12} "
+                f"{seg.volatility:>8.4f} {seg.return_pct:>8.2f}"
+            )
+
+
+def _print_monte_carlo_analysis(result, args: argparse.Namespace) -> None:
+    """Print Monte Carlo simulation results for a backtest's equity curve."""
+    mc = run_monte_carlo(
+        result,
+        n_simulations=args.mc_simulations,
+        confidence_level=args.mc_confidence,
+        method=args.mc_method,
+        random_state=args.mc_seed,
+    )
+    summary = mc.summary()
+
+    print(f"\n{'=' * 60}")
+    print("Monte Carlo Simulation")
+    print(f"{'=' * 60}")
+    print(f"Method:            {args.mc_method}")
+    print(f"Simulations:       {mc.n_simulations}")
+    print(f"Confidence Level:  {mc.confidence_level:.0%}")
+    print(f"Duration (s):      {mc.duration_seconds:.2f}")
+    print(f"Probability of Profit: {summary['probability_of_profit']:.2%}")
+
+    print(f"\n{'Metric':<22} {'Mean':>12} {'Median':>12} {'Std':>12}")
+    print(f"{'-' * 58}")
+    for metric in [
+        "total_return_pct",
+        "sharpe_ratio",
+        "max_drawdown_pct",
+        "volatility",
+    ]:
+        print(
+            f"{metric:<22} {summary[f'{metric}_mean']:>12.4f} "
+            f"{summary[f'{metric}_median']:>12.4f} {summary[f'{metric}_std']:>12.4f}"
+        )
+
+    print("\n95% Confidence Intervals:")
+    for metric in ["total_return_pct", "sharpe_ratio", "max_drawdown_pct"]:
+        lower = summary[f"{metric}_ci_lower"]
+        upper = summary[f"{metric}_ci_upper"]
+        print(f"  {metric:<20} [{lower:>10.4f}, {upper:>10.4f}]")
+
+    print(f"\nExpected Shortfall (95%): {summary['total_return_pct_ci_lower']:.4f}")
+
+
+def _print_trade_analysis(result, args: argparse.Namespace) -> None:
+    """Print detailed trade analysis for a backtest result."""
+    from quant_trading.backtest import analyze_trades, print_trade_analysis
+
+    analysis = analyze_trades(result)
+    print_trade_analysis(analysis)
+
+
 def main() -> int:
     args = parse_args()
 
@@ -335,6 +912,12 @@ def main() -> int:
 
     if args.combined:
         return run_combined(args, config, start_date, end_date)
+
+    if args.optimize:
+        return run_optimization(args, config, start_date, end_date)
+
+    if args.walk_forward:
+        return run_walk_forward(args, config, start_date, end_date)
 
     # Single strategy mode
     strategy = create_strategy(args)
@@ -374,6 +957,15 @@ def main() -> int:
         print(f"Sharpe Ratio:    {result.metrics.sharpe_ratio:.2f}")
         print(f"Max Drawdown:    {result.metrics.max_drawdown_pct:.2f}%")
         print(f"Profit Factor:   {result.metrics.profit_factor:.2f}")
+
+        if args.regime:
+            _print_regime_analysis(result, args)
+
+        if args.monte_carlo:
+            _print_monte_carlo_analysis(result, args)
+
+        if args.trade_analysis:
+            _print_trade_analysis(result, args)
 
         if args.output:
             import json

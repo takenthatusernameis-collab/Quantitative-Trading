@@ -1,11 +1,12 @@
 """Backtest engine for strategy validation."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 import pandas as pd
 
+from quant_trading.backtest.metrics import BacktestMetrics
 from quant_trading.config.settings import BacktestConfig, Config, DataConfig
 from quant_trading.data.providers import DataManager, create_data_manager_from_config
 from quant_trading.portfolio.portfolio import Portfolio
@@ -74,13 +75,14 @@ class BacktestResult:
     equity_curve: pd.Series
     trades: pd.DataFrame
     positions: dict[str, Any]
-    metrics: Any  # BacktestMetrics
+    metrics: BacktestMetrics
     start_date: datetime
     end_date: datetime
     initial_capital: float
     final_value: float
     total_return: float
     total_return_pct: float
+    portfolio_violations: list[str] = field(default_factory=list)
 
 
 class BacktestEngine:
@@ -148,7 +150,9 @@ class BacktestEngine:
         self.risk_manager.reset()
 
         equity_curve = [self.config.initial_capital]
+        processed_dates: list[datetime] = []
         trades_list: list[Trade] = []
+        portfolio_violations: list[str] = []
         dates = sorted(set().union(*[df.index for df in data.values()]))
 
         for current_date in dates:
@@ -180,6 +184,7 @@ class BacktestEngine:
             }
             self.portfolio.update_prices(prices)
             equity_curve.append(self.portfolio.total_value)
+            processed_dates.append(current_date)
 
             # Update risk manager
             self.risk_manager.update_portfolio_value(
@@ -187,8 +192,14 @@ class BacktestEngine:
                 self.portfolio.cash,
             )
 
+            # Enforce portfolio-level limits (max drawdown, max positions, etc.)
+            portfolio_check = self.risk_manager.check_portfolio()
+            portfolio_violations.extend(portfolio_check.violations)
+            if not portfolio_check.ok and self.config.halt_on_portfolio_violation:
+                break
+
         # Create result
-        equity_series = pd.Series(equity_curve, index=[start] + list(dates))
+        equity_series = pd.Series(equity_curve, index=[start] + processed_dates)
         trades_df = pd.DataFrame(
             [
                 {
@@ -225,6 +236,7 @@ class BacktestEngine:
             final_value=self.portfolio.total_value,
             total_return=self.portfolio.total_value - self.config.initial_capital,
             total_return_pct=(self.portfolio.total_value / self.config.initial_capital - 1) * 100,
+            portfolio_violations=portfolio_violations,
         )
 
     def _process_signal(

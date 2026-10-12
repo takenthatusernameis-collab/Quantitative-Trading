@@ -1557,6 +1557,102 @@ class TestAlphaVantageProvider:
         results = provider._parse_symbol_search_response({})
         assert results == []
 
+    # Symbol Search fetch/fetch_many tests
+    def test_fetch_symbol_search(self, provider):
+        """Test fetch with symbol_search interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(SYMBOL_SEARCH_RESPONSE)
+
+            result = provider.fetch(["Apple"], interval="symbol_search")
+
+            assert "Apple" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["Apple"]
+            assert md.symbol == "Apple"
+            assert isinstance(md.data, pd.DataFrame)
+            assert len(md.data) == 2
+            assert "symbol" in md.data.columns
+            assert "name" in md.data.columns
+            assert "type" in md.data.columns
+            assert "region" in md.data.columns
+            assert "market" in md.data.columns
+            assert "currency" in md.data.columns
+            assert "match_score" in md.data.columns
+            assert md.metadata.get("function") == "SYMBOL_SEARCH"
+            assert md.metadata.get("query") == "Apple"
+            mock_get.assert_called_once()
+
+    def test_fetch_symbol_search_aliases(self, provider):
+        """Test fetch with search_symbols and symbol_lookup aliases."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(SYMBOL_SEARCH_RESPONSE)
+
+            for interval in ["search_symbols", "symbol_lookup"]:
+                result = provider.fetch(["Microsoft"], interval=interval)
+                assert "Microsoft" in result.data
+                md = result.data["Microsoft"]
+                assert md.metadata.get("function") == "SYMBOL_SEARCH"
+                assert md.metadata.get("query") == "Microsoft"
+
+    def test_fetch_symbol_search_empty_response(self, provider):
+        """Test fetch with symbol search empty response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(SYMBOL_SEARCH_EMPTY_RESPONSE)
+
+            result = provider.fetch(["NONEXISTENT"], interval="symbol_search")
+
+            assert "NONEXISTENT" in result.missing
+            assert not result.data
+            assert not result.errors
+            mock_get.assert_called_once()
+
+    def test_fetch_symbol_search_api_error(self, provider):
+        """Test fetch with symbol search API error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+
+            result = provider.fetch(["Apple"], interval="symbol_search")
+
+            assert "Apple" in result.errors
+            assert not result.data
+            mock_get.assert_called_once()
+
+    def test_fetch_symbol_search_rate_limit(self, provider):
+        """Test fetch with symbol search rate limit."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            result = provider.fetch(["Apple"], interval="symbol_search")
+
+            assert "Apple" in result.errors
+            assert isinstance(result.errors["Apple"], RuntimeError)
+            mock_get.assert_called_once()
+
+    def test_fetch_many_symbol_search(self, provider):
+        """Test fetch_many with symbol_search interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(SYMBOL_SEARCH_RESPONSE)
+
+            requests = [{"symbols": ["Apple"], "interval": "symbol_search"}]
+            results = provider.fetch_many(requests)
+
+            assert len(results) == 1
+            key = next(iter(results.keys()))
+            res = results[key]
+            assert "Apple" in res.data
+            md = res.data["Apple"]
+            assert md.metadata.get("function") == "SYMBOL_SEARCH"
+            assert list(md.data.columns) == ["symbol", "name", "type", "region", "market", "currency", "match_score"]
+            mock_get.assert_called_once()
+
+    def test_symbol_search_intervals_set(self, provider):
+        """Test SYMBOL_SEARCH_INTERVALS set contains expected intervals."""
+        intervals = provider.SYMBOL_SEARCH_INTERVALS
+        assert "symbol_search" in intervals
+        assert "search_symbols" in intervals
+        assert "symbol_lookup" in intervals
+
     # Market Status tests
     def test_get_market_status(self, provider):
         """Test getting market status (MARKET_STATUS endpoint)."""
@@ -1894,6 +1990,110 @@ class TestAlphaVantageProvider:
         assert "exchange_rate" in df.columns
         assert "bid_price" in df.columns
         assert "ask_price" in df.columns
+
+    # Currency Exchange Rate fetch/fetch_many tests
+    def test_fetch_currency_exchange_rate(self, provider):
+        """Test fetch with fx_rate interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(CURRENCY_EXCHANGE_RATE_RESPONSE)
+
+            result = provider.fetch(["USD/EUR"], interval="fx_rate")
+
+            assert "USD/EUR" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["USD/EUR"]
+            assert md.symbol == "USD/EUR"
+            assert isinstance(md.data, pd.DataFrame)
+            assert len(md.data) == 1
+            assert "from_currency_code" in md.data.columns
+            assert "to_currency_code" in md.data.columns
+            assert "exchange_rate" in md.data.columns
+            assert md.metadata.get("function") == "CURRENCY_EXCHANGE_RATE"
+            assert md.metadata.get("from_currency") == "USD"
+            assert md.metadata.get("to_currency") == "EUR"
+            mock_get.assert_called_once()
+
+    def test_fetch_currency_exchange_rate_aliases(self, provider):
+        """Test fetch with currency_exchange_rate and forex_rate aliases."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(CURRENCY_EXCHANGE_RATE_RESPONSE)
+
+            for interval in ["currency_exchange_rate", "forex_rate"]:
+                result = provider.fetch(["EUR/USD"], interval=interval)
+                assert "EUR/USD" in result.data
+                md = result.data["EUR/USD"]
+                assert md.metadata.get("function") == "CURRENCY_EXCHANGE_RATE"
+                assert md.metadata.get("from_currency") == "EUR"
+                assert md.metadata.get("to_currency") == "USD"
+
+    def test_fetch_currency_exchange_rate_invalid_format(self, provider):
+        """Test fetch with invalid symbol format for currency exchange rate."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            result = provider.fetch(["INVALID"], interval="fx_rate")
+
+            assert "INVALID" in result.errors
+            assert isinstance(result.errors["INVALID"], ValueError)
+            mock_get.assert_not_called()
+
+    def test_fetch_currency_exchange_rate_multiple_pairs(self, provider):
+        """Test fetch with multiple currency pairs."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(CURRENCY_EXCHANGE_RATE_RESPONSE)
+
+            result = provider.fetch(["USD/EUR", "GBP/USD"], interval="fx_rate")
+
+            assert "USD/EUR" in result.data
+            assert "GBP/USD" in result.data
+            assert mock_get.call_count == 2
+
+    def test_fetch_currency_exchange_rate_api_error(self, provider):
+        """Test fetch with currency exchange rate API error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+
+            result = provider.fetch(["USD/EUR"], interval="fx_rate")
+
+            assert "USD/EUR" in result.errors
+            assert not result.data
+            mock_get.assert_called_once()
+
+    def test_fetch_currency_exchange_rate_rate_limit(self, provider):
+        """Test fetch with currency exchange rate rate limit."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            result = provider.fetch(["USD/EUR"], interval="fx_rate")
+
+            assert "USD/EUR" in result.errors
+            assert isinstance(result.errors["USD/EUR"], RuntimeError)
+            mock_get.assert_called_once()
+
+    def test_fetch_many_currency_exchange_rate(self, provider):
+        """Test fetch_many with fx_rate interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(CURRENCY_EXCHANGE_RATE_RESPONSE)
+
+            requests = [{"symbols": ["USD/EUR", "GBP/USD"], "interval": "fx_rate"}]
+            results = provider.fetch_many(requests)
+
+            assert len(results) == 1
+            key = next(iter(results.keys()))
+            res = results[key]
+            assert "USD/EUR" in res.data
+            assert "GBP/USD" in res.data
+            md = res.data["USD/EUR"]
+            assert md.metadata.get("function") == "CURRENCY_EXCHANGE_RATE"
+            assert list(md.data.columns) == ["from_currency_code", "from_currency_name", "to_currency_code", "to_currency_name", "exchange_rate", "last_refreshed", "time_zone", "bid_price", "ask_price"]
+            # Per-pair calls (no batch endpoint for currency exchange rate)
+            assert mock_get.call_count == 2
+
+    def test_currency_exchange_rate_intervals_set(self, provider):
+        """Test CURRENCY_EXCHANGE_RATE_INTERVALS set contains expected intervals."""
+        intervals = provider.CURRENCY_EXCHANGE_RATE_INTERVALS
+        assert "fx_rate" in intervals
+        assert "currency_exchange_rate" in intervals
+        assert "forex_rate" in intervals
 
     # Crypto / Digital Currency tests
     def test_fetch_crypto_daily(self, provider):
@@ -2436,6 +2636,573 @@ class TestAlphaVantageProvider:
 
             assert df is None
             mock_get.assert_called_once()
+
+    # Sector performance fetch/fetch_many tests
+    def test_fetch_sector_performance(self, provider):
+        """Test fetch with sector interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(SECTOR_PERFORMANCE_RESPONSE)
+
+            result = provider.fetch(["AAPL", "MSFT"], interval="sector")
+
+            assert "AAPL" in result.data
+            assert "MSFT" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["AAPL"]
+            assert md.metadata.get("function") == "SECTOR"
+            assert md.metadata.get("interval") == "sector"
+            assert list(md.data.columns) == ["sector", "period", "performance"]
+            mock_get.assert_called_once()
+
+    def test_fetch_sector_performance_aliases(self, provider):
+        """Test fetch with sector_performance and sectors aliases."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(SECTOR_PERFORMANCE_RESPONSE)
+
+            for interval in ["sector_performance", "sectors"]:
+                result = provider.fetch(["AAPL"], interval=interval)
+                assert "AAPL" in result.data
+                md = result.data["AAPL"]
+                assert md.metadata.get("function") == "SECTOR"
+                assert md.metadata.get("interval") == interval
+
+    def test_fetch_sector_performance_empty(self, provider):
+        """Test fetch with sector interval returns empty response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(SECTOR_PERFORMANCE_EMPTY_RESPONSE)
+
+            result = provider.fetch(["AAPL"], interval="sector")
+
+            assert "AAPL" in result.missing
+            assert not result.data
+            assert not result.errors
+            mock_get.assert_called_once()
+
+    def test_fetch_sector_performance_api_error(self, provider):
+        """Test fetch with sector interval API error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+
+            result = provider.fetch(["AAPL"], interval="sector")
+
+            assert "AAPL" in result.errors
+            assert not result.data
+            mock_get.assert_called_once()
+
+    def test_fetch_sector_performance_rate_limit(self, provider):
+        """Test fetch with sector interval rate limit."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            result = provider.fetch(["AAPL"], interval="sector")
+
+            assert "AAPL" in result.errors
+            assert isinstance(result.errors["AAPL"], RuntimeError)
+            mock_get.assert_called_once()
+
+    def test_fetch_many_sector_performance(self, provider):
+        """Test fetch_many with sector interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(SECTOR_PERFORMANCE_RESPONSE)
+
+            requests = [{"symbols": ["AAPL", "MSFT"], "interval": "sector"}]
+            results = provider.fetch_many(requests)
+
+            assert len(results) == 1
+            key = next(iter(results.keys()))
+            res = results[key]
+            assert "AAPL" in res.data
+            assert "MSFT" in res.data
+            md = res.data["AAPL"]
+            assert md.metadata.get("function") == "SECTOR"
+            assert list(md.data.columns) == ["sector", "period", "performance"]
+            mock_get.assert_called_once()
+
+    # Commodity tests
+    def test_fetch_commodity_wti(self, provider):
+        """Test fetch with wti commodity interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(COMMODITY_RESPONSE)
+
+            result = provider.fetch(["WTI"], interval="wti")
+
+            assert "WTI" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["WTI"]
+            assert md.metadata.get("function") == "WTI"
+            assert md.metadata.get("interval") == "wti"
+            assert list(md.data.columns) == ["value"]
+            mock_get.assert_called_once()
+
+    def test_fetch_all_commodity_intervals(self, provider):
+        """Test fetch works for all commodity intervals."""
+        for interval in provider.COMMODITIES_INTERVALS:
+            with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+                mock_get.return_value = FakeResponse(COMMODITY_RESPONSE)
+                result = provider.fetch([interval.upper()], interval=interval)
+                assert interval.upper() in result.data, f"Failed for {interval}"
+                md = result.data[interval.upper()]
+                expected_func = provider.COMMODITY_FUNCTION_MAP[interval]
+                assert md.metadata.get("function") == expected_func
+
+    def test_fetch_commodity_api_error(self, provider):
+        """Test fetch with commodity interval API error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+
+            result = provider.fetch(["WTI"], interval="wti")
+
+            assert "WTI" in result.errors
+            assert not result.data
+            mock_get.assert_called_once()
+
+    def test_fetch_commodity_rate_limit(self, provider):
+        """Test fetch with commodity interval rate limit."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            result = provider.fetch(["WTI"], interval="wti")
+
+            assert "WTI" in result.errors
+            assert isinstance(result.errors["WTI"], RuntimeError)
+            mock_get.assert_called_once()
+
+    def test_fetch_many_commodity(self, provider):
+        """Test fetch_many with commodity interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(COMMODITY_RESPONSE)
+
+            requests = [{"symbols": ["WTI", "BRENT"], "interval": "wti"}]
+            results = provider.fetch_many(requests)
+
+            assert len(results) == 1
+            key = next(iter(results.keys()))
+            res = results[key]
+            assert "WTI" in res.data
+            assert "BRENT" in res.data
+            md = res.data["WTI"]
+            assert md.metadata.get("function") == "WTI"
+            assert list(md.data.columns) == ["value"]
+            mock_get.assert_called_once()
+
+    def test_get_commodity(self, provider):
+        """Test get_commodity convenience method."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(COMMODITY_RESPONSE)
+
+            df = provider.get_commodity("WTI", interval="monthly")
+
+            assert df is not None
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == ["value"]
+            assert len(df) == 3
+            mock_get.assert_called_once()
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "WTI"
+            assert params["interval"] == "monthly"
+
+    def test_get_commodity_api_error(self, provider):
+        """Test get_commodity with API error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+
+            df = provider.get_commodity("WTI")
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_commodity_rate_limit(self, provider):
+        """Test get_commodity with rate limit."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            df = provider.get_commodity("WTI")
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_commodity_network_error(self, provider):
+        """Test get_commodity network error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            import requests
+            mock_get.side_effect = requests.ConnectionError("Network unreachable")
+
+            df = provider.get_commodity("WTI")
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    # Gold/Silver tests
+    def test_get_gold_spot(self, provider):
+        """Test get_gold_spot convenience method."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(GOLD_SPOT_RESPONSE)
+
+            df = provider.get_gold_spot("GOLD")
+
+            assert df is not None
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == ["value"]
+            assert len(df) == 1
+            assert df.iloc[0]["value"] == 2650.45
+            mock_get.assert_called_once()
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "GOLD_SILVER_SPOT"
+            assert params["symbol"] == "GOLD"
+
+    def test_get_gold_spot_silver(self, provider):
+        """Test get_gold_spot for silver."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(GOLD_SPOT_RESPONSE)
+
+            df = provider.get_gold_spot("SILVER")
+
+            assert df is not None
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["symbol"] == "SILVER"
+
+    def test_get_gold_spot_api_error(self, provider):
+        """Test get_gold_spot with API error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+
+            df = provider.get_gold_spot("GOLD")
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_gold_spot_rate_limit(self, provider):
+        """Test get_gold_spot with rate limit."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            df = provider.get_gold_spot("GOLD")
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_gold_spot_network_error(self, provider):
+        """Test get_gold_spot network error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            import requests
+            mock_get.side_effect = requests.ConnectionError("Network unreachable")
+
+            df = provider.get_gold_spot("GOLD")
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_gold_history(self, provider):
+        """Test get_gold_history convenience method."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(GOLD_HISTORY_RESPONSE)
+
+            df = provider.get_gold_history("GOLD", interval="daily")
+
+            assert df is not None
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == ["value"]
+            assert len(df) == 2
+            mock_get.assert_called_once()
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "GOLD_SILVER_HISTORY"
+            assert params["symbol"] == "GOLD"
+            assert params["interval"] == "daily"
+
+    def test_get_gold_history_intervals(self, provider):
+        """Test get_gold_history with different intervals."""
+        for interval in ["daily", "weekly", "monthly"]:
+            with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+                mock_get.return_value = FakeResponse(GOLD_HISTORY_RESPONSE)
+                df = provider.get_gold_history("GOLD", interval=interval)
+                assert df is not None
+                params = mock_get.call_args.kwargs.get("params", {})
+                assert params["interval"] == interval
+
+    # Gold/Silver fetch/fetch_many tests
+    def test_fetch_gold(self, provider):
+        """Test fetch with gold interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(GOLD_SPOT_RESPONSE)
+
+            result = provider.fetch(["GOLD"], interval="gold")
+
+            assert "GOLD" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["GOLD"]
+            assert md.symbol == "GOLD"
+            assert isinstance(md.data, pd.DataFrame)
+            assert len(md.data) == 1
+            assert list(md.data.columns) == ["value"]
+            assert md.data.iloc[0]["value"] == 2650.45
+            assert md.metadata.get("function") == "GOLD_SILVER_SPOT"
+            assert md.metadata.get("interval") == "gold"
+            assert md.metadata.get("symbol") == "GOLD"
+            mock_get.assert_called_once()
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "GOLD_SILVER_SPOT"
+            assert params["symbol"] == "GOLD"
+
+    def test_fetch_gold_silver(self, provider):
+        """Test fetch with silver interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(GOLD_SPOT_RESPONSE)
+
+            result = provider.fetch(["SILVER"], interval="silver")
+
+            assert "SILVER" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["SILVER"]
+            assert md.metadata.get("function") == "GOLD_SILVER_SPOT"
+            assert md.metadata.get("interval") == "silver"
+            assert md.metadata.get("symbol") == "SILVER"
+            mock_get.assert_called_once()
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "GOLD_SILVER_SPOT"
+            assert params["symbol"] == "SILVER"
+
+    def test_fetch_gold_xau_xag_aliases(self, provider):
+        """Test fetch maps XAU/XAG (case-insensitive) to GOLD/SILVER."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(GOLD_SPOT_RESPONSE)
+
+            for symbol, metal in [("XAU", "GOLD"), ("xau", "GOLD"), ("XAG", "SILVER"), ("xag", "SILVER")]:
+                result = provider.fetch([symbol], interval="gold")
+                assert symbol in result.data, f"Failed for {symbol}"
+                md = result.data[symbol]
+                assert md.metadata.get("symbol") == metal
+                params = mock_get.call_args.kwargs.get("params", {})
+                assert params["symbol"] == metal
+
+    def test_fetch_gold_invalid_symbol(self, provider):
+        """Test fetch with invalid gold/silver symbol."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            result = provider.fetch(["PLATINUM"], interval="gold")
+
+            assert "PLATINUM" in result.errors
+            assert isinstance(result.errors["PLATINUM"], ValueError)
+            assert not result.data
+            mock_get.assert_not_called()
+
+    def test_fetch_gold_api_error(self, provider):
+        """Test fetch with gold interval API error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+
+            result = provider.fetch(["GOLD"], interval="gold")
+
+            assert "GOLD" in result.errors
+            assert not result.data
+            mock_get.assert_called_once()
+
+    def test_fetch_gold_rate_limit(self, provider):
+        """Test fetch with gold interval rate limit."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            result = provider.fetch(["GOLD"], interval="gold")
+
+            assert "GOLD" in result.errors
+            assert isinstance(result.errors["GOLD"], RuntimeError)
+            mock_get.assert_called_once()
+
+    def test_fetch_gold_empty_response(self, provider):
+        """Test fetch with gold interval empty response."""
+        empty_response = {"name": "Global Price of Gold", "interval": "spot", "unit": "dollar per troy ounce", "data": []}
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(empty_response)
+
+            result = provider.fetch(["GOLD"], interval="gold")
+
+            assert "GOLD" in result.missing
+            assert not result.data
+            assert not result.errors
+            mock_get.assert_called_once()
+
+    def test_fetch_many_gold(self, provider):
+        """Test fetch_many with gold interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(GOLD_SPOT_RESPONSE)
+
+            requests = [{"symbols": ["GOLD", "XAG"], "interval": "gold"}]
+            results = provider.fetch_many(requests)
+
+            assert len(results) == 1
+            key = next(iter(results.keys()))
+            res = results[key]
+            assert "GOLD" in res.data
+            assert "XAG" in res.data
+            assert not res.errors
+            assert not res.missing
+            md = res.data["GOLD"]
+            assert md.metadata.get("function") == "GOLD_SILVER_SPOT"
+            assert md.metadata.get("symbol") == "GOLD"
+            # Per-symbol calls (no batch endpoint for gold/silver spot)
+            assert mock_get.call_count == 2
+
+    def test_gold_intervals_set(self, provider):
+        """Test GOLD_INTERVALS set contains expected intervals."""
+        intervals = provider.GOLD_INTERVALS
+        assert "gold" in intervals
+        assert "silver" in intervals
+
+    # Economic indicator tests
+    def test_fetch_economic_indicator_gdp(self, provider):
+        """Test fetch with gdp economic indicator interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ECONOMIC_RESPONSE)
+
+            result = provider.fetch(["GDP"], interval="gdp")
+
+            assert "GDP" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["GDP"]
+            assert md.metadata.get("function") == "REAL_GDP"
+            assert md.metadata.get("interval") == "gdp"
+            assert list(md.data.columns) == ["value"]
+            mock_get.assert_called_once()
+
+    def test_fetch_all_economic_intervals(self, provider):
+        """Test fetch works for all economic indicator intervals."""
+        for interval in provider.ECONOMIC_INDICATORS:
+            with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+                mock_get.return_value = FakeResponse(ECONOMIC_RESPONSE)
+                result = provider.fetch([interval.upper()], interval=interval)
+                assert interval.upper() in result.data, f"Failed for {interval}"
+                md = result.data[interval.upper()]
+                expected_func = provider.ECONOMIC_FUNCTION_MAP[interval]
+                assert md.metadata.get("function") == expected_func
+
+    def test_fetch_economic_indicator_api_error(self, provider):
+        """Test fetch with economic indicator interval API error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+
+            result = provider.fetch(["GDP"], interval="gdp")
+
+            assert "GDP" in result.errors
+            assert not result.data
+            mock_get.assert_called_once()
+
+    def test_fetch_economic_indicator_rate_limit(self, provider):
+        """Test fetch with economic indicator interval rate limit."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            result = provider.fetch(["GDP"], interval="gdp")
+
+            assert "GDP" in result.errors
+            assert isinstance(result.errors["GDP"], RuntimeError)
+            mock_get.assert_called_once()
+
+    def test_fetch_many_economic_indicator(self, provider):
+        """Test fetch_many with economic indicator interval."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ECONOMIC_RESPONSE)
+
+            requests = [{"symbols": ["GDP", "CPI"], "interval": "gdp"}]
+            results = provider.fetch_many(requests)
+
+            assert len(results) == 1
+            key = next(iter(results.keys()))
+            res = results[key]
+            assert "GDP" in res.data
+            assert "CPI" in res.data
+            md = res.data["GDP"]
+            assert md.metadata.get("function") == "REAL_GDP"
+            assert list(md.data.columns) == ["value"]
+            mock_get.assert_called_once()
+
+    def test_get_economic_indicator(self, provider):
+        """Test get_economic_indicator convenience method."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ECONOMIC_RESPONSE)
+
+            df = provider.get_economic_indicator("REAL_GDP", interval="annual")
+
+            assert df is not None
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == ["value"]
+            assert len(df) == 3
+            mock_get.assert_called_once()
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "REAL_GDP"
+            assert params["interval"] == "annual"
+
+    def test_get_economic_indicator_with_maturity(self, provider):
+        """Test get_economic_indicator with maturity parameter."""
+        treasury_response = {
+            "name": "Treasury Yield",
+            "interval": "monthly",
+            "unit": "percent",
+            "data": [{"date": "2026-09-01", "value": "4.25"}],
+        }
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(treasury_response)
+
+            df = provider.get_economic_indicator("TREASURY_YIELD", interval="monthly", maturity="10year")
+
+            assert df is not None
+            mock_get.assert_called_once()
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "TREASURY_YIELD"
+            assert params["interval"] == "monthly"
+            assert params["maturity"] == "10year"
+
+    def test_get_economic_indicator_api_error(self, provider):
+        """Test get_economic_indicator with API error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+
+            df = provider.get_economic_indicator("REAL_GDP")
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_economic_indicator_rate_limit(self, provider):
+        """Test get_economic_indicator with rate limit."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            df = provider.get_economic_indicator("REAL_GDP")
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_economic_indicator_network_error(self, provider):
+        """Test get_economic_indicator network error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            import requests
+            mock_get.side_effect = requests.ConnectionError("Network unreachable")
+
+            df = provider.get_economic_indicator("REAL_GDP")
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_commodities_set(self, provider):
+        """Test COMMODITIES_INTERVALS set contains expected commodities."""
+        commodities = provider.COMMODITIES_INTERVALS
+        assert "wti" in commodities
+        assert "brent" in commodities
+        assert "natural_gas" in commodities
+        assert "copper" in commodities
+        assert "gold" in provider.GOLD_INTERVALS
+        assert "silver" in provider.GOLD_INTERVALS
+
+    def test_economic_indicators_set(self, provider):
+        """Test ECONOMIC_INDICATORS set contains expected indicators."""
+        indicators = provider.ECONOMIC_INDICATORS
+        assert "gdp" in indicators
+        assert "cpi" in indicators
+        assert "unemployment" in indicators
+        assert "fed_funds_rate" in indicators
+        assert "treasury_yield" in indicators
 
 
 class TestAlphaVantageProviderIntegration:
