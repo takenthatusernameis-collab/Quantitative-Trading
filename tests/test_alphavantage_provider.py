@@ -515,6 +515,45 @@ CRYPTO_INTRADAY_RESPONSE = {
 }
 
 
+TECHNICAL_INDICATOR_RESPONSE = {
+    "Meta Data": {
+        "1. Information": "SMA (20)",
+        "2. Symbol": "AAPL",
+        "3. Indicator": "SMA",
+        "4. Time Period": "20",
+        "5. Time Zone": "US/Eastern",
+    },
+    "Technical Analysis: SMA": {
+        "SMA": {
+            "2024-01-15": {"SMA": "185.50"},
+            "2024-01-12": {"SMA": "183.20"},
+        }
+    },
+}
+
+TECHNICAL_INDICATOR_EMPTY_RESPONSE = {
+    "Technical Analysis: SMA": {
+        "SMA": {}
+    }
+}
+
+TECHNICAL_INDICATOR_BAD_RESPONSE = {
+    "Error Message": "Invalid API call."
+}
+
+
+SECTOR_PERFORMANCE_RESPONSE = {
+    "Rank A: Real-Time Performance": {
+        "Utilities": "2.5000",
+        "Materials": "-1.2000",
+    },
+    "Rank B: 1 Day Performance": {
+        "Utilities": "0.1000",
+        "Materials": "-0.3000",
+    },
+}
+
+
 class TestAlphaVantageProvider:
     """Tests for AlphaVantageProvider."""
 
@@ -1996,6 +2035,235 @@ class TestAlphaVantageProvider:
         assert df is not None
         assert len(df) == 1
         assert df.iloc[0]["open"] == 42000.00
+
+    # Technical Indicator tests
+    def test_build_technical_indicator_params(self, provider):
+        """Test _build_technical_indicator_params method."""
+        params = provider._build_technical_indicator_params(
+            "AAPL", indicator="SMA", interval="daily", time_period=20, series_type="close"
+        )
+        assert params["function"] == "SMA"
+        assert params["symbol"] == "AAPL"
+        assert params["interval"] == "daily"
+        assert params["time_period"] == "20"
+        assert params["series_type"] == "close"
+        assert params["apikey"] == "test_key"
+        assert params["datatype"] == "json"
+
+    def test_parse_technical_indicator_response(self, provider):
+        """Test _parse_technical_indicator_response method."""
+        df = provider._parse_technical_indicator_response(
+            "AAPL", "SMA", TECHNICAL_INDICATOR_RESPONSE, None, None
+        )
+        assert df is not None
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 2
+        assert list(df.columns) == ["sma"]
+        assert df.index.name == "date"
+        assert df.loc[df.index.max()]["sma"] == 185.50
+        assert df.loc[df.index.min()]["sma"] == 183.20
+
+    def test_parse_technical_indicator_response_not_found(self, provider):
+        """Test _parse_technical_indicator_response with no TA key."""
+        df = provider._parse_technical_indicator_response("AAPL", "SMA", {}, None, None)
+        assert df is None
+
+    def test_parse_technical_indicator_response_empty(self, provider):
+        """Test _parse_technical_indicator_response with empty series."""
+        df = provider._parse_technical_indicator_response(
+            "AAPL", "SMA", TECHNICAL_INDICATOR_EMPTY_RESPONSE, None, None
+        )
+        assert df is None
+
+    def test_get_technical_indicator(self, provider):
+        """Test get_technical_indicator with SMA."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(TECHNICAL_INDICATOR_RESPONSE)
+
+            df = provider.get_technical_indicator("AAPL", indicator="SMA")
+
+            assert df is not None
+            assert isinstance(df, pd.DataFrame)
+            assert len(df) == 2
+            assert list(df.columns) == ["sma"]
+            mock_get.assert_called_once()
+
+    def test_get_technical_indicator_api_error(self, provider):
+        """Test get_technical_indicator with API error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(TECHNICAL_INDICATOR_BAD_RESPONSE)
+
+            df = provider.get_technical_indicator("AAPL", indicator="SMA")
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_technical_indicator_rate_limit(self, provider):
+        """Test get_technical_indicator with rate limit."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            df = provider.get_technical_indicator("AAPL", indicator="SMA")
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_technical_indicator_network_error(self, provider):
+        """Test get_technical_indicator network error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            import requests
+            mock_get.side_effect = requests.ConnectionError("Network unreachable")
+
+            df = provider.get_technical_indicator("AAPL", indicator="SMA")
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_sma(self, provider):
+        """Test get_sma convenience method."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(TECHNICAL_INDICATOR_RESPONSE)
+
+            df = provider.get_sma("AAPL")
+
+            assert df is not None
+            assert list(df.columns) == ["sma"]
+            assert df.loc[df.index.max()]["sma"] == 185.50
+            mock_get.assert_called_once()
+
+    def test_fetch_technical_indicator(self, provider):
+        """Test _fetch_technical_indicator returns FetchResult with MarketData."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(TECHNICAL_INDICATOR_RESPONSE)
+
+            result = provider._fetch_technical_indicator(["AAPL"], None, None, "1d", indicator="SMA")
+
+            assert "AAPL" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["AAPL"]
+            assert md.symbol == "AAPL"
+            assert md.source == "alphavantage"
+            assert md.metadata.get("function") == "SMA"
+            assert md.metadata.get("interval") == "1d"
+            assert isinstance(md.data, pd.DataFrame)
+            assert list(md.data.columns) == ["sma"]
+            mock_get.assert_called_once()
+
+    def test_fetch_technical_indicator_missing_symbol(self, provider):
+        """Test _fetch_technical_indicator with empty series marks symbol missing."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(TECHNICAL_INDICATOR_EMPTY_RESPONSE)
+
+            result = provider._fetch_technical_indicator(["AAPL"], None, None, "1d", indicator="SMA")
+
+            assert "AAPL" in result.missing
+            assert not result.data
+            assert not result.errors
+            mock_get.assert_called_once()
+
+    def test_fetch_technical_indicator_api_error(self, provider):
+        """Test _fetch_technical_indicator with API error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(TECHNICAL_INDICATOR_BAD_RESPONSE)
+
+            result = provider._fetch_technical_indicator(["AAPL"], None, None, "1d", indicator="SMA")
+
+            assert "AAPL" in result.errors
+            assert not result.data
+            mock_get.assert_called_once()
+
+    def test_fetch_technical_indicator_network_error(self, provider):
+        """Test _fetch_technical_indicator with network error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            import requests
+            mock_get.side_effect = requests.ConnectionError("Network unreachable")
+
+            result = provider._fetch_technical_indicator(["AAPL"], None, None, "1d", indicator="SMA")
+
+            assert "AAPL" in result.errors
+            assert not result.data
+            mock_get.assert_called_once()
+
+    def test_fetch_technical_indicator_interval(self, provider):
+        """Test fetch routes technical indicator intervals to the TI endpoint."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(TECHNICAL_INDICATOR_RESPONSE)
+
+            result = provider.fetch(["AAPL"], interval="sma")
+
+            assert "AAPL" in result.data
+            assert not result.errors
+            assert not result.missing
+            md = result.data["AAPL"]
+            assert md.metadata.get("function") == "SMA"
+            assert md.metadata.get("interval") == "1d"
+            assert list(md.data.columns) == ["sma"]
+            mock_get.assert_called_once()
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "SMA"
+            assert params["interval"] == "daily"
+
+    def test_technical_indicators_set(self, provider):
+        """Test TECHNICAL_INDICATORS set contains expected indicators."""
+        indicators = provider.TECHNICAL_INDICATORS
+        assert "sma" in indicators
+        assert "ema" in indicators
+        assert "rsi" in indicators
+        assert "macd" in indicators
+        assert "bbands" in indicators
+        assert "stoch" in indicators
+
+    # Sector performance tests
+    def test_get_sector_performance(self, provider):
+        """Test get_sector_performance."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(SECTOR_PERFORMANCE_RESPONSE)
+
+            df = provider.get_sector_performance()
+
+            assert df is not None
+            assert isinstance(df, pd.DataFrame)
+            assert set(df.columns) == {"sector", "period", "performance"}
+            sectors = set(df["sector"].tolist())
+            assert "Utilities" in sectors
+            assert "Materials" in sectors
+            assert len(df) == 4
+            mock_get.assert_called_once()
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "SECTOR"
+            assert params["apikey"] == "test_key"
+
+    def test_get_sector_performance_api_error(self, provider):
+        """Test get_sector_performance with API error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+
+            df = provider.get_sector_performance()
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_sector_performance_rate_limit(self, provider):
+        """Test get_sector_performance with rate limit."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+
+            df = provider.get_sector_performance()
+
+            assert df is None
+            mock_get.assert_called_once()
+
+    def test_get_sector_performance_network_error(self, provider):
+        """Test get_sector_performance network error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            import requests
+            mock_get.side_effect = requests.ConnectionError("Network unreachable")
+
+            df = provider.get_sector_performance()
+
+            assert df is None
+            mock_get.assert_called_once()
 
 
 class TestAlphaVantageProviderIntegration:

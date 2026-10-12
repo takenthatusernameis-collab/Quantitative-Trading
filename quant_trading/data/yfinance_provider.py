@@ -359,9 +359,9 @@ class AlphaVantageProvider(DataProvider):
     DIGITAL_CURRENCY_INTERVALS: ClassVar[set[str]] = {"digital_daily", "digital_weekly", "digital_monthly", "digital_intraday"}
     TECHNICAL_INDICATORS: ClassVar[set[str]] = {
         "sma", "ema", "rsi", "macd", "stoch", "bbands", "adx", "cci", "roc", "willr",
-        "mom", "trix", "obv", "ad", "adxr", "aroondown", "aroonup", "atr", "cci",
-        "mfi", "ultosc", "vwap", "plus_di", "minus_di", "plus_dm", "minus_dm",
-        "cci", "rsi", "stochf", "stochrsi", "dx", "slowk", "slowd", "fastk", "fastd"
+        "mom", "trix", "obv", "ad", "adxr", "aroondown", "aroonup", "atr", "mfi",
+        "ultosc", "vwap", "plus_di", "minus_di", "plus_dm", "minus_dm",
+        "stochf", "stochrsi", "dx", "slowk", "slowd", "fastk", "fastd"
     }
     SECTOR_INTERVALS: ClassVar[set[str]] = {"sector", "sector_performance", "sectors"}
     COMMODITIES_INTERVALS: ClassVar[set[str]] = {
@@ -1655,7 +1655,7 @@ class AlphaVantageProvider(DataProvider):
                 return None
             df = self._parse_technical_indicator_response(symbol, indicator, data, None, None)
             return df
-        except (Exception as e):
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
             logger.error("Error fetching technical indicator: %s", e)
             return None
 
@@ -1697,8 +1697,8 @@ class AlphaVantageProvider(DataProvider):
             if not df_data:
                 return None
             df = pd.DataFrame(df_data)
-            return df
-        except Exception as e:
+            return cast(pd.DataFrame, df)
+        except (ValueError, RuntimeError, KeyError, requests.RequestException) as e:
             logger.error("Error fetching sector performance: %s", e)
             return None
 
@@ -2056,6 +2056,7 @@ class AlphaVantageProvider(DataProvider):
         - Crypto Weekly: "crypto_weekly" -> DIGITAL_CURRENCY_WEEKLY
         - Crypto Monthly: "crypto_monthly" -> DIGITAL_CURRENCY_MONTHLY
         - Crypto Intraday: "crypto_intraday" -> DIGITAL_CURRENCY_INTRADAY
+        - Technical Indicators: "sma", "ema", "rsi", "macd", "bbands", "stoch", etc. -> TIME_SERIES_<INDICATOR> (default daily)
         - Batch Quotes: any other interval -> BATCH_STOCK_PRICES
 
         Uses disk caching if cache_dir is configured.
@@ -2077,6 +2078,7 @@ class AlphaVantageProvider(DataProvider):
         is_market_status = interval in self.MARKET_STATUS_INTERVALS
         is_fx_daily = interval in self.FX_DAILY_INTERVALS
         is_fx_intraday = interval in self.FX_INTRADAY_INTERVALS
+        is_technical = interval in self.TECHNICAL_INDICATORS
 
         if interval in ("1d", "daily"):
             fetch_result = self._fetch_single(symbols, start, end, interval)
@@ -2106,6 +2108,13 @@ class AlphaVantageProvider(DataProvider):
             fetch_result = self._fetch_crypto_monthly(symbols, start, end, interval)
         elif interval == "crypto_intraday" or interval == "digital_intraday":
             fetch_result = self._fetch_crypto_intraday(symbols, start, end, interval)
+        elif is_technical:
+            # Technical-indicator intervals pass the indicator name (e.g. "sma",
+            # "rsi") as the interval; the underlying time-series resolution
+            # defaults to daily.
+            fetch_result = self._fetch_technical_indicator(
+                symbols, start, end, "1d", indicator=interval
+            )
         else:
             # BATCH_STOCK_PRICES only returns latest quote, ignore start/end
             fetch_result = self._fetch_batch(symbols, start, end, interval)
@@ -2156,6 +2165,7 @@ class AlphaVantageProvider(DataProvider):
             is_fx_intraday = interval in self.FX_INTRADAY_INTERVALS
             is_crypto = interval in self.CRYPTO_INTERVALS
             is_digital = interval in self.DIGITAL_CURRENCY_INTERVALS
+            is_technical = interval in self.TECHNICAL_INDICATORS
 
             if interval in ("1d", "daily", "1wa", "weekly_adjusted") or is_weekly or is_monthly:
                 # No batch historical endpoint; fall back to per-symbol
@@ -2172,7 +2182,7 @@ class AlphaVantageProvider(DataProvider):
                 for symbols, start, end, interval in reqs:
                     key = self._request_key(symbols, start, end, interval)
                     results[key] = self.fetch(symbols, start, end, interval)
-            elif is_market_status or is_fx_daily or is_fx_intraday or is_crypto or is_digital:
+            elif is_market_status or is_fx_daily or is_fx_intraday or is_crypto or is_digital or is_technical:
                 # These endpoints are per-symbol/pair; fall back to per-symbol
                 for symbols, start, end, interval in reqs:
                     key = self._request_key(symbols, start, end, interval)

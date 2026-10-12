@@ -138,11 +138,19 @@ python examples/cli.py --strategy bb --bb-period 20 --bb-std 2.5 --initial-capit
  # Use Alpha Vantage with FX intraday data
  python examples/cli.py --provider alphavantage --interval fx_5m --symbols USD/EUR
 
- # Use Alpha Vantage with crypto data
- python examples/cli.py --provider alphavantage --interval crypto_daily --symbols BTC ETH
+  # Use Alpha Vantage with crypto data
+  python examples/cli.py --provider alphavantage --interval crypto_daily --symbols BTC ETH
 
- # Use Alpha Vantage with your own API key
- python examples/cli.py --provider alphavantage --alphavantage-key YOUR_API_KEY --interval 1h
+  # Use Alpha Vantage with technical indicators (SMA is the default daily series)
+  python examples/cli.py --provider alphavantage --interval sma --symbols AAPL MSFT
+  python examples/cli.py --provider alphavantage --interval rsi --symbols AAPL
+  python examples/cli.py --provider alphavantage --interval macd --symbols AAPL
+
+  # Use Alpha Vantage sector performance
+  python examples/cli.py --provider alphavantage --interval sector
+
+  # Use Alpha Vantage with your own API key
+  python examples/cli.py --provider alphavantage --alphavantage-key YOUR_API_KEY --interval 1h
 
  # Run offline with synthetic data (deterministic, no network required)
  python examples/cli.py --offline
@@ -205,8 +213,10 @@ python examples/cli.py --combined --output comparison.json
  - **Crypto Daily**: `crypto_daily`, `digital_daily` intervals via DIGITAL_CURRENCY_DAILY (symbols like "BTC", "ETH")
  - **Crypto Weekly**: `crypto_weekly`, `digital_weekly` intervals via DIGITAL_CURRENCY_WEEKLY
  - **Crypto Monthly**: `crypto_monthly`, `digital_monthly` intervals via DIGITAL_CURRENCY_MONTHLY
- - **Crypto Intraday**: `crypto_intraday`, `digital_intraday` intervals via DIGITAL_CURRENCY_INTRADAY
- - **Demo key**: Works out of the box with `"demo"` key (rate limited, warning logged)
+  - **Crypto Intraday**: `crypto_intraday`, `digital_intraday` intervals via DIGITAL_CURRENCY_INTRADAY
+  - **Technical Indicators**: `sma`, `ema`, `rsi`, `macd`, `bbands`, `stoch`, etc. via TIME_SERIES_<INDICATOR> (default daily series resolution; use the interval as the indicator name)
+  - **Sector Performance**: `sector`, `sector_performance`, `sectors` intervals via SECTOR (single global result across requested symbols)
+  - **Demo key**: Works out of the box with `"demo"` key (rate limited, warning logged)
  - **API key validation**: Optional warning when using demo key (configurable via `warn_on_demo`)
 
  For production use, get a free API key from [Alpha Vantage](https://www.alphavantage.co/support/#api-key) and pass it via `--alphavantage-key` or config file.
@@ -323,8 +333,17 @@ manager.clear_cache()
  result = provider.fetch(["BTC", "ETH"], interval="crypto_daily")
  result = provider.fetch(["BTC"], interval="crypto_weekly")
  result = provider.fetch(["BTC"], interval="crypto_monthly")
- result = provider.fetch(["BTC"], interval="crypto_intraday")
- ```
+  result = provider.fetch(["BTC"], interval="crypto_intraday")
+
+  # Fetch technical indicators (indicator name as interval, default daily series)
+  result = provider.fetch(["AAPL"], interval="sma")
+  result = provider.fetch(["AAPL"], interval="rsi")
+
+  # Get a technical indicator directly as a DataFrame
+  df = provider.get_sma("AAPL")
+  df = provider.get_rsi("AAPL")
+  df = provider.get_technical_indicator("AAPL", indicator="SMA")
+  ```
 
  Supported intervals:
  - Daily: `1d`, `daily`
@@ -340,13 +359,18 @@ manager.clear_cache()
  - Crypto Daily: `crypto_daily`, `digital_daily`
  - Crypto Weekly: `crypto_weekly`, `digital_weekly`
  - Crypto Monthly: `crypto_monthly`, `digital_monthly`
- - Crypto Intraday: `crypto_intraday`, `digital_intraday`
- - Real-time Batch: any other interval uses `BATCH_STOCK_PRICES`
+  - Crypto Intraday: `crypto_intraday`, `digital_intraday`
+  - Technical Indicators: `sma`, `ema`, `rsi`, `macd`, `bbands`, `stoch`, etc.
+  - Sector Performance: `sector`, `sector_performance`, `sectors`
+  - Real-time Batch: any other interval uses `BATCH_STOCK_PRICES`
 
- Additional methods:
- - `get_market_status()` - Returns DataFrame with global market hours/status
- - `get_currency_exchange_rate(from_currency, to_currency)` - Returns real-time FX rate
- - `search_symbols(query)` - Search for symbols by name or ticker
+  Additional methods:
+  - `get_market_status()` - Returns DataFrame with global market hours/status
+  - `get_currency_exchange_rate(from_currency, to_currency)` - Returns real-time FX rate
+  - `get_technical_indicator(symbol, indicator="SMA", ...)` - Returns DataFrame for a TI (e.g. SMA, EMA, RSI, MACD, BBANDS, STOCH)
+  - `get_sma(symbol)`, `get_ema(symbol)`, `get_rsi(symbol)`, `get_macd(symbol)`, `get_stoch(symbol)`, `get_bbands(symbol)` - Convenience wrappers for common indicators
+  - `get_sector_performance()` - Returns DataFrame of sector performance rankings
+  - `search_symbols(query)` - Search for symbols by name or ticker
 
 ## Configuration
 
