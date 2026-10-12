@@ -267,6 +267,7 @@ PY
       idle_timeout_retry_count=$((idle_timeout_retry_count + 1))
       retry_delay="$transient_retry_backoff"
       remaining_global=$((cutoff_epoch - $(date +%s)))
+      remaining_session=$((session_deadline - $(date +%s)))
       if [ "$remaining_global" -le "$retry_delay" ] || [ "$remaining_session" -le "$retry_delay" ]; then echo "::warning::Transient upstream/network failure detected, but insufficient budget remains for another attempt."; break; fi
       echo "::warning::Transient upstream/network failure in session ${agent_index}; retry #${idle_timeout_retry_count} after ${retry_delay}s. No attempt-count limit; retries continue until the session/workflow time budget is exhausted."
       sleep "$retry_delay"
