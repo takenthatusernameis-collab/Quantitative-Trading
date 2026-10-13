@@ -2,7 +2,7 @@ name: Kilo workflow validation
 
 on:
   push:
-    branches: [main]
+    branches: [main, "infra/**"]
     paths:
       - ".github/workflows/main.yml"
       - ".github/workflows/kilo-workflow-audit.yml"
@@ -29,3 +29,13 @@ jobs:
       - name: Validate extracted Kilo controller Bash syntax
         shell: bash
         run: bash -n .github/scripts/kilo-controller.sh
+      - name: Guard bounded retry and correction policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          controller=.github/scripts/kilo-controller.sh
+          grep -Fq 'MAX_TRANSIENT_ATTEMPTS=5' "$controller"
+          grep -Fq 'This is the single bounded corrective pass' "$controller"
+          grep -Fq 'Hard provider quota/capacity limit detected' "$controller"
+          grep -Fq 'provider_pressure_streak" -ge 3' "$controller"
+          echo "Kilo bounded recovery guardrails: OK"
