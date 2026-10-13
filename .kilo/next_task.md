@@ -2,9 +2,9 @@
 
 ## Context
 
-Quantitative Trading framework (Python) developed by sequential Kilo agents in a
-GitHub Actions loop. The working tree carries staged (uncommitted) work from
-earlier sessions. The controller script (`.github/scripts/kilo-controller.sh`)
+Quantitative Trading framework (Python) developed by sequential Kilo agents in
+a GitHub Actions loop. The working tree carries staged (uncommitted) work
+from earlier sessions. The controller script (`.github/scripts/kilo-controller.sh`)
 stages all worktree changes (`git add -A` with excludes), normalizes whitespace,
 commits, and pushes after each session — do not commit/push manually.
 
@@ -14,61 +14,66 @@ commits, and pushes after each session — do not commit/push manually.
 bounded, high-value task.**
 
 The prior handoff declared "no remaining self-contained, verifiable work
-items", but inspection found a genuine gap mirroring the regime-detection one
-from the previous session: the `quant_trading/monte_carlo/` module (Monte
-Carlo simulation) was **completely disconnected** — implemented and tested
-(`tests/test_monte_carlo.py`, 15 tests) but with zero CLI flag, no README
-section, and no public re-export beyond its own package. The regime detection
-and optimization modules were both documented and wired in; Monte Carlo was
-not. A prototype confirmed `run_monte_carlo(result)` works, so the fix was
-integration only.
+items", but inspection found a genuine coverage gap: commit 3ee8247 added
+`quant_trading/strategies/factory.py` (StrategyRegistry + global factory
+functions, with built-ins `ma`/`rsi`/`bb`/`macd` registered in
+`strategies/__init__.py`) with **zero test coverage** — it was the only
+`quant_trading` module without a dedicated test file. `Strategy.from_config`
+(base.py:97) also delegates to the factory and was untested. A prototype
+confirmed the factory works, so the fix was test + documentation only.
 
 Implemented and verified this session:
 
-- `examples/cli.py` — added `--monte-carlo`, `--mc-simulations`,
-  `--mc-confidence`, `--mc-method` (bootstrap|parametric), `--mc-seed` flags,
-  a `_print_monte_carlo_analysis()` helper that prints a "Monte Carlo
-  Simulation" block after a single-strategy backtest, and a top-level import
-  of `run_monte_carlo` from `quant_trading.monte_carlo`.
-- `README.md` — added a "Monte Carlo Simulation" section (Features already
-  listed it; added the API + CLI docs block after the Market Regime Analysis
-  section).
-- `tests/test_cli.py` — added `test_monte_carlo_flag_defaults`,
-  `test_monte_carlo_flag_explicit_params`, and an end-to-end
-  `test_main_offline_monte_carlo_analysis` running the CLI in offline mode.
-- Fixed a ruff F541 auto-fixable issue (extraneous f-string prefix) found
-  during lint.
+- `tests/test_strategy_factory.py` (new, 27 tests): `TestStrategyRegistry`
+  (isolated instances: register/get, aliases, TypeError on non-Strategy,
+  unknown-key None, get_all copy semantics, keys vs primary_keys,
+  unregister removes key+aliases, noop on unknown, reregister overwrite,
+  create with kwargs/via alias/unknown ValueError incl. message content);
+  `TestGlobalRegistry` (built-in registrations and aliases resolve to the
+  correct classes, strategy_keys, unknown key None, create_strategy with
+  explicit and default params, register/unregister roundtrip with cleanup,
+  get_registry identity, create_strategy unknown raises);
+  `TestStrategyFromConfig` (creates strategy with name/parameters, name
+  defaults to type, missing 'type' raises, unknown type raises).
+- `README.md` — added a "Strategy Registry" section (API + from_config
+  examples, built-in key/alias table) and listed `factory.py` in the
+  project structure tree.
+- `quant_trading/strategies/__init__.py` — added missing trailing newline
+  (file previously ended without `\n`; cosmetic whitespace fix only).
 
 ## Verification (all run this session, after the changes)
 
-- `python -m pytest tests/` → **393 passed** (was 390, +3).
+- `python -m pytest tests/` → **435 passed** (was 408, +27).
 - `python -m ruff check .` → All checks passed!
-- `python -m mypy quant_trading/` → Success: no issues found in 33 source
-  files.
-- `python examples/run_backtest_offline.py` → runs correctly (unchanged
-  behavior).
-- `python examples/cli.py --offline --monte-carlo --mc-simulations 60
-  --mc-seed 42 --symbols AAPL --days 120` → prints the Monte Carlo
-  Simulation block end-to-end (probability of profit, mean/median/std table,
-  95% confidence intervals, expected shortfall).
+- `python -m mypy quant_trading/` → Success: no issues found in 36 source files.
+- `python examples/run_backtest_offline.py` → runs correctly (unchanged behavior).
+- `python examples/cli.py --offline --symbols AAPL --days 120` and
+  `--list-strategies` → work correctly (CLI keeps its own hardcoded
+  STRATEGIES dict; untouched by design).
+- Note: `black --check` flags 21 pre-existing files repo-wide (including
+  `strategies/base.py` and `strategies/factory.py`, both unmodified this
+  session); black is not part of this repo's enforced checks (the controller
+  runs ruff/mypy/pytest), so no black reformatting was applied.
 
 ## Next task (precise, prioritized)
 
-**No remaining self-contained, verifiable work items.** All three named
-enhancements (regime detection, Monte Carlo simulation, parameter
-optimization/walk-forward analysis) are now implemented, tested, integrated
-into the backtest package + CLI, and documented in the README.
+The strategy factory is now fully tested and documented. Remaining
+lower-priority candidates (pick ONE, scope to a single module + test file):
 
-If a new bounded task is needed, pick one of the lower-priority items below
-and scope it to a single module + test file, mirroring the regime/analysis
-and monte-carlo/cli patterns used this session.
+1. **CLI/factory integration**: `examples/cli.py` keeps a hardcoded
+   `STRATEGIES` dict and its own `create_strategy(args)` (cli.py:29, 451)
+   that shadows the factory's `create_strategy(key, **kwargs)`; custom
+   strategies registered via `register_strategy()` are not reachable from
+   the CLI. Wire the CLI to resolve strategies through the registry (keep
+   the existing `--strategy` choices behavior identical for built-ins) and
+   extend `tests/test_cli.py`. Risk: argparse `choices` validation and
+   `run_combined` iteration both depend on `STRATEGIES`, so the change
+   must preserve `parse_args` semantics.
+2. More data providers (Polygon.io, Twelve Data, IEX Cloud); WebSocket
+   streaming; Redis caching.
 
 ## Other remaining work (lower priority)
 
-- More data providers (Polygon.io, Twelve Data, IEX Cloud); WebSocket
-  streaming; Redis caching.
-- Backtesting enhancements: all named items (regime detection, Monte Carlo
-  simulation, parameter optimization/walk-forward analysis) are complete
-  and tested.
-
-(End of file)
+- All named enhancements (regime detection, Monte Carlo simulation,
+  parameter optimization/walk-forward analysis, strategy factory) are
+  implemented, tested, integrated, and documented.

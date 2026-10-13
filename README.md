@@ -57,7 +57,8 @@ print(f"Max Drawdown: {result.metrics.max_drawdown_pct:.2f}%")
 quant_trading/
 ├── strategies/          # Trading strategies
 │   ├── base.py         # Base classes (Strategy, Signal, Position)
-│   └── examples.py     # Built-in strategies
+│   ├── examples.py     # Built-in strategies
+│   └── factory.py      # Strategy registry and factory
 ├── backtest/           # Backtesting engine
 │   ├── engine.py       # Main backtest engine
 │   └── metrics.py      # Performance metrics
@@ -76,6 +77,48 @@ quant_trading/
 └── utils/              # Utilities
     ├── formatting.py   # Number formatting
     └── logging.py      # Logging setup
+```
+
+## Strategy Registry
+
+Strategies can be registered in a global registry and created dynamically by
+key, with optional aliases. The built-in strategies are pre-registered:
+
+- `ma` (aliases: `moving_average`, `ma_crossover`) → `MovingAverageCrossover`
+- `rsi` (alias: `rsi_mean_reversion`) → `RSIStrategy`
+- `bb` (aliases: `bollinger_bands`, `bollinger`) → `BollingerBandsStrategy`
+- `macd` (alias: `macd_crossover`) → `MACDStrategy`
+
+```python
+from quant_trading.strategies import (
+    MovingAverageCrossover,
+    create_strategy,
+    get_strategy,
+    list_strategies,
+    register_strategy,
+    strategy_keys,
+)
+
+# Create a built-in strategy by key or alias
+strategy = create_strategy("ma", fast_period=5, slow_period=20)
+assert get_strategy("ma_crossover") is MovingAverageCrossover
+
+# Register a custom strategy (optionally with aliases)
+register_strategy("my_strategy", MyStrategy, aliases=["my_algo"])
+custom = create_strategy("my_strategy")
+
+print(strategy_keys())     # primary keys + aliases
+print(list_strategies())   # primary keys -> classes
+```
+
+`Strategy.from_config(config)` also resolves strategies through the registry:
+
+```python
+strategy = Strategy.from_config({
+    "type": "rsi",
+    "name": "MyRSI",
+    "parameters": {"period": 21, "oversold": 25, "overbought": 75},
+})
 ```
 
 ## Running Tests
