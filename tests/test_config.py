@@ -165,6 +165,25 @@ class TestConfig:
             config = Config.from_yaml(path)
         assert config.backtest.initial_capital == 100000.0
 
+    def test_from_yaml_non_mapping_raises(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "config.yaml")
+            with open(path, "w") as f:
+                f.write("- item1\n- item2\n")
+            try:
+                Config.from_yaml(path)
+            except ValueError:
+                return
+            raise AssertionError("Expected ValueError for non-mapping YAML")
+
+    def test_filter_fields_non_dict_returns_empty(self):
+        from quant_trading.config import settings
+
+        result = settings._filter_fields(DataConfig, None)
+        assert result == {}
+        result = settings._filter_fields(DataConfig, "not_a_dict")
+        assert result == {}
+
 
 if __name__ == "__main__":
     import pytest
