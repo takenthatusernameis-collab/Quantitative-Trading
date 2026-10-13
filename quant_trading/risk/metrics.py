@@ -49,6 +49,8 @@ def calculate_volatility(returns: pd.Series, annualize: bool = True) -> float:
 
 def calculate_max_drawdown(equity_curve: pd.Series) -> float:
     """Calculate maximum drawdown from equity curve."""
+    if len(equity_curve) == 0:
+        return 0.0
     running_max = equity_curve.cummax()
     drawdown = (equity_curve - running_max) / running_max
     return float(drawdown.min())
@@ -78,10 +80,13 @@ def calculate_sortino_ratio(
     if len(returns) == 0:
         return 0.0
     downside = returns[returns < 0]
-    if len(downside) == 0 or downside.std() == 0:
+    if len(downside) < 2:
+        return 0.0
+    downside_std = downside.std()
+    if downside_std == 0:
         return 0.0
     excess = returns.mean() - risk_free_rate / 252
-    sortino = excess / downside.std()
+    sortino = excess / downside_std
     if annualize:
         sortino *= np.sqrt(252)
     return float(sortino)
