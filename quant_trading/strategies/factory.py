@@ -1,6 +1,5 @@
 """Strategy factory and registry for dynamic strategy creation."""
 
-
 from .base import Strategy
 
 
@@ -11,7 +10,9 @@ class StrategyRegistry:
         self._strategies: dict[str, type[Strategy]] = {}
         self._aliases: dict[str, str] = {}
 
-    def register(self, key: str, strategy_cls: type[Strategy], aliases: list[str] | None = None) -> None:
+    def register(
+        self, key: str, strategy_cls: type[Strategy], aliases: list[str] | None = None
+    ) -> None:
         """Register a strategy class.
 
         Args:
@@ -61,7 +62,9 @@ class StrategyRegistry:
 _registry = StrategyRegistry()
 
 
-def register_strategy(key: str, strategy_cls: type[Strategy], aliases: list[str] | None = None) -> None:
+def register_strategy(
+    key: str, strategy_cls: type[Strategy], aliases: list[str] | None = None
+) -> None:
     """Register a strategy in the global registry."""
     _registry.register(key, strategy_cls, aliases)
 

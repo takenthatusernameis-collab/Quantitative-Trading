@@ -628,8 +628,8 @@ class MACDStrategy(Strategy):
                                 "histogram": hist_current,
                                 "crossover_type": "zero_line_bearish",
                             },
-)
-            )
+                        )
+                    )
 
         return signals
 
@@ -704,8 +704,16 @@ class DonchianChannelStrategy(Strategy):
             prev_price = close.iloc[-2]
             prev_upper = upper_band.iloc[-2]
             prev_lower = lower_band.iloc[-2]
+            prev_middle = middle_band.iloc[-2]
+            prev_exit_upper = exit_upper.iloc[-2]
+            prev_exit_lower = exit_lower.iloc[-2]
 
             timestamp = df.index[-1]
+
+            # Check current position for this symbol
+            position = self.positions.get(symbol)
+            is_long = position is not None and position.quantity > 0
+            is_short = position is not None and position.quantity < 0
 
             # Entry signals: breakout above upper band / below lower band
             if prev_price <= prev_upper and current_price > current_upper:
@@ -749,8 +757,98 @@ class DonchianChannelStrategy(Strategy):
                     )
                 )
 
-            # Exit signals: price crosses back through middle band or exit channel
-            # (These could be used for position management but we only generate entry signals here)
-            # The framework's risk manager handles exits via stop-loss/take-profit
+            # Exit signals for long positions
+            if is_long:
+                # Exit 1: Price crosses below middle band (mean reversion)
+                if prev_price >= prev_middle and current_price < current_middle:
+                    strength = min(
+                        1.0, (current_middle - current_price) / current_middle * 10 + 0.5
+                    )
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="sell",
+                            strength=strength,
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "upper_band": current_upper,
+                                "lower_band": current_lower,
+                                "middle_band": current_middle,
+                                "exit_upper": current_exit_upper,
+                                "exit_lower": current_exit_lower,
+                                "signal_type": "middle_band_exit_long",
+                            },
+                        )
+                    )
+                # Exit 2: Price breaks below exit lower band (trend-following exit)
+                elif prev_price >= prev_exit_lower and current_price < current_exit_lower:
+                    strength = min(
+                        1.0, (current_exit_lower - current_price) / current_exit_lower * 10 + 0.5
+                    )
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="sell",
+                            strength=strength,
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "upper_band": current_upper,
+                                "lower_band": current_lower,
+                                "middle_band": current_middle,
+                                "exit_upper": current_exit_upper,
+                                "exit_lower": current_exit_lower,
+                                "signal_type": "exit_channel_breakdown",
+                            },
+                        )
+                    )
+
+            # Exit signals for short positions
+            elif is_short:
+                # Exit 1: Price crosses above middle band (mean reversion)
+                if prev_price <= prev_middle and current_price > current_middle:
+                    strength = min(
+                        1.0, (current_price - current_middle) / current_middle * 10 + 0.5
+                    )
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="buy",
+                            strength=strength,
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "upper_band": current_upper,
+                                "lower_band": current_lower,
+                                "middle_band": current_middle,
+                                "exit_upper": current_exit_upper,
+                                "exit_lower": current_exit_lower,
+                                "signal_type": "middle_band_exit_short",
+                            },
+                        )
+                    )
+                # Exit 2: Price breaks above exit upper band (trend-following exit)
+                elif prev_price <= prev_exit_upper and current_price > current_exit_upper:
+                    strength = min(
+                        1.0, (current_price - current_exit_upper) / current_exit_upper * 10 + 0.5
+                    )
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="buy",
+                            strength=strength,
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "upper_band": current_upper,
+                                "lower_band": current_lower,
+                                "middle_band": current_middle,
+                                "exit_upper": current_exit_upper,
+                                "exit_lower": current_exit_lower,
+                                "signal_type": "exit_channel_breakout",
+                            },
+                        )
+                    )
 
         return signals
