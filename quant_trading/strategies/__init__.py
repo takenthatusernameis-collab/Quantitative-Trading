@@ -7,6 +7,21 @@ from .examples import (
     MovingAverageCrossover,
     RSIStrategy,
 )
+from .factory import (
+    StrategyRegistry,
+    create_strategy,
+    get_registry,
+    get_strategy,
+    list_strategies,
+    register_strategy,
+    strategy_keys,
+)
+
+# Register built-in strategies
+register_strategy("ma", MovingAverageCrossover, aliases=["moving_average", "ma_crossover"])
+register_strategy("rsi", RSIStrategy, aliases=["rsi_mean_reversion"])
+register_strategy("bb", BollingerBandsStrategy, aliases=["bollinger_bands", "bollinger"])
+register_strategy("macd", MACDStrategy, aliases=["macd_crossover"])
 
 __all__ = [
     "BollingerBandsStrategy",
@@ -17,4 +32,11 @@ __all__ = [
     "Signal",
     "Strategy",
     "StrategyManager",
+    "StrategyRegistry",
+    "create_strategy",
+    "get_registry",
+    "get_strategy",
+    "list_strategies",
+    "register_strategy",
+    "strategy_keys",
 ]

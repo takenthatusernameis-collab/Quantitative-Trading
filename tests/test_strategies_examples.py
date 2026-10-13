@@ -336,7 +336,7 @@ class TestStrategyParameters:
         strategy = MovingAverageCrossover(fast_period=10, slow_period=30)
         strategy.set_parameter("fast_period", 20)
         assert strategy.parameters["fast_period"] == 20
-        assert strategy.fast_period == 10  # Instance attribute not updated (by design)
+        assert strategy.fast_period == 20  # Instance attribute is now updated
 
     def test_update_positions(self):
         """Test update_positions."""

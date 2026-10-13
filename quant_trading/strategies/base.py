@@ -57,6 +57,9 @@ class Strategy(ABC):
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         """Generate trading signals from market data."""
 
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters. Override in subclasses for specific validation."""
+
     def update_positions(self, positions: dict[str, Position]) -> None:
         """Update internal position tracking."""
         self.positions = positions
@@ -67,7 +70,51 @@ class Strategy(ABC):
 
     def set_parameter(self, key: str, value: Any) -> None:
         """Set a strategy parameter."""
+        # Store old values for rollback on validation failure
+        old_param_value = self.parameters.get(key)
+        old_attr_value = getattr(self, key, None) if hasattr(self, key) else None
+
+        # Tentatively update
         self.parameters[key] = value
+        if hasattr(self, key):
+            setattr(self, key, value)
+
+        try:
+            self.validate_parameters()
+        except ValueError:
+            # Rollback on validation failure
+            if old_param_value is not None:
+                self.parameters[key] = old_param_value
+            else:
+                self.parameters.pop(key, None)
+            if hasattr(self, key):
+                if old_attr_value is not None:
+                    setattr(self, key, old_attr_value)
+                else:
+                    delattr(self, key)
+            raise
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> "Strategy":
+        """Create strategy instance from configuration dictionary.
+
+        Args:
+            config: Dictionary with 'name' (optional), 'type' (strategy key),
+                   and 'parameters' (dict of strategy parameters).
+
+        Returns:
+            Strategy instance.
+        """
+        from quant_trading.strategies.factory import create_strategy
+
+        strategy_type = config.get("type")
+        if not strategy_type:
+            raise ValueError("Strategy config must contain 'type' key")
+
+        parameters = config.get("parameters", {})
+        name = config.get("name", strategy_type)
+
+        return create_strategy(strategy_type, name=name, **parameters)
 
 
 class StrategyManager:

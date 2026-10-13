@@ -27,6 +27,16 @@ class MovingAverageCrossover(Strategy):
         )
         self.fast_period = fast_period
         self.slow_period = slow_period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters."""
+        if self.fast_period <= 0:
+            raise ValueError("fast_period must be positive")
+        if self.slow_period <= 0:
+            raise ValueError("slow_period must be positive")
+        if self.fast_period >= self.slow_period:
+            raise ValueError("fast_period must be less than slow_period")
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals = []
@@ -109,6 +119,18 @@ class RSIStrategy(Strategy):
         self.period = period
         self.oversold = oversold
         self.overbought = overbought
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters."""
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+        if not (0 < self.oversold < 100):
+            raise ValueError("oversold must be between 0 and 100")
+        if not (0 < self.overbought < 100):
+            raise ValueError("overbought must be between 0 and 100")
+        if self.oversold >= self.overbought:
+            raise ValueError("oversold must be less than overbought")
 
     def _calculate_rsi(self, close: pd.Series) -> pd.Series:
         """Calculate RSI indicator."""
@@ -191,6 +213,14 @@ class BollingerBandsStrategy(Strategy):
         )
         self.period = period
         self.std_dev = std_dev
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters."""
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+        if self.std_dev <= 0:
+            raise ValueError("std_dev must be positive")
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals = []
@@ -282,6 +312,18 @@ class MACDStrategy(Strategy):
         self.slow_period = slow_period
         self.signal_period = signal_period
         self.use_zero_line = use_zero_line
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters."""
+        if self.fast_period <= 0:
+            raise ValueError("fast_period must be positive")
+        if self.slow_period <= 0:
+            raise ValueError("slow_period must be positive")
+        if self.signal_period <= 0:
+            raise ValueError("signal_period must be positive")
+        if self.fast_period >= self.slow_period:
+            raise ValueError("fast_period must be less than slow_period")
 
     def _ema(self, close: pd.Series, period: int) -> pd.Series:
         """Calculate Exponential Moving Average."""
@@ -366,11 +408,14 @@ class MACDStrategy(Strategy):
             # Optional zero-line crossover when no signal-line crossover occurred
             elif self.use_zero_line:
                 if macd_prev <= 0 and macd_current > 0:
+                    # Strength based on MACD magnitude relative to signal line
+                    ref = abs(signal_current) if signal_current != 0 else abs(macd_current)
+                    strength = min(1.0, abs(macd_current) / ref * 0.5 + 0.3) if ref > 0 else 0.5
                     signals.append(
                         Signal(
                             symbol=symbol,
                             action="buy",
-                            strength=min(1.0, abs(macd_current) / abs(macd_current) + 0.3),
+                            strength=strength,
                             price=current_price,
                             timestamp=timestamp,
                             metadata={
@@ -382,11 +427,13 @@ class MACDStrategy(Strategy):
                         )
                     )
                 elif macd_prev >= 0 and macd_current < 0:
+                    ref = abs(signal_current) if signal_current != 0 else abs(macd_current)
+                    strength = min(1.0, abs(macd_current) / ref * 0.5 + 0.3) if ref > 0 else 0.5
                     signals.append(
                         Signal(
                             symbol=symbol,
                             action="sell",
-                            strength=min(1.0, abs(macd_current) / abs(macd_current) + 0.3),
+                            strength=strength,
                             price=current_price,
                             timestamp=timestamp,
                             metadata={
