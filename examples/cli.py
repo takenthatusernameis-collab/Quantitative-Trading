@@ -54,6 +54,25 @@ OPTIMIZERS = {
     "bayesian": BayesianOptimizer,
 }
 
+# Default values for CLI arguments (matching the argparser defaults)
+CLI_ARG_DEFAULTS = {
+    "fast_period": 10,
+    "slow_period": 30,
+    "rsi_period": 14,
+    "rsi_oversold": 30,
+    "rsi_overbought": 70,
+    "bb_period": 20,
+    "bb_std": 2.0,
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "macd_zero_line": False,
+    "st_period": 10,
+    "st_multiplier": 3.0,
+    "dc_period": 20,
+    "dc_exit_period": None,
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -498,49 +517,48 @@ def parse_args() -> argparse.Namespace:
 
 def create_strategy(args: argparse.Namespace):
     """Create strategy instance from args using the factory registry."""
-    kwargs = {}
+    # Map strategy keys to lists of (cli_arg, param_name) tuples for built-in strategies
+    strategy_param_map = {
+        "ma": [("fast_period", "fast_period"), ("slow_period", "slow_period")],
+        "rsi": [("rsi_period", "period"), ("rsi_oversold", "oversold"), ("rsi_overbought", "overbought")],
+        "bb": [("bb_period", "period"), ("bb_std", "std_dev")],
+        "macd": [
+            ("macd_fast", "fast_period"),
+            ("macd_slow", "slow_period"),
+            ("macd_signal", "signal_period"),
+            ("macd_zero_line", "use_zero_line"),
+        ],
+        "supertrend": [("st_period", "period"), ("st_multiplier", "multiplier")],
+        "donchian": [("dc_period", "period"), ("dc_exit_period", "exit_period")],
+    }
 
-    if args.strategy == "ma":
-        kwargs = {
-            "fast_period": args.fast_period,
-            "slow_period": args.slow_period,
-            "name": f"MA_Crossover_{args.fast_period}_{args.slow_period}",
-        }
-    elif args.strategy == "rsi":
-        kwargs = {
-            "period": args.rsi_period,
-            "oversold": args.rsi_oversold,
-            "overbought": args.rsi_overbought,
-            "name": f"RSI_{args.rsi_period}",
-        }
-    elif args.strategy == "bb":
-        kwargs = {
-            "period": args.bb_period,
-            "std_dev": args.bb_std,
-            "name": f"BB_{args.bb_period}_{args.bb_std}",
-        }
-    elif args.strategy == "macd":
-        kwargs = {
-            "fast_period": getattr(args, "macd_fast", 12),
-            "slow_period": getattr(args, "macd_slow", 26),
-            "signal_period": getattr(args, "macd_signal", 9),
-            "use_zero_line": getattr(args, "macd_zero_line", False),
-            "name": f"MACD_{getattr(args, 'macd_fast', 12)}_{getattr(args, 'macd_slow', 26)}_{getattr(args, 'macd_signal', 9)}",
-        }
-    elif args.strategy == "supertrend":
-        kwargs = {
-            "period": args.st_period,
-            "multiplier": args.st_multiplier,
-            "name": f"SuperTrend_{args.st_period}_{args.st_multiplier}",
-        }
-    elif args.strategy == "donchian":
-        kwargs = {
-            "period": args.dc_period,
-            "exit_period": args.dc_exit_period,
-            "name": f"Donchian_{args.dc_period}_{args.dc_exit_period if args.dc_exit_period else args.dc_period}",
-        }
+    if args.strategy in strategy_param_map:
+        # Handle built-in strategies with custom naming
+        kwargs = {}
+        for cli_arg, param_name in strategy_param_map[args.strategy]:
+            value = getattr(args, cli_arg, CLI_ARG_DEFAULTS.get(cli_arg))
+            kwargs[param_name] = value
 
-    return factory_create_strategy(args.strategy, **kwargs)
+        # Generate the strategy name based on the strategy and parameters
+        if args.strategy == "ma":
+            kwargs["name"] = f"MA_Crossover_{args.fast_period}_{args.slow_period}"
+        elif args.strategy == "rsi":
+            kwargs["name"] = f"RSI_{args.rsi_period}"
+        elif args.strategy == "bb":
+            kwargs["name"] = f"BB_{args.bb_period}_{args.bb_std}"
+        elif args.strategy == "macd":
+            kwargs["name"] = f"MACD_{getattr(args, 'macd_fast', 12)}_{getattr(args, 'macd_slow', 26)}_{getattr(args, 'macd_signal', 9)}"
+        elif args.strategy == "supertrend":
+            kwargs["name"] = f"SuperTrend_{args.st_period}_{args.st_multiplier}"
+        elif args.strategy == "donchian":
+            exit_period = args.dc_exit_period if args.dc_exit_period else args.dc_period
+            kwargs["name"] = f"Donchian_{args.dc_period}_{exit_period}"
+
+        return factory_create_strategy(args.strategy, **kwargs)
+    else:
+        # For non-built-in strategies, use the factory with default parameters
+        # and let the strategy use its default name.
+        return factory_create_strategy(args.strategy)
 
 
 def list_strategies() -> int:
