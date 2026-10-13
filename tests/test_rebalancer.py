@@ -243,6 +243,52 @@ class TestRebalancer:
         assert "actions" in history_entry
         assert "portfolio_value" in history_entry
 
+    def test_should_rebalance_monthly(self):
+        """Test should_rebalance with monthly frequency triggers across month boundaries."""
+        from datetime import timedelta
+
+        rebalancer = Rebalancer(self.portfolio, frequency="monthly")
+        # Same month -> False
+        rebalancer.last_rebalance = datetime.now().replace(day=1)
+        assert rebalancer.should_rebalance() is False
+        # Previous month -> True
+        rebalancer.last_rebalance = datetime.now() - timedelta(days=40)
+        assert rebalancer.should_rebalance() is True
+
+    def test_should_rebalance_quarterly(self):
+        """Test should_rebalance with quarterly frequency."""
+        from datetime import timedelta
+
+        rebalancer = Rebalancer(self.portfolio, frequency="quarterly")
+        # Less than 90 days -> False
+        rebalancer.last_rebalance = datetime.now() - timedelta(days=30)
+        assert rebalancer.should_rebalance() is False
+        # >= 90 days -> True
+        rebalancer.last_rebalance = datetime.now() - timedelta(days=95)
+        assert rebalancer.should_rebalance() is True
+
+    def test_should_rebalance_unknown_frequency(self):
+        """Test should_rebalance returns False for an unknown frequency."""
+        from datetime import timedelta
+
+        rebalancer = Rebalancer(self.portfolio, frequency="yearly")
+        rebalancer.last_rebalance = datetime.now() - timedelta(days=30)
+        assert rebalancer.should_rebalance() is False
+
+    def test_resolve_buy_quantity_from_signals(self):
+        """_resolve_buy_quantity derives a price from matching signals when no
+        holding or price dict is available."""
+        self.portfolio.cash = 100000.0
+        self.portfolio.total_value = 100000.0
+        # No AAPL holding and no AAPL price in the prices dict, but a buy signal
+        # provides a price. The average of matching signal prices is used.
+        signals = [
+            Signal(symbol="AAPL", action="buy", strength=1.0, price=150.0),
+            Signal(symbol="AAPL", action="buy", strength=1.0, price=160.0),
+        ]
+        quantity = self.rebalancer._resolve_buy_quantity("AAPL", 1000.0, signals, {})
+        assert quantity == pytest.approx(1000.0 / 155.0)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

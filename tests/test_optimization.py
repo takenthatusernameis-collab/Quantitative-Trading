@@ -10,6 +10,7 @@ from quant_trading.data.providers import DataManager
 from quant_trading.optimization import (
     BayesianOptimizer,
     GridSearch,
+    OptimizationResult,
     ParameterGrid,
     ParameterSpace,
     RandomSearch,
@@ -21,6 +22,7 @@ from quant_trading.optimization import (
     maximize_win_rate,
     minimize_max_drawdown,
 )
+from quant_trading.strategies.base import Signal, Strategy
 from quant_trading.strategies.examples import MovingAverageCrossover, RSIStrategy
 
 
@@ -703,3 +705,632 @@ def test_walk_forward_with_bayesian():
     summary = result.summary()
     assert "n_windows" in summary
     assert summary["n_windows"] == 3
+
+
+class RaisingStrategy(Strategy):
+    """Strategy that raises ValueError in generate_signals for error handling tests."""
+
+    def __init__(self, name: str = "Raising", **kwargs):
+        super().__init__(name, kwargs)
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        raise ValueError("boom")
+
+
+def test_parameter_space_requires_values_or_min():
+    """Test ParameterSpace __post_init__ raises when neither values nor min_val provided."""
+    with pytest.raises(ValueError, match="Either values or min_val must be provided"):
+        ParameterSpace("test")
+
+
+def test_parameter_space_generate_grid_fallback():
+    """Test generate_grid returns empty list when min_val set but max_val/step not."""
+    space = ParameterSpace("test", min_val=1.0)
+    assert space.generate_grid() == []
+
+
+def test_parameter_space_sample_random_fallback():
+    """Test sample_random returns empty list when min_val set but max_val not."""
+    space = ParameterSpace("test", min_val=1.0)
+    assert space.sample_random(3) == []
+
+
+def test_parameter_grid_empty_generate_combinations():
+    """Test empty ParameterGrid generates a single empty combination."""
+    grid = ParameterGrid()
+    assert grid.generate_combinations() == [{}]
+
+
+def test_parameter_grid_empty_sample_random():
+    """Test empty ParameterGrid samples empty dicts."""
+    grid = ParameterGrid()
+    assert grid.sample_random(3) == [{}, {}, {}]
+
+
+def test_optimization_result_duration_none():
+    """Test duration_seconds is None when start/end not set."""
+    result = OptimizationResult(best_params={}, best_score=0.0)
+    assert result.duration_seconds is None
+
+
+def test_optimization_result_duration_set():
+    """Test duration_seconds calculates when start/end set."""
+    start = datetime.now()
+    end = start + timedelta(seconds=5)
+    result = OptimizationResult(
+        best_params={}, best_score=0.0, start_time=start, end_time=end
+    )
+    assert result.duration_seconds == pytest.approx(5.0, abs=0.1)
+
+
+def test_optimization_result_to_dataframe_empty():
+    """Test to_dataframe returns empty DataFrame when no results."""
+    result = OptimizationResult(best_params={}, best_score=0.0)
+    df = result.to_dataframe()
+    assert df.empty
+
+
+def test_base_optimizer_evaluate_params_error():
+    """Test _evaluate_params catches ValueError and returns -inf score."""
+    from quant_trading.optimization.base import BaseOptimizer, ParameterGrid, ParameterSpace
+
+    class TestOptimizer(BaseOptimizer):
+        def run(self) -> OptimizationResult:
+            return OptimizationResult(best_params={}, best_score=0.0)
+
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20], param_type=int))
+
+    optimizer = TestOptimizer(
+        strategy_cls=RaisingStrategy,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=50),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        verbose=True,
+    )
+
+    params, score, result = optimizer._evaluate_params({"fast_period": 5, "slow_period": 20})
+    assert params == {"fast_period": 5, "slow_period": 20}
+    assert score == float("-inf")
+    assert result is None
+
+
+def test_grid_search_verbose(capsys):
+    """Test GridSearch verbose prints progress."""
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20], param_type=int))
+
+    optimizer = GridSearch(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=50),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        verbose=True,
+    )
+
+    optimizer.run()
+    out = capsys.readouterr().out
+    assert "GridSearch: Evaluating" in out
+    assert "New best" in out
+    assert "GridSearch complete" in out
+
+
+def test_grid_search_n_combinations():
+    """Test n_combinations property returns total count."""
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("a", values=[1, 2]))
+    param_grid.add(ParameterSpace("b", values=[10, 20]))
+    optimizer = GridSearch(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=["AAPL"],
+        start=datetime.now() - timedelta(days=10),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=DataManager([MockDataProvider({"AAPL": create_test_data("AAPL", 20)})]),
+        verbose=False,
+    )
+    assert optimizer.n_combinations == 4
+
+
+def test_random_search_verbose(capsys):
+    """Test RandomSearch verbose prints progress."""
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", min_val=5, max_val=15, param_type=int))
+    param_grid.add(ParameterSpace("slow_period", min_val=20, max_val=30, param_type=int))
+
+    optimizer = RandomSearch(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=50),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_iter=3,
+        random_state=42,
+        verbose=True,
+    )
+
+    optimizer.run()
+    out = capsys.readouterr().out
+    assert "RandomSearch: Evaluating" in out
+    assert "New best" in out
+    assert "RandomSearch complete" in out
+
+
+def test_walk_forward_rolling_mode():
+    """Test WalkForwardOptimizer with rolling (non-anchored) windows."""
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=200)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20, 30], param_type=int))
+
+    optimizer = WalkForwardOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=180),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_windows=3,
+        train_size=0.7,
+        anchored=False,
+        optimizer="grid",
+        verbose=False,
+    )
+
+    result = optimizer.run()
+    assert len(result.windows) >= 1
+    for window in result.windows:
+        assert window.best_params is not None
+        assert window.train_result is not None
+        assert window.test_result is not None
+
+
+def test_walk_forward_step_size_override():
+    """Test WalkForwardOptimizer with explicit step_size override."""
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=200)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20], param_type=int))
+
+    optimizer = WalkForwardOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=180),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_windows=3,
+        train_size=0.5,
+        step_size=0.3,
+        anchored=False,
+        optimizer="grid",
+        verbose=False,
+    )
+
+    result = optimizer.run()
+    assert len(result.windows) >= 1
+
+
+def test_walk_forward_unknown_optimizer():
+    """Test WalkForwardOptimizer raises for unknown optimizer type."""
+    optimizer = WalkForwardOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=ParameterGrid(),
+        objective=maximize_sharpe,
+        symbols=["AAPL"],
+        start=datetime.now() - timedelta(days=10),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=DataManager([MockDataProvider({"AAPL": create_test_data("AAPL", 20)})]),
+        optimizer="unknown",
+    )
+    with pytest.raises(ValueError, match="Unknown optimizer type"):
+        optimizer.run()
+
+
+def test_walk_forward_no_dates():
+    """Test WalkForwardOptimizer _generate_windows raises when dates not set."""
+    optimizer = WalkForwardOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=ParameterGrid(),
+        objective=maximize_sharpe,
+        symbols=["AAPL"],
+        start=None,
+        end=None,
+        initial_capital=100000.0,
+        data_manager=DataManager([MockDataProvider({"AAPL": create_test_data("AAPL", 20)})]),
+    )
+    with pytest.raises(ValueError, match="start and end dates must be provided"):
+        optimizer.run()
+
+
+def test_walk_forward_combine_no_valid_windows():
+    """Test _combine_test_results returns None when no windows have test results."""
+    from quant_trading.optimization.walk_forward import WalkForwardOptimizer, WalkForwardWindow
+
+    optimizer = WalkForwardOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=ParameterGrid(),
+        objective=maximize_sharpe,
+        symbols=["AAPL"],
+        start=datetime.now() - timedelta(days=10),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=DataManager([MockDataProvider({"AAPL": create_test_data("AAPL", 20)})]),
+    )
+
+    windows = [
+        WalkForwardWindow(
+            train_start=datetime.now() - timedelta(days=5),
+            train_end=datetime.now() - timedelta(days=3),
+            test_start=datetime.now() - timedelta(days=3),
+            test_end=datetime.now(),
+            best_params={"fast_period": 5, "slow_period": 20},
+            test_result=None,
+        )
+    ]
+    combined = optimizer._combine_test_results(windows)
+    assert combined is None
+
+
+def test_walk_forward_combine_no_equity():
+    """Test _combine_test_results returns None when equity curves have no data."""
+    from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.metrics import BacktestMetrics
+    from quant_trading.optimization.walk_forward import WalkForwardOptimizer, WalkForwardWindow
+
+    optimizer = WalkForwardOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=ParameterGrid(),
+        objective=maximize_sharpe,
+        symbols=["AAPL"],
+        start=datetime.now() - timedelta(days=10),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=DataManager([MockDataProvider({"AAPL": create_test_data("AAPL", 20)})]),
+    )
+
+    # Create test result with single-point equity curve (no returns)
+    metrics = BacktestMetrics()
+    test_result = BacktestResult(
+        equity_curve=pd.Series([100000.0], index=[datetime.now()]),
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=datetime.now() - timedelta(days=1),
+        end_date=datetime.now(),
+        initial_capital=100000.0,
+        final_value=100000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+    )
+
+    windows = [
+        WalkForwardWindow(
+            train_start=datetime.now() - timedelta(days=5),
+            train_end=datetime.now() - timedelta(days=3),
+            test_start=datetime.now() - timedelta(days=3),
+            test_end=datetime.now(),
+            best_params={"fast_period": 5, "slow_period": 20},
+            test_result=test_result,
+        )
+    ]
+    combined = optimizer._combine_test_results(windows)
+    assert combined is None
+
+
+def test_walk_forward_verbose(capsys):
+    """Test WalkForwardOptimizer verbose prints window progress."""
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=200)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20], param_type=int))
+
+    optimizer = WalkForwardOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=180),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_windows=2,
+        train_size=0.7,
+        anchored=True,
+        optimizer="grid",
+        verbose=True,
+    )
+
+    optimizer.run()
+    out = capsys.readouterr().out
+    assert "WalkForwardOptimizer:" in out
+    assert "Window 1/" in out
+    assert "Train:" in out
+    assert "Test:" in out
+    assert "Best params" in out
+    assert "Test return" in out
+    assert "Test Sharpe" in out
+
+
+def test_walk_forward_random_optimizer():
+    """Test WalkForwardOptimizer with the RandomSearch optimizer branch."""
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=200)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20], param_type=int))
+
+    optimizer = WalkForwardOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=180),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_windows=3,
+        train_size=0.7,
+        anchored=True,
+        optimizer="random",
+        optimizer_kwargs={"n_iter": 2, "random_state": 42},
+        verbose=False,
+    )
+
+    result = optimizer.run()
+    assert len(result.windows) == 3
+    for window in result.windows:
+        assert window.best_params is not None
+        assert window.train_result is not None
+        assert window.test_result is not None
+
+
+def test_walk_forward_degenerate_break():
+    """Test _generate_windows breaks when test_start >= test_end (empty testing window).
+
+    With train_size=1.0, non-anchored, each window's testing period collapses to
+    zero length (test_start == test_end), triggering the early break. The result
+    is zero windows and a None combined result.
+    """
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20], param_type=int))
+
+    optimizer = WalkForwardOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=60),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_windows=3,
+        train_size=1.0,
+        anchored=False,
+        optimizer="grid",
+        verbose=False,
+    )
+
+    result = optimizer.run()
+    assert result.windows == []
+    assert result.combined_test_result is None
+
+
+def test_convert_to_native():
+    """Test _convert_to_native converts numpy/dict/list to native types."""
+    from quant_trading.optimization.bayesian import _convert_to_native
+
+    assert _convert_to_native(np.float64(1.5)) == 1.5
+    assert _convert_to_native(np.array([1, 2, 3])) == [1, 2, 3]
+    assert _convert_to_native([np.int64(1), np.float64(2.0)]) == [1, 2.0]
+    assert _convert_to_native({"a": np.float64(3.0)}) == {"a": 3.0}
+    assert _convert_to_native("scalar") == "scalar"
+
+
+def test_bayesian_optimizer_import_error(monkeypatch):
+    """Test BayesianOptimizer raises ImportError when scikit-optimize is missing."""
+    import sys
+
+    monkeypatch.setitem(sys.modules, "skopt", None)
+    monkeypatch.setitem(sys.modules, "skopt.utils", None)
+    with pytest.raises(ImportError, match="requires scikit-optimize"):
+        BayesianOptimizer(
+            strategy_cls=MovingAverageCrossover,
+            param_grid=ParameterGrid(),
+            objective=maximize_sharpe,
+            symbols=["AAPL"],
+            start=datetime.now() - timedelta(days=10),
+            end=datetime.now(),
+            initial_capital=100000.0,
+            data_manager=DataManager([MockDataProvider({"AAPL": create_test_data("AAPL", 20)})]),
+        )
+
+
+def test_bayesian_optimizer_default_objective():
+    """Test BayesianOptimizer defaults to maximize_sharpe when objective is None."""
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20, 30], param_type=int))
+
+    optimizer = BayesianOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=None,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=50),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_initial_points=2,
+        n_calls=3,
+        random_state=42,
+        verbose=False,
+    )
+    assert optimizer.objective is maximize_sharpe
+
+
+def test_bayesian_optimizer_log_prior():
+    """Test BayesianOptimizer builds a log-uniform Real space for log distribution."""
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
+    param_grid.add(
+        ParameterSpace("scale", min_val=0.1, max_val=10.0, distribution="log")
+    )
+
+    optimizer = BayesianOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=50),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_initial_points=2,
+        n_calls=3,
+        random_state=42,
+        verbose=False,
+    )
+    # The log-distributed float space should produce a Real with log-uniform prior
+    space = optimizer._space
+    assert len(space) == 2
+    scale_dim = next(d for d in space if d.name == "scale")
+    assert scale_dim.prior == "log-uniform"
+
+
+def test_bayesian_optimizer_verbose(capsys):
+    """Test BayesianOptimizer verbose prints progress."""
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20, 30], param_type=int))
+
+    optimizer = BayesianOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=50),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_initial_points=1,
+        n_calls=2,
+        random_state=42,
+        verbose=True,
+    )
+
+    optimizer.run()
+    out = capsys.readouterr().out
+    assert "BayesianOptimizer:" in out
+    assert "BayesianOptimizer complete" in out
+
+
+def test_bayesian_optimizer_error_handling(monkeypatch, capsys):
+    """Test BayesianOptimizer handles errors from the optimizer gracefully."""
+    import skopt
+
+    def raise_error(*args, **kwargs):
+        raise ValueError("simulated skopt failure")
+
+    monkeypatch.setattr(skopt, "gp_minimize", raise_error)
+
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20, 30], param_type=int))
+
+    optimizer = BayesianOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=50),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_initial_points=1,
+        n_calls=2,
+        random_state=42,
+        verbose=True,
+    )
+
+    result = optimizer.run()
+    out = capsys.readouterr().out
+    assert "Bayesian optimization error" in out
+    assert result.best_score == float("-inf")
+    assert result.best_params == {}
