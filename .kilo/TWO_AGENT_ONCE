@@ -1,1 +1,2 @@
 Run one post-repair Kilo validation activation only. Execute exactly two sequential Kilo sessions against the corrected main-branch controller. Preserve frozen research protocols, promotion gates, data preflights, existing user work, and all repository safety controls. Do not launch competing sessions. Record the commit SHA, verification commands/results, persistence status, and any unresolved infrastructure defect in the durable handoff.
+validation_trigger_nonce: 2026-10-13-consolidated-repair-v2
