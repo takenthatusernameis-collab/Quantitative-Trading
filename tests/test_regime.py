@@ -47,9 +47,7 @@ def test_detect_regimes_up_series_is_bull():
 
     assert result.n_segments >= 1
     assert result.total_return_pct > 0
-    bull_count = sum(
-        1 for r in result.regimes if r in (Regime.BULL_LOW_VOL, Regime.BULL_HIGH_VOL)
-    )
+    bull_count = sum(1 for r in result.regimes if r in (Regime.BULL_LOW_VOL, Regime.BULL_HIGH_VOL))
     assert bull_count >= 1
 
 
@@ -59,9 +57,7 @@ def test_detect_regimes_down_series_is_bear():
 
     assert result.n_segments >= 1
     assert result.total_return_pct < 0
-    bear_count = sum(
-        1 for r in result.regimes if r in (Regime.BEAR_LOW_VOL, Regime.BEAR_HIGH_VOL)
-    )
+    bear_count = sum(1 for r in result.regimes if r in (Regime.BEAR_LOW_VOL, Regime.BEAR_HIGH_VOL))
     assert bear_count >= 1
 
 
@@ -72,9 +68,7 @@ def test_detect_regimes_sideways_series():
     assert result.n_segments >= 1
     assert abs(result.total_return_pct) < 15.0
     sideways_count = sum(
-        1
-        for r in result.regimes
-        if r in (Regime.SIDEWAYS_LOW_VOL, Regime.SIDEWAYS_HIGH_VOL)
+        1 for r in result.regimes if r in (Regime.SIDEWAYS_LOW_VOL, Regime.SIDEWAYS_HIGH_VOL)
     )
     assert sideways_count >= 1
 
@@ -120,9 +114,7 @@ def test_detect_regimes_deterministic_same_seed():
 
 def test_detect_regimes_explicit_thresholds():
     prices = _make_series(n=100, trend=0.001, vol=0.01, seed=7)
-    result = detect_regimes(
-        prices, window=20, vol_threshold=0.1, return_threshold=0.05
-    )
+    result = detect_regimes(prices, window=20, vol_threshold=0.1, return_threshold=0.05)
     assert result.n_segments >= 1
 
 
@@ -157,3 +149,49 @@ def test_regime_result_summary_contains_keys():
     assert summary["n_segments"] == result.n_segments
     assert "current_regime" in summary
     assert "regime_counts" in summary
+
+
+def test_regime_result_to_dict():
+    """RegimeResult.to_dict() is callable and returns expected keys (line 59)."""
+    prices = _make_series(n=100, trend=0.001, vol=0.01, seed=10)
+    result = detect_regimes(prices, window=20)
+    d = result.to_dict()
+    assert "segments" in d
+    assert d["n_segments"] == result.n_segments
+    assert d["current_regime"] == result.current_regime.value
+    assert len(d["regimes"]) == len(result.regimes)
+
+
+def test_regime_result_empty_to_dict_and_to_dataframe():
+    """Empty RegimeResult.to_dict() (line 59) and to_dataframe() empty branch (line 70)."""
+    prices = pd.Series([100.0])
+    result = detect_regimes(prices, window=20)
+    assert result.n_segments == 0
+
+    d = result.to_dict()
+    assert d["n_segments"] == 0
+    assert d["segments"] == []
+    assert d["regimes"] == []
+    assert d["current_regime"] == Regime.UNKNOWN.value
+
+    df = result.to_dataframe()
+    assert df.empty
+
+
+def test_detect_regimes_non_series_input_list():
+    """detect() converts a non-Series (list) input to pd.Series (line 107)."""
+    prices = [100.0, 101.0, 102.0, 103.0, 100.5, 101.0, 102.5, 103.0, 104.0, 105.0]
+    result = detect_regimes(prices, window=3)
+    assert result.n_segments >= 1
+
+
+def test_detect_regimes_returns_empty_after_dropna():
+    """detect() returns empty RegimeResult when returns are all NaN (line 113).
+
+    With len(prices) >= 2 but pct_change().dropna() empty, the len(returns) < 1
+    branch is hit and an empty RegimeResult is returned.
+    """
+    prices = pd.Series([100.0, np.nan])
+    result = detect_regimes(prices, window=20)
+    assert result.n_segments == 0
+    assert result.current_regime == Regime.UNKNOWN

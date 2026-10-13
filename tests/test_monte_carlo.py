@@ -159,9 +159,10 @@ def test_monte_carlo_parametric_method_runs():
 
 
 def test_monte_carlo_result_to_dataframe_empty():
-    from quant_trading.monte_carlo import MonteCarloResult
-    from quant_trading.backtest.metrics import BacktestMetrics
     from datetime import datetime
+
+    from quant_trading.backtest.metrics import BacktestMetrics
+    from quant_trading.monte_carlo import MonteCarloResult
 
     metrics = BacktestMetrics()
     res = MonteCarloResult(
@@ -177,9 +178,10 @@ def test_monte_carlo_result_to_dataframe_empty():
 
 
 def test_monte_carlo_result_summary_empty():
-    from quant_trading.monte_carlo import MonteCarloResult
-    from quant_trading.backtest.metrics import BacktestMetrics
     from datetime import datetime
+
+    from quant_trading.backtest.metrics import BacktestMetrics
+    from quant_trading.monte_carlo import MonteCarloResult
 
     metrics = BacktestMetrics()
     res = MonteCarloResult(

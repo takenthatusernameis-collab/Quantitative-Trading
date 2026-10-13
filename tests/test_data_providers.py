@@ -10,7 +10,11 @@ from quant_trading.data.providers import (
     FetchResult,
     MarketData,
 )
-from quant_trading.data.synthetic import create_synthetic_data
+from quant_trading.data.synthetic import (
+    SyntheticDataProvider,
+    create_synthetic_data,
+    create_synthetic_provider,
+)
 
 
 class CountingProvider(DataProvider):
@@ -140,6 +144,7 @@ def test_data_manager_fetch_many_no_provider_raises():
     with pytest.raises(ValueError):
         manager.fetch_many([{"symbols": ["AAPL"]}])
 
+
 # Multi-provider end-to-end tests
 class FakeResponse:
     """Mock response for requests.get."""
@@ -150,8 +155,10 @@ class FakeResponse:
 
     def raise_for_status(self):
         if self.status_code >= 400:
+
             class FakeResponseError(Exception):
                 pass
+
             raise FakeResponseError(f"HTTP {self.status_code}")
 
     def json(self):
@@ -260,7 +267,9 @@ def test_create_data_manager_from_config():
     mgr_av = create_data_manager_from_config(cfg_av)
     assert mgr_av.providers
     # Name might vary; just check it's an AlphaVantageProvider
-    assert "alphavantage" in mgr_av.providers[0].name.lower() or hasattr(mgr_av.providers[0], "name")
+    assert "alphavantage" in mgr_av.providers[0].name.lower() or hasattr(
+        mgr_av.providers[0], "name"
+    )
 
     # YFinance
     cfg_yf = DataConfig(provider="yfinance")
@@ -298,3 +307,32 @@ def test_data_manager_fetch_many_with_alphavantage_gold(tmp_path):
         assert len(results) == 2
         # Each symbol requires a separate call (per-symbol in AV implementation)
         assert mock_get.call_count == 2
+
+
+def test_synthetic_data_provider_missing_symbol():
+    """SyntheticDataProvider.fetch reports missing symbols (line 88)."""
+    data = create_synthetic_data(["AAPL"], days=10)
+    provider = SyntheticDataProvider(data)
+    result = provider.fetch(["UNKNOWN"])
+    assert "UNKNOWN" in result.missing
+    assert not result.data
+    assert not result.is_success
+
+
+def test_synthetic_data_provider_fetch_latest():
+    """SyntheticDataProvider.fetch_latest delegates to fetch (line 92)."""
+    data = create_synthetic_data(["AAPL"], days=10)
+    provider = SyntheticDataProvider(data)
+    result = provider.fetch_latest(["AAPL"])
+    assert "AAPL" in result.data
+    assert not result.missing
+    assert not result.errors
+
+
+def test_create_synthetic_provider():
+    """create_synthetic_provider builds a provider with generated data (lines 102-103)."""
+    provider = create_synthetic_provider(["AAPL", "MSFT"], days=20, seed=99)
+    assert provider.name == "synthetic"
+    result = provider.fetch(["AAPL", "MSFT"])
+    assert "AAPL" in result.data
+    assert "MSFT" in result.data
