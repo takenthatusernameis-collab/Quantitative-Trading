@@ -1,11 +1,17 @@
 """Tests for the backtest engine."""
 
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
-from quant_trading.backtest.engine import BacktestEngine, BacktestResult, Trade
+from quant_trading.backtest.engine import (
+    BacktestEngine,
+    BacktestResult,
+    Trade,
+    run_backtest,
+)
 from quant_trading.config.settings import BacktestConfig
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
 from quant_trading.data.synthetic import create_synthetic_data
@@ -125,17 +131,22 @@ def test_add_remove_strategy():
 def test_backtest_result_dataclass():
     """Test BacktestResult dataclass creation."""
     equity_curve = pd.Series([100000, 101000, 102000])
-    trades = pd.DataFrame([{
-        'symbol': 'AAPL',
-        'action': 'buy',
-        'quantity': 10,
-        'price': 150.0,
-        'timestamp': datetime.now(),
-        'commission': 0.001,
-        'slippage': 0.0005,
-    }])
+    trades = pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL",
+                "action": "buy",
+                "quantity": 10,
+                "price": 150.0,
+                "timestamp": datetime.now(),
+                "commission": 0.001,
+                "slippage": 0.0005,
+            }
+        ]
+    )
 
     from quant_trading.backtest.metrics import BacktestMetrics
+
     metrics = BacktestMetrics()
 
     result = BacktestResult(
@@ -317,6 +328,162 @@ def test_halt_on_portfolio_violation_stops_backtest():
     assert len(result.equity_curve) < len(mock_data["AAPL"]) + 1
     assert isinstance(result.equity_curve, pd.Series)
     assert len(result.equity_curve.index) == len(result.equity_curve)
+
+
+def test_run_without_data_manager_raises():
+    """run() raises ValueError when no data_manager is configured."""
+    engine = BacktestEngine()
+    with pytest.raises(ValueError, match="No data_manager configured"):
+        engine.run(["AAPL"], datetime.now(), datetime.now())
+
+
+def test_run_raises_on_fetch_errors():
+    """run() raises RuntimeError when the data manager reports fetch errors."""
+    engine = BacktestEngine(data_manager=MagicMock())
+    engine.data_manager.fetch.return_value = FetchResult(
+        errors={"AAPL": RuntimeError("network down")},
+    )
+    with pytest.raises(RuntimeError, match="Data fetch errors"):
+        engine.run(["AAPL"], datetime.now(), datetime.now())
+
+
+def test_run_raises_on_no_data():
+    """run() raises ValueError when the data manager returns no data."""
+    engine = BacktestEngine(data_manager=MagicMock())
+    engine.data_manager.fetch.return_value = FetchResult()
+    with pytest.raises(ValueError, match="No market data retrieved"):
+        engine.run(["AAPL"], datetime.now(), datetime.now())
+
+
+def test_run_skips_dates_with_no_comparable_data():
+    """A NaT entry in the index yields an empty current_data slice, hitting the
+    defensive ``continue`` in the run loop."""
+    symbols = ["AAPL"]
+    mock_data = create_synthetic_data(symbols, days=10)
+    df = mock_data["AAPL"].copy()
+    idx = list(df.index)
+    idx[2] = pd.NaT
+    df.index = pd.DatetimeIndex(idx)
+    mock_data["AAPL"] = df
+
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+    config = BacktestConfig(initial_capital=100000.0)
+    engine = BacktestEngine(config=config, data_manager=data_manager)
+    engine.add_strategy(FirstDayBuyStrategy())
+
+    start_date = datetime.now() - timedelta(days=10)
+    end_date = datetime.now()
+    result = engine.run(symbols, start_date, end_date, "1d")
+
+    assert isinstance(result, BacktestResult)
+    assert len(result.equity_curve) > 0
+
+
+def test_default_data_manager_creation_and_reset():
+    """get_default_data_manager lazily builds (and caches) a DataManager and
+    reset_default_data_manager clears it."""
+    from quant_trading.backtest import engine as engine_module
+
+    engine_module.reset_default_data_manager()
+    assert engine_module._default_data_manager is None
+
+    fake_provider = MockDataProvider(create_synthetic_data(["AAPL"], days=10))
+    with patch(
+        "quant_trading.data.yfinance_provider.YFinanceProvider",
+        return_value=fake_provider,
+    ):
+        dm = engine_module.get_default_data_manager()
+        assert isinstance(dm, DataManager)
+        # Second call returns the cached instance.
+        dm_cached = engine_module.get_default_data_manager()
+        assert dm is dm_cached
+
+    engine_module.reset_default_data_manager()
+    assert engine_module._default_data_manager is None
+
+
+def test_process_signal_skipped_when_price_missing():
+    """A buy signal whose resolved price is None/<=0 is skipped."""
+    config = BacktestConfig(initial_capital=100000.0, commission=0.001, slippage=0.0005)
+    engine = BacktestEngine(config=config)
+    signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=0.0)
+    trades: list[Trade] = []
+    engine._process_signal(signal, trades, datetime.now())
+    assert trades == []
+
+
+def test_process_signal_buy_partial_fill_when_cost_exceeds_cash():
+    """When cost exceeds cash, quantity is trimmed to fit available cash."""
+    config = BacktestConfig(initial_capital=1000.0, commission=0.001, slippage=0.0005)
+    engine = BacktestEngine(config=config)
+    # All-in on MSFT leaves $100 cash and $1000 total value.
+    engine.portfolio.add_holding("MSFT", 100.0, 9.0)
+    buy = Signal(symbol="AAPL", action="buy", strength=1.0, price=10.0)
+    trades: list[Trade] = []
+    engine._process_signal(buy, trades, datetime.now())
+    assert len(trades) == 1
+    assert trades[0].action == "buy"
+    # Trimmed to fit cash after costs.
+    assert trades[0].quantity < 10.0
+
+
+def test_process_signal_buy_aborted_when_no_cash_for_partial_fill():
+    """When cash is exhausted, the partial fill quantity is <=0 and returns."""
+    config = BacktestConfig(initial_capital=1000.0, commission=0.001, slippage=0.0005)
+    engine = BacktestEngine(config=config)
+    # All capital deployed in MSFT leaves zero cash.
+    engine.portfolio.add_holding("MSFT", 1000.0, 1.0)
+    buy = Signal(symbol="AAPL", action="buy", strength=1.0, price=10.0)
+    trades: list[Trade] = []
+    engine._process_signal(buy, trades, datetime.now())
+    assert trades == []
+
+
+def test_process_signal_sell_without_holding():
+    """A sell signal for a symbol with no holding is a no-op."""
+    config = BacktestConfig(initial_capital=100000.0)
+    engine = BacktestEngine(config=config)
+    engine.risk_manager.disable()
+    sell = Signal(symbol="AAPL", action="sell", strength=1.0, price=150.0)
+    trades: list[Trade] = []
+    engine._process_signal(sell, trades, datetime.now())
+    assert trades == []
+
+
+def test_process_signal_sell_with_zero_strength():
+    """A sell signal whose strength yields zero quantity is a no-op."""
+    config = BacktestConfig(initial_capital=100000.0)
+    engine = BacktestEngine(config=config)
+    engine.risk_manager.disable()
+    engine.portfolio.add_holding("AAPL", 100.0, 150.0)
+    sell = Signal(symbol="AAPL", action="sell", strength=0.0, price=150.0)
+    trades: list[Trade] = []
+    engine._process_signal(sell, trades, datetime.now())
+    assert trades == []
+
+
+def test_run_backtest_uses_default_data_manager():
+    """run_backtest with no data_manager/config falls back to the default DM."""
+    from quant_trading.backtest import engine as engine_module
+
+    engine_module.reset_default_data_manager()
+    fake_provider = MockDataProvider(create_synthetic_data(["AAPL"], days=60))
+    fake_dm = DataManager([fake_provider])
+    with patch(
+        "quant_trading.backtest.engine.get_default_data_manager",
+        return_value=fake_dm,
+    ):
+        result = run_backtest(
+            strategy=MovingAverageCrossover(fast_period=5, slow_period=15, name="Test_MA"),
+            symbols=["AAPL"],
+            start=datetime.now() - timedelta(days=50),
+            end=datetime.now(),
+            data_manager=None,
+            config=None,
+        )
+    assert isinstance(result, BacktestResult)
+    engine_module.reset_default_data_manager()
 
 
 if __name__ == "__main__":
