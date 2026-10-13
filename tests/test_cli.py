@@ -254,8 +254,8 @@ class TestCreateStrategy:
         args = argparse.Namespace(strategy="unknown")
         try:
             create_strategy(args)
-            raise AssertionError("Expected KeyError")
-        except KeyError as e:
+            raise AssertionError("Expected ValueError")
+        except ValueError as e:
             assert "unknown" in str(e)
 
 
@@ -556,6 +556,162 @@ class TestMain:
         assert "Monte Carlo Simulation" in captured.out
         assert "Probability of Profit" in captured.out
         assert "95% Confidence Intervals" in captured.out
+
+
+class TestFactoryIntegration:
+    """Tests for CLI integration with the strategy factory registry."""
+
+    def test_factory_registry_used_for_create_strategy(self):
+        """Test that create_strategy uses the factory registry."""
+        from quant_trading.strategies import get_registry, register_strategy
+        from quant_trading.strategies.base import Strategy
+
+        class CustomStrategy(Strategy):
+            def __init__(self, custom_param: int = 42, **kwargs):
+                super().__init__(**kwargs)
+                self.custom_param = custom_param
+
+            def generate_signals(self, data, symbol: str):
+                return 0
+
+            def get_parameters(self):
+                return {"custom_param": self.custom_param}
+
+        # Register custom strategy
+        register_strategy("custom", CustomStrategy, aliases=["cust"])
+
+        try:
+            # Verify it's in the registry
+            registry = get_registry()
+            assert registry.get("custom") is CustomStrategy
+            assert registry.get("cust") is CustomStrategy
+            assert "custom" in registry.primary_keys()
+            assert "cust" in registry.keys()
+
+            # Test create_strategy uses factory (for built-in strategies still works)
+            args = argparse.Namespace(
+                strategy="ma",
+                fast_period=10,
+                slow_period=30,
+                rsi_period=14,
+                rsi_oversold=30,
+                rsi_overbought=70,
+                bb_period=20,
+                bb_std=2.0,
+                st_period=10,
+                st_multiplier=3.0,
+            )
+            strategy = create_strategy(args)
+            assert strategy is not None
+            assert hasattr(strategy, "fast_period")
+
+        finally:
+            # Cleanup
+            registry.unregister("custom")
+
+    def test_list_strategies_uses_factory(self, capsys):
+        """Test that list_strategies uses factory registry."""
+        from quant_trading.strategies import get_registry, register_strategy
+        from quant_trading.strategies.base import Strategy
+
+        class TestStrategy(Strategy):
+            def __init__(self, **kwargs):
+                super().__init__(name="TestStrategy", **kwargs)
+
+            def generate_signals(self, data, symbol: str):
+                return 0
+
+            def get_parameters(self):
+                return {"test_param": 1}
+
+        register_strategy("test_strat", TestStrategy)
+        try:
+            result = list_strategies()
+            assert result == 0
+            captured = capsys.readouterr()
+            assert "test_strat" in captured.out
+            assert "TestStrategy" in captured.out
+        finally:
+            get_registry().unregister("test_strat")
+
+    def test_run_combined_iterates_registry_primary_keys(self):
+        """Test that run_combined iterates over registry primary keys."""
+        from unittest.mock import MagicMock, patch
+
+        from quant_trading.strategies import get_registry, register_strategy
+        from quant_trading.strategies.base import Strategy
+
+        # Register a custom strategy
+        class CustomStrategy(Strategy):
+            def __init__(self, **kwargs):
+                super().__init__(name="CustomStrategy", **kwargs)
+
+            def generate_signals(self, data, symbol: str):
+                return 0
+
+            def get_parameters(self):
+                return {}
+
+        register_strategy("custom_for_combined", CustomStrategy)
+        registry = get_registry()
+
+        try:
+            # Verify it's in primary keys
+            assert "custom_for_combined" in registry.primary_keys()
+
+            # Mock run_backtest to succeed quickly
+            with patch("examples.cli.run_backtest") as mock_run:
+                from quant_trading.backtest.metrics import BacktestMetrics
+                mock_metrics = MagicMock(spec=BacktestMetrics)
+                mock_metrics.num_trades = 1
+                mock_metrics.win_rate = 0.5
+                mock_metrics.sharpe_ratio = 1.0
+                mock_metrics.max_drawdown_pct = 1.0
+                mock_metrics.profit_factor = 1.0
+
+                mock_result = MagicMock()
+                mock_result.name = "CustomStrategy"
+                mock_result.total_return_pct = 5.0
+                mock_result.metrics = mock_metrics
+                mock_result.initial_capital = 100000.0
+                mock_result.final_value = 105000.0
+                mock_result.total_return = 5000.0
+                mock_run.return_value = mock_result
+
+                args = argparse.Namespace(
+                    symbols=["AAPL"],
+                    strategy="ma",
+                    combined=True,
+                    initial_capital=100000.0,
+                    commission=0.001,
+                    slippage=0.0005,
+                    interval="1d",
+                    fast_period=10,
+                    slow_period=30,
+                    rsi_period=14,
+                    rsi_oversold=30,
+                    rsi_overbought=70,
+                    bb_period=20,
+                    bb_std=2.0,
+                    st_period=10,
+                    st_multiplier=3.0,
+                    output=None,
+                )
+
+                config = Config()
+                from datetime import datetime, timedelta
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=365)
+
+                # This should iterate over all primary keys including custom
+                result = run_combined(args, config, start_date, end_date)
+                assert result == 0
+
+                # Verify custom strategy was called
+                strategy_names = [call.kwargs["strategy"].name for call in mock_run.call_args_list]
+                assert any("CustomStrategy" in name for name in strategy_names)
+        finally:
+            registry.unregister("custom_for_combined")
 
 
 if __name__ == "__main__":

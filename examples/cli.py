@@ -19,21 +19,19 @@ from quant_trading.optimization import (
     maximize_win_rate,
     minimize_max_drawdown,
 )
-from quant_trading.strategies.examples import (
-    BollingerBandsStrategy,
-    MACDStrategy,
-    MovingAverageCrossover,
-    RSIStrategy,
-    SuperTrendStrategy,
+from quant_trading.strategies import (
+    create_strategy as factory_create_strategy,
+)
+from quant_trading.strategies import (
+    get_registry,
+    get_strategy,
+)
+from quant_trading.strategies import (
+    list_strategies as factory_list_strategies,
 )
 
-STRATEGIES = {
-    "ma": MovingAverageCrossover,
-    "rsi": RSIStrategy,
-    "bb": BollingerBandsStrategy,
-    "macd": MACDStrategy,
-    "supertrend": SuperTrendStrategy,
-}
+# Built-in strategy keys for argparse choices (preserves existing behavior)
+BUILTIN_STRATEGY_KEYS = ["ma", "rsi", "bb", "macd", "supertrend"]
 
 PROVIDERS = {
     "yfinance": ("YFinanceProvider", "Yahoo Finance (requires network)"),
@@ -128,7 +126,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--strategy",
-        choices=list(STRATEGIES.keys()),
+        choices=BUILTIN_STRATEGY_KEYS,
         default="ma",
         help="Strategy to run",
     )
@@ -475,50 +473,51 @@ def parse_args() -> argparse.Namespace:
 
 
 def create_strategy(args: argparse.Namespace):
-    """Create strategy instance from args."""
-    strategy_cls = STRATEGIES[args.strategy]
+    """Create strategy instance from args using the factory registry."""
+    kwargs = {}
 
     if args.strategy == "ma":
-        return strategy_cls(
-            fast_period=args.fast_period,
-            slow_period=args.slow_period,
-            name=f"MA_Crossover_{args.fast_period}_{args.slow_period}",
-        )
+        kwargs = {
+            "fast_period": args.fast_period,
+            "slow_period": args.slow_period,
+            "name": f"MA_Crossover_{args.fast_period}_{args.slow_period}",
+        }
     elif args.strategy == "rsi":
-        return strategy_cls(
-            period=args.rsi_period,
-            oversold=args.rsi_oversold,
-            overbought=args.rsi_overbought,
-            name=f"RSI_{args.rsi_period}",
-        )
+        kwargs = {
+            "period": args.rsi_period,
+            "oversold": args.rsi_oversold,
+            "overbought": args.rsi_overbought,
+            "name": f"RSI_{args.rsi_period}",
+        }
     elif args.strategy == "bb":
-        return strategy_cls(
-            period=args.bb_period,
-            std_dev=args.bb_std,
-            name=f"BB_{args.bb_period}_{args.bb_std}",
-        )
+        kwargs = {
+            "period": args.bb_period,
+            "std_dev": args.bb_std,
+            "name": f"BB_{args.bb_period}_{args.bb_std}",
+        }
     elif args.strategy == "macd":
-        return strategy_cls(
-            fast_period=getattr(args, "macd_fast", 12),
-            slow_period=getattr(args, "macd_slow", 26),
-            signal_period=getattr(args, "macd_signal", 9),
-            use_zero_line=getattr(args, "macd_zero_line", False),
-            name=f"MACD_{getattr(args, 'macd_fast', 12)}_{getattr(args, 'macd_slow', 26)}_{getattr(args, 'macd_signal', 9)}",
-        )
+        kwargs = {
+            "fast_period": getattr(args, "macd_fast", 12),
+            "slow_period": getattr(args, "macd_slow", 26),
+            "signal_period": getattr(args, "macd_signal", 9),
+            "use_zero_line": getattr(args, "macd_zero_line", False),
+            "name": f"MACD_{getattr(args, 'macd_fast', 12)}_{getattr(args, 'macd_slow', 26)}_{getattr(args, 'macd_signal', 9)}",
+        }
     elif args.strategy == "supertrend":
-        return strategy_cls(
-            period=args.st_period,
-            multiplier=args.st_multiplier,
-            name=f"SuperTrend_{args.st_period}_{args.st_multiplier}",
-        )
-    else:
-        raise ValueError(f"Unknown strategy: {args.strategy}")
+        kwargs = {
+            "period": args.st_period,
+            "multiplier": args.st_multiplier,
+            "name": f"SuperTrend_{args.st_period}_{args.st_multiplier}",
+        }
+
+    return factory_create_strategy(args.strategy, **kwargs)
 
 
 def list_strategies() -> int:
     """Print available strategies and exit."""
+    strategies = factory_list_strategies()
     print("Available strategies:")
-    for key, cls in STRATEGIES.items():
+    for key, cls in strategies.items():
         instance = cls()
         params = instance.get_parameters()
         param_str = ", ".join(f"{k}={v}" for k, v in params.items())
@@ -622,7 +621,9 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
 def run_optimization(args: argparse.Namespace, config: Config, start_date: datetime, end_date: datetime) -> int:
     """Run parameter optimization for a strategy."""
 
-    strategy_cls = STRATEGIES[args.strategy]
+    strategy_cls = get_strategy(args.strategy)
+    if strategy_cls is None:
+        raise ValueError(f"Unknown strategy: {args.strategy}. Available: {BUILTIN_STRATEGY_KEYS}")
     param_grid = create_param_grid(args)
     objective = OBJECTIVES[args.objective]
 
@@ -744,7 +745,9 @@ def run_optimization(args: argparse.Namespace, config: Config, start_date: datet
 def run_walk_forward(args: argparse.Namespace, config: Config, start_date: datetime, end_date: datetime) -> int:
     """Run walk-forward optimization for a strategy."""
 
-    strategy_cls = STRATEGIES[args.strategy]
+    strategy_cls = get_strategy(args.strategy)
+    if strategy_cls is None:
+        raise ValueError(f"Unknown strategy: {args.strategy}. Available: {BUILTIN_STRATEGY_KEYS}")
     param_grid = create_param_grid(args)
     objective = OBJECTIVES[args.objective]
 
@@ -1042,8 +1045,9 @@ def run_combined(args: argparse.Namespace, config: Config, start_date: datetime,
     if config.data.offline:
         print("Mode: OFFLINE (synthetic data)")
 
+    registry = get_registry()
     results = []
-    for strategy_key in STRATEGIES:
+    for strategy_key in registry.primary_keys():
         # Create a copy of args with the current strategy
         strategy_args = argparse.Namespace(**vars(args))
         strategy_args.strategy = strategy_key
