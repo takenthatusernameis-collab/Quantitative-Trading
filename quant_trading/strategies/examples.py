@@ -282,6 +282,192 @@ class BollingerBandsStrategy(Strategy):
         return signals
 
 
+class SuperTrendStrategy(Strategy):
+    """SuperTrend Strategy.
+
+    Trend-following indicator using Average True Range (ATR) for volatility-adjusted
+    trailing stops. Generates buy signals when price crosses above the SuperTrend line
+    (trend turns bullish) and sell signals when price crosses below (trend turns bearish).
+
+    The SuperTrend line acts as a dynamic support/resistance level that trails price
+    based on volatility.
+    """
+
+    def __init__(
+        self,
+        period: int = 10,
+        multiplier: float = 3.0,
+        name: str = "SuperTrend",
+    ):
+        super().__init__(
+            name,
+            {
+                "period": period,
+                "multiplier": multiplier,
+            },
+        )
+        self.period = period
+        self.multiplier = multiplier
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters."""
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+        if self.multiplier <= 0:
+            raise ValueError("multiplier must be positive")
+
+    def _calculate_atr(self, df: pd.DataFrame, period: int) -> pd.Series:
+        """Calculate Average True Range (ATR)."""
+        high = df["high"]
+        low = df["low"]
+        close = df["close"]
+
+        # True Range = max(high - low, |high - prev_close|, |low - prev_close|)
+        prev_close = close.shift(1)
+        tr1 = high - low
+        tr2 = (high - prev_close).abs()
+        tr3 = (low - prev_close).abs()
+        true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+        # ATR is the rolling average of True Range
+        atr = true_range.rolling(window=period).mean()
+        return atr
+
+    def _calculate_supertrend(self, df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+        """Calculate SuperTrend indicator.
+
+        Returns:
+            Tuple of (supertrend_line, trend_direction) where trend_direction is
+            1 for bullish (supertrend is support), -1 for bearish (supertrend is resistance).
+        """
+        atr = self._calculate_atr(df, self.period)
+        hl2 = (df["high"] + df["low"]) / 2
+
+        basic_upper = hl2 + self.multiplier * atr
+        basic_lower = hl2 - self.multiplier * atr
+
+        final_upper = basic_upper.copy()
+        final_lower = basic_lower.copy()
+        supertrend = pd.Series(index=df.index, dtype=float)
+        trend = pd.Series(index=df.index, dtype=int)
+
+        # Find first valid index (where ATR is not NaN)
+        valid_idx = atr.first_valid_index()
+        if valid_idx is None:
+            # No valid ATR values, return all NaN
+            trend.iloc[:] = -1
+            return supertrend, trend
+
+        start_i = df.index.get_loc(valid_idx)
+        assert isinstance(start_i, int)
+
+        # Initialize values before start_i as NaN/neutral
+        for i in range(start_i):
+            trend.iloc[i] = -1
+
+        # Initialize at start_i
+        i = start_i
+        final_upper.iloc[i] = basic_upper.iloc[i]
+        final_lower.iloc[i] = basic_lower.iloc[i]
+        supertrend.iloc[i] = final_upper.iloc[i]
+        trend.iloc[i] = -1  # Start bearish
+
+        # Calculate for remaining rows
+        for i in range(start_i + 1, len(df)):
+            close = df["close"].iloc[i]
+            prev_close = df["close"].iloc[i - 1]
+            prev_final_upper = final_upper.iloc[i - 1]
+            prev_final_lower = final_lower.iloc[i - 1]
+            prev_trend = trend.iloc[i - 1]
+
+            # Final upper band
+            if basic_upper.iloc[i] < prev_final_upper or prev_close > prev_final_upper:
+                final_upper.iloc[i] = basic_upper.iloc[i]
+            else:
+                final_upper.iloc[i] = prev_final_upper
+
+            # Final lower band
+            if basic_lower.iloc[i] > prev_final_lower or prev_close < prev_final_lower:
+                final_lower.iloc[i] = basic_lower.iloc[i]
+            else:
+                final_lower.iloc[i] = prev_final_lower
+
+            # Determine trend and supertrend value
+            if prev_trend == -1 and close > prev_final_upper:
+                # Trend change: bearish to bullish
+                trend.iloc[i] = 1
+                supertrend.iloc[i] = final_lower.iloc[i]
+            elif prev_trend == 1 and close < prev_final_lower:
+                # Trend change: bullish to bearish
+                trend.iloc[i] = -1
+                supertrend.iloc[i] = final_upper.iloc[i]
+            elif prev_trend == 1:
+                # Continue bullish
+                trend.iloc[i] = 1
+                supertrend.iloc[i] = final_lower.iloc[i]
+            else:
+                # Continue bearish
+                trend.iloc[i] = -1
+                supertrend.iloc[i] = final_upper.iloc[i]
+
+        return supertrend, trend
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals = []
+
+        for symbol, df in data.items():
+            min_required = self.period + 2
+            if len(df) < min_required:
+                continue
+
+            supertrend, trend = self._calculate_supertrend(df)
+
+            current_price = df["close"].iloc[-1]
+            current_supertrend = supertrend.iloc[-1]
+            current_trend = trend.iloc[-1]
+            prev_trend = trend.iloc[-2]
+            timestamp = df.index[-1]
+
+            # Trend change detection
+            if prev_trend == -1 and current_trend == 1:
+                # Bullish reversal - buy signal
+                strength = min(1.0, (current_price - current_supertrend) / current_price * 20 + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "supertrend": current_supertrend,
+                            "trend": "bullish",
+                            "signal_type": "trend_reversal_bullish",
+                        },
+                    )
+                )
+            elif prev_trend == 1 and current_trend == -1:
+                # Bearish reversal - sell signal
+                strength = min(1.0, (current_supertrend - current_price) / current_price * 20 + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "supertrend": current_supertrend,
+                            "trend": "bearish",
+                            "signal_type": "trend_reversal_bearish",
+                        },
+                    )
+                )
+
+        return signals
+
+
 class MACDStrategy(Strategy):
     """MACD (Moving Average Convergence Divergence) Strategy.
 

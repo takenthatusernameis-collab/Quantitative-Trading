@@ -11,6 +11,7 @@ from quant_trading.strategies.examples import (
     MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
+    SuperTrendStrategy,
 )
 
 
@@ -49,6 +50,35 @@ def create_mean_reverting_data(symbol: str, days: int = 100) -> pd.DataFrame:
             "open": prices * (1 + np.random.uniform(-0.005, 0.005, days)),
             "high": prices * (1 + np.random.uniform(0, 0.01, days)),
             "low": prices * (1 - np.random.uniform(0, 0.01, days)),
+            "close": prices,
+            "volume": np.random.randint(1000000, 10000000, days),
+        },
+        index=dates,
+    )
+    return df
+
+
+def create_supertrend_data(symbol: str, days: int = 100, trend: float = 0.0) -> pd.DataFrame:
+    """Create mock price data with a clear trend for SuperTrend testing.
+
+    When trend > 0: steady uptrend that should trigger bullish SuperTrend
+    When trend < 0: steady downtrend that should trigger bearish SuperTrend
+    """
+    np.random.seed(42)
+    dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
+    returns = np.random.normal(trend, 0.01, days)
+    prices = 100 * np.exp(np.cumsum(returns))
+
+    # Add some volatility for realistic ATR calculation
+    high = prices * (1 + np.abs(np.random.normal(0, 0.005, days)))
+    low = prices * (1 - np.abs(np.random.normal(0, 0.005, days)))
+    open_ = prices * (1 + np.random.uniform(-0.002, 0.002, days))
+
+    df = pd.DataFrame(
+        {
+            "open": open_,
+            "high": high,
+            "low": low,
             "close": prices,
             "volume": np.random.randint(1000000, 10000000, days),
         },
@@ -317,6 +347,106 @@ class TestMACDStrategy:
         # With zero-line enabled, more signal types may appear
         for signal in signals:
             assert signal.action in ("buy", "sell")
+
+
+class TestSuperTrendStrategy:
+    """Tests for SuperTrendStrategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = SuperTrendStrategy(period=10, multiplier=3.0, name="Test_ST")
+        assert strategy.name == "Test_ST"
+        assert strategy.period == 10
+        assert strategy.multiplier == 3.0
+        assert strategy.parameters["period"] == 10
+        assert strategy.parameters["multiplier"] == 3.0
+
+    def test_validate_parameters(self):
+        """Test parameter validation."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            SuperTrendStrategy(period=0)
+        with pytest.raises(ValueError, match="multiplier must be positive"):
+            SuperTrendStrategy(multiplier=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            SuperTrendStrategy(period=-1)
+        with pytest.raises(ValueError, match="multiplier must be positive"):
+            SuperTrendStrategy(multiplier=-1)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with insufficient data."""
+        strategy = SuperTrendStrategy(period=10, multiplier=3.0)
+        data = {"AAPL": create_supertrend_data("AAPL", days=5)}  # Less than period
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_bullish_trend(self):
+        """Test generate_signals detects bullish trend (buy signal)."""
+        strategy = SuperTrendStrategy(period=10, multiplier=3.0)
+        # Create steady uptrend data
+        data = {"AAPL": create_supertrend_data("AAPL", days=60, trend=0.003)}
+        signals = strategy.generate_signals(data)
+
+        for signal in signals:
+            assert signal.symbol == "AAPL"
+            assert signal.action in ("buy", "sell")
+            assert 0.0 <= signal.strength <= 1.0
+            assert signal.price is not None
+            assert signal.timestamp is not None
+            if signal.action == "buy":
+                assert signal.metadata.get("trend") == "bullish"
+                assert signal.metadata.get("signal_type") == "trend_reversal_bullish"
+                assert "supertrend" in signal.metadata
+            elif signal.action == "sell":
+                assert signal.metadata.get("trend") == "bearish"
+                assert signal.metadata.get("signal_type") == "trend_reversal_bearish"
+
+    def test_generate_signals_bearish_trend(self):
+        """Test generate_signals detects bearish trend (sell signal)."""
+        strategy = SuperTrendStrategy(period=10, multiplier=3.0)
+        # Create steady downtrend data
+        data = {"AAPL": create_supertrend_data("AAPL", days=60, trend=-0.003)}
+        signals = strategy.generate_signals(data)
+
+        for signal in signals:
+            assert signal.symbol == "AAPL"
+            assert signal.action in ("buy", "sell")
+            assert 0.0 <= signal.strength <= 1.0
+            if signal.action == "sell":
+                assert signal.metadata.get("trend") == "bearish"
+                assert signal.metadata.get("signal_type") == "trend_reversal_bearish"
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals with multiple symbols."""
+        strategy = SuperTrendStrategy(period=10, multiplier=3.0)
+        data = {
+            "AAPL": create_supertrend_data("AAPL", days=60, trend=0.003),
+            "MSFT": create_supertrend_data("MSFT", days=60, trend=-0.003),
+        }
+        signals = strategy.generate_signals(data)
+        symbols = {s.symbol for s in signals}
+        assert symbols.issubset({"AAPL", "MSFT"})
+
+    def test_atr_calculation(self):
+        """Test ATR calculation internally."""
+        strategy = SuperTrendStrategy(period=10, multiplier=3.0)
+        data = {"AAPL": create_supertrend_data("AAPL", days=60, trend=0.003)}
+        df = data["AAPL"]
+        atr = strategy._calculate_atr(df, 10)
+        assert len(atr) == len(df)
+        assert atr.notna().sum() > 10  # ATR should have values after period
+
+    def test_supertrend_calculation(self):
+        """Test SuperTrend calculation internally."""
+        strategy = SuperTrendStrategy(period=10, multiplier=3.0)
+        data = {"AAPL": create_supertrend_data("AAPL", days=60, trend=0.003)}
+        df = data["AAPL"]
+        supertrend, trend = strategy._calculate_supertrend(df)
+        assert len(supertrend) == len(df)
+        assert len(trend) == len(df)
+        # Trend should be either 1 (bullish) or -1 (bearish)
+        assert set(trend.dropna().unique()).issubset({1, -1})
+        # SuperTrend should be positive
+        assert (supertrend.dropna() > 0).all()
 
 
 class TestStrategyParameters:

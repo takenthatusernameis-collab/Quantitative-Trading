@@ -6,6 +6,7 @@ from .examples import (
     MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
+    SuperTrendStrategy,
 )
 from .factory import (
     StrategyRegistry,
@@ -22,6 +23,7 @@ register_strategy("ma", MovingAverageCrossover, aliases=["moving_average", "ma_c
 register_strategy("rsi", RSIStrategy, aliases=["rsi_mean_reversion"])
 register_strategy("bb", BollingerBandsStrategy, aliases=["bollinger_bands", "bollinger"])
 register_strategy("macd", MACDStrategy, aliases=["macd_crossover"])
+register_strategy("supertrend", SuperTrendStrategy, aliases=["st", "super_trend"])
 
 __all__ = [
     "BollingerBandsStrategy",
@@ -33,6 +35,7 @@ __all__ = [
     "Strategy",
     "StrategyManager",
     "StrategyRegistry",
+    "SuperTrendStrategy",
     "create_strategy",
     "get_registry",
     "get_strategy",

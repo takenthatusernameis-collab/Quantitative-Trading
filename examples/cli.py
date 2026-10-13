@@ -24,6 +24,7 @@ from quant_trading.strategies.examples import (
     MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
+    SuperTrendStrategy,
 )
 
 STRATEGIES = {
@@ -31,6 +32,7 @@ STRATEGIES = {
     "rsi": RSIStrategy,
     "bb": BollingerBandsStrategy,
     "macd": MACDStrategy,
+    "supertrend": SuperTrendStrategy,
 }
 
 PROVIDERS = {
@@ -195,6 +197,18 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Enable zero-line crossover signals for MACD",
     )
+    parser.add_argument(
+        "--st-period",
+        type=int,
+        default=10,
+        help="SuperTrend ATR period",
+    )
+    parser.add_argument(
+        "--st-multiplier",
+        type=float,
+        default=3.0,
+        help="SuperTrend multiplier",
+    )
 
     # Parameter ranges for optimization
     parser.add_argument(
@@ -256,6 +270,18 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="7,12,1",
         help="MACD signal range: min,max,step",
+    )
+    parser.add_argument(
+        "--st-period-range",
+        type=str,
+        default="7,20,1",
+        help="SuperTrend period range: min,max,step",
+    )
+    parser.add_argument(
+        "--st-multiplier-range",
+        type=str,
+        default="2.0,4.0,0.5",
+        help="SuperTrend multiplier range: min,max,step",
     )
 
     parser.add_argument(
@@ -479,6 +505,12 @@ def create_strategy(args: argparse.Namespace):
             use_zero_line=getattr(args, "macd_zero_line", False),
             name=f"MACD_{getattr(args, 'macd_fast', 12)}_{getattr(args, 'macd_slow', 26)}_{getattr(args, 'macd_signal', 9)}",
         )
+    elif args.strategy == "supertrend":
+        return strategy_cls(
+            period=args.st_period,
+            multiplier=args.st_multiplier,
+            name=f"SuperTrend_{args.st_period}_{args.st_multiplier}",
+        )
     else:
         raise ValueError(f"Unknown strategy: {args.strategy}")
 
@@ -578,6 +610,11 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
         grid.add(ParameterSpace("slow_period", min_val=slow_min, max_val=slow_max, step=slow_step, param_type=int))
         grid.add(ParameterSpace("signal_period", min_val=signal_min, max_val=signal_max, step=signal_step, param_type=int))
         grid.add(ParameterSpace("use_zero_line", values=[False, True], param_type=bool))
+    elif args.strategy == "supertrend":
+        period_min, period_max, period_step = parse_range(args.st_period_range)
+        mult_min, mult_max, mult_step = parse_range(args.st_multiplier_range)
+        grid.add(ParameterSpace("period", min_val=period_min, max_val=period_max, step=period_step, param_type=int))
+        grid.add(ParameterSpace("multiplier", min_val=mult_min, max_val=mult_max, step=mult_step, param_type=float))
 
     return grid
 

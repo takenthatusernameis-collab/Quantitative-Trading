@@ -365,6 +365,7 @@ class TestRunCombined:
             ("RSI_14", 12.3),
             ("BB_20_2.0", 18.7),
             ("MACD_12_26_9", 10.0),
+            ("SuperTrend_10_3.0", 8.5),
         ]:
             m = MagicMock(spec=["name", "total_return_pct", "metrics", "initial_capital", "final_value", "total_return"])
             m.name = name
@@ -399,6 +400,8 @@ class TestRunCombined:
             rsi_overbought=70,
             bb_period=20,
             bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
             output=None,
         )
 
@@ -416,6 +419,7 @@ class TestRunCombined:
         assert "MA_Crossover_10_30" in captured.out
         assert "RSI_14" in captured.out
         assert "BB_20_2.0" in captured.out
+        assert "SuperTrend_10_3.0" in captured.out
         assert "Best strategy (by Sharpe)" in captured.out
 
     @patch("examples.cli.run_backtest")
@@ -459,6 +463,8 @@ class TestRunCombined:
                 rsi_overbought=70,
                 bb_period=20,
                 bb_std=2.0,
+                st_period=10,
+                st_multiplier=3.0,
                 output=output_path,
             )
 
