@@ -147,6 +147,21 @@ def test_parameter_grid():
     assert {"a": 2, "b": 20} in combos
 
 
+def test_parameter_grid_validator():
+    """Test ParameterGrid with cross-parameter validator."""
+    grid = ParameterGrid()
+    grid.add(ParameterSpace("fast_period", values=[5, 10, 15], param_type=int))
+    grid.add(ParameterSpace("slow_period", values=[10, 20, 30], param_type=int))
+    grid.set_validator(lambda p: p["fast_period"] < p["slow_period"])
+
+    combos = grid.generate_combinations()
+    # Should filter out invalid combinations where fast_period >= slow_period
+    assert all(c["fast_period"] < c["slow_period"] for c in combos)
+    # Total combinations without filter: 3 * 3 = 9
+    # Valid: (5,10), (5,20), (5,30), (10,20), (10,30), (15,20), (15,30) = 7
+    assert len(combos) == 7
+
+
 def test_parameter_grid_random():
     """Test ParameterGrid random sampling."""
     grid = ParameterGrid()

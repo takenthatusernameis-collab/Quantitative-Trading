@@ -69,13 +69,23 @@ class ParameterGrid:
     """Collection of parameter spaces defining a grid."""
 
     spaces: dict[str, ParameterSpace] = field(default_factory=dict)
+    validator: Callable[[dict[str, Any]], bool] | None = None
 
     def add(self, space: ParameterSpace) -> "ParameterGrid":
         self.spaces[space.name] = space
         return self
 
+    def set_validator(self, validator: Callable[[dict[str, Any]], bool]) -> "ParameterGrid":
+        """Set a cross-parameter validation function.
+
+        The validator receives a parameter combination dict and should return
+        True if the combination is valid, False otherwise.
+        """
+        self.validator = validator
+        return self
+
     def generate_combinations(self) -> list[dict[str, Any]]:
-        """Generate all parameter combinations (Cartesian product)."""
+        """Generate all valid parameter combinations (Cartesian product)."""
         import itertools
 
         if not self.spaces:
@@ -86,7 +96,9 @@ class ParameterGrid:
 
         combinations = []
         for combo in itertools.product(*value_lists):
-            combinations.append(dict(zip(keys, combo)))
+            params = dict(zip(keys, combo))
+            if self.validator is None or self.validator(params):
+                combinations.append(params)
         return combinations
 
     def sample_random(self, n: int, rng: Any | None = None) -> list[dict[str, Any]]:

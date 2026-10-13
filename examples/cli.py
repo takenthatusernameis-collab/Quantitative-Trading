@@ -619,6 +619,7 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
         slow_min, slow_max, slow_step = parse_range(args.ma_slow_range)
         grid.add(ParameterSpace("fast_period", min_val=fast_min, max_val=fast_max, step=fast_step, param_type=int))
         grid.add(ParameterSpace("slow_period", min_val=slow_min, max_val=slow_max, step=slow_step, param_type=int))
+        grid.set_validator(lambda p: p["fast_period"] < p["slow_period"])
     elif args.strategy == "rsi":
         period_min, period_max, period_step = parse_range(args.rsi_period_range)
         oversold_min, oversold_max, oversold_step = parse_range(args.rsi_oversold_range)
@@ -626,6 +627,7 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
         grid.add(ParameterSpace("period", min_val=period_min, max_val=period_max, step=period_step, param_type=int))
         grid.add(ParameterSpace("oversold", min_val=oversold_min, max_val=oversold_max, step=oversold_step, param_type=int))
         grid.add(ParameterSpace("overbought", min_val=overbought_min, max_val=overbought_max, step=overbought_step, param_type=int))
+        grid.set_validator(lambda p: p["oversold"] < p["overbought"])
     elif args.strategy == "bb":
         period_min, period_max, period_step = parse_range(args.bb_period_range)
         std_min, std_max, std_step = parse_range(args.bb_std_range)
@@ -639,6 +641,7 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
         grid.add(ParameterSpace("slow_period", min_val=slow_min, max_val=slow_max, step=slow_step, param_type=int))
         grid.add(ParameterSpace("signal_period", min_val=signal_min, max_val=signal_max, step=signal_step, param_type=int))
         grid.add(ParameterSpace("use_zero_line", values=[False, True], param_type=bool))
+        grid.set_validator(lambda p: p["fast_period"] < p["slow_period"])
     elif args.strategy == "supertrend":
         period_min, period_max, period_step = parse_range(args.st_period_range)
         mult_min, mult_max, mult_step = parse_range(args.st_multiplier_range)
