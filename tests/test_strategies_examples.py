@@ -303,6 +303,21 @@ class TestMovingAverageCrossover:
         assert strategy.parameters["fast_period"] == 10
         assert strategy.parameters["slow_period"] == 30
 
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid periods."""
+        with pytest.raises(ValueError, match="fast_period must be positive"):
+            MovingAverageCrossover(fast_period=0)
+        with pytest.raises(ValueError, match="fast_period must be positive"):
+            MovingAverageCrossover(fast_period=-5)
+        with pytest.raises(ValueError, match="slow_period must be positive"):
+            MovingAverageCrossover(slow_period=0)
+        with pytest.raises(ValueError, match="slow_period must be positive"):
+            MovingAverageCrossover(slow_period=-5)
+        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+            MovingAverageCrossover(fast_period=30, slow_period=10)
+        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+            MovingAverageCrossover(fast_period=10, slow_period=10)
+
     def test_generate_signals_insufficient_data(self):
         """Test generate_signals with insufficient data."""
         strategy = MovingAverageCrossover(fast_period=10, slow_period=30)
@@ -350,6 +365,45 @@ class TestRSIStrategy:
         assert strategy.oversold == 30
         assert strategy.overbought == 70
 
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid bounds."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            RSIStrategy(period=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            RSIStrategy(period=-14)
+        with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
+            RSIStrategy(oversold=0)
+        with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
+            RSIStrategy(oversold=100)
+        with pytest.raises(ValueError, match="overbought must be between 0 and 100"):
+            RSIStrategy(overbought=0)
+        with pytest.raises(ValueError, match="overbought must be between 0 and 100"):
+            RSIStrategy(overbought=100)
+        with pytest.raises(ValueError, match="oversold must be less than overbought"):
+            RSIStrategy(oversold=50, overbought=50)
+        with pytest.raises(ValueError, match="oversold must be less than overbought"):
+            RSIStrategy(oversold=70, overbought=30)
+
+    def test_generate_signals_overbought_rejection(self):
+        """Test generate_signals detects overbought rejection (sell signal).
+
+        Fourteen consecutive up-bars pin RSI at 100; a final 10-point
+        drop pulls RSI to ~56.5, crossing below the overbought threshold.
+        """
+        strategy = RSIStrategy(period=14, oversold=30, overbought=70)
+        closes = [100.0 + i for i in range(14)] + [103.0]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.price == pytest.approx(103.0)
+        assert signal.metadata["signal_type"] == "overbought_rejection"
+        assert signal.metadata["rsi"] == pytest.approx(56.52173913043478)
+
     def test_generate_signals_insufficient_data(self):
         """Test generate_signals with insufficient data."""
         strategy = RSIStrategy(period=14)
@@ -393,6 +447,59 @@ class TestBollingerBandsStrategy:
         assert strategy.name == "Test_BB"
         assert strategy.period == 20
         assert strategy.std_dev == 2.0
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid inputs."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            BollingerBandsStrategy(period=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            BollingerBandsStrategy(period=-20)
+        with pytest.raises(ValueError, match="std_dev must be positive"):
+            BollingerBandsStrategy(std_dev=0)
+        with pytest.raises(ValueError, match="std_dev must be positive"):
+            BollingerBandsStrategy(std_dev=-2.0)
+
+    def test_generate_signals_lower_band_touch(self):
+        """Test generate_signals detects lower band touch (buy signal).
+
+        Alternating closes give a ~97.4 lower band; a final close of 95
+        pierces it (95 <= 97.4 * 1.005).
+        """
+        strategy = BollingerBandsStrategy(period=20, std_dev=2.0)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0, 102.0] * 10 + [95.0])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.price == pytest.approx(95.0)
+        assert signal.metadata["signal_type"] == "lower_band_touch"
+        assert signal.metadata["sma"] == pytest.approx(100.75)
+        assert signal.metadata["lower_band"] == pytest.approx(97.38610501446847)
+        assert signal.metadata["upper_band"] == pytest.approx(104.11389498553154)
+
+    def test_generate_signals_upper_band_touch(self):
+        """Test generate_signals detects upper band touch (sell signal).
+
+        Alternating closes give a ~106.0 upper band; a final close of 110
+        pierces it (110 >= 106.0 * 0.995).
+        """
+        strategy = BollingerBandsStrategy(period=20, std_dev=2.0)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0, 102.0] * 10 + [110.0])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.price == pytest.approx(110.0)
+        assert signal.metadata["signal_type"] == "upper_band_touch"
+        assert signal.metadata["sma"] == pytest.approx(101.5)
+        assert signal.metadata["upper_band"] == pytest.approx(105.97213595499957)
+        assert signal.metadata["lower_band"] == pytest.approx(97.02786404500042)
 
     def test_generate_signals_insufficient_data(self):
         """Test generate_signals with insufficient data."""
@@ -476,6 +583,38 @@ def create_macd_falling_data(symbol: str, days: int = 100) -> pd.DataFrame:
     return df
 
 
+def create_macd_zero_line_data(symbol: str, direction: str) -> pd.DataFrame:
+    """Create deterministic data where the MACD line crosses zero on the
+    final bar *without* a signal-line crossover.
+
+    Prices are flat at 100, drop to 80, settle, then ramp up 0.25/bar.
+    The ramp lifts the fast EMA above the slow EMA (MACD crosses zero)
+    while the signal line (EMA of MACD) still lags below it, so neither
+    signal-line crossover condition holds. The final close is tuned per
+    direction:
+    - "bullish": a jump to 100 puts the MACD line clearly above zero
+    - "bearish": 80.5 keeps the MACD line in the narrow band between
+      the (negative) signal line and zero, crossing it from above
+    """
+    closes = [100.0] * 30 + [80.0] + [80.0] * 15 + [80.0 + 0.25 * i for i in range(1, 80)]
+    if direction == "bullish":
+        closes = closes[:53] + [100.0]
+    else:
+        closes = closes[:54] + [80.5]
+    close = np.asarray(closes, dtype=float)
+    dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
+    return pd.DataFrame(
+        {
+            "open": close,
+            "high": close * 1.001,
+            "low": close * 0.999,
+            "close": close,
+            "volume": np.full(len(close), 1_000_000),
+        },
+        index=dates,
+    )
+
+
 class TestMACDStrategy:
     """Tests for MACDStrategy."""
 
@@ -490,6 +629,25 @@ class TestMACDStrategy:
         assert strategy.parameters["slow_period"] == 26
         assert strategy.parameters["signal_period"] == 9
         assert strategy.use_zero_line is False
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid periods."""
+        with pytest.raises(ValueError, match="fast_period must be positive"):
+            MACDStrategy(fast_period=0)
+        with pytest.raises(ValueError, match="fast_period must be positive"):
+            MACDStrategy(fast_period=-12)
+        with pytest.raises(ValueError, match="slow_period must be positive"):
+            MACDStrategy(slow_period=0)
+        with pytest.raises(ValueError, match="slow_period must be positive"):
+            MACDStrategy(slow_period=-26)
+        with pytest.raises(ValueError, match="signal_period must be positive"):
+            MACDStrategy(signal_period=0)
+        with pytest.raises(ValueError, match="signal_period must be positive"):
+            MACDStrategy(signal_period=-9)
+        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+            MACDStrategy(fast_period=26, slow_period=12)
+        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+            MACDStrategy(fast_period=12, slow_period=12)
 
     def test_generate_signals_insufficient_data(self):
         """Test generate_signals with insufficient data."""
@@ -551,6 +709,63 @@ class TestMACDStrategy:
         # With zero-line enabled, more signal types may appear
         for signal in signals:
             assert signal.action in ("buy", "sell")
+
+    def test_generate_signals_zero_line_bullish(self):
+        """Test zero-line crossover generates buy when MACD crosses up.
+
+        The MACD line crosses zero on the final bar while staying above
+        the signal line, so no signal-line crossover occurs and the
+        zero-line branch fires instead.
+        """
+        strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5, use_zero_line=True)
+        data = {"AAPL": create_macd_zero_line_data("AAPL", "bullish")}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.metadata["crossover_type"] == "zero_line_bullish"
+        assert signal.metadata["macd"] > 0
+        assert signal.metadata["macd"] == pytest.approx(3.517572699571474)
+        assert signal.metadata["signal"] == pytest.approx(0.8573973709901881)
+        assert "zero_line" not in signal.metadata
+
+    def test_generate_signals_zero_line_bearish(self):
+        """Test zero-line crossover generates sell when MACD crosses down.
+
+        The MACD line has just crossed above zero (signal line still
+        lags below zero); the final close is tuned so the MACD line
+        crosses back below zero without a signal-line crossover.
+        """
+        strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5, use_zero_line=True)
+        data = {"AAPL": create_macd_zero_line_data("AAPL", "bearish")}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.metadata["crossover_type"] == "zero_line_bearish"
+        assert signal.metadata["macd"] == pytest.approx(-0.11813172676122008)
+        assert signal.metadata["macd"] < 0
+        assert signal.metadata["signal"] == pytest.approx(-0.22968375683171027)
+        assert "zero_line" not in signal.metadata
+
+    def test_generate_signals_bearish_crossover_zero_line_metadata(self):
+        """Test use_zero_line annotates bearish crossovers below zero."""
+        strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5, use_zero_line=True)
+        data = {"AAPL": create_macd_falling_data("AAPL", days=100)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "sell"
+        assert signal.metadata["crossover_type"] == "bearish"
+        assert signal.metadata["macd"] < 0
+        assert signal.metadata["zero_line"] == "below"
 
 
 class TestSuperTrendStrategy:
@@ -618,6 +833,62 @@ class TestSuperTrendStrategy:
             if signal.action == "sell":
                 assert signal.metadata.get("trend") == "bearish"
                 assert signal.metadata.get("signal_type") == "trend_reversal_bearish"
+
+    def test_generate_signals_bullish_reversal(self):
+        """Test generate_signals detects bullish reversal (buy signal).
+
+        Flat data keeps SuperTrend bearish; a final jump above the
+        upper band flips the trend to bullish on the last bar.
+        """
+        strategy = SuperTrendStrategy(period=5, multiplier=1.0)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 6 + [110.0])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.price == pytest.approx(110.0)
+        assert signal.metadata["signal_type"] == "trend_reversal_bullish"
+        assert signal.metadata["trend"] == "bullish"
+        assert signal.metadata["supertrend"] == pytest.approx(107.82)
+
+    def test_generate_signals_bearish_reversal(self):
+        """Test generate_signals detects bearish reversal (sell signal).
+
+        Flat data, a jump that turns the trend bullish, then a final
+        drop below the lower band flips the trend back to bearish.
+        """
+        strategy = SuperTrendStrategy(period=5, multiplier=1.0)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 6 + [110.0] * 4 + [100.0])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.price == pytest.approx(100.0)
+        assert signal.metadata["signal_type"] == "trend_reversal_bearish"
+        assert signal.metadata["trend"] == "bearish"
+        assert signal.metadata["supertrend"] == pytest.approx(104.16)
+
+    def test_supertrend_no_valid_atr(self):
+        """Test _calculate_supertrend returns all-NaN when ATR is invalid.
+
+        Data shorter than the ATR period yields an all-NaN ATR, so
+        the no-valid-index branch returns an all-NaN SuperTrend line
+        and an all-bearish trend series.
+        """
+        strategy = SuperTrendStrategy(period=10, multiplier=3.0)
+        df = create_donchian_data("AAPL", [100.0, 101.0, 102.0])
+        supertrend, trend = strategy._calculate_supertrend(df)
+
+        assert len(supertrend) == len(df)
+        assert len(trend) == len(df)
+        assert supertrend.isna().all()
+        assert (trend == -1).all()
 
     def test_generate_signals_multiple_symbols(self):
         """Test generate_signals with multiple symbols."""

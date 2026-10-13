@@ -51,6 +51,34 @@ class StrategyWithValidation(Strategy):
         return []
 
 
+class StrictlyInvalidStrategy(Strategy):
+    """Strategy whose validation always fails."""
+
+    def __init__(self, name: str = "StrictlyInvalid"):
+        super().__init__(name, {"threshold": 10.0})
+        self.threshold = 10.0
+
+    def validate_parameters(self) -> None:
+        raise ValueError("always invalid")
+
+    def generate_signals(self, data):
+        return []
+
+
+class NoneAttributeStrategy(Strategy):
+    """Strategy with a parameter key whose instance attribute is None."""
+
+    def __init__(self, name: str = "NoneAttribute"):
+        super().__init__(name, {"flag": "original"})
+        self.flag = None
+
+    def validate_parameters(self) -> None:
+        raise ValueError("always invalid")
+
+    def generate_signals(self, data):
+        return []
+
+
 class TestStrategySetParameter:
     """Tests for Strategy.set_parameter with validation and rollback."""
 
@@ -87,6 +115,32 @@ class TestStrategySetParameter:
             strategy.set_parameter("threshold", -5.0)
         # Attribute should be restored to original value
         assert strategy.threshold == 10.0
+
+    def test_set_parameter_rollback_pops_new_parameter_key(self):
+        """Test rollback removes a parameter key that did not exist before.
+
+        The key was absent from parameters (old value None), so the
+        tentative insertion is rolled back by removing the key.
+        """
+        strategy = StrictlyInvalidStrategy(name="Test")
+        with pytest.raises(ValueError, match="always invalid"):
+            strategy.set_parameter("new_key", "value")
+        assert "new_key" not in strategy.parameters
+        assert strategy.parameters == {"threshold": 10.0}
+        assert strategy.threshold == 10.0
+
+    def test_set_parameter_rollback_deletes_none_attribute(self):
+        """Test rollback deletes an attribute whose old value was None.
+
+        The attribute exists but holds None, so there is no old value
+        to restore; the tentative update is rolled back by deleting
+        the attribute. The parameter entry itself is restored.
+        """
+        strategy = NoneAttributeStrategy(name="Test")
+        with pytest.raises(ValueError, match="always invalid"):
+            strategy.set_parameter("flag", "new")
+        assert strategy.parameters["flag"] == "original"
+        assert not hasattr(strategy, "flag")
 
 
 class TestStrategyManager:
