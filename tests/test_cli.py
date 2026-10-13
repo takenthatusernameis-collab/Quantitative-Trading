@@ -18,6 +18,7 @@ from examples.cli import (
 from quant_trading.config.settings import Config
 from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
+    DonchianChannelStrategy,
     MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
@@ -295,6 +296,48 @@ class TestCreateStrategy:
         assert strategy.period == 15
         assert strategy.multiplier == 2.5
         assert "SuperTrend_15_2.5" in strategy.name
+
+    def test_create_donchian_strategy(self):
+        args = argparse.Namespace(
+            strategy="donchian",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            dc_period=25,
+            dc_exit_period=10,
+        )
+        strategy = create_strategy(args)
+        assert isinstance(strategy, DonchianChannelStrategy)
+        assert strategy.period == 25
+        assert strategy.exit_period == 10
+        assert "Donchian_25_10" in strategy.name
+
+    def test_create_donchian_strategy_default_exit(self):
+        args = argparse.Namespace(
+            strategy="donchian",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            dc_period=20,
+            dc_exit_period=None,
+        )
+        strategy = create_strategy(args)
+        assert isinstance(strategy, DonchianChannelStrategy)
+        assert strategy.period == 20
+        assert strategy.exit_period == 20
+        assert "Donchian_20_20" in strategy.name
 
     def test_unknown_strategy_raises(self):
         args = argparse.Namespace(strategy="unknown")
