@@ -145,9 +145,8 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--strategy",
-        choices=BUILTIN_STRATEGY_KEYS,
         default="ma",
-        help="Strategy to run",
+        help="Strategy to run (use --list-strategies to see available options)",
     )
     parser.add_argument(
         "--fast-period",

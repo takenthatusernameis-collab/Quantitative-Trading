@@ -1,0 +1,376 @@
+> """Trade-level analysis for backtest results."""
+
+> from dataclasses import dataclass
+> from datetime import datetime
+> from typing import Any
+
+> import numpy as np
+> import pandas as pd
+
+> from quant_trading.backtest.engine import BacktestResult
+
+
+> @dataclass
+> class TradeAnalysis:
+>     """Detailed trade analysis results."""
+
+>     total_trades: int = 0
+>     winning_trades: int = 0
+>     losing_trades: int = 0
+>     win_rate: float = 0.0
+
+      # PnL statistics
+>     total_pnl: float = 0.0
+>     avg_pnl: float = 0.0
+>     median_pnl: float = 0.0
+>     std_pnl: float = 0.0
+>     avg_win: float = 0.0
+>     avg_loss: float = 0.0
+>     largest_win: float = 0.0
+>     largest_loss: float = 0.0
+>     profit_factor: float = 0.0
+
+      # Holding period statistics
+>     avg_holding_period: float = 0.0
+>     median_holding_period: float = 0.0
+>     min_holding_period: float = 0.0
+>     max_holding_period: float = 0.0
+
+      # Consecutive wins/losses
+>     max_consecutive_wins: int = 0
+>     max_consecutive_losses: int = 0
+>     current_streak: int = 0
+>     current_streak_type: str = ""
+
+      # Monthly/weekly analysis
+>     monthly_returns: dict[str, float] | None = None
+>     weekly_returns: dict[str, float] | None = None
+
+      # Per-symbol analysis
+>     symbol_stats: dict[str, dict[str, Any]] | None = None
+
+      # Risk metrics
+>     expectancy: float = 0.0
+>     sharpe_ratio: float = 0.0
+>     sortino_ratio: float = 0.0
+
+>     def to_dict(self) -> dict[str, Any]:
+>         return {
+>             "total_trades": self.total_trades,
+>             "winning_trades": self.winning_trades,
+>             "losing_trades": self.losing_trades,
+>             "win_rate": self.win_rate,
+>             "total_pnl": self.total_pnl,
+>             "avg_pnl": self.avg_pnl,
+>             "median_pnl": self.median_pnl,
+>             "std_pnl": self.std_pnl,
+>             "avg_win": self.avg_win,
+>             "avg_loss": self.avg_loss,
+>             "largest_win": self.largest_win,
+>             "largest_loss": self.largest_loss,
+>             "profit_factor": self.profit_factor,
+>             "avg_holding_period": self.avg_holding_period,
+>             "median_holding_period": self.median_holding_period,
+>             "min_holding_period": self.min_holding_period,
+>             "max_holding_period": self.max_holding_period,
+>             "max_consecutive_wins": self.max_consecutive_wins,
+>             "max_consecutive_losses": self.max_consecutive_losses,
+>             "current_streak": self.current_streak,
+>             "current_streak_type": self.current_streak_type,
+>             "monthly_returns": self.monthly_returns,
+>             "weekly_returns": self.weekly_returns,
+>             "symbol_stats": self.symbol_stats,
+>             "expectancy": self.expectancy,
+>             "sharpe_ratio": self.sharpe_ratio,
+>             "sortino_ratio": self.sortino_ratio,
+>         }
+
+
+> def _calculate_holding_periods(trades: pd.DataFrame) -> list[float]:
+>     """Calculate holding periods in days for each completed round trip."""
+>     if trades.empty or "pnl" not in trades.columns:
+>         return []
+
+      # Group trades by symbol to find round trips
+>     holding_periods = []
+>     for symbol in trades["symbol"].unique():
+>         symbol_trades = trades[trades["symbol"] == symbol].copy()
+>         symbol_trades = symbol_trades.sort_values("timestamp")
+
+          # Track positions
+>         position = 0.0
+>         entry_times: list[datetime] = []
+>         entry_quantities: list[float] = []
+
+>         for _, trade in symbol_trades.iterrows():
+>             if trade["action"] == "buy":
+>                 position += trade["quantity"]
+>                 entry_times.append(trade["timestamp"])
+>                 entry_quantities.append(trade["quantity"])
+>             elif trade["action"] == "sell" and entry_times:
+>                 qty_sold = trade["quantity"]
+>                 while qty_sold > 0 and entry_times:
+>                     entry_time = entry_times[0]
+>                     entry_qty = entry_quantities[0]
+
+>                     if qty_sold >= entry_qty:
+>                         holding_periods.append(
+>                             (trade["timestamp"] - entry_time).total_seconds() / 86400
+>                         )
+>                         qty_sold -= entry_qty
+>                         entry_times.pop(0)
+>                         entry_quantities.pop(0)
+>                     else:
+>                         entry_quantities[0] -= qty_sold
+>                         qty_sold = 0
+
+>     return holding_periods
+
+
+> def _calculate_consecutive_streaks(trades: pd.DataFrame) -> tuple[int, int, int, str]:
+>     """Calculate max consecutive wins/losses and current streak."""
+>     if trades.empty or "pnl" not in trades.columns:
+>         return 0, 0, 0, ""
+
+>     max_wins = 0
+>     max_losses = 0
+>     current_wins = 0
+>     current_losses = 0
+>     current_streak = 0
+>     current_streak_type = ""
+
+>     for _, trade in trades.iterrows():
+>         pnl = trade.get("pnl", 0)
+>         if pnl > 0:
+>             current_wins += 1
+>             current_losses = 0
+>             max_wins = max(max_wins, current_wins)
+>         elif pnl < 0:
+>             current_losses += 1
+>             current_wins = 0
+>             max_losses = max(max_losses, current_losses)
+
+>     if current_wins > 0:
+>         current_streak = current_wins
+>         current_streak_type = "win"
+>     elif current_losses > 0:
+>         current_streak = current_losses
+>         current_streak_type = "loss"
+
+>     return max_wins, max_losses, current_streak, current_streak_type
+
+
+> def _calculate_monthly_returns(equity_curve: pd.Series) -> dict[str, float]:
+>     """Calculate monthly returns from equity curve."""
+>     if len(equity_curve) < 2:
+>         return {}
+
+>     monthly = equity_curve.resample("ME").last()
+>     if len(monthly) < 2:
+>         return {}
+
+>     monthly_returns = monthly.pct_change().dropna() * 100
+>     return {str(k.date()): float(v) for k, v in monthly_returns.items()}
+
+
+> def _calculate_weekly_returns(equity_curve: pd.Series) -> dict[str, float]:
+>     """Calculate weekly returns from equity curve."""
+>     if len(equity_curve) < 2:
+>         return {}
+
+>     weekly = equity_curve.resample("W").last()
+>     if len(weekly) < 2:
+>         return {}
+
+>     weekly_returns = weekly.pct_change().dropna() * 100
+>     return {str(k.date()): float(v) for k, v in weekly_returns.items()}
+
+
+> def _calculate_symbol_stats(trades: pd.DataFrame) -> dict[str, dict[str, Any]]:
+>     """Calculate per-symbol trade statistics."""
+>     if trades.empty or "pnl" not in trades.columns:
+!         return {}
+
+>     stats = {}
+>     for symbol in trades["symbol"].unique():
+>         symbol_trades = trades[trades["symbol"] == symbol]
+>         winning = symbol_trades[symbol_trades["pnl"] > 0]
+>         losing = symbol_trades[symbol_trades["pnl"] < 0]
+
+>         stats[symbol] = {
+>             "total_trades": len(symbol_trades),
+>             "winning_trades": len(winning),
+>             "losing_trades": len(losing),
+>             "win_rate": len(winning) / len(symbol_trades) if len(symbol_trades) > 0 else 0,
+>             "total_pnl": float(symbol_trades["pnl"].sum()),
+>             "avg_pnl": float(symbol_trades["pnl"].mean()) if len(symbol_trades) > 0 else 0,
+>             "avg_win": float(winning["pnl"].mean()) if len(winning) > 0 else 0,
+>             "avg_loss": float(losing["pnl"].mean()) if len(losing) > 0 else 0,
+>             "largest_win": float(winning["pnl"].max()) if len(winning) > 0 else 0,
+>             "largest_loss": float(losing["pnl"].min()) if len(losing) > 0 else 0,
+>         }
+
+>     return stats
+
+
+> def analyze_trades(
+>     result: BacktestResult,
+>     risk_free_rate: float = 0.02,
+>     periods_per_year: int = 252,
+> ) -> TradeAnalysis:
+>     """Perform detailed trade analysis on a backtest result.
+
+>     Args:
+>         result: BacktestResult to analyze.
+>         risk_free_rate: Annual risk-free rate for Sharpe/Sortino.
+>         periods_per_year: Number of periods per year for annualization.
+
+>     Returns:
+>         TradeAnalysis with detailed statistics.
+>     """
+>     trades = result.trades
+
+>     if trades.empty or "pnl" not in trades.columns:
+>         return TradeAnalysis()
+
+      # Filter trades with PnL (exclude opening trades)
+>     pnl_trades = trades[trades["pnl"] != 0].copy()
+
+>     if pnl_trades.empty:
+>         return TradeAnalysis()
+
+>     winning = pnl_trades[pnl_trades["pnl"] > 0]
+>     losing = pnl_trades[pnl_trades["pnl"] < 0]
+
+>     total_pnl = float(pnl_trades["pnl"].sum())
+>     gross_profit = float(winning["pnl"].sum()) if len(winning) > 0 else 0.0
+>     gross_loss = float(abs(losing["pnl"].sum())) if len(losing) > 0 else 0.0
+
+      # Holding periods
+>     holding_periods = _calculate_holding_periods(trades)
+
+      # Consecutive streaks
+>     max_wins, max_losses, current_streak, current_streak_type = _calculate_consecutive_streaks(
+>         pnl_trades
+>     )
+
+      # Monthly/weekly returns
+>     monthly_returns = _calculate_monthly_returns(result.equity_curve)
+>     weekly_returns = _calculate_weekly_returns(result.equity_curve)
+
+      # Symbol stats
+>     symbol_stats = _calculate_symbol_stats(pnl_trades)
+
+      # Expectancy
+>     win_rate = len(winning) / len(pnl_trades) if len(pnl_trades) > 0 else 0
+>     avg_win = float(winning["pnl"].mean()) if len(winning) > 0 else 0
+>     avg_loss = float(abs(losing["pnl"].mean())) if len(losing) > 0 else 0
+>     expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss) if avg_loss > 0 else 0
+
+      # Trade-level Sharpe/Sortino
+>     pnl_series = pnl_trades["pnl"]
+>     if len(pnl_series) > 1:
+>         mean_pnl = pnl_series.mean()
+>         std_pnl = pnl_series.std()
+>         sharpe = (mean_pnl * np.sqrt(periods_per_year)) / std_pnl if std_pnl > 0 else 0
+
+>         downside = pnl_series[pnl_series < 0]
+>         downside_std = downside.std() if len(downside) > 1 else 0
+>         sortino = (mean_pnl * np.sqrt(periods_per_year)) / downside_std if downside_std > 0 else 0
+>     else:
+>         sharpe = 0.0
+>         sortino = 0.0
+
+>     return TradeAnalysis(
+>         total_trades=len(pnl_trades),
+>         winning_trades=len(winning),
+>         losing_trades=len(losing),
+>         win_rate=win_rate,
+>         total_pnl=total_pnl,
+>         avg_pnl=float(pnl_trades["pnl"].mean()),
+>         median_pnl=float(pnl_trades["pnl"].median()),
+>         std_pnl=float(pnl_trades["pnl"].std()) if len(pnl_trades) > 1 else 0.0,
+>         avg_win=avg_win,
+>         avg_loss=avg_loss,
+>         largest_win=float(winning["pnl"].max()) if len(winning) > 0 else 0.0,
+>         largest_loss=float(losing["pnl"].min()) if len(losing) > 0 else 0.0,
+>         profit_factor=gross_profit / gross_loss if gross_loss > 0 else 0.0,
+>         avg_holding_period=float(np.mean(holding_periods)) if holding_periods else 0.0,
+>         median_holding_period=float(np.median(holding_periods)) if holding_periods else 0.0,
+>         min_holding_period=float(np.min(holding_periods)) if holding_periods else 0.0,
+>         max_holding_period=float(np.max(holding_periods)) if holding_periods else 0.0,
+>         max_consecutive_wins=max_wins,
+>         max_consecutive_losses=max_losses,
+>         current_streak=current_streak,
+>         current_streak_type=current_streak_type,
+>         monthly_returns=monthly_returns,
+>         weekly_returns=weekly_returns,
+>         symbol_stats=symbol_stats,
+>         expectancy=expectancy,
+>         sharpe_ratio=sharpe,
+>         sortino_ratio=sortino,
+>     )
+
+
+> def print_trade_analysis(analysis: TradeAnalysis) -> None:
+>     """Print a formatted trade analysis report."""
+>     print(f"\n{'=' * 60}")
+>     print("Trade Analysis")
+>     print(f"{'=' * 60}")
+
+>     print(f"\n{'Overview':-^60}")
+>     print(f"Total Trades:      {analysis.total_trades}")
+>     print(f"Winning Trades:    {analysis.winning_trades}")
+>     print(f"Losing Trades:     {analysis.losing_trades}")
+>     print(f"Win Rate:          {analysis.win_rate:.2%}")
+
+>     print(f"\n{'PnL Statistics':-^60}")
+>     print(f"Total PnL:         ${analysis.total_pnl:,.2f}")
+>     print(f"Avg PnL/Trade:     ${analysis.avg_pnl:,.2f}")
+>     print(f"Median PnL/Trade:  ${analysis.median_pnl:,.2f}")
+>     print(f"Std Dev PnL:       ${analysis.std_pnl:,.2f}")
+>     print(f"Avg Win:           ${analysis.avg_win:,.2f}")
+>     print(f"Avg Loss:          ${analysis.avg_loss:,.2f}")
+>     print(f"Largest Win:       ${analysis.largest_win:,.2f}")
+>     print(f"Largest Loss:      ${analysis.largest_loss:,.2f}")
+>     print(f"Profit Factor:     {analysis.profit_factor:.2f}")
+>     print(f"Expectancy:        ${analysis.expectancy:,.2f}")
+
+>     print(f"\n{'Holding Periods':-^60}")
+>     print(f"Avg Holding Period: {analysis.avg_holding_period:.1f} days")
+>     print(f"Median Holding:     {analysis.median_holding_period:.1f} days")
+>     print(f"Min Holding:        {analysis.min_holding_period:.1f} days")
+>     print(f"Max Holding:        {analysis.max_holding_period:.1f} days")
+
+>     print(f"\n{'Streaks':-^60}")
+>     print(f"Max Consecutive Wins:   {analysis.max_consecutive_wins}")
+>     print(f"Max Consecutive Losses: {analysis.max_consecutive_losses}")
+>     print(f"Current Streak:         {analysis.current_streak} ({analysis.current_streak_type})")
+
+>     print(f"\n{'Trade-Level Risk':-^60}")
+>     print(f"Trade Sharpe:   {analysis.sharpe_ratio:.2f}")
+>     print(f"Trade Sortino:  {analysis.sortino_ratio:.2f}")
+
+>     if analysis.monthly_returns:
+>         print(f"\n{'Monthly Returns':-^60}")
+>         for month, ret in list(analysis.monthly_returns.items())[-12:]:
+>             print(f"  {month}: {ret:+.2f}%")
+
+>     if analysis.symbol_stats:
+>         print(f"\n{'Per-Symbol Statistics':-^60}")
+>         print(
+>             f"{'Symbol':<10} {'Trades':>7} {'Win%':>7} {'PnL':>12} {'Avg Win':>10} {'Avg Loss':>10}"
+>         )
+>         print(f"{'-' * 60}")
+>         for symbol, stats in sorted(analysis.symbol_stats.items()):
+>             print(
+>                 f"{symbol:<10} {stats['total_trades']:>7} {stats['win_rate']:>6.1%} "
+>                 f"${stats['total_pnl']:>10,.2f} ${stats['avg_win']:>9,.2f} ${stats['avg_loss']:>9,.2f}"
+>             )
+
+
+> __all__ = [
+>     "TradeAnalysis",
+>     "analyze_trades",
+>     "print_trade_analysis",
+> ]

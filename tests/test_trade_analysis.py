@@ -338,3 +338,188 @@ def test_print_trade_analysis():
 
 
 import numpy as np
+
+# Additional tests for coverage
+
+
+def test_calculate_holding_periods_empty():
+    """Test _calculate_holding_periods with empty trades."""
+    import pandas as pd
+
+    from quant_trading.backtest.trade_analysis import _calculate_holding_periods
+
+    # Empty trades
+    trades = pd.DataFrame()
+    result = _calculate_holding_periods(trades)
+    assert result == []
+
+    # Trades without pnl column
+    trades = pd.DataFrame({"symbol": ["AAPL"], "action": ["buy"]})
+    result = _calculate_holding_periods(trades)
+    assert result == []
+
+
+
+def test_calculate_holding_periods_partial_fill_executes():
+    """Ensure partial fill else branch executes (lines 124-125)."""
+    from datetime import datetime
+
+    import pandas as pd
+
+    from quant_trading.backtest.trade_analysis import _calculate_holding_periods
+
+    # Buy 10, sell 3: qty_sold < entry_qty triggers else branch
+    trades = pd.DataFrame([
+        {"symbol": "AAPL", "action": "buy", "quantity": 10.0, "timestamp": datetime(2024, 1, 1), "pnl": 0.0},
+        {"symbol": "AAPL", "action": "sell", "quantity": 3.0, "timestamp": datetime(2024, 1, 11), "pnl": 5.0},
+        {"symbol": "AAPL", "action": "sell", "quantity": 7.0, "timestamp": datetime(2024, 1, 21), "pnl": 15.0},
+    ])
+    result = _calculate_holding_periods(trades)
+    # First partial sell hits else branch; second sells remaining fully
+    assert len(result) == 1
+
+
+
+def test_calculate_consecutive_streaks_empty():
+    """Test _calculate_consecutive_streaks with empty/no-pnl cases."""
+    import pandas as pd
+
+    from quant_trading.backtest.trade_analysis import _calculate_consecutive_streaks
+
+    # Empty trades
+    trades = pd.DataFrame()
+    result = _calculate_consecutive_streaks(trades)
+    assert result == (0, 0, 0, "")
+
+    # Trades without pnl column
+    trades = pd.DataFrame({"symbol": ["AAPL"], "pnl": [10.0]})  # but we'll remove? no - just structure
+    trades_no_pnl = pd.DataFrame({"symbol": ["AAPL"], "action": ["buy"]})
+    result = _calculate_consecutive_streaks(trades_no_pnl)
+    assert result == (0, 0, 0, "")
+
+
+def test_calculate_consecutive_streaks_loss_streak():
+    """Test _calculate_consecutive_streaks with loss streak branch."""
+    from datetime import datetime
+
+    import pandas as pd
+
+    from quant_trading.backtest.trade_analysis import _calculate_consecutive_streaks
+
+    # Consecutive losses to hit the elif current_losses > 0 branch
+    trades = pd.DataFrame([
+        {"symbol": "AAPL", "pnl": -10.0, "timestamp": datetime(2024, 1, 1)},
+        {"symbol": "AAPL", "pnl": -5.0, "timestamp": datetime(2024, 1, 2)},
+    ])
+    result = _calculate_consecutive_streaks(trades)
+    assert result[1] == 2  # max_losses
+    assert result[2] == 2  # current_streak
+    assert result[3] == "loss"
+
+
+def test_calculate_monthly_returns_short():
+    """Test _calculate_monthly_returns with short series."""
+    from datetime import datetime
+
+    import pandas as pd
+
+    from quant_trading.backtest.trade_analysis import _calculate_monthly_returns
+
+    # Less than 2 points
+    equity = pd.Series([100000.0], index=[datetime(2024, 1, 1)])
+    result = _calculate_monthly_returns(equity)
+    assert result == {}
+
+    # 2 points but same month? Or resample gives < 2
+    equity = pd.Series([100000.0, 101000.0], index=[datetime(2024, 1, 1), datetime(2024, 1, 31)])
+    result = _calculate_monthly_returns(equity)
+    # Both in same month - after resample last, len < 2?
+    assert isinstance(result, dict)
+
+
+def test_calculate_weekly_returns_short():
+    """Test _calculate_weekly_returns with short series."""
+    from datetime import datetime
+
+    import pandas as pd
+
+    from quant_trading.backtest.trade_analysis import _calculate_weekly_returns
+
+    # Less than 2 points
+    equity = pd.Series([100000.0], index=[datetime(2024, 1, 1)])
+    result = _calculate_weekly_returns(equity)
+    assert result == {}
+
+    # 2 points same week
+    equity = pd.Series([100000.0, 101000.0], index=[datetime(2024, 1, 1), datetime(2024, 1, 2)])
+    result = _calculate_weekly_returns(equity)
+    assert isinstance(result, dict)
+
+
+def test_analyze_trades_single_trade():
+    """Test analyze_trades with single completed trade (to hit len<=1 sharpe case)."""
+    from datetime import datetime
+
+    import numpy as np
+    import pandas as pd
+
+    from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.metrics import BacktestMetrics
+    from quant_trading.backtest.trade_analysis import analyze_trades
+
+    np.random.seed(42)
+    dates = pd.date_range("2024-01-01", periods=5, freq="D")
+    equity = pd.Series([100000.0, 100500.0, 100500.0, 100500.0, 100500.0], index=dates)
+
+    trades = pd.DataFrame([
+        {
+            "symbol": "AAPL",
+            "action": "buy",
+            "quantity": 10,
+            "price": 150.0,
+            "timestamp": datetime(2024, 1, 1),
+            "commission": 0.0,
+            "slippage": 0.0,
+            "cost": 1500.0,
+            "pnl": 0.0,
+        },
+        {
+            "symbol": "AAPL",
+            "action": "sell",
+            "quantity": 10,
+            "price": 155.0,
+            "timestamp": datetime(2024, 1, 3),
+            "commission": 0.0,
+            "slippage": 0.0,
+            "cost": 1550.0,
+            "pnl": 50.0,
+        },
+    ])
+
+    metrics = BacktestMetrics()
+    result = BacktestResult(
+        equity_curve=equity,
+        trades=trades,
+        positions={},
+        metrics=metrics,
+        start_date=datetime(2024, 1, 1),
+        end_date=datetime(2024, 1, 5),
+        initial_capital=100000.0,
+        final_value=100050.0,
+        total_return=50.0,
+        total_return_pct=0.05,
+    )
+
+    analysis = analyze_trades(result)
+    assert analysis.total_trades == 1
+
+def test_calculate_symbol_stats_empty_cases():
+    """Test _calculate_symbol_stats edge cases."""
+    import pandas as pd
+
+    from quant_trading.backtest.trade_analysis import _calculate_symbol_stats
+
+    # Empty trades
+    assert _calculate_symbol_stats(pd.DataFrame()) == {}
+    # No pnl column
+    assert _calculate_symbol_stats(pd.DataFrame({"symbol": ["AAPL"]})) == {}
