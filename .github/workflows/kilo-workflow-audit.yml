@@ -39,6 +39,7 @@ jobs:
           grep -Fq 'Hard provider quota/capacity limit detected' "$controller"
           grep -Fq 'provider_pressure_streak" -ge 3' "$controller"
           grep -Fq 'project_worktree_changes()' "$controller"
+          grep -Fq 'git diff --name-only "${WORKFLOW_BASE_SHA:-HEAD}" HEAD' "$controller"
           grep -Fq 'correction_failure_block=1' "$controller"
           grep -Fq 'no_progress_block=1' "$controller"
           grep -Fq 'consecutive_failures" -ge 5' "$controller"
