@@ -208,11 +208,27 @@ heartbeat &
 heartbeat_pid=$!
 trap 'kill "$heartbeat_pid" 2>/dev/null || true' EXIT
 
+# Project changes exclude workflow definitions and control-only markers.
+project_worktree_changes() {
+  git status --porcelain --untracked-files=all | awk '{
+    path = substr($0, 4)
+    if (path !~ /^\.github\/workflows\// &&
+        path != ".kilo/TWO_AGENT_ONCE" &&
+        path != ".kilo/SKIP_NEXT_ROUTINE_KILO") print
+  }'
+}
+
 failed_sessions=0
 consecutive_failures=0
 idle_timeout_retry_count=0
 project_progress=0
 provider_pressure_streak=0
+hard_provider_block=0
+repeated_provider_block=0
+correction_failure_block=0
+no_progress_block=0
+repeated_failure_block=0
+MAX_TRANSIENT_ATTEMPTS=5
 cutoff=0
 
 for agent_index in $(seq 1 "$agents"); do
@@ -249,8 +265,17 @@ text = source.read_text(encoding="utf-8", errors="replace")
 text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", text)
 target.write_text(text, encoding="utf-8")
 PY
+    if grep -Eiq 'current[:= ]*402.*limit[:= ]*400|insufficient.{0,20}(quota|credit)|quota.{0,30}(exceed|exhaust|limit)|exceed.{0,20}quota|billing.{0,30}(limit|quota)|account.{0,30}(limit|quota)|credits?.{0,20}(exhaust|deplet|limit)' "$normalized_attempt_log"; then
+      hard_provider_block=1
+      echo "::error::Hard provider quota/capacity limit detected; stopping retries for this activation."
+      break
+    fi
     if grep -Eiq 'Upstream idle timeout exceeded|upstream.{0,40}idle.{0,40}timeout|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|socket hang up|fetch failed|temporary failure in name resolution|gateway timeout|bad gateway|service unavailable|too many requests|rate[ _-]?limit|resource[_ -]?exhausted|temporarily unavailable|HTTP.{0,12}(429|500|502|503|504)|status.{0,12}(429|500|502|503|504)' "$normalized_attempt_log"; then
       idle_timeout_retry_count=$((idle_timeout_retry_count + 1))
+      if [ "$session_attempt" -ge "$MAX_TRANSIENT_ATTEMPTS" ]; then
+        echo "::warning::Transient provider/network failure persisted for $MAX_TRANSIENT_ATTEMPTS attempts; ending this invocation cycle after bounded retries."
+        break
+      fi
       retry_delay="$transient_retry_backoff"
       remaining_global=$((cutoff_epoch - $(date +%s)))
       if [ "$remaining_global" -le "$retry_delay" ]; then echo "::warning::Transient upstream/network failure detected, but insufficient workflow time remains for another retry."; break; fi
@@ -264,6 +289,58 @@ PY
     fi
     break
   done
+  # One bounded corrective pass for a non-transient invocation failure or no-progress success.
+  # It is intentionally outside the retry loop and cannot recurse.
+  correction_reason=""
+  if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ] && [ "$rc" -ne 137 ] && [ "$hard_provider_block" -eq 0 ] && [ -f "$normalized_attempt_log" ] && ! grep -Eiq 'Upstream idle timeout exceeded|upstream.{0,40}idle.{0,40}timeout|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|socket hang up|fetch failed|temporary failure in name resolution|gateway timeout|bad gateway|service unavailable|too many requests|rate[ _-]?limit|resource[_ -]?exhausted|temporarily unavailable|HTTP.{0,12}(429|500|502|503|504)|status.{0,12}(429|500|502|503|504)' "$normalized_attempt_log"; then
+    correction_reason="non-transient Kilo invocation failure"
+  elif [ "$rc" -eq 0 ] && [ "$hard_provider_block" -eq 0 ]; then
+    current_project_changes="$(project_worktree_changes)"
+    if [ -z "$current_project_changes" ]; then
+      correction_reason="successful invocation produced no durable project changes"
+    fi
+  fi
+  if [ -n "$correction_reason" ] && [ "$hard_provider_block" -eq 0 ] && [ "$(date +%s)" -lt "$cutoff_epoch" ]; then
+    recovery_command=$(cat <<'RECOVERY_PROMPT'
+This is the single bounded corrective pass for the previous Kilo invocation, which either failed or produced no durable project changes. Do not recurse or launch further corrective attempts. Inspect the current worktree and the failure record at "$KILO_PRIOR_FAILURE_LOG" when it is readable. Identify the smallest evidence-supported root cause, correct it if safe, and run the narrowest relevant verification. Record what changed, the exact verification commands and outcomes, and any unresolved blocker in a durable handoff. Preserve research pre-registrations and promotion gates, tests, security controls, workflow boundaries, user data, and all existing safety requirements. If no safe correction is supported, do not guess or weaken checks; preserve useful progress and write an evidence-based handoff.
+RECOVERY_PROMPT
+)
+    remaining_recovery=$((cutoff_epoch - $(date +%s)))
+    if [ "$remaining_recovery" -ge 60 ]; then
+      recovery_log="$RUNNER_TEMP/kilo-session-${agent_index}-recovery.log"
+      echo "::warning::${correction_reason}; starting one bounded corrective pass."
+      set +e
+      KILO_PRIOR_FAILURE_LOG="$session_log" timeout --signal=TERM --kill-after=10s "${remaining_recovery}s" kilo run --model kilo/kilo-auto/free --auto "$recovery_command" 2>&1 | tee "$recovery_log" | tee -a "$session_log"
+      recovery_rc=${PIPESTATUS[0]}
+      set -e
+      mkdir -p "$RUNNER_TEMP/kilo-failure-logs"
+      tail -n 2000 "$session_log" > "$RUNNER_TEMP/kilo-failure-logs/corrective-session-${agent_index}.log" || true
+      if [ "$recovery_rc" -eq 0 ]; then
+        if git diff --check && git diff --cached --check; then
+          corrected_project_changes="$(project_worktree_changes)"
+          if [ -z "$corrected_project_changes" ]; then
+            rc=1
+            no_progress_block=1
+            echo "::error::The bounded corrective pass also produced no durable project changes; stopping rather than repeating a no-progress loop."
+          else
+            rc=0
+            echo "::notice::The corrective pass returned success, produced durable project changes, and passed git diff checks; task-specific verification remains documented in the handoff."
+          fi
+        else
+          rc=1
+          correction_failure_block=1
+          echo "::error::Corrective pass did not pass git diff checks."
+        fi
+      else
+        rc="$recovery_rc"
+        correction_failure_block=1
+        echo "::warning::The single corrective pass did not recover (exit $recovery_rc); no recursive correction will be attempted."
+      fi
+    else
+      correction_failure_block=1
+      echo "::warning::Insufficient workflow time remains for the bounded corrective pass; preserving the failure for the handoff."
+    fi
+  fi
   if [ "$rc" -ne 0 ]; then
     mkdir -p "$RUNNER_TEMP/kilo-failure-logs"
     tail -n 2000 "$session_log" > "$RUNNER_TEMP/kilo-failure-logs/session-${agent_index}.log" || true
@@ -271,6 +348,8 @@ PY
       provider_pressure=1
       provider_pressure_streak=$((provider_pressure_streak + 1))
       echo "::warning::Provider quota/capacity failure detected; applying a longer cooldown."
+    else
+      provider_pressure_streak=0
     fi
   elif [ "$rc" -eq 0 ]; then
     provider_pressure_streak=0
@@ -445,6 +524,26 @@ PY
     project_progress=1
     echo "Meaningful repository progress checkpoint verified at $(git rev-parse HEAD)."
   fi
+  if [ "$hard_provider_block" -eq 1 ]; then
+    cutoff=1
+    echo "::error::Hard provider quota/capacity failure; diagnostics and any useful checkpoint have been preserved, so this activation will not repeat the same provider call."
+  elif [ "$provider_pressure_streak" -ge 3 ]; then
+    repeated_provider_block=1
+    cutoff=1
+    echo "::error::Three consecutive provider rate-limit/capacity failures; stopping this activation instead of repeating an unproductive loop."
+  elif [ "$correction_failure_block" -eq 1 ]; then
+    repeated_failure_block=1
+    cutoff=1
+    echo "::error::The single corrective pass failed; stopping this activation after preserving the evidence and checkpoint."
+  elif [ "$no_progress_block" -eq 1 ]; then
+    repeated_failure_block=1
+    cutoff=1
+    echo "::error::The bounded corrective pass did not restore meaningful progress; stopping this activation rather than repeating no-op sessions."
+  elif [ "$consecutive_failures" -ge 5 ]; then
+    repeated_failure_block=1
+    cutoff=1
+    echo "::error::Five consecutive Kilo sessions failed; stopping instead of repeating the same session pattern for the remainder of the workflow budget."
+  fi
   if [ "$cutoff" -eq 1 ]; then
     break
   fi
@@ -481,6 +580,10 @@ fi
 printf 'project_progress=%s\n' "$project_progress" >> "$GITHUB_OUTPUT"
 printf 'failed_sessions=%s\n' "$failed_sessions" >> "$GITHUB_OUTPUT"
 printf 'idle_timeout_retries=%s\n' "$idle_timeout_retry_count" >> "$GITHUB_OUTPUT"
+if [ "$hard_provider_block" -eq 1 ] || [ "$repeated_provider_block" -eq 1 ] || [ "$repeated_failure_block" -eq 1 ]; then
+  echo "::error::Kilo activation stopped because of hard provider limits, repeated provider pressure, an unsuccessful corrective pass, no progress after correction, or five consecutive failed sessions. Any verified checkpoint remains persisted, but this activation is not marked successful."
+  exit 1
+fi
 if [ "$project_progress" -ne 1 ]; then
   echo "::error::No meaningful repository change or durable handoff was committed and verified in this activation. Control-marker-only commits do not count as progress."
   exit 1
