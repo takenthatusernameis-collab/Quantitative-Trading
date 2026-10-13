@@ -1,0 +1,323 @@
+"""Tests for the risk manager."""
+
+import pandas as pd
+import pytest
+
+from quant_trading.risk.limits import CheckResult
+from quant_trading.risk.manager import PortfolioRisk, RiskManager
+from quant_trading.risk.metrics import RiskMetrics
+from quant_trading.strategies.base import Position, Signal
+
+
+class TestRiskManagerInit:
+    """Tests for RiskManager initialization."""
+
+    def test_default_initialization(self):
+        rm = RiskManager()
+        assert rm.initial_capital == 100000.0
+        assert rm.risk_enabled is True
+        assert rm.risk_metrics is None
+        assert rm.peak_value == 100000.0
+        assert rm.positions == {}
+        assert rm.equity_curve == [100000.0]
+        assert rm.history == []
+        assert rm.portfolio_risk.total_market_value == 100000.0
+        assert rm.portfolio_risk.cash == 100000.0
+        assert rm.portfolio_risk.peak_value == 100000.0
+
+    def test_custom_initialization(self):
+        rm = RiskManager(
+            initial_capital=50000.0,
+            max_position_size=0.2,
+            max_portfolio_risk=0.05,
+            max_drawdown=0.30,
+            max_positions=5,
+            stop_loss_pct=0.10,
+            take_profit_pct=0.25,
+        )
+        assert rm.initial_capital == 50000.0
+        assert rm.position_limit.max_size == 0.2
+        assert rm.position_limit.max_value == 10000.0
+        assert rm.position_limit.stop_loss_pct == 0.10
+        assert rm.position_limit.take_profit_pct == 0.25
+        assert rm.portfolio_limit.max_positions == 5
+        assert rm.portfolio_limit.max_portfolio_risk == 0.05
+        assert rm.portfolio_limit.max_drawdown == 0.30
+        assert rm.portfolio_risk.total_market_value == 50000.0
+
+    def test_portfolio_risk_total_value_property(self):
+        rm = RiskManager(initial_capital=100000.0)
+        assert rm.portfolio_risk.total_value == rm.portfolio_risk.total_market_value == 100000.0
+
+
+class TestUpdatePortfolioValue:
+    """Tests for update_portfolio_value."""
+
+    def test_update_with_empty_positions(self):
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value({}, 100000.0)
+        assert rm.portfolio_risk.positions_value == 0.0
+        assert rm.portfolio_risk.total_market_value == 100000.0
+        assert rm.portfolio_risk.leverage == 0.0
+        assert rm.portfolio_risk.current_drawdown == 0.0
+        assert rm.equity_curve == [100000.0, 100000.0]
+        assert rm.peak_value == 100000.0
+        assert len(rm.history) == 1
+
+    def test_update_with_positions(self):
+        rm = RiskManager(initial_capital=100000.0)
+        positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)}
+        rm.update_portfolio_value(positions, 24000.0)
+        assert rm.portfolio_risk.positions_value == 16000.0
+        assert rm.portfolio_risk.total_market_value == 40000.0
+        assert rm.portfolio_risk.leverage == pytest.approx(0.4)
+        assert rm.portfolio_risk.current_drawdown == pytest.approx((40000 - 100000) / 100000)
+        assert rm.equity_curve[-1] == 40000.0
+        assert len(rm.history) == 1
+
+    def test_update_tracks_drawdown_and_peak(self):
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value({}, 120000.0)
+        assert rm.peak_value == 120000.0
+        assert rm.portfolio_risk.current_drawdown == pytest.approx((120000 - 100000) / 100000)
+        rm.update_portfolio_value({}, 90000.0)
+        assert rm.peak_value == 120000.0
+        assert rm.portfolio_risk.current_drawdown == pytest.approx((90000 - 120000) / 120000)
+
+    def test_update_zero_value_no_leverage(self):
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value({}, 0.0)
+        assert rm.portfolio_risk.leverage == 0.0
+        assert rm.portfolio_risk.current_drawdown == pytest.approx((0 - 100000) / 100000)
+
+
+class TestCheckSignal:
+    """Tests for check_signal."""
+
+    def test_risk_disabled_returns_passed(self):
+        rm = RiskManager()
+        rm.disable()
+        signal = Signal(symbol="AAPL", action="buy", price=150.0)
+        result = rm.check_signal(signal)
+        assert isinstance(result, CheckResult)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_portfolio_value_zero_or_negative(self):
+        rm = RiskManager()
+        signal = Signal(symbol="AAPL", action="buy", price=150.0)
+        result = rm.check_signal(signal, portfolio_value=-1.0)
+        assert result.passed is False
+        assert any("zero or negative" in v for v in result.violations)
+
+    def test_buy_no_price(self):
+        rm = RiskManager()
+        rm.positions = {}
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=None)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("no price" in v for v in result.violations)
+
+    def test_buy_within_limits(self):
+        rm = RiskManager(initial_capital=100000.0)
+        signal = Signal(symbol="AAPL", action="buy", strength=0.5, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_buy_exceeds_max_position_value(self):
+        rm = RiskManager(initial_capital=100000.0)
+        signal = Signal(symbol="AAPL", action="buy", strength=2.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("exceed max position value" in v for v in result.violations)
+        assert any("exceed max position size" in v for v in result.violations)
+
+    def test_buy_exceeds_max_position_size_only(self):
+        rm = RiskManager(initial_capital=100000.0)
+        signal = Signal(symbol="AAPL", action="buy", strength=1.1, price=150.0)
+        result = rm.check_signal(signal, portfolio_value=50000.0)
+        assert result.passed is False
+        assert any("exceed max position size" in v for v in result.violations)
+        assert not any("exceed max position value" in v for v in result.violations)
+
+    def test_buy_with_existing_position(self):
+        rm = RiskManager(initial_capital=100000.0)
+        rm.positions = {"AAPL": Position(symbol="AAPL", quantity=50, avg_price=150, current_price=160)}
+        signal = Signal(symbol="AAPL", action="buy", strength=0.5, price=160.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("exceed max position value" in v for v in result.violations)
+
+    def test_sell_no_holdings(self):
+        rm = RiskManager(initial_capital=100000.0)
+        rm.positions = {}
+        signal = Signal(symbol="AAPL", action="sell", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("no holdings" in v for v in result.violations)
+
+    def test_sell_with_holdings(self):
+        rm = RiskManager(initial_capital=100000.0)
+        rm.positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)}
+        signal = Signal(symbol="AAPL", action="sell", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_hold_signal_passes(self):
+        rm = RiskManager(initial_capital=100000.0)
+        signal = Signal(symbol="AAPL", action="hold", price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is True
+        assert result.violations == []
+
+
+class TestCheckPortfolio:
+    """Tests for check_portfolio."""
+
+    def test_risk_disabled(self):
+        rm = RiskManager()
+        rm.disable()
+        assert rm.check_portfolio().passed is True
+
+    def test_no_violations(self):
+        rm = RiskManager(initial_capital=100000.0)
+        rm.positions = {}
+        assert rm.check_portfolio().passed is True
+
+    def test_too_many_positions(self):
+        rm = RiskManager(initial_capital=100000.0, max_positions=1)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=1, avg_price=100, current_price=100),
+            "MSFT": Position(symbol="MSFT", quantity=1, avg_price=100, current_price=100),
+        }
+        result = rm.check_portfolio()
+        assert result.passed is False
+        assert any("exceeds max" in v for v in result.violations)
+
+    def test_drawdown_violation(self):
+        rm = RiskManager(initial_capital=100000.0)
+        rm.positions = {}
+        rm.portfolio_risk = PortfolioRisk(
+            total_market_value=70000.0, cash=70000.0, peak_value=100000.0
+        )
+        rm.peak_value = 100000.0
+        result = rm.check_portfolio()
+        assert result.passed is False
+        assert any("Drawdown" in v for v in result.violations)
+
+    def test_uses_default_max_drawdown(self):
+        rm = RiskManager(initial_capital=100000.0)
+        rm.positions = {}
+        rm.portfolio_risk = PortfolioRisk(
+            total_market_value=90000.0, cash=90000.0, peak_value=100000.0
+        )
+        rm.peak_value = 100000.0
+        result = rm.check_portfolio()
+        assert result.passed is True
+
+
+class TestCalculateMetrics:
+    """Tests for calculate_metrics."""
+
+    def test_calculate_metrics_without_market_returns(self):
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value({}, 110000.0)
+        rm.update_portfolio_value({}, 105000.0)
+        metrics = rm.calculate_metrics()
+        assert isinstance(metrics, RiskMetrics)
+        assert rm.risk_metrics is metrics
+        assert metrics.beta == 0.0
+        assert metrics.alpha == 0.0
+
+    def test_calculate_metrics_with_market_returns(self):
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value({}, 110000.0)
+        rm.update_portfolio_value({}, 105000.0)
+        market_returns = pd.Series([0.02, -0.03], index=[1, 2])
+        metrics = rm.calculate_metrics(market_returns)
+        assert isinstance(metrics, RiskMetrics)
+        assert isinstance(metrics.beta, float)
+        assert isinstance(metrics.alpha, float)
+
+
+class TestStopLossTakeProfit:
+    """Tests for stop-loss and take-profit helpers."""
+
+    def test_get_position_stop_loss_no_position(self):
+        rm = RiskManager(stop_loss_pct=0.05)
+        rm.positions = {}
+        assert rm.get_position_stop_loss("AAPL") is None
+
+    def test_get_position_stop_loss_zero_avg_price(self):
+        rm = RiskManager(stop_loss_pct=0.05)
+        rm.positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=0.0, current_price=160)}
+        assert rm.get_position_stop_loss("AAPL") is None
+
+    def test_get_position_stop_loss(self):
+        rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10)
+        rm.positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)}
+        assert rm.get_position_stop_loss("AAPL") == 150 * 0.9
+
+    def test_should_stop_loss_triggered(self):
+        rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10)
+        rm.positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)}
+        assert rm.should_stop_loss("AAPL", 130.0) is True
+        assert rm.should_stop_loss("AAPL", 200.0) is False
+        assert rm.should_stop_loss("UNKNOWN", 100.0) is False
+
+    def test_get_position_take_profit_no_position(self):
+        rm = RiskManager(take_profit_pct=0.15)
+        rm.positions = {}
+        assert rm.get_position_take_profit("AAPL") is None
+
+    def test_get_position_take_profit(self):
+        rm = RiskManager(initial_capital=100000.0, take_profit_pct=0.15)
+        rm.positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)}
+        assert rm.get_position_take_profit("AAPL") == 150 * 1.15
+
+    def test_should_take_profit_triggered(self):
+        rm = RiskManager(initial_capital=100000.0, take_profit_pct=0.15)
+        rm.positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)}
+        assert rm.should_take_profit("AAPL", 200.0) is True
+        assert rm.should_take_profit("AAPL", 160.0) is False
+        assert rm.should_take_profit("UNKNOWN", 200.0) is False
+
+
+class TestResetEnableDisable:
+    """Tests for reset, enable, and disable."""
+
+    def test_enable_disable(self):
+        rm = RiskManager()
+        rm.disable()
+        assert rm.risk_enabled is False
+        rm.enable()
+        assert rm.risk_enabled is True
+
+    def test_reset_clears_state(self):
+        rm = RiskManager(initial_capital=100000.0)
+        positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)}
+        rm.update_portfolio_value(positions, 24000.0)
+        assert rm.equity_curve != [100000.0]
+        assert rm.positions != {}
+        rm.reset()
+        assert rm.positions == {}
+        assert rm.equity_curve == [100000.0]
+        assert rm.peak_value == 100000.0
+        assert rm.history == []
+        assert rm.portfolio_risk.total_market_value == 100000.0
+        assert rm.portfolio_risk.peak_value == 100000.0
+        assert rm.risk_metrics is None
+
+    def test_disable_during_check_signal(self):
+        rm = RiskManager(initial_capital=100000.0, max_position_size=0.01)
+        rm.disable()
+        signal = Signal(symbol="AAPL", action="buy", strength=10.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is True
+        assert result.violations == []
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

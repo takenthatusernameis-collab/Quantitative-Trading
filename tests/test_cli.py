@@ -18,8 +18,10 @@ from examples.cli import (
 from quant_trading.config.settings import Config
 from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
+    MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
+    SuperTrendStrategy,
 )
 
 
@@ -249,6 +251,50 @@ class TestCreateStrategy:
         assert strategy.period == 25
         assert strategy.std_dev == 2.5
         assert "BB_25_2.5" in strategy.name
+
+    def test_create_macd_strategy(self):
+        args = argparse.Namespace(
+            strategy="macd",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            macd_fast=12,
+            macd_slow=26,
+            macd_signal=9,
+            macd_zero_line=True,
+            st_period=10,
+            st_multiplier=3.0,
+        )
+        strategy = create_strategy(args)
+        assert isinstance(strategy, MACDStrategy)
+        assert strategy.fast_period == 12
+        assert strategy.slow_period == 26
+        assert strategy.signal_period == 9
+        assert strategy.use_zero_line is True
+        assert "MACD_12_26_9" in strategy.name
+
+    def test_create_supertrend_strategy(self):
+        args = argparse.Namespace(
+            strategy="supertrend",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=15,
+            st_multiplier=2.5,
+        )
+        strategy = create_strategy(args)
+        assert isinstance(strategy, SuperTrendStrategy)
+        assert strategy.period == 15
+        assert strategy.multiplier == 2.5
+        assert "SuperTrend_15_2.5" in strategy.name
 
     def test_unknown_strategy_raises(self):
         args = argparse.Namespace(strategy="unknown")
@@ -586,7 +632,8 @@ class TestFactoryIntegration:
             assert registry.get("custom") is CustomStrategy
             assert registry.get("cust") is CustomStrategy
             assert "custom" in registry.primary_keys()
-            assert "cust" in registry.keys()
+            registered_keys = registry.keys()
+            assert "cust" in registered_keys
 
             # Test create_strategy uses factory (for built-in strategies still works)
             args = argparse.Namespace(
