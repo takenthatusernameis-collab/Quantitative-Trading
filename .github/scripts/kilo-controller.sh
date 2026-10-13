@@ -321,7 +321,11 @@ RECOVERY_PROMPT
       mkdir -p "$RUNNER_TEMP/kilo-failure-logs"
       tail -n 2000 "$session_log" > "$RUNNER_TEMP/kilo-failure-logs/corrective-session-${agent_index}.log" || true
       if [ "$recovery_rc" -eq 0 ]; then
-        if ! grep -Eq '^CORRECTIVE_VERIFICATION=PASS
+        if ! grep -Fxq 'CORRECTIVE_VERIFICATION=PASS' "$recovery_log"; then
+          rc=1
+          correction_failure_block=1
+          echo "::error::Corrective pass exited successfully but did not provide the required successful-verification marker."
+        elif git diff --check && git diff --cached --check; then
           corrected_project_changes="$(project_worktree_changes)"
           if [ -z "$corrected_project_changes" ]; then
             rc=1
@@ -329,7 +333,7 @@ RECOVERY_PROMPT
             echo "::error::The bounded corrective pass also produced no durable project changes; stopping rather than repeating a no-progress loop."
           else
             rc=0
-            echo "::notice::The corrective pass returned success, produced durable project changes, and passed git diff checks; task-specific verification remains documented in the handoff."
+            echo "::notice::The corrective pass returned success, produced durable project changes, passed git diff checks, and reported focused verification success."
           fi
         else
           rc=1
