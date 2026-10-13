@@ -904,8 +904,8 @@ def run_walk_forward(args: argparse.Namespace, config: Config, start_date: datet
     return 0
 
 
-def _print_regime_analysis(result, args: argparse.Namespace) -> None:
-    """Print regime detection results for a backtest's equity curve."""
+def _get_regime_analysis(result, args: argparse.Namespace):
+    """Get regime detection results for a backtest's equity curve."""
     from quant_trading.backtest import analyze_regimes
 
     analysis = analyze_regimes(
@@ -914,6 +914,11 @@ def _print_regime_analysis(result, args: argparse.Namespace) -> None:
         vol_threshold=args.regime_vol_threshold,
         return_threshold=args.regime_return_threshold,
     )
+    return analysis
+
+
+def _print_regime_analysis(analysis) -> None:
+    """Print regime detection results for a backtest's equity curve."""
     summary = analysis.summary()
 
     print(f"\n{'=' * 60}")
@@ -934,8 +939,8 @@ def _print_regime_analysis(result, args: argparse.Namespace) -> None:
             )
 
 
-def _print_monte_carlo_analysis(result, args: argparse.Namespace) -> None:
-    """Print Monte Carlo simulation results for a backtest's equity curve."""
+def _get_monte_carlo_analysis(result, args: argparse.Namespace):
+    """Get Monte Carlo simulation results for a backtest's equity curve."""
     mc = run_monte_carlo(
         result,
         n_simulations=args.mc_simulations,
@@ -943,12 +948,19 @@ def _print_monte_carlo_analysis(result, args: argparse.Namespace) -> None:
         method=args.mc_method,
         random_state=args.mc_seed,
     )
+    # Store method for printing
+    mc._method = args.mc_method
+    return mc
+
+
+def _print_monte_carlo_analysis(mc) -> None:
+    """Print Monte Carlo simulation results for a backtest's equity curve."""
     summary = mc.summary()
 
     print(f"\n{'=' * 60}")
     print("Monte Carlo Simulation")
     print(f"{'=' * 60}")
-    print(f"Method:            {args.mc_method}")
+    print(f"Method:            {mc._method if hasattr(mc, '_method') else 'bootstrap'}")
     print(f"Simulations:       {mc.n_simulations}")
     print(f"Confidence Level:  {mc.confidence_level:.0%}")
     print(f"Duration (s):      {mc.duration_seconds:.2f}")
@@ -976,11 +988,18 @@ def _print_monte_carlo_analysis(result, args: argparse.Namespace) -> None:
     print(f"\nExpected Shortfall (95%): {summary['total_return_pct_ci_lower']:.4f}")
 
 
-def _print_trade_analysis(result, args: argparse.Namespace) -> None:
-    """Print detailed trade analysis for a backtest result."""
-    from quant_trading.backtest import analyze_trades, print_trade_analysis
+def _get_trade_analysis(result, args: argparse.Namespace):
+    """Get detailed trade analysis for a backtest result."""
+    from quant_trading.backtest import analyze_trades
 
     analysis = analyze_trades(result)
+    return analysis
+
+
+def _print_trade_analysis(analysis) -> None:
+    """Print detailed trade analysis for a backtest result."""
+    from quant_trading.backtest import print_trade_analysis
+
     print_trade_analysis(analysis)
 
 
@@ -1054,13 +1073,16 @@ def main() -> int:
         print(f"Profit Factor:   {result.metrics.profit_factor:.2f}")
 
         if args.regime:
-            _print_regime_analysis(result, args)
+            regime_analysis = _get_regime_analysis(result, args)
+            _print_regime_analysis(regime_analysis)
 
         if args.monte_carlo:
-            _print_monte_carlo_analysis(result, args)
+            mc_analysis = _get_monte_carlo_analysis(result, args)
+            _print_monte_carlo_analysis(mc_analysis)
 
         if args.trade_analysis:
-            _print_trade_analysis(result, args)
+            trade_analysis = _get_trade_analysis(result, args)
+            _print_trade_analysis(trade_analysis)
 
         if args.output:
             import json
@@ -1080,8 +1102,14 @@ def main() -> int:
                 "max_drawdown_pct": result.metrics.max_drawdown_pct,
                 "profit_factor": result.metrics.profit_factor,
             }
+            if args.regime:
+                output_data["regime_analysis"] = regime_analysis.to_dict()
+            if args.monte_carlo:
+                output_data["monte_carlo"] = mc_analysis.summary()
+            if args.trade_analysis:
+                output_data["trade_analysis"] = trade_analysis.to_dict()
             with open(args.output, "w") as f:
-                json.dump(output_data, f, indent=2)
+                json.dump(output_data, f, indent=2, default=str)
             print(f"\nResults saved to {args.output}")
 
     except (ValueError, RuntimeError, KeyError) as e:
