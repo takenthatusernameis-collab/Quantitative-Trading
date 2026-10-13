@@ -31,7 +31,7 @@ from quant_trading.strategies import (
 )
 
 # Built-in strategy keys for argparse choices (preserves existing behavior)
-BUILTIN_STRATEGY_KEYS = ["ma", "rsi", "bb", "macd", "supertrend"]
+BUILTIN_STRATEGY_KEYS = ["ma", "rsi", "bb", "macd", "supertrend", "donchian"]
 
 PROVIDERS = {
     "yfinance": ("YFinanceProvider", "Yahoo Finance (requires network)"),
@@ -207,6 +207,18 @@ def parse_args() -> argparse.Namespace:
         default=3.0,
         help="SuperTrend multiplier",
     )
+    parser.add_argument(
+        "--dc-period",
+        type=int,
+        default=20,
+        help="Donchian Channel lookback period",
+    )
+    parser.add_argument(
+        "--dc-exit-period",
+        type=int,
+        default=None,
+        help="Donchian Channel exit period (default: same as period)",
+    )
 
     # Parameter ranges for optimization
     parser.add_argument(
@@ -280,6 +292,18 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="2.0,4.0,0.5",
         help="SuperTrend multiplier range: min,max,step",
+    )
+    parser.add_argument(
+        "--dc-period-range",
+        type=str,
+        default="10,40,5",
+        help="Donchian Channel period range: min,max,step",
+    )
+    parser.add_argument(
+        "--dc-exit-period-range",
+        type=str,
+        default="5,20,5",
+        help="Donchian Channel exit period range: min,max,step",
     )
 
     parser.add_argument(
@@ -509,6 +533,12 @@ def create_strategy(args: argparse.Namespace):
             "multiplier": args.st_multiplier,
             "name": f"SuperTrend_{args.st_period}_{args.st_multiplier}",
         }
+    elif args.strategy == "donchian":
+        kwargs = {
+            "period": args.dc_period,
+            "exit_period": args.dc_exit_period,
+            "name": f"Donchian_{args.dc_period}_{args.dc_exit_period if args.dc_exit_period else args.dc_period}",
+        }
 
     return factory_create_strategy(args.strategy, **kwargs)
 
@@ -614,6 +644,11 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
         mult_min, mult_max, mult_step = parse_range(args.st_multiplier_range)
         grid.add(ParameterSpace("period", min_val=period_min, max_val=period_max, step=period_step, param_type=int))
         grid.add(ParameterSpace("multiplier", min_val=mult_min, max_val=mult_max, step=mult_step, param_type=float))
+    elif args.strategy == "donchian":
+        period_min, period_max, period_step = parse_range(args.dc_period_range)
+        exit_min, exit_max, exit_step = parse_range(args.dc_exit_period_range)
+        grid.add(ParameterSpace("period", min_val=period_min, max_val=period_max, step=period_step, param_type=int))
+        grid.add(ParameterSpace("exit_period", min_val=exit_min, max_val=exit_max, step=exit_step, param_type=int))
 
     return grid
 
@@ -1051,6 +1086,10 @@ def run_combined(args: argparse.Namespace, config: Config, start_date: datetime,
         # Create a copy of args with the current strategy
         strategy_args = argparse.Namespace(**vars(args))
         strategy_args.strategy = strategy_key
+        # Set defaults for strategy-specific args
+        if strategy_key == "donchian":
+            strategy_args.dc_period = getattr(args, "dc_period", 20)
+            strategy_args.dc_exit_period = getattr(args, "dc_exit_period", None)
         strategy = create_strategy(strategy_args)
 
         try:

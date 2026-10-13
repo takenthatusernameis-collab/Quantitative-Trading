@@ -3,6 +3,7 @@
 from .base import Position, Signal, Strategy, StrategyManager
 from .examples import (
     BollingerBandsStrategy,
+    DonchianChannelStrategy,
     MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
@@ -24,9 +25,11 @@ register_strategy("rsi", RSIStrategy, aliases=["rsi_mean_reversion"])
 register_strategy("bb", BollingerBandsStrategy, aliases=["bollinger_bands", "bollinger"])
 register_strategy("macd", MACDStrategy, aliases=["macd_crossover"])
 register_strategy("supertrend", SuperTrendStrategy, aliases=["st", "super_trend"])
+register_strategy("donchian", DonchianChannelStrategy, aliases=["donchian_channel", "dc"])
 
 __all__ = [
     "BollingerBandsStrategy",
+    "DonchianChannelStrategy",
     "MACDStrategy",
     "MovingAverageCrossover",
     "Position",

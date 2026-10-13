@@ -8,6 +8,7 @@ import pytest
 
 from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
+    DonchianChannelStrategy,
     MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
@@ -85,6 +86,133 @@ def create_supertrend_data(symbol: str, days: int = 100, trend: float = 0.0) -> 
         index=dates,
     )
     return df
+
+
+def create_donchian_breakout_data(symbol: str, days: int = 100, breakout_direction: int = 1) -> pd.DataFrame:
+    """Create mock price data with a clear breakout for Donchian Channel testing.
+
+    When breakout_direction > 0: prices break above upper channel (bullish breakout)
+    When breakout_direction < 0: prices break below lower channel (bearish breakdown)
+    """
+    np.random.seed(42)
+    dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
+
+    # Start with a range-bound market
+    base_price = 100
+    # Create a consolidation period with small oscillations
+    t = np.arange(days)
+    noise = np.random.normal(0, 0.5, days)
+    prices = base_price + 2 * np.sin(t * 2 * np.pi / 20) + noise  # 20-day cycle, small amplitude
+
+    # Force a breakout at the end
+    if breakout_direction > 0:
+        # Bullish breakout: sharp upward move at the end
+        prices[-5:] += np.linspace(0, 10, 5)
+    else:
+        # Bearish breakdown: sharp downward move at the end
+        prices[-5:] -= np.linspace(0, 10, 5)
+
+    # Ensure high >= close >= low
+    high = prices * (1 + np.abs(np.random.uniform(0, 0.005, days)))
+    low = prices * (1 - np.abs(np.random.uniform(0, 0.005, days)))
+    open_ = prices * (1 + np.random.uniform(-0.002, 0.002, days))
+
+    df = pd.DataFrame(
+        {
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": prices,
+            "volume": np.random.randint(1000000, 10000000, days),
+        },
+        index=dates,
+    )
+    return df
+
+
+class TestDonchianChannelStrategy:
+    """Tests for DonchianChannelStrategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = DonchianChannelStrategy(period=20, exit_period=10, name="Test_DC")
+        assert strategy.name == "Test_DC"
+        assert strategy.period == 20
+        assert strategy.exit_period == 10
+        assert strategy.parameters["period"] == 20
+        assert strategy.parameters["exit_period"] == 10
+
+    def test_initialization_default_exit_period(self):
+        """Test default exit_period equals period."""
+        strategy = DonchianChannelStrategy(period=20, name="Test_DC")
+        assert strategy.exit_period == 20
+        assert strategy.parameters["exit_period"] is None
+
+    def test_validate_parameters(self):
+        """Test parameter validation."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            DonchianChannelStrategy(period=0)
+        with pytest.raises(ValueError, match="exit_period must be positive"):
+            DonchianChannelStrategy(period=20, exit_period=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            DonchianChannelStrategy(period=-1)
+        with pytest.raises(ValueError, match="exit_period must be positive"):
+            DonchianChannelStrategy(period=20, exit_period=-1)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with insufficient data."""
+        strategy = DonchianChannelStrategy(period=20)
+        data = {"AAPL": create_donchian_breakout_data("AAPL", days=15)}  # Less than period
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_bullish_breakout(self):
+        """Test generate_signals detects bullish breakout (buy signal)."""
+        strategy = DonchianChannelStrategy(period=20, exit_period=10)
+        # Create data with bullish breakout at the end
+        data = {"AAPL": create_donchian_breakout_data("AAPL", days=60, breakout_direction=1)}
+        signals = strategy.generate_signals(data)
+
+        for signal in signals:
+            assert signal.symbol == "AAPL"
+            assert signal.action in ("buy", "sell")
+            assert 0.0 <= signal.strength <= 1.0
+            assert signal.price is not None
+            assert signal.timestamp is not None
+            if signal.action == "buy":
+                assert signal.metadata.get("signal_type") == "upper_breakout"
+                assert "upper_band" in signal.metadata
+                assert "lower_band" in signal.metadata
+                assert "middle_band" in signal.metadata
+                assert "exit_upper" in signal.metadata
+                assert "exit_lower" in signal.metadata
+
+    def test_generate_signals_bearish_breakdown(self):
+        """Test generate_signals detects bearish breakdown (sell signal)."""
+        strategy = DonchianChannelStrategy(period=20, exit_period=10)
+        # Create data with bearish breakdown at the end
+        data = {"AAPL": create_donchian_breakout_data("AAPL", days=60, breakout_direction=-1)}
+        signals = strategy.generate_signals(data)
+
+        for signal in signals:
+            assert signal.symbol == "AAPL"
+            assert signal.action in ("buy", "sell")
+            assert 0.0 <= signal.strength <= 1.0
+            if signal.action == "sell":
+                assert signal.metadata.get("signal_type") == "lower_breakdown"
+                assert "upper_band" in signal.metadata
+                assert "lower_band" in signal.metadata
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals with multiple symbols."""
+        strategy = DonchianChannelStrategy(period=20, exit_period=10)
+        data = {
+            "AAPL": create_donchian_breakout_data("AAPL", days=60, breakout_direction=1),
+            "MSFT": create_donchian_breakout_data("MSFT", days=60, breakout_direction=-1),
+        }
+        signals = strategy.generate_signals(data)
+        symbols = {s.symbol for s in signals}
+        assert symbols.issubset({"AAPL", "MSFT"})
 
 
 class TestMovingAverageCrossover:

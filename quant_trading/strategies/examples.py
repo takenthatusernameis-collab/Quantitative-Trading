@@ -628,7 +628,129 @@ class MACDStrategy(Strategy):
                                 "histogram": hist_current,
                                 "crossover_type": "zero_line_bearish",
                             },
-                        )
+)
+            )
+
+        return signals
+
+
+class DonchianChannelStrategy(Strategy):
+    """Donchian Channel Breakout Strategy.
+
+    Generates buy signals when price breaks above the upper channel (highest high
+    over the lookback period), and sell signals when price breaks below the lower
+    channel (lowest low over the lookback period).
+
+    The Donchian Channel consists of three lines:
+    - Upper Band: Highest high over N periods
+    - Lower Band: Lowest low over N periods
+    - Middle Band: Average of upper and lower bands
+
+    This is a classic trend-following breakout strategy.
+    """
+
+    def __init__(
+        self,
+        period: int = 20,
+        exit_period: int | None = None,
+        name: str = "Donchian_Channel",
+    ):
+        super().__init__(
+            name,
+            {
+                "period": period,
+                "exit_period": exit_period,
+            },
+        )
+        self.period = period
+        # Use separate exit period for tighter exits (classic turtle trading uses shorter exit)
+        self.exit_period = exit_period if exit_period is not None else period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters."""
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+        if self.exit_period <= 0:
+            raise ValueError("exit_period must be positive")
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals = []
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 1:
+                continue
+
+            high = df["high"]
+            low = df["low"]
+            close = df["close"]
+
+            # Calculate Donchian Channels
+            upper_band = high.rolling(window=self.period).max()
+            lower_band = low.rolling(window=self.period).min()
+            middle_band = (upper_band + lower_band) / 2
+
+            # Exit channels (shorter period for tighter exits)
+            exit_upper = high.rolling(window=self.exit_period).max()
+            exit_lower = low.rolling(window=self.exit_period).min()
+
+            current_price = close.iloc[-1]
+            current_upper = upper_band.iloc[-1]
+            current_lower = lower_band.iloc[-1]
+            current_middle = middle_band.iloc[-1]
+            current_exit_upper = exit_upper.iloc[-1]
+            current_exit_lower = exit_lower.iloc[-1]
+
+            prev_price = close.iloc[-2]
+            prev_upper = upper_band.iloc[-2]
+            prev_lower = lower_band.iloc[-2]
+
+            timestamp = df.index[-1]
+
+            # Entry signals: breakout above upper band / below lower band
+            if prev_price <= prev_upper and current_price > current_upper:
+                # Bullish breakout - buy signal
+                strength = min(1.0, (current_price - current_upper) / current_upper * 10 + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "upper_band": current_upper,
+                            "lower_band": current_lower,
+                            "middle_band": current_middle,
+                            "exit_upper": current_exit_upper,
+                            "exit_lower": current_exit_lower,
+                            "signal_type": "upper_breakout",
+                        },
                     )
+                )
+            elif prev_price >= prev_lower and current_price < current_lower:
+                # Bearish breakdown - sell signal
+                strength = min(1.0, (current_lower - current_price) / current_lower * 10 + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "upper_band": current_upper,
+                            "lower_band": current_lower,
+                            "middle_band": current_middle,
+                            "exit_upper": current_exit_upper,
+                            "exit_lower": current_exit_lower,
+                            "signal_type": "lower_breakdown",
+                        },
+                    )
+                )
+
+            # Exit signals: price crosses back through middle band or exit channel
+            # (These could be used for position management but we only generate entry signals here)
+            # The framework's risk manager handles exits via stop-loss/take-profit
 
         return signals

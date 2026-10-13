@@ -412,6 +412,7 @@ class TestRunCombined:
             ("BB_20_2.0", 18.7),
             ("MACD_12_26_9", 10.0),
             ("SuperTrend_10_3.0", 8.5),
+            ("Donchian_20_20", 14.2),
         ]:
             m = MagicMock(spec=["name", "total_return_pct", "metrics", "initial_capital", "final_value", "total_return"])
             m.name = name
@@ -466,6 +467,7 @@ class TestRunCombined:
         assert "RSI_14" in captured.out
         assert "BB_20_2.0" in captured.out
         assert "SuperTrend_10_3.0" in captured.out
+        assert "Donchian_20_20" in captured.out
         assert "Best strategy (by Sharpe)" in captured.out
 
     @patch("examples.cli.run_backtest")
