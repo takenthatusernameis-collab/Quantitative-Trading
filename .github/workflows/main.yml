@@ -1,6 +1,9 @@
 name: Kilo
 
 on:
+  push:
+    paths:
+      - ".kilo/TWO_AGENT_ONCE"
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
