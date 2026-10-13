@@ -9,106 +9,114 @@ trailing blank lines, commits (empty message), reconciles remote, and pushes aft
 each session — do not commit/push manually. Enforced quality gates are
 `ruff check .`, `mypy quant_trading/`, and `python -m pytest tests/`.
 
-HEAD at session start: `d397602` ("CLI/factory integration" — cli.py rewired to
-the registry). Working tree started clean.
+HEAD at session start: `6d4c8e6` (Donchian trailing-newline fix). Working tree
+started clean.
 
 ## What was done previously (prior handoffs, already committed)
 
-- `cd38b1b`: Added `quant_trading/strategies/factory.py` (`StrategyRegistry` +
-  global factory functions; built-ins `ma`/`rsi`/`bb`/`macd`/`supertrend`
-  registered in `strategies/__init__.py`) with **zero** test coverage. Added
-  `tests/test_strategy_factory.py` (27 tests), a "Strategy Registry" README
-  section, and a trailing-newline fix to `strategies/__init__.py`.
-- `d397602`: CLI/factory integration — replaced the hardcoded `STRATEGIES` dict in
-  `examples/cli.py` with `BUILTIN_STRATEGY_KEYS`; `create_strategy()` now resolves
-  via `factory_create_strategy`; `list_strategies()` via `factory_list_strategies()`;
-  `run_optimization`/`run_walk_forward` via `get_strategy`; `run_combined` iterates
-  `registry.primary_keys()` (so registered custom strategies are reachable). Added
-  `TestFactoryIntegration` to `tests/test_cli.py`. **However, this commit left a
-  ruff `SIM118` regression** (`assert "cust" in registry.keys()` at
-  `tests/test_cli.py:589`).
+- `cd38b1b`: `StrategyRegistry` + factory functions; built-ins registered.
+- `d397602`: CLI/factory integration (cli.py rewired to the registry).
+- `47ea5d3`/`87bda83`: `tests/test_risk_manager.py` (34 tests) and
+  `tests/test_strategy_base.py` (Position.pnl, set_parameter rollback,
+  StrategyManager). **Note:** the task assigned in the previous
+  `next_task.md` (test_strategy_base.py) was already completed by `87bda83`;
+  `strategies/base.py` is now at 98% (only lines 89, 94 missed — the
+  rollback `pop`/`delattr` branches for keys whose old value was `None`).
+- `1c88b38`: `DonchianChannelStrategy` added and registered as built-in
+  "donchian" (reachable via CLI `--strategy donchian` and `--combined`).
 
 ## What was done in this session
 
-Completed/clened the assigned CLI-integration task and added one new bounded,
-high-value test module:
+Fixed a real bug: `DonchianChannelStrategy` was dead code. Its entry
+(upper_breakout/lower_breakdown) and exit-channel signals were structurally
+unreachable because the rolling bands included the current bar, and
+`high >= close` always holds — so `close > upper_band` was impossible.
+Coverage proved it: lines 721-836 never executed, and the 18 existing
+Donchian tests passed **vacuously** (generated 0 signals; assertions were
+inside `for signal in signals` loops over empty lists).
 
-1. Fixed the `SIM118` regression in `tests/test_cli.py:589`. (Do NOT apply ruff's
-   default suggestion `assert "cust" in registry` — `registry` is a
-   `StrategyRegistry` object with no `__contains__`/`__iter__`, so that would raise
-   `TypeError`. Fixed behavior-preservingly by binding `registered_keys =
-   registry.keys()` and asserting membership against it.)
-2. Extended `tests/test_cli.py` `TestCreateStrategy` with `test_create_macd_strategy`
-   and `test_create_supertrend_strategy` (macd/supertrend `create_strategy` paths were
-   previously untested despite being used by `--combined`). Added `MACDStrategy`
-   and `SuperTrendStrategy` imports.
-3. Added `tests/test_risk_manager.py` (34 tests): `RiskManager` init/defaults,
-   `update_portfolio_value` (positions, drawdown/peak tracking, zero-value
-   leverage), `check_signal` (risk-disabled, zero/negative portfolio value, buy
-   no-price/no-holdings, within limits, exceeds max position value+size,
-   size-only violation, existing-position current_size, sell with/without
-   holdings, hold), `check_portfolio` (disabled, clean, too-many-positions,
-   drawdown violation, default-threshold pass), `calculate_metrics` (with/without
-   market returns), stop-loss/take-profit helpers, and `reset`/`enable`/`disable`.
+1. `quant_trading/strategies/examples.py` — Donchian band calculation now
+   shifts rolling bands by one bar (`.shift(1)`) so breakouts are measured
+   against **prior** bars (standard Donchian construction). All six signal
+   paths became reachable with valid OHLC data.
+2. `tests/test_strategies_examples.py` — replaced the vacuous randomized
+   `create_donchian_breakout_data` with deterministic
+   `create_donchian_data(symbol, closes)` (explicit closes, 0.1% wick) and
+   rewrote `TestDonchianChannelStrategy` signal tests with non-vacuous
+   assertions: exactly-N-signals + exact `signal_type` for all six paths
+   (upper_breakout, lower_breakdown, middle_band_exit_long/short,
+   exit_channel_breakdown/breakout), plus a new in-range negative test
+   (no signals while price stays inside the channel) and a strengthened
+   multi-symbol test.
+
+**Behavior change:** the "donchian" built-in now actually emits signals (it
+previously could never signal on valid OHLC data). Backtests/optimizations
+using `--strategy donchian` will produce trades where they previously
+produced none.
 
 ## Verification (all run this session, after the changes)
 
-- `python -m pytest tests/` → **520 passed** (was 484 at HEAD; +2 CLI tests +
-  34 risk-manager tests). Warnings are pre-existing `skopt` duplicates.
-- `python -m ruff check .` → **All checks passed!** (was 1 error at HEAD).
+- `python -m pytest tests/` → **553 passed** (was 552; +1 in-range test).
+  Warnings are pre-existing `skopt` duplicates.
+- `python -m ruff check .` → **All checks passed!**
 - `python -m mypy quant_trading/` → **Success: no issues found in 36 source files.**
-- Coverage: `quant_trading/risk/manager.py` **76% → 100%**; project total 87% → 88%.
-- `python examples/cli.py --offline --list-strategies` → lists all 5 built-in
-  strategies with default params (exit 0).
-- `python examples/cli.py --offline --symbols AAPL --days 60` → backtest runs, exit 0.
-- `black --check`: not an enforced gate; pre-existing repo-wide; left untouched.
+- Coverage: `quant_trading/strategies/examples.py` **85% → 89%** (46 → 34
+  missed); all Donchian signal lines (formerly 721-836) now covered.
+- `python examples/cli.py --offline --symbols AAPL --days 90 --strategy donchian`
+  → **2 trades**, exit 0 (was 0 trades before the fix).
+- `python examples/cli.py --offline --list-strategies` → 6 strategies, exit 0.
 
 ## What changed (working-tree diff at checkpoint)
 
-- `tests/test_cli.py` — ruff-SIM118 fix + 2 tests + 2 imports.
-- `tests/test_risk_manager.py` — new file (34 tests).
+- `quant_trading/strategies/examples.py` — 4 band calculations get `.shift(1)`.
+- `tests/test_strategies_examples.py` — deterministic Donchian data helper +
+  rewritten non-vacuous signal tests.
 
 ## What remains unresolved
 
-- Nothing blocking. `strategies/base.py` is the next coverage gap (see below).
+- Nothing blocking.
 
-## Approaches already tried (and succeeded)
+## Approaches already tried
 
-- N/A for this session — all changes verified by ruff/mypy/pytest on first run.
+- Empirically proved the old bands made entries impossible (close[-1] vs
+  rolling max of highs including the current bar) before choosing the
+  one-bar shift; all six test scenarios were prototyped and verified in a
+  scratch script before editing the repo.
 
 ## Next task (precise, prioritized)
 
-**`tests/test_strategy_base.py` — close the `strategies/base.py` coverage gap.**
+**Close the remaining `strategies/examples.py` coverage gaps (34 missed).**
 
-`quant_trading/strategies/base.py` is at **78%** (18/83 statements missed) with
-**no dedicated test file**. `test_strategies_examples.py` only exercises the
-concrete strategy classes, not the base infrastructure. Uncovered, high-value
-paths:
+1. **MACD `use_zero_line=True` zero-line crossover paths (examples.py:595-618,
+   24 statements — largest contiguous block).** Construct data where the MACD
+   line crosses zero with no signal-line crossover, exercising both
+   `zero_line_bullish` (buy) and `zero_line_bearish` (sell) branches.
+   Reachable via CLI `--macd-zero-line`; `tests/test_strategies_examples.py`
+   `test_zero_line_option` only checks metadata on crossover signals.
+2. **Constructor validation-error tests** (cheap, deterministic): MA
+   (fast/slow <= 0, fast >= slow — lines 35/37/39), RSI (period <= 0,
+   oversold/overbought out of bounds, oversold >= overbought — 127-133),
+   BB (period <= 0, std_dev <= 0 — 221/223), MACD (fast/slow/signal <= 0,
+   fast >= slow — 506-512).
+3. **Signal-branch tests:** RSI overbought branch (176), BB lower/upper
+   band-touch branches (247-248, 265-266), SuperTrend bullish/bearish
+   reversal branches (435-436, 452-453) and the no-valid-ATR branch
+   (359-360).
 
-- `Position.pnl` property (`base.py:44`) — trivial but untested aggregate.
-- `Strategy.set_parameter` rollback-on-validation-failure (`base.py:82-95`): the
-  `try/except ValueError` branch that rolls back `parameters` and the live
-  attribute. `test_strategies_examples.py:467` only tests the success path.
-- The entire `StrategyManager` class (`base.py:120-143`): `__init__`,
-  `add_strategy`, `remove_strategy`, `get_strategy` (None for unknown name), and
-  `generate_all_signals` (delegates to each `Strategy.generate_signals`). It is
-  exported in `strategies/__init__.py` (`__all__`) but unused today — still part of
-  the public API and worth locking down.
-
-Constraints:
-- A `set_parameter` rollback test needs a concrete `Strategy` subclass whose
-  `validate_parameters()` raises `ValueError`; stub `generate_signals` to return
-  `[]`.
-- `StrategyManager.generate_all_signals` takes `data: dict[str, pd.DataFrame]`;
-  use a trivial stub strategy or the existing built-ins.
-- Keep the existing `choices`/factory behavior untouched (this task is
-  base.py only); do not regress `factory.py` (now 100%) or the CLI factory wiring.
-- Scope: one new test file (`tests/test_strategy_base.py`) + the assertions above.
-  Must keep `ruff check .`, `mypy quant_trading/`, and `pytest tests/` green.
+Constraints: keep `ruff check .`, `mypy quant_trading/`, and
+`python -m pytest tests/` green. Existing tests must stay non-vacuous —
+assert exact signal counts/types, not conditional loops over possibly
+empty signal lists (the Donchian vacuity bug is the precedent).
 
 ## Other remaining work (lower priority)
 
-- More data providers (Polygon.io, Twelve Data, IEX Cloud); WebSocket streaming;
-  Redis caching. These are large, multi-module efforts — defer until core-module
-  test coverage is complete.
+- `strategies/base.py` lines 89, 94 (rollback `pop`/`delattr` when the old
+  value was `None`): need a stub `Strategy` whose `validate_parameters`
+  always raises, then `set_parameter` on a brand-new key (line 89) and on
+  an attribute whose current value is `None` (line 94).
+- `quant_trading/optimization/base.py` (91%), `bayesian.py` (80%),
+  `grid_search.py` (80%), `random_search.py` (83%), `walk_forward.py` (87%).
+- More data providers (Polygon.io, Twelve Data, IEX Cloud); WebSocket
+  streaming; Redis caching. Large, multi-module efforts — defer until
+  core-module test coverage is complete.
 - `black` reformatting is intentionally not applied (not an enforced gate).

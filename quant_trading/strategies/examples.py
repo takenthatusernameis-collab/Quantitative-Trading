@@ -685,14 +685,16 @@ class DonchianChannelStrategy(Strategy):
             low = df["low"]
             close = df["close"]
 
-            # Calculate Donchian Channels
-            upper_band = high.rolling(window=self.period).max()
-            lower_band = low.rolling(window=self.period).min()
+            # Calculate Donchian Channels (shifted by one bar so breakouts
+            # are measured against prior bars; including the current bar
+            # would make close > upper_band impossible since high >= close)
+            upper_band = high.rolling(window=self.period).max().shift(1)
+            lower_band = low.rolling(window=self.period).min().shift(1)
             middle_band = (upper_band + lower_band) / 2
 
             # Exit channels (shorter period for tighter exits)
-            exit_upper = high.rolling(window=self.exit_period).max()
-            exit_lower = low.rolling(window=self.exit_period).min()
+            exit_upper = high.rolling(window=self.exit_period).max().shift(1)
+            exit_lower = low.rolling(window=self.exit_period).min().shift(1)
 
             current_price = close.iloc[-1]
             current_upper = upper_band.iloc[-1]

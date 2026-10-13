@@ -88,48 +88,26 @@ def create_supertrend_data(symbol: str, days: int = 100, trend: float = 0.0) -> 
     return df
 
 
-def create_donchian_breakout_data(
-    symbol: str, days: int = 100, breakout_direction: int = 1
-) -> pd.DataFrame:
-    """Create mock price data with a clear breakout for Donchian Channel testing.
+def create_donchian_data(symbol: str, closes: list[float]) -> pd.DataFrame:
+    """Create deterministic OHLC data from explicit close prices.
 
-    When breakout_direction > 0: prices break above upper channel (bullish breakout)
-    When breakout_direction < 0: prices break below lower channel (bearish breakdown)
+    High/low carry a small 0.1% wick so high >= close >= low holds.
+    Explicit closes make Donchian breakout/breakdown scenarios
+    reproducible, unlike randomized data whose bands rarely align
+    with the final bar.
     """
-    np.random.seed(42)
-    dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
-
-    # Start with a range-bound market
-    base_price = 100
-    # Create a consolidation period with small oscillations
-    t = np.arange(days)
-    noise = np.random.normal(0, 0.5, days)
-    prices = base_price + 2 * np.sin(t * 2 * np.pi / 20) + noise  # 20-day cycle, small amplitude
-
-    # Force a breakout at the end
-    if breakout_direction > 0:
-        # Bullish breakout: sharp upward move at the end
-        prices[-5:] += np.linspace(0, 10, 5)
-    else:
-        # Bearish breakdown: sharp downward move at the end
-        prices[-5:] -= np.linspace(0, 10, 5)
-
-    # Ensure high >= close >= low
-    high = prices * (1 + np.abs(np.random.uniform(0, 0.005, days)))
-    low = prices * (1 - np.abs(np.random.uniform(0, 0.005, days)))
-    open_ = prices * (1 + np.random.uniform(-0.002, 0.002, days))
-
-    df = pd.DataFrame(
+    close = np.asarray(closes, dtype=float)
+    dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
+    return pd.DataFrame(
         {
-            "open": open_,
-            "high": high,
-            "low": low,
-            "close": prices,
-            "volume": np.random.randint(1000000, 10000000, days),
+            "open": close,
+            "high": close * 1.001,
+            "low": close * 0.999,
+            "close": close,
+            "volume": np.full(len(close), 1_000_000),
         },
         index=dates,
     )
-    return df
 
 
 class TestDonchianChannelStrategy:
@@ -164,156 +142,153 @@ class TestDonchianChannelStrategy:
     def test_generate_signals_insufficient_data(self):
         """Test generate_signals with insufficient data."""
         strategy = DonchianChannelStrategy(period=20)
-        data = {"AAPL": create_donchian_breakout_data("AAPL", days=15)}  # Less than period
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 15)}  # Less than period
         signals = strategy.generate_signals(data)
         assert signals == []
 
     def test_generate_signals_bullish_breakout(self):
         """Test generate_signals detects bullish breakout (buy signal)."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
-        # Create data with bullish breakout at the end
-        data = {"AAPL": create_donchian_breakout_data("AAPL", days=60, breakout_direction=1)}
+        # Flat range, then a final close well above the prior 20-bar high
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 40 + [110.0])}
         signals = strategy.generate_signals(data)
 
-        for signal in signals:
-            assert signal.symbol == "AAPL"
-            assert signal.action in ("buy", "sell")
-            assert 0.0 <= signal.strength <= 1.0
-            assert signal.price is not None
-            assert signal.timestamp is not None
-            if signal.action == "buy":
-                assert signal.metadata.get("signal_type") == "upper_breakout"
-                assert "upper_band" in signal.metadata
-                assert "lower_band" in signal.metadata
-                assert "middle_band" in signal.metadata
-                assert "exit_upper" in signal.metadata
-                assert "exit_lower" in signal.metadata
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(110.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "upper_breakout"
+        assert signal.metadata["upper_band"] == pytest.approx(100.0 * 1.001)
+        assert signal.metadata["lower_band"] == pytest.approx(100.0 * 0.999)
+        assert signal.metadata["middle_band"] == pytest.approx(100.0)
+        assert signal.metadata["exit_upper"] == pytest.approx(100.0 * 1.001)
+        assert signal.metadata["exit_lower"] == pytest.approx(100.0 * 0.999)
 
     def test_generate_signals_bearish_breakdown(self):
         """Test generate_signals detects bearish breakdown (sell signal)."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
-        # Create data with bearish breakdown at the end
-        data = {"AAPL": create_donchian_breakout_data("AAPL", days=60, breakout_direction=-1)}
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 40 + [90.0])}
         signals = strategy.generate_signals(data)
 
-        for signal in signals:
-            assert signal.symbol == "AAPL"
-            assert signal.action in ("buy", "sell")
-            assert 0.0 <= signal.strength <= 1.0
-            if signal.action == "sell":
-                assert signal.metadata.get("signal_type") == "lower_breakdown"
-                assert "upper_band" in signal.metadata
-                assert "lower_band" in signal.metadata
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(90.0)
+        assert signal.metadata["signal_type"] == "lower_breakdown"
+        assert signal.metadata["upper_band"] == pytest.approx(100.0 * 1.001)
+        assert signal.metadata["lower_band"] == pytest.approx(100.0 * 0.999)
 
     def test_generate_signals_multiple_symbols(self):
         """Test generate_signals with multiple symbols."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
         data = {
-            "AAPL": create_donchian_breakout_data("AAPL", days=60, breakout_direction=1),
-            "MSFT": create_donchian_breakout_data("MSFT", days=60, breakout_direction=-1),
+            "AAPL": create_donchian_data("AAPL", [100.0] * 40 + [110.0]),
+            "MSFT": create_donchian_data("MSFT", [100.0] * 40 + [90.0]),
         }
         signals = strategy.generate_signals(data)
-        symbols = {s.symbol for s in signals}
-        assert symbols.issubset({"AAPL", "MSFT"})
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+
+    def test_generate_signals_in_range_no_signals(self):
+        """Test generate_signals returns no signals while price stays in channel."""
+        strategy = DonchianChannelStrategy(period=20, exit_period=10)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 41)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
 
     def test_generate_signals_exit_long_middle_band(self):
-        """Test generate_signals generates exit signal for long position crossing middle band."""
+        """Test generate_signals exits long when price crosses below middle band."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
-        # Create data where price crosses below middle band (exit long)
-        data = {"AAPL": create_donchian_breakout_data("AAPL", days=60, breakout_direction=1)}
-        # Simulate a long position
+        # Prior close above the middle band, final close below it but above
+        # the exit channel lower band
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 39 + [101.0, 100.2])}
         from quant_trading.strategies.base import Position
 
         strategy.update_positions({"AAPL": Position(symbol="AAPL", quantity=100, avg_price=100.0)})
         signals = strategy.generate_signals(data)
 
-        # Should generate exit signal when price crosses middle band
-        exit_signals = [
-            s
-            for s in signals
-            if s.action == "sell" and s.metadata.get("signal_type") == "middle_band_exit_long"
-        ]
-        # May or may not trigger depending on data, but if it does, validate structure
-        for signal in exit_signals:
-            assert signal.symbol == "AAPL"
-            assert signal.action == "sell"
-            assert 0.0 <= signal.strength <= 1.0
-            assert signal.price is not None
-            assert signal.timestamp is not None
-            assert signal.metadata.get("signal_type") == "middle_band_exit_long"
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.metadata["signal_type"] == "middle_band_exit_long"
 
     def test_generate_signals_exit_long_exit_channel(self):
-        """Test generate_signals generates exit signal for long position breaking exit channel."""
+        """Test generate_signals exits long when price breaks exit channel."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
-        data = {"AAPL": create_donchian_breakout_data("AAPL", days=60, breakout_direction=1)}
-        # Simulate a long position
+        # A dip inside the 20-bar window but outside the 10-bar exit window,
+        # then a close below the exit channel lower band
+        data = {
+            "AAPL": create_donchian_data(
+                "AAPL", [100.0] * 20 + [98.0] * 10 + [100.0] * 9 + [99.0, 98.5]
+            )
+        }
         from quant_trading.strategies.base import Position
 
         strategy.update_positions({"AAPL": Position(symbol="AAPL", quantity=100, avg_price=100.0)})
         signals = strategy.generate_signals(data)
 
-        exit_signals = [
-            s
-            for s in signals
-            if s.action == "sell" and s.metadata.get("signal_type") == "exit_channel_breakdown"
-        ]
-        for signal in exit_signals:
-            assert signal.symbol == "AAPL"
-            assert signal.action == "sell"
-            assert 0.0 <= signal.strength <= 1.0
-            assert signal.metadata.get("signal_type") == "exit_channel_breakdown"
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.metadata["signal_type"] == "exit_channel_breakdown"
 
     def test_generate_signals_exit_short_middle_band(self):
-        """Test generate_signals generates exit signal for short position crossing middle band."""
+        """Test generate_signals exits short when price crosses above middle band."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
-        data = {"AAPL": create_donchian_breakout_data("AAPL", days=60, breakout_direction=-1)}
-        # Simulate a short position
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 39 + [99.0, 100.05])}
         from quant_trading.strategies.base import Position
 
         strategy.update_positions({"AAPL": Position(symbol="AAPL", quantity=-100, avg_price=100.0)})
         signals = strategy.generate_signals(data)
 
-        exit_signals = [
-            s
-            for s in signals
-            if s.action == "buy" and s.metadata.get("signal_type") == "middle_band_exit_short"
-        ]
-        for signal in exit_signals:
-            assert signal.symbol == "AAPL"
-            assert signal.action == "buy"
-            assert 0.0 <= signal.strength <= 1.0
-            assert signal.metadata.get("signal_type") == "middle_band_exit_short"
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.metadata["signal_type"] == "middle_band_exit_short"
 
     def test_generate_signals_exit_short_exit_channel(self):
-        """Test generate_signals generates exit signal for short position breaking exit channel."""
+        """Test generate_signals exits short when price breaks exit channel."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
-        data = {"AAPL": create_donchian_breakout_data("AAPL", days=60, breakout_direction=-1)}
-        # Simulate a short position
+        data = {
+            "AAPL": create_donchian_data(
+                "AAPL", [100.0] * 20 + [102.0] * 10 + [100.0] * 9 + [101.5, 102.0]
+            )
+        }
         from quant_trading.strategies.base import Position
 
         strategy.update_positions({"AAPL": Position(symbol="AAPL", quantity=-100, avg_price=100.0)})
         signals = strategy.generate_signals(data)
 
-        exit_signals = [
-            s
-            for s in signals
-            if s.action == "buy" and s.metadata.get("signal_type") == "exit_channel_breakout"
-        ]
-        for signal in exit_signals:
-            assert signal.symbol == "AAPL"
-            assert signal.action == "buy"
-            assert 0.0 <= signal.strength <= 1.0
-            assert signal.metadata.get("signal_type") == "exit_channel_breakout"
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.metadata["signal_type"] == "exit_channel_breakout"
 
     def test_generate_signals_no_exit_without_position(self):
-        """Test that no exit signals generated when no position exists."""
+        """Test that no exit signals are generated without a position."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
-        data = {"AAPL": create_donchian_breakout_data("AAPL", days=60, breakout_direction=1)}
-        # No position set
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 40 + [110.0])}
         signals = strategy.generate_signals(data)
 
-        exit_signals = [s for s in signals if "exit" in s.metadata.get("signal_type", "")]
-        assert len(exit_signals) == 0
+        # Entry signal fires, but no exit signals without a position
+        assert len(signals) == 1
+        assert signals[0].metadata["signal_type"] == "upper_breakout"
+        assert all("exit" not in s.metadata["signal_type"] for s in signals)
 
 
 class TestMovingAverageCrossover:
