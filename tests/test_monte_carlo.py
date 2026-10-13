@@ -156,3 +156,39 @@ def test_monte_carlo_parametric_method_runs():
     sim = run_monte_carlo(result, n_simulations=20, method="parametric", random_state=11)
 
     assert len(sim.simulations) == 20
+
+
+def test_monte_carlo_result_to_dataframe_empty():
+    from quant_trading.monte_carlo import MonteCarloResult
+    from quant_trading.backtest.metrics import BacktestMetrics
+    from datetime import datetime
+
+    metrics = BacktestMetrics()
+    res = MonteCarloResult(
+        simulations=[],
+        original_metrics=metrics,
+        n_simulations=0,
+        confidence_level=0.95,
+        start_time=datetime.now(),
+        end_time=datetime.now(),
+    )
+    df = res.to_dataframe()
+    assert df.empty
+
+
+def test_monte_carlo_result_summary_empty():
+    from quant_trading.monte_carlo import MonteCarloResult
+    from quant_trading.backtest.metrics import BacktestMetrics
+    from datetime import datetime
+
+    metrics = BacktestMetrics()
+    res = MonteCarloResult(
+        simulations=[],
+        original_metrics=metrics,
+        n_simulations=0,
+        confidence_level=0.95,
+        start_time=datetime.now(),
+        end_time=datetime.now(),
+    )
+    summary = res.summary()
+    assert summary == {}
