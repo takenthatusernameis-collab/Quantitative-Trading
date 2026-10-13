@@ -210,12 +210,17 @@ trap 'kill "$heartbeat_pid" 2>/dev/null || true' EXIT
 
 # Project changes exclude workflow definitions and control-only markers.
 project_worktree_changes() {
-  git status --porcelain --untracked-files=all | awk '{
-    path = substr($0, 4)
-    if (path !~ /^\.github\/workflows\// &&
+  {
+    git status --porcelain --untracked-files=all | awk '{ print substr($0, 4) }'
+    # Also count substantive commits an agent made directly during this session.
+    git diff --name-only "${WORKFLOW_BASE_SHA:-HEAD}" HEAD
+  } | awk '{
+    path = $0
+    if (path != "" &&
+        path !~ /^\.github\/workflows\// &&
         path != ".kilo/TWO_AGENT_ONCE" &&
-        path != ".kilo/SKIP_NEXT_ROUTINE_KILO") print
-  }'
+        path != ".kilo/SKIP_NEXT_ROUTINE_KILO") print path
+  }' | sort -u
 }
 
 failed_sessions=0
