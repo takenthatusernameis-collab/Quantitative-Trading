@@ -326,20 +326,51 @@ class TestMovingAverageCrossover:
         assert signals == []
 
     def test_generate_signals_golden_cross(self):
-        """Test generate_signals detects golden cross (buy signal)."""
+        """Test generate_signals detects golden cross (buy signal).
+
+        A flat 15-bar base (slow window fills at 100), then a 5-bar dip to 50
+        (dragging the 5-period fast MA well below the 15-period slow MA), then a
+        final jump to 300 lifts the fast MA above the slow MA on the last bar
+        only -- yielding exactly one golden-cross buy signal.
+        """
         strategy = MovingAverageCrossover(fast_period=5, slow_period=15)
-        # Create data where fast MA crosses above slow MA
-        data = {"AAPL": create_trending_data("AAPL", days=50, trend=0.005)}
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 15 + [50.0] * 5 + [300.0])}
         signals = strategy.generate_signals(data)
 
-        # Should have at least one signal
-        assert len(signals) >= 0  # May or may not cross depending on data
-        for signal in signals:
-            assert signal.symbol == "AAPL"
-            assert signal.action in ("buy", "sell")
-            assert 0.0 <= signal.strength <= 1.0
-            assert signal.price is not None
-            assert signal.timestamp is not None
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.strength == pytest.approx(0.3448275862068961)
+        assert signal.price == pytest.approx(300.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["crossover_type"] == "golden_cross"
+        assert signal.metadata["fast_ma"] == pytest.approx(100.0)
+        assert signal.metadata["slow_ma"] == pytest.approx(96.66666666666667)
+
+    def test_generate_signals_death_cross(self):
+        """Test generate_signals detects death cross (sell signal).
+
+        A 15-bar base at 100, a 20-bar run at 200 (filling both MAs at 200),
+        then a final crash to 50 pulls the fast MA below the slow MA on the
+        last bar only -- exactly one death-cross sell signal.
+        """
+        strategy = MovingAverageCrossover(fast_period=5, slow_period=15)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 15 + [200.0] * 20 + [50.0])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(50.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["crossover_type"] == "death_cross"
+        assert signal.metadata["fast_ma"] == pytest.approx(170.0)
+        assert signal.metadata["slow_ma"] == pytest.approx(190.0)
 
     def test_generate_signals_multiple_symbols(self):
         """Test generate_signals with multiple symbols."""
@@ -412,19 +443,27 @@ class TestRSIStrategy:
         assert signals == []
 
     def test_generate_signals_oversold_bounce(self):
-        """Test generate_signals detects oversold bounce (buy signal)."""
+        """Test generate_signals detects oversold bounce (buy signal).
+
+        Fourteen down-steps of -1 (100 -> 87) drive RSI to 0 (oversold); a
+        final +10 bounce lifts RSI to ~43.5, crossing back above the 30
+        oversold threshold on the last bar only -- exactly one buy signal.
+        """
         strategy = RSIStrategy(period=14, oversold=30, overbought=70)
-        data = {"AAPL": create_mean_reverting_data("AAPL", days=60)}
+        closes = [100.0 - i for i in range(14)] + [97.0]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
         signals = strategy.generate_signals(data)
 
-        for signal in signals:
-            assert signal.symbol == "AAPL"
-            assert signal.action in ("buy", "sell")
-            assert 0.0 <= signal.strength <= 1.0
-            if signal.action == "buy":
-                assert signal.metadata.get("signal_type") == "oversold_bounce"
-            elif signal.action == "sell":
-                assert signal.metadata.get("signal_type") == "overbought_rejection"
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(97.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "oversold_bounce"
+        assert signal.metadata["rsi"] == pytest.approx(43.47826086956522)
 
     def test_generate_signals_multiple_symbols(self):
         """Test generate_signals with multiple symbols."""
@@ -852,7 +891,7 @@ class TestSuperTrendStrategy:
         assert signal.price == pytest.approx(110.0)
         assert signal.metadata["signal_type"] == "trend_reversal_bullish"
         assert signal.metadata["trend"] == "bullish"
-        assert signal.metadata["supertrend"] == pytest.approx(107.82)
+        assert signal.metadata["supertrend"] == pytest.approx(107.818)
 
     def test_generate_signals_bearish_reversal(self):
         """Test generate_signals detects bearish reversal (sell signal).
@@ -872,7 +911,7 @@ class TestSuperTrendStrategy:
         assert signal.price == pytest.approx(100.0)
         assert signal.metadata["signal_type"] == "trend_reversal_bearish"
         assert signal.metadata["trend"] == "bearish"
-        assert signal.metadata["supertrend"] == pytest.approx(104.16)
+        assert signal.metadata["supertrend"] == pytest.approx(104.174)
 
     def test_supertrend_no_valid_atr(self):
         """Test _calculate_supertrend returns all-NaN when ATR is invalid.
