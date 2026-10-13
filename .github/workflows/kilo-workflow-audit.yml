@@ -38,4 +38,8 @@ jobs:
           grep -Fq 'This is the single bounded corrective pass' "$controller"
           grep -Fq 'Hard provider quota/capacity limit detected' "$controller"
           grep -Fq 'provider_pressure_streak" -ge 3' "$controller"
+          grep -Fq 'project_worktree_changes()' "$controller"
+          grep -Fq 'correction_failure_block=1' "$controller"
+          grep -Fq 'no_progress_block=1' "$controller"
+          grep -Fq 'consecutive_failures" -ge 5' "$controller"
           echo "Kilo bounded recovery guardrails: OK"
