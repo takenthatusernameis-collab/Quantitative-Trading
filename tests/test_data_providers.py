@@ -336,3 +336,87 @@ def test_create_synthetic_provider():
     result = provider.fetch(["AAPL", "MSFT"])
     assert "AAPL" in result.data
     assert "MSFT" in result.data
+
+
+# Coverage: close data/providers.py to 100%
+
+
+def test_fetch_result_has_missing():
+    """FetchResult.has_missing property (line 50)."""
+    result = FetchResult()
+    result.missing.append("X")
+    assert result.has_missing is True
+
+
+def test_fetch_result_has_missing_empty():
+    """FetchResult.has_missing is False when no missing symbols."""
+    result = FetchResult()
+    assert result.has_missing is False
+
+
+def test_data_manager_add_provider():
+    """DataManager.add_provider appends to providers list (line 128)."""
+    manager = DataManager([])
+    provider = CountingProvider({})
+    manager.add_provider(provider)
+    assert provider in manager.providers
+
+
+def test_data_manager_get_provider_returns_none():
+    """DataManager.get_provider returns None for unknown name (line 135)."""
+    manager = DataManager([])
+    assert manager.get_provider("nonexistent") is None
+
+
+def test_data_manager_fetch_no_provider_raises():
+    """DataManager.fetch raises ValueError when no provider available (line 157)."""
+    manager = DataManager([])
+    with pytest.raises(ValueError, match="No data provider available"):
+        manager.fetch(["AAPL"])
+
+
+def test_data_manager_clear_cache():
+    """DataManager.clear_cache empties the in-memory cache (line 173)."""
+    provider = CountingProvider(create_synthetic_data(["AAPL"], days=10))
+    manager = DataManager([provider])
+
+    manager.fetch(["AAPL"])
+    assert len(manager._cache) == 1
+
+    manager.clear_cache()
+    assert len(manager._cache) == 0
+
+
+def test_data_manager_get_provider_found():
+    """DataManager.get_provider returns the matching provider (covers 133-134)."""
+    data = create_synthetic_data(["AAPL"], days=10)
+    provider = CountingProvider(data, name="named")
+    manager = DataManager([provider])
+    assert manager.get_provider("named") is provider
+
+
+def test_lazy_synthetic_provider_fetch_latest():
+    """LazySyntheticProvider.fetch_latest delegates to super (lines 275-276).
+
+    DataManager does not expose fetch_latest directly, so we invoke it on the
+    lazily-constructed provider created via the config factory.
+    """
+    from quant_trading.config.settings import DataConfig
+    from quant_trading.data.providers import create_data_manager_from_config
+
+    cfg = DataConfig(provider="synthetic", offline=True)
+    mgr = create_data_manager_from_config(cfg)
+    provider = mgr.providers[0]
+    result = provider.fetch_latest(["AAPL"])
+    assert "AAPL" in result.data
+    assert not result.missing
+
+
+def test_create_data_manager_from_config_unknown_provider():
+    """create_data_manager_from_config raises ValueError for unknown provider (line 293)."""
+    from quant_trading.config.settings import DataConfig
+    from quant_trading.data.providers import create_data_manager_from_config
+
+    cfg = DataConfig(provider="unknown")
+    with pytest.raises(ValueError, match="Unknown data provider: unknown"):
+        create_data_manager_from_config(cfg)
