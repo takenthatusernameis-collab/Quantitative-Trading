@@ -44,4 +44,6 @@ jobs:
           grep -Fq 'correction_failure_block=1' "$controller"
           grep -Fq 'no_progress_block=1' "$controller"
           grep -Fq 'consecutive_failures" -ge 5' "$controller"
+          grep -Fq 'CORRECTIVE_VERIFICATION=PASS' "$controller"
+          grep -Fq 'did not provide the required successful-verification marker' "$controller"
           echo "Kilo bounded recovery guardrails: OK"
