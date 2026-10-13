@@ -45,3 +45,6 @@ htmlcov/
 
 # Data cache
 data/cache/
+
+# Kilo agent runtime and generated caches
+node_modules/

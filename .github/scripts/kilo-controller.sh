@@ -315,14 +315,6 @@ PY
   stage_repository_changes() {
     git add -A -- . \
       ':(exclude).github/workflows/**' \
-      ':(exclude).venv/**' ':(exclude)**/.venv/**' \
-      ':(exclude)venv/**' ':(exclude)**/venv/**' \
-      ':(exclude)__pycache__/**' ':(exclude)**/__pycache__/**' \
-      ':(exclude).pytest_cache/**' ':(exclude)**/.pytest_cache/**' \
-      ':(exclude).mypy_cache/**' ':(exclude)**/.mypy_cache/**' \
-      ':(exclude).ruff_cache/**' ':(exclude)**/.ruff_cache/**' \
-      ':(exclude).tox/**' ':(exclude)**/.tox/**' \
-      ':(exclude)node_modules/**' ':(exclude)**/node_modules/**' \
       ':(exclude)**/*.pyc' ':(exclude)**/*.pyo' \
       ':(exclude)**/*.sqlite' ':(exclude)**/*.sqlite3' ':(exclude)**/*.db' \
       ':(exclude)**/*.sqlite-wal' ':(exclude)**/*.sqlite-shm' \
