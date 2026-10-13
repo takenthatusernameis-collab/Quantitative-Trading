@@ -1,6 +1,5 @@
 """Tests for risk limits."""
 
-
 import pytest
 
 from quant_trading.risk.limits import CheckResult, PortfolioLimit, PositionLimit
@@ -155,6 +154,29 @@ class TestPortfolioLimit:
         }
         violations = limit.check(positions, 100000.0, 100000.0)
         assert violations == []
+
+    def test_check_skips_zero_quantity_position(self):
+        """Test check skips positions with zero quantity."""
+        limit = PortfolioLimit(max_position_size=0.1)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=50, avg_price=150.0, current_price=155.0),
+            "MSFT": Position(symbol="MSFT", quantity=0, avg_price=300.0, current_price=310.0),
+        }
+        violations = limit.check(positions, 100000.0, 100000.0)
+        assert violations == []
+
+    def test_check_zero_quantity_with_other_violations(self):
+        """Test check handles zero quantity position alongside violations."""
+        limit = PortfolioLimit(max_positions=2, max_position_size=0.1)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=200, avg_price=150.0, current_price=155.0),
+            "MSFT": Position(symbol="MSFT", quantity=0, avg_price=300.0, current_price=310.0),
+            "GOOGL": Position(symbol="GOOGL", quantity=50, avg_price=140.0, current_price=145.0),
+        }
+        violations = limit.check(positions, 100000.0, 100000.0)
+        assert len(violations) == 2
+        assert any("exceeds max" in v and "positions" in v for v in violations)
+        assert any("AAPL" in v for v in violations)
 
 
 class TestCheckResult:
