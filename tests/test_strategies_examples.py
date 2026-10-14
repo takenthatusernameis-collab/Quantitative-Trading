@@ -13,6 +13,7 @@ from quant_trading.strategies.examples import (
     KeltnerChannelStrategy,
     MACDStrategy,
     MovingAverageCrossover,
+    ParabolicSARStrategy,
     RSIStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
@@ -1732,6 +1733,193 @@ class TestIchimokuCloudStrategy:
         closes = [100.0] * 20 + [110.0, 120.0, 130.0, 140.0, 150.0, 160.0]
         signals = strategy.generate_signals({"AAPL": create_donchian_data("AAPL", closes)})
         assert signals == []
+
+
+def create_parabolic_data(
+    symbol: str,
+    high: list[float],
+    low: list[float],
+    close: list[float],
+) -> pd.DataFrame:
+    """Create deterministic OHLC data for Parabolic SAR testing.
+
+    High/low/close are taken verbatim from the supplied lists; ``open`` mirrors
+    ``close`` and volume is constant. Explicit prices let tests drive the SAR
+    algorithm through hand-traced scenarios.
+    """
+    days = len(close)
+    dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
+    return pd.DataFrame(
+        {
+            "open": np.asarray(close, dtype=float),
+            "high": np.asarray(high, dtype=float),
+            "low": np.asarray(low, dtype=float),
+            "close": np.asarray(close, dtype=float),
+            "volume": np.full(days, 1_000_000),
+        },
+        index=dates,
+    )
+
+
+class TestParabolicSARStrategy:
+    """Tests for ParabolicSARStrategy (examples.py lines 1539-1736)."""
+
+    def test_initialization(self):
+        """Test strategy initialization and parameter storage."""
+        strategy = ParabolicSARStrategy(step=0.02, max_step=0.20, name="Test_SAR")
+        assert strategy.name == "Test_SAR"
+        assert strategy.step == 0.02
+        assert strategy.max_step == 0.20
+        assert strategy.parameters["step"] == 0.02
+        assert strategy.parameters["max_step"] == 0.20
+
+    def test_initialization_defaults(self):
+        """Test default parameter values."""
+        strategy = ParabolicSARStrategy()
+        assert strategy.name == "Parabolic_SAR"
+        assert strategy.step == 0.02
+        assert strategy.max_step == 0.20
+
+    def test_validate_parameters(self):
+        """Test parameter validation (lines 1578, 1580, 1582)."""
+        with pytest.raises(ValueError, match="step must be positive"):
+            ParabolicSARStrategy(step=0)
+        with pytest.raises(ValueError, match="step must be positive"):
+            ParabolicSARStrategy(step=-0.01)
+        with pytest.raises(ValueError, match="max_step must be positive"):
+            ParabolicSARStrategy(max_step=0)
+        with pytest.raises(ValueError, match="max_step must be positive"):
+            ParabolicSARStrategy(max_step=-0.01)
+        with pytest.raises(ValueError, match="step must be less than or equal to max_step"):
+            ParabolicSARStrategy(step=0.30, max_step=0.20)
+
+    def test_calculate_sar_insufficient_data(self):
+        """_calculate_sar returns NaN SAR / zero trend with fewer than 2 points (lines 1593-1607)."""
+        strategy = ParabolicSARStrategy()
+        high = pd.Series([100.0], index=[0])
+        low = pd.Series([90.0], index=[0])
+        sar, trend = strategy._calculate_sar(high, low)
+        assert sar.isna().all()
+        assert (trend == 0).all()
+
+    def test_generate_signals_insufficient_data(self):
+        """A single-row frame is skipped before indicator calculation (line 1681-1682)."""
+        strategy = ParabolicSARStrategy()
+        data = {"AAPL": create_parabolic_data("AAPL", [100.0], [90.0], [95.0])}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_nan_sar(self):
+        """A degenerate (all-NaN) 2-row frame yields a NaN last SAR which is skipped (lines 1697-1698)."""
+        strategy = ParabolicSARStrategy()
+        df = create_parabolic_data(
+            "AAPL",
+            [float("nan"), float("nan")],
+            [float("nan"), float("nan")],
+            [float("nan"), float("nan")],
+        )
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    def test_calculate_sar_short_to_long_reversal(self):
+        """Hand-traced short->long reversal (scenario A).
+
+        Covers in _calculate_sar: init short, continue-short-no-new-low,
+        continue-short-new-low, and reversal-to-long.
+        """
+        strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
+        # (high, low) trace: period 3 reverses short->long; SAR resets to prev EP (88.0).
+        high = pd.Series([100.0, 99.0, 98.0, 100.0])
+        low = pd.Series([90.0, 95.0, 88.0, 99.0])
+        sar, trend = strategy._calculate_sar(high, low)
+        assert trend.iloc[-1] == 1
+        assert trend.iloc[-2] == -1
+        assert sar.iloc[-1] == pytest.approx(88.0)
+
+    def test_generate_signals_bullish_reversal(self):
+        """Buy signal on a short->long trend reversal (scenario A, lines 1701-1717)."""
+        strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
+        data = {
+            "AAPL": create_parabolic_data(
+                "AAPL",
+                high=[100.0, 99.0, 98.0, 100.0],
+                low=[90.0, 95.0, 88.0, 99.0],
+                close=[100.0, 99.0, 98.0, 99.5],
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(99.5)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "trend_reversal_bullish"
+        assert signal.metadata["trend"] == "bullish"
+        assert signal.metadata["sar"] == pytest.approx(88.0)
+
+    def test_generate_signals_bearish_reversal(self):
+        """Sell signal on a long->short trend reversal (scenario B, lines 1636-1734).
+
+        Covers in _calculate_sar: init long, continue-long-new-high,
+        continue-long-no-new-high, and reversal-to-short.
+        """
+        strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
+        # period 3 reverses long->short; SAR resets to prev EP (105.0).
+        data = {
+            "AAPL": create_parabolic_data(
+                "AAPL",
+                high=[100.0, 105.0, 103.0, 106.0],
+                low=[90.0, 92.0, 93.0, 85.0],
+                close=[100.0, 105.0, 103.0, 85.0],
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(85.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "trend_reversal_bearish"
+        assert signal.metadata["trend"] == "bearish"
+        assert signal.metadata["sar"] == pytest.approx(105.0)
+
+    def test_generate_signals_no_trend_change(self):
+        """No signal when the trend does not reverse over the last two bars (scenario C)."""
+        strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
+        data = {
+            "AAPL": create_parabolic_data(
+                "AAPL",
+                high=[100.0, 105.0, 108.0, 110.0],
+                low=[90.0, 92.0, 94.0, 95.0],
+                close=[100.0, 105.0, 108.0, 110.0],
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Each symbol is evaluated independently for reversals."""
+        strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
+        data = {
+            "AAPL": create_parabolic_data(
+                "AAPL",
+                high=[100.0, 99.0, 98.0, 100.0],
+                low=[90.0, 95.0, 88.0, 99.0],
+                close=[100.0, 99.0, 98.0, 99.5],
+            ),
+            "MSFT": create_parabolic_data(
+                "MSFT",
+                high=[100.0, 105.0, 103.0, 106.0],
+                low=[90.0, 92.0, 93.0, 85.0],
+                close=[100.0, 105.0, 103.0, 85.0],
+            ),
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 2
+        by_symbol = {s.symbol: s for s in signals}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
 
 
 if __name__ == "__main__":

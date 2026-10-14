@@ -1,7 +1,7 @@
 """Example trading strategies."""
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from .base import Signal, Strategy
 
@@ -783,15 +783,15 @@ class DonchianChannelStrategy(Strategy):
                             price=current_price,
                             timestamp=timestamp,
                             metadata={
-                "upper_band": current_upper,
-                "lower_band": current_lower,
-                "middle_band": current_middle,
-                "exit_upper": current_exit_upper,
-                "exit_lower": current_exit_lower,
-                "signal_type": "middle_band_exit_long",
-            },
+                                "upper_band": current_upper,
+                                "lower_band": current_lower,
+                                "middle_band": current_middle,
+                                "exit_upper": current_exit_upper,
+                                "exit_lower": current_exit_lower,
+                                "signal_type": "middle_band_exit_long",
+                            },
+                        )
                     )
-                )
                 # Exit 2: Price breaks below exit lower band (trend-following exit)
                 elif prev_price >= prev_exit_lower and current_price < current_exit_lower:
                     strength = min(
@@ -852,13 +852,13 @@ class DonchianChannelStrategy(Strategy):
                             price=current_price,
                             timestamp=timestamp,
                             metadata={
-                "upper_band": current_upper,
-                "lower_band": current_lower,
-                "middle_band": current_middle,
-                "exit_upper": current_exit_upper,
-                "exit_lower": current_exit_lower,
-                "signal_type": "exit_channel_breakout",
-            },
+                                "upper_band": current_upper,
+                                "lower_band": current_lower,
+                                "middle_band": current_middle,
+                                "exit_upper": current_exit_upper,
+                                "exit_lower": current_exit_lower,
+                                "signal_type": "exit_channel_breakout",
+                            },
                         )
                     )
 
@@ -1176,12 +1176,12 @@ class KeltnerChannelStrategy(Strategy):
                             price=current_price,
                             timestamp=timestamp,
                             metadata={
-                "ema": current_ema,
-                "upper_channel": current_upper,
-                "lower_channel": current_lower,
-                "atr": atr.iloc[-1],
-                "signal_type": "middle_cross_up",
-            },
+                                "ema": current_ema,
+                                "upper_channel": current_upper,
+                                "lower_channel": current_lower,
+                                "atr": atr.iloc[-1],
+                                "signal_type": "middle_cross_up",
+                            },
                         )
                     )
                 elif prev_price >= prev_ema and current_price < current_ema:
@@ -1195,12 +1195,12 @@ class KeltnerChannelStrategy(Strategy):
                             price=current_price,
                             timestamp=timestamp,
                             metadata={
-                "ema": current_ema,
-                "upper_channel": current_upper,
-                "lower_channel": current_lower,
-                "atr": atr.iloc[-1],
-                "signal_type": "middle_cross_down",
-            },
+                                "ema": current_ema,
+                                "upper_channel": current_upper,
+                                "lower_channel": current_lower,
+                                "atr": atr.iloc[-1],
+                                "signal_type": "middle_cross_down",
+                            },
                         )
                     )
 
@@ -1354,12 +1354,12 @@ class StochasticOscillatorStrategy(Strategy):
                             price=current_price,
                             timestamp=timestamp,
                             metadata={
-                            "k_percent": current_k,
-                            "d_percent": current_d,
-                            "signal_type": "midline_cross_up",
-                        },
+                                "k_percent": current_k,
+                                "d_percent": current_d,
+                                "signal_type": "midline_cross_up",
+                            },
+                        )
                     )
-                )
                 # Sell when %K crosses below 50
                 elif prev_k >= 50 and current_k < 50:
                     strength = min(1.0, abs(50 - current_k) / 50 * 0.5 + 0.3)
@@ -1371,10 +1371,10 @@ class StochasticOscillatorStrategy(Strategy):
                             price=current_price,
                             timestamp=timestamp,
                             metadata={
-                "k_percent": current_k,
-                "d_percent": current_d,
-                "signal_type": "midline_cross_down",
-            },
+                                "k_percent": current_k,
+                                "d_percent": current_d,
+                                "signal_type": "midline_cross_down",
+                            },
                         )
                     )
 
@@ -1618,16 +1618,16 @@ class ParabolicSARStrategy(Strategy):
             # Start with a short trend
             trend.iloc[0] = -1
             sar.iloc[0] = high.iloc[0]  # SAR starts at the high of the first period
-            ep.iloc[0] = low.iloc[0]   # EP is the low of the first period
+            ep.iloc[0] = low.iloc[0]  # EP is the low of the first period
             af.iloc[0] = self.step
 
         # Calculate for each subsequent period
         for i in range(1, len(high)):
             # Previous values
-            prev_sar = sar.iloc[i-1]
-            prev_trend = trend.iloc[i-1]
-            prev_ep = ep.iloc[i-1]
-            prev_af = af.iloc[i-1]
+            prev_sar = sar.iloc[i - 1]
+            prev_trend = trend.iloc[i - 1]
+            prev_ep = ep.iloc[i - 1]
+            prev_af = af.iloc[i - 1]
 
             # Current SAR
             sar.iloc[i] = prev_sar + prev_af * (prev_ep - prev_sar)
