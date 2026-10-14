@@ -226,3 +226,128 @@ def test_merge_segments_normal():
     labels = [Regime.BULL_LOW_VOL, Regime.BULL_LOW_VOL, Regime.BEAR_LOW_VOL]
     segments = detector._merge_segments(labels, prices, returns, rolling_vol)
     assert len(segments) == 2
+
+
+def test_window_larger_than_prices():
+    """When window > len(prices), rolling stats are all NaN -> all labels None -> empty result.
+    However, total_return_pct should still be computed from the full price series.
+    """
+    prices = _make_series(n=10, seed=42)  # fixed seed for deterministic return
+    result = detect_regimes(prices, window=20)  # window larger than series
+    assert isinstance(result, RegimeResult)
+    assert result.n_segments == 0
+    assert result.current_regime == Regime.UNKNOWN
+    assert result.total_volatility == 0.0
+    # total_return_pct should be the actual return of the series
+    expected_return = float((prices.iloc[-1] / prices.iloc[0] - 1) * 100)
+    assert result.total_return_pct == expected_return
+
+
+def test_all_same_prices():
+    """Constant prices should produce sideways low vol regime (zero return, zero vol)."""
+    prices = pd.Series([100.0] * 20, index=pd.date_range("2024-01-01", periods=20, freq="D"))
+    result = detect_regimes(prices, window=5)
+    assert result.n_segments == 1  # one segment for the whole series
+    assert result.current_regime == Regime.SIDEWAYS_LOW_VOL
+    assert abs(result.total_return_pct) < 1e-9  # essentially zero
+    # volatility should be zero (or very close)
+    assert result.total_volatility < 1e-9
+
+
+def test_prices_with_nan():
+    """Prices containing NaN values should not crash; NaNs propagate through returns."""
+    # Create a series with a NaN in the middle
+    prices = _make_series(n=10)
+    prices.iloc[5] = np.nan
+    # Should not raise
+    result = detect_regimes(prices, window=5)
+    assert isinstance(result, RegimeResult)
+    # We don't make strong assertions about the result because NaN handling is complex,
+    # but we ensure it doesn't crash and returns a valid RegimeResult.
+    assert result.n_segments >= 0
+    assert isinstance(result.current_regime, Regime)
+
+
+def test_prices_with_inf():
+    """Prices containing Inf values should not crash."""
+    prices = _make_series(n=10)
+    prices.iloc[5] = np.inf
+    # Should not raise
+    result = detect_regimes(prices, window=5)
+    assert isinstance(result, RegimeResult)
+    assert result.n_segments >= 0
+    assert isinstance(result.current_regime, Regime)
+
+
+def test_merge_segments_single_element():
+    """Single element label list should produce one segment."""
+    from quant_trading.regime import Regime
+    from quant_trading.regime.detector import RegimeDetector
+
+    detector = RegimeDetector()
+    prices = _make_series(n=5)
+    returns = prices.pct_change().dropna()
+    rolling_vol = returns.rolling(window=2).std()
+
+    labels = [Regime.BULL_LOW_VOL]
+    segments = detector._merge_segments(labels, prices, returns, rolling_vol)
+    assert len(segments) == 1
+    assert segments[0].regime == Regime.BULL_LOW_VOL
+    assert segments[0].start_index == 0
+    assert segments[0].end_index == 1
+
+
+def test_merge_segments_two_same():
+    """Two identical labels should produce one segment."""
+    from quant_trading.regime import Regime
+    from quant_trading.regime.detector import RegimeDetector
+
+    detector = RegimeDetector()
+    prices = _make_series(n=5)
+    returns = prices.pct_change().dropna()
+    rolling_vol = returns.rolling(window=2).std()
+
+    labels = [Regime.BULL_LOW_VOL, Regime.BULL_LOW_VOL]
+    segments = detector._merge_segments(labels, prices, returns, rolling_vol)
+    assert len(segments) == 1
+    assert segments[0].regime == Regime.BULL_LOW_VOL
+    assert segments[0].start_index == 0
+    assert segments[0].end_index == 2
+
+
+def test_merge_segments_two_different():
+    """Two different labels should produce two segments."""
+    from quant_trading.regime import Regime
+    from quant_trading.regime.detector import RegimeDetector
+
+    detector = RegimeDetector()
+    prices = _make_series(n=5)
+    returns = prices.pct_change().dropna()
+    rolling_vol = returns.rolling(window=2).std()
+
+    labels = [Regime.BULL_LOW_VOL, Regime.BEAR_LOW_VOL]
+    segments = detector._merge_segments(labels, prices, returns, rolling_vol)
+    assert len(segments) == 2
+    assert segments[0].regime == Regime.BULL_LOW_VOL
+    assert segments[1].regime == Regime.BEAR_LOW_VOL
+    assert segments[0].end_index == segments[1].start_index == 1
+
+
+def test_merge_segments_alternating():
+    """Alternating labels should produce many segments."""
+    from quant_trading.regime import Regime
+    from quant_trading.regime.detector import RegimeDetector
+
+    detector = RegimeDetector()
+    prices = _make_series(n=10)
+    returns = prices.pct_change().dropna()
+    rolling_vol = returns.rolling(window=2).std()
+
+    labels = [Regime.BULL_LOW_VOL, Regime.BEAR_LOW_VOL] * 5  # 10 elements
+    segments = detector._merge_segments(labels, prices, returns, rolling_vol)
+    assert len(segments) == 10  # each element is its own segment
+    for i, seg in enumerate(segments):
+        expected_regime = Regime.BULL_LOW_VOL if i % 2 == 0 else Regime.BEAR_LOW_VOL
+        assert seg.regime == expected_regime
+        assert seg.start_index == i
+        assert seg.end_index == i + 1
