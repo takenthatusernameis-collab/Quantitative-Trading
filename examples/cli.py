@@ -172,7 +172,7 @@ def parse_args() -> argparse.Namespace:
         "--risk-free-rate",
         type=float,
         default=0.02,
-        help="Risk-free rate for Sharpe ratio calculations, e.g. 0.02 for 2%%",
+        help="Risk-free rate for Sharpe ratio calculations, e.g. 0.02 for 2%%%%",
     )
     parser.add_argument(
         "--interval",
@@ -307,13 +307,13 @@ def parse_args() -> argparse.Namespace:
         "--stoch-k-period",
         type=int,
         default=14,
-        help="Stochastic %K period",
+        help="Stochastic %%K period",
     )
     parser.add_argument(
         "--stoch-d-period",
         type=int,
         default=3,
-        help="Stochastic %D period",
+        help="Stochastic %%D period",
     )
     parser.add_argument(
         "--stoch-oversold",
@@ -464,13 +464,13 @@ def parse_args() -> argparse.Namespace:
         "--stoch-k-period-range",
         type=str,
         default="10,20,2",
-        help="Stochastic %K period range: min,max,step",
+        help="Stochastic %%K period range: min,max,step",
     )
     parser.add_argument(
         "--stoch-d-period-range",
         type=str,
         default="2,5,1",
-        help="Stochastic %D period range: min,max,step",
+        help="Stochastic %%D period range: min,max,step",
     )
     parser.add_argument(
         "--stoch-oversold-range",
@@ -531,6 +531,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=50,
         help="Number of iterations for random search",
+    )
+    parser.add_argument(
+        "--n-jobs",
+        type=int,
+        default=1,
+        help="Number of parallel jobs for grid/random search (default: 1)",
     )
     parser.add_argument(
         "--bayesian-n-initial",
@@ -1103,6 +1109,7 @@ def run_optimization(
             interval=args.interval,
             config=config,
             n_iter=args.n_iter,
+            n_jobs=args.n_jobs,
             verbose=True,
         )
     elif args.optimizer == "bayesian":
@@ -1137,6 +1144,7 @@ def run_optimization(
             slippage=args.slippage,
             interval=args.interval,
             config=config,
+            n_jobs=args.n_jobs,
             verbose=True,
         )
 
@@ -1233,7 +1241,7 @@ def run_walk_forward(
         print("Mode: OFFLINE (synthetic data)")
 
     if args.wf_optimizer == "random":
-        optimizer_kwargs = {"n_iter": args.n_iter}
+        optimizer_kwargs = {"n_iter": args.n_iter, "n_jobs": args.n_jobs}
     elif args.wf_optimizer == "bayesian":
         optimizer_kwargs = {
             "n_initial_points": args.bayesian_n_initial,
@@ -1242,7 +1250,7 @@ def run_walk_forward(
             "acq_optimizer": args.bayesian_acq_optimizer,
         }
     else:
-        optimizer_kwargs = {}
+        optimizer_kwargs = {"n_jobs": args.n_jobs}
 
     optimizer = WalkForwardOptimizer(
         strategy_cls=strategy_cls,
