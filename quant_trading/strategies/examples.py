@@ -1556,10 +1556,9 @@ class VWAPStrategy(Strategy):
         """Validate strategy parameters.
         VWAP strategy has no parameters to validate.
         """
-        pass
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
-        signals = []
+        signals: list[Signal] = []
 
         for symbol, df in data.items():
             if len(df) < 2:
