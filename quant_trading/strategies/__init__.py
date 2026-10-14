@@ -2,6 +2,7 @@
 
 from .base import Position, Signal, Strategy, StrategyManager
 from .examples import (
+    AroonStrategy,
     BollingerBandsStrategy,
     DonchianChannelStrategy,
     MACDStrategy,
@@ -26,8 +27,10 @@ register_strategy("bb", BollingerBandsStrategy, aliases=["bollinger_bands", "bol
 register_strategy("macd", MACDStrategy, aliases=["macd_crossover"])
 register_strategy("supertrend", SuperTrendStrategy, aliases=["st", "super_trend"])
 register_strategy("donchian", DonchianChannelStrategy, aliases=["donchian_channel", "dc"])
+register_strategy("aroon", AroonStrategy, aliases=["aroon_oscillator"])
 
 __all__ = [
+    "AroonStrategy",
     "BollingerBandsStrategy",
     "DonchianChannelStrategy",
     "MACDStrategy",

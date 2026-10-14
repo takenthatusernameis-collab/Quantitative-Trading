@@ -31,7 +31,7 @@ from quant_trading.strategies import (
 )
 
 # Built-in strategy keys for argparse choices (preserves existing behavior)
-BUILTIN_STRATEGY_KEYS = ["ma", "rsi", "bb", "macd", "supertrend", "donchian"]
+BUILTIN_STRATEGY_KEYS = ["ma", "rsi", "bb", "macd", "supertrend", "donchian", "aroon"]
 
 PROVIDERS = {
     "yfinance": ("YFinanceProvider", "Yahoo Finance (requires network)"),
@@ -71,6 +71,7 @@ CLI_ARG_DEFAULTS = {
     "st_multiplier": 3.0,
     "dc_period": 20,
     "dc_exit_period": None,
+    "aroon_period": 25,
 }
 
 
@@ -237,6 +238,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Donchian Channel exit period (default: same as period)",
     )
+    parser.add_argument(
+        "--aroon-period",
+        type=int,
+        default=25,
+        help="Aroon period",
+    )
 
     # Parameter ranges for optimization
     parser.add_argument(
@@ -322,6 +329,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="5,20,5",
         help="Donchian Channel exit period range: min,max,step",
+    )
+    parser.add_argument(
+        "--aroon-period-range",
+        type=str,
+        default="10,50,5",
+        help="Aroon period range: min,max,step",
     )
 
     parser.add_argument(
@@ -529,6 +542,7 @@ def create_strategy(args: argparse.Namespace):
         ],
         "supertrend": [("st_period", "period"), ("st_multiplier", "multiplier")],
         "donchian": [("dc_period", "period"), ("dc_exit_period", "exit_period")],
+        "aroon": [("aroon_period", "period")],
     }
 
     if args.strategy in strategy_param_map:
@@ -552,6 +566,8 @@ def create_strategy(args: argparse.Namespace):
         elif args.strategy == "donchian":
             exit_period = args.dc_exit_period if args.dc_exit_period else args.dc_period
             kwargs["name"] = f"Donchian_{args.dc_period}_{exit_period}"
+        elif args.strategy == "aroon":
+            kwargs["name"] = f"Aroon_{args.aroon_period}"
 
         return factory_create_strategy(args.strategy, **kwargs)
     else:
@@ -669,6 +685,9 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
         exit_min, exit_max, exit_step = parse_range(args.dc_exit_period_range)
         grid.add(ParameterSpace("period", min_val=period_min, max_val=period_max, step=period_step, param_type=int))
         grid.add(ParameterSpace("exit_period", min_val=exit_min, max_val=exit_max, step=exit_step, param_type=int))
+    elif args.strategy == "aroon":
+        period_min, period_max, period_step = parse_range(args.aroon_period_range)
+        grid.add(ParameterSpace("period", min_val=period_min, max_val=period_max, step=period_step, param_type=int))
 
     return grid
 

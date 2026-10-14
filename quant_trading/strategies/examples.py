@@ -854,3 +854,157 @@ class DonchianChannelStrategy(Strategy):
                     )
 
         return signals
+
+
+class AroonStrategy(Strategy):
+    """Aroon Trend Strategy.
+
+    The Aroon indicator consists of two lines:
+    - Aroon Up: Measures how many periods since the highest high occurred (in the lookback period)
+    - Aroon Down: Measures how many periods since the lowest low occurred (in the lookback period)
+
+    Aroon Up = ((period - periods since highest high) / period) * 100
+    Aroon Down = ((period - periods since lowest low) / period) * 100
+
+    Trading signals:
+    - When Aroon Up crosses above Aroon Down: potential uptrend (buy signal)
+    - When Aroon Down crosses above Aroon Up: potential downtrend (sell signal)
+    - Extreme values (>70) indicate strong trends
+    - Values near 0 indicate weak trends or consolidation
+    """
+
+    def __init__(
+        self,
+        period: int = 25,
+        name: str = "Aroon",
+    ):
+        super().__init__(
+            name,
+            {
+                "period": period,
+            },
+        )
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters."""
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate_aroon(self, high: pd.Series, low: pd.Series) -> tuple[pd.Series, pd.Series]:
+        """Calculate Aroon Up and Aroon Down indicators.
+
+        Returns:
+            Tuple of (aroon_up, aroon_down) where:
+            - aroon_up: ((period - periods since highest high) / period) * 100
+            - aroon_down: ((period - periods since lowest low) / period) * 100
+        """
+        # Calculate periods since highest high and lowest low
+        # Using rolling window to find the index of max/min within the period
+        # Then calculate how many periods ago that was
+
+        def periods_since_high(x):
+            if len(x) == 0 or x.isna().all():
+                return self.period
+            # Get the index of the maximum value (most recent if tie)
+            # When all values are equal, we want the most recent (highest index)
+            max_val = x.max()
+            # Find the most recent index with the maximum value
+            for i in range(len(x)-1, -1, -1):
+                if x.iloc[i] == max_val:
+                    max_idx = i
+                    break
+            else:
+                max_idx = 0  # fallback
+            return self.period - 1 - max_idx
+
+        def periods_since_low(x):
+            if len(x) == 0 or x.isna().all():
+                return self.period
+            # Get the index of the minimum value (most recent if tie)
+            # When all values are equal, we want the most recent (highest index)
+            min_val = x.min()
+            # Find the most recent index with the minimum value
+            for i in range(len(x)-1, -1, -1):
+                if x.iloc[i] == min_val:
+                    min_idx = i
+                    break
+            else:
+                min_idx = 0  # fallback
+            return self.period - 1 - min_idx
+
+        # Calculate rolling applications
+        periods_since_high_series = high.rolling(window=self.period).apply(periods_since_high, raw=False)
+        periods_since_low_series = low.rolling(window=self.period).apply(periods_since_low, raw=False)
+
+        # Calculate Aroon values
+        aroon_up = ((self.period - periods_since_high_series) / self.period) * 100
+        aroon_down = ((self.period - periods_since_low_series) / self.period) * 100
+
+        return aroon_up, aroon_down
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals = []
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 1:
+                continue
+
+            high = df["high"]
+            low = df["low"]
+            close = df["close"]
+
+            # Calculate Aroon indicators
+            aroon_up, aroon_down = self._calculate_aroon(high, low)
+
+            current_aroon_up = aroon_up.iloc[-1]
+            current_aroon_down = aroon_down.iloc[-1]
+            prev_aroon_up = aroon_up.iloc[-2]
+            prev_aroon_down = aroon_down.iloc[-2]
+            current_price = close.iloc[-1]
+            timestamp = df.index[-1]
+
+            # Skip if any values are NaN (insufficient data for calculation)
+            if pd.isna(current_aroon_up) or pd.isna(current_aroon_down) or \
+               pd.isna(prev_aroon_up) or pd.isna(prev_aroon_down):
+                continue
+
+            # Aroon Up crosses above Aroon Down - bullish signal (buy)
+            if prev_aroon_up <= prev_aroon_down and current_aroon_up > current_aroon_down:
+                # Strength based on how strong the crossover is and the Aroon Up value
+                strength = min(1.0, (current_aroon_up - current_aroon_down) / 100 * 2 + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "aroon_up": current_aroon_up,
+                            "aroon_down": current_aroon_down,
+                            "crossover_type": "bullish",
+                        },
+                    )
+                )
+            # Aroon Down crosses above Aroon Up - bearish signal (sell)
+            elif prev_aroon_down <= prev_aroon_up and current_aroon_down > current_aroon_up:
+                # Strength based on how strong the crossover is and the Aroon Down value
+                strength = min(1.0, (current_aroon_down - current_aroon_up) / 100 * 2 + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "aroon_up": current_aroon_up,
+                            "aroon_down": current_aroon_down,
+                            "crossover_type": "bearish",
+                        },
+                    )
+                )
+
+        return signals
