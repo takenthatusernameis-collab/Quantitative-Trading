@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
+    inputs:
+      agents:
+        description: "Number of sequential Kilo worker sessions"
+        required: false
+        default: "1000"
+        type: number
 
 permissions:
   contents: write
@@ -27,6 +33,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KILO_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          KILO_INPUT_AGENTS: ${{ inputs.agents || '1000' }}
         run: bash .github/scripts/kilo-controller.sh
       - name: Summarize controller outcome
         if: always()
@@ -41,7 +48,7 @@ jobs:
           {
             echo "## Kilo controller health"
             echo "- Controller step outcome: \`$CONTROLLER_OUTCOME\`"
-            echo "- Session policy: no session-count cap during normal activations; continue sequential work until the global 355-minute hard cutoff. The explicit one-shot validation marker remains capped at two sessions."
+            echo "- Requested session target: ${{ inputs.agents || '1000' }} (one-shot marker overrides to exactly 2); transient retries and corrective attempts remain count-unbounded under the 355-minute cutoff."
             echo "- Verified meaningful project progress: ${PROJECT_PROGRESS:-unknown}"
             echo "- Failed Kilo sessions: ${FAILED_SESSIONS:-unknown}"
             echo "- Upstream idle/network retries: ${IDLE_TIMEOUT_RETRIES:-unknown}"
