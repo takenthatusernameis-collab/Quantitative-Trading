@@ -1085,6 +1085,39 @@ class TestMain:
             assert "monte_carlo" in data
             assert "trade_analysis" in data
 
+    def test_main_offline_optimize_ichimoku_calls_run_optimization(self):
+        """Running offline with --optimize and ichimoku strategy calls run_optimization."""
+        with patch("examples.cli.run_optimization") as mock_opt:
+            mock_opt.return_value = 0
+            args = ["--optimize", "--offline", "--strategy", "ichimoku", "--days", "60"]
+            with patch("sys.argv", ["cli.py"] + args):
+                from examples.cli import main
+
+                result = main()
+            assert result == 0
+            mock_opt.assert_called_once()
+
+    def test_main_offline_walk_forward_ichimoku_calls_run_walk_forward(self):
+        """Running offline with --walk-forward and ichimoku strategy calls run_walk_forward."""
+        with patch("examples.cli.run_walk_forward") as mock_wf:
+            mock_wf.return_value = 0
+            args = [
+                "--walk-forward",
+                "--offline",
+                "--strategy",
+                "ichimoku",
+                "--days",
+                "120",
+                "--wf-windows",
+                "2",
+            ]
+            with patch("sys.argv", ["cli.py"] + args):
+                from examples.cli import main
+
+                result = main()
+            assert result == 0
+            mock_wf.assert_called_once()
+
 
 class TestFactoryIntegration:
     """Tests for CLI integration with the strategy factory registry."""
