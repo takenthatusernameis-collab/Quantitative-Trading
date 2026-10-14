@@ -34,6 +34,20 @@ jobs:
         shell: bash
         run: bash -n .github/scripts/kilo-controller.sh
 
+      - name: Guard recoverable Kilo checkpoint persistence
+        shell: bash
+        run: |
+          set -euo pipefail
+          controller=.github/scripts/kilo-controller.sh
+          grep -Fq 'git bundle create' "$controller"
+          grep -Fq 'git bundle verify' "$controller"
+          grep -Fq 'checkpoint_ref="refs/kilo-recovery/checkpoint-' "$controller"
+          grep -Fq 'refs/heads/kilo-recovery/' "$controller"
+          grep -Fq 'conflict_signature=' "$controller"
+          grep -Fq 'Reached three rebase conflicts' "$controller"
+          grep -Fq 'same checkpoint conflicted with the same remote head again' "$controller"
+          grep -Fq 'rebase_abort_succeeded=' "$controller"
+          echo "Recoverable checkpoint, verified backup, and repeated-conflict guard: OK"
       - name: Guard cutoff-bounded unlimited session policy
         shell: bash
         run: |
