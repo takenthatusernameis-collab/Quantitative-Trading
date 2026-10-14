@@ -435,7 +435,10 @@ def test_slice_group_result_partitions_data_errors_missing():
     provider = YFinanceProvider(cache_dir=None)
     group = FetchResult()
     group.data["AAPL"] = MarketData(
-        symbol="AAPL", data=pd.DataFrame({"close": [1.0]}), source="yfinance", fetched_at=datetime.now()
+        symbol="AAPL",
+        data=pd.DataFrame({"close": [1.0]}),
+        source="yfinance",
+        fetched_at=datetime.now(),
     )
     group.errors["MSFT"] = ValueError("boom")
     group.missing = ["TSLA"]
