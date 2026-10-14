@@ -596,7 +596,9 @@ class MACDStrategy(Strategy):
                 if macd_prev <= 0 and macd_current > 0:
                     # Strength based on MACD magnitude relative to signal line
                     ref = abs(signal_current) if signal_current != 0 else abs(macd_current)
-                    strength = min(1.0, abs(macd_current) / ref * 0.5 + 0.3) if ref > 0 else 0.5  # pragma: no cover
+                    strength = (
+                        min(1.0, abs(macd_current) / ref * 0.5 + 0.3) if ref > 0 else 0.5
+                    )  # pragma: no cover
                     signals.append(
                         Signal(
                             symbol=symbol,
@@ -614,7 +616,9 @@ class MACDStrategy(Strategy):
                     )
                 elif macd_prev >= 0 and macd_current < 0:
                     ref = abs(signal_current) if signal_current != 0 else abs(macd_current)
-                    strength = min(1.0, abs(macd_current) / ref * 0.5 + 0.3) if ref > 0 else 0.5  # pragma: no cover
+                    strength = (
+                        min(1.0, abs(macd_current) / ref * 0.5 + 0.3) if ref > 0 else 0.5
+                    )  # pragma: no cover
                     signals.append(
                         Signal(
                             symbol=symbol,
@@ -1195,6 +1199,180 @@ class KeltnerChannelStrategy(Strategy):
                                 "lower_channel": current_lower,
                                 "atr": atr.iloc[-1],
                                 "signal_type": "middle_cross_down",
+                            },
+                        )
+                    )
+
+        return signals
+
+
+class StochasticOscillatorStrategy(Strategy):
+    """Stochastic Oscillator Strategy.
+
+    The Stochastic Oscillator compares a security's closing price to its price
+    range over a given period. It consists of two lines:
+    - %K (Fast Stochastic): The raw stochastic value
+    - %D (Slow Stochastic): A moving average of %K (typically 3-period SMA)
+
+    Trading signals:
+    - Buy when %K crosses above %D in oversold territory (< 20)
+    - Sell when %K crosses below %D in overbought territory (> 80)
+    - Optional: Buy/sell on %K crossing the 50 level (mid-line)
+    """
+
+    def __init__(
+        self,
+        k_period: int = 14,
+        d_period: int = 3,
+        oversold: float = 20,
+        overbought: float = 80,
+        use_midline: bool = False,
+        name: str = "Stochastic_Oscillator",
+    ):
+        super().__init__(
+            name,
+            {
+                "k_period": k_period,
+                "d_period": d_period,
+                "oversold": oversold,
+                "overbought": overbought,
+                "use_midline": use_midline,
+            },
+        )
+        self.k_period = k_period
+        self.d_period = d_period
+        self.oversold = oversold
+        self.overbought = overbought
+        self.use_midline = use_midline
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters."""
+        if self.k_period <= 0:
+            raise ValueError("k_period must be positive")
+        if self.d_period <= 0:
+            raise ValueError("d_period must be positive")
+        if not (0 < self.oversold < 100):
+            raise ValueError("oversold must be between 0 and 100")
+        if not (0 < self.overbought < 100):
+            raise ValueError("overbought must be between 0 and 100")
+        if self.oversold >= self.overbought:
+            raise ValueError("oversold must be less than overbought")
+
+    def _calculate_stochastic(
+        self, high: pd.Series, low: pd.Series, close: pd.Series
+    ) -> tuple[pd.Series, pd.Series]:
+        """Calculate %K and %D lines of the Stochastic Oscillator.
+
+        Returns:
+            Tuple of (k_percent, d_percent) where:
+            - k_percent: Fast %K = 100 * (close - lowest low) / (highest high - lowest low)
+            - d_percent: Slow %D = SMA of %K over d_period
+        """
+        lowest_low = low.rolling(window=self.k_period).min()
+        highest_high = high.rolling(window=self.k_period).max()
+
+        # %K calculation
+        k_percent = 100 * (close - lowest_low) / (highest_high - lowest_low)
+
+        # %D calculation (SMA of %K)
+        d_percent = k_percent.rolling(window=self.d_period).mean()
+
+        return k_percent, d_percent
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals = []
+
+        for symbol, df in data.items():
+            min_required = self.k_period + self.d_period + 1
+            if len(df) < min_required:
+                continue
+
+            high = df["high"]
+            low = df["low"]
+            close = df["close"]
+
+            # Calculate Stochastic Oscillator
+            k_percent, d_percent = self._calculate_stochastic(high, low, close)
+
+            current_k = k_percent.iloc[-1]
+            current_d = d_percent.iloc[-1]
+            prev_k = k_percent.iloc[-2]
+            prev_d = d_percent.iloc[-2]
+            current_price = close.iloc[-1]
+            timestamp = df.index[-1]
+
+            # Skip if any values are NaN
+            if pd.isna(current_k) or pd.isna(current_d) or pd.isna(prev_k) or pd.isna(prev_d):
+                continue
+
+            # Bullish crossover in oversold territory: %K crosses above %D when both are oversold
+            if prev_k <= prev_d and current_k > current_d and current_k < self.oversold:
+                strength = min(1.0, (self.oversold - current_k) / self.oversold + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "k_percent": current_k,
+                            "d_percent": current_d,
+                            "signal_type": "oversold_crossover",
+                        },
+                    )
+                )
+            # Bearish crossover in overbought territory: %K crosses below %D when both are overbought
+            elif prev_k >= prev_d and current_k < current_d and current_k > self.overbought:
+                strength = min(1.0, (current_k - self.overbought) / (100 - self.overbought) + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "k_percent": current_k,
+                            "d_percent": current_d,
+                            "signal_type": "overbought_crossover",
+                        },
+                    )
+                )
+            # Optional midline crossover signals
+            elif self.use_midline:
+                # Buy when %K crosses above 50
+                if prev_k <= 50 and current_k > 50:
+                    strength = min(1.0, abs(current_k - 50) / 50 * 0.5 + 0.3)
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="buy",
+                            strength=strength,
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "k_percent": current_k,
+                                "d_percent": current_d,
+                                "signal_type": "midline_cross_up",
+                            },
+                        )
+                    )
+                # Sell when %K crosses below 50
+                elif prev_k >= 50 and current_k < 50:
+                    strength = min(1.0, abs(50 - current_k) / 50 * 0.5 + 0.3)
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="sell",
+                            strength=strength,
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "k_percent": current_k,
+                                "d_percent": current_d,
+                                "signal_type": "midline_cross_down",
                             },
                         )
                     )

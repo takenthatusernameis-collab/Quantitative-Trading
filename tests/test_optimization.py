@@ -1480,6 +1480,3 @@ def test_bayesian_create_skopt_space_min_val_without_max():
 
     space = optimizer._create_skopt_space()
     assert space == []
-
-
-

@@ -13,6 +13,7 @@ from quant_trading.strategies.examples import (
     MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
+    StochasticOscillatorStrategy,
     SuperTrendStrategy,
 )
 
@@ -110,6 +111,7 @@ def create_donchian_data(symbol: str, closes: list[float]) -> pd.DataFrame:
         index=dates,
     )
 
+
 def create_keltner_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     """Create deterministic OHLC data from explicit close prices.
 
@@ -134,7 +136,7 @@ def create_keltner_data(symbol: str, closes: list[float]) -> pd.DataFrame:
 
     # Calculate True Range and ATR
     high_raw = close * 1.001  # Temporary high for TR calculation
-    low_raw = close * 0.999   # Temporary low for TR calculation
+    low_raw = close * 0.999  # Temporary low for TR calculation
 
     # True Range = max(high - low, |high - prev_close|, |low - prev_close|)
     prev_close = np.concatenate(([close[0]], close[:-1]))
@@ -156,11 +158,11 @@ def create_keltner_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     open_prices = close * (1 + np.random.uniform(-noise_factor, noise_factor, len(close)))
     high_prices = np.maximum(
         upper_band * (1 + np.random.uniform(0, noise_factor, len(close))),
-        np.maximum(open_prices, close)
+        np.maximum(open_prices, close),
     )
     low_prices = np.minimum(
         lower_band * (1 - np.random.uniform(0, noise_factor, len(close))),
-        np.minimum(open_prices, close)
+        np.minimum(open_prices, close),
     )
 
     # Ensure high >= close >= low
@@ -905,7 +907,9 @@ class TestMACDStrategy:
         """When use_zero_line is False and no signal-line crossover fires on the
         final bar, the `elif self.use_zero_line` arm (595->534 and 615->534) is
         False and no signal is produced."""
-        strategy = MACDStrategy(fast_period=12, slow_period=26, signal_period=9, use_zero_line=False)
+        strategy = MACDStrategy(
+            fast_period=12, slow_period=26, signal_period=9, use_zero_line=False
+        )
         # Steady rising prices keep MACD and signal in parallel with no crossover.
         data = {"AAPL": create_donchian_data("AAPL", [100.0] * 30 + list(range(100, 170)))}
         signals = strategy.generate_signals(data)
@@ -1188,7 +1192,7 @@ class TestKeltnerChannelStrategy:
         # Symbol A: breakout above upper channel (buy)
         # Symbol B: breakdown below lower channel (sell)
         data_a = [100.0] * 20 + [120.0]  # Breakout
-        data_b = [100.0] * 20 + [80.0]   # Breakdown
+        data_b = [100.0] * 20 + [80.0]  # Breakdown
         data = {
             "AAPL": create_keltner_data("AAPL", data_a),
             "MSFT": create_keltner_data("MSFT", data_b),
@@ -1244,6 +1248,330 @@ class TestKeltnerChannelStrategy:
             s for s in sell_signals if s.metadata.get("signal_type") == "middle_cross_down"
         ]
         assert len(middle_cross_down_signals) >= 1
+
+
+class TestStochasticOscillatorStrategy:
+    """Tests for StochasticOscillatorStrategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization with default parameters."""
+        strategy = StochasticOscillatorStrategy()
+        assert strategy.name == "Stochastic_Oscillator"
+        assert strategy.k_period == 14
+        assert strategy.d_period == 3
+        assert strategy.oversold == 20
+        assert strategy.overbought == 80
+        assert strategy.use_midline is False
+        params = strategy.get_parameters()
+        assert params["k_period"] == 14
+        assert params["d_period"] == 3
+        assert params["oversold"] == 20
+        assert params["overbought"] == 80
+        assert params["use_midline"] is False
+
+    def test_initialization_custom_parameters(self):
+        """Test strategy initialization with custom parameters."""
+        strategy = StochasticOscillatorStrategy(
+            k_period=10,
+            d_period=5,
+            oversold=15,
+            overbought=85,
+            use_midline=True,
+            name="Custom_Stoch",
+        )
+        assert strategy.name == "Custom_Stoch"
+        assert strategy.k_period == 10
+        assert strategy.d_period == 5
+        assert strategy.oversold == 15
+        assert strategy.overbought == 85
+        assert strategy.use_midline is True
+
+    def test_validate_parameters_valid(self):
+        """Test parameter validation with valid parameters."""
+        # Should not raise
+        StochasticOscillatorStrategy(k_period=14, d_period=3, oversold=20, overbought=80)
+
+    def test_validate_parameters_invalid_k_period(self):
+        """Test parameter validation with invalid k_period."""
+        with pytest.raises(ValueError, match="k_period must be positive"):
+            StochasticOscillatorStrategy(k_period=0)
+        with pytest.raises(ValueError, match="k_period must be positive"):
+            StochasticOscillatorStrategy(k_period=-1)
+
+    def test_validate_parameters_invalid_d_period(self):
+        """Test parameter validation with invalid d_period."""
+        with pytest.raises(ValueError, match="d_period must be positive"):
+            StochasticOscillatorStrategy(d_period=0)
+        with pytest.raises(ValueError, match="d_period must be positive"):
+            StochasticOscillatorStrategy(d_period=-1)
+
+    def test_validate_parameters_invalid_oversold(self):
+        """Test parameter validation with invalid oversold."""
+        with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
+            StochasticOscillatorStrategy(oversold=0)
+        with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
+            StochasticOscillatorStrategy(oversold=100)
+        with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
+            StochasticOscillatorStrategy(oversold=-10)
+
+    def test_validate_parameters_invalid_overbought(self):
+        """Test parameter validation with invalid overbought."""
+        with pytest.raises(ValueError, match="overbought must be between 0 and 100"):
+            StochasticOscillatorStrategy(overbought=0)
+        with pytest.raises(ValueError, match="overbought must be between 0 and 100"):
+            StochasticOscillatorStrategy(overbought=100)
+        with pytest.raises(ValueError, match="overbought must be between 0 and 100"):
+            StochasticOscillatorStrategy(overbought=110)
+
+    def test_validate_parameters_oversold_ge_overbought(self):
+        """Test parameter validation when oversold >= overbought."""
+        with pytest.raises(ValueError, match="oversold must be less than overbought"):
+            StochasticOscillatorStrategy(oversold=50, overbought=50)
+        with pytest.raises(ValueError, match="oversold must be less than overbought"):
+            StochasticOscillatorStrategy(oversold=80, overbought=20)
+
+    def create_stochastic_oversold_data(self, symbol: str) -> pd.DataFrame:
+        """Create mock price data that generates an oversold crossover on the last day."""
+        # Pattern: 10 days flat, then 6 days with controlled high/low/close
+        # to produce: prev_k <= prev_d and current_k > current_d with current_k < 20
+        # Using high=100, low=80 for last 6 days:
+        # Day -6: close=81 -> k=5
+        # Day -5: close=82 -> k=10
+        # Day -4: close=83 -> k=15
+        # Day -3: close=83 -> k=15
+        # Day -2: close=82.5 -> k=12.5, d=14.17 (prev_k <= prev_d)
+        # Day -1: close=83.5 -> k=17.5, d=15.00 (current_k > current_d, current_k < 20)
+        highs = [100] * 16
+        lows = [80] * 16
+        closes = [100] * 10 + [81, 82, 83, 83, 82.5, 83.5]
+        dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
+        return pd.DataFrame(
+            {
+                "open": closes,
+                "high": highs,
+                "low": lows,
+                "close": closes,
+                "volume": [1000000] * len(closes),
+            },
+            index=dates,
+        )
+
+    def create_stochastic_overbought_data(self, symbol: str) -> pd.DataFrame:
+        """Create mock price data that generates an overbought crossover on the last day."""
+        # Pattern for overbought: prev_k >= prev_d and current_k < current_d with current_k > 80
+        # Using high=120, low=100 for last 6 days:
+        # Day -6: close=119 -> k=95
+        # Day -5: close=118 -> k=90
+        # Day -4: close=117 -> k=85
+        # Day -3: close=117 -> k=85
+        # Day -2: close=117.5 -> k=87.5, d=85.83 (prev_k >= prev_d)
+        # Day -1: close=116.5 -> k=82.5, d=85.00 (current_k < current_d, current_k > 80)
+        highs = [120] * 16
+        lows = [100] * 16
+        closes = [100] * 10 + [119, 118, 117, 117, 117.5, 116.5]
+        dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
+        return pd.DataFrame(
+            {
+                "open": closes,
+                "high": highs,
+                "low": lows,
+                "close": closes,
+                "volume": [1000000] * len(closes),
+            },
+            index=dates,
+        )
+
+    def create_stochastic_midline_up_data(self, symbol: str) -> pd.DataFrame:
+        """Create mock price data that generates a midline cross up on the last day."""
+        # Pattern: prev_k <= 50 and current_k > 50
+        # Using high=60, low=40 for last 6 days:
+        # Day -6: close=45 -> k=25
+        # Day -5: close=46 -> k=30
+        # Day -4: close=48 -> k=40
+        # Day -3: close=49 -> k=45
+        # Day -2: close=49.5 -> k=47.5 (prev_k <= 50)
+        # Day -1: close=51 -> k=55 (current_k > 50)
+        highs = [60] * 16
+        lows = [40] * 16
+        closes = [100] * 10 + [45, 46, 48, 49, 49.5, 51]
+        dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
+        return pd.DataFrame(
+            {
+                "open": closes,
+                "high": highs,
+                "low": lows,
+                "close": closes,
+                "volume": [1000000] * len(closes),
+            },
+            index=dates,
+        )
+
+    def create_stochastic_midline_down_data(self, symbol: str) -> pd.DataFrame:
+        """Create mock price data that generates a midline cross down on the last day."""
+        # Pattern: prev_k >= 50 and current_k < 50
+        # Using high=60, low=40 for last 6 days:
+        # Day -6: close=55 -> k=75
+        # Day -5: close=54 -> k=70
+        # Day -4: close=52 -> k=60
+        # Day -3: close=51 -> k=55
+        # Day -2: close=50.5 -> k=52.5 (prev_k >= 50)
+        # Day -1: close=49 -> k=45 (current_k < 50)
+        highs = [60] * 16
+        lows = [40] * 16
+        closes = [100] * 10 + [55, 54, 52, 51, 50.5, 49]
+        dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
+        return pd.DataFrame(
+            {
+                "open": closes,
+                "high": highs,
+                "low": lows,
+                "close": closes,
+                "volume": [1000000] * len(closes),
+            },
+            index=dates,
+        )
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with insufficient data."""
+        strategy = StochasticOscillatorStrategy(k_period=14, d_period=3)
+        # Need at least k_period + d_period + 1 = 18 data points
+        prices = [100.0] * 17
+        dates = pd.date_range(end=datetime.now(), periods=len(prices), freq="D")
+        df = pd.DataFrame(
+            {
+                "open": prices,
+                "high": [p * 1.01 for p in prices],
+                "low": [p * 0.99 for p in prices],
+                "close": prices,
+                "volume": [1000000] * len(prices),
+            },
+            index=dates,
+        )
+        data = {"AAPL": df}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 0
+
+    def test_generate_signals_oversold_crossover(self):
+        """Test generate_signals detects oversold crossover (buy signal)."""
+        strategy = StochasticOscillatorStrategy(k_period=5, d_period=3, oversold=20, overbought=80)
+        data = {"AAPL": self.create_stochastic_oversold_data("AAPL")}
+        signals = strategy.generate_signals(data)
+
+        # Should have at least one buy signal from oversold crossover
+        buy_signals = [s for s in signals if s.action == "buy"]
+        assert len(buy_signals) >= 1
+        oversold_crossover_signals = [
+            s for s in buy_signals if s.metadata.get("signal_type") == "oversold_crossover"
+        ]
+        assert len(oversold_crossover_signals) >= 1
+
+    def test_generate_signals_overbought_crossover(self):
+        """Test generate_signals detects overbought crossover (sell signal)."""
+        strategy = StochasticOscillatorStrategy(k_period=5, d_period=3, oversold=20, overbought=80)
+        data = {"AAPL": self.create_stochastic_overbought_data("AAPL")}
+        signals = strategy.generate_signals(data)
+
+        # Should have at least one sell signal from overbought crossover
+        sell_signals = [s for s in signals if s.action == "sell"]
+        assert len(sell_signals) >= 1
+        overbought_crossover_signals = [
+            s for s in sell_signals if s.metadata.get("signal_type") == "overbought_crossover"
+        ]
+        assert len(overbought_crossover_signals) >= 1
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals with multiple symbols."""
+        strategy = StochasticOscillatorStrategy(k_period=5, d_period=3, oversold=20, overbought=80)
+        # Symbol A: oversold crossover (buy)
+        # Symbol B: overbought crossover (sell)
+        data = {
+            "AAPL": self.create_stochastic_oversold_data("AAPL"),
+            "MSFT": self.create_stochastic_overbought_data("MSFT"),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert "AAPL" in by_symbol
+        assert "MSFT" in by_symbol
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+        assert by_symbol["AAPL"].metadata["signal_type"] == "oversold_crossover"
+        assert by_symbol["MSFT"].metadata["signal_type"] == "overbought_crossover"
+
+    def test_generate_signals_with_midline_cross_up(self):
+        """Test generate_signals with midline crossover up (buy signal)."""
+        strategy = StochasticOscillatorStrategy(k_period=5, d_period=3, use_midline=True)
+        data = {"AAPL": self.create_stochastic_midline_up_data("AAPL")}
+        signals = strategy.generate_signals(data)
+
+        buy_signals = [s for s in signals if s.action == "buy"]
+        assert len(buy_signals) >= 1
+        midline_signals = [
+            s for s in buy_signals if s.metadata.get("signal_type") == "midline_cross_up"
+        ]
+        assert len(midline_signals) >= 1
+
+    def test_generate_signals_with_midline_cross_down(self):
+        """Test generate_signals with midline crossover down (sell signal)."""
+        strategy = StochasticOscillatorStrategy(k_period=5, d_period=3, use_midline=True)
+        data = {"AAPL": self.create_stochastic_midline_down_data("AAPL")}
+        signals = strategy.generate_signals(data)
+
+        sell_signals = [s for s in signals if s.action == "sell"]
+        assert len(sell_signals) >= 1
+        midline_signals = [
+            s for s in sell_signals if s.metadata.get("signal_type") == "midline_cross_down"
+        ]
+        assert len(midline_signals) >= 1
+
+    def test_generate_signals_no_signal_when_midline_disabled(self):
+        """Test generate_signals doesn't generate midline signals when disabled."""
+        strategy = StochasticOscillatorStrategy(k_period=5, d_period=3, use_midline=False)
+        # Create data that would cross 50
+        prices = [
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60,
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            71,
+        ]
+        dates = pd.date_range(end=datetime.now(), periods=len(prices), freq="D")
+        df = pd.DataFrame(
+            {
+                "open": prices,
+                "high": [p * 1.01 for p in prices],
+                "low": [p * 0.99 for p in prices],
+                "close": prices,
+                "volume": [1000000] * len(prices),
+            },
+            index=dates,
+        )
+        data = {"AAPL": df}
+        signals = strategy.generate_signals(data)
+
+        # Should not have midline signals
+        midline_signals = [
+            s
+            for s in signals
+            if s.metadata.get("signal_type") in ["midline_cross_up", "midline_cross_down"]
+        ]
+        assert len(midline_signals) == 0
 
 
 if __name__ == "__main__":

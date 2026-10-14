@@ -9,6 +9,7 @@ from .examples import (
     MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
+    StochasticOscillatorStrategy,
     SuperTrendStrategy,
 )
 from .factory import (
@@ -30,6 +31,7 @@ register_strategy("supertrend", SuperTrendStrategy, aliases=["st", "super_trend"
 register_strategy("donchian", DonchianChannelStrategy, aliases=["donchian_channel", "dc"])
 register_strategy("aroon", AroonStrategy, aliases=["aroon_oscillator"])
 register_strategy("keltner", KeltnerChannelStrategy, aliases=["kc", "keltner_channel"])
+register_strategy("stoch", StochasticOscillatorStrategy, aliases=["stochastic", "stoch_oscillator"])
 
 __all__ = [
     "AroonStrategy",
@@ -41,6 +43,7 @@ __all__ = [
     "Position",
     "RSIStrategy",
     "Signal",
+    "StochasticOscillatorStrategy",
     "Strategy",
     "StrategyManager",
     "StrategyRegistry",

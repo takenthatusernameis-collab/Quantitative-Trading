@@ -209,10 +209,9 @@ class TestInitConfig:
             assert isinstance(loaded, Config)
             assert loaded.data.provider == "yfinance"
 
-
-
     def test_create_aroon_strategy(self):
         from argparse import Namespace
+
         args = Namespace(
             strategy="aroon",
             aroon_period=25,
@@ -223,6 +222,7 @@ class TestInitConfig:
 
     def test_create_aroon_strategy_with_custom_period(self):
         from argparse import Namespace
+
         args = Namespace(
             strategy="aroon",
             aroon_period=30,
@@ -232,11 +232,13 @@ class TestInitConfig:
 
     def test_parse_range_valid(self):
         from examples.cli import parse_range
+
         result = parse_range("5,20,5")
         assert result == (5.0, 20.0, 5.0)
 
     def test_parse_range_invalid(self):
         from examples.cli import parse_range
+
         try:
             parse_range("5,20")
             assert False
@@ -249,6 +251,7 @@ class TestInitConfig:
             args = ["--optimize", "--offline", "--strategy", "ma", "--days", "60"]
             with patch("sys.argv", ["cli.py"] + args):
                 from examples.cli import main
+
                 result = main()
             assert result == 0
             mock_opt.assert_called_once()
@@ -256,9 +259,19 @@ class TestInitConfig:
     def test_main_walk_forward_calls_run_walk_forward(self):
         with patch("examples.cli.run_walk_forward") as mock_wf:
             mock_wf.return_value = 0
-            args = ["--walk-forward", "--offline", "--strategy", "ma", "--days", "120", "--wf-windows", "2"]
+            args = [
+                "--walk-forward",
+                "--offline",
+                "--strategy",
+                "ma",
+                "--days",
+                "120",
+                "--wf-windows",
+                "2",
+            ]
             with patch("sys.argv", ["cli.py"] + args):
                 from examples.cli import main
+
                 result = main()
             assert result == 0
             mock_wf.assert_called_once()
@@ -268,6 +281,7 @@ class TestInitConfig:
         from argparse import Namespace
 
         from examples.cli import create_config, init_config
+
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = f"{tmpdir}/config.yaml"
             init_config(config_path)
@@ -553,6 +567,7 @@ class TestRunCombined:
             ("Donchian_20_20", 14.2),
             ("Aroon_25", 11.0),
             ("Keltner_20_10_2.0", 13.0),
+            ("Stoch_14_3_20_80", 12.5),
         ]:
             m = MagicMock(
                 spec=[
@@ -599,6 +614,13 @@ class TestRunCombined:
             st_period=10,
             st_multiplier=3.0,
             aroon_period=25,
+            dc_period=20,
+            dc_exit_period=20,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
             output=None,
         )
 
@@ -620,6 +642,8 @@ class TestRunCombined:
         assert "SuperTrend_10_3.0" in captured.out
         assert "Donchian_20_20" in captured.out
         assert "Aroon_25" in captured.out
+        assert "Keltner_20_10_2.0" in captured.out
+        assert "Stoch_14_3_20_80" in captured.out
         assert "Best strategy (by Sharpe)" in captured.out
 
     @patch("examples.cli.run_backtest")
@@ -768,9 +792,6 @@ class TestMain:
         assert "Probability of Profit" in captured.out
         assert "95% Confidence Intervals" in captured.out
 
-
-
-
     def test_main_offline_trade_analysis(self, capsys):
         """Running offline with --trade-analysis prints trade analysis."""
         args = ["--offline", "--trade-analysis", "--symbols", "AAPL", "--days", "120"]
@@ -791,6 +812,7 @@ class TestMain:
     def test_main_with_output_file(self, capsys):
         """Main with output file saves results."""
         import tempfile
+
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = f"{tmpdir}/results.json"
             args = ["--offline", "--output", output_path, "--symbols", "AAPL", "--days", "120"]
@@ -799,6 +821,7 @@ class TestMain:
             assert result == 0
             # Check file was created
             import os
+
             assert os.path.exists(output_path)
 
     def test_main_error_handling(self, capsys):
@@ -816,12 +839,22 @@ class TestMain:
         """Main with all analysis flags and output."""
         import json
         import tempfile
+
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = f"{tmpdir}/results.json"
             args = [
-                "--offline", "--regime", "--monte-carlo", "--trade-analysis",
-                "--output", output_path, "--symbols", "AAPL", "--days", "120",
-                "--mc-simulations", "30"
+                "--offline",
+                "--regime",
+                "--monte-carlo",
+                "--trade-analysis",
+                "--output",
+                output_path,
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+                "--mc-simulations",
+                "30",
             ]
             with patch("sys.argv", ["cli.py"] + args):
                 result = main()

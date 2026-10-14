@@ -31,7 +31,17 @@ from quant_trading.strategies import (
 )
 
 # Built-in strategy keys for argparse choices (preserves existing behavior)
-BUILTIN_STRATEGY_KEYS = ["ma", "rsi", "bb", "macd", "supertrend", "donchian", "aroon", "keltner"]
+BUILTIN_STRATEGY_KEYS = [
+    "ma",
+    "rsi",
+    "bb",
+    "macd",
+    "supertrend",
+    "donchian",
+    "aroon",
+    "keltner",
+    "stoch",
+]
 
 PROVIDERS = {
     "yfinance": ("YFinanceProvider", "Yahoo Finance (requires network)"),
@@ -76,6 +86,11 @@ CLI_ARG_DEFAULTS = {
     "kc_atr_period": 10,
     "kc_multiplier": 2.0,
     "kc_use_middle_cross": False,
+    "stoch_k_period": 14,
+    "stoch_d_period": 3,
+    "stoch_oversold": 20,
+    "stoch_overbought": 80,
+    "stoch_use_midline": False,
 }
 
 
@@ -277,6 +292,35 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Enable middle line (EMA) crossover signals for Keltner Channel",
     )
+    parser.add_argument(
+        "--stoch-k-period",
+        type=int,
+        default=14,
+        help="Stochastic %K period",
+    )
+    parser.add_argument(
+        "--stoch-d-period",
+        type=int,
+        default=3,
+        help="Stochastic %D period",
+    )
+    parser.add_argument(
+        "--stoch-oversold",
+        type=int,
+        default=20,
+        help="Stochastic oversold threshold",
+    )
+    parser.add_argument(
+        "--stoch-overbought",
+        type=int,
+        default=80,
+        help="Stochastic overbought threshold",
+    )
+    parser.add_argument(
+        "--stoch-use-midline",
+        action="store_true",
+        help="Enable midline (50) crossover signals for Stochastic",
+    )
 
     # Parameter ranges for optimization
     parser.add_argument(
@@ -386,6 +430,30 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="1.0,3.0,0.5",
         help="Keltner multiplier range: min,max,step",
+    )
+    parser.add_argument(
+        "--stoch-k-period-range",
+        type=str,
+        default="10,20,2",
+        help="Stochastic %K period range: min,max,step",
+    )
+    parser.add_argument(
+        "--stoch-d-period-range",
+        type=str,
+        default="2,5,1",
+        help="Stochastic %D period range: min,max,step",
+    )
+    parser.add_argument(
+        "--stoch-oversold-range",
+        type=str,
+        default="10,30,5",
+        help="Stochastic oversold range: min,max,step",
+    )
+    parser.add_argument(
+        "--stoch-overbought-range",
+        type=str,
+        default="70,90,5",
+        help="Stochastic overbought range: min,max,step",
     )
 
     parser.add_argument(
@@ -604,6 +672,13 @@ def create_strategy(args: argparse.Namespace):
             ("kc_multiplier", "multiplier"),
             ("kc_use_middle_cross", "use_middle_cross"),
         ],
+        "stoch": [
+            ("stoch_k_period", "k_period"),
+            ("stoch_d_period", "d_period"),
+            ("stoch_oversold", "oversold"),
+            ("stoch_overbought", "overbought"),
+            ("stoch_use_midline", "use_midline"),
+        ],
     }
 
     if args.strategy in strategy_param_map:
@@ -632,7 +707,13 @@ def create_strategy(args: argparse.Namespace):
         elif args.strategy == "aroon":
             kwargs["name"] = f"Aroon_{args.aroon_period}"
         elif args.strategy == "keltner":
-            kwargs["name"] = f"Keltner_{args.kc_ema_period}_{args.kc_atr_period}_{args.kc_multiplier}"
+            kwargs["name"] = (
+                f"Keltner_{args.kc_ema_period}_{args.kc_atr_period}_{args.kc_multiplier}"
+            )
+        elif args.strategy == "stoch":
+            kwargs["name"] = (
+                f"Stoch_{args.stoch_k_period}_{args.stoch_d_period}_{args.stoch_oversold}_{args.stoch_overbought}"
+            )
 
         return factory_create_strategy(args.strategy, **kwargs)
     else:
@@ -848,6 +929,37 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
             )
         )
         grid.add(ParameterSpace("use_middle_cross", values=[False, True], param_type=bool))
+    elif args.strategy == "stoch":
+        k_min, k_max, k_step = parse_range(args.stoch_k_period_range)
+        d_min, d_max, d_step = parse_range(args.stoch_d_period_range)
+        oversold_min, oversold_max, oversold_step = parse_range(args.stoch_oversold_range)
+        overbought_min, overbought_max, overbought_step = parse_range(args.stoch_overbought_range)
+        grid.add(
+            ParameterSpace("k_period", min_val=k_min, max_val=k_max, step=k_step, param_type=int)
+        )
+        grid.add(
+            ParameterSpace("d_period", min_val=d_min, max_val=d_max, step=d_step, param_type=int)
+        )
+        grid.add(
+            ParameterSpace(
+                "oversold",
+                min_val=oversold_min,
+                max_val=oversold_max,
+                step=oversold_step,
+                param_type=int,
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "overbought",
+                min_val=overbought_min,
+                max_val=overbought_max,
+                step=overbought_step,
+                param_type=int,
+            )
+        )
+        grid.add(ParameterSpace("use_midline", values=[False, True], param_type=bool))
+        grid.set_validator(lambda p: p["oversold"] < p["overbought"])
 
     return grid
 
@@ -1347,6 +1459,12 @@ def run_combined(
             strategy_args.kc_atr_period = getattr(args, "kc_atr_period", 10)
             strategy_args.kc_multiplier = getattr(args, "kc_multiplier", 2.0)
             strategy_args.kc_use_middle_cross = getattr(args, "kc_use_middle_cross", False)
+        elif strategy_key == "stoch":
+            strategy_args.stoch_k_period = getattr(args, "stoch_k_period", 14)
+            strategy_args.stoch_d_period = getattr(args, "stoch_d_period", 3)
+            strategy_args.stoch_oversold = getattr(args, "stoch_oversold", 20)
+            strategy_args.stoch_overbought = getattr(args, "stoch_overbought", 80)
+            strategy_args.stoch_use_midline = getattr(args, "stoch_use_midline", False)
         strategy = create_strategy(strategy_args)
 
         try:
