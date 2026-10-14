@@ -1463,6 +1463,10 @@ def main() -> int:
         print(f"Sharpe Ratio:    {result.metrics.sharpe_ratio:.2f}")
         print(f"Max Drawdown:    {result.metrics.max_drawdown_pct:.2f}%")
         print(f"Profit Factor:   {result.metrics.profit_factor:.2f}")
+        print(f"Sortino Ratio:   {result.metrics.sortino_ratio:.2f}")
+        print(f"Volatility:      {result.metrics.volatility:.2%}")
+        print(f"VaR (95%):       {result.metrics.var_95:.2%}")
+        print(f"Calmar Ratio:    {result.metrics.calmar_ratio:.2f}")
 
         if args.regime:
             regime_analysis = _get_regime_analysis(result, args)
@@ -1493,6 +1497,10 @@ def main() -> int:
                 "sharpe_ratio": result.metrics.sharpe_ratio,
                 "max_drawdown_pct": result.metrics.max_drawdown_pct,
                 "profit_factor": result.metrics.profit_factor,
+                "sortino_ratio": result.metrics.sortino_ratio,
+                "volatility": result.metrics.volatility,
+                "var_95": result.metrics.var_95,
+                "calmar_ratio": result.metrics.calmar_ratio,
             }
             if args.regime:
                 output_data["regime_analysis"] = regime_analysis.to_dict()

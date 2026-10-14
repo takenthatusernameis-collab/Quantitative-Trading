@@ -1,0 +1,21 @@
+{
+  "strategy": "MA_Crossover_10_30",
+  "symbols": [
+    "AAPL"
+  ],
+  "start_date": "2026-10-04T20:59:58.864599",
+  "end_date": "2026-10-14T20:59:58.864599",
+  "initial_capital": 100000.0,
+  "final_value": 100000.0,
+  "total_return": 0.0,
+  "total_return_pct": 0.0,
+  "num_trades": 0,
+  "win_rate": 0.0,
+  "sharpe_ratio": 0.0,
+  "max_drawdown_pct": 0.0,
+  "profit_factor": 0.0,
+  "sortino_ratio": 0.0,
+  "volatility": 0.0,
+  "var_95": 0.0,
+  "calmar_ratio": 0.0
+}
