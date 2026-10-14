@@ -6,21 +6,18 @@ parameter stability over time.
 
 It uses synthetic data to ensure deterministic results and no network dependency.
 """
+
 from datetime import datetime, timedelta
 
-from quant_trading.backtest.engine import BacktestEngine
 from quant_trading.config.settings import BacktestConfig
 from quant_trading.data.providers import DataManager
 from quant_trading.data.synthetic import create_synthetic_provider
 from quant_trading.optimization import (
-    BayesianOptimizer,
     GridSearch,
     ParameterGrid,
     ParameterSpace,
-    RandomSearch,
     WalkForwardOptimizer,
     maximize_sharpe,
-    maximize_total_return,
 )
 from quant_trading.strategies.examples import MovingAverageCrossover
 

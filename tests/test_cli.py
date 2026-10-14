@@ -5,6 +5,8 @@ import json
 import tempfile
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from examples.cli import (
     create_config,
     create_strategy,
@@ -46,6 +48,12 @@ class TestParseArgs:
         assert args.offline is False
         assert args.alphavantage_key is None
         assert args.combined is False
+        assert args.strategy_config is None
+
+    def test_strategy_config_flag(self):
+        with patch("sys.argv", ["cli.py", "--strategy-config", "my_strat.yaml"]):
+            args = parse_args()
+        assert args.strategy_config == "my_strat.yaml"
 
     def test_list_strategies_flag(self):
         with patch("sys.argv", ["cli.py", "--list-strategies"]):
@@ -530,6 +538,75 @@ class TestCreateStrategy:
         assert (
             strategy.name == "Ichimoku_Cloud"
         )  # name is not customized in create_strategy for ichimoku
+
+    def test_create_strategy_from_config_ma(self):
+        """create_strategy uses --strategy-config YAML when provided."""
+        import yaml
+
+        config = {
+            "type": "ma",
+            "name": "ConfigMA",
+            "parameters": {"fast_period": 15, "slow_period": 40},
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(config, f)
+            config_path = f.name
+
+        try:
+            args = argparse.Namespace(strategy="ma", strategy_config=config_path)
+            strategy = create_strategy(args)
+            assert isinstance(strategy, MovingAverageCrossover)
+            assert strategy.fast_period == 15
+            assert strategy.slow_period == 40
+            assert strategy.name == "ConfigMA"
+        finally:
+            import os
+
+            os.unlink(config_path)
+
+    def test_create_strategy_from_config_rsi(self):
+        """create_strategy respects parameters from YAML for RSI."""
+        import yaml
+
+        config = {
+            "type": "rsi",
+            "name": "ConfigRSI",
+            "parameters": {"period": 21, "oversold": 25, "overbought": 75},
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(config, f)
+            config_path = f.name
+
+        try:
+            args = argparse.Namespace(strategy="rsi", strategy_config=config_path)
+            strategy = create_strategy(args)
+            assert isinstance(strategy, RSIStrategy)
+            assert strategy.period == 21
+            assert strategy.oversold == 25
+            assert strategy.overbought == 75
+            assert strategy.name == "ConfigRSI"
+        finally:
+            import os
+
+            os.unlink(config_path)
+
+    def test_create_strategy_from_config_missing_type_raises(self):
+        """create_strategy raises ValueError when YAML lacks 'type'."""
+        import yaml
+
+        config = {"name": "NoType", "parameters": {}}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(config, f)
+            config_path = f.name
+
+        try:
+            args = argparse.Namespace(strategy="ma", strategy_config=config_path)
+            with pytest.raises(ValueError):
+                create_strategy(args)
+        finally:
+            import os
+
+            os.unlink(config_path)
 
 
 class TestCreateConfig:

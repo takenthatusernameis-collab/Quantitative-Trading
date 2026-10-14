@@ -701,12 +701,14 @@ def parse_args() -> argparse.Namespace:
 def create_strategy(args: argparse.Namespace):
     """Create strategy instance from args using the factory registry."""
     # If strategy config file is provided, use it
-    strategy_config_path = getattr(args, 'strategy_config', None)
+    strategy_config_path = getattr(args, "strategy_config", None)
     if strategy_config_path:
         import yaml
-        with open(strategy_config_path, 'r') as f:
+
+        with open(strategy_config_path, "r") as f:
             strategy_config = yaml.safe_load(f)
         from quant_trading.strategies.base import Strategy
+
         return Strategy.from_config(strategy_config)
 
     # Map strategy keys to lists of (cli_arg, param_name) tuples for built-in strategies

@@ -2,32 +2,37 @@
 
 ## Status
 
-The current agent's task — **Add example script for optimization and walk-forward optimization** — is COMPLETE. This session created `examples/run_optimization.py` and verified it runs successfully.
+The current agent's task — **Add tests for the `--strategy-config` CLI feature and fix lint regressions** — is COMPLETE.
 
 ## What changed
 
-### Examples (`examples/`)
-- Added `run_optimization.py`:
-  - Demonstrates parameter optimization using GridSearch for a MovingAverageCrossover strategy.
-  - Shows how to define a parameter grid with validation (fast_period < slow_period).
-  - Illustrates walk-forward optimization with multiple windows.
-  - Uses synthetic data for deterministic, network-free execution.
-  - Prints optimization results and walk-forward window summaries.
+### Tests (`tests/test_cli.py`)
+- Added `import pytest` (was only imported in `__main__` block).
+- Added `test_strategy_config_flag` to `TestParseArgs` to assert `--strategy-config` is parsed into `args.strategy_config`.
+- Added three new tests to `TestCreateStrategy`:
+  - `test_create_strategy_from_config_ma`: YAML with `type: ma` produces a `MovingAverageCrossover` with custom name and parameters.
+  - `test_create_strategy_from_config_rsi`: YAML with `type: rsi` produces an `RSIStrategy` with overridden parameters.
+  - `test_create_strategy_from_config_missing_type_raises`: YAML without `type` raises `ValueError`.
 
-## What was verified (2026-10-14T21:05 Z)
-- The script runs without errors: `python examples/run_optimization.py` completed successfully.
-- Output shows optimization evaluated 27 parameter combinations and walk-forward optimization over 4 windows.
-- No new lint, formatting, or type issues introduced (verified via existing checks).
-- The project still passes all tests: `python -m pytest tests/ -q` → 955 passed.
-- No changes to existing source code; only added new example file.
+### Examples (`examples/`)
+- `examples/run_optimization.py`: removed four unused imports (`BacktestEngine`, `BayesianOptimizer`, `RandomSearch`, `maximize_total_return`) that were flagged by `ruff`.
+- `examples/cli.py`: formatting-only changes applied by `black` (string quoting, blank lines around `with` blocks).
+
+## What was verified (2026-10-14T21:26 Z)
+- `python -m pytest tests/ -q` → 959 passed (was 955; +4 new tests).
+- `python -m pytest tests/ --cov=quant_trading --cov-report=term-missing` → 100% coverage maintained (4104 statements, 0 missing).
+- `python -m ruff check .` → All checks passed.
+- `python -m black --check .` → All files formatted.
+- `python -m mypy quant_trading` → Success: no issues found in 36 source files.
+- `python examples/run_optimization.py` still runs without errors.
 
 ## What remains unresolved
-Nothing blocking. The example script is self-contained and functional.
+Nothing blocking. The `--strategy-config` feature added by a prior agent was untested; it is now covered.
 
 ## Next precise task
-Inspect the repository and select one bounded, high-value task that can be implemented and verified in the next session. Given the current state of the project (all tests passing, 100% coverage maintained), the next agent should look for opportunities to:
-- Improve documentation (e.g., add docstrings to missing functions, expand README examples).
+Inspect the repository and select one bounded, high-value task that can be implemented and verified in the next session. Given the current state of the project (all tests passing, 100% coverage maintained, all gates green), the next agent should look for opportunities to:
 - Add additional example scripts (e.g., demonstrating regime analysis, Monte Carlo simulation, or trade analysis).
+- Improve documentation (e.g., expand README examples, add docstrings to missing functions).
 - Refactor for clarity while preserving existing behavior and verification.
 - Ensure any new source lines are covered by tests (if applicable).
 
