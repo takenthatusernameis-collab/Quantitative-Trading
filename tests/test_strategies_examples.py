@@ -17,6 +17,7 @@ from quant_trading.strategies.examples import (
     RSIStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
+    VWAPStrategy,
 )
 
 
@@ -1920,6 +1921,92 @@ class TestParabolicSARStrategy:
         by_symbol = {s.symbol: s for s in signals}
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
+
+
+def create_vwap_data(symbol: str, closes: list[float]) -> pd.DataFrame:
+    """Create deterministic OHLC data from explicit close prices.
+
+    High/low/close are all set to the close so the typical price equals
+    the close; with constant volume the VWAP reduces to the running mean
+    of the closes, making crossovers reproducible.
+    """
+    close = np.asarray(closes, dtype=float)
+    dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
+    return pd.DataFrame(
+        {
+            "open": close,
+            "high": close,
+            "low": close,
+            "close": close,
+            "volume": np.full(len(close), 1_000_000),
+        },
+        index=dates,
+    )
+
+
+class TestVWAPStrategy:
+    """Tests for VWAPStrategy (examples.py lines 1539-1614)."""
+
+    def test_initialization(self):
+        """Test strategy initialization and default name."""
+        strategy = VWAPStrategy()
+        assert strategy.name == "VWAP"
+        assert strategy.parameters == {}
+
+    def test_initialization_custom_name(self):
+        """Test strategy initialization with a custom name."""
+        strategy = VWAPStrategy(name="Custom_VWAP")
+        assert strategy.name == "Custom_VWAP"
+
+    def test_generate_signals_insufficient_data(self):
+        """A single-row frame is skipped before VWAP calculation (line 1582-1583)."""
+        strategy = VWAPStrategy()
+        data = {"AAPL": create_vwap_data("AAPL", [100.0])}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_nan_vwap(self):
+        """A NaN close on the last bar yields a NaN VWAP which is skipped (line 1597-1598)."""
+        strategy = VWAPStrategy()
+        df = create_vwap_data("AAPL", [100.0, 100.0])
+        df.iloc[-1, df.columns.get_loc("close")] = float("nan")
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    def test_generate_signals_buy(self):
+        """Buy signal when price crosses above the VWAP (lines 1600-1614)."""
+        strategy = VWAPStrategy()
+        # Bar 3: VWAP = mean(100,100,100,100) = 100, price = 100 (<= VWAP).
+        # Bar 4: VWAP = mean(...,110) = 102, price = 110 (> VWAP) -> buy.
+        data = {"AAPL": create_vwap_data("AAPL", [100.0, 100.0, 100.0, 100.0, 110.0])}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.price == pytest.approx(110.0)
+        assert signal.metadata["signal_type"] == "price_above_vwap"
+        assert signal.metadata["vwap"] == pytest.approx(102.0)
+
+    def test_generate_signals_sell(self):
+        """Sell signal when price crosses below the VWAP (lines 1615-1630)."""
+        strategy = VWAPStrategy()
+        # Bar 3: VWAP = mean(110 x4) = 110, price = 110 (>= VWAP).
+        # Bar 4: VWAP = mean(...,100) = 108, price = 100 (< VWAP) -> sell.
+        data = {"AAPL": create_vwap_data("AAPL", [110.0, 110.0, 110.0, 110.0, 100.0])}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.price == pytest.approx(100.0)
+        assert signal.metadata["signal_type"] == "price_below_vwap"
+        assert signal.metadata["vwap"] == pytest.approx(108.0)
+
+    def test_generate_signals_no_crossover(self):
+        """No signal when price stays on the same side of the VWAP."""
+        strategy = VWAPStrategy()
+        # Rising price that stays above the VWAP on the final two bars.
+        data = {"AAPL": create_vwap_data("AAPL", [100.0, 105.0, 110.0, 115.0, 120.0])}
+        assert strategy.generate_signals(data) == []
 
 
 if __name__ == "__main__":

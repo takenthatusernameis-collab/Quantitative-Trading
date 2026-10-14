@@ -314,6 +314,16 @@ synthetic data and prints all three analysis modules:
 python examples/run_analysis.py
 ```
 
+For a trend-following demonstration using the Parabolic SAR indicator, see
+`examples/run_parabolic_sar.py`. It runs the `ParabolicSARStrategy` against
+seeded synthetic data, generating buy signals when price crosses above the
+SAR (trend turns bullish) and sell signals when price crosses below the SAR
+(trend turns bearish):
+
+```bash
+python examples/run_parabolic_sar.py
+```
+
 ## Data fetching
 
 `DataProvider.fetch_many(requests)` fetches several distinct symbol/date
