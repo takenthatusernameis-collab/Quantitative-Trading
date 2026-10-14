@@ -1157,6 +1157,8 @@ def run_combined(args: argparse.Namespace, config: Config, start_date: datetime,
         if strategy_key == "donchian":
             strategy_args.dc_period = getattr(args, "dc_period", 20)
             strategy_args.dc_exit_period = getattr(args, "dc_exit_period", None)
+        elif strategy_key == "aroon":
+            strategy_args.aroon_period = getattr(args, "aroon_period", 25)
         strategy = create_strategy(strategy_args)
 
         try:

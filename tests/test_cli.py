@@ -456,6 +456,7 @@ class TestRunCombined:
             ("MACD_12_26_9", 10.0),
             ("SuperTrend_10_3.0", 8.5),
             ("Donchian_20_20", 14.2),
+            ("Aroon_25", 11.0),
         ]:
             m = MagicMock(spec=["name", "total_return_pct", "metrics", "initial_capital", "final_value", "total_return"])
             m.name = name
@@ -492,6 +493,7 @@ class TestRunCombined:
             bb_std=2.0,
             st_period=10,
             st_multiplier=3.0,
+            aroon_period=25,
             output=None,
         )
 
@@ -511,6 +513,7 @@ class TestRunCombined:
         assert "BB_20_2.0" in captured.out
         assert "SuperTrend_10_3.0" in captured.out
         assert "Donchian_20_20" in captured.out
+        assert "Aroon_25" in captured.out
         assert "Best strategy (by Sharpe)" in captured.out
 
     @patch("examples.cli.run_backtest")
@@ -556,6 +559,7 @@ class TestRunCombined:
                 bb_std=2.0,
                 st_period=10,
                 st_multiplier=3.0,
+                aroon_period=25,
                 output=output_path,
             )
 
@@ -787,6 +791,7 @@ class TestFactoryIntegration:
                     bb_std=2.0,
                     st_period=10,
                     st_multiplier=3.0,
+                    aroon_period=25,
                     output=None,
                 )
 
