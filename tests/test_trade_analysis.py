@@ -550,3 +550,54 @@ def test_calculate_symbol_stats_empty_cases():
     assert _calculate_symbol_stats(pd.DataFrame()) == {}
     # No pnl column
     assert _calculate_symbol_stats(pd.DataFrame({"symbol": ["AAPL"]})) == {}
+
+
+def test_calculate_holding_periods_sell_without_entry():
+    """A sell with no prior buy leaves entry_times empty, so the
+    `elif trade["action"] == "sell" and entry_times` guard is False (110->105)."""
+    from datetime import datetime
+
+    import pandas as pd
+
+    from quant_trading.backtest.trade_analysis import _calculate_holding_periods
+
+    trades = pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL",
+                "action": "sell",
+                "quantity": 5.0,
+                "timestamp": datetime(2024, 1, 11),
+                "pnl": 5.0,
+            },
+        ]
+    )
+    assert _calculate_holding_periods(trades) == []
+
+
+def test_calculate_consecutive_streaks_zero_pnl():
+    """Trades with pnl == 0 fall through both `if pnl > 0` and `elif pnl < 0`,
+    leaving current_wins and current_losses at 0 (148->142 and 156->160)."""
+    from datetime import datetime
+
+    import pandas as pd
+
+    from quant_trading.backtest.trade_analysis import _calculate_consecutive_streaks
+
+    trades = pd.DataFrame(
+        [
+            {"symbol": "AAPL", "pnl": 0.0, "timestamp": datetime(2024, 1, 1)},
+            {"symbol": "AAPL", "pnl": 0.0, "timestamp": datetime(2024, 1, 2)},
+        ]
+    )
+    result = _calculate_consecutive_streaks(trades)
+    assert result == (0, 0, 0, "")
+
+
+def test_print_trade_analysis_empty_report():
+    """print_trade_analysis with no monthly_returns or symbol_stats exercises the
+    `if analysis.monthly_returns` (354->359) and `if analysis.symbol_stats`
+    (359->exit) False branches."""
+    from quant_trading.backtest.trade_analysis import TradeAnalysis, print_trade_analysis
+
+    print_trade_analysis(TradeAnalysis())  # Should not raise

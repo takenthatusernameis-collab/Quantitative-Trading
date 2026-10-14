@@ -290,6 +290,32 @@ class TestDonchianChannelStrategy:
         assert signals[0].metadata["signal_type"] == "upper_breakout"
         assert all("exit" not in s.metadata["signal_type"] for s in signals)
 
+    def test_generate_signals_exit_long_no_exit_channel_breakdown(self):
+        """With a long position, when the middle-band exit does not fire and the
+        price does not break the exit channel lower band, no exit signal is
+        produced (the `elif` exit-channel arm is not taken)."""
+        strategy = DonchianChannelStrategy(period=20, exit_period=10)
+        # Price stays well inside both channels; no exit conditions hold.
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 40 + [100.5, 101.0])}
+        from quant_trading.strategies.base import Position
+
+        strategy.update_positions({"AAPL": Position(symbol="AAPL", quantity=100, avg_price=100.0)})
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_exit_short_no_exit_channel_breakout(self):
+        """With a short position, when the middle-band exit does not fire and the
+        price does not break the exit channel upper band, no exit signal is
+        produced (the `elif` exit-channel arm is not taken)."""
+        strategy = DonchianChannelStrategy(period=20, exit_period=10)
+        # Price stays well inside both channels; no exit conditions hold.
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 40 + [99.5, 99.0])}
+        from quant_trading.strategies.base import Position
+
+        strategy.update_positions({"AAPL": Position(symbol="AAPL", quantity=-100, avg_price=100.0)})
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
 
 class TestMovingAverageCrossover:
     """Tests for MovingAverageCrossover strategy."""
@@ -805,6 +831,16 @@ class TestMACDStrategy:
         assert signal.metadata["crossover_type"] == "bearish"
         assert signal.metadata["macd"] < 0
         assert signal.metadata["zero_line"] == "below"
+
+    def test_generate_signals_zero_line_disabled(self):
+        """When use_zero_line is False and no signal-line crossover fires on the
+        final bar, the `elif self.use_zero_line` arm (595->534 and 615->534) is
+        False and no signal is produced."""
+        strategy = MACDStrategy(fast_period=12, slow_period=26, signal_period=9, use_zero_line=False)
+        # Steady rising prices keep MACD and signal in parallel with no crossover.
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 30 + list(range(100, 170)))}
+        signals = strategy.generate_signals(data)
+        assert signals == []
 
 
 class TestSuperTrendStrategy:

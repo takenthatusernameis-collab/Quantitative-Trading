@@ -463,6 +463,34 @@ def test_process_signal_sell_with_zero_strength():
     assert trades == []
 
 
+def test_process_signal_sell_executes():
+    """A sell signal with a positive strength and an existing holding executes
+    the `elif signal.action == "sell"` branch (295->exit)."""
+    config = BacktestConfig(initial_capital=100000.0)
+    engine = BacktestEngine(config=config)
+    engine.risk_manager.disable()
+    engine.portfolio.add_holding("AAPL", 100.0, 150.0)
+    sell = Signal(symbol="AAPL", action="sell", strength=1.0, price=160.0)
+    trades: list[Trade] = []
+    engine._process_signal(sell, trades, datetime.now())
+    assert len(trades) == 1
+    assert trades[0].action == "sell"
+    assert trades[0].pnl > 0
+
+
+def test_process_signal_hold_action_skips_branches():
+    """A signal whose action is neither 'buy' nor 'sell' (e.g. 'hold') falls
+    through both the `if` and `elif` arms, hitting the 295->exit branch."""
+    config = BacktestConfig(initial_capital=100000.0)
+    engine = BacktestEngine(config=config)
+    engine.risk_manager.disable()
+    engine.portfolio.add_holding("AAPL", 100.0, 150.0)
+    hold = Signal(symbol="AAPL", action="hold", strength=1.0, price=150.0)
+    trades: list[Trade] = []
+    engine._process_signal(hold, trades, datetime.now())
+    assert trades == []
+
+
 def test_run_backtest_uses_default_data_manager():
     """run_backtest with no data_manager/config falls back to the default DM."""
     from quant_trading.backtest import engine as engine_module

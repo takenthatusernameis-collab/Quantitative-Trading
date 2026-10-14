@@ -62,6 +62,12 @@ class TestPortfolio:
         assert portfolio.initial_capital == 0.0
         assert portfolio.cash == 0.0
 
+    def test_portfolio_total_value_already_set(self):
+        """When total_value is non-zero, __post_init__ skips the auto-derivation
+        (the `if self.total_value == 0` False branch, 67->exit)."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0, total_value=250000.0)
+        assert portfolio.total_value == 250000.0
+
     def test_portfolio_cash_only_init(self):
         """Portfolio infers initial_capital from cash when cash provided."""
         portfolio = Portfolio(cash=100000.0)

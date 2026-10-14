@@ -807,6 +807,40 @@ def test_base_optimizer_evaluate_params_error():
     assert result is None
 
 
+def test_base_optimizer_evaluate_params_error_quiet():
+    """_evaluate_params with verbose=False skips the error print (265->267)."""
+    from quant_trading.optimization.base import BaseOptimizer, ParameterGrid, ParameterSpace
+
+    class TestOptimizer(BaseOptimizer):
+        def run(self) -> OptimizationResult:
+            return OptimizationResult(best_params={}, best_score=0.0)
+
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20], param_type=int))
+
+    optimizer = TestOptimizer(
+        strategy_cls=RaisingStrategy,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=50),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        verbose=False,
+    )
+
+    params, score, result = optimizer._evaluate_params({"fast_period": 5, "slow_period": 20})
+    assert score == float("-inf")
+    assert result is None
+
+
 def test_grid_search_verbose(capsys):
     """Test GridSearch verbose prints progress."""
     symbols = ["AAPL"]
@@ -1334,3 +1368,118 @@ def test_bayesian_optimizer_error_handling(monkeypatch, capsys):
     assert "Bayesian optimization error" in out
     assert result.best_score == float("-inf")
     assert result.best_params == {}
+
+
+def test_walk_forward_result_to_dataframe_without_best_params():
+    """WalkForwardResult.to_dataframe skips the param update when a window has no
+    best_params (the `if w.best_params` False branch, 64->66)."""
+    from quant_trading.optimization.walk_forward import WalkForwardResult, WalkForwardWindow
+
+    window = WalkForwardWindow(
+        train_start=datetime(2024, 1, 1),
+        train_end=datetime(2024, 2, 1),
+        test_start=datetime(2024, 2, 1),
+        test_end=datetime(2024, 3, 1),
+        best_params=None,
+    )
+    result = WalkForwardResult(windows=[window])
+    df = result.to_dataframe()
+    assert "window" in df.columns
+    assert not any(c.startswith("param_") for c in df.columns)
+
+
+def test_walk_forward_with_failing_strategy_skips_test():
+    """When every window's optimization yields an empty best_params dict (the
+    strategy raises during backtesting), the test backtest is skipped for every
+    window (the `if window.best_params` False branch, 299->279)."""
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=100)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20], param_type=int))
+
+    optimizer = WalkForwardOptimizer(
+        strategy_cls=RaisingStrategy,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=90),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_windows=2,
+        train_size=0.5,
+        verbose=False,
+    )
+
+    result = optimizer.run()
+    assert len(result.windows) == 2
+    for window in result.windows:
+        assert window.best_params == {}
+        assert window.test_result is None
+
+
+def test_bayesian_optimizer_error_handling_quiet(monkeypatch):
+    """When skopt fails and verbose is False, the except branch runs without
+    printing (the `if self.verbose` False branch, 206->209)."""
+    import skopt
+
+    def raise_error(*args, **kwargs):
+        raise RuntimeError("simulated skopt failure")
+
+    monkeypatch.setattr(skopt, "gp_minimize", raise_error)
+
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5, 10]))
+    param_grid.add(ParameterSpace("slow_period", values=[20, 30]))
+
+    optimizer = BayesianOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=50),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_initial_points=1,
+        n_calls=2,
+        random_state=42,
+        verbose=False,
+    )
+
+    result = optimizer.run()
+    assert result.best_score == float("-inf")
+    assert result.best_params == {}
+
+
+def test_bayesian_create_skopt_space_min_val_without_max():
+    """A parameter space with min_val set but max_val None is skipped in
+    _create_skopt_space (the `elif` fall-through, 119->115)."""
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("slow", min_val=20, param_type=int))  # no max_val
+
+    optimizer = BayesianOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=["AAPL"],
+        start=datetime.now() - timedelta(days=10),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=DataManager([MockDataProvider({"AAPL": create_test_data("AAPL", 20)})]),
+    )
+
+    space = optimizer._create_skopt_space()
+    assert space == []
+
+
+

@@ -272,3 +272,28 @@ def test_generate_signals_nan_aroon_skipped():
     df["low"] = float("nan")
     signals = strategy.generate_signals({"AAPL": df})
     assert signals == []
+
+
+def test_generate_signals_no_crossover():
+    """generate_signals produces no signal when neither Aroon crossover fires
+    (the bearish `elif` at line 994 is False, so control falls through to the
+    return at line 948)."""
+    strategy = AroonStrategy(period=25)
+    # A steady uptrend: Aroon Up stays high, Aroon Down stays low, so neither
+    # the bullish `if` nor the bearish `elif` condition is satisfied on the final bar.
+    df = create_aroon_bullish_data("AAPL", days=50)
+    signals = strategy.generate_signals({"AAPL": df.iloc[:-1]})
+    assert signals == []
+
+
+def test_aroon_calculation_nan_in_window():
+    """A NaN inside the rolling window yields NaN Aroon values (the inner loop
+    never matches, so the `for` completes without `break`)."""
+    strategy = AroonStrategy(period=5)
+    high = pd.Series([10.0, 12.0, 11.0, 13.0, float("nan"), 15.0, 14.0])
+    low = pd.Series([8.0, 9.0, 7.0, 8.0, float("nan"), 5.0, 4.0])
+
+    aroon_up, aroon_down = strategy._calculate_aroon(high, low)
+
+    assert pd.isna(aroon_up.iloc[-1])
+    assert pd.isna(aroon_down.iloc[-1])

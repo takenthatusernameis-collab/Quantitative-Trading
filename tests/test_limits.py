@@ -145,6 +145,20 @@ class TestPortfolioLimit:
         violations = limit.check(positions, 90000.0, 100000.0)
         assert violations == []
 
+    def test_check_skips_drawdown_when_peak_zero(self):
+        """The drawdown check is skipped when peak_value <= 0 (72->77)."""
+        limit = PortfolioLimit(max_drawdown=0.10)
+        positions = {}
+        violations = limit.check(positions, 85000.0, 0.0)
+        assert violations == []
+
+    def test_check_no_positions_with_peak(self):
+        """With no positions and a positive peak, the loop body is skipped and
+        the drawdown check is still evaluated (covers the peak>0 branch)."""
+        limit = PortfolioLimit(max_drawdown=0.20)
+        violations = limit.check({}, 90000.0, 100000.0)
+        assert violations == []
+
     def test_check_ok(self):
         """Test check passes for valid portfolio."""
         limit = PortfolioLimit()

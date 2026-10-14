@@ -288,6 +288,110 @@ class TestRebalancer:
         quantity = self.rebalancer._resolve_buy_quantity("AAPL", 1000.0, signals, {})
         assert quantity == pytest.approx(1000.0 / 155.0)
 
+    def test_generate_rebalance_actions_within_threshold(self):
+        """No action is generated when deviation is within the rebalance threshold."""
+        # AAPL target 40% of 100k = 40k; hold ~40k -> deviation within 5%.
+        # MSFT target 60% = 60k; hold exactly 60k.
+        self.portfolio.add_holding("AAPL", 267, 150.0)  # $40,050 (~40.05%)
+        self.portfolio.add_holding("MSFT", 200, 300.0)  # $60,000 (60%)
+        self.portfolio.total_value = 100000.0
+
+        actions = self.rebalancer.generate_rebalance_actions()
+        assert actions == []
+
+    def test_generate_rebalance_actions_exact_target_value(self):
+        """No buy/sell when current value exactly equals target (diff == 0)."""
+        # AAPL target 40k; hold exactly 40k. diff == 0 so neither buy nor sell arm.
+        self.portfolio.add_holding("AAPL", 266, 150.0)  # $39,900
+        self.portfolio.add_holding("MSFT", 200, 300.0)  # $60,000
+        self.portfolio.holdings["AAPL"].update_price(40000.0 / 266)  # market_value -> 40k
+        self.portfolio.total_value = 100000.0
+
+        actions = self.rebalancer.generate_rebalance_actions()
+        assert actions == []
+
+    def test_generate_rebalance_actions_buy_signal_in_target_allocation(self):
+        """A buy signal for a symbol already in the target allocation is ignored
+        (the buy branch requires the symbol NOT be in target_allocation)."""
+        self.portfolio.cash = 100000.0
+        self.portfolio.total_value = 100000.0
+
+        signals = [
+            Signal(symbol="AAPL", action="buy", strength=0.8, price=150.0),
+        ]
+        actions = self.rebalancer.generate_rebalance_actions(
+            signals=signals, prices={"AAPL": 150.0, "MSFT": 300.0}
+        )
+        signal_actions = [a for a in actions if a.reason.startswith("signal_")]
+        assert signal_actions == []
+
+    def test_generate_rebalance_actions_sell_signal_no_holding(self):
+        """A sell signal for a symbol with no holding produces no sell action."""
+        self.portfolio.add_holding("AAPL", 100, 150.0)
+        self.portfolio.total_value = self.portfolio.cash + self.portfolio.get_holdings_value()
+
+        signals = [
+            Signal(symbol="MSFT", action="sell", strength=1.0, price=300.0),
+        ]
+        actions = self.rebalancer.generate_rebalance_actions(signals=signals)
+        signal_sells = [a for a in actions if a.action == "sell" and a.symbol == "MSFT"]
+        assert signal_sells == []
+
+    def test_resolve_buy_quantity_zero_avg_signal_price(self):
+        """_resolve_buy_quantity returns 0 when the average signal price is <= 0."""
+        self.portfolio.cash = 100000.0
+        self.portfolio.total_value = 100000.0
+        signals = [Signal(symbol="AAPL", action="buy", strength=1.0, price=0.0)]
+        assert self.rebalancer._resolve_buy_quantity("AAPL", 1000.0, signals, {}) == 0.0
+
+    def test_resolve_sell_quantity_no_holding(self):
+        """_resolve_sell_quantity returns 0 when the symbol has no holding."""
+        assert self.rebalancer._resolve_sell_quantity("AAPL", 1000.0) == 0.0
+
+    def test_set_target_allocation_already_normalized(self):
+        """set_target_allocation skips normalization when the sum is ~1.0."""
+        self.rebalancer.set_target_allocation({"AAPL": 0.4, "MSFT": 0.6})
+        assert self.rebalancer.target_allocation == {"AAPL": 0.4, "MSFT": 0.6}
+
+    def test_generate_rebalance_actions_buy_signal_no_price(self):
+        """A buy signal with no price and a positive diff produces no action
+        (the `diff > 0 and signal.price` guard short-circuits to False)."""
+        self.portfolio.cash = 100000.0
+        self.portfolio.total_value = 100000.0
+
+        signals = [
+            Signal(symbol="GOOGL", action="buy", strength=0.8, price=None),
+        ]
+        actions = self.rebalancer.generate_rebalance_actions(
+            signals=signals, prices={"AAPL": 150.0, "MSFT": 300.0}
+        )
+        signal_actions = [a for a in actions if a.reason.startswith("signal_")]
+        assert signal_actions == []
+
+    def test_generate_rebalance_actions_exact_diff_negative_threshold(self):
+        """With a negative threshold the outer deviation check is True even for a
+        zero diff, but diff == 0 means neither the buy nor the sell arm is taken
+        (the elif `diff < 0` is False)."""
+        rebalancer = Rebalancer(
+            self.portfolio,
+            target_allocation={"AAPL": 0.4, "MSFT": 0.6},
+            rebalance_threshold=-0.1,
+        )
+        self.portfolio.add_holding("AAPL", 266, 150.0)  # $39,900
+        self.portfolio.add_holding("MSFT", 200, 300.0)  # $60,000
+        self.portfolio.holdings["AAPL"].update_price(40000.0 / 266)  # -> $40,000
+        self.portfolio.total_value = 100000.0
+
+        actions = rebalancer.generate_rebalance_actions()
+        assert actions == []
+
+    def test_resolve_buy_quantity_negative_signal_price(self):
+        """_resolve_buy_quantity returns 0 when the averaged signal price is <= 0."""
+        self.portfolio.cash = 100000.0
+        self.portfolio.total_value = 100000.0
+        signals = [Signal(symbol="AAPL", action="buy", strength=1.0, price=-5.0)]
+        assert self.rebalancer._resolve_buy_quantity("AAPL", 1000.0, signals, {}) == 0.0
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

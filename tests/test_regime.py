@@ -195,3 +195,34 @@ def test_detect_regimes_returns_empty_after_dropna():
     result = detect_regimes(prices, window=20)
     assert result.n_segments == 0
     assert result.current_regime == Regime.UNKNOWN
+
+
+def test_merge_segments_all_none_labels():
+    """When every label is None, the loop body is skipped and `current` stays None,
+    so the trailing `if current is not None` (202->206) is False and no segment
+    is appended."""
+    from quant_trading.regime.detector import RegimeDetector
+
+    detector = RegimeDetector()
+    prices = _make_series(n=20)
+    returns = prices.pct_change().dropna()
+    rolling_vol = returns.rolling(window=5).std()
+
+    labels: list = [None] * 10
+    segments = detector._merge_segments(labels, prices, returns, rolling_vol)
+    assert segments == []
+
+
+def test_merge_segments_normal():
+    """Sanity check that a normal label list produces segments."""
+    from quant_trading.regime import Regime
+    from quant_trading.regime.detector import RegimeDetector
+
+    detector = RegimeDetector()
+    prices = _make_series(n=20)
+    returns = prices.pct_change().dropna()
+    rolling_vol = returns.rolling(window=5).std()
+
+    labels = [Regime.BULL_LOW_VOL, Regime.BULL_LOW_VOL, Regime.BEAR_LOW_VOL]
+    segments = detector._merge_segments(labels, prices, returns, rolling_vol)
+    assert len(segments) == 2
