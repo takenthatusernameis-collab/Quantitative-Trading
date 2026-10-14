@@ -34,19 +34,22 @@ jobs:
         shell: bash
         run: bash -n .github/scripts/kilo-controller.sh
 
-      - name: Guard cutoff-bounded unlimited session policy
+      - name: Guard customizable sessions and cutoff-bounded retries
         shell: bash
         run: |
           set -euo pipefail
           controller=.github/scripts/kilo-controller.sh
           workflow=.github/workflows/main.yml
           bash -n "$controller"
-          grep -Fq 'SESSION_LIMIT_POLICY="unlimited until cutoff"' "$controller"
-          grep -Fq 'while true; do' "$controller"
+          grep -Fq 'KILO_INPUT_AGENTS' "$controller"
+          grep -Fq 'SESSION_LIMIT_POLICY="$agents"' "$controller"
+          grep -Fq 'KILO_INPUT_AGENTS:' "$workflow"
+          grep -Fq 'type: number' "$workflow"
+          grep -Fq 'default: "1000"' "$workflow"
+          grep -Fq 'agent_index' "$controller"
           grep -Fq '355-minute cutoff' "$controller"
-          grep -Fq 'exactly two validation sessions' "$controller"
-          if grep -Eq 'KILO_INPUT_AGENTS|for agent_index|agents=1000|inputs[.]agents|default: "1000"' "$controller" "$workflow"; then
-            echo "::error::An explicit normal-session count cap remains."
+          if grep -Eq 'agents.{0,12}-gt[[:space:]]+1000|MAX_TRANSIENT_ATTEMPTS|KILO_MAX_SESSIONS|session_limit_reached|inputs[.]sessions' "$controller" "$workflow"; then
+            echo "::error::An arbitrary session maximum or capped retry policy was reintroduced."
             exit 1
           fi
-          echo "Normal Kilo sessions continue until cutoff; explicit two-session smoke mode preserved: OK"
+          echo "Customizable session target with count-unbounded retries and 355-minute hard cutoff: OK"
