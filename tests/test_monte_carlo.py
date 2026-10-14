@@ -42,6 +42,18 @@ def _make_result(equity: pd.Series | None = None) -> BacktestResult:
     )
 
 
+def _make_empty_result() -> MonteCarloResult:
+    """Build a degenerate MonteCarloResult with no simulations."""
+    return MonteCarloResult(
+        simulations=[],
+        original_metrics=BacktestMetrics(),
+        n_simulations=0,
+        confidence_level=0.95,
+        start_time=datetime.now(),
+        end_time=datetime.now(),
+    )
+
+
 def test_monte_carlo_result_runs_n_simulations():
     result = _make_result()
     mc = MonteCarloSimulator(n_simulations=50, random_state=42)
@@ -194,3 +206,96 @@ def test_monte_carlo_result_summary_empty():
     )
     summary = res.summary()
     assert summary == {}
+
+
+def test_monte_carlo_result_probability_of_profit_empty_raises():
+    """probability_of_profit raises on an empty result instead of dividing by zero."""
+    res = _make_empty_result()
+    with pytest.raises(ValueError, match="No simulations available"):
+        res.probability_of_profit()
+
+
+def test_monte_carlo_result_probability_of_beat_benchmark_empty_raises():
+    """probability_of_beat_benchmark raises on an empty result."""
+    res = _make_empty_result()
+    with pytest.raises(ValueError, match="No simulations available"):
+        res.probability_of_beat_benchmark(0.0)
+
+
+def test_monte_carlo_result_get_percentile_empty_raises():
+    """get_percentile raises on an empty result instead of an opaque numpy error."""
+    res = _make_empty_result()
+    with pytest.raises(ValueError, match="No simulations available"):
+        res.get_percentile("total_return_pct", 50)
+
+
+def test_monte_carlo_result_get_confidence_interval_empty_raises():
+    """get_confidence_interval raises on an empty result."""
+    res = _make_empty_result()
+    with pytest.raises(ValueError, match="No simulations available"):
+        res.get_confidence_interval("total_return_pct")
+
+
+def test_monte_carlo_result_expected_shortfall_empty_raises():
+    """expected_shortfall raises on an empty result instead of an opaque numpy error."""
+    res = _make_empty_result()
+    with pytest.raises(ValueError, match="No simulations available"):
+        res.expected_shortfall("total_return_pct", confidence=0.95)
+
+
+def test_monte_carlo_parametric_constant_returns():
+    """Parametric method handles a degenerate (zero-variance) return distribution."""
+    # A flat equity curve yields all-zero returns (std == 0).
+    equity = pd.Series([100_000.0] * 60)
+    result = _make_result(equity=equity)
+
+    sim = run_monte_carlo(result, n_simulations=20, method="parametric", random_state=11)
+
+    assert len(sim.simulations) == 20
+    # Constant equity has no change, so every simulated return is 0%.
+    assert all(m.total_return_pct == 0.0 for m in sim.simulations)
+
+
+def test_monte_carlo_parametric_negative_returns():
+    """Parametric method handles an extreme all-negative return distribution."""
+    import numpy as np
+
+    # Strictly declining equity curve (-1% daily so all returns are negative).
+    daily_returns = np.full(59, -0.01)
+    equity_vals = 100_000.0 * np.cumprod(1 + daily_returns)
+    equity = pd.Series(np.concatenate([[100_000.0], equity_vals]))
+    result = _make_result(equity=equity)
+
+    sim = run_monte_carlo(result, n_simulations=20, method="parametric", random_state=7)
+
+    assert len(sim.simulations) == 20
+    # All daily returns are -1%, so every simulated return is negative.
+    assert all(m.total_return_pct < 0 for m in sim.simulations)
+    assert sim.summary()["probability_of_profit"] == 0.0
+
+
+def test_monte_carlo_summary_is_json_serializable():
+    """summary() output must be JSON-serializable for result serialization."""
+    import json
+
+    result = _make_result()
+    sim = run_monte_carlo(result, n_simulations=20, random_state=3)
+
+    summary = sim.summary()
+    json.dumps(summary)  # should not raise
+
+
+def test_monte_carlo_probability_of_beat_benchmark_extremes():
+    """probability_of_beat_benchmark returns 0.0 and 1.0 at extremes."""
+    result = _make_result()
+    sim = run_monte_carlo(result, n_simulations=50, random_state=5)
+    returns = [m.total_return_pct for m in sim.simulations]
+    high_benchmark = max(returns) + 1.0
+    low_benchmark = min(returns) - 1.0
+
+    assert sim.probability_of_beat_benchmark(high_benchmark) == 0.0
+    assert sim.probability_of_beat_benchmark(low_benchmark) == 1.0
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

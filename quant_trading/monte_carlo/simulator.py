@@ -22,17 +22,24 @@ class MonteCarloResult:
     start_time: datetime
     end_time: datetime
 
+    def _ensure_simulations(self) -> None:
+        """Raise if no simulation results are available for statistics."""
+        if not self.simulations:
+            raise ValueError("No simulations available")
+
     @property
     def duration_seconds(self) -> float:
         return (self.end_time - self.start_time).total_seconds()
 
     def get_percentile(self, metric: str, percentile: float) -> float:
         """Get percentile value for a metric across simulations."""
+        self._ensure_simulations()
         values = [getattr(s, metric) for s in self.simulations]
         return float(np.percentile(values, percentile))
 
     def get_confidence_interval(self, metric: str) -> tuple[float, float]:
         """Get confidence interval for a metric."""
+        self._ensure_simulations()
         alpha = (1 - self.confidence_level) / 2
         lower = self.get_percentile(metric, alpha * 100)
         upper = self.get_percentile(metric, (1 - alpha) * 100)
@@ -40,16 +47,19 @@ class MonteCarloResult:
 
     def probability_of_profit(self) -> float:
         """Probability that total return is positive."""
+        self._ensure_simulations()
         returns = [s.total_return_pct for s in self.simulations]
         return sum(1 for r in returns if r > 0) / len(returns)
 
     def probability_of_beat_benchmark(self, benchmark_return_pct: float) -> float:
         """Probability that total return exceeds benchmark."""
+        self._ensure_simulations()
         returns = [s.total_return_pct for s in self.simulations]
         return sum(1 for r in returns if r > benchmark_return_pct) / len(returns)
 
     def expected_shortfall(self, metric: str, confidence: float = 0.95) -> float:
         """Expected shortfall (CVaR) for a metric at given confidence level."""
+        self._ensure_simulations()
         values = [getattr(s, metric) for s in self.simulations]
         var = np.percentile(values, (1 - confidence) * 100)
         tail_values = [v for v in values if v <= var]
