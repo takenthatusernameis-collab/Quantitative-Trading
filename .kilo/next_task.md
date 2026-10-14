@@ -8,6 +8,11 @@ it, then repaired the regressions that `bdf3d2a` (the commit that added the
 `IchimokuCloudStrategy`) had left in the working tree: a failing CLI test, a
 dead duplicate module, and lint/format regressions.
 
+The current agent's task — **Add dedicated tests for the Ichimoku CLI paths in
+`examples/cli.py`** — is COMPLETE. This session added tests for the
+Ichimoku `create_param_grid` function and the single-run dispatch via
+`--strategy ichimoku --offline`, achieving coverage for these CLI entry points.
+
 ## What changed
 
 ### Tests (`tests/`)
@@ -18,27 +23,33 @@ dead duplicate module, and lint/format regressions.
     updated the combined-run mock, so `run_combined` raised
     `ValueError("Unknown strategy")` for `Ichimoku_Cloud`. Added an
     `("Ichimoku_Cloud", 9.0)` mock result and `assert "Ichimoku_Cloud" in captured.out`.
-    `test_run_combined_with_output` already passed (its mock returns a single
-    generic result for every strategy) and was left unchanged.
-- `tests/test_strategies_examples.py`:
-  - Added `IchimokuCloudStrategy` to the example-strategy imports.
-  - `TestKeltnerChannelStrategy`: added
-    `test_generate_signals_middle_cross_no_signal_when_above_ema` — covers the
-    `1186->1097` false branch (price above EMA on the final two bars, no middle
-    cross when `use_middle_cross=True`).
-  - `TestStochasticOscillatorStrategy`: added
-    `test_generate_signals_nan_values_skipped` (covers line `1307` `continue`
-    when OHLC has NaN in the final rows) and
-    `test_generate_signals_midline_no_cross_stays_above` (covers the
-    `1363->1286` false branch: `%K` stays above 50 on the final two bars, so the
-    midline cross-down `elif` is False).
-  - Added `TestIchimokuCloudStrategy` (init, defaults, validation x3,
-    insufficient data, NaN skip, bullish crossover, bearish crossover, no
-    crossover) — covers Ichimoku `1422`/`1424`/`1426` (validation) and the
-    entire `generate_signals` body (`1429`-`1526`). Crafted with small periods
-    (`tenkan=3, kijun=5, senkou_b=7`) and deterministic close-price fixtures via
-    the existing `create_donchian_data` helper.
-  - All data is synthetic/in-memory; no network.
+  - Added `TestCreateStrategy::test_create_ichimoku_strategy` and
+    `test_create_ichimoku_strategy_custom_params` to test Ichimoku strategy
+    creation via `create_strategy`.
+  - Added `TestCreateConfig::test_create_param_grid_ichimoku` to test the
+    Ichimoku parameter grid creation with correct ranges and validator.
+  - Added `TestMain::test_main_offline_ichimoku` and
+    `test_main_offline_ichimoku_with_custom_params` to test the CLI single-run
+    for Ichimoku strategy with offline data.
+  - `tests/test_strategies_examples.py`:
+    - Added `IchimokuCloudStrategy` to the example-strategy imports.
+    - `TestKeltnerChannelStrategy`: added
+      `test_generate_signals_middle_cross_no_signal_when_above_ema` — covers the
+      `1186->1097` false branch (price above EMA on the final two bars, no middle
+      cross when `use_middle_cross=True`).
+    - `TestStochasticOscillatorStrategy`: added
+      `test_generate_signals_nan_values_skipped` (covers line `1307` `continue`
+      when OHLC has NaN in the final rows) and
+      `test_generate_signals_midline_no_cross_stays_above` (covers the
+      `1363->1286` false branch: `%K` stays above 50 on the final two bars, so the
+      midline cross-down `elif` is False).
+    - Added `TestIchimokuCloudStrategy` (init, defaults, validation x3,
+      insufficient data, NaN skip, bullish crossover, bearish crossover, no
+      crossover) — covers Ichimoku `1422`/`1424`/`1426` (validation) and the
+      entire `generate_signals` body (`1429`-`1526`). Crafted with small periods
+      (`tenkan=3, kijun=5, senkou_b=7`) and deterministic close-price fixtures via
+      the existing `create_donchian_data` helper.
+    - All data is synthetic/in-memory; no network.
 
 ### Source cleanup (repaired `bdf3d2a`'s incomplete state)
 - Deleted `quant_trading/strategies/ichimoku_strategy.py` — a 0%-coverage
@@ -58,15 +69,20 @@ dead duplicate module, and lint/format regressions.
 ## What was verified (2026-10-14T20:4x Z)
 
 - `python -m pytest tests/ --cov=quant_trading --cov-report=term-missing -q`
-  → **948 passed**, 13 warnings.
+  → **953 passed**, 13 warnings.
   - `quant_trading/strategies/examples.py` … 100% (541 stmts, 194 branches, 0 missed)
   - TOTAL (quant_trading) … 100% (4104 stmts, 1286 branches, 0 missed, 0 partial)
 - `python -m ruff check .` → **All checks passed!**
 - `python -m black --check .` → 62 files unchanged, 0 reformatted.
 - `python -m mypy quant_trading` → **Success: no issues found in 36 source files**.
 - CLI combined run now prints `Ichimoku_Cloud` and returns 0.
+- Ichimoku CLI single-run (`--strategy ichimoku --offline`) works and prints
+  expected output.
+- Ichimoku CLI parameter grid (`create_param_grid`) builds correct grid and
+  validator.
 
-### Note on a pre-existing environment quirk (not a code defect)
+## Note on a pre-existing environment quirk (not a code defect)
+
 `python -m pytest tests/test_X.py --cov=quant_trading.strategies.examples` fails
 at collection with `ImportError: cannot load module more than once per process`.
 This is a numpy 2.5.4 + pytest-cov 7.1.0 / coverage `sys.monitoring`
@@ -79,47 +95,30 @@ command satisfies the gate.
 
 ## What remains unresolved
 
-Nothing blocking. The assigned task is complete and all gates pass.
-
-## Approaches tried / failed
-
-None for the core task — each fix was applied once and verified. The only
-non-trivial decision was treating `ichimoku_strategy.py` as dead code to delete
-(verified it is imported nowhere via grep across `quant_trading/`, `examples/`,
-`tests/`; `quant_trading/strategies/__init__.py` imports `IchimokuCloudStrategy`
-from `.examples`, not from `ichimoku_strategy`).
-
-## Remaining project state
-
-- `quant_trading/` package: 100% line+branch coverage (all modules).
-- `examples/cli.py` is **outside** the `--cov=quant_trading` gate (it lives in
-  `examples/`, not `quant_trading/`). It is exercised by `tests/test_cli.py` but
-  the Ichimoku single-run path and the `create_param_grid` Ichimoku branch have
-  no dedicated coverage. See next task.
+Nothing blocking. The Ichimoku CLI paths (single-run and create_param_grid) are
+now tested. However, the Ichimoku strategy still lacks coverage for the
+optimization (`--optimize`) and walk-forward (`--walk-forward`) CLI paths in
+`examples/cli.py`.
 
 ## Next precise task
 
-**Add dedicated tests for the Ichimoku CLI paths in `examples/cli.py`.**
+**Add dedicated tests for the Ichimoku optimization and walk-forward CLI paths in `examples/cli.py`.**
 
-Evidence: `tests/test_cli.py` references Ichimoku ONLY at lines 571 and 648
-(both inside the `test_run_combined_all_strategies` mock results list); there is
-no test that runs `--strategy ichimoku` alone or via `--optimize`. Two concrete
-uncovered entry points exist:
-1. `create_param_grid(args)` → `elif args.strategy == "ichimoku":` at
-   `examples/cli.py:1008` (builds a `ParameterGrid` of
-   `tenkan_period`/`kijun_period`/`senkou_b_period` plus a
-   `tenkan < kijun and senkou_b > kijun` validator).
-2. The single-run dispatch for `strategy == "ichimoku"` (uses
-   `factory_create_strategy("ichimoku", ...)` via `create_strategy`, defaulting
-   to name `"Ichimoku_Cloud"`).
+Evidence: `tests/test_cli.py` has tests for `--optimize` and `--walk-forward`
+for the `ma` strategy (see `TestMain::test_main_optimize_calls_run_optimization`
+and `TestMain::test_main_walk_forward_calls_run_walk_forward`) but no equivalent
+tests for the `ichimoku` strategy. Two concrete uncovered entry points exist:
+1. Running `main()` with `--optimize --strategy ichimoku --offline` (mocked
+   `run_optimization`) should call `run_optimization` and return 0.
+2. Running `main()` with `--walk-forward --strategy ichimoku --offline` (mocked
+   `run_walk_forward`) should call `run_walk_forward` and return 0.
 
-Suggested bounded verification: add a test that calls
-`create_param_grid` with an `argparse.Namespace` for `strategy="ichimoku"` and
-asserting the resulting grid's dimensions/validator, plus a test running
-`main()` with `--strategy ichimoku --offline` (mocked `run_backtest`) asserting
-exit code 0 and an `Ichimoku_Cloud` line in output.
+Suggested bounded verification: add two test methods in `TestMain` class that
+mock the respective functions and verify they are called with the correct
+arguments, similar to the existing tests for the `ma` strategy.
 
 ## Constraints for the next agent
+
 - Preserve 100% coverage on `quant_trading/`; any new source lines must be
   covered by the new tests.
 - No network-dependent tests (mock external calls; use synthetic in-memory data).

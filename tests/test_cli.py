@@ -19,6 +19,7 @@ from quant_trading.config.settings import Config
 from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
     DonchianChannelStrategy,
+    IchimokuCloudStrategy,
     MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
@@ -448,6 +449,88 @@ class TestCreateStrategy:
         except ValueError as e:
             assert "unknown" in str(e)
 
+    def test_create_ichimoku_strategy(self):
+        args = argparse.Namespace(
+            strategy="ichimoku",
+            tenkan_period=9,
+            kijun_period=26,
+            senkou_b_period=52,
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            macd_fast=12,
+            macd_slow=26,
+            macd_signal=9,
+            macd_zero_line=False,
+            st_period=10,
+            st_multiplier=3.0,
+            dc_period=20,
+            dc_exit_period=20,
+            aroon_period=25,
+            kc_ema_period=20,
+            kc_atr_period=10,
+            kc_multiplier=2.0,
+            kc_use_middle_cross=False,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
+        )
+        strategy = create_strategy(args)
+        assert strategy is not None
+        assert isinstance(strategy, IchimokuCloudStrategy)
+        assert strategy.tenkan_period == 9
+        assert strategy.kijun_period == 26
+        assert strategy.senkou_b_period == 52
+        assert strategy.name == "Ichimoku_Cloud"
+
+    def test_create_ichimoku_strategy_custom_params(self):
+        args = argparse.Namespace(
+            strategy="ichimoku",
+            tenkan_period=5,
+            kijun_period=15,
+            senkou_b_period=30,
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            macd_fast=12,
+            macd_slow=26,
+            macd_signal=9,
+            macd_zero_line=False,
+            st_period=10,
+            st_multiplier=3.0,
+            dc_period=20,
+            dc_exit_period=20,
+            aroon_period=25,
+            kc_ema_period=20,
+            kc_atr_period=10,
+            kc_multiplier=2.0,
+            kc_use_middle_cross=False,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
+        )
+        strategy = create_strategy(args)
+        assert strategy is not None
+        assert isinstance(strategy, IchimokuCloudStrategy)
+        assert strategy.tenkan_period == 5
+        assert strategy.kijun_period == 15
+        assert strategy.senkou_b_period == 30
+        assert (
+            strategy.name == "Ichimoku_Cloud"
+        )  # name is not customized in create_strategy for ichimoku
+
 
 class TestCreateConfig:
     """Tests for create_config function."""
@@ -540,6 +623,85 @@ class TestCreateConfig:
         assert config.data.offline is True
         assert config.data.synthetic_days == 500
         assert config.data.synthetic_seed == 123
+
+    def test_create_param_grid_ichimoku(self):
+        from examples.cli import create_param_grid
+        from quant_trading.optimization import ParameterGrid
+
+        # Set up args with ichimoku strategy and custom ranges
+        args = argparse.Namespace(
+            strategy="ichimoku",
+            ichimoku_tenkan_period_range="5,15,2",
+            ichimoku_kijun_period_range="10,30,5",
+            ichimoku_senkou_b_period_range="20,60,10",
+            # Other strategy ranges (irrelevant for ichimoku but required for Namespace)
+            ma_fast_range="5,20,5",
+            ma_slow_range="20,50,5",
+            rsi_period_range="10,20,2",
+            rsi_oversold_range="20,35,5",
+            rsi_overbought_range="65,80,5",
+            bb_period_range="10,30,5",
+            bb_std_range="1.5,3.0,0.5",
+            macd_fast_range="8,16,2",
+            macd_slow_range="20,30,2",
+            macd_signal_range="7,12,1",
+            st_period_range="7,20,1",
+            st_multiplier_range="2.0,4.0,0.5",
+            dc_period_range="10,40,5",
+            dc_exit_period_range="5,20,5",
+            aroon_period_range="10,50,5",
+            kc_ema_period_range="10,30,5",
+            kc_atr_period_range="5,20,2",
+            kc_multiplier_range="1.0,3.0,0.5",
+            stoch_k_period_range="10,20,2",
+            stoch_d_period_range="2,5,1",
+            stoch_oversold_range="10,30,5",
+            stoch_overbought_range="70,90,5",
+        )
+
+        grid = create_param_grid(args)
+        assert isinstance(grid, ParameterGrid)
+
+        # Check that we added three parameter spaces
+        assert len(grid.spaces) == 3
+        # Check each space by name
+        tenkan_space = grid.spaces.get("tenkan_period")
+        assert tenkan_space is not None
+        assert tenkan_space.min_val == 5.0
+        assert tenkan_space.max_val == 15.0
+        assert tenkan_space.step == 2.0
+        assert tenkan_space.param_type == int
+
+        kijun_space = grid.spaces.get("kijun_period")
+        assert kijun_space is not None
+        assert kijun_space.min_val == 10.0
+        assert kijun_space.max_val == 30.0
+        assert kijun_space.step == 5.0
+        assert kijun_space.param_type == int
+
+        senkou_b_space = grid.spaces.get("senkou_b_period")
+        assert senkou_b_space is not None
+        assert senkou_b_space.min_val == 20.0
+        assert senkou_b_space.max_val == 60.0
+        assert senkou_b_space.step == 10.0
+        assert senkou_b_space.param_type == int
+
+        # Check the validator
+        assert grid.validator is not None
+        # Valid parameters: tenkan < kijun and senkou_b > kijun
+        assert (
+            grid.validator({"tenkan_period": 5, "kijun_period": 10, "senkou_b_period": 20}) is True
+        )
+        assert (
+            grid.validator({"tenkan_period": 5, "kijun_period": 10, "senkou_b_period": 10}) is False
+        )  # senkou_b not > kijun
+        assert (
+            grid.validator({"tenkan_period": 15, "kijun_period": 10, "senkou_b_period": 20})
+            is False
+        )  # tenkan not < kijun
+        assert (
+            grid.validator({"tenkan_period": 5, "kijun_period": 20, "senkou_b_period": 30}) is True
+        )
 
 
 class TestRunCombined:
@@ -825,6 +987,62 @@ class TestMain:
             import os
 
             assert os.path.exists(output_path)
+
+    def test_main_offline_ichimoku(self, capsys):
+        """Running offline with ichimoku strategy should work and print Ichimoku_Cloud in output."""
+        args = ["--offline", "--strategy", "ichimoku", "--symbols", "AAPL", "--days", "120"]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Running backtest for Ichimoku_Cloud" in captured.out
+        assert "Symbols:" in captured.out
+        assert "Date range:" in captured.out
+        assert (
+            "Provider: synthetic" in captured.out
+        )  # because --offline flag sets provider to synthetic
+        assert "Mode: OFFLINE (synthetic data)" in captured.out
+        # Check that the results block is printed
+        assert "Results for: Ichimoku_Cloud" in captured.out
+        assert "Initial Capital:" in captured.out
+        assert "Final Value:" in captured.out
+        assert "Total Return:" in captured.out
+        assert "Total Trades:" in captured.out
+        assert "Win Rate:" in captured.out
+        assert "Sharpe Ratio:" in captured.out
+        assert "Max Drawdown:" in captured.out
+        assert "Profit Factor:" in captured.out
+
+    def test_main_offline_ichimoku_with_custom_params(self, capsys):
+        """Running offline with ichimoku strategy and custom parameters."""
+        args = [
+            "--offline",
+            "--strategy",
+            "ichimoku",
+            "--tenkan-period",
+            "5",
+            "--kijun-period",
+            "15",
+            "--senkou-b-period",
+            "30",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "120",
+        ]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert (
+            "Running backtest for Ichimoku_Cloud" in captured.out
+        )  # name is still default because create_strategy doesn't customize name for ichimoku
+        # Note: The strategy name is not customized in create_strategy for ichimoku, so it remains "Ichimoku_Cloud"
+        # But we can check that the parameters were used by looking at the generated signals? Not in the CLI output.
+        # However, we can at least verify that the run succeeded.
+        assert "Results for: Ichimoku_Cloud" in captured.out
 
     def test_main_error_handling(self, capsys):
         """Main handles errors gracefully."""
