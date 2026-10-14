@@ -15,7 +15,7 @@ import pandas as pd
 import pytest
 
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
-from quant_trading.data.yfinance_provider import YFinanceProvider, AlphaVantageProvider
+from quant_trading.data.yfinance_provider import AlphaVantageProvider, YFinanceProvider
 
 FIELDS = ["Open", "High", "Low", "Close", "Volume"]
 
