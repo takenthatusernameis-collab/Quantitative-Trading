@@ -1011,20 +1011,35 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
         senkou_b_min, senkou_b_max, senkou_b_step = parse_range(args.ichimoku_senkou_b_period_range)
         grid.add(
             ParameterSpace(
-                "tenkan_period", min_val=tenkan_min, max_val=tenkan_max, step=tenkan_step, param_type=int
+                "tenkan_period",
+                min_val=tenkan_min,
+                max_val=tenkan_max,
+                step=tenkan_step,
+                param_type=int,
             )
         )
         grid.add(
             ParameterSpace(
-                "kijun_period", min_val=kijun_min, max_val=kijun_max, step=kijun_step, param_type=int
+                "kijun_period",
+                min_val=kijun_min,
+                max_val=kijun_max,
+                step=kijun_step,
+                param_type=int,
             )
         )
         grid.add(
             ParameterSpace(
-                "senkou_b_period", min_val=senkou_b_min, max_val=senkou_b_max, step=senkou_b_step, param_type=int
+                "senkou_b_period",
+                min_val=senkou_b_min,
+                max_val=senkou_b_max,
+                step=senkou_b_step,
+                param_type=int,
             )
         )
-        grid.set_validator(lambda p: p["tenkan_period"] < p["kijun_period"] and p["senkou_b_period"] > p["kijun_period"])
+        grid.set_validator(
+            lambda p: p["tenkan_period"] < p["kijun_period"]
+            and p["senkou_b_period"] > p["kijun_period"]
+        )
 
     return grid
 

@@ -1379,6 +1379,7 @@ class StochasticOscillatorStrategy(Strategy):
 
         return signals
 
+
 class IchimokuCloudStrategy(Strategy):
     """Ichimoku Cloud Strategy.
 
@@ -1481,7 +1482,11 @@ class IchimokuCloudStrategy(Strategy):
             cloud_bottom = min(current_senkou_a, current_senkou_b)
 
             # Bullish signal: Tenkan crosses above Kijun AND price above cloud
-            if prev_tenkan <= prev_kijun and current_tenkan > current_kijun and current_price > cloud_top:
+            if (
+                prev_tenkan <= prev_kijun
+                and current_tenkan > current_kijun
+                and current_price > cloud_top
+            ):
                 strength = min(1.0, (current_tenkan - current_kijun) / current_kijun * 10 + 0.5)
                 signals.append(
                     Signal(
@@ -1502,7 +1507,11 @@ class IchimokuCloudStrategy(Strategy):
                     )
                 )
             # Bearish signal: Tenkan crosses below Kijun AND price below cloud
-            elif prev_tenkan >= prev_kijun and current_tenkan < current_kijun and current_price < cloud_bottom:
+            elif (
+                prev_tenkan >= prev_kijun
+                and current_tenkan < current_kijun
+                and current_price < cloud_bottom
+            ):
                 strength = min(1.0, (current_kijun - current_tenkan) / current_kijun * 10 + 0.5)
                 signals.append(
                     Signal(

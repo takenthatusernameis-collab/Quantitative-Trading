@@ -5,13 +5,13 @@ from .examples import (
     AroonStrategy,
     BollingerBandsStrategy,
     DonchianChannelStrategy,
+    IchimokuCloudStrategy,
     KeltnerChannelStrategy,
     MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
-    IchimokuCloudStrategy,
 )
 from .factory import (
     StrategyRegistry,
@@ -36,12 +36,11 @@ register_strategy("stoch", StochasticOscillatorStrategy, aliases=["stochastic", 
 register_strategy("ichimoku", IchimokuCloudStrategy, aliases=["ichimoku_cloud", "ichimoku"])
 
 
-
-
 __all__ = [
     "AroonStrategy",
     "BollingerBandsStrategy",
     "DonchianChannelStrategy",
+    "IchimokuCloudStrategy",
     "KeltnerChannelStrategy",
     "MACDStrategy",
     "MovingAverageCrossover",
@@ -53,7 +52,6 @@ __all__ = [
     "StrategyManager",
     "StrategyRegistry",
     "SuperTrendStrategy",
-    "IchimokuCloudStrategy",
     "create_strategy",
     "get_registry",
     "get_strategy",

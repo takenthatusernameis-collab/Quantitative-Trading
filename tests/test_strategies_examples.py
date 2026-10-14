@@ -9,6 +9,7 @@ import pytest
 from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
     DonchianChannelStrategy,
+    IchimokuCloudStrategy,
     KeltnerChannelStrategy,
     MACDStrategy,
     MovingAverageCrossover,
@@ -1249,6 +1250,28 @@ class TestKeltnerChannelStrategy:
         ]
         assert len(middle_cross_down_signals) >= 1
 
+    def test_generate_signals_middle_cross_no_signal_when_above_ema(self):
+        """Test no middle-cross signal when price stays above the EMA.
+
+        With ``use_middle_cross=True`` and a steady rise that keeps price above
+        the EMA on the final two bars, neither the up-cross nor the down-cross
+        branch at line 1186 is taken, so no middle-cross signal is emitted.
+        """
+        strategy = KeltnerChannelStrategy(
+            ema_period=5, atr_period=5, multiplier=2.0, use_middle_cross=True
+        )
+        # Steady rise above the EMA on the final two bars: no middle cross.
+        closes = [100.0] * 15 + [102.0, 104.0, 106.0, 108.0, 110.0, 112.0, 114.0, 116.0]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        middle_cross_signals = [
+            s
+            for s in signals
+            if s.metadata.get("signal_type") in ("middle_cross_up", "middle_cross_down")
+        ]
+        assert middle_cross_signals == []
+
 
 class TestStochasticOscillatorStrategy:
     """Tests for StochasticOscillatorStrategy."""
@@ -1572,6 +1595,143 @@ class TestStochasticOscillatorStrategy:
             if s.metadata.get("signal_type") in ["midline_cross_up", "midline_cross_down"]
         ]
         assert len(midline_signals) == 0
+
+    def test_generate_signals_nan_values_skipped(self):
+        """Test generate_signals skips bars with NaN k/d values.
+
+        Feeding OHLC data with NaN in the final rows leaves %K/%D undefined on
+        the last bar, so the ``pd.isna`` guard performs ``continue`` (line
+        1307) instead of emitting a signal.
+        """
+        strategy = StochasticOscillatorStrategy(k_period=5, d_period=3)
+        dates = pd.date_range(end=datetime.now(), periods=16, freq="D")
+        df = pd.DataFrame(
+            {
+                "open": [100.0] * 16,
+                "high": [101.0] * 16,
+                "low": [99.0] * 16,
+                "close": [100.0] * 16,
+                "volume": [1_000_000] * 16,
+            },
+            index=dates,
+        )
+        df.iloc[-2:, [1, 2, 3]] = float("nan")
+        signals = strategy.generate_signals({"AAPL": df})
+        assert signals == []
+
+    def test_generate_signals_midline_no_cross_stays_above(self):
+        """Test no midline signal when %K stays above 50 on the final bars.
+
+        With ``use_midline=True`` and %K well above 50 on the final two bars
+        (rising, not crossing the midline), the ``elif prev_k >= 50 and
+        current_k < 50`` branch (line 1363) is False, so no signal is produced.
+        """
+        strategy = StochasticOscillatorStrategy(k_period=5, d_period=3, use_midline=True)
+        highs = [60.0] * 16
+        lows = [40.0] * 16
+        closes = [100.0] * 10 + [51.0, 52.0, 53.0, 54.0, 55.0, 55.0]
+        dates = pd.date_range(end=datetime.now(), periods=16, freq="D")
+        df = pd.DataFrame(
+            {
+                "open": closes,
+                "high": highs,
+                "low": lows,
+                "close": closes,
+                "volume": [1_000_000] * 16,
+            },
+            index=dates,
+        )
+        signals = strategy.generate_signals({"AAPL": df})
+        midline_signals = [
+            s
+            for s in signals
+            if s.metadata.get("signal_type") in ("midline_cross_up", "midline_cross_down")
+        ]
+        assert midline_signals == []
+
+
+class TestIchimokuCloudStrategy:
+    """Tests for IchimokuCloudStrategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization with explicit parameters."""
+        strategy = IchimokuCloudStrategy(
+            tenkan_period=9, kijun_period=26, senkou_b_period=52, name="Test_Ichimoku"
+        )
+        assert strategy.name == "Test_Ichimoku"
+        assert strategy.tenkan_period == 9
+        assert strategy.kijun_period == 26
+        assert strategy.senkou_b_period == 52
+        params = strategy.get_parameters()
+        assert params["tenkan_period"] == 9
+        assert params["kijun_period"] == 26
+        assert params["senkou_b_period"] == 52
+
+    def test_initialization_defaults(self):
+        """Test default parameter values."""
+        strategy = IchimokuCloudStrategy()
+        assert strategy.name == "Ichimoku_Cloud"
+        assert strategy.tenkan_period == 9
+        assert strategy.kijun_period == 26
+        assert strategy.senkou_b_period == 52
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises on non-positive periods."""
+        with pytest.raises(ValueError, match="tenkan_period must be positive"):
+            IchimokuCloudStrategy(tenkan_period=0)
+        with pytest.raises(ValueError, match="kijun_period must be positive"):
+            IchimokuCloudStrategy(tenkan_period=9, kijun_period=0)
+        with pytest.raises(ValueError, match="senkou_b_period must be positive"):
+            IchimokuCloudStrategy(tenkan_period=9, kijun_period=26, senkou_b_period=0)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with insufficient data (continue at line 1434)."""
+        strategy = IchimokuCloudStrategy(tenkan_period=3, kijun_period=5, senkou_b_period=7)
+        # min_required = max(7, 5) + 5 = 12; supply only 10 rows.
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 10)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_nan_values_skipped(self):
+        """Test generate_signals skips rows with NaN indicator values."""
+        strategy = IchimokuCloudStrategy(tenkan_period=3, kijun_period=5, senkou_b_period=7)
+        df = create_donchian_data("AAPL", [100.0] * 20)
+        df.iloc[-2:, [1, 2, 3]] = float("nan")
+        signals = strategy.generate_signals({"AAPL": df})
+        assert signals == []
+
+    def test_generate_signals_bullish_crossover(self):
+        """Test generate_signals detects a bullish Tenkan/Kijun crossover."""
+        strategy = IchimokuCloudStrategy(tenkan_period=3, kijun_period=5, senkou_b_period=7)
+        closes = [100.0] * 20 + [110.0, 120.0, 130.0]
+        signals = strategy.generate_signals({"AAPL": create_donchian_data("AAPL", closes)})
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.price == pytest.approx(130.0)
+        assert signal.metadata["signal_type"] == "tenkan_kijun_bullish_crossover"
+
+    def test_generate_signals_bearish_crossover(self):
+        """Test generate_signals detects a bearish Tenkan/Kijun crossover."""
+        strategy = IchimokuCloudStrategy(tenkan_period=3, kijun_period=5, senkou_b_period=7)
+        closes = [100.0] * 20 + [90.0, 80.0, 70.0]
+        signals = strategy.generate_signals({"AAPL": create_donchian_data("AAPL", closes)})
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.price == pytest.approx(70.0)
+        assert signal.metadata["signal_type"] == "tenkan_kijun_bearish_crossover"
+
+    def test_generate_signals_no_crossover(self):
+        """Test generate_signals emits nothing when Tenkan stays above Kijun."""
+        strategy = IchimokuCloudStrategy(tenkan_period=3, kijun_period=5, senkou_b_period=7)
+        # Steady rise: Tenkan is already above Kijun on the final two bars, so
+        # neither the bullish nor the bearish branch at lines 1484/1505 fires.
+        closes = [100.0] * 20 + [110.0, 120.0, 130.0, 140.0, 150.0, 160.0]
+        signals = strategy.generate_signals({"AAPL": create_donchian_data("AAPL", closes)})
+        assert signals == []
 
 
 if __name__ == "__main__":
