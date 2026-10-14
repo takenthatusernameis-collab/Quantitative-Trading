@@ -265,9 +265,9 @@ class TestInitConfig:
 
     def test_create_config_with_yaml(self):
         import tempfile
-        import yaml
-        from examples.cli import create_config, init_config
         from argparse import Namespace
+
+        from examples.cli import create_config, init_config
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = f"{tmpdir}/config.yaml"
             init_config(config_path)
@@ -814,8 +814,8 @@ class TestMain:
 
     def test_main_with_regime_monte_carlo_trade_analysis_output(self, capsys):
         """Main with all analysis flags and output."""
-        import tempfile
         import json
+        import tempfile
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = f"{tmpdir}/results.json"
             args = [

@@ -1223,6 +1223,28 @@ class TestKeltnerChannelStrategy:
         ]
         assert len(middle_cross_signals) >= 1
 
+    def test_generate_signals_with_middle_cross_down(self):
+        """Test generate_signals with middle line crossover down (sell signal)."""
+        strategy = KeltnerChannelStrategy(
+            ema_period=5, atr_period=5, multiplier=2.0, use_middle_cross=True
+        )
+        # Create data that will cross below the EMA (middle line)
+        # First 10 days: increasing trend to approach EMA from below
+        # Day 11: sharp decrease to cross below EMA
+        rising_data = [95.0, 96.0, 97.0, 98.0, 99.0] * 2  # 10 days rising
+        drop_data = [90.0]  # Drop below EMA
+        data = {"AAPL": create_keltner_data("AAPL", rising_data + drop_data)}
+        signals = strategy.generate_signals(data)
+
+        # Should have at least one sell signal from middle cross
+        sell_signals = [s for s in signals if s.action == "sell"]
+        assert len(sell_signals) >= 1
+        # Check that at least one is a middle cross down signal
+        middle_cross_down_signals = [
+            s for s in sell_signals if s.metadata.get("signal_type") == "middle_cross_down"
+        ]
+        assert len(middle_cross_down_signals) >= 1
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

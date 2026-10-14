@@ -836,7 +836,7 @@ def test_base_optimizer_evaluate_params_error_quiet():
         verbose=False,
     )
 
-    params, score, result = optimizer._evaluate_params({"fast_period": 5, "slow_period": 20})
+    _params, score, result = optimizer._evaluate_params({"fast_period": 5, "slow_period": 20})
     assert score == float("-inf")
     assert result is None
 
