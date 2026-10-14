@@ -60,9 +60,7 @@ def test_config_from_yaml_feeds_engine():
         config=config.backtest,
         data_manager=data_manager,
     )
-    engine.add_strategy(
-        MovingAverageCrossover(fast_period=5, slow_period=15, name="Test_MA")
-    )
+    engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=15, name="Test_MA"))
 
     start_date = datetime.now() - timedelta(days=50)
     end_date = datetime.now()
@@ -90,9 +88,7 @@ def test_default_config_feeds_engine():
         config=config.backtest,
         data_manager=data_manager,
     )
-    engine.add_strategy(
-        MovingAverageCrossover(fast_period=5, slow_period=15, name="Test_MA")
-    )
+    engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=15, name="Test_MA"))
 
     start_date = datetime.now() - timedelta(days=50)
     end_date = datetime.now()

@@ -532,7 +532,11 @@ def create_strategy(args: argparse.Namespace):
     # Map strategy keys to lists of (cli_arg, param_name) tuples for built-in strategies
     strategy_param_map = {
         "ma": [("fast_period", "fast_period"), ("slow_period", "slow_period")],
-        "rsi": [("rsi_period", "period"), ("rsi_oversold", "oversold"), ("rsi_overbought", "overbought")],
+        "rsi": [
+            ("rsi_period", "period"),
+            ("rsi_oversold", "oversold"),
+            ("rsi_overbought", "overbought"),
+        ],
         "bb": [("bb_period", "period"), ("bb_std", "std_dev")],
         "macd": [
             ("macd_fast", "fast_period"),
@@ -560,7 +564,9 @@ def create_strategy(args: argparse.Namespace):
         elif args.strategy == "bb":
             kwargs["name"] = f"BB_{args.bb_period}_{args.bb_std}"
         elif args.strategy == "macd":
-            kwargs["name"] = f"MACD_{getattr(args, 'macd_fast', 12)}_{getattr(args, 'macd_slow', 26)}_{getattr(args, 'macd_signal', 9)}"
+            kwargs["name"] = (
+                f"MACD_{getattr(args, 'macd_fast', 12)}_{getattr(args, 'macd_slow', 26)}_{getattr(args, 'macd_signal', 9)}"
+            )
         elif args.strategy == "supertrend":
             kwargs["name"] = f"SuperTrend_{args.st_period}_{args.st_multiplier}"
         elif args.strategy == "donchian":
@@ -650,49 +656,123 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
     if args.strategy == "ma":
         fast_min, fast_max, fast_step = parse_range(args.ma_fast_range)
         slow_min, slow_max, slow_step = parse_range(args.ma_slow_range)
-        grid.add(ParameterSpace("fast_period", min_val=fast_min, max_val=fast_max, step=fast_step, param_type=int))
-        grid.add(ParameterSpace("slow_period", min_val=slow_min, max_val=slow_max, step=slow_step, param_type=int))
+        grid.add(
+            ParameterSpace(
+                "fast_period", min_val=fast_min, max_val=fast_max, step=fast_step, param_type=int
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "slow_period", min_val=slow_min, max_val=slow_max, step=slow_step, param_type=int
+            )
+        )
         grid.set_validator(lambda p: p["fast_period"] < p["slow_period"])
     elif args.strategy == "rsi":
         period_min, period_max, period_step = parse_range(args.rsi_period_range)
         oversold_min, oversold_max, oversold_step = parse_range(args.rsi_oversold_range)
         overbought_min, overbought_max, overbought_step = parse_range(args.rsi_overbought_range)
-        grid.add(ParameterSpace("period", min_val=period_min, max_val=period_max, step=period_step, param_type=int))
-        grid.add(ParameterSpace("oversold", min_val=oversold_min, max_val=oversold_max, step=oversold_step, param_type=int))
-        grid.add(ParameterSpace("overbought", min_val=overbought_min, max_val=overbought_max, step=overbought_step, param_type=int))
+        grid.add(
+            ParameterSpace(
+                "period", min_val=period_min, max_val=period_max, step=period_step, param_type=int
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "oversold",
+                min_val=oversold_min,
+                max_val=oversold_max,
+                step=oversold_step,
+                param_type=int,
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "overbought",
+                min_val=overbought_min,
+                max_val=overbought_max,
+                step=overbought_step,
+                param_type=int,
+            )
+        )
         grid.set_validator(lambda p: p["oversold"] < p["overbought"])
     elif args.strategy == "bb":
         period_min, period_max, period_step = parse_range(args.bb_period_range)
         std_min, std_max, std_step = parse_range(args.bb_std_range)
-        grid.add(ParameterSpace("period", min_val=period_min, max_val=period_max, step=period_step, param_type=int))
-        grid.add(ParameterSpace("std_dev", min_val=std_min, max_val=std_max, step=std_step, param_type=float))
+        grid.add(
+            ParameterSpace(
+                "period", min_val=period_min, max_val=period_max, step=period_step, param_type=int
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "std_dev", min_val=std_min, max_val=std_max, step=std_step, param_type=float
+            )
+        )
     elif args.strategy == "macd":
         fast_min, fast_max, fast_step = parse_range(args.macd_fast_range)
         slow_min, slow_max, slow_step = parse_range(args.macd_slow_range)
         signal_min, signal_max, signal_step = parse_range(args.macd_signal_range)
-        grid.add(ParameterSpace("fast_period", min_val=fast_min, max_val=fast_max, step=fast_step, param_type=int))
-        grid.add(ParameterSpace("slow_period", min_val=slow_min, max_val=slow_max, step=slow_step, param_type=int))
-        grid.add(ParameterSpace("signal_period", min_val=signal_min, max_val=signal_max, step=signal_step, param_type=int))
+        grid.add(
+            ParameterSpace(
+                "fast_period", min_val=fast_min, max_val=fast_max, step=fast_step, param_type=int
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "slow_period", min_val=slow_min, max_val=slow_max, step=slow_step, param_type=int
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "signal_period",
+                min_val=signal_min,
+                max_val=signal_max,
+                step=signal_step,
+                param_type=int,
+            )
+        )
         grid.add(ParameterSpace("use_zero_line", values=[False, True], param_type=bool))
         grid.set_validator(lambda p: p["fast_period"] < p["slow_period"])
     elif args.strategy == "supertrend":
         period_min, period_max, period_step = parse_range(args.st_period_range)
         mult_min, mult_max, mult_step = parse_range(args.st_multiplier_range)
-        grid.add(ParameterSpace("period", min_val=period_min, max_val=period_max, step=period_step, param_type=int))
-        grid.add(ParameterSpace("multiplier", min_val=mult_min, max_val=mult_max, step=mult_step, param_type=float))
+        grid.add(
+            ParameterSpace(
+                "period", min_val=period_min, max_val=period_max, step=period_step, param_type=int
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "multiplier", min_val=mult_min, max_val=mult_max, step=mult_step, param_type=float
+            )
+        )
     elif args.strategy == "donchian":
         period_min, period_max, period_step = parse_range(args.dc_period_range)
         exit_min, exit_max, exit_step = parse_range(args.dc_exit_period_range)
-        grid.add(ParameterSpace("period", min_val=period_min, max_val=period_max, step=period_step, param_type=int))
-        grid.add(ParameterSpace("exit_period", min_val=exit_min, max_val=exit_max, step=exit_step, param_type=int))
+        grid.add(
+            ParameterSpace(
+                "period", min_val=period_min, max_val=period_max, step=period_step, param_type=int
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "exit_period", min_val=exit_min, max_val=exit_max, step=exit_step, param_type=int
+            )
+        )
     elif args.strategy == "aroon":
         period_min, period_max, period_step = parse_range(args.aroon_period_range)
-        grid.add(ParameterSpace("period", min_val=period_min, max_val=period_max, step=period_step, param_type=int))
+        grid.add(
+            ParameterSpace(
+                "period", min_val=period_min, max_val=period_max, step=period_step, param_type=int
+            )
+        )
 
     return grid
 
 
-def run_optimization(args: argparse.Namespace, config: Config, start_date: datetime, end_date: datetime) -> int:
+def run_optimization(
+    args: argparse.Namespace, config: Config, start_date: datetime, end_date: datetime
+) -> int:
     """Run parameter optimization for a strategy."""
 
     strategy_cls = get_strategy(args.strategy)
@@ -785,7 +865,9 @@ def run_optimization(args: argparse.Namespace, config: Config, start_date: datet
     print(f"{'-' * 90}")
     for i, r in enumerate(result.get_top_n(10)):
         params_str = str(r["params"])[:48]
-        print(f"{i+1:<5} {params_str:<50} {r['score']:>10.4f} {r['total_return_pct']:>10.2f} {r['sharpe_ratio']:>8.4f} {r['max_drawdown_pct']:>10.2f}")
+        print(
+            f"{i+1:<5} {params_str:<50} {r['score']:>10.4f} {r['total_return_pct']:>10.2f} {r['sharpe_ratio']:>8.4f} {r['max_drawdown_pct']:>10.2f}"
+        )
 
     if args.output:
         import json
@@ -799,14 +881,28 @@ def run_optimization(args: argparse.Namespace, config: Config, start_date: datet
             "objective": args.objective,
             "best_params": result.best_params,
             "best_score": result.best_score,
-            "best_result": {
-                "total_return_pct": result.best_result.total_return_pct if result.best_result else None,
-                "sharpe_ratio": result.best_result.metrics.sharpe_ratio if result.best_result else None,
-                "max_drawdown_pct": result.best_result.metrics.max_drawdown_pct if result.best_result else None,
-                "win_rate": result.best_result.metrics.win_rate if result.best_result else None,
-                "profit_factor": result.best_result.metrics.profit_factor if result.best_result else None,
-                "num_trades": result.best_result.metrics.num_trades if result.best_result else None,
-            } if result.best_result else None,
+            "best_result": (
+                {
+                    "total_return_pct": (
+                        result.best_result.total_return_pct if result.best_result else None
+                    ),
+                    "sharpe_ratio": (
+                        result.best_result.metrics.sharpe_ratio if result.best_result else None
+                    ),
+                    "max_drawdown_pct": (
+                        result.best_result.metrics.max_drawdown_pct if result.best_result else None
+                    ),
+                    "win_rate": result.best_result.metrics.win_rate if result.best_result else None,
+                    "profit_factor": (
+                        result.best_result.metrics.profit_factor if result.best_result else None
+                    ),
+                    "num_trades": (
+                        result.best_result.metrics.num_trades if result.best_result else None
+                    ),
+                }
+                if result.best_result
+                else None
+            ),
             "all_results": result.all_results,
         }
         with open(args.output, "w") as f:
@@ -816,7 +912,9 @@ def run_optimization(args: argparse.Namespace, config: Config, start_date: datet
     return 0
 
 
-def run_walk_forward(args: argparse.Namespace, config: Config, start_date: datetime, end_date: datetime) -> int:
+def run_walk_forward(
+    args: argparse.Namespace, config: Config, start_date: datetime, end_date: datetime
+) -> int:
     """Run walk-forward optimization for a strategy."""
 
     strategy_cls = get_strategy(args.strategy)
@@ -880,11 +978,15 @@ def run_walk_forward(args: argparse.Namespace, config: Config, start_date: datet
     df = result.to_dataframe()
     if not df.empty:
         print("\nWindow Results:")
-        print(f"{'Window':<7} {'Train Return%':>14} {'Train Sharpe':>13} {'Test Return%':>13} {'Test Sharpe':>12} {'Test MaxDD%':>13}")
+        print(
+            f"{'Window':<7} {'Train Return%':>14} {'Train Sharpe':>13} {'Test Return%':>13} {'Test Sharpe':>12} {'Test MaxDD%':>13}"
+        )
         print(f"{'-' * 75}")
         for _, row in df.iterrows():
-            print(f"{int(row['window']):<7} {row['train_return_pct']:>14.2f} {row['train_sharpe']:>13.4f} "
-                  f"{row['test_return_pct']:>13.2f} {row['test_sharpe']:>12.4f} {row['test_max_dd']:>13.2f}")
+            print(
+                f"{int(row['window']):<7} {row['train_return_pct']:>14.2f} {row['train_sharpe']:>13.4f} "
+                f"{row['test_return_pct']:>13.2f} {row['test_sharpe']:>12.4f} {row['test_max_dd']:>13.2f}"
+            )
 
     summary = result.summary()
     print("\nSummary:")
@@ -1081,10 +1183,7 @@ def main() -> int:
         print(f"{'=' * 60}")
         print(f"Initial Capital: ${result.initial_capital:,.2f}")
         print(f"Final Value:     ${result.final_value:,.2f}")
-        print(
-            f"Total Return:    ${result.total_return:,.2f} "
-            f"({result.total_return_pct:.2f}%)"
-        )
+        print(f"Total Return:    ${result.total_return:,.2f} " f"({result.total_return_pct:.2f}%)")
         print(f"Total Trades:    {result.metrics.num_trades}")
         print(f"Win Rate:        {result.metrics.win_rate:.2%}")
         print(f"Sharpe Ratio:    {result.metrics.sharpe_ratio:.2f}")
@@ -1138,7 +1237,9 @@ def main() -> int:
     return 0
 
 
-def run_combined(args: argparse.Namespace, config: Config, start_date: datetime, end_date: datetime) -> int:
+def run_combined(
+    args: argparse.Namespace, config: Config, start_date: datetime, end_date: datetime
+) -> int:
     """Run all strategies and compare results."""
     print("Running combined backtest for all strategies")
     print(f"Symbols: {args.symbols}")
@@ -1174,7 +1275,9 @@ def run_combined(args: argparse.Namespace, config: Config, start_date: datetime,
                 config=config,
             )
             results.append((strategy.name, result))
-            print(f"  ✓ {strategy.name}: {result.total_return_pct:.2f}% return, Sharpe {result.metrics.sharpe_ratio:.2f}")
+            print(
+                f"  ✓ {strategy.name}: {result.total_return_pct:.2f}% return, Sharpe {result.metrics.sharpe_ratio:.2f}"
+            )
         except (ValueError, RuntimeError, KeyError) as e:
             print(f"  ✗ {strategy.name}: Error - {e}")
             return 1
@@ -1187,7 +1290,9 @@ def run_combined(args: argparse.Namespace, config: Config, start_date: datetime,
     print(f"\n{'=' * 80}")
     print("Strategy Comparison")
     print(f"{'=' * 80}")
-    print(f"{'Strategy':<30} {'Return %':>10} {'Sharpe':>8} {'Max DD %':>10} {'Win Rate':>10} {'Trades':>8}")
+    print(
+        f"{'Strategy':<30} {'Return %':>10} {'Sharpe':>8} {'Max DD %':>10} {'Win Rate':>10} {'Trades':>8}"
+    )
     print(f"{'-' * 80}")
     for name, result in results:
         print(

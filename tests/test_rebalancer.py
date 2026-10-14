@@ -62,6 +62,7 @@ class TestRebalancer:
     def test_should_rebalance_weekly(self):
         """Test should_rebalance with weekly frequency."""
         from datetime import timedelta
+
         rebalancer = Rebalancer(self.portfolio, frequency="weekly")
         rebalancer.last_rebalance = datetime.now() - timedelta(days=3)
         assert rebalancer.should_rebalance() is False
@@ -147,9 +148,7 @@ class TestRebalancer:
         self.portfolio.holdings["AAPL"].current_price = 0.0
         self.portfolio.total_value = self.portfolio.cash + self.portfolio.get_holdings_value()
 
-        actions = self.rebalancer.generate_rebalance_actions(
-            prices={"AAPL": 150.0, "MSFT": 300.0}
-        )
+        actions = self.rebalancer.generate_rebalance_actions(prices={"AAPL": 150.0, "MSFT": 300.0})
         # AAPL target 40% of 100k = 40k, current 15k -> buy 25k worth.
         # With a zero holding price, the prices dict should be used.
         aapl_buys = [a for a in actions if a.symbol == "AAPL" and a.action == "buy"]

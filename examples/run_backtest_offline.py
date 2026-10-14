@@ -24,10 +24,7 @@ def _print_summary(name: str, result) -> None:
     print(f"{'=' * 60}")
     print(f"Initial Capital: ${result.initial_capital:,.2f}")
     print(f"Final Value:     ${result.final_value:,.2f}")
-    print(
-        f"Total Return:    ${result.total_return:,.2f} "
-        f"({result.total_return_pct:.2f}%)"
-    )
+    print(f"Total Return:    ${result.total_return:,.2f} " f"({result.total_return_pct:.2f}%)")
     print(f"Total Trades:    {result.metrics.num_trades}")
     print(f"Win Rate:        {result.metrics.win_rate:.2%}")
     print(f"Sharpe Ratio:    {result.metrics.sharpe_ratio:.2f}")

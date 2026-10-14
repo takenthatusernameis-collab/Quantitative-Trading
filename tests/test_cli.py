@@ -91,7 +91,10 @@ class TestParseArgs:
         assert args.alphavantage_key == "MY_KEY"
 
     def test_strategy_params(self):
-        with patch("sys.argv", ["cli.py", "--strategy", "rsi", "--rsi-period", "21", "--rsi-oversold", "25"]):
+        with patch(
+            "sys.argv",
+            ["cli.py", "--strategy", "rsi", "--rsi-period", "21", "--rsi-oversold", "25"],
+        ):
             args = parse_args()
         assert args.strategy == "rsi"
         assert args.rsi_period == 21
@@ -108,7 +111,16 @@ class TestParseArgs:
     def test_regime_flag_explicit_thresholds(self):
         with patch(
             "sys.argv",
-            ["cli.py", "--regime", "--regime-window", "30", "--regime-vol-threshold", "0.15", "--regime-return-threshold", "0.05"],
+            [
+                "cli.py",
+                "--regime",
+                "--regime-window",
+                "30",
+                "--regime-vol-threshold",
+                "0.15",
+                "--regime-return-threshold",
+                "0.05",
+            ],
         ):
             args = parse_args()
         assert args.regime is True
@@ -458,7 +470,16 @@ class TestRunCombined:
             ("Donchian_20_20", 14.2),
             ("Aroon_25", 11.0),
         ]:
-            m = MagicMock(spec=["name", "total_return_pct", "metrics", "initial_capital", "final_value", "total_return"])
+            m = MagicMock(
+                spec=[
+                    "name",
+                    "total_return_pct",
+                    "metrics",
+                    "initial_capital",
+                    "final_value",
+                    "total_return",
+                ]
+            )
             m.name = name
             m.total_return_pct = ret
             m.metrics = mock_metrics
@@ -499,6 +520,7 @@ class TestRunCombined:
 
         config = Config()
         from datetime import datetime, timedelta
+
         end_date = datetime.now()
         start_date = end_date - timedelta(days=365)
 
@@ -527,7 +549,16 @@ class TestRunCombined:
         mock_metrics.max_drawdown_pct = 5.0
         mock_metrics.profit_factor = 2.0
 
-        mock_result = MagicMock(spec=["name", "total_return_pct", "metrics", "initial_capital", "final_value", "total_return"])
+        mock_result = MagicMock(
+            spec=[
+                "name",
+                "total_return_pct",
+                "metrics",
+                "initial_capital",
+                "final_value",
+                "total_return",
+            ]
+        )
         mock_result.name = "MA_Crossover_10_30"
         mock_result.total_return_pct = 15.5
         mock_result.metrics = mock_metrics
@@ -565,6 +596,7 @@ class TestRunCombined:
 
             config = Config()
             from datetime import datetime, timedelta
+
             end_date = datetime.now()
             start_date = end_date - timedelta(days=365)
 
@@ -758,6 +790,7 @@ class TestFactoryIntegration:
             # Mock run_backtest to succeed quickly
             with patch("examples.cli.run_backtest") as mock_run:
                 from quant_trading.backtest.metrics import BacktestMetrics
+
                 mock_metrics = MagicMock(spec=BacktestMetrics)
                 mock_metrics.num_trades = 1
                 mock_metrics.win_rate = 0.5
@@ -797,6 +830,7 @@ class TestFactoryIntegration:
 
                 config = Config()
                 from datetime import datetime, timedelta
+
                 end_date = datetime.now()
                 start_date = end_date - timedelta(days=365)
 

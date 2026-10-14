@@ -56,9 +56,7 @@ def test_analyze_regimes_returns_backtest_regime_analysis():
 
 def test_analyze_regimes_uses_explicit_thresholds():
     result = _make_result()
-    analysis = analyze_regimes(
-        result, window=20, vol_threshold=0.15, return_threshold=0.05
-    )
+    analysis = analyze_regimes(result, window=20, vol_threshold=0.15, return_threshold=0.05)
 
     assert analysis.vol_threshold == 0.15
     assert analysis.return_threshold == 0.05
@@ -137,9 +135,7 @@ def test_analyze_regimes_down_series_is_bear():
     analysis = analyze_regimes(result, window=30)
     assert analysis.n_segments >= 1
     bear_count = sum(
-        1
-        for s in analysis.segments
-        if s.regime in (Regime.BEAR_LOW_VOL, Regime.BEAR_HIGH_VOL)
+        1 for s in analysis.segments if s.regime in (Regime.BEAR_LOW_VOL, Regime.BEAR_HIGH_VOL)
     )
     assert bear_count >= 1
 
@@ -151,9 +147,7 @@ def test_analyze_regimes_up_series_is_bull():
     analysis = analyze_regimes(result, window=30)
     assert analysis.n_segments >= 1
     bull_count = sum(
-        1
-        for s in analysis.segments
-        if s.regime in (Regime.BULL_LOW_VOL, Regime.BULL_HIGH_VOL)
+        1 for s in analysis.segments if s.regime in (Regime.BULL_LOW_VOL, Regime.BULL_HIGH_VOL)
     )
     assert bull_count >= 1
 

@@ -82,7 +82,9 @@ def create_aroon_bullish_data(symbol: str, days: int = 50) -> pd.DataFrame:
             else:  # days_into_last_2 == 1 (this is bar t-1, the most recent complete bar)
                 # This is where the sharp reversal happens to create the crossover
                 base_value = 100 - (days - 2) * 0.3  # Start from same baseline
-                prices.append(base_value + 40.0)  # Large uptick to create crossover: High Up, Lower Down
+                prices.append(
+                    base_value + 40.0
+                )  # Large uptick to create crossover: High Up, Lower Down
 
     df = pd.DataFrame(
         {
@@ -127,7 +129,9 @@ def create_aroon_bearish_data(symbol: str, days: int = 50) -> pd.DataFrame:
             else:  # days_into_last_2 == 1 (this is bar t-1, the most recent complete bar)
                 # This is where the sharp reversal happens to create the crossover
                 base_value = 100 + (days - 2) * 0.3  # Start from same baseline
-                prices.append(base_value - 40.0)  # Large downtick to create crossover: Low Up, High Down
+                prices.append(
+                    base_value - 40.0
+                )  # Large downtick to create crossover: Low Up, High Down
 
     df = pd.DataFrame(
         {
@@ -215,7 +219,7 @@ class TestAroonStrategy:
         strategy = AroonStrategy(period=5)
         # Create simple test data
         high = pd.Series([10, 12, 11, 13, 15, 14, 16])  # Highest at index 4 and 6
-        low = pd.Series([8, 9, 7, 8, 6, 5, 4])          # Lowest at index 6
+        low = pd.Series([8, 9, 7, 8, 6, 5, 4])  # Lowest at index 6
 
         aroon_up, aroon_down = strategy._calculate_aroon(high, low)
 

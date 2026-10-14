@@ -124,9 +124,7 @@ class TestPortfolio:
         portfolio.add_holding("AAPL", 100, 100.0)
         portfolio.add_holding("AAPL", 50, 120.0)
         assert portfolio.holdings["AAPL"].quantity == 150
-        assert portfolio.holdings["AAPL"].avg_cost == pytest.approx(
-            (10000.0 + 6000.0) / 150
-        )
+        assert portfolio.holdings["AAPL"].avg_cost == pytest.approx((10000.0 + 6000.0) / 150)
 
     def test_update_prices_existing(self):
         """update_prices recalculates market value for held symbols."""

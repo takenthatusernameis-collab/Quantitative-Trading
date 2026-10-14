@@ -45,16 +45,26 @@ class FakeYf:
         self._frames = frames
         self.download_calls: list[dict] = []
 
-    def download(self, tickers=None, start=None, end=None, interval="1d",
-                 group_by="column", progress=True, **_kwargs):
+    def download(
+        self,
+        tickers=None,
+        start=None,
+        end=None,
+        interval="1d",
+        group_by="column",
+        progress=True,
+        **_kwargs,
+    ):
         tickers = list(tickers)
-        self.download_calls.append({
-            "tickers": tickers,
-            "start": start,
-            "end": end,
-            "interval": interval,
-            "group_by": group_by,
-        })
+        self.download_calls.append(
+            {
+                "tickers": tickers,
+                "start": start,
+                "end": end,
+                "interval": interval,
+                "group_by": group_by,
+            }
+        )
         available = [t for t in tickers if t in self._frames]
         if not available:
             return pd.DataFrame()
@@ -102,15 +112,27 @@ def test_yfinance_fetch_many_different_ranges_separate_downloads():
     }
     provider = _provider_with_fake(frames)
     requests = [
-        {"symbols": ["AAPL"], "start": datetime(2024, 1, 1), "end": datetime(2024, 1, 10), "interval": "1d"},
-        {"symbols": ["MSFT"], "start": datetime(2024, 2, 1), "end": datetime(2024, 2, 10), "interval": "1d"},
+        {
+            "symbols": ["AAPL"],
+            "start": datetime(2024, 1, 1),
+            "end": datetime(2024, 1, 10),
+            "interval": "1d",
+        },
+        {
+            "symbols": ["MSFT"],
+            "start": datetime(2024, 2, 1),
+            "end": datetime(2024, 2, 10),
+            "interval": "1d",
+        },
     ]
     results = provider.fetch_many(requests)
 
     assert len(provider._yf.download_calls) == 2
     assert len(results) == 2
-    keys = {provider._request_key(["AAPL"], datetime(2024, 1, 1), datetime(2024, 1, 10), "1d"),
-            provider._request_key(["MSFT"], datetime(2024, 2, 1), datetime(2024, 2, 10), "1d")}
+    keys = {
+        provider._request_key(["AAPL"], datetime(2024, 1, 1), datetime(2024, 1, 10), "1d"),
+        provider._request_key(["MSFT"], datetime(2024, 2, 1), datetime(2024, 2, 10), "1d"),
+    }
     assert set(results.keys()) == keys
 
 
@@ -152,6 +174,7 @@ def test_yfinance_fetch_many_disk_cache(tmp_path):
 
 def test_data_manager_fetch_many_delegates_to_provider_fetch_many():
     """DataManager.fetch_many must call provider.fetch_many (not provider.fetch)."""
+
     class SpyProvider(DataProvider):
         def __init__(self):
             self.fetch_many_calls = 0

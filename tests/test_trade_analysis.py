@@ -281,19 +281,21 @@ def test_analyze_trades_only_opening():
     np.random.seed(42)
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
     equity = pd.Series(100000.0, index=dates)
-    trades = pd.DataFrame([
-        {
-            "symbol": "AAPL",
-            "action": "buy",
-            "quantity": 10,
-            "price": 150.0,
-            "timestamp": datetime(2024, 1, 5),
-            "commission": 0.001,
-            "slippage": 0.0005,
-            "cost": 1500.0,
-            "pnl": 0.0,
-        }
-    ])
+    trades = pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL",
+                "action": "buy",
+                "quantity": 10,
+                "price": 150.0,
+                "timestamp": datetime(2024, 1, 5),
+                "commission": 0.001,
+                "slippage": 0.0005,
+                "cost": 1500.0,
+                "pnl": 0.0,
+            }
+        ]
+    )
 
     metrics = BacktestMetrics()
     result = BacktestResult(
@@ -359,7 +361,6 @@ def test_calculate_holding_periods_empty():
     assert result == []
 
 
-
 def test_calculate_holding_periods_partial_fill_executes():
     """Ensure partial fill else branch executes (lines 124-125)."""
     from datetime import datetime
@@ -369,15 +370,34 @@ def test_calculate_holding_periods_partial_fill_executes():
     from quant_trading.backtest.trade_analysis import _calculate_holding_periods
 
     # Buy 10, sell 3: qty_sold < entry_qty triggers else branch
-    trades = pd.DataFrame([
-        {"symbol": "AAPL", "action": "buy", "quantity": 10.0, "timestamp": datetime(2024, 1, 1), "pnl": 0.0},
-        {"symbol": "AAPL", "action": "sell", "quantity": 3.0, "timestamp": datetime(2024, 1, 11), "pnl": 5.0},
-        {"symbol": "AAPL", "action": "sell", "quantity": 7.0, "timestamp": datetime(2024, 1, 21), "pnl": 15.0},
-    ])
+    trades = pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL",
+                "action": "buy",
+                "quantity": 10.0,
+                "timestamp": datetime(2024, 1, 1),
+                "pnl": 0.0,
+            },
+            {
+                "symbol": "AAPL",
+                "action": "sell",
+                "quantity": 3.0,
+                "timestamp": datetime(2024, 1, 11),
+                "pnl": 5.0,
+            },
+            {
+                "symbol": "AAPL",
+                "action": "sell",
+                "quantity": 7.0,
+                "timestamp": datetime(2024, 1, 21),
+                "pnl": 15.0,
+            },
+        ]
+    )
     result = _calculate_holding_periods(trades)
     # First partial sell hits else branch; second sells remaining fully
     assert len(result) == 1
-
 
 
 def test_calculate_consecutive_streaks_empty():
@@ -392,7 +412,9 @@ def test_calculate_consecutive_streaks_empty():
     assert result == (0, 0, 0, "")
 
     # Trades without pnl column
-    trades = pd.DataFrame({"symbol": ["AAPL"], "pnl": [10.0]})  # but we'll remove? no - just structure
+    trades = pd.DataFrame(
+        {"symbol": ["AAPL"], "pnl": [10.0]}
+    )  # but we'll remove? no - just structure
     trades_no_pnl = pd.DataFrame({"symbol": ["AAPL"], "action": ["buy"]})
     result = _calculate_consecutive_streaks(trades_no_pnl)
     assert result == (0, 0, 0, "")
@@ -407,10 +429,12 @@ def test_calculate_consecutive_streaks_loss_streak():
     from quant_trading.backtest.trade_analysis import _calculate_consecutive_streaks
 
     # Consecutive losses to hit the elif current_losses > 0 branch
-    trades = pd.DataFrame([
-        {"symbol": "AAPL", "pnl": -10.0, "timestamp": datetime(2024, 1, 1)},
-        {"symbol": "AAPL", "pnl": -5.0, "timestamp": datetime(2024, 1, 2)},
-    ])
+    trades = pd.DataFrame(
+        [
+            {"symbol": "AAPL", "pnl": -10.0, "timestamp": datetime(2024, 1, 1)},
+            {"symbol": "AAPL", "pnl": -5.0, "timestamp": datetime(2024, 1, 2)},
+        ]
+    )
     result = _calculate_consecutive_streaks(trades)
     assert result[1] == 2  # max_losses
     assert result[2] == 2  # current_streak
@@ -471,30 +495,32 @@ def test_analyze_trades_single_trade():
     dates = pd.date_range("2024-01-01", periods=5, freq="D")
     equity = pd.Series([100000.0, 100500.0, 100500.0, 100500.0, 100500.0], index=dates)
 
-    trades = pd.DataFrame([
-        {
-            "symbol": "AAPL",
-            "action": "buy",
-            "quantity": 10,
-            "price": 150.0,
-            "timestamp": datetime(2024, 1, 1),
-            "commission": 0.0,
-            "slippage": 0.0,
-            "cost": 1500.0,
-            "pnl": 0.0,
-        },
-        {
-            "symbol": "AAPL",
-            "action": "sell",
-            "quantity": 10,
-            "price": 155.0,
-            "timestamp": datetime(2024, 1, 3),
-            "commission": 0.0,
-            "slippage": 0.0,
-            "cost": 1550.0,
-            "pnl": 50.0,
-        },
-    ])
+    trades = pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL",
+                "action": "buy",
+                "quantity": 10,
+                "price": 150.0,
+                "timestamp": datetime(2024, 1, 1),
+                "commission": 0.0,
+                "slippage": 0.0,
+                "cost": 1500.0,
+                "pnl": 0.0,
+            },
+            {
+                "symbol": "AAPL",
+                "action": "sell",
+                "quantity": 10,
+                "price": 155.0,
+                "timestamp": datetime(2024, 1, 3),
+                "commission": 0.0,
+                "slippage": 0.0,
+                "cost": 1550.0,
+                "pnl": 50.0,
+            },
+        ]
+    )
 
     metrics = BacktestMetrics()
     result = BacktestResult(
@@ -512,6 +538,7 @@ def test_analyze_trades_single_trade():
 
     analysis = analyze_trades(result)
     assert analysis.total_trades == 1
+
 
 def test_calculate_symbol_stats_empty_cases():
     """Test _calculate_symbol_stats edge cases."""

@@ -13,7 +13,6 @@ class FakeResponseError(Exception):
     """Custom exception for fake response errors."""
 
 
-
 class FakeResponse:
     """Mock response for requests.get."""
 
@@ -88,7 +87,9 @@ BATCH_RESPONSE = {
 
 ERROR_RESPONSE = {"Error Message": "Invalid API call. Please retry or visit the documentation."}
 
-RATE_LIMIT_RESPONSE = {"Note": "Thank you for using Alpha Vantage! Our standard API call frequency is 5 calls per minute."}
+RATE_LIMIT_RESPONSE = {
+    "Note": "Thank you for using Alpha Vantage! Our standard API call frequency is 5 calls per minute."
+}
 
 INTRADAY_RESPONSE = {
     "Meta Data": {
@@ -531,15 +532,9 @@ TECHNICAL_INDICATOR_RESPONSE = {
     },
 }
 
-TECHNICAL_INDICATOR_EMPTY_RESPONSE = {
-    "Technical Analysis: SMA": {
-        "SMA": {}
-    }
-}
+TECHNICAL_INDICATOR_EMPTY_RESPONSE = {"Technical Analysis: SMA": {"SMA": {}}}
 
-TECHNICAL_INDICATOR_BAD_RESPONSE = {
-    "Error Message": "Invalid API call."
-}
+TECHNICAL_INDICATOR_BAD_RESPONSE = {"Error Message": "Invalid API call."}
 
 
 SECTOR_PERFORMANCE_RESPONSE = {
@@ -757,7 +752,14 @@ class TestAlphaVantageProvider:
         partial_response = {
             "Meta Data": {},
             "Stock Prices": [
-                {"1. symbol": "AAPL", "2. open": "185", "3. high": "187", "4. low": "184", "5. price": "186", "6. volume": "50000000"}
+                {
+                    "1. symbol": "AAPL",
+                    "2. open": "185",
+                    "3. high": "187",
+                    "4. low": "184",
+                    "5. price": "186",
+                    "6. volume": "50000000",
+                }
             ],
         }
 
@@ -797,8 +799,18 @@ class TestAlphaVantageProvider:
             mock_get.return_value = FakeResponse(DAILY_RESPONSE)
 
             requests = [
-                {"symbols": ["AAPL"], "start": datetime(2024, 1, 1), "end": datetime(2024, 1, 15), "interval": "1d"},
-                {"symbols": ["MSFT"], "start": datetime(2024, 1, 1), "end": datetime(2024, 1, 15), "interval": "1d"},
+                {
+                    "symbols": ["AAPL"],
+                    "start": datetime(2024, 1, 1),
+                    "end": datetime(2024, 1, 15),
+                    "interval": "1d",
+                },
+                {
+                    "symbols": ["MSFT"],
+                    "start": datetime(2024, 1, 1),
+                    "end": datetime(2024, 1, 15),
+                    "interval": "1d",
+                },
             ]
             results = provider.fetch_many(requests)
 
@@ -864,8 +876,12 @@ class TestAlphaVantageProvider:
 
     def test_request_key_stable(self, provider):
         """Test _request_key produces stable keys."""
-        key1 = provider._request_key(["AAPL", "MSFT"], datetime(2024, 1, 1), datetime(2024, 1, 15), "1d")
-        key2 = provider._request_key(["MSFT", "AAPL"], datetime(2024, 1, 1), datetime(2024, 1, 15), "1d")
+        key1 = provider._request_key(
+            ["AAPL", "MSFT"], datetime(2024, 1, 1), datetime(2024, 1, 15), "1d"
+        )
+        key2 = provider._request_key(
+            ["MSFT", "AAPL"], datetime(2024, 1, 1), datetime(2024, 1, 15), "1d"
+        )
         assert key1 == key2
 
     def test_cache_key_includes_interval(self, provider):
@@ -878,6 +894,7 @@ class TestAlphaVantageProvider:
         """Test handling of network errors."""
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             import requests
+
             mock_get.side_effect = requests.ConnectionError("Network unreachable")
 
             result = provider.fetch(["AAPL"], interval="1d")
@@ -889,6 +906,7 @@ class TestAlphaVantageProvider:
         """Test handling of request timeout."""
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             import requests
+
             mock_get.side_effect = requests.Timeout("Request timed out")
 
             result = provider.fetch(["AAPL"], interval="1d")
@@ -1091,7 +1109,13 @@ class TestAlphaVantageProvider:
         response_1min = {
             "Meta Data": {"4. Interval": "1min"},
             "Time Series (1min)": {
-                "2024-01-15 19:59:00": {"1. open": "185", "2. high": "186", "3. low": "184", "4. close": "185", "5. volume": "1000"},
+                "2024-01-15 19:59:00": {
+                    "1. open": "185",
+                    "2. high": "186",
+                    "3. low": "184",
+                    "4. close": "185",
+                    "5. volume": "1000",
+                },
             },
         }
         df = provider._parse_intraday_response("AAPL", response_1min, None, None)
@@ -1153,8 +1177,14 @@ class TestAlphaVantageProvider:
             md = result.data["AAPL"]
             assert len(md.data) == 2
             assert list(md.data.columns) == [
-                "open", "high", "low", "close", "adjusted_close",
-                "volume", "dividend_amount", "split_coefficient"
+                "open",
+                "high",
+                "low",
+                "close",
+                "adjusted_close",
+                "volume",
+                "dividend_amount",
+                "split_coefficient",
             ]
             assert md.metadata.get("function") == "TIME_SERIES_WEEKLY_ADJUSTED"
 
@@ -1208,8 +1238,14 @@ class TestAlphaVantageProvider:
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 2
         assert list(df.columns) == [
-            "open", "high", "low", "close", "adjusted_close",
-            "volume", "dividend_amount", "split_coefficient"
+            "open",
+            "high",
+            "low",
+            "close",
+            "adjusted_close",
+            "volume",
+            "dividend_amount",
+            "split_coefficient",
         ]
         assert df.index.name == "date"
         assert df.index.is_monotonic_increasing
@@ -1268,8 +1304,14 @@ class TestAlphaVantageProvider:
             md = result.data["AAPL"]
             assert len(md.data) == 2
             assert list(md.data.columns) == [
-                "open", "high", "low", "close", "adjusted_close",
-                "volume", "dividend_amount", "split_coefficient"
+                "open",
+                "high",
+                "low",
+                "close",
+                "adjusted_close",
+                "volume",
+                "dividend_amount",
+                "split_coefficient",
             ]
             assert md.metadata.get("function") == "TIME_SERIES_MONTHLY_ADJUSTED"
 
@@ -1317,14 +1359,22 @@ class TestAlphaVantageProvider:
         """Test _parse_monthly_adjusted_response method."""
         start = datetime(2023, 12, 1)
         end = datetime(2024, 1, 31)
-        df = provider._parse_monthly_adjusted_response("AAPL", MONTHLY_ADJUSTED_RESPONSE, start, end)
+        df = provider._parse_monthly_adjusted_response(
+            "AAPL", MONTHLY_ADJUSTED_RESPONSE, start, end
+        )
 
         assert df is not None
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 2
         assert list(df.columns) == [
-            "open", "high", "low", "close", "adjusted_close",
-            "volume", "dividend_amount", "split_coefficient"
+            "open",
+            "high",
+            "low",
+            "close",
+            "adjusted_close",
+            "volume",
+            "dividend_amount",
+            "split_coefficient",
         ]
         assert df.index.name == "date"
         assert df.index.is_monotonic_increasing
@@ -1428,6 +1478,7 @@ class TestAlphaVantageProvider:
     def test_demo_key_warning(self, tmp_path, caplog):
         """Test warning is logged when using demo key."""
         import logging
+
         caplog.set_level(logging.WARNING)
         AlphaVantageProvider(
             api_key="demo",
@@ -1439,6 +1490,7 @@ class TestAlphaVantageProvider:
     def test_no_demo_key_warning_when_disabled(self, tmp_path, caplog):
         """Test no warning when warn_on_demo is False."""
         import logging
+
         caplog.set_level(logging.WARNING)
         AlphaVantageProvider(
             api_key="demo",
@@ -1450,6 +1502,7 @@ class TestAlphaVantageProvider:
     def test_no_demo_key_warning_with_real_key(self, tmp_path, caplog):
         """Test no warning when using a real API key."""
         import logging
+
         caplog.set_level(logging.WARNING)
         AlphaVantageProvider(
             api_key="real_key_123",
@@ -1517,6 +1570,7 @@ class TestAlphaVantageProvider:
         """Test handling of network errors for symbol search."""
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             import requests
+
             mock_get.side_effect = requests.ConnectionError("Network unreachable")
 
             results = provider.search_symbols("Apple")
@@ -1643,7 +1697,15 @@ class TestAlphaVantageProvider:
             assert "Apple" in res.data
             md = res.data["Apple"]
             assert md.metadata.get("function") == "SYMBOL_SEARCH"
-            assert list(md.data.columns) == ["symbol", "name", "type", "region", "market", "currency", "match_score"]
+            assert list(md.data.columns) == [
+                "symbol",
+                "name",
+                "type",
+                "region",
+                "market",
+                "currency",
+                "match_score",
+            ]
             mock_get.assert_called_once()
 
     def test_symbol_search_intervals_set(self, provider):
@@ -1696,6 +1758,7 @@ class TestAlphaVantageProvider:
         """Test handling of network errors for market status."""
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             import requests
+
             mock_get.side_effect = requests.ConnectionError("Network unreachable")
 
             df = provider.get_market_status()
@@ -1711,8 +1774,14 @@ class TestAlphaVantageProvider:
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 3
         assert list(df.columns) == [
-            "market_type", "region", "market", "primary_exchanges",
-            "local_open", "local_close", "current_status", "notes"
+            "market_type",
+            "region",
+            "market",
+            "primary_exchanges",
+            "local_open",
+            "local_close",
+            "current_status",
+            "notes",
         ]
 
     def test_parse_market_status_response_empty(self, provider):
@@ -1980,7 +2049,9 @@ class TestAlphaVantageProvider:
 
     def test_parse_currency_exchange_rate_response(self, provider):
         """Test _parse_currency_exchange_rate_response method."""
-        df = provider._parse_currency_exchange_rate_response("USD", "EUR", CURRENCY_EXCHANGE_RATE_RESPONSE)
+        df = provider._parse_currency_exchange_rate_response(
+            "USD", "EUR", CURRENCY_EXCHANGE_RATE_RESPONSE
+        )
 
         assert df is not None
         assert isinstance(df, pd.DataFrame)
@@ -2084,7 +2155,17 @@ class TestAlphaVantageProvider:
             assert "GBP/USD" in res.data
             md = res.data["USD/EUR"]
             assert md.metadata.get("function") == "CURRENCY_EXCHANGE_RATE"
-            assert list(md.data.columns) == ["from_currency_code", "from_currency_name", "to_currency_code", "to_currency_name", "exchange_rate", "last_refreshed", "time_zone", "bid_price", "ask_price"]
+            assert list(md.data.columns) == [
+                "from_currency_code",
+                "from_currency_name",
+                "to_currency_code",
+                "to_currency_name",
+                "exchange_rate",
+                "last_refreshed",
+                "time_zone",
+                "bid_price",
+                "ask_price",
+            ]
             # Per-pair calls (no batch endpoint for currency exchange rate)
             assert mock_get.call_count == 2
 
@@ -2389,6 +2470,7 @@ class TestAlphaVantageProvider:
         """Test get_technical_indicator network error."""
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             import requests
+
             mock_get.side_effect = requests.ConnectionError("Network unreachable")
 
             df = provider.get_technical_indicator("AAPL", indicator="SMA")
@@ -2413,7 +2495,9 @@ class TestAlphaVantageProvider:
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             mock_get.return_value = FakeResponse(TECHNICAL_INDICATOR_RESPONSE)
 
-            result = provider._fetch_technical_indicator(["AAPL"], None, None, "1d", indicator="SMA")
+            result = provider._fetch_technical_indicator(
+                ["AAPL"], None, None, "1d", indicator="SMA"
+            )
 
             assert "AAPL" in result.data
             assert not result.errors
@@ -2432,7 +2516,9 @@ class TestAlphaVantageProvider:
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             mock_get.return_value = FakeResponse(TECHNICAL_INDICATOR_EMPTY_RESPONSE)
 
-            result = provider._fetch_technical_indicator(["AAPL"], None, None, "1d", indicator="SMA")
+            result = provider._fetch_technical_indicator(
+                ["AAPL"], None, None, "1d", indicator="SMA"
+            )
 
             assert "AAPL" in result.missing
             assert not result.data
@@ -2444,7 +2530,9 @@ class TestAlphaVantageProvider:
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             mock_get.return_value = FakeResponse(TECHNICAL_INDICATOR_BAD_RESPONSE)
 
-            result = provider._fetch_technical_indicator(["AAPL"], None, None, "1d", indicator="SMA")
+            result = provider._fetch_technical_indicator(
+                ["AAPL"], None, None, "1d", indicator="SMA"
+            )
 
             assert "AAPL" in result.errors
             assert not result.data
@@ -2454,9 +2542,12 @@ class TestAlphaVantageProvider:
         """Test _fetch_technical_indicator with network error."""
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             import requests
+
             mock_get.side_effect = requests.ConnectionError("Network unreachable")
 
-            result = provider._fetch_technical_indicator(["AAPL"], None, None, "1d", indicator="SMA")
+            result = provider._fetch_technical_indicator(
+                ["AAPL"], None, None, "1d", indicator="SMA"
+            )
 
             assert "AAPL" in result.errors
             assert not result.data
@@ -2630,6 +2721,7 @@ class TestAlphaVantageProvider:
         """Test get_sector_performance network error."""
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             import requests
+
             mock_get.side_effect = requests.ConnectionError("Network unreachable")
 
             df = provider.get_sector_performance()
@@ -2827,6 +2919,7 @@ class TestAlphaVantageProvider:
         """Test get_commodity network error."""
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             import requests
+
             mock_get.side_effect = requests.ConnectionError("Network unreachable")
 
             df = provider.get_commodity("WTI")
@@ -2887,6 +2980,7 @@ class TestAlphaVantageProvider:
         """Test get_gold_spot network error."""
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             import requests
+
             mock_get.side_effect = requests.ConnectionError("Network unreachable")
 
             df = provider.get_gold_spot("GOLD")
@@ -2970,7 +3064,12 @@ class TestAlphaVantageProvider:
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             mock_get.return_value = FakeResponse(GOLD_SPOT_RESPONSE)
 
-            for symbol, metal in [("XAU", "GOLD"), ("xau", "GOLD"), ("XAG", "SILVER"), ("xag", "SILVER")]:
+            for symbol, metal in [
+                ("XAU", "GOLD"),
+                ("xau", "GOLD"),
+                ("XAG", "SILVER"),
+                ("xag", "SILVER"),
+            ]:
                 result = provider.fetch([symbol], interval="gold")
                 assert symbol in result.data, f"Failed for {symbol}"
                 md = result.data[symbol]
@@ -3012,7 +3111,12 @@ class TestAlphaVantageProvider:
 
     def test_fetch_gold_empty_response(self, provider):
         """Test fetch with gold interval empty response."""
-        empty_response = {"name": "Global Price of Gold", "interval": "spot", "unit": "dollar per troy ounce", "data": []}
+        empty_response = {
+            "name": "Global Price of Gold",
+            "interval": "spot",
+            "unit": "dollar per troy ounce",
+            "data": [],
+        }
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             mock_get.return_value = FakeResponse(empty_response)
 
@@ -3145,7 +3249,9 @@ class TestAlphaVantageProvider:
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             mock_get.return_value = FakeResponse(treasury_response)
 
-            df = provider.get_economic_indicator("TREASURY_YIELD", interval="monthly", maturity="10year")
+            df = provider.get_economic_indicator(
+                "TREASURY_YIELD", interval="monthly", maturity="10year"
+            )
 
             assert df is not None
             mock_get.assert_called_once()
@@ -3178,6 +3284,7 @@ class TestAlphaVantageProvider:
         """Test get_economic_indicator network error."""
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             import requests
+
             mock_get.side_effect = requests.ConnectionError("Network unreachable")
 
             df = provider.get_economic_indicator("REAL_GDP")

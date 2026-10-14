@@ -911,7 +911,7 @@ class AroonStrategy(Strategy):
             # When all values are equal, we want the most recent (highest index)
             max_val = x.max()
             # Find the most recent index with the maximum value
-            for i in range(len(x)-1, -1, -1):
+            for i in range(len(x) - 1, -1, -1):
                 if x.iloc[i] == max_val:
                     max_idx = i
                     break
@@ -926,7 +926,7 @@ class AroonStrategy(Strategy):
             # When all values are equal, we want the most recent (highest index)
             min_val = x.min()
             # Find the most recent index with the minimum value
-            for i in range(len(x)-1, -1, -1):
+            for i in range(len(x) - 1, -1, -1):
                 if x.iloc[i] == min_val:
                     min_idx = i
                     break
@@ -935,8 +935,12 @@ class AroonStrategy(Strategy):
             return self.period - 1 - min_idx
 
         # Calculate rolling applications
-        periods_since_high_series = high.rolling(window=self.period).apply(periods_since_high, raw=False)
-        periods_since_low_series = low.rolling(window=self.period).apply(periods_since_low, raw=False)
+        periods_since_high_series = high.rolling(window=self.period).apply(
+            periods_since_high, raw=False
+        )
+        periods_since_low_series = low.rolling(window=self.period).apply(
+            periods_since_low, raw=False
+        )
 
         # Calculate Aroon values
         aroon_up = ((self.period - periods_since_high_series) / self.period) * 100
@@ -966,8 +970,12 @@ class AroonStrategy(Strategy):
             timestamp = df.index[-1]
 
             # Skip if any values are NaN (insufficient data for calculation)
-            if pd.isna(current_aroon_up) or pd.isna(current_aroon_down) or \
-               pd.isna(prev_aroon_up) or pd.isna(prev_aroon_down):
+            if (
+                pd.isna(current_aroon_up)
+                or pd.isna(current_aroon_down)
+                or pd.isna(prev_aroon_up)
+                or pd.isna(prev_aroon_down)
+            ):
                 continue
 
             # Aroon Up crosses above Aroon Down - bullish signal (buy)

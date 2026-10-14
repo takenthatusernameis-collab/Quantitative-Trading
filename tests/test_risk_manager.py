@@ -66,7 +66,9 @@ class TestUpdatePortfolioValue:
 
     def test_update_with_positions(self):
         rm = RiskManager(initial_capital=100000.0)
-        positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)}
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)
+        }
         rm.update_portfolio_value(positions, 24000.0)
         assert rm.portfolio_risk.positions_value == 16000.0
         assert rm.portfolio_risk.total_market_value == 40000.0
@@ -143,7 +145,9 @@ class TestCheckSignal:
 
     def test_buy_with_existing_position(self):
         rm = RiskManager(initial_capital=100000.0)
-        rm.positions = {"AAPL": Position(symbol="AAPL", quantity=50, avg_price=150, current_price=160)}
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=50, avg_price=150, current_price=160)
+        }
         signal = Signal(symbol="AAPL", action="buy", strength=0.5, price=160.0)
         result = rm.check_signal(signal)
         assert result.passed is False
@@ -159,7 +163,9 @@ class TestCheckSignal:
 
     def test_sell_with_holdings(self):
         rm = RiskManager(initial_capital=100000.0)
-        rm.positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)}
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)
+        }
         signal = Signal(symbol="AAPL", action="sell", strength=1.0, price=150.0)
         result = rm.check_signal(signal)
         assert result.passed is True
@@ -252,17 +258,23 @@ class TestStopLossTakeProfit:
 
     def test_get_position_stop_loss_zero_avg_price(self):
         rm = RiskManager(stop_loss_pct=0.05)
-        rm.positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=0.0, current_price=160)}
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=0.0, current_price=160)
+        }
         assert rm.get_position_stop_loss("AAPL") is None
 
     def test_get_position_stop_loss(self):
         rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10)
-        rm.positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)}
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)
+        }
         assert rm.get_position_stop_loss("AAPL") == 150 * 0.9
 
     def test_should_stop_loss_triggered(self):
         rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10)
-        rm.positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)}
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)
+        }
         assert rm.should_stop_loss("AAPL", 130.0) is True
         assert rm.should_stop_loss("AAPL", 200.0) is False
         assert rm.should_stop_loss("UNKNOWN", 100.0) is False
@@ -274,12 +286,16 @@ class TestStopLossTakeProfit:
 
     def test_get_position_take_profit(self):
         rm = RiskManager(initial_capital=100000.0, take_profit_pct=0.15)
-        rm.positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)}
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)
+        }
         assert rm.get_position_take_profit("AAPL") == 150 * 1.15
 
     def test_should_take_profit_triggered(self):
         rm = RiskManager(initial_capital=100000.0, take_profit_pct=0.15)
-        rm.positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)}
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)
+        }
         assert rm.should_take_profit("AAPL", 200.0) is True
         assert rm.should_take_profit("AAPL", 160.0) is False
         assert rm.should_take_profit("UNKNOWN", 200.0) is False
@@ -297,7 +313,9 @@ class TestResetEnableDisable:
 
     def test_reset_clears_state(self):
         rm = RiskManager(initial_capital=100000.0)
-        positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)}
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)
+        }
         rm.update_portfolio_value(positions, 24000.0)
         assert rm.equity_curve != [100000.0]
         assert rm.positions != {}

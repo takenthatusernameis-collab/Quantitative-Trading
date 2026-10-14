@@ -79,7 +79,9 @@ class MockDataProvider:
         return results
 
     @staticmethod
-    def _request_key(symbols: list, start: datetime | None, end: datetime | None, interval: str) -> str:
+    def _request_key(
+        symbols: list, start: datetime | None, end: datetime | None, interval: str
+    ) -> str:
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
         end_str = end.isoformat() if end else "none"
@@ -447,6 +449,7 @@ def test_random_search_different_objectives():
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
+
 def test_walk_forward_combine_with_partial_windows():
     """Test WalkForwardOptimizer _combine_test_results with some None test results."""
     from quant_trading.backtest.engine import run_backtest
@@ -506,6 +509,7 @@ def test_walk_forward_combine_with_partial_windows():
 
     combined = optimizer._combine_test_results(windows)
     assert combined is not None
+
 
 def test_parameter_space_log_distribution():
     """Test ParameterSpace log distribution sampling."""
@@ -757,9 +761,7 @@ def test_optimization_result_duration_set():
     """Test duration_seconds calculates when start/end set."""
     start = datetime.now()
     end = start + timedelta(seconds=5)
-    result = OptimizationResult(
-        best_params={}, best_score=0.0, start_time=start, end_time=end
-    )
+    result = OptimizationResult(best_params={}, best_score=0.0, start_time=start, end_time=end)
     assert result.duration_seconds == pytest.approx(5.0, abs=0.1)
 
 
@@ -1239,9 +1241,7 @@ def test_bayesian_optimizer_log_prior():
 
     param_grid = ParameterGrid()
     param_grid.add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
-    param_grid.add(
-        ParameterSpace("scale", min_val=0.1, max_val=10.0, distribution="log")
-    )
+    param_grid.add(ParameterSpace("scale", min_val=0.1, max_val=10.0, distribution="log"))
 
     optimizer = BayesianOptimizer(
         strategy_cls=MovingAverageCrossover,
