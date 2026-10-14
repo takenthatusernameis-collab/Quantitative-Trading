@@ -41,6 +41,7 @@ jobs:
           controller=.github/scripts/kilo-controller.sh
           grep -Fq 'git bundle create' "$controller"
           grep -Fq 'git bundle verify' "$controller"
+          grep -Fq 'checkpoint_ref="refs/kilo-recovery/checkpoint-' "$controller"
           grep -Fq 'refs/heads/kilo-recovery/' "$controller"
           grep -Fq 'conflict_signature=' "$controller"
           grep -Fq 'Reached three rebase conflicts' "$controller"
