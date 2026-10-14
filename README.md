@@ -343,6 +343,16 @@ the cloud:
 python examples/run_ichimoku.py
 ```
 
+For a momentum trend-following demonstration using the MACD indicator, see
+`examples/run_macd.py`. It runs the `MACDStrategy` against seeded synthetic
+data, generating buy signals when the MACD line crosses above the signal line
+(bullish crossover) and sell signals when the MACD line crosses below the
+signal line (bearish crossover):
+
+```bash
+python examples/run_macd.py
+```
+
 
 ## Data fetching
 
