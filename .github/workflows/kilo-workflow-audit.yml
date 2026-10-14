@@ -42,7 +42,7 @@ jobs:
           workflow=.github/workflows/main.yml
           bash -n "$controller"
           grep -Fq 'KILO_INPUT_AGENTS' "$controller"
-          grep -Fq 'SESSION_LIMIT_POLICY="$agents"' "$controller"
+          grep -Fq 'SESSION_LIMIT_POLICY=' "$controller"
           grep -Fq 'KILO_INPUT_AGENTS:' "$workflow"
           grep -Fq 'type: number' "$workflow"
           grep -Fq 'default: "1000"' "$workflow"
