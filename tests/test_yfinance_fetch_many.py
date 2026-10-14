@@ -15,7 +15,7 @@ import pandas as pd
 import pytest
 
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
-from quant_trading.data.yfinance_provider import YFinanceProvider
+from quant_trading.data.yfinance_provider import YFinanceProvider, AlphaVantageProvider
 
 FIELDS = ["Open", "High", "Low", "Close", "Volume"]
 
@@ -524,3 +524,454 @@ def test_fetch_latest_delegates_to_fetch(monkeypatch):
     provider.fetch_latest(["AAPL"])
     assert captured["interval"] == "1m"
     assert captured["start"] == captured["end"] - timedelta(days=2)
+
+
+# ---------------------------------------------------------------------------
+# Tests for AlphaVantageProvider offline helpers (cache, _request_key)
+# ---------------------------------------------------------------------------
+
+
+def test_alphavantage_cache_key_is_deterministic(tmp_path):
+    provider = AlphaVantageProvider(cache_dir=str(tmp_path), api_key="test")
+    key = provider._cache_key(["MSFT", "AAPL"], datetime(2024, 1, 1), datetime(2024, 1, 15), "1d")
+    assert key == "alphavantage_AAPL,MSFT_2024-01-01T00:00:00_2024-01-15T00:00:00_1d.pkl"
+    key2 = provider._cache_key(["AAPL"], None, None, "1d")
+    assert key2 == "alphavantage_AAPL_none_none_1d.pkl"
+
+
+def test_alphavantage_cache_path_joins_cache_dir(tmp_path):
+    provider = AlphaVantageProvider(cache_dir=str(tmp_path), api_key="test")
+    assert provider._cache_path("foo.pkl") == os.path.join(str(tmp_path), "foo.pkl")
+
+
+def test_alphavantage_is_cache_valid_no_file(tmp_path):
+    provider = AlphaVantageProvider(cache_dir=str(tmp_path), api_key="test")
+    assert provider._is_cache_valid(str(tmp_path / "missing.pkl")) is False
+
+
+def test_alphavantage_is_cache_valid_fresh(tmp_path):
+    provider = AlphaVantageProvider(cache_dir=str(tmp_path), api_key="test")
+    p = tmp_path / "fresh.pkl"
+    p.write_text("x")
+    assert provider._is_cache_valid(str(p)) is True
+
+
+def test_alphavantage_is_cache_valid_expired_with_zero_ttl(tmp_path):
+    provider = AlphaVantageProvider(cache_dir=str(tmp_path), api_key="test", cache_ttl_hours=0.0)
+    p = tmp_path / "old.pkl"
+    p.write_text("x")
+    assert provider._is_cache_valid(str(p)) is False
+
+
+def test_alphavantage_load_cache_missing_file_returns_none(tmp_path):
+    provider = AlphaVantageProvider(cache_dir=str(tmp_path), api_key="test")
+    assert provider._load_cache(str(tmp_path / "nope.pkl")) is None
+
+
+def test_alphavantage_load_cache_invalid_type_returns_none(tmp_path):
+    provider = AlphaVantageProvider(cache_dir=str(tmp_path), api_key="test")
+    p = tmp_path / "bad.pkl"
+    with open(p, "wb") as f:
+        pickle.dump("not-a-fetchresult", f)
+    assert provider._load_cache(str(p)) is None
+
+
+def test_alphavantage_load_cache_corrupt_pickle_returns_none(tmp_path):
+    provider = AlphaVantageProvider(cache_dir=str(tmp_path), api_key="test")
+    p = tmp_path / "corrupt.pkl"
+    p.write_bytes(b"not a pickle")
+    assert provider._load_cache(str(p)) is None
+
+
+def test_alphavantage_save_cache_roundtrip(tmp_path):
+    provider = AlphaVantageProvider(cache_dir=str(tmp_path), api_key="test")
+    start = datetime(2024, 1, 1)
+    end = datetime(2024, 1, 15)
+    result = FetchResult()
+    result.data["AAPL"] = MarketData(
+        symbol="AAPL",
+        data=_make_frame("AAPL", start, end),
+        source="alphavantage",
+        fetched_at=datetime.now(),
+        metadata={},
+    )
+    key = provider._cache_key(["AAPL"], start, end, "1d")
+    provider._save_cache(provider._cache_path(key), result)
+    loaded = provider._load_cache(provider._cache_path(key))
+    assert loaded is not None
+    assert "AAPL" in loaded.data
+
+
+def test_alphavantage_save_cache_error_is_swallowed(tmp_path):
+    provider = AlphaVantageProvider(cache_dir=str(tmp_path), api_key="test")
+    result = FetchResult()
+    bad_path = str(tmp_path / "missing_subdir" / "cache.pkl")
+    provider._save_cache(bad_path, result)  # Should not raise
+
+
+def test_alphavantage_request_key_is_deterministic():
+    provider = AlphaVantageProvider(api_key="test")
+    key = provider._request_key(["MSFT", "AAPL"], datetime(2024, 1, 1), datetime(2024, 1, 15), "1d")
+    assert key == "AAPL,MSFT|2024-01-01T00:00:00|2024-01-15T00:00:00|1d"
+    key2 = provider._request_key(["AAPL"], None, None, "1d")
+    assert key2 == "AAPL|none|none|1d"
+
+
+# ---------------------------------------------------------------------------
+# Tests for AlphaVantageProvider parsing methods (offline, no network)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_intraday_response_no_time_series_key():
+    """_parse_intraday_response returns None when no Time Series key found (line 825)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {"Meta Data": {"1. Information": "Intraday (5min)"}}
+    result = provider._parse_intraday_response("AAPL", data, None, None)
+    assert result is None
+
+
+def test_parse_intraday_response_empty_time_series():
+    """_parse_intraday_response returns None when time series is empty (line 829)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {"Time Series (5min)": {}}
+    result = provider._parse_intraday_response("AAPL", data, None, None)
+    assert result is None
+
+
+def test_parse_intraday_response_invalid_date_format():
+    """_parse_intraday_response skips records with invalid date format (lines 835-836)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Time Series (5min)": {
+            "invalid-date": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+            "2024-01-01 09:30:00": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+        }
+    }
+    result = provider._parse_intraday_response("AAPL", data, None, None)
+    assert result is not None
+    assert len(result) == 1  # Only valid date parsed
+    assert result.index[0] == datetime(2024, 1, 1, 9, 30, 0)
+
+
+def test_parse_intraday_response_start_filter():
+    """_parse_intraday_response filters by start date (line 839)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Time Series (5min)": {
+            "2024-01-01 09:30:00": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+            "2024-01-01 10:00:00": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. volume": "1000"},
+        }
+    }
+    start = datetime(2024, 1, 1, 10, 0, 0)
+    result = provider._parse_intraday_response("AAPL", data, start, None)
+    assert result is not None
+    assert len(result) == 1
+    assert result.index[0] == datetime(2024, 1, 1, 10, 0, 0)
+
+
+def test_parse_intraday_response_end_filter():
+    """_parse_intraday_response filters by end date (line 841)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Time Series (5min)": {
+            "2024-01-01 09:30:00": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+            "2024-01-01 10:00:00": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. volume": "1000"},
+        }
+    }
+    end = datetime(2024, 1, 1, 9, 30, 0)
+    result = provider._parse_intraday_response("AAPL", data, None, end)
+    assert result is not None
+    assert len(result) == 1
+    assert result.index[0] == datetime(2024, 1, 1, 9, 30, 0)
+
+
+def test_parse_intraday_response_no_records_after_filter():
+    """_parse_intraday_response returns None when all records filtered out (line 855)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Time Series (5min)": {
+            "2024-01-01 09:30:00": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+        }
+    }
+    start = datetime(2024, 1, 2)  # After all data
+    result = provider._parse_intraday_response("AAPL", data, start, None)
+    assert result is None
+
+
+def test_parse_intraday_response_success():
+    """_parse_intraday_response successfully parses valid data."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Time Series (5min)": {
+            "2024-01-01 09:30:00": {"1. open": "100.0", "2. high": "101.0", "3. low": "99.0", "4. close": "100.5", "5. volume": "1000"},
+            "2024-01-01 09:35:00": {"1. open": "100.5", "2. high": "101.5", "3. low": "100.0", "4. close": "101.0", "5. volume": "1500"},
+        }
+    }
+    result = provider._parse_intraday_response("AAPL", data, None, None)
+    assert result is not None
+    assert len(result) == 2
+    assert list(result.columns) == ["open", "high", "low", "close", "volume"]
+    assert result["close"].iloc[0] == 100.5
+    assert result["volume"].iloc[1] == 1500
+
+
+def test_parse_daily_response_no_time_series():
+    """_parse_daily_response returns None when no Time Series (Daily) key (line 869)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {"Meta Data": {"1. Information": "Daily Prices"}}
+    result = provider._parse_daily_response("AAPL", data, None, None)
+    assert result is None
+
+
+def test_parse_daily_response_invalid_date_format():
+    """_parse_daily_response skips records with invalid date format (lines 875-876)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Time Series (Daily)": {
+            "invalid-date": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+        }
+    }
+    result = provider._parse_daily_response("AAPL", data, None, None)
+    assert result is not None
+    assert len(result) == 1
+    assert result.index[0] == datetime(2024, 1, 1)
+
+
+def test_parse_daily_response_start_filter():
+    """_parse_daily_response filters by start date (line 879)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Time Series (Daily)": {
+            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+            "2024-01-02": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. adjusted close": "101", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+        }
+    }
+    start = datetime(2024, 1, 2)
+    result = provider._parse_daily_response("AAPL", data, start, None)
+    assert result is not None
+    assert len(result) == 1
+    assert result.index[0] == datetime(2024, 1, 2)
+
+
+def test_parse_daily_response_end_filter():
+    """_parse_daily_response filters by end date (line 881)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Time Series (Daily)": {
+            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+            "2024-01-02": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. adjusted close": "101", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+        }
+    }
+    end = datetime(2024, 1, 1)
+    result = provider._parse_daily_response("AAPL", data, None, end)
+    assert result is not None
+    assert len(result) == 1
+    assert result.index[0] == datetime(2024, 1, 1)
+
+
+def test_parse_daily_response_no_records_after_filter():
+    """_parse_daily_response returns None when all records filtered out (line 898)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Time Series (Daily)": {
+            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+        }
+    }
+    start = datetime(2024, 1, 2)
+    result = provider._parse_daily_response("AAPL", data, start, None)
+    assert result is None
+
+
+def test_parse_daily_response_success():
+    """_parse_daily_response successfully parses valid data with all fields."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Time Series (Daily)": {
+            "2024-01-01": {"1. open": "100.0", "2. high": "101.0", "3. low": "99.0", "4. close": "100.5", "5. adjusted close": "100.3", "6. volume": "1000", "7. dividend amount": "0.5", "8. split coefficient": "1.0"},
+            "2024-01-02": {"1. open": "100.5", "2. high": "101.5", "3. low": "100.0", "4. close": "101.0", "5. adjusted close": "100.8", "6. volume": "1500", "7. dividend amount": "0", "8. split coefficient": "1.0"},
+        }
+    }
+    result = provider._parse_daily_response("AAPL", data, None, None)
+    assert result is not None
+    assert len(result) == 2
+    expected_cols = ["open", "high", "low", "close", "adjusted_close", "volume", "dividend_amount", "split_coefficient"]
+    assert list(result.columns) == expected_cols
+    assert result["adjusted_close"].iloc[0] == 100.3
+    assert result["dividend_amount"].iloc[0] == 0.5
+
+
+# ---------------------------------------------------------------------------
+# Tests for AlphaVantageProvider weekly parsing methods
+# ---------------------------------------------------------------------------
+
+
+def test_parse_weekly_response_no_time_series():
+    """_parse_weekly_response returns None when no Weekly Time Series key (line 939)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {"Meta Data": {"1. Information": "Weekly Prices"}}
+    result = provider._parse_weekly_response("AAPL", data, None, None)
+    assert result is None
+
+
+def test_parse_weekly_response_invalid_date_format():
+    """_parse_weekly_response skips records with invalid date format (lines 945-946)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Weekly Time Series": {
+            "invalid-date": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+        }
+    }
+    result = provider._parse_weekly_response("AAPL", data, None, None)
+    assert result is not None
+    assert len(result) == 1
+    assert result.index[0] == datetime(2024, 1, 1)
+
+
+def test_parse_weekly_response_start_filter():
+    """_parse_weekly_response filters by start date (line 949)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Weekly Time Series": {
+            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+            "2024-01-08": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. volume": "1000"},
+        }
+    }
+    start = datetime(2024, 1, 8)
+    result = provider._parse_weekly_response("AAPL", data, start, None)
+    assert result is not None
+    assert len(result) == 1
+    assert result.index[0] == datetime(2024, 1, 8)
+
+
+def test_parse_weekly_response_end_filter():
+    """_parse_weekly_response filters by end date (line 951)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Weekly Time Series": {
+            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+            "2024-01-08": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. volume": "1000"},
+        }
+    }
+    end = datetime(2024, 1, 1)
+    result = provider._parse_weekly_response("AAPL", data, None, end)
+    assert result is not None
+    assert len(result) == 1
+    assert result.index[0] == datetime(2024, 1, 1)
+
+
+def test_parse_weekly_response_no_records_after_filter():
+    """_parse_weekly_response returns None when all records filtered out (line 965)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Weekly Time Series": {
+            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+        }
+    }
+    start = datetime(2024, 1, 8)
+    result = provider._parse_weekly_response("AAPL", data, start, None)
+    assert result is None
+
+
+def test_parse_weekly_response_success():
+    """_parse_weekly_response successfully parses valid data."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Weekly Time Series": {
+            "2024-01-01": {"1. open": "100.0", "2. high": "101.0", "3. low": "99.0", "4. close": "100.5", "5. volume": "1000"},
+            "2024-01-08": {"1. open": "100.5", "2. high": "101.5", "3. low": "100.0", "4. close": "101.0", "5. volume": "1500"},
+        }
+    }
+    result = provider._parse_weekly_response("AAPL", data, None, None)
+    assert result is not None
+    assert len(result) == 2
+    assert list(result.columns) == ["open", "high", "low", "close", "volume"]
+    assert result["close"].iloc[0] == 100.5
+    assert result["volume"].iloc[1] == 1500
+
+
+def test_parse_weekly_adjusted_response_no_time_series():
+    """_parse_weekly_adjusted_response returns None when no Weekly Adjusted Time Series key (line 979)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {"Meta Data": {"1. Information": "Weekly Adjusted Prices"}}
+    result = provider._parse_weekly_adjusted_response("AAPL", data, None, None)
+    assert result is None
+
+
+def test_parse_weekly_adjusted_response_invalid_date_format():
+    """_parse_weekly_adjusted_response skips records with invalid date format (lines 985-986)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Weekly Adjusted Time Series": {
+            "invalid-date": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+        }
+    }
+    result = provider._parse_weekly_adjusted_response("AAPL", data, None, None)
+    assert result is not None
+    assert len(result) == 1
+    assert result.index[0] == datetime(2024, 1, 1)
+
+
+def test_parse_weekly_adjusted_response_start_filter():
+    """_parse_weekly_adjusted_response filters by start date (line 989)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Weekly Adjusted Time Series": {
+            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+            "2024-01-08": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. adjusted close": "101", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+        }
+    }
+    start = datetime(2024, 1, 8)
+    result = provider._parse_weekly_adjusted_response("AAPL", data, start, None)
+    assert result is not None
+    assert len(result) == 1
+    assert result.index[0] == datetime(2024, 1, 8)
+
+
+def test_parse_weekly_adjusted_response_end_filter():
+    """_parse_weekly_adjusted_response filters by end date (line 991)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Weekly Adjusted Time Series": {
+            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+            "2024-01-08": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. adjusted close": "101", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+        }
+    }
+    end = datetime(2024, 1, 1)
+    result = provider._parse_weekly_adjusted_response("AAPL", data, None, end)
+    assert result is not None
+    assert len(result) == 1
+    assert result.index[0] == datetime(2024, 1, 1)
+
+
+def test_parse_weekly_adjusted_response_no_records_after_filter():
+    """_parse_weekly_adjusted_response returns None when all records filtered out (line 1008)."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Weekly Adjusted Time Series": {
+            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+        }
+    }
+    start = datetime(2024, 1, 8)
+    result = provider._parse_weekly_adjusted_response("AAPL", data, start, None)
+    assert result is None
+
+
+def test_parse_weekly_adjusted_response_success():
+    """_parse_weekly_adjusted_response successfully parses valid data with all fields."""
+    provider = AlphaVantageProvider(api_key="test")
+    data = {
+        "Weekly Adjusted Time Series": {
+            "2024-01-01": {"1. open": "100.0", "2. high": "101.0", "3. low": "99.0", "4. close": "100.5", "5. adjusted close": "100.3", "6. volume": "1000", "7. dividend amount": "0.5", "8. split coefficient": "1.0"},
+            "2024-01-08": {"1. open": "100.5", "2. high": "101.5", "3. low": "100.0", "4. close": "101.0", "5. adjusted close": "100.8", "6. volume": "1500", "7. dividend amount": "0", "8. split coefficient": "1.0"},
+        }
+    }
+    result = provider._parse_weekly_adjusted_response("AAPL", data, None, None)
+    assert result is not None
+    assert len(result) == 2
+    expected_cols = ["open", "high", "low", "close", "adjusted_close", "volume", "dividend_amount", "split_coefficient"]
+    assert list(result.columns) == expected_cols
+    assert result["adjusted_close"].iloc[0] == 100.3
+    assert result["dividend_amount"].iloc[0] == 0.5
