@@ -5,6 +5,7 @@ from .examples import (
     AroonStrategy,
     BollingerBandsStrategy,
     DonchianChannelStrategy,
+    KeltnerChannelStrategy,
     MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
@@ -28,11 +29,13 @@ register_strategy("macd", MACDStrategy, aliases=["macd_crossover"])
 register_strategy("supertrend", SuperTrendStrategy, aliases=["st", "super_trend"])
 register_strategy("donchian", DonchianChannelStrategy, aliases=["donchian_channel", "dc"])
 register_strategy("aroon", AroonStrategy, aliases=["aroon_oscillator"])
+register_strategy("keltner", KeltnerChannelStrategy, aliases=["kc", "keltner_channel"])
 
 __all__ = [
     "AroonStrategy",
     "BollingerBandsStrategy",
     "DonchianChannelStrategy",
+    "KeltnerChannelStrategy",
     "MACDStrategy",
     "MovingAverageCrossover",
     "Position",

@@ -1018,3 +1018,185 @@ class AroonStrategy(Strategy):
                 )
 
         return signals
+
+
+class KeltnerChannelStrategy(Strategy):
+    """Keltner Channel Strategy.
+
+    The Keltner Channel is a volatility-based envelope set above and below an
+    exponential moving average (EMA). The channels are typically set at a
+    multiple of the Average True Range (ATR) above and below the EMA.
+
+    Trading signals:
+    - Buy when price closes above the upper channel (breakout)
+    - Sell when price closes below the lower channel (breakdown)
+    - Optional: Buy when price crosses above the middle EMA (trend change)
+    - Optional: Sell when price crosses below the middle EMA (trend change)
+    """
+
+    def __init__(
+        self,
+        ema_period: int = 20,
+        atr_period: int = 10,
+        multiplier: float = 2.0,
+        use_middle_cross: bool = False,
+        name: str = "Keltner_Channel",
+    ):
+        super().__init__(
+            name,
+            {
+                "ema_period": ema_period,
+                "atr_period": atr_period,
+                "multiplier": multiplier,
+                "use_middle_cross": use_middle_cross,
+            },
+        )
+        self.ema_period = ema_period
+        self.atr_period = atr_period
+        self.multiplier = multiplier
+        self.use_middle_cross = use_middle_cross
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters."""
+        if self.ema_period <= 0:
+            raise ValueError("ema_period must be positive")
+        if self.atr_period <= 0:
+            raise ValueError("atr_period must be positive")
+        if self.multiplier <= 0:
+            raise ValueError("multiplier must be positive")
+
+    def _ema(self, close: pd.Series, period: int) -> pd.Series:
+        """Calculate Exponential Moving Average."""
+        return close.ewm(span=period, adjust=False).mean()
+
+    def _atr(self, df: pd.DataFrame, period: int) -> pd.Series:
+        """Calculate Average True Range (ATR)."""
+        high = df["high"]
+        low = df["low"]
+        close = df["close"]
+
+        # True Range = max(high - low, |high - prev_close|, |low - prev_close|)
+        prev_close = close.shift(1)
+        tr1 = high - low
+        tr2 = (high - prev_close).abs()
+        tr3 = (low - prev_close).abs()
+        true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+        # ATR is the rolling average of True Range
+        atr = true_range.rolling(window=period).mean()
+        return atr
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals = []
+
+        for symbol, df in data.items():
+            # Need enough data for EMA and ATR calculations
+            min_required = max(self.ema_period, self.atr_period) + 1
+            if len(df) < min_required:
+                continue
+
+            close = df["close"]
+
+            # Calculate EMA (middle line)
+            ema = self._ema(close, self.ema_period)
+
+            # Calculate ATR
+            atr = self._atr(df, self.atr_period)
+
+            # Calculate upper and lower channels
+            upper_channel = ema + (self.multiplier * atr)
+            lower_channel = ema - (self.multiplier * atr)
+
+            current_price = close.iloc[-1]
+            current_ema = ema.iloc[-1]
+            current_upper = upper_channel.iloc[-1]
+            current_lower = lower_channel.iloc[-1]
+            prev_price = close.iloc[-2]
+            prev_ema = ema.iloc[-2]
+            prev_upper = upper_channel.iloc[-2]
+            prev_lower = lower_channel.iloc[-2]
+            timestamp = df.index[-1]
+
+            # Channel breakout signals
+            if prev_price <= prev_upper and current_price > current_upper:
+                # Buy signal: price broke above upper channel
+                strength = min(1.0, (current_price - current_upper) / current_upper * 10 + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "ema": current_ema,
+                            "upper_channel": current_upper,
+                            "lower_channel": current_lower,
+                            "atr": atr.iloc[-1],
+                            "signal_type": "upper_breakout",
+                        },
+                    )
+                )
+            elif prev_price >= prev_lower and current_price < current_lower:
+                # Sell signal: price broke below lower channel
+                strength = min(1.0, (current_lower - current_price) / current_lower * 10 + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "ema": current_ema,
+                            "upper_channel": current_upper,
+                            "lower_channel": current_lower,
+                            "atr": atr.iloc[-1],
+                            "signal_type": "lower_breakout",
+                        },
+                    )
+                )
+
+            # Optional middle line crossover signals
+            if self.use_middle_cross:
+                if prev_price <= prev_ema and current_price > current_ema:
+                    # Buy signal: price crossed above EMA
+                    strength = min(1.0, (current_price - current_ema) / current_ema * 10 + 0.5)
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="buy",
+                            strength=strength,
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "ema": current_ema,
+                                "upper_channel": current_upper,
+                                "lower_channel": current_lower,
+                                "atr": atr.iloc[-1],
+                                "signal_type": "middle_cross_up",
+                            },
+                        )
+                    )
+                elif prev_price >= prev_ema and current_price < current_ema:
+                    # Sell signal: price crossed below EMA
+                    strength = min(1.0, (current_ema - current_price) / current_ema * 10 + 0.5)
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="sell",
+                            strength=strength,
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "ema": current_ema,
+                                "upper_channel": current_upper,
+                                "lower_channel": current_lower,
+                                "atr": atr.iloc[-1],
+                                "signal_type": "middle_cross_down",
+                            },
+                        )
+                    )
+
+        return signals

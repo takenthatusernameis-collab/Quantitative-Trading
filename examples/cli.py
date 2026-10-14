@@ -31,7 +31,7 @@ from quant_trading.strategies import (
 )
 
 # Built-in strategy keys for argparse choices (preserves existing behavior)
-BUILTIN_STRATEGY_KEYS = ["ma", "rsi", "bb", "macd", "supertrend", "donchian", "aroon"]
+BUILTIN_STRATEGY_KEYS = ["ma", "rsi", "bb", "macd", "supertrend", "donchian", "aroon", "keltner"]
 
 PROVIDERS = {
     "yfinance": ("YFinanceProvider", "Yahoo Finance (requires network)"),
@@ -72,6 +72,10 @@ CLI_ARG_DEFAULTS = {
     "dc_period": 20,
     "dc_exit_period": None,
     "aroon_period": 25,
+    "kc_ema_period": 20,
+    "kc_atr_period": 10,
+    "kc_multiplier": 2.0,
+    "kc_use_middle_cross": False,
 }
 
 
@@ -250,6 +254,29 @@ def parse_args() -> argparse.Namespace:
         default=25,
         help="Aroon period",
     )
+    parser.add_argument(
+        "--kc-ema-period",
+        type=int,
+        default=20,
+        help="EMA period for Keltner Channel middle line",
+    )
+    parser.add_argument(
+        "--kc-atr-period",
+        type=int,
+        default=10,
+        help="ATR period for Keltner Channel",
+    )
+    parser.add_argument(
+        "--kc-multiplier",
+        type=float,
+        default=2.0,
+        help="Multiplier for ATR to set channel width",
+    )
+    parser.add_argument(
+        "--kc-use-middle-cross",
+        action="store_true",
+        help="Enable middle line (EMA) crossover signals for Keltner Channel",
+    )
 
     # Parameter ranges for optimization
     parser.add_argument(
@@ -341,6 +368,24 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="10,50,5",
         help="Aroon period range: min,max,step",
+    )
+    parser.add_argument(
+        "--kc-ema-period-range",
+        type=str,
+        default="10,30,5",
+        help="Keltner EMA period range: min,max,step",
+    )
+    parser.add_argument(
+        "--kc-atr-period-range",
+        type=str,
+        default="5,20,2",
+        help="Keltner ATR period range: min,max,step",
+    )
+    parser.add_argument(
+        "--kc-multiplier-range",
+        type=str,
+        default="1.0,3.0,0.5",
+        help="Keltner multiplier range: min,max,step",
     )
 
     parser.add_argument(
@@ -553,6 +598,12 @@ def create_strategy(args: argparse.Namespace):
         "supertrend": [("st_period", "period"), ("st_multiplier", "multiplier")],
         "donchian": [("dc_period", "period"), ("dc_exit_period", "exit_period")],
         "aroon": [("aroon_period", "period")],
+        "keltner": [
+            ("kc_ema_period", "ema_period"),
+            ("kc_atr_period", "atr_period"),
+            ("kc_multiplier", "multiplier"),
+            ("kc_use_middle_cross", "use_middle_cross"),
+        ],
     }
 
     if args.strategy in strategy_param_map:
@@ -580,6 +631,8 @@ def create_strategy(args: argparse.Namespace):
             kwargs["name"] = f"Donchian_{args.dc_period}_{exit_period}"
         elif args.strategy == "aroon":
             kwargs["name"] = f"Aroon_{args.aroon_period}"
+        elif args.strategy == "keltner":
+            kwargs["name"] = f"Keltner_{args.kc_ema_period}_{args.kc_atr_period}_{args.kc_multiplier}"
 
         return factory_create_strategy(args.strategy, **kwargs)
     else:
@@ -775,6 +828,26 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
                 "period", min_val=period_min, max_val=period_max, step=period_step, param_type=int
             )
         )
+    elif args.strategy == "keltner":
+        ema_min, ema_max, ema_step = parse_range(args.kc_ema_period_range)
+        atr_min, atr_max, atr_step = parse_range(args.kc_atr_period_range)
+        mult_min, mult_max, mult_step = parse_range(args.kc_multiplier_range)
+        grid.add(
+            ParameterSpace(
+                "ema_period", min_val=ema_min, max_val=ema_max, step=ema_step, param_type=int
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "atr_period", min_val=atr_min, max_val=atr_max, step=atr_step, param_type=int
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "multiplier", min_val=mult_min, max_val=mult_max, step=mult_step, param_type=float
+            )
+        )
+        grid.add(ParameterSpace("use_middle_cross", values=[False, True], param_type=bool))
 
     return grid
 
@@ -1269,6 +1342,11 @@ def run_combined(
             strategy_args.dc_exit_period = getattr(args, "dc_exit_period", None)
         elif strategy_key == "aroon":
             strategy_args.aroon_period = getattr(args, "aroon_period", 25)
+        elif strategy_key == "keltner":
+            strategy_args.kc_ema_period = getattr(args, "kc_ema_period", 20)
+            strategy_args.kc_atr_period = getattr(args, "kc_atr_period", 10)
+            strategy_args.kc_multiplier = getattr(args, "kc_multiplier", 2.0)
+            strategy_args.kc_use_middle_cross = getattr(args, "kc_use_middle_cross", False)
         strategy = create_strategy(strategy_args)
 
         try:

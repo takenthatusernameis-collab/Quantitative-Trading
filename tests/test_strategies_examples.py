@@ -9,6 +9,7 @@ import pytest
 from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
     DonchianChannelStrategy,
+    KeltnerChannelStrategy,
     MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
@@ -103,6 +104,74 @@ def create_donchian_data(symbol: str, closes: list[float]) -> pd.DataFrame:
             "open": close,
             "high": close * 1.001,
             "low": close * 0.999,
+            "close": close,
+            "volume": np.full(len(close), 1_000_000),
+        },
+        index=dates,
+    )
+
+def create_keltner_data(symbol: str, closes: list[float]) -> pd.DataFrame:
+    """Create deterministic OHLC data from explicit close prices.
+
+    High/low/wick are derived from ATR-like volatility for realistic
+    Keltner Channel testing. Unlike donchian data, we calculate
+    proper high/low ranges based on EMA and ATR to test channel
+    breakouts accurately.
+    """
+    close = np.asarray(closes, dtype=float)
+    if len(close) < 2:
+        raise ValueError("Need at least 2 price points")
+
+    dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
+
+    # Calculate a simple EMA and ATR-like volatility for bands
+    # Use a fixed period for consistency in tests
+    ema_period = min(5, len(close) // 2)  # Use small EMA period for test data
+    atr_period = min(5, len(close) // 2)  # Use small ATR period for test data
+
+    # Calculate EMA
+    ema = pd.Series(close).ewm(span=ema_period, adjust=False).mean().values
+
+    # Calculate True Range and ATR
+    high_raw = close * 1.001  # Temporary high for TR calculation
+    low_raw = close * 0.999   # Temporary low for TR calculation
+
+    # True Range = max(high - low, |high - prev_close|, |low - prev_close|)
+    prev_close = np.concatenate(([close[0]], close[:-1]))
+    tr1 = high_raw - low_raw
+    tr2 = np.abs(high_raw - prev_close)
+    tr3 = np.abs(low_raw - prev_close)
+    true_range = np.maximum(tr1, np.maximum(tr2, tr3))
+
+    # Simple moving average of True Range for ATR
+    atr = pd.Series(true_range).rolling(window=atr_period, min_periods=1).mean().values
+
+    # Generate OHLC data based on EMA and ATR
+    multiplier = 2.0  # Same as default in strategy
+    upper_band = ema + (multiplier * atr)
+    lower_band = ema - (multiplier * atr)
+
+    # Add some randomness to make it realistic while keeping close prices fixed
+    noise_factor = 0.001  # Small noise factor
+    open_prices = close * (1 + np.random.uniform(-noise_factor, noise_factor, len(close)))
+    high_prices = np.maximum(
+        upper_band * (1 + np.random.uniform(0, noise_factor, len(close))),
+        np.maximum(open_prices, close)
+    )
+    low_prices = np.minimum(
+        lower_band * (1 - np.random.uniform(0, noise_factor, len(close))),
+        np.minimum(open_prices, close)
+    )
+
+    # Ensure high >= close >= low
+    high_prices = np.maximum(high_prices, np.maximum(open_prices, close))
+    low_prices = np.minimum(low_prices, np.minimum(open_prices, close))
+
+    return pd.DataFrame(
+        {
+            "open": open_prices,
+            "high": high_prices,
+            "low": low_prices,
             "close": close,
             "volume": np.full(len(close), 1_000_000),
         },
@@ -1026,6 +1095,133 @@ class TestStrategyParameters:
         positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0)}
         strategy.update_positions(positions)
         assert strategy.positions == positions
+
+
+class TestKeltnerChannelStrategy:
+    """Tests for KeltnerChannelStrategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = KeltnerChannelStrategy(
+            ema_period=20, atr_period=10, multiplier=2.0, name="Test_KC"
+        )
+        assert strategy.name == "Test_KC"
+        assert strategy.ema_period == 20
+        assert strategy.atr_period == 10
+        assert strategy.multiplier == 2.0
+        assert strategy.parameters["ema_period"] == 20
+        assert strategy.parameters["atr_period"] == 10
+        assert strategy.parameters["multiplier"] == 2.0
+
+    def test_initialization_defaults(self):
+        """Test default parameter values."""
+        strategy = KeltnerChannelStrategy(name="Test_KC_Default")
+        assert strategy.ema_period == 20
+        assert strategy.atr_period == 10
+        assert strategy.multiplier == 2.0
+        assert strategy.use_middle_cross is False
+
+    def test_validate_parameters(self):
+        """Test parameter validation."""
+        with pytest.raises(ValueError, match="ema_period must be positive"):
+            KeltnerChannelStrategy(ema_period=0)
+        with pytest.raises(ValueError, match="atr_period must be positive"):
+            KeltnerChannelStrategy(atr_period=0)
+        with pytest.raises(ValueError, match="multiplier must be positive"):
+            KeltnerChannelStrategy(multiplier=0)
+        with pytest.raises(ValueError, match="ema_period must be positive"):
+            KeltnerChannelStrategy(ema_period=-1)
+        with pytest.raises(ValueError, match="atr_period must be positive"):
+            KeltnerChannelStrategy(atr_period=-1)
+        with pytest.raises(ValueError, match="multiplier must be positive"):
+            KeltnerChannelStrategy(multiplier=-1)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with insufficient data."""
+        strategy = KeltnerChannelStrategy(ema_period=5, atr_period=5)
+        # Need at least max(ema_period, atr_period) + 1 = 11 data points
+        # But our create_keltner_data function needs at least 2 points to calculate EMA/ATR
+        # So we'll test with 5 points which should be insufficient for the strategy
+        data = {"AAPL": create_keltner_data("AAPL", [100.0] * 5)}  # Only 5 data points
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_upper_breakout(self):
+        """Test generate_signals detects upper channel breakout (buy signal)."""
+        strategy = KeltnerChannelStrategy(ema_period=5, atr_period=5, multiplier=2.0)
+        # Create data that will break above the upper channel
+        # First 20 days: sideways movement around 100
+        # Day 21: sharp increase to break above upper channel
+        base_data = [100.0] * 20
+        spike_data = [120.0]  # Significant spike
+        data = {"AAPL": create_keltner_data("AAPL", base_data + spike_data)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.price == pytest.approx(120.0)
+        assert signal.metadata["signal_type"] == "upper_breakout"
+
+    def test_generate_signals_lower_breakout(self):
+        """Test generate_signals detects lower channel breakout (sell signal)."""
+        strategy = KeltnerChannelStrategy(ema_period=5, atr_period=5, multiplier=2.0)
+        # Create data that will break below the lower channel
+        # First 20 days: sideways movement around 100
+        # Day 21: sharp decrease to break below lower channel
+        base_data = [100.0] * 20
+        drop_data = [80.0]  # Significant drop
+        data = {"AAPL": create_keltner_data("AAPL", base_data + drop_data)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.price == pytest.approx(80.0)
+        assert signal.metadata["signal_type"] == "lower_breakout"
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals with multiple symbols."""
+        strategy = KeltnerChannelStrategy(ema_period=5, atr_period=5, multiplier=2.0)
+        # Symbol A: breakout above upper channel (buy)
+        # Symbol B: breakdown below lower channel (sell)
+        data_a = [100.0] * 20 + [120.0]  # Breakout
+        data_b = [100.0] * 20 + [80.0]   # Breakdown
+        data = {
+            "AAPL": create_keltner_data("AAPL", data_a),
+            "MSFT": create_keltner_data("MSFT", data_b),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+        assert by_symbol["AAPL"].metadata["signal_type"] == "upper_breakout"
+        assert by_symbol["MSFT"].metadata["signal_type"] == "lower_breakout"
+
+    def test_generate_signals_with_middle_cross(self):
+        """Test generate_signals with middle line crossover enabled."""
+        strategy = KeltnerChannelStrategy(
+            ema_period=5, atr_period=5, multiplier=2.0, use_middle_cross=True
+        )
+        # Create data that will cross above the EMA (middle line)
+        # First 10 days: decreasing trend to approach EMA from above
+        # Day 11: sharp increase to cross above EMA
+        declining_data = [105.0, 104.0, 103.0, 102.0, 101.0] * 2  # 10 days declining
+        spike_data = [110.0]  # Spike above EMA
+        data = {"AAPL": create_keltner_data("AAPL", declining_data + spike_data)}
+        signals = strategy.generate_signals(data)
+
+        # Should have at least one buy signal from middle cross
+        buy_signals = [s for s in signals if s.action == "buy"]
+        assert len(buy_signals) >= 1
+        # Check that at least one is a middle cross signal
+        middle_cross_signals = [
+            s for s in buy_signals if s.metadata.get("signal_type") == "middle_cross_up"
+        ]
+        assert len(middle_cross_signals) >= 1
 
 
 if __name__ == "__main__":

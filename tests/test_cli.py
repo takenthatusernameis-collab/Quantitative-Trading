@@ -552,6 +552,7 @@ class TestRunCombined:
             ("SuperTrend_10_3.0", 8.5),
             ("Donchian_20_20", 14.2),
             ("Aroon_25", 11.0),
+            ("Keltner_20_10_2.0", 13.0),
         ]:
             m = MagicMock(
                 spec=[
