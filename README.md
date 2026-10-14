@@ -324,6 +324,15 @@ SAR (trend turns bullish) and sell signals when price crosses below the SAR
 python examples/run_parabolic_sar.py
 ```
 
+For a session-based VWAP demonstration, see `examples/run_vwap.py`. It runs
+the `VWAPStrategy` against seeded synthetic data, generating buy signals
+when price crosses above the VWAP and sell signals when price crosses below
+the VWAP:
+
+```bash
+python examples/run_vwap.py
+```
+
 ## Data fetching
 
 `DataProvider.fetch_many(requests)` fetches several distinct symbol/date
