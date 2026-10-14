@@ -431,3 +431,76 @@ def test_data_manager_fetch_no_cache():
     result = manager.fetch(["AAPL"], use_cache=False)
     assert "AAPL" in result.data
     assert len(manager._cache) == 0
+
+
+# ---------------------------------------------------------------------------
+# Resilience: DataManager edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_data_manager_clear_cache_is_idempotent():
+    """clear_cache can be called repeatedly without error."""
+    provider = CountingProvider(create_synthetic_data(["AAPL"], days=10))
+    manager = DataManager([provider])
+    manager.fetch(["AAPL"])
+    assert len(manager._cache) == 1
+
+    manager.clear_cache()
+    assert len(manager._cache) == 0
+    # Second call must not raise
+    manager.clear_cache()
+    assert len(manager._cache) == 0
+
+
+def test_data_manager_fetch_unknown_provider_raises():
+    """fetch with an unknown provider_name raises ValueError."""
+    provider = CountingProvider(create_synthetic_data(["AAPL"], days=10))
+    manager = DataManager([provider])
+    with pytest.raises(ValueError, match="No data provider available"):
+        manager.fetch(["AAPL"], provider_name="nonexistent")
+
+
+def test_data_manager_fetch_many_unknown_provider_raises():
+    """fetch_many with an unknown provider_name raises ValueError."""
+    provider = CountingProvider(create_synthetic_data(["AAPL"], days=10))
+    manager = DataManager([provider])
+    with pytest.raises(ValueError, match="No data provider available"):
+        manager.fetch_many([{"symbols": ["AAPL"]}], provider_name="nonexistent")
+
+
+def test_data_manager_fetch_many_falls_back_to_first_provider():
+    """fetch_many without provider_name uses the first registered provider."""
+    data = create_synthetic_data(["AAPL"], days=10)
+    first = CountingProvider(data, name="primary")
+    second = CountingProvider({}, name="secondary")
+    manager = DataManager([first, second])
+
+    end = datetime.now()
+    start = end - timedelta(days=5)
+    results = manager.fetch_many(
+        [{"symbols": ["AAPL"], "start": start, "end": end, "interval": "1d"}]
+    )
+
+    assert first.fetch_calls == 1
+    assert second.fetch_calls == 0
+    assert results
+
+
+def test_data_manager_fetch_many_empty_requests():
+    """fetch_many with no requests returns an empty mapping."""
+    provider = CountingProvider(create_synthetic_data(["AAPL"], days=10))
+    manager = DataManager([provider])
+    assert manager.fetch_many([]) == {}
+
+
+def test_data_manager_fetch_many_partial_results():
+    """fetch_many partitions a result with mixed data/missing symbols."""
+    data = create_synthetic_data(["AAPL"], days=10)
+    provider = CountingProvider(data, name="counting")
+    manager = DataManager([provider])
+
+    results = manager.fetch_many([{"symbols": ["AAPL", "MSFT"], "interval": "1d"}])
+    res = next(iter(results.values()))
+    assert "AAPL" in res.data
+    assert "MSFT" in res.missing
+    assert not res.errors

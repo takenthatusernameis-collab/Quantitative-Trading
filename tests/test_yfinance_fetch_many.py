@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import pytest
+import requests
 
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
 from quant_trading.data.yfinance_provider import AlphaVantageProvider, YFinanceProvider
@@ -943,6 +944,92 @@ def test_parse_daily_response_success():
     assert list(result.columns) == expected_cols
     assert result["adjusted_close"].iloc[0] == 100.3
     assert result["dividend_amount"].iloc[0] == 0.5
+
+
+# ---------------------------------------------------------------------------
+# Resilience: YFinanceProvider.fetch_many error propagation
+# ---------------------------------------------------------------------------
+
+
+class _DownloadErrorYf:
+    """Stand-in for yfinance whose download() raises."""
+
+    def __init__(self, exc):
+        self._exc = exc
+        self.download_calls: list[dict] = []
+
+    def download(self, **kwargs):
+        self.download_calls.append(kwargs)
+        raise self._exc
+
+
+def test_fetch_many_captures_network_error_per_symbol():
+    """A network error during the batched download is captured per symbol."""
+    provider = YFinanceProvider(cache_dir=None)
+    provider._yf = _DownloadErrorYf(requests.ConnectionError("network boom"))
+
+    results = provider.fetch_many([{"symbols": ["AAPL", "MSFT"], "interval": "1d"}])
+
+    res = next(iter(results.values()))
+    assert "AAPL" in res.errors
+    assert "MSFT" in res.errors
+    assert isinstance(res.errors["AAPL"], requests.ConnectionError)
+    assert not res.data
+    assert not res.missing
+
+
+def test_fetch_many_captures_generic_runtime_error_per_symbol():
+    """A RuntimeError during download is captured per symbol."""
+    provider = YFinanceProvider(cache_dir=None)
+    provider._yf = _DownloadErrorYf(RuntimeError("yfinance internal failure"))
+
+    results = provider.fetch_many([{"symbols": ["AAPL"], "interval": "1d"}])
+
+    res = next(iter(results.values()))
+    assert "AAPL" in res.errors
+    assert isinstance(res.errors["AAPL"], RuntimeError)
+
+
+def test_fetch_many_captures_value_error_per_symbol():
+    """A ValueError during download is captured per symbol."""
+    provider = YFinanceProvider(cache_dir=None)
+    provider._yf = _DownloadErrorYf(ValueError("bad argument"))
+
+    results = provider.fetch_many([{"symbols": ["AAPL"], "interval": "1d"}])
+
+    res = next(iter(results.values()))
+    assert "AAPL" in res.errors
+    assert isinstance(res.errors["AAPL"], ValueError)
+
+
+def test_fetch_many_empty_requests():
+    """fetch_many with no requests returns an empty mapping."""
+    provider = YFinanceProvider(cache_dir=None)
+    provider._yf = _DownloadErrorYf(RuntimeError("should not be called"))
+    assert provider.fetch_many([]) == {}
+
+
+def test_fetch_many_empty_group_result_is_missing():
+    """An empty DataFrame from download marks all symbols as missing."""
+    provider = YFinanceProvider(cache_dir=None)
+    provider._yf = FakeYf({})
+    results = provider.fetch_many([{"symbols": ["AAPL", "MSFT"], "interval": "1d"}])
+    res = next(iter(results.values()))
+    assert "AAPL" in res.missing
+    assert "MSFT" in res.missing
+    assert not res.data
+    assert not res.errors
+
+
+def test_fetch_many_partial_group_result_partitions():
+    """A group result with mixed data/errors/missing is sliced per request."""
+    provider = YFinanceProvider(cache_dir=None)
+    provider._yf = FakeYf({"AAPL": _make_frame("AAPL", datetime(2024, 1, 1), datetime(2024, 1, 5))})
+    results = provider.fetch_many([{"symbols": ["AAPL", "MSFT", "TSLA"], "interval": "1d"}])
+    res = next(iter(results.values()))
+    assert "AAPL" in res.data
+    assert "MSFT" in res.missing
+    assert "TSLA" in res.missing
 
 
 # ---------------------------------------------------------------------------

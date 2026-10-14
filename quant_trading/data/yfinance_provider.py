@@ -224,15 +224,28 @@ class YFinanceProvider(DataProvider):
 
         result = FetchResult()
         if symbols:
-            df = yf.download(
-                tickers=symbols,
-                start=start,
-                end=end,
-                interval=interval,
-                group_by="ticker",
-                progress=False,
-            )
-            result = self._parse_download(df, symbols)
+            try:
+                df = yf.download(
+                    tickers=symbols,
+                    start=start,
+                    end=end,
+                    interval=interval,
+                    group_by="ticker",
+                    progress=False,
+                )
+                result = self._parse_download(df, symbols)
+            except (
+                ValueError,
+                RuntimeError,
+                KeyError,
+                ImportError,
+                OSError,
+                ConnectionError,
+                TimeoutError,
+            ) as e:
+                logger.error("Error fetching group %s: %s", symbols, e)
+                for symbol in symbols:
+                    result.errors[symbol] = e
         else:  # pragma: no cover
             pass
 

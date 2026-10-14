@@ -5,12 +5,38 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
+import requests
 
 from quant_trading.data.yfinance_provider import AlphaVantageProvider
 
 
 class FakeResponseError(Exception):
     """Custom exception for fake response errors."""
+
+
+class MalformedJsonResponse:
+    """Mock response whose .json() raises (simulates malformed payload)."""
+
+    status_code = 200
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        raise ValueError("invalid json")
+
+
+class HttpErrorResponse:
+    """Mock response whose raise_for_status raises a real requests.HTTPError."""
+
+    def __init__(self, status_code=500):
+        self.status_code = status_code
+
+    def raise_for_status(self):
+        raise requests.HTTPError(f"HTTP {self.status_code}")
+
+    def json(self):
+        return {}
 
 
 class FakeResponse:
@@ -4110,3 +4136,123 @@ class TestAlphaVantageProvider:
             assert len(results1) == 1
             assert len(results2) == 1
             assert mock_get.call_count == 1  # Second call uses cache
+
+    # ------------------------------------------------------------------
+    # Resilience: HTTP status errors, malformed payloads, empty inputs
+    # ------------------------------------------------------------------
+
+    def test_fetch_http_status_error(self, provider):
+        """HTTP >= 400 responses are captured as errors per symbol."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = HttpErrorResponse(status_code=500)
+            result = provider.fetch(["AAPL", "MSFT"], interval="1d")
+
+            assert "AAPL" in result.errors
+            assert "MSFT" in result.errors
+            assert isinstance(result.errors["AAPL"], requests.HTTPError)
+            assert not result.data
+            assert not result.missing
+
+    def test_fetch_malformed_json(self, provider):
+        """A response whose .json() raises is captured as an error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = MalformedJsonResponse()
+            result = provider.fetch(["AAPL"], interval="1d")
+
+            assert "AAPL" in result.errors
+            assert isinstance(result.errors["AAPL"], ValueError)
+            assert not result.data
+
+    def test_fetch_empty_symbols(self, provider):
+        """An empty symbols list yields an empty FetchResult without a call."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            result = provider.fetch([], interval="1d")
+
+            assert not result.data
+            assert not result.errors
+            assert not result.missing
+            mock_get.assert_not_called()
+
+    def test_fetch_many_empty_requests(self, provider):
+        """fetch_many with no requests returns an empty mapping."""
+        results = provider.fetch_many([])
+        assert results == {}
+
+    def test_fetch_many_missing_symbols_key(self, provider):
+        """fetch_many tolerates a request dict without a 'symbols' key."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(DAILY_RESPONSE)
+            results = provider.fetch_many([{"interval": "1d"}])
+
+            assert len(results) == 1
+            res = next(iter(results.values()))
+            assert not res.data
+            assert not res.errors
+
+    # ------------------------------------------------------------------
+    # Resilience: auxiliary endpoint error propagation (HTTP/network)
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize(
+        "method,args",
+        [
+            ("get_market_status", ()),
+            ("get_currency_exchange_rate", ("USD", "EUR")),
+            ("get_gold_spot", ()),
+            ("get_gold_history", ()),
+            ("get_commodity", ("WTI",)),
+            ("get_economic_indicator", ("REAL_GDP",)),
+            ("get_sector_performance", ()),
+            ("get_technical_indicator", ("AAPL",)),
+        ],
+    )
+    def test_auxiliary_endpoint_http_error(self, provider, method, args):
+        """HTTP errors on auxiliary endpoints return None, not raise."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = HttpErrorResponse(status_code=500)
+            result = getattr(provider, method)(*args)
+            assert result is None
+
+    @pytest.mark.parametrize(
+        "method,args",
+        [
+            ("search_symbols", ("Apple",)),
+            ("get_market_status", ()),
+            ("get_currency_exchange_rate", ("USD", "EUR")),
+            ("get_gold_spot", ()),
+            ("get_gold_history", ()),
+            ("get_commodity", ("WTI",)),
+            ("get_economic_indicator", ("REAL_GDP",)),
+            ("get_sector_performance", ()),
+            ("get_technical_indicator", ("AAPL",)),
+        ],
+    )
+    def test_auxiliary_endpoint_network_error(self, provider, method, args):
+        """Network errors on auxiliary endpoints return None/empty, not raise."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.side_effect = requests.ConnectionError("Network unreachable")
+            result = getattr(provider, method)(*args)
+            assert result is None or result == []
+
+    def test_search_symbols_http_error(self, provider):
+        """HTTP errors in search_symbols return an empty list."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = HttpErrorResponse(status_code=500)
+            assert provider.search_symbols("Apple") == []
+
+    def test_search_symbols_malformed_json(self, provider):
+        """Malformed JSON in search_symbols returns an empty list."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = MalformedJsonResponse()
+            assert provider.search_symbols("Apple") == []
+
+    def test_fetch_many_batch_network_error(self, provider):
+        """A network error during a batched fetch_many assigns errors per symbol."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.side_effect = requests.ConnectionError("Network unreachable")
+            results = provider.fetch_many([{"symbols": ["AAPL", "MSFT"], "interval": "5min"}])
+
+            res = next(iter(results.values()))
+            assert "AAPL" in res.errors
+            assert "MSFT" in res.errors
+            assert isinstance(res.errors["AAPL"], requests.ConnectionError)
