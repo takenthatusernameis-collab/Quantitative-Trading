@@ -700,6 +700,11 @@ def parse_args() -> argparse.Namespace:
         type=str,
         help="Path to YAML file containing strategy configuration (type, name, parameters)",
     )
+    parser.add_argument(
+        "--output-strategy-config",
+        type=str,
+        help="Path to YAML file to save the strategy configuration used",
+    )
 
     return parser.parse_args()
 
@@ -1461,6 +1466,33 @@ def main() -> int:
 
     # Single strategy mode
     strategy = create_strategy(args)
+
+    # Save strategy configuration if requested
+    if args.output_strategy_config:
+        import yaml
+
+        from quant_trading.strategies.factory import get_registry
+
+        # Determine strategy type key from registry
+        registry = get_registry()
+        strategy_key = None
+        for key, cls in registry.get_all().items():
+            if cls == strategy.__class__:
+                strategy_key = key
+                break
+        if strategy_key is None:
+            # Fallback to a generic key based on class name
+            strategy_key = strategy.__class__.__name__.lower().replace("strategy", "")
+
+        strategy_config = {
+            "type": strategy_key,
+            "name": strategy.name,
+            "parameters": strategy.get_parameters(),
+        }
+
+        with open(args.output_strategy_config, "w") as f:
+            yaml.dump(strategy_config, f, default_flow_style=False)
+        print(f"Strategy configuration saved to {args.output_strategy_config}")
 
     # Run backtest
     print(f"Running backtest for {strategy.name}")

@@ -1480,3 +1480,69 @@ def test_bayesian_create_skopt_space_min_val_without_max():
 
     space = optimizer._create_skopt_space()
     assert space == []
+
+def test_grid_search_parallel():
+    """Test GridSearch optimization with parallel execution."""
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20, 30], param_type=int))
+
+    optimizer = GridSearch(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=50),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        verbose=False,
+        n_jobs=2,
+    )
+
+    result = optimizer.run()
+
+    assert result.best_params is not None
+    assert "fast_period" in result.best_params
+    assert "slow_period" in result.best_params
+    assert result.best_score != float("-inf")
+    assert len(result.all_results) == 4
+
+
+def test_random_search_parallel():
+    """Test RandomSearch optimization with parallel execution."""
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", min_val=5, max_val=15, param_type=int))
+    param_grid.add(ParameterSpace("slow_period", min_val=20, max_val=30, param_type=int))
+
+    optimizer = RandomSearch(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=50),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        verbose=False,
+        n_jobs=2,
+        n_iter=4,  # Ensure we have a fixed number of iterations
+    )
+
+    result = optimizer.run()
+
+    assert result.best_params is not None
+    assert "fast_period" in result.best_params
+    assert "slow_period" in result.best_params
+    assert result.best_score != float("-inf")
+    assert len(result.all_results) == 4

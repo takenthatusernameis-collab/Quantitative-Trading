@@ -1,0 +1,5 @@
+name: MA_Crossover_10_30
+parameters:
+  fast_period: 10
+  slow_period: 30
+type: ma
