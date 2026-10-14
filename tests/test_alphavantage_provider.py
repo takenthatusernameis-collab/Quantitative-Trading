@@ -3519,6 +3519,19 @@ class TestAlphaVantageProvider:
         df = provider._parse_sector_performance_response(data)
         assert df is None
 
+    def test_parse_sector_performance_response_non_dict_value(self, provider):
+        """Test _parse_sector_performance_response skips non-dict sector maps (line 1499)."""
+        data = {
+            "Rank A: Real-Time Performance": ["not", "a", "dict"],
+            "Rank B: Daily Performance": {"Utilities": "1.5"},
+        }
+        df = provider._parse_sector_performance_response(data)
+        assert df is not None
+        assert len(df) == 1
+        assert df.iloc[0]["sector"] == "Utilities"
+        assert df.iloc[0]["period"] == "B: Daily"
+        assert df.iloc[0]["performance"] == 1.5
+
     # ------------------------------------------------------------------
     # get_* convenience method tests
     # ------------------------------------------------------------------

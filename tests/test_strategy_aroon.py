@@ -261,3 +261,14 @@ class TestAroonStrategy:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_generate_signals_nan_aroon_skipped():
+    """generate_signals skips symbols whose Aroon values are NaN (line 979)."""
+    strategy = AroonStrategy(period=5)
+    # Exactly period+1 rows, but with NaN highs so rolling Aroon is NaN.
+    df = create_trending_data("AAPL", days=6)
+    df["high"] = float("nan")
+    df["low"] = float("nan")
+    signals = strategy.generate_signals({"AAPL": df})
+    assert signals == []

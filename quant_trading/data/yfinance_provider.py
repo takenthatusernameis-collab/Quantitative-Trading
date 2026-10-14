@@ -1230,9 +1230,6 @@ class AlphaVantageProvider(DataProvider):
                 }
             )
 
-        if not records:
-            return None
-
         df = pd.DataFrame(records)
         df.columns = [col.lower().replace(" ", "_") for col in df.columns]
         return cast(pd.DataFrame, df)

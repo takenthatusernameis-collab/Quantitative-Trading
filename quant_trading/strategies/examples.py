@@ -905,33 +905,27 @@ class AroonStrategy(Strategy):
         # Then calculate how many periods ago that was
 
         def periods_since_high(x):
-            if len(x) == 0 or x.isna().all():
-                return self.period
             # Get the index of the maximum value (most recent if tie)
             # When all values are equal, we want the most recent (highest index)
             max_val = x.max()
             # Find the most recent index with the maximum value
+            max_idx = len(x) - 1
             for i in range(len(x) - 1, -1, -1):
                 if x.iloc[i] == max_val:
                     max_idx = i
                     break
-            else:
-                max_idx = 0  # fallback
             return self.period - 1 - max_idx
 
         def periods_since_low(x):
-            if len(x) == 0 or x.isna().all():
-                return self.period
             # Get the index of the minimum value (most recent if tie)
             # When all values are equal, we want the most recent (highest index)
             min_val = x.min()
             # Find the most recent index with the minimum value
+            min_idx = len(x) - 1
             for i in range(len(x) - 1, -1, -1):
                 if x.iloc[i] == min_val:
                     min_idx = i
                     break
-            else:
-                min_idx = 0  # fallback
             return self.period - 1 - min_idx
 
         # Calculate rolling applications
