@@ -139,6 +139,12 @@ def parse_args() -> argparse.Namespace:
         help="Slippage rate",
     )
     parser.add_argument(
+        "--risk-free-rate",
+        type=float,
+        default=0.02,
+        help="Risk-free rate for Sharpe ratio calculations, e.g. 0.02 for 2%%",
+    )
+    parser.add_argument(
         "--interval",
         default="1d",
         help="Data interval",
@@ -635,6 +641,9 @@ def create_config(args: argparse.Namespace) -> Config:
 
     if args.alphavantage_key is not None:
         config.data.alphavantage_api_key = args.alphavantage_key
+
+    if args.risk_free_rate is not None:
+        config.backtest.risk_free_rate = args.risk_free_rate
 
     return config
 

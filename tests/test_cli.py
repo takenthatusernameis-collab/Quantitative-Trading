@@ -372,6 +372,7 @@ class TestCreateConfig:
             synthetic_days=None,
             synthetic_seed=None,
             alphavantage_key=None,
+            risk_free_rate=None,
         )
         config = create_config(args)
         assert isinstance(config, Config)
@@ -386,6 +387,7 @@ class TestCreateConfig:
             synthetic_days=None,
             synthetic_seed=None,
             alphavantage_key=None,
+            risk_free_rate=None,
         )
         config = create_config(args)
         assert config.data.provider == "synthetic"
@@ -400,6 +402,7 @@ class TestCreateConfig:
             synthetic_days=None,
             synthetic_seed=None,
             alphavantage_key=None,
+            risk_free_rate=None,
         )
         config = create_config(args)
         assert config.data.provider == "alphavantage"
@@ -413,8 +416,10 @@ class TestCreateConfig:
             synthetic_days=None,
             synthetic_seed=None,
             alphavantage_key="MY_API_KEY",
+            risk_free_rate=None,
         )
         config = create_config(args)
+        assert config.data.provider == "alphavantage"
         assert config.data.alphavantage_api_key == "MY_API_KEY"
 
     def test_create_config_cache_dir(self):
@@ -426,6 +431,7 @@ class TestCreateConfig:
             synthetic_days=None,
             synthetic_seed=None,
             alphavantage_key=None,
+            risk_free_rate=None,
         )
         config = create_config(args)
         assert config.data.cache_dir == "./custom/cache"
@@ -439,8 +445,10 @@ class TestCreateConfig:
             synthetic_days=500,
             synthetic_seed=123,
             alphavantage_key=None,
+            risk_free_rate=None,
         )
         config = create_config(args)
+        assert config.data.offline is True
         assert config.data.synthetic_days == 500
         assert config.data.synthetic_seed == 123
 
