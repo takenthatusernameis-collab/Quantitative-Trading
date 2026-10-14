@@ -3318,7 +3318,11 @@ class TestAlphaVantageProvider:
     def test_build_technical_indicator_params_with_kwargs(self, provider):
         """Test _build_technical_indicator_params passes through extra kwargs."""
         params = provider._build_technical_indicator_params(
-            "AAPL", indicator="SMA", interval="daily", time_period=20, series_type="close",
+            "AAPL",
+            indicator="SMA",
+            interval="daily",
+            time_period=20,
+            series_type="close",
             outputsize="full",
         )
         assert params["function"] == "SMA"
@@ -3334,9 +3338,27 @@ class TestAlphaVantageProvider:
         """Test _parse_monthly_response with invalid dates and out-of-range filtering."""
         data = {
             "Monthly Time Series": {
-                "invalid-date": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
-                "2020-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
-                "2030-01-01": {"1. open": "200", "2. high": "201", "3. low": "199", "4. close": "200", "5. volume": "2000"},
+                "invalid-date": {
+                    "1. open": "100",
+                    "2. high": "101",
+                    "3. low": "99",
+                    "4. close": "100",
+                    "5. volume": "1000",
+                },
+                "2020-01-01": {
+                    "1. open": "100",
+                    "2. high": "101",
+                    "3. low": "99",
+                    "4. close": "100",
+                    "5. volume": "1000",
+                },
+                "2030-01-01": {
+                    "1. open": "200",
+                    "2. high": "201",
+                    "3. low": "199",
+                    "4. close": "200",
+                    "5. volume": "2000",
+                },
             }
         }
         start = datetime(2024, 1, 1)
@@ -3346,8 +3368,7 @@ class TestAlphaVantageProvider:
     def test_parse_monthly_adjusted_response_no_time_series(self, provider):
         """Test _parse_monthly_adjusted_response when the time series key is absent."""
         assert (
-            provider._parse_monthly_adjusted_response("AAPL", {"Meta Data": {}}, None, None)
-            is None
+            provider._parse_monthly_adjusted_response("AAPL", {"Meta Data": {}}, None, None) is None
         )
 
     def test_parse_monthly_adjusted_response_edge_cases(self, provider):
@@ -3356,23 +3377,30 @@ class TestAlphaVantageProvider:
             "Monthly Adjusted Time Series": {
                 "invalid-date": {"1. open": "100"},
                 "2020-01-01": {
-                    "1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100",
-                    "5. adjusted close": "100", "6. volume": "1000",
-                    "7. dividend amount": "0", "8. split coefficient": "1.0",
+                    "1. open": "100",
+                    "2. high": "101",
+                    "3. low": "99",
+                    "4. close": "100",
+                    "5. adjusted close": "100",
+                    "6. volume": "1000",
+                    "7. dividend amount": "0",
+                    "8. split coefficient": "1.0",
                 },
                 "2030-01-01": {
-                    "1. open": "200", "2. high": "201", "3. low": "199", "4. close": "200",
-                    "5. adjusted close": "200", "6. volume": "2000",
-                    "7. dividend amount": "0", "8. split coefficient": "1.0",
+                    "1. open": "200",
+                    "2. high": "201",
+                    "3. low": "199",
+                    "4. close": "200",
+                    "5. adjusted close": "200",
+                    "6. volume": "2000",
+                    "7. dividend amount": "0",
+                    "8. split coefficient": "1.0",
                 },
             }
         }
         start = datetime(2024, 1, 1)
         end = datetime(2024, 12, 31)
-        assert (
-            provider._parse_monthly_adjusted_response("AAPL", data, start, end)
-            is None
-        )
+        assert provider._parse_monthly_adjusted_response("AAPL", data, start, end) is None
 
     def test_parse_global_quote_response_empty(self, provider):
         """Test _parse_global_quote_response with no Global Quote key."""
@@ -3411,8 +3439,7 @@ class TestAlphaVantageProvider:
     def test_parse_fx_daily_response_no_time_series(self, provider):
         """Test _parse_fx_daily_response when the FX time series key is absent."""
         assert (
-            provider._parse_fx_daily_response("USD", "EUR", {"Meta Data": {}}, None, None)
-            is None
+            provider._parse_fx_daily_response("USD", "EUR", {"Meta Data": {}}, None, None) is None
         )
 
     def test_parse_fx_daily_response_edge_cases(self, provider):
@@ -3451,17 +3478,11 @@ class TestAlphaVantageProvider:
         }
         start = datetime(2024, 1, 1, 0, 0, 0)
         end = datetime(2024, 12, 31, 23, 59, 59)
-        assert (
-            provider._parse_fx_intraday_response("USD", "EUR", data, start, end)
-            is None
-        )
+        assert provider._parse_fx_intraday_response("USD", "EUR", data, start, end) is None
 
     def test_parse_currency_exchange_rate_response_empty(self, provider):
         """Test _parse_currency_exchange_rate_response with no rate data."""
-        assert (
-            provider._parse_currency_exchange_rate_response("USD", "EUR", {})
-            is None
-        )
+        assert provider._parse_currency_exchange_rate_response("USD", "EUR", {}) is None
 
     def test_parse_crypto_response_no_time_series(self, provider):
         """Test _parse_crypto_response when no digital currency key is found."""
@@ -3921,9 +3942,7 @@ class TestAlphaVantageProvider:
         """Test _fetch_technical_indicator maps monthly interval keys."""
         ti_response = {
             "Meta Data": {"2. Indicator": "SMA"},
-            "Technical Analysis: SMA": {
-                "SMA": {"2024-01-31": {"SMA": "185.50"}}
-            },
+            "Technical Analysis: SMA": {"SMA": {"2024-01-31": {"SMA": "185.50"}}},
         }
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             mock_get.return_value = FakeResponse(ti_response)
@@ -3981,6 +4000,7 @@ class TestAlphaVantageProvider:
     def test_get_currency_exchange_rate_network_error(self, provider):
         """Test get_currency_exchange_rate network error handling."""
         import requests
+
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             mock_get.side_effect = requests.ConnectionError("Network unreachable")
             df = provider.get_currency_exchange_rate("USD", "EUR")
@@ -4003,6 +4023,7 @@ class TestAlphaVantageProvider:
     def test_get_gold_history_network_error(self, provider):
         """Test get_gold_history network error handling."""
         import requests
+
         with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
             mock_get.side_effect = requests.ConnectionError("Network unreachable")
             df = provider.get_gold_history("GOLD")
@@ -4048,6 +4069,7 @@ class TestAlphaVantageProvider:
             res = results[key]
             assert "AAPL" in res.errors
             assert "MSFT" in res.errors
+
     """Integration tests with DataManager."""
 
     def test_data_manager_delegates_to_alphavantage(self, tmp_path):

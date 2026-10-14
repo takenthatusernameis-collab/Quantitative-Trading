@@ -134,6 +134,12 @@ class TestCalculateSortinoRatio:
         identical = pd.Series([0.01, -0.02, -0.02, 0.01])
         assert calculate_sortino_ratio(identical) == pytest.approx(0.0)
 
+    def test_non_annualized(self):
+        """annualize=False skips the sqrt(252) scaling (risk/metrics.py:90->92)."""
+        non_annual = calculate_sortino_ratio(RETURNS, risk_free_rate=0.02, annualize=False)
+        annual = calculate_sortino_ratio(RETURNS, risk_free_rate=0.02, annualize=True)
+        assert non_annual == pytest.approx(annual / np.sqrt(252))
+
 
 class TestCalculateVar:
     """Tests for calculate_var."""

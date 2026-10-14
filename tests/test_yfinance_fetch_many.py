@@ -643,8 +643,20 @@ def test_parse_intraday_response_invalid_date_format():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Time Series (5min)": {
-            "invalid-date": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
-            "2024-01-01 09:30:00": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+            "invalid-date": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. volume": "1000",
+            },
+            "2024-01-01 09:30:00": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. volume": "1000",
+            },
         }
     }
     result = provider._parse_intraday_response("AAPL", data, None, None)
@@ -658,8 +670,20 @@ def test_parse_intraday_response_start_filter():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Time Series (5min)": {
-            "2024-01-01 09:30:00": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
-            "2024-01-01 10:00:00": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. volume": "1000"},
+            "2024-01-01 09:30:00": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. volume": "1000",
+            },
+            "2024-01-01 10:00:00": {
+                "1. open": "101",
+                "2. high": "102",
+                "3. low": "100",
+                "4. close": "101",
+                "5. volume": "1000",
+            },
         }
     }
     start = datetime(2024, 1, 1, 10, 0, 0)
@@ -674,8 +698,20 @@ def test_parse_intraday_response_end_filter():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Time Series (5min)": {
-            "2024-01-01 09:30:00": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
-            "2024-01-01 10:00:00": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. volume": "1000"},
+            "2024-01-01 09:30:00": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. volume": "1000",
+            },
+            "2024-01-01 10:00:00": {
+                "1. open": "101",
+                "2. high": "102",
+                "3. low": "100",
+                "4. close": "101",
+                "5. volume": "1000",
+            },
         }
     }
     end = datetime(2024, 1, 1, 9, 30, 0)
@@ -690,7 +726,13 @@ def test_parse_intraday_response_no_records_after_filter():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Time Series (5min)": {
-            "2024-01-01 09:30:00": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+            "2024-01-01 09:30:00": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. volume": "1000",
+            },
         }
     }
     start = datetime(2024, 1, 2)  # After all data
@@ -703,8 +745,20 @@ def test_parse_intraday_response_success():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Time Series (5min)": {
-            "2024-01-01 09:30:00": {"1. open": "100.0", "2. high": "101.0", "3. low": "99.0", "4. close": "100.5", "5. volume": "1000"},
-            "2024-01-01 09:35:00": {"1. open": "100.5", "2. high": "101.5", "3. low": "100.0", "4. close": "101.0", "5. volume": "1500"},
+            "2024-01-01 09:30:00": {
+                "1. open": "100.0",
+                "2. high": "101.0",
+                "3. low": "99.0",
+                "4. close": "100.5",
+                "5. volume": "1000",
+            },
+            "2024-01-01 09:35:00": {
+                "1. open": "100.5",
+                "2. high": "101.5",
+                "3. low": "100.0",
+                "4. close": "101.0",
+                "5. volume": "1500",
+            },
         }
     }
     result = provider._parse_intraday_response("AAPL", data, None, None)
@@ -728,8 +782,26 @@ def test_parse_daily_response_invalid_date_format():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Time Series (Daily)": {
-            "invalid-date": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
-            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+            "invalid-date": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. adjusted close": "100",
+                "6. volume": "1000",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1",
+            },
+            "2024-01-01": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. adjusted close": "100",
+                "6. volume": "1000",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1",
+            },
         }
     }
     result = provider._parse_daily_response("AAPL", data, None, None)
@@ -743,8 +815,26 @@ def test_parse_daily_response_start_filter():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Time Series (Daily)": {
-            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
-            "2024-01-02": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. adjusted close": "101", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+            "2024-01-01": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. adjusted close": "100",
+                "6. volume": "1000",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1",
+            },
+            "2024-01-02": {
+                "1. open": "101",
+                "2. high": "102",
+                "3. low": "100",
+                "4. close": "101",
+                "5. adjusted close": "101",
+                "6. volume": "1000",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1",
+            },
         }
     }
     start = datetime(2024, 1, 2)
@@ -759,8 +849,26 @@ def test_parse_daily_response_end_filter():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Time Series (Daily)": {
-            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
-            "2024-01-02": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. adjusted close": "101", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+            "2024-01-01": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. adjusted close": "100",
+                "6. volume": "1000",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1",
+            },
+            "2024-01-02": {
+                "1. open": "101",
+                "2. high": "102",
+                "3. low": "100",
+                "4. close": "101",
+                "5. adjusted close": "101",
+                "6. volume": "1000",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1",
+            },
         }
     }
     end = datetime(2024, 1, 1)
@@ -775,7 +883,16 @@ def test_parse_daily_response_no_records_after_filter():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Time Series (Daily)": {
-            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+            "2024-01-01": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. adjusted close": "100",
+                "6. volume": "1000",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1",
+            },
         }
     }
     start = datetime(2024, 1, 2)
@@ -788,14 +905,41 @@ def test_parse_daily_response_success():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Time Series (Daily)": {
-            "2024-01-01": {"1. open": "100.0", "2. high": "101.0", "3. low": "99.0", "4. close": "100.5", "5. adjusted close": "100.3", "6. volume": "1000", "7. dividend amount": "0.5", "8. split coefficient": "1.0"},
-            "2024-01-02": {"1. open": "100.5", "2. high": "101.5", "3. low": "100.0", "4. close": "101.0", "5. adjusted close": "100.8", "6. volume": "1500", "7. dividend amount": "0", "8. split coefficient": "1.0"},
+            "2024-01-01": {
+                "1. open": "100.0",
+                "2. high": "101.0",
+                "3. low": "99.0",
+                "4. close": "100.5",
+                "5. adjusted close": "100.3",
+                "6. volume": "1000",
+                "7. dividend amount": "0.5",
+                "8. split coefficient": "1.0",
+            },
+            "2024-01-02": {
+                "1. open": "100.5",
+                "2. high": "101.5",
+                "3. low": "100.0",
+                "4. close": "101.0",
+                "5. adjusted close": "100.8",
+                "6. volume": "1500",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1.0",
+            },
         }
     }
     result = provider._parse_daily_response("AAPL", data, None, None)
     assert result is not None
     assert len(result) == 2
-    expected_cols = ["open", "high", "low", "close", "adjusted_close", "volume", "dividend_amount", "split_coefficient"]
+    expected_cols = [
+        "open",
+        "high",
+        "low",
+        "close",
+        "adjusted_close",
+        "volume",
+        "dividend_amount",
+        "split_coefficient",
+    ]
     assert list(result.columns) == expected_cols
     assert result["adjusted_close"].iloc[0] == 100.3
     assert result["dividend_amount"].iloc[0] == 0.5
@@ -819,8 +963,20 @@ def test_parse_weekly_response_invalid_date_format():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Weekly Time Series": {
-            "invalid-date": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
-            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+            "invalid-date": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. volume": "1000",
+            },
+            "2024-01-01": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. volume": "1000",
+            },
         }
     }
     result = provider._parse_weekly_response("AAPL", data, None, None)
@@ -834,8 +990,20 @@ def test_parse_weekly_response_start_filter():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Weekly Time Series": {
-            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
-            "2024-01-08": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. volume": "1000"},
+            "2024-01-01": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. volume": "1000",
+            },
+            "2024-01-08": {
+                "1. open": "101",
+                "2. high": "102",
+                "3. low": "100",
+                "4. close": "101",
+                "5. volume": "1000",
+            },
         }
     }
     start = datetime(2024, 1, 8)
@@ -850,8 +1018,20 @@ def test_parse_weekly_response_end_filter():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Weekly Time Series": {
-            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
-            "2024-01-08": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. volume": "1000"},
+            "2024-01-01": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. volume": "1000",
+            },
+            "2024-01-08": {
+                "1. open": "101",
+                "2. high": "102",
+                "3. low": "100",
+                "4. close": "101",
+                "5. volume": "1000",
+            },
         }
     }
     end = datetime(2024, 1, 1)
@@ -866,7 +1046,13 @@ def test_parse_weekly_response_no_records_after_filter():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Weekly Time Series": {
-            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+            "2024-01-01": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. volume": "1000",
+            },
         }
     }
     start = datetime(2024, 1, 8)
@@ -879,8 +1065,20 @@ def test_parse_weekly_response_success():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Weekly Time Series": {
-            "2024-01-01": {"1. open": "100.0", "2. high": "101.0", "3. low": "99.0", "4. close": "100.5", "5. volume": "1000"},
-            "2024-01-08": {"1. open": "100.5", "2. high": "101.5", "3. low": "100.0", "4. close": "101.0", "5. volume": "1500"},
+            "2024-01-01": {
+                "1. open": "100.0",
+                "2. high": "101.0",
+                "3. low": "99.0",
+                "4. close": "100.5",
+                "5. volume": "1000",
+            },
+            "2024-01-08": {
+                "1. open": "100.5",
+                "2. high": "101.5",
+                "3. low": "100.0",
+                "4. close": "101.0",
+                "5. volume": "1500",
+            },
         }
     }
     result = provider._parse_weekly_response("AAPL", data, None, None)
@@ -904,8 +1102,26 @@ def test_parse_weekly_adjusted_response_invalid_date_format():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Weekly Adjusted Time Series": {
-            "invalid-date": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
-            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+            "invalid-date": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. adjusted close": "100",
+                "6. volume": "1000",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1",
+            },
+            "2024-01-01": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. adjusted close": "100",
+                "6. volume": "1000",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1",
+            },
         }
     }
     result = provider._parse_weekly_adjusted_response("AAPL", data, None, None)
@@ -919,8 +1135,26 @@ def test_parse_weekly_adjusted_response_start_filter():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Weekly Adjusted Time Series": {
-            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
-            "2024-01-08": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. adjusted close": "101", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+            "2024-01-01": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. adjusted close": "100",
+                "6. volume": "1000",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1",
+            },
+            "2024-01-08": {
+                "1. open": "101",
+                "2. high": "102",
+                "3. low": "100",
+                "4. close": "101",
+                "5. adjusted close": "101",
+                "6. volume": "1000",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1",
+            },
         }
     }
     start = datetime(2024, 1, 8)
@@ -935,8 +1169,26 @@ def test_parse_weekly_adjusted_response_end_filter():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Weekly Adjusted Time Series": {
-            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
-            "2024-01-08": {"1. open": "101", "2. high": "102", "3. low": "100", "4. close": "101", "5. adjusted close": "101", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+            "2024-01-01": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. adjusted close": "100",
+                "6. volume": "1000",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1",
+            },
+            "2024-01-08": {
+                "1. open": "101",
+                "2. high": "102",
+                "3. low": "100",
+                "4. close": "101",
+                "5. adjusted close": "101",
+                "6. volume": "1000",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1",
+            },
         }
     }
     end = datetime(2024, 1, 1)
@@ -951,7 +1203,16 @@ def test_parse_weekly_adjusted_response_no_records_after_filter():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Weekly Adjusted Time Series": {
-            "2024-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. adjusted close": "100", "6. volume": "1000", "7. dividend amount": "0", "8. split coefficient": "1"},
+            "2024-01-01": {
+                "1. open": "100",
+                "2. high": "101",
+                "3. low": "99",
+                "4. close": "100",
+                "5. adjusted close": "100",
+                "6. volume": "1000",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1",
+            },
         }
     }
     start = datetime(2024, 1, 8)
@@ -964,14 +1225,41 @@ def test_parse_weekly_adjusted_response_success():
     provider = AlphaVantageProvider(api_key="test")
     data = {
         "Weekly Adjusted Time Series": {
-            "2024-01-01": {"1. open": "100.0", "2. high": "101.0", "3. low": "99.0", "4. close": "100.5", "5. adjusted close": "100.3", "6. volume": "1000", "7. dividend amount": "0.5", "8. split coefficient": "1.0"},
-            "2024-01-08": {"1. open": "100.5", "2. high": "101.5", "3. low": "100.0", "4. close": "101.0", "5. adjusted close": "100.8", "6. volume": "1500", "7. dividend amount": "0", "8. split coefficient": "1.0"},
+            "2024-01-01": {
+                "1. open": "100.0",
+                "2. high": "101.0",
+                "3. low": "99.0",
+                "4. close": "100.5",
+                "5. adjusted close": "100.3",
+                "6. volume": "1000",
+                "7. dividend amount": "0.5",
+                "8. split coefficient": "1.0",
+            },
+            "2024-01-08": {
+                "1. open": "100.5",
+                "2. high": "101.5",
+                "3. low": "100.0",
+                "4. close": "101.0",
+                "5. adjusted close": "100.8",
+                "6. volume": "1500",
+                "7. dividend amount": "0",
+                "8. split coefficient": "1.0",
+            },
         }
     }
     result = provider._parse_weekly_adjusted_response("AAPL", data, None, None)
     assert result is not None
     assert len(result) == 2
-    expected_cols = ["open", "high", "low", "close", "adjusted_close", "volume", "dividend_amount", "split_coefficient"]
+    expected_cols = [
+        "open",
+        "high",
+        "low",
+        "close",
+        "adjusted_close",
+        "volume",
+        "dividend_amount",
+        "split_coefficient",
+    ]
     assert list(result.columns) == expected_cols
     assert result["adjusted_close"].iloc[0] == 100.3
     assert result["dividend_amount"].iloc[0] == 0.5

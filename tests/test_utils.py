@@ -2,7 +2,13 @@
 
 import logging
 
-from quant_trading.utils import format_currency, format_number, format_percent, setup_logger
+from quant_trading.utils import (
+    format_currency,
+    format_number,
+    format_percent,
+    get_logger,
+    setup_logger,
+)
 
 
 def test_format_currency():
@@ -59,6 +65,20 @@ def test_setup_logger_idempotent(tmp_path):
     try:
         assert logger2 is logger
         assert len(logger.handlers) == handler_count
+    finally:
+        logging.getLogger(name).handlers.clear()
+
+
+def test_get_logger_creates_or_returns_existing():
+    """get_logger exercises both the no-handler and existing-handler arms (logging.py:44)."""
+    name = "_test_utils_get_logger_both"
+    logging.getLogger(name).handlers.clear()
+    fresh = get_logger(name)  # no handlers -> setup_logger invoked
+    try:
+        assert fresh.name == name
+        assert len(fresh.handlers) >= 1
+        again = get_logger(name)  # handlers present -> returns existing logger
+        assert again is fresh
     finally:
         logging.getLogger(name).handlers.clear()
 

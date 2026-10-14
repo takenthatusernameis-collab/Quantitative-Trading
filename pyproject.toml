@@ -25,6 +25,9 @@ dev = [
     "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
+    "pandas-stubs>=3.0.0",
+    "types-requests>=2.31.0",
+    "types-PyYAML>=6.0",
 ]
 bayesian = [
     "scikit-optimize>=0.10.0",

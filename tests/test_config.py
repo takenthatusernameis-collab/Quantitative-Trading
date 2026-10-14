@@ -184,6 +184,13 @@ class TestConfig:
         result = settings._filter_fields(DataConfig, "not_a_dict")
         assert result == {}
 
+    def test_to_yaml_bare_filename(self, tmp_path, monkeypatch):
+        """to_yaml with a bare filename skips directory creation (settings.py:96->98)."""
+        config = Config()
+        monkeypatch.chdir(tmp_path)
+        config.to_yaml("bare_config.yaml")
+        assert os.path.exists("bare_config.yaml")
+
 
 if __name__ == "__main__":
     import pytest

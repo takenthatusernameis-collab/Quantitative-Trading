@@ -420,3 +420,14 @@ def test_create_data_manager_from_config_unknown_provider():
     cfg = DataConfig(provider="unknown")
     with pytest.raises(ValueError, match="Unknown data provider: unknown"):
         create_data_manager_from_config(cfg)
+
+
+def test_data_manager_fetch_no_cache():
+    """DataManager.fetch(use_cache=False) bypasses the cache (providers.py:166->169)."""
+    data = create_synthetic_data(["AAPL"], days=10)
+    provider = CountingProvider(data, name="counting")
+    manager = DataManager([provider])
+
+    result = manager.fetch(["AAPL"], use_cache=False)
+    assert "AAPL" in result.data
+    assert len(manager._cache) == 0
