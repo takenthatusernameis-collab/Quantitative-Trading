@@ -492,11 +492,17 @@ PY
             } > "$recovery_report" 2>&1 || true
 
             bundle_verified=0
-            if git bundle create "$recovery_bundle" "$checkpoint_sha_before" >> "$recovery_report" 2>&1 &&
-               git bundle verify "$recovery_bundle" >> "$recovery_report" 2>&1; then
-              bundle_verified=1
+            checkpoint_ref="refs/kilo-recovery/checkpoint-${checkpoint_sha_before}"
+            if git update-ref "$checkpoint_ref" "$checkpoint_sha_before" >> "$recovery_report" 2>&1; then
+              if git bundle create "$recovery_bundle" "$checkpoint_ref" >> "$recovery_report" 2>&1 &&
+                 git bundle verify "$recovery_bundle" >> "$recovery_report" 2>&1; then
+                bundle_verified=1
+              else
+                printf 'bundle_verification=FAILED\n' >> "$recovery_report" 2>/dev/null || true
+              fi
+              git update-ref -d "$checkpoint_ref" >> "$recovery_report" 2>&1 || true
             else
-              printf 'bundle_verification=FAILED\n' >> "$recovery_report" 2>/dev/null || true
+              printf 'checkpoint_ref_creation=FAILED\n' >> "$recovery_report" 2>/dev/null || true
             fi
 
             recovery_ref_verified=0
