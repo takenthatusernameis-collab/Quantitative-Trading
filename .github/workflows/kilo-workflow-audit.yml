@@ -45,7 +45,7 @@ jobs:
           grep -Fq 'while true; do' "$controller"
           grep -Fq '355-minute cutoff' "$controller"
           grep -Fq 'exactly two validation sessions' "$controller"
-          if grep -Eq 'KILO_INPUT_AGENTS|for agent_index in \$\(seq 1 "\$agents"\)|agents=1000|inputs\.agents|default: "1000"' "$controller" "$workflow"; then
+          if grep -Eq 'KILO_INPUT_AGENTS|for agent_index|agents=1000|inputs[.]agents|default: "1000"' "$controller" "$workflow"; then
             echo "::error::An explicit normal-session count cap remains."
             exit 1
           fi
