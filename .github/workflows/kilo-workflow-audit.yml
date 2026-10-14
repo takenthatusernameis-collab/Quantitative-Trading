@@ -2,7 +2,11 @@ name: Kilo workflow validation
 
 on:
   push:
-    branches: [main]
+    paths:
+      - ".github/workflows/main.yml"
+      - ".github/workflows/kilo-workflow-audit.yml"
+      - ".github/scripts/kilo-controller.sh"
+  pull_request:
     paths:
       - ".github/workflows/main.yml"
       - ".github/workflows/kilo-workflow-audit.yml"
