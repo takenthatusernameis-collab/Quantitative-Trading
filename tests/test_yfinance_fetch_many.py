@@ -6,9 +6,13 @@ These tests inject a ``FakeYf`` that mimics the column structure produced by
 any network access.
 """
 
-from datetime import datetime
+import os
+import pickle
+import sys
+from datetime import datetime, timedelta
 
 import pandas as pd
+import pytest
 
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
 from quant_trading.data.yfinance_provider import YFinanceProvider
@@ -238,3 +242,282 @@ def test_data_manager_fetch_many_caches_provider_fetch_many_result():
     assert set(second.keys()) == set(first.keys())
     for key in first:
         assert second[key] is first[key]
+
+
+# ---------------------------------------------------------------------------
+# Tests covering YFinanceProvider offline helpers and the (monkeypatched)
+# fetch / fetch_latest paths. These exercise the pure cache helpers
+# (_cache_key, _cache_path, _is_cache_valid, _load_cache, _save_cache),
+# _parse_download branching, _slice_group_result partitioning, and the
+# per-symbol fetch loop via a lightweight fake ``yfinance.Ticker`` stand-in.
+# ---------------------------------------------------------------------------
+
+
+class FakeTicker:
+    """Stand-in for a ``yfinance.Ticker`` instance returned by ``_get_yf``."""
+
+    def __init__(self, hist_df=None, info=None, error=None):
+        self._hist = hist_df
+        self._err = error
+        self.info = info if info is not None else {}
+        self.history_calls: list[dict] = []
+
+    def history(self, start=None, end=None, interval="1d"):
+        self.history_calls.append({"start": start, "end": end, "interval": interval})
+        if self._err is not None:
+            raise self._err
+        return self._hist if self._hist is not None else pd.DataFrame()
+
+
+class FakeTickerYf:
+    """Stand-in for the ``yfinance`` module exposing ``Ticker``.
+
+    Unlike ``FakeYf`` (which mimics ``yfinance.download``), this fake mirrors
+    the ``yf.Ticker(symbol).history(...)`` surface used by ``YFinanceProvider.fetch``.
+    """
+
+    def __init__(self, symbol_dfs=None, error_symbols=None, infos=None):
+        self._dfs = symbol_dfs or {}
+        self._errs = set(error_symbols or [])
+        self._infos = infos or {}
+        self.ticker_calls: list[str] = []
+
+    def Ticker(self, symbol):
+        self.ticker_calls.append(symbol)
+        return FakeTicker(
+            hist_df=self._dfs.get(symbol),
+            info=self._infos.get(symbol, {}),
+            error=RuntimeError(f"error fetching {symbol}") if symbol in self._errs else None,
+        )
+
+
+def _make_market_data(symbol: str, start: datetime, end: datetime) -> MarketData:
+    return MarketData(
+        symbol=symbol,
+        data=_make_frame(symbol, start, end),
+        source="yfinance",
+        fetched_at=datetime.now(),
+    )
+
+
+def test_get_yf_lazy_import_success():
+    provider = YFinanceProvider(cache_dir=None)
+    yf = provider._get_yf()
+    assert yf is not None
+    import yfinance
+
+    assert yf is yfinance
+
+
+def test_get_yf_raises_when_yfinance_unavailable(monkeypatch):
+    provider = YFinanceProvider(cache_dir=None)
+    monkeypatch.setitem(sys.modules, "yfinance", None)
+    with pytest.raises(ImportError, match="yfinance is not installed"):
+        provider._get_yf()
+
+
+def test_cache_key_is_deterministic():
+    provider = YFinanceProvider(cache_dir=None)
+    key = provider._cache_key(["MSFT", "AAPL"], datetime(2024, 1, 1), datetime(2024, 1, 15), "1d")
+    assert key == "yfinance_AAPL,MSFT_2024-01-01T00:00:00_2024-01-15T00:00:00_1d.pkl"
+    key2 = provider._cache_key(["AAPL"], None, None, "1d")
+    assert key2 == "yfinance_AAPL_none_none_1d.pkl"
+
+
+def test_cache_path_joins_cache_dir(tmp_path):
+    provider = YFinanceProvider(cache_dir=str(tmp_path))
+    assert provider._cache_path("foo.pkl") == os.path.join(str(tmp_path), "foo.pkl")
+
+
+def test_is_cache_valid_no_file(tmp_path):
+    provider = YFinanceProvider(cache_dir=str(tmp_path))
+    assert provider._is_cache_valid(str(tmp_path / "missing.pkl")) is False
+
+
+def test_is_cache_valid_fresh(tmp_path):
+    provider = YFinanceProvider(cache_dir=str(tmp_path))
+    p = tmp_path / "fresh.pkl"
+    p.write_text("x")
+    assert provider._is_cache_valid(str(p)) is True
+
+
+def test_is_cache_valid_expired_with_zero_ttl(tmp_path):
+    provider = YFinanceProvider(cache_dir=str(tmp_path), cache_ttl_hours=0.0)
+    p = tmp_path / "old.pkl"
+    p.write_text("x")
+    assert provider._is_cache_valid(str(p)) is False
+
+
+def test_load_cache_missing_file_returns_none(tmp_path):
+    provider = YFinanceProvider(cache_dir=str(tmp_path))
+    assert provider._load_cache(str(tmp_path / "nope.pkl")) is None
+
+
+def test_load_cache_invalid_type_returns_none(tmp_path):
+    provider = YFinanceProvider(cache_dir=str(tmp_path))
+    p = tmp_path / "bad.pkl"
+    with open(p, "wb") as f:
+        pickle.dump("not-a-fetchresult", f)
+    assert provider._load_cache(str(p)) is None
+
+
+def test_load_cache_corrupt_pickle_returns_none(tmp_path):
+    provider = YFinanceProvider(cache_dir=str(tmp_path))
+    p = tmp_path / "corrupt.pkl"
+    p.write_bytes(b"not a pickle")
+    assert provider._load_cache(str(p)) is None
+
+
+def test_save_cache_roundtrip(tmp_path):
+    provider = YFinanceProvider(cache_dir=str(tmp_path))
+    start = datetime(2024, 1, 1)
+    end = datetime(2024, 1, 15)
+    result = FetchResult()
+    result.data["AAPL"] = _make_market_data("AAPL", start, end)
+    key = provider._cache_key(["AAPL"], start, end, "1d")
+    provider._save_cache(provider._cache_path(key), result)
+    loaded = provider._load_cache(provider._cache_path(key))
+    assert loaded is not None
+    assert "AAPL" in loaded.data
+
+
+def test_save_cache_error_is_swallowed(tmp_path):
+    provider = YFinanceProvider(cache_dir=str(tmp_path))
+    result = FetchResult()
+    bad_path = str(tmp_path / "missing_subdir" / "cache.pkl")
+    provider._save_cache(bad_path, result)
+
+
+def test_parse_download_none_df_returns_missing():
+    provider = YFinanceProvider(cache_dir=None)
+    result = provider._parse_download(None, ["AAPL"])
+    assert result.missing == ["AAPL"]
+    assert not result.data
+
+
+def test_parse_download_empty_df_returns_missing():
+    provider = YFinanceProvider(cache_dir=None)
+    result = provider._parse_download(pd.DataFrame(), ["AAPL", "MSFT"])
+    assert set(result.missing) == {"AAPL", "MSFT"}
+    assert not result.data
+
+
+def test_parse_download_multiindex_symbol_all_nan_is_missing():
+    provider = YFinanceProvider(cache_dir=None)
+    idx = pd.date_range("2024-01-01", periods=3)
+    cols = pd.MultiIndex.from_tuples(
+        [("AAPL", "Open"), ("AAPL", "Close")], names=["Ticker", "Price"]
+    )
+    df = pd.DataFrame([[None, None], [None, None], [None, None]], index=idx, columns=cols)
+    result = provider._parse_download(df, ["AAPL"])
+    assert "AAPL" in result.missing
+    assert not result.data
+
+
+def test_parse_download_non_multiindex_with_data():
+    provider = YFinanceProvider(cache_dir=None)
+    idx = pd.date_range("2024-01-01", periods=3)
+    df = pd.DataFrame({"Open": [1, 2, 3], "Close": [4, 5, 6]}, index=idx)
+    result = provider._parse_download(df, ["AAPL"])
+    assert "AAPL" in result.data
+    assert not result.missing
+
+
+def test_parse_download_non_multiindex_empty_after_dropna():
+    provider = YFinanceProvider(cache_dir=None)
+    idx = pd.date_range("2024-01-01", periods=3)
+    df = pd.DataFrame({"Open": [None, None, None], "Close": [None, None, None]}, index=idx)
+    result = provider._parse_download(df, ["AAPL", "MSFT"])
+    assert set(result.missing) == {"AAPL", "MSFT"}
+
+
+def test_slice_group_result_partitions_data_errors_missing():
+    provider = YFinanceProvider(cache_dir=None)
+    group = FetchResult()
+    group.data["AAPL"] = MarketData(
+        symbol="AAPL", data=pd.DataFrame({"close": [1.0]}), source="yfinance", fetched_at=datetime.now()
+    )
+    group.errors["MSFT"] = ValueError("boom")
+    group.missing = ["TSLA"]
+    sliced = provider._slice_group_result(group, ["AAPL", "MSFT", "TSLA"])
+    assert "AAPL" in sliced.data
+    assert "MSFT" in sliced.errors
+    assert "TSLA" in sliced.missing
+    assert set(sliced.data) | set(sliced.errors) | set(sliced.missing) == {
+        "AAPL",
+        "MSFT",
+        "TSLA",
+    }
+
+
+def test_fetch_success_no_cache():
+    provider = YFinanceProvider(cache_dir=None)
+    start = datetime(2024, 1, 1)
+    end = datetime(2024, 1, 15)
+    provider._yf = FakeTickerYf(symbol_dfs={"AAPL": _make_frame("AAPL", start, end)})
+    result = provider.fetch(["AAPL"], start=start, end=end, interval="1d")
+    assert "AAPL" in result.data
+    md = result.data["AAPL"]
+    assert md.source == "yfinance"
+    assert set(md.metadata) == {"info", "currency", "exchange"}
+    assert provider._yf.ticker_calls == ["AAPL"]
+
+
+def test_fetch_missing_symbol_returns_missing():
+    provider = YFinanceProvider(cache_dir=None)
+    provider._yf = FakeTickerYf(symbol_dfs={})
+    result = provider.fetch(["AAPL"])
+    assert "AAPL" in result.missing
+    assert not result.data
+
+
+def test_fetch_error_captured():
+    provider = YFinanceProvider(cache_dir=None)
+    provider._yf = FakeTickerYf(error_symbols={"AAPL"})
+    result = provider.fetch(["AAPL"])
+    assert "AAPL" in result.errors
+    assert isinstance(result.errors["AAPL"], RuntimeError)
+
+
+def test_fetch_cache_hit_returns_cached(tmp_path):
+    provider = YFinanceProvider(cache_dir=str(tmp_path))
+    start = datetime(2024, 1, 1)
+    end = datetime(2024, 1, 15)
+    cached = FetchResult()
+    cached.data["AAPL"] = _make_market_data("AAPL", start, end)
+    key = provider._cache_key(["AAPL"], start, end, "1d")
+    provider._save_cache(provider._cache_path(key), cached)
+    provider._yf = FakeTickerYf()
+    result = provider.fetch(["AAPL"], start=start, end=end, interval="1d")
+    assert "AAPL" in result.data
+    assert provider._yf.ticker_calls == []
+
+
+def test_fetch_saves_to_cache_on_success(tmp_path):
+    provider = YFinanceProvider(cache_dir=str(tmp_path))
+    start = datetime(2024, 1, 1)
+    end = datetime(2024, 1, 15)
+    provider._yf = FakeTickerYf(symbol_dfs={"AAPL": _make_frame("AAPL", start, end)})
+    result = provider.fetch(["AAPL"], start=start, end=end, interval="1d")
+    assert "AAPL" in result.data
+    key = provider._cache_key(["AAPL"], start, end, "1d")
+    cached = provider._load_cache(provider._cache_path(key))
+    assert cached is not None
+    assert "AAPL" in cached.data
+
+
+def test_fetch_latest_delegates_to_fetch(monkeypatch):
+    provider = YFinanceProvider(cache_dir=None)
+    captured: dict = {}
+
+    def fake_fetch(symbols, start=None, end=None, interval="1d"):
+        captured["symbols"] = symbols
+        captured["start"] = start
+        captured["end"] = end
+        captured["interval"] = interval
+        return FetchResult()
+
+    monkeypatch.setattr(provider, "fetch", fake_fetch)
+    provider.fetch_latest(["AAPL"])
+    assert captured["interval"] == "1m"
+    assert captured["start"] == captured["end"] - timedelta(days=2)
