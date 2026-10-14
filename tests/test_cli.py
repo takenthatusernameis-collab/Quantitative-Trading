@@ -808,6 +808,7 @@ class TestRunCombined:
             ("Keltner_20_10_2.0", 13.0),
             ("Stoch_14_3_20_80", 12.5),
             ("Ichimoku_Cloud", 9.0),
+            ("Parabolic_SAR", 7.5),
         ]:
             m = MagicMock(
                 spec=[
@@ -885,6 +886,7 @@ class TestRunCombined:
         assert "Keltner_20_10_2.0" in captured.out
         assert "Stoch_14_3_20_80" in captured.out
         assert "Ichimoku_Cloud" in captured.out
+        assert "Parabolic_SAR" in captured.out
         assert "Best strategy (by Sharpe)" in captured.out
 
     @patch("examples.cli.run_backtest")

@@ -9,6 +9,7 @@ from .examples import (
     KeltnerChannelStrategy,
     MACDStrategy,
     MovingAverageCrossover,
+    ParabolicSARStrategy,
     RSIStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
@@ -34,6 +35,7 @@ register_strategy("aroon", AroonStrategy, aliases=["aroon_oscillator"])
 register_strategy("keltner", KeltnerChannelStrategy, aliases=["kc", "keltner_channel"])
 register_strategy("stoch", StochasticOscillatorStrategy, aliases=["stochastic", "stoch_oscillator"])
 register_strategy("ichimoku", IchimokuCloudStrategy, aliases=["ichimoku_cloud", "ichimoku"])
+register_strategy("sar", ParabolicSARStrategy, aliases=["parabolic_sar", "psar"])
 
 
 __all__ = [
@@ -44,6 +46,7 @@ __all__ = [
     "KeltnerChannelStrategy",
     "MACDStrategy",
     "MovingAverageCrossover",
+    "ParabolicSARStrategy",
     "Position",
     "RSIStrategy",
     "Signal",

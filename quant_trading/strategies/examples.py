@@ -1,6 +1,7 @@
 """Example trading strategies."""
 
 import pandas as pd
+import numpy as np
 
 from .base import Signal, Strategy
 
@@ -782,15 +783,15 @@ class DonchianChannelStrategy(Strategy):
                             price=current_price,
                             timestamp=timestamp,
                             metadata={
-                                "upper_band": current_upper,
-                                "lower_band": current_lower,
-                                "middle_band": current_middle,
-                                "exit_upper": current_exit_upper,
-                                "exit_lower": current_exit_lower,
-                                "signal_type": "middle_band_exit_long",
-                            },
-                        )
+                "upper_band": current_upper,
+                "lower_band": current_lower,
+                "middle_band": current_middle,
+                "exit_upper": current_exit_upper,
+                "exit_lower": current_exit_lower,
+                "signal_type": "middle_band_exit_long",
+            },
                     )
+                )
                 # Exit 2: Price breaks below exit lower band (trend-following exit)
                 elif prev_price >= prev_exit_lower and current_price < current_exit_lower:
                     strength = min(
@@ -851,13 +852,13 @@ class DonchianChannelStrategy(Strategy):
                             price=current_price,
                             timestamp=timestamp,
                             metadata={
-                                "upper_band": current_upper,
-                                "lower_band": current_lower,
-                                "middle_band": current_middle,
-                                "exit_upper": current_exit_upper,
-                                "exit_lower": current_exit_lower,
-                                "signal_type": "exit_channel_breakout",
-                            },
+                "upper_band": current_upper,
+                "lower_band": current_lower,
+                "middle_band": current_middle,
+                "exit_upper": current_exit_upper,
+                "exit_lower": current_exit_lower,
+                "signal_type": "exit_channel_breakout",
+            },
                         )
                     )
 
@@ -1175,12 +1176,12 @@ class KeltnerChannelStrategy(Strategy):
                             price=current_price,
                             timestamp=timestamp,
                             metadata={
-                                "ema": current_ema,
-                                "upper_channel": current_upper,
-                                "lower_channel": current_lower,
-                                "atr": atr.iloc[-1],
-                                "signal_type": "middle_cross_up",
-                            },
+                "ema": current_ema,
+                "upper_channel": current_upper,
+                "lower_channel": current_lower,
+                "atr": atr.iloc[-1],
+                "signal_type": "middle_cross_up",
+            },
                         )
                     )
                 elif prev_price >= prev_ema and current_price < current_ema:
@@ -1194,12 +1195,12 @@ class KeltnerChannelStrategy(Strategy):
                             price=current_price,
                             timestamp=timestamp,
                             metadata={
-                                "ema": current_ema,
-                                "upper_channel": current_upper,
-                                "lower_channel": current_lower,
-                                "atr": atr.iloc[-1],
-                                "signal_type": "middle_cross_down",
-                            },
+                "ema": current_ema,
+                "upper_channel": current_upper,
+                "lower_channel": current_lower,
+                "atr": atr.iloc[-1],
+                "signal_type": "middle_cross_down",
+            },
                         )
                     )
 
@@ -1353,12 +1354,12 @@ class StochasticOscillatorStrategy(Strategy):
                             price=current_price,
                             timestamp=timestamp,
                             metadata={
-                                "k_percent": current_k,
-                                "d_percent": current_d,
-                                "signal_type": "midline_cross_up",
-                            },
-                        )
+                            "k_percent": current_k,
+                            "d_percent": current_d,
+                            "signal_type": "midline_cross_up",
+                        },
                     )
+                )
                 # Sell when %K crosses below 50
                 elif prev_k >= 50 and current_k < 50:
                     strength = min(1.0, abs(50 - current_k) / 50 * 0.5 + 0.3)
@@ -1370,10 +1371,10 @@ class StochasticOscillatorStrategy(Strategy):
                             price=current_price,
                             timestamp=timestamp,
                             metadata={
-                                "k_percent": current_k,
-                                "d_percent": current_d,
-                                "signal_type": "midline_cross_down",
-                            },
+                "k_percent": current_k,
+                "d_percent": current_d,
+                "signal_type": "midline_cross_down",
+            },
                         )
                     )
 
@@ -1528,6 +1529,206 @@ class IchimokuCloudStrategy(Strategy):
                             "cloud_top": cloud_top,
                             "cloud_bottom": cloud_bottom,
                             "signal_type": "tenkan_kijun_bearish_crossover",
+                        },
+                    )
+                )
+
+        return signals
+
+
+class ParabolicSARStrategy(Strategy):
+    """Parabolic SAR (Stop and Reverse) Strategy.
+
+    The Parabolic SAR is a trend-following indicator that provides entry and exit
+    points based on a parabolic curve that trails price. It is particularly
+    effective in trending markets.
+
+    The SAR is calculated as:
+        SAR_t = SAR_{t-1} + AF * (EP - SAR_{t-1})
+    where:
+        AF is the acceleration factor (starts at step, increases by step each time
+            a new extreme point is reached, up to max_step)
+        EP is the extreme point (highest high for long trend, lowest low for short trend)
+
+    Trading signals:
+        - Buy when price crosses above the SAR (trend changes to bullish)
+        - Sell when price crosses below the SAR (trend changes to bearish)
+    """
+
+    def __init__(
+        self,
+        step: float = 0.02,
+        max_step: float = 0.20,
+        name: str = "Parabolic_SAR",
+    ):
+        super().__init__(
+            name,
+            {
+                "step": step,
+                "max_step": max_step,
+            },
+        )
+        self.step = step
+        self.max_step = max_step
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters."""
+        if self.step <= 0:
+            raise ValueError("step must be positive")
+        if self.max_step <= 0:
+            raise ValueError("max_step must be positive")
+        if self.step > self.max_step:
+            raise ValueError("step must be less than or equal to max_step")
+
+    def _calculate_sar(self, high: pd.Series, low: pd.Series) -> tuple[pd.Series, pd.Series]:
+        """Calculate Parabolic SAR and trend.
+
+        Returns:
+            Tuple of (sar, trend) where:
+                sar: Parabolic SAR values
+                trend: 1 for bullish (SAR below price), -1 for bearish (SAR above price)
+        """
+        # Initialize arrays
+        sar = pd.Series(index=high.index, dtype=float)
+        trend = pd.Series(index=high.index, dtype=int)
+        # Extreme point: highest high for long, lowest low for short
+        ep = pd.Series(index=high.index, dtype=float)
+        # Acceleration factor
+        af = pd.Series(index=high.index, dtype=float)
+
+        # Need at least two periods to initialize
+        if len(high) < 2:
+            # Not enough data, return all NaN
+            sar.iloc[:] = np.nan
+            trend.iloc[:] = 0
+            ep.iloc[:] = np.nan
+            af.iloc[:] = 0.0
+            return sar, trend
+
+        # Initialize for the first day
+        # We'll assume the initial trend based on the first two periods
+        if high.iloc[1] > high.iloc[0]:
+            # Start with a long trend
+            trend.iloc[0] = 1
+            sar.iloc[0] = low.iloc[0]  # SAR starts at the low of the first period
+            ep.iloc[0] = high.iloc[0]  # EP is the high of the first period
+            af.iloc[0] = self.step
+        else:
+            # Start with a short trend
+            trend.iloc[0] = -1
+            sar.iloc[0] = high.iloc[0]  # SAR starts at the high of the first period
+            ep.iloc[0] = low.iloc[0]   # EP is the low of the first period
+            af.iloc[0] = self.step
+
+        # Calculate for each subsequent period
+        for i in range(1, len(high)):
+            # Previous values
+            prev_sar = sar.iloc[i-1]
+            prev_trend = trend.iloc[i-1]
+            prev_ep = ep.iloc[i-1]
+            prev_af = af.iloc[i-1]
+
+            # Current SAR
+            sar.iloc[i] = prev_sar + prev_af * (prev_ep - prev_sar)
+
+            # Check if we need to reverse the trend
+            if prev_trend == 1:  # Currently long
+                # SAR should be below the low
+                if sar.iloc[i] > low.iloc[i]:
+                    # Trend reversal to short
+                    trend.iloc[i] = -1
+                    sar.iloc[i] = prev_ep  # SAR becomes the previous EP
+                    ep.iloc[i] = low.iloc[i]  # EP is the low of this period
+                    af.iloc[i] = self.step  # Reset AF
+                else:
+                    # Continue long
+                    trend.iloc[i] = 1
+                    # Update EP if we have a new high
+                    if high.iloc[i] > prev_ep:
+                        ep.iloc[i] = high.iloc[i]
+                        # Increase AF, but not beyond max_step
+                        af.iloc[i] = min(prev_af + self.step, self.max_step)
+                    else:
+                        ep.iloc[i] = prev_ep
+                        af.iloc[i] = prev_af
+            else:  # Currently short
+                # SAR should be above the high
+                if sar.iloc[i] < high.iloc[i]:
+                    # Trend reversal to long
+                    trend.iloc[i] = 1
+                    sar.iloc[i] = prev_ep  # SAR becomes the previous EP
+                    ep.iloc[i] = high.iloc[i]  # EP is the high of this period
+                    af.iloc[i] = self.step  # Reset AF
+                else:
+                    # Continue short
+                    trend.iloc[i] = -1
+                    # Update EP if we have a new low
+                    if low.iloc[i] < prev_ep:
+                        ep.iloc[i] = low.iloc[i]
+                        # Increase AF, but not beyond max_step
+                        af.iloc[i] = min(prev_af + self.step, self.max_step)
+                    else:
+                        ep.iloc[i] = prev_ep
+                        af.iloc[i] = prev_af
+
+        return sar, trend
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals = []
+
+        for symbol, df in data.items():
+            if len(df) < 2:
+                continue
+
+            high = df["high"]
+            low = df["low"]
+            close = df["close"]
+
+            sar, trend = self._calculate_sar(high, low)
+
+            current_price = close.iloc[-1]
+            current_sar = sar.iloc[-1]
+            current_trend = trend.iloc[-1]
+            prev_trend = trend.iloc[-2]
+            timestamp = df.index[-1]
+
+            # Skip if SAR is NaN (insufficient data)
+            if pd.isna(current_sar):
+                continue
+
+            # Trend change detection
+            if prev_trend == -1 and current_trend == 1:
+                # Trend changed from bearish to bullish - buy signal
+                strength = min(1.0, (current_price - current_sar) / current_price * 20 + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "sar": current_sar,
+                            "trend": "bullish",
+                            "signal_type": "trend_reversal_bullish",
+                        },
+                    )
+                )
+            elif prev_trend == 1 and current_trend == -1:
+                # Trend changed from bullish to bearish - sell signal
+                strength = min(1.0, (current_sar - current_price) / current_price * 20 + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "sar": current_sar,
+                            "trend": "bearish",
+                            "signal_type": "trend_reversal_bearish",
                         },
                     )
                 )
