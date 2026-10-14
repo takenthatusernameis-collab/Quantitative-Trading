@@ -1,73 +1,67 @@
-# Next Task: (HANDOFF) + follow-up
+# Next Task: (HANDOFF)
 
 ## Status
 
-COMPLETE — the two prior handoff candidates (`run_parabolic_sar.py` and
-100% coverage on `VWAPStrategy`) were already committed by the prior session
-(commit `2d2fc2f`). This session completed the remaining handoff candidate
-#1: `run_vwap.py`.
+COMPLETE — added `run_ichimoku.py` example script and updated README.
 
 ## What this session did
 
-- **Created `examples/run_vwap.py`**, mirroring `examples/run_parabolic_sar.py`
-  and `examples/run_backtest_offline.py`. Runs the `VWAPStrategy` end-to-end
-  against seeded synthetic data via `create_synthetic_provider` (no network,
-  deterministic output).
+- **Created `examples/run_ichimoku.py`**, mirroring existing example scripts
+  (`run_parabolic_sar.py`, `run_vwap.py`, `run_backtest_offline.py`). Runs
+  the `IchimokuCloudStrategy` end-to-end against seeded synthetic data via
+  `create_synthetic_provider` (no network, deterministic output).
 - **Added a README subsection** in the "Example Scripts" section describing
-  `run_vwap.py`, placed directly after the `run_parabolic_sar.py` subsection.
+  `run_ichimoku.py`, placed directly after the `run_vwap.py` subsection.
 
-No `quant_trading/` source files were touched, so 100% coverage on all source
-modules is preserved. No test additions were needed for coverage (the
-`VWAPStrategy` class already had 100% coverage from commit `2d2fc2f`).
+No `quant_trading/` source files were touched. The `IchimokuCloudStrategy` in
+`quant_trading/strategies/examples.py` already had full test coverage from
+existing tests.
 
-## What was verified (2026-10-14T23:33 Z)
+## What was verified (2026-10-14T23:39 Z)
 
-- `python examples/run_vwap.py` → runs clean, prints summary
-  (61 trades, 4.19% return).
-- `python -m pytest tests/ -q` → **987 passed**, 13 warnings (unchanged count;
-  the example script is not part of the test suite).
+- `python examples/run_ichimoku.py` → runs clean, prints summary
+  (17 trades, 3.71% return).
+- `python -m pytest tests/ -q` → **987 passed**, 13 warnings (unchanged).
 - `python -m pytest tests/ --cov=quant_trading --cov-report=term-missing`
-  → `examples.py` stays at **100%** (652 stmts, 0 missing).
-  TOTAL 4317 stmts, 26 missing, **99%**. The 26 remaining misses are all in the
-  two `ProcessPoolExecutor` worker bodies — pre-existing limitation, not a
-  test gap.
+  → `quant_trading/strategies/examples.py` remains at **100%** (652 stmts, 0 missing).
+  TOTAL 4317 stmts, 26 missing, **99%**. The 26 remaining misses are all in
+  the two `ProcessPoolExecutor` worker bodies (`grid_search.py:30-62`,
+  `random_search.py:32-64`) — pre-existing limitation, not a test gap.
 - `python -m ruff check .` → All checks passed.
-- `python -m black --check .` → **66 files** unchanged (fully green).
+- `python -m black --check .` → **67 files** unchanged (fully green).
 - `python -m mypy quant_trading` → Success: no issues found in 36 source files.
 - `quant_trading/` source coverage at 100% preserved.
 
 ## Pre-existing gate failures (NOT caused by this session)
 
-- None. `black`, `ruff`, `mypy`, and the test suite are all green.
+- None. All gates are green.
 
 ## What remains unresolved
 
-- The worker bodies in `grid_search.py:30-62` and `random_search.py:32-64`
-  remain uncovered because they run in a `ProcessPoolExecutor` subprocess.
-  This is an inherent limitation; the parent-side parallel logic is fully
-  covered.
+- The worker bodies in `grid_search.py` and `random_search.py` remain
+  uncovered due to subprocess execution in `ProcessPoolExecutor`. This is
+  an inherent limitation; parent-side parallel logic is covered.
 
 ## Changes are uncommitted (working tree only)
 
 Per policy, nothing was committed. Files modified:
-- `examples/run_vwap.py` (new)
+- `examples/run_ichimoku.py` (new)
 - `README.md` (added subsection)
 
 `.coverage`, `coverage.xml`, `__pycache__/`, `.mypy_cache/`,
-`.ruff_cache/`, `.pytest_cache/` are excluded (gitignored / not staged).
+`.ruff_cache/`, `.pytest_cache/` are excluded.
 
 ## Next precise task
 
-The remaining bounded option from the prior handoff list is:
-
-1. **Add a `run_ichimoku.py` example script** for `IchimokuCloudStrategy`,
-   mirroring the same pattern (run against seeded synthetic data, documented
-   under a new README subsection in the "Example Scripts" section).
-
-   Before starting, verify `IchimokuCloudStrategy` has 100% coverage in
-   `tests/test_strategies_examples.py`. If it does not, add the small
-   companion test additions needed to preserve 100% source coverage — the
-   same pattern used for `VWAPStrategy` in commit `2d2fc2f`.
+The example scripts for existing strategies are now complete (run_backtest_offline,
+run_parabolic_sar, run_vwap, run_ichimoku). A good bounded follow-up is to
+review if there are any other strategies that would benefit from similar
+standalone example scripts, or alternatively look for small gaps in
+documentation/examples. Given the current state with all gates green and
+100% coverage on source modules, the next agent could explore whether
+`examples/run_analysis.py` and related scripts are fully covered/documented,
+or look for minor improvements (e.g., type hints, docstrings) in example
+scripts to ensure consistency - but keep changes minimal and reversible.
 
 ## Constraints for the next agent
 
@@ -79,8 +73,4 @@ The remaining bounded option from the prior handoff list is:
   lines must be tested.
 - No network-dependent tests — use synthetic in-memory data; mock external
   calls.
-- Keep changes minimal and reversible; do not touch
-  `.coverage`, `coverage.xml`, `*.pyc`, `__pycache__/`, `.mypy_cache/`,
-  `.ruff_cache/`, `.pytest_cache/`.
-
-(End of file)
+- Keep changes minimal and reversible.

@@ -333,6 +333,17 @@ the VWAP:
 python examples/run_vwap.py
 ```
 
+For an Ichimoku Cloud demonstration, see `examples/run_ichimoku.py`. It runs
+the `IchimokuCloudStrategy` against seeded synthetic data, generating buy
+signals when Tenkan-sen crosses above Kijun-sen with price above the cloud
+and sell signals when Tenkan-sen crosses below Kijun-sen with price below
+the cloud:
+
+```bash
+python examples/run_ichimoku.py
+```
+
+
 ## Data fetching
 
 `DataProvider.fetch_many(requests)` fetches several distinct symbol/date
