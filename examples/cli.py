@@ -49,6 +49,7 @@ BUILTIN_STRATEGY_KEYS = [
     "keltner",
     "stoch",
     "ichimoku",
+    "vwap",
 ]
 
 PROVIDERS = {
@@ -758,6 +759,7 @@ def create_strategy(args: argparse.Namespace):
             ("kijun_period", "kijun_period"),
             ("senkou_b_period", "senkou_b_period"),
         ],
+        "vwap": [],
     }
 
     if args.strategy in strategy_param_map:
@@ -793,6 +795,8 @@ def create_strategy(args: argparse.Namespace):
             kwargs["name"] = (
                 f"Stoch_{args.stoch_k_period}_{args.stoch_d_period}_{args.stoch_oversold}_{args.stoch_overbought}"
             )
+        elif args.strategy == "vwap":
+            kwargs["name"] = "VWAP"
 
         return factory_create_strategy(args.strategy, **kwargs)
     else:

@@ -1536,6 +1536,85 @@ class IchimokuCloudStrategy(Strategy):
         return signals
 
 
+class VWAPStrategy(Strategy):
+    """Volume Weighted Average Price (VWAP) Strategy.
+
+    The VWAP strategy generates signals based on price crossing the VWAP line.
+    VWAP is calculated as the cumulative (typical price * volume) divided by
+    cumulative volume, where typical price = (high + low + close) / 3.
+
+    Trading signals:
+    - Buy when price crosses above VWAP
+    - Sell when price crosses below VWAP
+    """
+
+    def __init__(self, name: str = "VWAP"):
+        super().__init__(name, {})
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+        VWAP strategy has no parameters to validate.
+        """
+        pass
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals = []
+
+        for symbol, df in data.items():
+            if len(df) < 2:
+                continue
+
+            # Calculate typical price and VWAP
+            typical_price = (df["high"] + df["low"] + df["close"]) / 3
+            vwap = (typical_price * df["volume"]).cumsum() / df["volume"].cumsum()
+
+            # Current and previous values
+            current_price = df["close"].iloc[-1]
+            current_vwap = vwap.iloc[-1]
+            prev_price = df["close"].iloc[-2]
+            prev_vwap = vwap.iloc[-2]
+            timestamp = df.index[-1]
+
+            # Skip if VWAP is NaN (insufficient data)
+            if pd.isna(current_vwap) or pd.isna(prev_vwap):
+                continue
+
+            # Crossover detection
+            if prev_price <= prev_vwap and current_price > current_vwap:
+                # Price crossed above VWAP - buy signal
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=min(1.0, (current_price - current_vwap) / current_vwap * 10),
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "vwap": current_vwap,
+                            "signal_type": "price_above_vwap",
+                        },
+                    )
+                )
+            elif prev_price >= prev_vwap and current_price < current_vwap:
+                # Price crossed below VWAP - sell signal
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=min(1.0, (current_vwap - current_price) / current_vwap * 10),
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "vwap": current_vwap,
+                            "signal_type": "price_below_vwap",
+                        },
+                    )
+                )
+
+        return signals
+
+
 class ParabolicSARStrategy(Strategy):
     """Parabolic SAR (Stop and Reverse) Strategy.
 

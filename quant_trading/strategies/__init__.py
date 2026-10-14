@@ -13,6 +13,7 @@ from .examples import (
     RSIStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
+    VWAPStrategy,
 )
 from .factory import (
     StrategyRegistry,
@@ -36,6 +37,7 @@ register_strategy("keltner", KeltnerChannelStrategy, aliases=["kc", "keltner_cha
 register_strategy("stoch", StochasticOscillatorStrategy, aliases=["stochastic", "stoch_oscillator"])
 register_strategy("ichimoku", IchimokuCloudStrategy, aliases=["ichimoku_cloud", "ichimoku"])
 register_strategy("sar", ParabolicSARStrategy, aliases=["parabolic_sar", "psar"])
+register_strategy("vwap", VWAPStrategy)
 
 
 __all__ = [

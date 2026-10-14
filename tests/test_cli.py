@@ -809,6 +809,7 @@ class TestRunCombined:
             ("Stoch_14_3_20_80", 12.5),
             ("Ichimoku_Cloud", 9.0),
             ("Parabolic_SAR", 7.5),
+            ("VWAP", 5.0),
         ]:
             m = MagicMock(
                 spec=[
