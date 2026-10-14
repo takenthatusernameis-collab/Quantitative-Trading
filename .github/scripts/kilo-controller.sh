@@ -101,15 +101,12 @@ export PATH="$RUNNER_TEMP/kilo/node_modules/.bin:$PATH"
 git config user.name "kilo-autonomous"
 git config user.email "kilo-autonomous@users.noreply.github.com"
 
-agents="${KILO_INPUT_AGENTS:-1000}"
-if ! [[ "$agents" =~ ^[0-9]+$ ]]; then
-  echo "::warning::Invalid agent count; using a safe value."
-  agents=1
+if [ "$one_shot_mode" -eq 1 ]; then
+  SESSION_LIMIT_POLICY="exactly two validation sessions"
+else
+  SESSION_LIMIT_POLICY="unlimited until cutoff"
 fi
-if [ "$agents" -lt 1 ]; then agents=1; fi
-if [ "$agents" -gt 1000 ]; then agents=1000; fi
-if [ "$one_shot_mode" -eq 1 ]; then agents=2; fi
-echo "Configured sequential Kilo sessions: $agents (one-shot mode: $one_shot_mode)."
+echo "::notice::Sequential Kilo session policy: $SESSION_LIMIT_POLICY; the global 355-minute cutoff is authoritative."
 command=$(cat <<'PROMPT'
 Execute the task assigned by the previous agent and prepare a task for the next agent!
 
@@ -215,7 +212,13 @@ project_progress=0
 provider_pressure_streak=0
 cutoff=0
 
-for agent_index in $(seq 1 "$agents"); do
+agent_index=0
+while true; do
+  if [ "$one_shot_mode" -eq 1 ] && [ "$agent_index" -ge 2 ]; then
+    echo "::notice::The explicit one-shot validation completed its two intended sessions."
+    break
+  fi
+  agent_index=$((agent_index + 1))
   remaining=$((cutoff_epoch - $(date +%s)))
   if [ "$remaining" -le 0 ]; then
     cutoff=1
@@ -227,7 +230,7 @@ for agent_index in $(seq 1 "$agents"); do
   provider_pressure=0
   transient_retry_backoff=15
   session_attempt=0
-  echo "Starting sequential Kilo session ${agent_index}/${agents}; remaining safety budget ${remaining}s."
+  echo "Starting sequential Kilo session ${agent_index} (${SESSION_LIMIT_POLICY}); remaining safety budget ${remaining}s."
   while true; do
     session_attempt=$((session_attempt + 1))
     attempt_log="$RUNNER_TEMP/kilo-session-${agent_index}-attempt-${session_attempt}.log"
