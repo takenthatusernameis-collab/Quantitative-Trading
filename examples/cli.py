@@ -41,6 +41,7 @@ BUILTIN_STRATEGY_KEYS = [
     "aroon",
     "keltner",
     "stoch",
+    "ichimoku",
 ]
 
 PROVIDERS = {
@@ -91,6 +92,9 @@ CLI_ARG_DEFAULTS = {
     "stoch_oversold": 20,
     "stoch_overbought": 80,
     "stoch_use_midline": False,
+    "tenkan_period": 9,
+    "kijun_period": 26,
+    "senkou_b_period": 52,
 }
 
 
@@ -321,6 +325,24 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Enable midline (50) crossover signals for Stochastic",
     )
+    parser.add_argument(
+        "--tenkan-period",
+        type=int,
+        default=9,
+        help="Tenkan-sen (Conversion Line) period",
+    )
+    parser.add_argument(
+        "--kijun-period",
+        type=int,
+        default=26,
+        help="Kijun-sen (Base Line) period",
+    )
+    parser.add_argument(
+        "--senkou-b-period",
+        type=int,
+        default=52,
+        help="Senkou Span B period",
+    )
 
     # Parameter ranges for optimization
     parser.add_argument(
@@ -454,6 +476,24 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="70,90,5",
         help="Stochastic overbought range: min,max,step",
+    )
+    parser.add_argument(
+        "--ichimoku-tenkan-period-range",
+        type=str,
+        default="5,30,2",
+        help="Ichimoku Tenkan-sen period range: min,max,step",
+    )
+    parser.add_argument(
+        "--ichimoku-kijun-period-range",
+        type=str,
+        default="10,60,5",
+        help="Ichimoku Kijun-sen period range: min,max,step",
+    )
+    parser.add_argument(
+        "--ichimoku-senkou-b-period-range",
+        type=str,
+        default="20,120,10",
+        help="Ichimoku Senkou Span B period range: min,max,step",
     )
 
     parser.add_argument(
@@ -678,6 +718,11 @@ def create_strategy(args: argparse.Namespace):
             ("stoch_oversold", "oversold"),
             ("stoch_overbought", "overbought"),
             ("stoch_use_midline", "use_midline"),
+        ],
+        "ichimoku": [
+            ("tenkan_period", "tenkan_period"),
+            ("kijun_period", "kijun_period"),
+            ("senkou_b_period", "senkou_b_period"),
         ],
     }
 
@@ -960,6 +1005,26 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
         )
         grid.add(ParameterSpace("use_midline", values=[False, True], param_type=bool))
         grid.set_validator(lambda p: p["oversold"] < p["overbought"])
+    elif args.strategy == "ichimoku":
+        tenkan_min, tenkan_max, tenkan_step = parse_range(args.ichimoku_tenkan_period_range)
+        kijun_min, kijun_max, kijun_step = parse_range(args.ichimoku_kijun_period_range)
+        senkou_b_min, senkou_b_max, senkou_b_step = parse_range(args.ichimoku_senkou_b_period_range)
+        grid.add(
+            ParameterSpace(
+                "tenkan_period", min_val=tenkan_min, max_val=tenkan_max, step=tenkan_step, param_type=int
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "kijun_period", min_val=kijun_min, max_val=kijun_max, step=kijun_step, param_type=int
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "senkou_b_period", min_val=senkou_b_min, max_val=senkou_b_max, step=senkou_b_step, param_type=int
+            )
+        )
+        grid.set_validator(lambda p: p["tenkan_period"] < p["kijun_period"] and p["senkou_b_period"] > p["kijun_period"])
 
     return grid
 

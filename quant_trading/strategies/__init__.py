@@ -11,6 +11,7 @@ from .examples import (
     RSIStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
+    IchimokuCloudStrategy,
 )
 from .factory import (
     StrategyRegistry,
@@ -32,6 +33,10 @@ register_strategy("donchian", DonchianChannelStrategy, aliases=["donchian_channe
 register_strategy("aroon", AroonStrategy, aliases=["aroon_oscillator"])
 register_strategy("keltner", KeltnerChannelStrategy, aliases=["kc", "keltner_channel"])
 register_strategy("stoch", StochasticOscillatorStrategy, aliases=["stochastic", "stoch_oscillator"])
+register_strategy("ichimoku", IchimokuCloudStrategy, aliases=["ichimoku_cloud", "ichimoku"])
+
+
+
 
 __all__ = [
     "AroonStrategy",
@@ -48,6 +53,7 @@ __all__ = [
     "StrategyManager",
     "StrategyRegistry",
     "SuperTrendStrategy",
+    "IchimokuCloudStrategy",
     "create_strategy",
     "get_registry",
     "get_strategy",
