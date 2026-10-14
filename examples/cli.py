@@ -1,4 +1,11 @@
-"""CLI entry point for running backtests with configurable data providers."""
+"""CLI entry point for running backtests with configurable data providers.
+
+Additional feature:
+  --strategy-config: Specify a YAML file containing strategy configuration
+                     (type, name, parameters) to create the strategy.
+                     This overrides the --strategy argument and individual
+                     strategy parameters.
+"""
 
 import argparse
 from datetime import datetime, timedelta
@@ -176,7 +183,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--strategy",
         default="ma",
-        help="Strategy to run (use --list-strategies to see available options)",
+        help="Strategy to run (use --list-strategies to see available options). Ignored if --strategy-config is provided.",
     )
     parser.add_argument(
         "--fast-period",
@@ -682,12 +689,26 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run detailed trade analysis on the backtest results",
     )
+    parser.add_argument(
+        "--strategy-config",
+        type=str,
+        help="Path to YAML file containing strategy configuration (type, name, parameters)",
+    )
 
     return parser.parse_args()
 
 
 def create_strategy(args: argparse.Namespace):
     """Create strategy instance from args using the factory registry."""
+    # If strategy config file is provided, use it
+    strategy_config_path = getattr(args, 'strategy_config', None)
+    if strategy_config_path:
+        import yaml
+        with open(strategy_config_path, 'r') as f:
+            strategy_config = yaml.safe_load(f)
+        from quant_trading.strategies.base import Strategy
+        return Strategy.from_config(strategy_config)
+
     # Map strategy keys to lists of (cli_arg, param_name) tuples for built-in strategies
     strategy_param_map = {
         "ma": [("fast_period", "fast_period"), ("slow_period", "slow_period")],
