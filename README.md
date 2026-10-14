@@ -305,6 +305,15 @@ output on every run:
 python examples/run_backtest_offline.py
 ```
 
+For a full analysis pass — market regime detection, Monte Carlo
+simulation, and trade-level analysis — see
+`examples/run_analysis.py`. It runs a single backtest against
+synthetic data and prints all three analysis modules:
+
+```bash
+python examples/run_analysis.py
+```
+
 ## Data fetching
 
 `DataProvider.fetch_many(requests)` fetches several distinct symbol/date
