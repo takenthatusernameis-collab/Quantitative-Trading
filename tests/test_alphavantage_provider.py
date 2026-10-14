@@ -3311,8 +3311,730 @@ class TestAlphaVantageProvider:
         assert "fed_funds_rate" in indicators
         assert "treasury_yield" in indicators
 
+    # ------------------------------------------------------------------
+    # Parse-method edge cases (pure functions, no network required)
+    # ------------------------------------------------------------------
 
-class TestAlphaVantageProviderIntegration:
+    def test_build_technical_indicator_params_with_kwargs(self, provider):
+        """Test _build_technical_indicator_params passes through extra kwargs."""
+        params = provider._build_technical_indicator_params(
+            "AAPL", indicator="SMA", interval="daily", time_period=20, series_type="close",
+            outputsize="full",
+        )
+        assert params["function"] == "SMA"
+        assert params["symbol"] == "AAPL"
+        assert params["outputsize"] == "full"
+        assert params["datatype"] == "json"
+
+    def test_parse_monthly_response_no_time_series(self, provider):
+        """Test _parse_monthly_response when the time series key is absent."""
+        assert provider._parse_monthly_response("AAPL", {"Meta Data": {}}, None, None) is None
+
+    def test_parse_monthly_response_edge_cases(self, provider):
+        """Test _parse_monthly_response with invalid dates and out-of-range filtering."""
+        data = {
+            "Monthly Time Series": {
+                "invalid-date": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+                "2020-01-01": {"1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100", "5. volume": "1000"},
+                "2030-01-01": {"1. open": "200", "2. high": "201", "3. low": "199", "4. close": "200", "5. volume": "2000"},
+            }
+        }
+        start = datetime(2024, 1, 1)
+        end = datetime(2024, 12, 31)
+        assert provider._parse_monthly_response("AAPL", data, start, end) is None
+
+    def test_parse_monthly_adjusted_response_no_time_series(self, provider):
+        """Test _parse_monthly_adjusted_response when the time series key is absent."""
+        assert (
+            provider._parse_monthly_adjusted_response("AAPL", {"Meta Data": {}}, None, None)
+            is None
+        )
+
+    def test_parse_monthly_adjusted_response_edge_cases(self, provider):
+        """Test _parse_monthly_adjusted_response with invalid dates and out-of-range filtering."""
+        data = {
+            "Monthly Adjusted Time Series": {
+                "invalid-date": {"1. open": "100"},
+                "2020-01-01": {
+                    "1. open": "100", "2. high": "101", "3. low": "99", "4. close": "100",
+                    "5. adjusted close": "100", "6. volume": "1000",
+                    "7. dividend amount": "0", "8. split coefficient": "1.0",
+                },
+                "2030-01-01": {
+                    "1. open": "200", "2. high": "201", "3. low": "199", "4. close": "200",
+                    "5. adjusted close": "200", "6. volume": "2000",
+                    "7. dividend amount": "0", "8. split coefficient": "1.0",
+                },
+            }
+        }
+        start = datetime(2024, 1, 1)
+        end = datetime(2024, 12, 31)
+        assert (
+            provider._parse_monthly_adjusted_response("AAPL", data, start, end)
+            is None
+        )
+
+    def test_parse_global_quote_response_empty(self, provider):
+        """Test _parse_global_quote_response with no Global Quote key."""
+        assert provider._parse_global_quote_response("AAPL", {}) is None
+
+    def test_parse_technical_indicator_response_no_ta_data(self, provider):
+        """Test _parse_technical_indicator_response when ta_data is falsy."""
+        df = provider._parse_technical_indicator_response(
+            "AAPL", "SMA", {"Technical Analysis: SMA": None}, None, None
+        )
+        assert df is None
+
+    def test_parse_technical_indicator_response_no_indicator_key(self, provider):
+        """Test _parse_technical_indicator_response when indicator key is absent."""
+        data = {"Technical Analysis: SMA": {"OTHER": {"2024-01-15": {"OTHER": "1.0"}}}}
+        df = provider._parse_technical_indicator_response("AAPL", "SMA", data, None, None)
+        assert df is None
+
+    def test_parse_technical_indicator_response_edge_cases(self, provider):
+        """Test invalid date formats, date filtering, and empty records."""
+        data = {
+            "Technical Analysis: SMA": {
+                "SMA": {
+                    "invalid-date": {"SMA": "1.0"},
+                    "2024-01-15 19:55:00": {"SMA": "185.50"},
+                    "2020-01-01": {"SMA": "180.00"},
+                    "2030-01-01": {"SMA": "190.00"},
+                }
+            }
+        }
+        start = datetime(2024, 6, 1)
+        end = datetime(2024, 12, 31)
+        df = provider._parse_technical_indicator_response("AAPL", "SMA", data, start, end)
+        assert df is None
+
+    def test_parse_fx_daily_response_no_time_series(self, provider):
+        """Test _parse_fx_daily_response when the FX time series key is absent."""
+        assert (
+            provider._parse_fx_daily_response("USD", "EUR", {"Meta Data": {}}, None, None)
+            is None
+        )
+
+    def test_parse_fx_daily_response_edge_cases(self, provider):
+        """Test _parse_fx_daily_response with invalid dates and out-of-range filtering."""
+        data = {
+            "Time Series FX (Daily)": {
+                "invalid-date": {"1. open": "1.0"},
+                "2020-01-01": {"1. open": "0.92"},
+                "2030-01-01": {"1. open": "0.95"},
+            }
+        }
+        start = datetime(2024, 1, 1)
+        end = datetime(2024, 12, 31)
+        assert provider._parse_fx_daily_response("USD", "EUR", data, start, end) is None
+
+    def test_parse_fx_intraday_response_no_time_series(self, provider):
+        """Test _parse_fx_intraday_response when no FX time series key is found."""
+        assert (
+            provider._parse_fx_intraday_response("USD", "EUR", {"Meta Data": {}}, None, None)
+            is None
+        )
+
+    def test_parse_fx_intraday_response_no_data(self, provider):
+        """Test _parse_fx_intraday_response when the time series value is falsy."""
+        data = {"Time Series FX (5min)": None}
+        assert provider._parse_fx_intraday_response("USD", "EUR", data, None, None) is None
+
+    def test_parse_fx_intraday_response_edge_cases(self, provider):
+        """Test _parse_fx_intraday_response with invalid dates and out-of-range filtering."""
+        data = {
+            "Time Series FX (5min)": {
+                "invalid-date": {"1. open": "1.0"},
+                "2020-01-15 19:55:00": {"1. open": "0.92"},
+                "2030-01-15 19:55:00": {"1. open": "0.95"},
+            }
+        }
+        start = datetime(2024, 1, 1, 0, 0, 0)
+        end = datetime(2024, 12, 31, 23, 59, 59)
+        assert (
+            provider._parse_fx_intraday_response("USD", "EUR", data, start, end)
+            is None
+        )
+
+    def test_parse_currency_exchange_rate_response_empty(self, provider):
+        """Test _parse_currency_exchange_rate_response with no rate data."""
+        assert (
+            provider._parse_currency_exchange_rate_response("USD", "EUR", {})
+            is None
+        )
+
+    def test_parse_crypto_response_no_time_series(self, provider):
+        """Test _parse_crypto_response when no digital currency key is found."""
+        assert provider._parse_crypto_response("BTC", "USD", {"Meta Data": {}}, None, None) is None
+
+    def test_parse_crypto_response_no_data(self, provider):
+        """Test _parse_crypto_response when the time series value is falsy."""
+        data = {"Time Series (Digital Currency Daily)": None}
+        assert provider._parse_crypto_response("BTC", "USD", data, None, None) is None
+
+    def test_parse_crypto_response_edge_cases(self, provider):
+        """Test _parse_crypto_response with invalid dates and out-of-range filtering."""
+        data = {
+            "Time Series (Digital Currency Daily)": {
+                "invalid-date": {"1a. open (USD)": "100"},
+                "2020-01-15": {"1a. open (USD)": "42000"},
+                "2030-01-15": {"1a. open (USD)": "50000"},
+            }
+        }
+        start = datetime(2024, 1, 1)
+        end = datetime(2024, 12, 31)
+        assert provider._parse_crypto_response("BTC", "USD", data, start, end) is None
+
+    def test_parse_single_series_response_edge_cases(self, provider):
+        """Test _parse_single_series_response with all skip paths exhausted."""
+        data = {
+            "name": "Test",
+            "interval": "monthly",
+            "unit": "test",
+            "data": [
+                {"date": None, "value": "100"},
+                {"date": "invalid", "value": "100"},
+                {"date": "2020-01-01", "value": "100"},
+                {"date": "2030-01-01", "value": "100"},
+                {"date": "2024-06-01", "value": None},
+                {"date": "2024-06-02", "value": "."},
+                {"date": "2024-06-03", "value": "not-a-number"},
+            ],
+        }
+        start = datetime(2024, 1, 1)
+        end = datetime(2024, 12, 31)
+        assert provider._parse_single_series_response(data, start, end) is None
+
+    def test_parse_sector_performance_response_empty(self, provider):
+        """Test _parse_sector_performance_response with empty data."""
+        assert provider._parse_sector_performance_response({}) is None
+
+    def test_parse_sector_performance_response_invalid_value(self, provider):
+        """Test _parse_sector_performance_response with non-numeric performance."""
+        data = {
+            "Rank A: Real-Time Performance": {
+                "Utilities": "N/A",
+            }
+        }
+        df = provider._parse_sector_performance_response(data)
+        assert df is None
+
+    # ------------------------------------------------------------------
+    # get_* convenience method tests
+    # ------------------------------------------------------------------
+
+    def test_get_ema(self, provider):
+        """Test get_ema convenience method."""
+        ema_response = {
+            "Meta Data": {"2. Indicator": "EMA"},
+            "Technical Analysis: EMA": {
+                "EMA": {"2024-01-15": {"EMA": "185.50"}, "2024-01-12": {"EMA": "183.20"}}
+            },
+        }
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ema_response)
+            df = provider.get_ema("AAPL")
+            assert df is not None
+            assert list(df.columns) == ["ema"]
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "EMA"
+
+    def test_get_rsi(self, provider):
+        """Test get_rsi convenience method."""
+        rsi_response = {
+            "Meta Data": {"2. Indicator": "RSI"},
+            "Technical Analysis: RSI": {
+                "RSI": {"2024-01-15": {"RSI": "65.50"}, "2024-01-12": {"RSI": "62.30"}}
+            },
+        }
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(rsi_response)
+            df = provider.get_rsi("AAPL")
+            assert df is not None
+            assert list(df.columns) == ["rsi"]
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "RSI"
+
+    def test_get_macd(self, provider):
+        """Test get_macd convenience method."""
+        macd_response = {
+            "Meta Data": {"2. Indicator": "MACD"},
+            "Technical Analysis: MACD": {
+                "MACD": {"2024-01-15": {"MACD": "1.50"}, "2024-01-12": {"MACD": "1.30"}}
+            },
+        }
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(macd_response)
+            df = provider.get_macd("AAPL")
+            assert df is not None
+            assert list(df.columns) == ["macd"]
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "MACD"
+
+    def test_get_stoch(self, provider):
+        """Test get_stoch convenience method."""
+        stoch_response = {
+            "Meta Data": {"2. Indicator": "STOCH"},
+            "Technical Analysis: STOCH": {
+                "STOCH": {"2024-01-15": {"STOCH": "80.00"}, "2024-01-12": {"STOCH": "75.00"}}
+            },
+        }
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(stoch_response)
+            df = provider.get_stoch("AAPL")
+            assert df is not None
+            assert list(df.columns) == ["stoch"]
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "STOCH"
+
+    def test_get_bbands(self, provider):
+        """Test get_bbands convenience method."""
+        bbands_response = {
+            "Meta Data": {"2. Indicator": "BBANDS"},
+            "Technical Analysis: BBANDS": {
+                "BBANDS": {"2024-01-15": {"BBANDS": "186.50"}, "2024-01-12": {"BBANDS": "184.00"}}
+            },
+        }
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(bbands_response)
+            df = provider.get_bbands("AAPL")
+            assert df is not None
+            assert list(df.columns) == ["bbands"]
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["function"] == "BBANDS"
+
+    # ------------------------------------------------------------------
+    # Error / rate-limit / missing-data tests for _fetch_* methods
+    # ------------------------------------------------------------------
+
+    def test_fetch_weekly_api_error(self, provider):
+        """Test _fetch_weekly with API error response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+            result = provider.fetch(["AAPL"], interval="weekly")
+            assert "AAPL" in result.errors
+            assert not result.data
+
+    def test_fetch_weekly_rate_limit(self, provider):
+        """Test _fetch_weekly with rate limit response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            result = provider.fetch(["AAPL"], interval="weekly")
+            assert "AAPL" in result.errors
+            assert isinstance(result.errors["AAPL"], RuntimeError)
+
+    def test_fetch_weekly_missing_symbol(self, provider):
+        """Test _fetch_weekly with empty response marks symbol missing."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse({})
+            result = provider.fetch(["INVALID"], interval="weekly")
+            assert "INVALID" in result.missing
+            assert not result.data
+            assert not result.errors
+
+    def test_fetch_weekly_adjusted_api_error(self, provider):
+        """Test _fetch_weekly_adjusted with API error response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+            result = provider.fetch(["AAPL"], interval="weekly_adjusted")
+            assert "AAPL" in result.errors
+
+    def test_fetch_weekly_adjusted_rate_limit(self, provider):
+        """Test _fetch_weekly_adjusted with rate limit response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            result = provider.fetch(["AAPL"], interval="weekly_adjusted")
+            assert "AAPL" in result.errors
+            assert isinstance(result.errors["AAPL"], RuntimeError)
+
+    def test_fetch_weekly_adjusted_missing_symbol(self, provider):
+        """Test _fetch_weekly_adjusted with empty response marks symbol missing."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse({})
+            result = provider.fetch(["INVALID"], interval="weekly_adjusted")
+            assert "INVALID" in result.missing
+
+    def test_fetch_monthly_api_error(self, provider):
+        """Test _fetch_monthly with API error response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+            result = provider.fetch(["AAPL"], interval="monthly")
+            assert "AAPL" in result.errors
+
+    def test_fetch_monthly_rate_limit(self, provider):
+        """Test _fetch_monthly with rate limit response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            result = provider.fetch(["AAPL"], interval="monthly")
+            assert "AAPL" in result.errors
+            assert isinstance(result.errors["AAPL"], RuntimeError)
+
+    def test_fetch_monthly_missing_symbol(self, provider):
+        """Test _fetch_monthly with empty response marks symbol missing."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse({})
+            result = provider.fetch(["INVALID"], interval="monthly")
+            assert "INVALID" in result.missing
+
+    def test_fetch_monthly_adjusted_api_error(self, provider):
+        """Test _fetch_monthly_adjusted with API error response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+            result = provider.fetch(["AAPL"], interval="monthly_adjusted")
+            assert "AAPL" in result.errors
+
+    def test_fetch_monthly_adjusted_rate_limit(self, provider):
+        """Test _fetch_monthly_adjusted with rate limit response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            result = provider.fetch(["AAPL"], interval="monthly_adjusted")
+            assert "AAPL" in result.errors
+            assert isinstance(result.errors["AAPL"], RuntimeError)
+
+    def test_fetch_monthly_adjusted_missing_symbol(self, provider):
+        """Test _fetch_monthly_adjusted with empty response marks symbol missing."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse({})
+            result = provider.fetch(["INVALID"], interval="monthly_adjusted")
+            assert "INVALID" in result.missing
+
+    def test_fetch_global_quote_with_empty_response(self, provider):
+        """Test _fetch_global_quote with response lacking Global Quote data."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse({})
+            result = provider.fetch(["AAPL"], interval="quote")
+            assert "AAPL" in result.missing
+            assert not result.data
+            assert not result.errors
+
+    def test_fetch_batch_rate_limit(self, provider):
+        """Test _fetch_batch with rate limit response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            result = provider.fetch(["AAPL", "MSFT"], interval="5min")
+            assert "AAPL" in result.errors
+            assert "MSFT" in result.errors
+            assert isinstance(result.errors["AAPL"], RuntimeError)
+
+    # ------------------------------------------------------------------
+    # FX fetch error / rate-limit / missing tests
+    # ------------------------------------------------------------------
+
+    def test_fetch_fx_daily_api_error(self, provider):
+        """Test _fetch_fx_daily with API error response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+            result = provider.fetch(["USD/EUR"], interval="fx_daily")
+            assert "USD/EUR" in result.errors
+
+    def test_fetch_fx_daily_rate_limit(self, provider):
+        """Test _fetch_fx_daily with rate limit response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            result = provider.fetch(["USD/EUR"], interval="fx_daily")
+            assert "USD/EUR" in result.errors
+            assert isinstance(result.errors["USD/EUR"], RuntimeError)
+
+    def test_fetch_fx_daily_missing(self, provider):
+        """Test _fetch_fx_daily with empty response marks symbol missing."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse({})
+            result = provider.fetch(["USD/EUR"], interval="fx_daily")
+            assert "USD/EUR" in result.missing
+
+    def test_fetch_fx_intraday_invalid_format(self, provider):
+        """Test _fetch_fx_intraday with invalid symbol format."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            result = provider.fetch(["INVALID"], interval="fx_5m")
+            assert "INVALID" in result.errors
+            assert isinstance(result.errors["INVALID"], ValueError)
+            mock_get.assert_not_called()
+
+    def test_fetch_fx_intraday_api_error(self, provider):
+        """Test _fetch_fx_intraday with API error response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+            result = provider.fetch(["USD/EUR"], interval="fx_5m")
+            assert "USD/EUR" in result.errors
+
+    def test_fetch_fx_intraday_rate_limit(self, provider):
+        """Test _fetch_fx_intraday with rate limit response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            result = provider.fetch(["USD/EUR"], interval="fx_5m")
+            assert "USD/EUR" in result.errors
+            assert isinstance(result.errors["USD/EUR"], RuntimeError)
+
+    def test_fetch_fx_intraday_missing(self, provider):
+        """Test _fetch_fx_intraday with empty response marks symbol missing."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse({})
+            result = provider.fetch(["USD/EUR"], interval="fx_5m")
+            assert "USD/EUR" in result.missing
+
+    def test_fetch_currency_exchange_rate_missing(self, provider):
+        """Test _fetch_currency_exchange_rate with response lacking rate data."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse({})
+            result = provider.fetch(["USD/EUR"], interval="fx_rate")
+            assert "USD/EUR" in result.missing
+            assert not result.data
+
+    def test_fetch_symbol_search_no_symbols(self, provider):
+        """Test _fetch_symbol_search with empty symbols list."""
+        result = provider.fetch([], interval="symbol_search")
+        assert not result.data
+        assert not result.errors
+        assert not result.missing
+
+    # ------------------------------------------------------------------
+    # Crypto fetch error / rate-limit / missing tests
+    # ------------------------------------------------------------------
+
+    def test_fetch_crypto_daily_api_error(self, provider):
+        """Test _fetch_crypto_daily with API error response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+            result = provider.fetch(["BTC"], interval="crypto_daily")
+            assert "BTC" in result.errors
+
+    def test_fetch_crypto_daily_rate_limit(self, provider):
+        """Test _fetch_crypto_daily with rate limit response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            result = provider.fetch(["BTC"], interval="crypto_daily")
+            assert "BTC" in result.errors
+            assert isinstance(result.errors["BTC"], RuntimeError)
+
+    def test_fetch_crypto_daily_missing(self, provider):
+        """Test _fetch_crypto_daily with empty response marks symbol missing."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse({})
+            result = provider.fetch(["BTC"], interval="crypto_daily")
+            assert "BTC" in result.missing
+
+    def test_fetch_crypto_weekly_api_error(self, provider):
+        """Test _fetch_crypto_weekly with API error response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+            result = provider.fetch(["BTC"], interval="crypto_weekly")
+            assert "BTC" in result.errors
+
+    def test_fetch_crypto_weekly_rate_limit(self, provider):
+        """Test _fetch_crypto_weekly with rate limit response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            result = provider.fetch(["BTC"], interval="crypto_weekly")
+            assert "BTC" in result.errors
+            assert isinstance(result.errors["BTC"], RuntimeError)
+
+    def test_fetch_crypto_weekly_missing(self, provider):
+        """Test _fetch_crypto_weekly with empty response marks symbol missing."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse({})
+            result = provider.fetch(["BTC"], interval="crypto_weekly")
+            assert "BTC" in result.missing
+
+    def test_fetch_crypto_monthly_api_error(self, provider):
+        """Test _fetch_crypto_monthly with API error response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+            result = provider.fetch(["BTC"], interval="crypto_monthly")
+            assert "BTC" in result.errors
+
+    def test_fetch_crypto_monthly_rate_limit(self, provider):
+        """Test _fetch_crypto_monthly with rate limit response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            result = provider.fetch(["BTC"], interval="crypto_monthly")
+            assert "BTC" in result.errors
+            assert isinstance(result.errors["BTC"], RuntimeError)
+
+    def test_fetch_crypto_monthly_missing(self, provider):
+        """Test _fetch_crypto_monthly with empty response marks symbol missing."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse({})
+            result = provider.fetch(["BTC"], interval="crypto_monthly")
+            assert "BTC" in result.missing
+
+    def test_fetch_crypto_intraday_api_error(self, provider):
+        """Test _fetch_crypto_intraday with API error response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+            result = provider.fetch(["BTC"], interval="crypto_intraday")
+            assert "BTC" in result.errors
+
+    def test_fetch_crypto_intraday_rate_limit(self, provider):
+        """Test _fetch_crypto_intraday with rate limit response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            result = provider.fetch(["BTC"], interval="crypto_intraday")
+            assert "BTC" in result.errors
+            assert isinstance(result.errors["BTC"], RuntimeError)
+
+    def test_fetch_crypto_intraday_missing(self, provider):
+        """Test _fetch_crypto_intraday with empty response marks symbol missing."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse({})
+            result = provider.fetch(["BTC"], interval="crypto_intraday")
+            assert "BTC" in result.missing
+
+    # ------------------------------------------------------------------
+    # Technical indicator fetch error / interval / rate-limit tests
+    # ------------------------------------------------------------------
+
+    def test_fetch_technical_indicator_rate_limit(self, provider):
+        """Test _fetch_technical_indicator with rate limit response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            result = provider._fetch_technical_indicator(
+                ["AAPL"], None, None, "1d", indicator="SMA"
+            )
+            assert "AAPL" in result.errors
+            assert isinstance(result.errors["AAPL"], RuntimeError)
+
+    def test_fetch_technical_indicator_intraday_interval(self, provider):
+        """Test _fetch_technical_indicator maps intraday interval keys."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(TECHNICAL_INDICATOR_RESPONSE)
+            result = provider._fetch_technical_indicator(
+                ["AAPL"], None, None, "1m", indicator="SMA"
+            )
+            assert "AAPL" in result.data
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["interval"] == "1min"
+
+    def test_fetch_technical_indicator_monthly_interval(self, provider):
+        """Test _fetch_technical_indicator maps monthly interval keys."""
+        ti_response = {
+            "Meta Data": {"2. Indicator": "SMA"},
+            "Technical Analysis: SMA": {
+                "SMA": {"2024-01-31": {"SMA": "185.50"}}
+            },
+        }
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ti_response)
+            result = provider._fetch_technical_indicator(
+                ["AAPL"], None, None, "1mo", indicator="SMA"
+            )
+            assert "AAPL" in result.data
+            params = mock_get.call_args.kwargs.get("params", {})
+            assert params["interval"] == "monthly"
+
+    # ------------------------------------------------------------------
+    # Market status / commodity / economic indicator fetch error tests
+    # ------------------------------------------------------------------
+
+    def test_fetch_market_status_api_error(self, provider):
+        """Test fetch with market_status interval API error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+            result = provider.fetch(["AAPL"], interval="market_status")
+            assert "AAPL" in result.errors
+
+    def test_fetch_market_status_rate_limit(self, provider):
+        """Test fetch with market_status interval rate limit."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            result = provider.fetch(["AAPL"], interval="market_status")
+            assert "AAPL" in result.errors
+            assert isinstance(result.errors["AAPL"], RuntimeError)
+
+    def test_fetch_market_status_empty_response(self, provider):
+        """Test fetch with market_status interval empty response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse({})
+            result = provider.fetch(["AAPL"], interval="market_status")
+            assert "AAPL" in result.missing
+
+    def test_fetch_commodity_empty_response(self, provider):
+        """Test fetch with commodity interval empty response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(COMMODITY_EMPTY_RESPONSE)
+            result = provider.fetch(["WTI"], interval="wti")
+            assert "WTI" in result.missing
+
+    def test_fetch_economic_indicator_empty_response(self, provider):
+        """Test fetch with economic indicator interval empty response."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ECONOMIC_EMPTY_RESPONSE)
+            result = provider.fetch(["GDP"], interval="gdp")
+            assert "GDP" in result.missing
+
+    # ------------------------------------------------------------------
+    # get_currency_exchange_rate / get_gold_history error tests
+    # ------------------------------------------------------------------
+
+    def test_get_currency_exchange_rate_network_error(self, provider):
+        """Test get_currency_exchange_rate network error handling."""
+        import requests
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.side_effect = requests.ConnectionError("Network unreachable")
+            df = provider.get_currency_exchange_rate("USD", "EUR")
+            assert df is None
+
+    def test_get_gold_history_api_error(self, provider):
+        """Test get_gold_history with API error."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(ERROR_RESPONSE)
+            df = provider.get_gold_history("GOLD")
+            assert df is None
+
+    def test_get_gold_history_rate_limit(self, provider):
+        """Test get_gold_history with rate limit."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            df = provider.get_gold_history("GOLD")
+            assert df is None
+
+    def test_get_gold_history_network_error(self, provider):
+        """Test get_gold_history network error handling."""
+        import requests
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.side_effect = requests.ConnectionError("Network unreachable")
+            df = provider.get_gold_history("GOLD")
+            assert df is None
+
+    # ------------------------------------------------------------------
+    # fetch_many per-symbol fallback and batch error slicing
+    # ------------------------------------------------------------------
+
+    def test_fetch_many_intraday_fallback(self, provider):
+        """Test fetch_many with actual intraday interval uses per-symbol fetch."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(INTRADAY_RESPONSE)
+            reqs = [
+                {"symbols": ["AAPL"], "start": datetime(2024, 1, 15, 19, 0), "interval": "5m"},
+                {"symbols": ["MSFT"], "start": datetime(2024, 1, 15, 19, 0), "interval": "5m"},
+            ]
+            results = provider.fetch_many(reqs)
+            assert len(results) == 2
+            assert mock_get.call_count == 2  # Per-symbol calls
+
+    def test_fetch_many_quote_fallback(self, provider):
+        """Test fetch_many with quote interval uses per-symbol fetch."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(GLOBAL_QUOTE_RESPONSE)
+            reqs = [
+                {"symbols": ["AAPL"], "interval": "quote"},
+                {"symbols": ["MSFT"], "interval": "realtime"},
+            ]
+            results = provider.fetch_many(reqs)
+            assert len(results) == 2
+            assert mock_get.call_count == 2  # Per-symbol calls
+
+    def test_fetch_many_batch_error_slicing(self, provider):
+        """Test fetch_many with batch errors assigns errors to each symbol."""
+        with patch("quant_trading.data.yfinance_provider.requests.get") as mock_get:
+            mock_get.return_value = FakeResponse(RATE_LIMIT_RESPONSE)
+            reqs = [
+                {"symbols": ["AAPL", "MSFT"], "interval": "custom_interval"},
+            ]
+            results = provider.fetch_many(reqs)
+            key = next(iter(results.keys()))
+            res = results[key]
+            assert "AAPL" in res.errors
+            assert "MSFT" in res.errors
     """Integration tests with DataManager."""
 
     def test_data_manager_delegates_to_alphavantage(self, tmp_path):
