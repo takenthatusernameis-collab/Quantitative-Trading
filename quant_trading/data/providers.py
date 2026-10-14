@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from quant_trading.config.settings import DataConfig
 
 

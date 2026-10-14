@@ -222,7 +222,7 @@ class BaseOptimizer(ABC):
     @abstractmethod
     def run(self) -> OptimizationResult:
         """Run the optimization."""
-        ...
+        ...  # pragma: no cover
 
     def _assert_dates(self) -> tuple[datetime, datetime]:
         """Assert that start and end dates are set."""
