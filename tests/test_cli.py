@@ -210,6 +210,81 @@ class TestInitConfig:
             assert loaded.data.provider == "yfinance"
 
 
+
+    def test_create_aroon_strategy(self):
+        from argparse import Namespace
+        args = Namespace(
+            strategy="aroon",
+            aroon_period=25,
+        )
+        strategy = create_strategy(args)
+        assert strategy is not None
+        assert hasattr(strategy, "period")
+
+    def test_create_aroon_strategy_with_custom_period(self):
+        from argparse import Namespace
+        args = Namespace(
+            strategy="aroon",
+            aroon_period=30,
+        )
+        strategy = create_strategy(args)
+        assert strategy is not None
+
+    def test_parse_range_valid(self):
+        from examples.cli import parse_range
+        result = parse_range("5,20,5")
+        assert result == (5.0, 20.0, 5.0)
+
+    def test_parse_range_invalid(self):
+        from examples.cli import parse_range
+        try:
+            parse_range("5,20")
+            assert False
+        except ValueError:
+            assert True
+
+    def test_main_optimize_calls_run_optimization(self):
+        with patch("examples.cli.run_optimization") as mock_opt:
+            mock_opt.return_value = 0
+            args = ["--optimize", "--offline", "--strategy", "ma", "--days", "60"]
+            with patch("sys.argv", ["cli.py"] + args):
+                from examples.cli import main
+                result = main()
+            assert result == 0
+            mock_opt.assert_called_once()
+
+    def test_main_walk_forward_calls_run_walk_forward(self):
+        with patch("examples.cli.run_walk_forward") as mock_wf:
+            mock_wf.return_value = 0
+            args = ["--walk-forward", "--offline", "--strategy", "ma", "--days", "120", "--wf-windows", "2"]
+            with patch("sys.argv", ["cli.py"] + args):
+                from examples.cli import main
+                result = main()
+            assert result == 0
+            mock_wf.assert_called_once()
+
+    def test_create_config_with_yaml(self):
+        import tempfile
+        import yaml
+        from examples.cli import create_config, init_config
+        from argparse import Namespace
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = f"{tmpdir}/config.yaml"
+            init_config(config_path)
+            args = Namespace(
+                config=config_path,
+                offline=False,
+                provider=None,
+                cache_dir=None,
+                synthetic_days=None,
+                synthetic_seed=None,
+                alphavantage_key=None,
+                risk_free_rate=None,
+            )
+            config = create_config(args)
+            assert config is not None
+
+
 class TestCreateStrategy:
     """Tests for create_strategy function."""
 
@@ -691,6 +766,70 @@ class TestMain:
         assert "Monte Carlo Simulation" in captured.out
         assert "Probability of Profit" in captured.out
         assert "95% Confidence Intervals" in captured.out
+
+
+
+
+    def test_main_offline_trade_analysis(self, capsys):
+        """Running offline with --trade-analysis prints trade analysis."""
+        args = ["--offline", "--trade-analysis", "--symbols", "AAPL", "--days", "120"]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Total Trades" in captured.out or "Trade Analysis" in captured.out
+
+    def test_main_with_start_end_dates(self):
+        """Main with explicit start and end dates."""
+        args = ["--offline", "--start", "2023-01-01", "--end", "2023-06-01", "--symbols", "AAPL"]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+
+    def test_main_with_output_file(self, capsys):
+        """Main with output file saves results."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = f"{tmpdir}/results.json"
+            args = ["--offline", "--output", output_path, "--symbols", "AAPL", "--days", "120"]
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 0
+            # Check file was created
+            import os
+            assert os.path.exists(output_path)
+
+    def test_main_error_handling(self, capsys):
+        """Main handles errors gracefully."""
+        with patch("examples.cli.run_backtest") as mock_run:
+            mock_run.side_effect = ValueError("Test error")
+            args = ["--offline", "--symbols", "AAPL", "--days", "60"]
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 1
+            captured = capsys.readouterr()
+            assert "Error running backtest" in captured.out
+
+    def test_main_with_regime_monte_carlo_trade_analysis_output(self, capsys):
+        """Main with all analysis flags and output."""
+        import tempfile
+        import json
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = f"{tmpdir}/results.json"
+            args = [
+                "--offline", "--regime", "--monte-carlo", "--trade-analysis",
+                "--output", output_path, "--symbols", "AAPL", "--days", "120",
+                "--mc-simulations", "30"
+            ]
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 0
+            with open(output_path) as f:
+                data = json.load(f)
+            assert "regime_analysis" in data
+            assert "monte_carlo" in data
+            assert "trade_analysis" in data
 
 
 class TestFactoryIntegration:
