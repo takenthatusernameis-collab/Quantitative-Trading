@@ -2,7 +2,11 @@ name: Kilo workflow validation
 
 on:
   push:
-    branches: [main]
+    paths:
+      - ".github/workflows/main.yml"
+      - ".github/workflows/kilo-workflow-audit.yml"
+      - ".github/scripts/kilo-controller.sh"
+  pull_request:
     paths:
       - ".github/workflows/main.yml"
       - ".github/workflows/kilo-workflow-audit.yml"
@@ -29,3 +33,20 @@ jobs:
       - name: Validate extracted Kilo controller Bash syntax
         shell: bash
         run: bash -n .github/scripts/kilo-controller.sh
+
+      - name: Guard cutoff-bounded unlimited session policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          controller=.github/scripts/kilo-controller.sh
+          workflow=.github/workflows/main.yml
+          bash -n "$controller"
+          grep -Fq 'SESSION_LIMIT_POLICY="unlimited until cutoff"' "$controller"
+          grep -Fq 'while true; do' "$controller"
+          grep -Fq '355-minute cutoff' "$controller"
+          grep -Fq 'exactly two validation sessions' "$controller"
+          if grep -Eq 'KILO_INPUT_AGENTS|for agent_index|agents=1000|inputs[.]agents|default: "1000"' "$controller" "$workflow"; then
+            echo "::error::An explicit normal-session count cap remains."
+            exit 1
+          fi
+          echo "Normal Kilo sessions continue until cutoff; explicit two-session smoke mode preserved: OK"
