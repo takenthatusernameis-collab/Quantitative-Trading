@@ -101,12 +101,18 @@ export PATH="$RUNNER_TEMP/kilo/node_modules/.bin:$PATH"
 git config user.name "kilo-autonomous"
 git config user.email "kilo-autonomous@users.noreply.github.com"
 
-if [ "$one_shot_mode" -eq 1 ]; then
-  SESSION_LIMIT_POLICY="exactly two validation sessions"
-else
-  SESSION_LIMIT_POLICY="unlimited until cutoff"
+configured_agent_target="${KILO_INPUT_AGENTS:-1000}"
+if ! [[ "$configured_agent_target" =~ ^[1-9][0-9]{0,6}$ ]]; then
+  echo "::error::KILO_INPUT_AGENTS must be a positive integer no greater than 9,999,999."
+  exit 1
 fi
-echo "::notice::Sequential Kilo session policy: $SESSION_LIMIT_POLICY; the global 355-minute cutoff is authoritative."
+AGENT_SESSION_TARGET="$configured_agent_target"
+if [ "$one_shot_mode" -eq 1 ]; then
+  AGENT_SESSION_TARGET=2
+  echo "::notice::One-shot validation overrides the requested target to exactly two validation sessions."
+fi
+SESSION_LIMIT_POLICY="$AGENT_SESSION_TARGET"
+echo "::notice::Configured sequential Kilo session target: $AGENT_SESSION_TARGET; transient retries and corrective invocations remain count-unbounded until the global 355-minute cutoff."
 command=$(cat <<'PROMPT'
 Execute the task assigned by the previous agent and prepare a task for the next agent!
 
@@ -214,8 +220,8 @@ cutoff=0
 
 agent_index=0
 while true; do
-  if [ "$one_shot_mode" -eq 1 ] && [ "$agent_index" -ge 2 ]; then
-    echo "::notice::The explicit one-shot validation completed its two intended sessions."
+  if [ "$agent_index" -ge "$AGENT_SESSION_TARGET" ]; then
+    echo "::notice::Configured session target reached ($AGENT_SESSION_TARGET); transient retries and corrective invocations remained count-unbounded until the 355-minute cutoff."
     break
   fi
   agent_index=$((agent_index + 1))
