@@ -353,6 +353,15 @@ signal line (bearish crossover):
 python examples/run_macd.py
 ```
 
+For a Bollinger Bands mean-reversion demonstration, see
+`examples/run_bollinger_bands.py`. It runs the `BollingerBandsStrategy` against
+seeded synthetic data, generating buy signals when price touches the lower band
+and sell signals when price touches the upper band:
+
+```bash
+python examples/run_bollinger_bands.py
+```
+
 
 ## Data fetching
 
