@@ -1744,6 +1744,185 @@ def test_random_search_parallel_with_config():
     assert len(result.all_results) == 4
 
 
+def test_evaluate_params_worker_grid():
+    """Test grid_search._evaluate_params_worker with offline DataConfig (lines 30-62)."""
+    from quant_trading.config.settings import DataConfig
+    from quant_trading.optimization.grid_search import _evaluate_params_worker
+
+    data_config = DataConfig(offline=True, synthetic_seed=42, synthetic_days=60)
+    params, _score, result = _evaluate_params_worker(
+        MovingAverageCrossover,
+        {},
+        maximize_sharpe,
+        ["AAPL"],
+        datetime.now() - timedelta(days=50),
+        datetime.now(),
+        100000.0,
+        0.001,
+        0.0005,
+        "1d",
+        data_config,
+        {"fast_period": 5, "slow_period": 20},
+    )
+    assert params == {"fast_period": 5, "slow_period": 20}
+    assert result is not None
+    assert result.metrics is not None
+
+
+def test_evaluate_params_worker_grid_none_config():
+    """Test grid_search._evaluate_params_worker with data_config=None (line 39 False branch)."""
+    from quant_trading.optimization.grid_search import _evaluate_params_worker
+
+    _params, _score, result = _evaluate_params_worker(
+        MovingAverageCrossover,
+        {},
+        maximize_sharpe,
+        ["AAPL"],
+        datetime.now() - timedelta(days=50),
+        datetime.now(),
+        100000.0,
+        0.001,
+        0.0005,
+        "1d",
+        None,
+        {"fast_period": 5, "slow_period": 20},
+    )
+    assert result is not None
+
+
+def test_evaluate_params_worker_grid_config_branch():
+    """Test grid_search._evaluate_params_worker with a Config instance (line 40-41 branch)."""
+    from quant_trading.config.settings import Config
+    from quant_trading.optimization.grid_search import _evaluate_params_worker
+
+    config = Config()
+    _params, _score, result = _evaluate_params_worker(
+        MovingAverageCrossover,
+        {},
+        maximize_sharpe,
+        ["AAPL"],
+        datetime.now() - timedelta(days=50),
+        datetime.now(),
+        100000.0,
+        0.001,
+        0.0005,
+        "1d",
+        config,
+        {"fast_period": 5, "slow_period": 20},
+    )
+    assert result is not None
+
+
+def test_evaluate_params_worker_grid_error():
+    """Test grid_search._evaluate_params_worker propagates worker errors."""
+    from quant_trading.optimization.grid_search import _evaluate_params_worker
+
+    with pytest.raises(ValueError, match="boom"):
+        _evaluate_params_worker(
+            RaisingStrategy,
+            {},
+            maximize_sharpe,
+            ["AAPL"],
+            datetime.now() - timedelta(days=50),
+            datetime.now(),
+            100000.0,
+            0.001,
+            0.0005,
+            "1d",
+            None,
+            {"fast_period": 5, "slow_period": 20},
+        )
+
+
+def test_evaluate_params_worker_random():
+    """Test random_search._evaluate_params_worker with offline DataConfig (lines 32-64)."""
+    from quant_trading.config.settings import DataConfig
+    from quant_trading.optimization.random_search import _evaluate_params_worker
+
+    data_config = DataConfig(offline=True, synthetic_seed=42, synthetic_days=60)
+    params, _score, result = _evaluate_params_worker(
+        MovingAverageCrossover,
+        {},
+        maximize_sharpe,
+        ["AAPL"],
+        datetime.now() - timedelta(days=50),
+        datetime.now(),
+        100000.0,
+        0.001,
+        0.0005,
+        "1d",
+        data_config,
+        {"fast_period": 5, "slow_period": 20},
+    )
+    assert params == {"fast_period": 5, "slow_period": 20}
+    assert result is not None
+
+
+def test_evaluate_params_worker_random_none_config():
+    """Test random_search._evaluate_params_worker with data_config=None (line 41 False branch)."""
+    from quant_trading.optimization.random_search import _evaluate_params_worker
+
+    _params, _score, result = _evaluate_params_worker(
+        MovingAverageCrossover,
+        {},
+        maximize_sharpe,
+        ["AAPL"],
+        datetime.now() - timedelta(days=50),
+        datetime.now(),
+        100000.0,
+        0.001,
+        0.0005,
+        "1d",
+        None,
+        {"fast_period": 5, "slow_period": 20},
+    )
+    assert result is not None
+
+
+def test_evaluate_params_worker_random_config_branch():
+    """Test random_search._evaluate_params_worker with a Config instance (line 42-43 branch)."""
+    from quant_trading.config.settings import Config
+    from quant_trading.optimization.random_search import _evaluate_params_worker
+
+    config = Config()
+    _params, _score, result = _evaluate_params_worker(
+        MovingAverageCrossover,
+        {},
+        maximize_sharpe,
+        ["AAPL"],
+        datetime.now() - timedelta(days=50),
+        datetime.now(),
+        100000.0,
+        0.001,
+        0.0005,
+        "1d",
+        config,
+        {"fast_period": 5, "slow_period": 20},
+    )
+    assert result is not None
+
+
+def test_evaluate_params_worker_random_error():
+    """Test random_search._evaluate_params_worker propagates worker errors."""
+    from quant_trading.optimization.random_search import _evaluate_params_worker
+
+    with pytest.raises(ValueError, match="boom"):
+        _evaluate_params_worker(
+            RaisingStrategy,
+            {},
+            maximize_sharpe,
+            ["AAPL"],
+            datetime.now() - timedelta(days=50),
+            datetime.now(),
+            100000.0,
+            0.001,
+            0.0005,
+            "1d",
+            None,
+            {"fast_period": 5, "slow_period": 20},
+        )
+
+
 def test_grid_search_parallel():
     """Test GridSearch optimization with parallel execution."""
     symbols = ["AAPL"]
