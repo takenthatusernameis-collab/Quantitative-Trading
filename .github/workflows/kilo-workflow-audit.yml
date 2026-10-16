@@ -6,11 +6,15 @@ on:
       - ".github/workflows/main.yml"
       - ".github/workflows/kilo-workflow-audit.yml"
       - ".github/scripts/kilo-controller.sh"
+      - ".github/scripts/kilo-progress.sh"
+      - ".github/scripts/test_kilo_progress.sh"
   pull_request:
     paths:
       - ".github/workflows/main.yml"
       - ".github/workflows/kilo-workflow-audit.yml"
       - ".github/scripts/kilo-controller.sh"
+      - ".github/scripts/kilo-progress.sh"
+      - ".github/scripts/test_kilo_progress.sh"
   workflow_dispatch:
 
 permissions:
@@ -33,6 +37,66 @@ jobs:
       - name: Validate extracted Kilo controller Bash syntax
         shell: bash
         run: bash -n .github/scripts/kilo-controller.sh
+
+      - name: Regression-test Kilo progress reporting
+        shell: bash
+        run: bash .github/scripts/test_kilo_progress.sh
+
+      - name: Guard progress helper load order
+        shell: bash
+        run: |
+          set -euo pipefail
+          controller=.github/scripts/kilo-controller.sh
+          grep -Fq 'source .github/scripts/kilo-progress.sh' "$controller"
+          timer_line="$(grep -nE '^WORKFLOW_STARTED_EPOCH=' "$controller" | sed -n '1s/:.*//p' || true)"
+          source_line="$(grep -nF 'source .github/scripts/kilo-progress.sh' "$controller" | sed -n '1s/:.*//p' || true)"
+          first_call_line="$(grep -nE '^[[:space:]]*write_progress[[:space:]]+' "$controller" | sed -n '1s/:.*//p' || true)"
+          install_line="$(grep -nE '^install_attempt=0
+
+      - name: Guard recoverable Kilo checkpoint persistence
+        shell: bash
+        run: |
+          set -euo pipefail
+          controller=.github/scripts/kilo-controller.sh
+          grep -Fq 'git bundle create' "$controller"
+          grep -Fq 'git bundle verify' "$controller"
+          grep -Fq 'checkpoint_ref="refs/kilo-recovery/checkpoint-' "$controller"
+          grep -Fq 'refs/heads/kilo-recovery/' "$controller"
+          grep -Fq 'conflict_signature=' "$controller"
+          grep -Fq 'Reached three rebase conflicts' "$controller"
+          grep -Fq 'same checkpoint conflicted with the same remote head again' "$controller"
+          grep -Fq 'rebase_abort_succeeded=' "$controller"
+          echo "Recoverable checkpoint, verified backup, and repeated-conflict guard: OK"
+      - name: Guard cutoff-bounded unlimited session policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          controller=.github/scripts/kilo-controller.sh
+          workflow=.github/workflows/main.yml
+          bash -n "$controller"
+          grep -Fq 'KILO_INPUT_AGENTS' "$controller"
+          grep -Fq 'agents:' "$workflow"
+          grep -Fq 'KILO_INPUT_AGENTS:' "$workflow"
+          grep -Fq 'default: "1000"' "$workflow"
+          grep -Fq "AGENT_SESSION_TARGET=\"\$configured_agent_target\"" "$controller"
+          grep -Fq "SESSION_LIMIT_POLICY=\"\$AGENT_SESSION_TARGET\"" "$controller"
+          grep -Fq 'Configured session target reached' "$controller"
+          grep -Fq 'transient retries and corrective invocations remain count-unbounded' "$controller"
+          grep -Fq 'transient retries and corrective invocations remained count-unbounded' "$controller"
+          grep -Fq '355-minute cutoff' "$controller"
+          grep -Fq 'exactly two validation sessions' "$controller"
+          if grep -Eq 'MAX_TRANSIENT_ATTEMPTS|KILO_MAX_SESSIONS|session_limit_reached|This is the single bounded corrective pass|Configured session limit of' "$controller"; then
+            echo "::error::A fixed transient-retry or corrective-attempt count cap remains."
+            exit 1
+          fi
+          echo "Customizable sequential sessions, unbounded retries/correctives, and cutoff guardrails: OK"
+ "$controller" | sed -n '1s/:.*//p' || true)"
+          if [[ -z "$timer_line" || -z "$source_line" || -z "$first_call_line" || -z "$install_line" ||
+                "$timer_line" -ge "$source_line" || "$source_line" -ge "$install_line" || "$source_line" -ge "$first_call_line" ]]; then
+            echo "::error::The progress timer/helper must initialize before dependency installation and before the first write_progress call."
+            exit 1
+          fi
+          echo "Progress timer/helper startup order: OK"
 
       - name: Guard recoverable Kilo checkpoint persistence
         shell: bash

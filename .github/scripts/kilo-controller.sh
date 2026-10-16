@@ -1,6 +1,8 @@
 set -Eeuo pipefail
 cutoff_epoch=$(($(date +%s) + 355 * 60))
+WORKFLOW_STARTED_EPOCH="$(date +%s)"
 umask 077
+source .github/scripts/kilo-progress.sh
 # Kilo uses only the repository-scoped GITHUB_TOKEN. Workflow definitions are maintainer-managed because this token cannot grant workflows permission.
 export HOME="$RUNNER_TEMP/kilo-home"
 export XDG_CONFIG_HOME="$HOME/.config"
