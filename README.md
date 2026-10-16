@@ -362,6 +362,15 @@ and sell signals when price touches the upper band:
 python examples/run_bollinger_bands.py
 ```
 
+For a momentum oscillator demonstration using the RSI indicator, see
+`examples/run_rsi.py`. It runs the `RSIStrategy` against seeded synthetic
+data, generating buy signals when RSI is oversold (< 30) and sell signals
+when RSI is overbought (> 70):
+
+```bash
+python examples/run_rsi.py
+```
+
 
 ## Data fetching
 
