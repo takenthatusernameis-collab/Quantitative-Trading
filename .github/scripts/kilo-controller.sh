@@ -112,6 +112,7 @@ if [ "$one_shot_mode" -eq 1 ]; then
   echo "::notice::One-shot validation overrides the requested target to exactly two validation sessions."
 fi
 SESSION_LIMIT_POLICY="$AGENT_SESSION_TARGET"
+source .github/scripts/kilo-progress.sh
 echo "::notice::Configured sequential Kilo session target: $AGENT_SESSION_TARGET; transient retries and corrective invocations remain count-unbounded until the global 355-minute cutoff."
 command=$(cat <<'PROMPT'
 Execute the task assigned by the previous agent and prepare a task for the next agent!
