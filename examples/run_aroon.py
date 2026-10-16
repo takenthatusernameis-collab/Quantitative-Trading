@@ -37,9 +37,9 @@ def main() -> None:
     symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "META"]
 
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=365)
+    start_date = end_date - timedelta(days=90)
 
-    provider = create_synthetic_provider(symbols, days=365, seed=42)
+    provider = create_synthetic_provider(symbols, days=90, seed=42)
     data_manager = DataManager([provider])
 
     config = BacktestConfig(
