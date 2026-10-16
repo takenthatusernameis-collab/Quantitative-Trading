@@ -685,3 +685,13 @@ overbought territory (> 80):
 ```bash
 python examples/run_stochastic.py
 ```
+
+For a SuperTrend demonstration using the ATR-based SuperTrend indicator, see
+`examples/run_super_trend.py`. It runs the `SuperTrendStrategy` against
+seeded synthetic data, generating buy signals when price crosses above the
+SuperTrend line (trend turns bullish) and sell signals when price crosses
+below it (trend turns bearish):
+
+```bash
+python examples/run_super_trend.py
+```
