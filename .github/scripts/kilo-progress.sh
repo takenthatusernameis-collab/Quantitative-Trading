@@ -1,5 +1,5 @@
 # Shared Kilo progress telemetry.
-# Source this file after the controller defines cutoff_epoch and SESSION_LIMIT_POLICY.
+# Source after cutoff_epoch is initialized; set WORKFLOW_STARTED_EPOCH at controller startup.
 # Telemetry must never abort the controller or interrupt checkpoint persistence.
 
 WORKFLOW_STARTED_EPOCH="${WORKFLOW_STARTED_EPOCH:-$(date +%s)}"
