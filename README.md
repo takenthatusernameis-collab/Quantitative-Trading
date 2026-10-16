@@ -672,6 +672,35 @@ from quant_trading.config.settings import Config
 config = Config.from_yaml("config.yaml")
 ```
 
+
+For an Aroon demonstration using the Aroon indicator (Aroon Up and Aroon Down),
+see `examples/run_aroon.py`. It runs the `AroonStrategy` against seeded
+synthetic data, generating buy signals when Aroon Up crosses above Aroon Down
+and sell signals when Aroon Down crosses above Aroon Up:
+
+```bash
+python examples/run_aroon.py
+```
+
+For a Keltner Channel demonstration using EMA and ATR volatility-based channels,
+see `examples/run_keltner.py`. It runs the `KeltnerChannelStrategy` against
+seeded synthetic data, generating buy signals when price breaks above the upper
+channel and sell signals when price breaks below the lower channel:
+
+```bash
+python examples/run_keltner.py
+```
+
+For a Moving Average Crossover demonstration using fast/slow moving averages,
+see `examples/run_ma_crossover.py`. It runs the `MovingAverageCrossover`
+strategy against seeded synthetic data, generating buy signals on golden
+crosses (fast MA crosses above slow MA) and sell signals on death crosses
+(fast MA crosses below slow MA):
+
+```bash
+python examples/run_ma_crossover.py
+```
+
 ## License
 
 MIT License
