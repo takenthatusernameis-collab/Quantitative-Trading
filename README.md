@@ -675,3 +675,13 @@ config = Config.from_yaml("config.yaml")
 ## License
 
 MIT License
+
+For a stochastic oscillator demonstration using the Stochastic indicator, see
+`examples/run_stochastic.py`. It runs the `StochasticOscillatorStrategy`
+against seeded synthetic data, generating buy signals when %K crosses above %D
+in oversold territory (< 20) and sell signals when %K crosses below %D in
+overbought territory (> 80):
+
+```bash
+python examples/run_stochastic.py
+```
