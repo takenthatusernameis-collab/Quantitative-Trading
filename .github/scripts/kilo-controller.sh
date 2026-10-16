@@ -1,6 +1,8 @@
 set -Eeuo pipefail
 cutoff_epoch=$(($(date +%s) + 355 * 60))
+WORKFLOW_STARTED_EPOCH="$(date +%s)"
 umask 077
+source .github/scripts/kilo-progress.sh
 # Kilo uses only the repository-scoped GITHUB_TOKEN. Workflow definitions are maintainer-managed because this token cannot grant workflows permission.
 export HOME="$RUNNER_TEMP/kilo-home"
 export XDG_CONFIG_HOME="$HOME/.config"
@@ -112,7 +114,6 @@ if [ "$one_shot_mode" -eq 1 ]; then
   echo "::notice::One-shot validation overrides the requested target to exactly two validation sessions."
 fi
 SESSION_LIMIT_POLICY="$AGENT_SESSION_TARGET"
-source .github/scripts/kilo-progress.sh
 echo "::notice::Configured sequential Kilo session target: $AGENT_SESSION_TARGET; transient retries and corrective invocations remain count-unbounded until the global 355-minute cutoff."
 command=$(cat <<'PROMPT'
 Execute the task assigned by the previous agent and prepare a task for the next agent!
