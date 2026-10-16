@@ -1813,6 +1813,35 @@ def test_evaluate_params_worker_grid_config_branch():
     assert result is not None
 
 
+def test_evaluate_params_worker_grid_fallthrough_branch():
+    """Test grid_search._evaluate_params_worker with an unrecognized config object (fall-through branch)."""
+    from types import SimpleNamespace
+
+    from quant_trading.optimization.grid_search import _evaluate_params_worker
+
+    data_config = SimpleNamespace(
+        offline=True,
+        provider="synthetic",
+        synthetic_days=60,
+        synthetic_seed=42,
+    )
+    _params, _score, result = _evaluate_params_worker(
+        MovingAverageCrossover,
+        {},
+        maximize_sharpe,
+        ["AAPL"],
+        datetime.now() - timedelta(days=50),
+        datetime.now(),
+        100000.0,
+        0.001,
+        0.0005,
+        "1d",
+        data_config,
+        {"fast_period": 5, "slow_period": 20},
+    )
+    assert result is not None
+
+
 def test_evaluate_params_worker_grid_error():
     """Test grid_search._evaluate_params_worker propagates worker errors."""
     from quant_trading.optimization.grid_search import _evaluate_params_worker
@@ -1897,6 +1926,35 @@ def test_evaluate_params_worker_random_config_branch():
         0.0005,
         "1d",
         config,
+        {"fast_period": 5, "slow_period": 20},
+    )
+    assert result is not None
+
+
+def test_evaluate_params_worker_random_fallthrough_branch():
+    """Test random_search._evaluate_params_worker with an unrecognized config object (fall-through branch)."""
+    from types import SimpleNamespace
+
+    from quant_trading.optimization.random_search import _evaluate_params_worker
+
+    data_config = SimpleNamespace(
+        offline=True,
+        provider="synthetic",
+        synthetic_days=60,
+        synthetic_seed=42,
+    )
+    _params, _score, result = _evaluate_params_worker(
+        MovingAverageCrossover,
+        {},
+        maximize_sharpe,
+        ["AAPL"],
+        datetime.now() - timedelta(days=50),
+        datetime.now(),
+        100000.0,
+        0.001,
+        0.0005,
+        "1d",
+        data_config,
         {"fast_period": 5, "slow_period": 20},
     )
     assert result is not None
