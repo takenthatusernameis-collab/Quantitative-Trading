@@ -695,3 +695,12 @@ below it (trend turns bearish):
 ```bash
 python examples/run_super_trend.py
 ```
+For a Donchian Channel demonstration using the highest high/lowest low over a
+lookback period, see `examples/run_donchian.py`. It runs the
+`DonchianChannelStrategy` against seeded synthetic data, generating buy signals
+when price breaks above the upper band and sell signals when price breaks below
+the lower band:
+
+```bash
+python examples/run_donchian.py
+```
