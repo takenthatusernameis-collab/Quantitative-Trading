@@ -6,11 +6,15 @@ on:
       - ".github/workflows/main.yml"
       - ".github/workflows/kilo-workflow-audit.yml"
       - ".github/scripts/kilo-controller.sh"
+      - ".github/scripts/kilo-progress.sh"
+      - ".github/scripts/test_kilo_progress.sh"
   pull_request:
     paths:
       - ".github/workflows/main.yml"
       - ".github/workflows/kilo-workflow-audit.yml"
       - ".github/scripts/kilo-controller.sh"
+      - ".github/scripts/kilo-progress.sh"
+      - ".github/scripts/test_kilo_progress.sh"
   workflow_dispatch:
 
 permissions:
@@ -33,6 +37,24 @@ jobs:
       - name: Validate extracted Kilo controller Bash syntax
         shell: bash
         run: bash -n .github/scripts/kilo-controller.sh
+
+      - name: Regression-test Kilo progress reporting
+        shell: bash
+        run: bash .github/scripts/test_kilo_progress.sh
+
+      - name: Guard progress helper load order
+        shell: bash
+        run: |
+          set -euo pipefail
+          controller=.github/scripts/kilo-controller.sh
+          grep -Fq 'source .github/scripts/kilo-progress.sh' "$controller"
+          source_line="$(grep -nF 'source .github/scripts/kilo-progress.sh' "$controller" | sed -n '1s/:.*//p' || true)"
+          first_call_line="$(grep -nE '^[[:space:]]*write_progress[[:space:]]+' "$controller" | sed -n '1s/:.*//p' || true)"
+          if [[ -z "$source_line" || -z "$first_call_line" || "$source_line" -ge "$first_call_line" ]]; then
+            echo "::error::The progress helper must load before the controller's first write_progress call."
+            exit 1
+          fi
+          echo "Progress helper load order: OK"
 
       - name: Guard recoverable Kilo checkpoint persistence
         shell: bash
