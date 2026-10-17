@@ -26,7 +26,16 @@ class Signal:
 
 @dataclass
 class Position:
-    """Current position in a symbol."""
+    """Current position in a symbol.
+
+    Attributes:
+        symbol: Traded symbol.
+        quantity: Position quantity (positive for long, negative for short).
+        avg_price: Average entry price per unit.
+        current_price: Latest market price per unit.
+        unrealized_pnl: Unrealized profit and loss.
+        realized_pnl: Realized profit and loss.
+    """
 
     symbol: str
     quantity: float = 0.0
