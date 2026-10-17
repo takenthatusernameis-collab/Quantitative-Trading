@@ -2,42 +2,48 @@
 
 ## Status
 
-COMPLETE — fixed an off-by-one bug in `RegimeDetector._make_segment` and added regression tests.
+COMPLETE — fixed a latent bug in `WalkForwardOptimizer._combine_test_results`
+and added a regression test.
 
 ## What this session did
 
-- Reproduced a latent bug: a strictly increasing price series (with explicit
-  thresholds) was split into multiple segments instead of one, with wrong
-  `start`/`end` dates and `return_pct`.
-- Root cause: label index `i` corresponds to `rolling_vol.iloc[i]`, whose index is
-  `prices.index[1+i]` because `returns = prices.pct_change().dropna()` shifts by
-  one bar. But `_make_segment` mapped labels directly onto price indices
-  (`prices.index[start_idx]`, `prices.index[end_idx-1]`, return from
-  `prices.iloc[end_idx]/prices.iloc[start_idx]`), so every segment was shifted by
-  one bar and its return was computed over the wrong window.
-- Fixed `quant_trading/regime/detector.py:_make_segment` so a segment spanning
-  labels `[start_idx, end_idx)` covers price bars `[start_idx+1, end_idx]`,
-  with bounds clamped to `len(prices)-1` to avoid indexing past the last bar
-  when `end_idx == len(prices)`.
-- Added 3 regression tests in `tests/test_regime.py`:
-  `test_segment_boundary_aligns_with_labeled_price_bars`,
-  `test_segment_boundary_at_series_end`,
-  `test_segment_return_pct_matches_labeled_price_range`.
-- Committed as `6bb4d0c`.
+- Inspected the repository after the prior regime-detector fix handoff.
+  The prior task said "None required — the project is green", so I looked
+  for a bounded, high-value gap rather than waiting for an assignment.
+- Found a real bug: `WalkForwardOptimizer._combine_test_results` (in
+  `quant_trading/optimization/walk_forward.py:328`) concatenated each
+  window's equity curve verbatim. Every window's backtest starts fresh at
+  `initial_capital`, so the combined out-of-sample curve reset to
+  `initial_capital` at every window boundary instead of chaining the
+  segments. This made `combined_test_result.total_return_pct` wrong (it
+  reported the last window's return in isolation, not the cumulative
+  return across all windows).
+- Reproduced the bug deterministically with two hand-built equity curves
+  (window 1: 100k -> 105k; window 2: 100k -> 100k). Before the fix the
+  combined curve was `[100k, 110k, 105k, 95k, 100k]` with
+  `total_return_pct = 0.0`; after the fix it is
+  `[100k, 110k, 105k, 99.75k, 105k]` with `total_return_pct = 5.0`.
+- Fixed `_combine_test_results` to scale each window's curve so its start
+  aligns with the previous windows' cumulative final equity
+  (`scale = cumulative_final / initial_capital`), drop the duplicated
+  first bar, and track `cumulative_final` across windows. Also added a
+  `len(eq) < 2` guard so a degenerate single-point window is skipped
+  instead of indexing `scaled[-1]` on an empty array.
+- Added regression test `test_walk_forward_combine_chains_equity_across_windows`
+  in `tests/test_optimization.py`.
+- Committed as `376dba6`.
 
 ## What was verified
 
-- `python -m pytest -q` → 1015 passed, 1 skipped, 13 warnings.
-- `python -m pytest --cov=quant_trading --cov-report=term-missing` → 100% coverage
-  (4320 statements, 0 missing).
+- `python -m pytest -q` → 1016 passed, 1 skipped, 13 warnings (was 1015).
+- `python -m pytest --cov=quant_trading --cov-report=term-missing` → 100%
+  coverage (4326 statements, 0 missing; was 4320).
 - `python -m ruff check .` → All checks passed.
 - `python -m black --check .` → All files left unchanged.
 - `python -m mypy quant_trading tests/test_regime.py tests/test_backtest_analysis.py`
-  → Success, no issues.
-- `python examples/cli.py --offline --regime --symbols AAPL --days 120` → runs and
-  prints a sensible regime table (no crash, boundaries now correct).
-- Prior baseline was 1012 passed / 1 skipped / 100% coverage; this session added
-  3 tests and changed no other behavior.
+  → Success, no issues (the handoff gate command).
+- `python -m pytest tests/test_examples_smoke.py -q` → 15 passed, 1 skipped.
+- `python -m pytest tests/test_optimization.py -q` → 73 passed.
 
 ## What remains unresolved
 
@@ -45,18 +51,25 @@ COMPLETE — fixed an off-by-one bug in `RegimeDetector._make_segment` and added
 
 ## Approaches already tried / failed
 
-- First fix attempt used `seg_end_idx = end_idx` unconditionally; the trailing
-  segment (where `end_idx == len(prices)`) then indexed past the last price bar.
-  Fixed by clamping to `len(prices)-1` and requiring `seg_end_idx > seg_start_idx`
-  before computing `return_pct`.
+- First chaining attempt multiplied each window's curve by
+  `cumulative_factor * window_factor` where `window_factor` was the window's
+  own return; that double-counted the first window's gain. Fixed by scaling
+  the whole curve by `cumulative_final / initial_capital` (the ratio of the
+  running final equity to the per-window start capital), which is the
+  correct compounding factor.
+- `eq.values * scale` produced a mypy "Unsupported operand types for
+  ExtensionArray and float" error. Fixed by using `eq.to_numpy(dtype=float)`.
+- `black` reformatted `walk_forward.py` after the edit; applied the
+  formatting so the repo stays clean.
 
 ## Next precise task
 
-None required — the project is green (1015 passed, 1 skipped, 100% coverage,
-ruff/black/mypy clean). If a new task is needed, pick a bounded, high-value gap
-and verify with the same gate commands above.
+None required — the project is green (1016 passed, 1 skipped, 100% coverage,
+ruff/black/mypy clean). If a new task is needed, pick a bounded, high-value
+gap and verify with the same gate commands above.
 
 ## Constraints / evidence
 
-- Only `quant_trading/regime/detector.py` and `tests/test_regime.py` were changed.
-- No example scripts, no source files outside the regime detector.
+- Only `quant_trading/optimization/walk_forward.py` and
+  `tests/test_optimization.py` were changed.
+- No example scripts, no source files outside the walk-forward optimizer.
