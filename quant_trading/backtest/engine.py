@@ -96,7 +96,18 @@ def reset_default_data_manager() -> None:
 
 @dataclass
 class Trade:
-    """Represents a single trade."""
+    """Represents a single trade.
+
+    Attributes:
+        symbol: Traded symbol.
+        action: Trade action ("buy" or "sell").
+        quantity: Number of units traded.
+        price: Execution price.
+        timestamp: Trade timestamp.
+        commission: Commission rate applied.
+        slippage: Slippage rate applied.
+        realized_pnl: Realized PnL (set on closes).
+    """
 
     symbol: str
     action: str  # 'buy' or 'sell'
@@ -166,6 +177,18 @@ class BacktestResult:
 class BacktestEngine:
     """Engine for running backtests on trading strategies.
 
+    Args:
+        config: Backtest configuration. Defaults to ``BacktestConfig()``.
+        data_manager: DataManager providing market data. Required to run.
+        risk_manager: Risk manager instance. Defaults to a new RiskManager.
+
+    Attributes:
+        config: Backtest configuration.
+        data_manager: DataManager providing market data.
+        risk_manager: Risk manager instance.
+        portfolio: Portfolio tracking positions and cash.
+        strategies: Registered strategies keyed by name.
+
     Examples:
         Create an engine with offline synthetic data and run a backtest::
 
@@ -199,6 +222,13 @@ class BacktestEngine:
         data_manager: DataManager | None = None,
         risk_manager: RiskManager | None = None,
     ):
+        """Initialize the backtest engine.
+
+        Args:
+            config: Backtest configuration. Defaults to ``BacktestConfig()``.
+            data_manager: DataManager providing market data.
+            risk_manager: Risk manager instance. Defaults to a new RiskManager.
+        """
         self.config = config or BacktestConfig()
         self.data_manager = data_manager
         self.risk_manager = risk_manager or RiskManager(
@@ -208,11 +238,19 @@ class BacktestEngine:
         self.strategies: dict[str, Strategy] = {}
 
     def add_strategy(self, strategy: Strategy) -> None:
-        """Add a strategy to the backtest."""
+        """Add a strategy to the backtest.
+
+        Args:
+            strategy: Strategy instance to register.
+        """
         self.strategies[strategy.name] = strategy
 
     def remove_strategy(self, name: str) -> None:
-        """Remove a strategy from the backtest."""
+        """Remove a strategy from the backtest.
+
+        Args:
+            name: Name of the strategy to remove.
+        """
         self.strategies.pop(name, None)
 
     def run(
@@ -224,8 +262,18 @@ class BacktestEngine:
     ) -> BacktestResult:
         """Run backtest for given symbols and date range.
 
-        Requires an explicit data_manager to be set on the engine.
-        Raises ValueError if no data_manager is configured.
+        Args:
+            symbols: List of symbols to trade.
+            start: Backtest start date.
+            end: Backtest end date.
+            interval: Data interval (default: "1d").
+
+        Returns:
+            BacktestResult containing equity curve, trades, metrics, and metadata.
+
+        Raises:
+            ValueError: If no data_manager is configured or no data retrieved.
+            RuntimeError: If data fetch errors occur.
         """
         if self.data_manager is None:
             raise ValueError(

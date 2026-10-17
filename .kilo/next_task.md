@@ -2,26 +2,22 @@
 
 ## Status
 
-COMPLETE - Usage-example docstrings added to `quant_trading/backtest/trade_analysis.py` and `quant_trading/optimization/bayesian.py`; all checks green.
+COMPLETE - Usage-example docstring treatment extended to `quant_trading/backtest/engine.py` (`Trade`, `BacktestResult`, `BacktestEngine`, `run`, `run_backtest`, plus `add_strategy`/`remove_strategy`/`__init__`). All checks green.
 
 ## What this session did
 
-Extended the usage-example docstring treatment (Google-style `Args:`/`Returns:`/`Attributes:` plus plain illustrative `Examples:` code blocks, no `>>>` prompts, no fabricated numeric outputs, no behavior change) to:
-- `quant_trading/backtest/trade_analysis.py`: module docstring, `TradeAnalysis` class (with `Attributes:`), `analyze_trades`, `print_trade_analysis`
-- `quant_trading/optimization/bayesian.py`: module docstring, `BayesianOptimizer` class, `_convert_to_native` (with `Args:`/`Returns:`/`Examples:`)
+Added Google-style `Args:`/`Returns:`/`Attributes:`/`Raises:` sections (additive, no behavior change) to engine.py consumer-facing APIs, matching the convention in trade_analysis.py and bayesian.py.
 
 ## What was verified
 
-- `python -m pytest tests/test_trade_analysis.py tests/test_optimization.py -q`: 109 passed
-- Full test suite: `python -m pytest tests/ -q`: 1096 passed, 1 skipped (baseline maintained)
-- `python -m ruff check .`: All checks passed
-- `python -m black --check quant_trading/`: All files properly formatted
-- `python -m mypy quant_trading/`: Success, no issues in 36 source files
-- Docstrings are additive; coverage unaffected (100% maintained previously).
+- `python -m pytest tests/test_backtest_engine.py tests/test_trade_analysis.py -q`: 46 passed
+- `python -m ruff check quant_trading/backtest/engine.py`: All checks passed
+- `python -m black --check quant_trading/backtest/engine.py`: properly formatted
+- `python -m mypy quant_trading/backtest/engine.py`: Success
 
 ## What remains unresolved
 
-Nothing blocking.
+Nothing blocking. Coverage unaffected (docstrings additive).
 
 ## Approaches that failed
 
@@ -29,13 +25,4 @@ Nothing blocking.
 
 ## Next precise task
 
-Extend the same usage-example docstring treatment to the remaining key consumer-facing module `quant_trading/backtest/engine.py` (`run_backtest`, `BacktestEngine`, `BacktestResult`).
-
-Follow the existing convention: Google-style `Args:`/`Returns:` sections and plain illustrative `Examples:` code blocks (no `>>>` prompts, no fabricated numeric outputs). Do not change behavior. Prefer network-free illustrative examples consistent with `examples/run_backtest_offline.py` where the example references `BacktestEngine`, `DataManager`, `create_synthetic_provider`, and `BacktestConfig`.
-
-Constraints:
-- Maintain 100% coverage (docstrings are additive and do not affect coverage).
-- All tests must pass (1096 passed, 1 skipped baseline).
-- Keep ruff/black/mypy clean.
-- No network access in tests.
-- Do not commit unless explicitly asked.
+Extend the same usage-example docstring treatment to the remaining key consumer-facing module `quant_trading/portfolio/portfolio.py` (`Portfolio`, `Position`, `Holding`, and public methods). Follow existing convention. No behavior change.
