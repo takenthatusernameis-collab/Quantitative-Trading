@@ -32,6 +32,8 @@ COMPLETED — added missing CLI `create_strategy` and `create_param_grid` tests 
 - `python -m black --check tests/test_cli.py` → 1 file would be left unchanged.
 - `bash -n` on all three `.github/scripts/*.sh`; `bash .github/scripts/test_kilo_progress.sh` → OK.
 - `git status` clean except `tests/test_cli.py`.
+- Commit `2311c47` pushed and verified: local HEAD matches remote `refs/heads/main`
+  SHA `2311c474325b71c12d64998322504776168d9781`.
 
 ## What remains unresolved
 
