@@ -214,12 +214,19 @@ class RegimeDetector:
         returns: pd.Series,
         rolling_vol: pd.Series,
     ) -> RegimeSegment:
-        price_start = prices.index[start_idx]
-        price_end = prices.index[end_idx - 1] if end_idx > 0 else prices.index[start_idx]
+        # Label i corresponds to rolling stats computed on returns, whose index
+        # is prices.index[1:] (pct_change drops the first bar). So label i is the
+        # regime of price bar (i + 1). A segment spanning labels [start_idx, end_idx)
+        # therefore covers price bars [start_idx + 1, end_idx].
+        n_prices = len(prices)
+        seg_start_idx = min(start_idx + 1, n_prices - 1)
+        seg_end_idx = min(end_idx, n_prices - 1)
+        price_start = prices.index[seg_start_idx]
+        price_end = prices.index[seg_end_idx]
         seg_vol = rolling_vol.iloc[start_idx:end_idx]
         ret_pct = (
-            float((prices.iloc[end_idx] / prices.iloc[start_idx] - 1) * 100)
-            if end_idx < len(prices)
+            float((prices.iloc[seg_end_idx] / prices.iloc[seg_start_idx] - 1) * 100)
+            if seg_end_idx > seg_start_idx and seg_end_idx < n_prices
             else 0.0
         )
         vol = float(seg_vol.mean()) if len(seg_vol) > 0 and not np.isnan(seg_vol.mean()) else 0.0

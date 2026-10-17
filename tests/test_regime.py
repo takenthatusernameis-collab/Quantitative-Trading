@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from quant_trading.regime import (
     Regime,
@@ -351,3 +352,78 @@ def test_merge_segments_alternating():
         assert seg.regime == expected_regime
         assert seg.start_index == i
         assert seg.end_index == i + 1
+
+
+def test_segment_boundary_aligns_with_labeled_price_bars():
+    """A segment spanning labels [start_idx, end_idx) covers price bars
+    [start_idx + 1, end_idx], because label i derives from returns whose index is
+    prices.index[1:] (pct_change drops the first bar).
+
+    With explicit thresholds and a strictly increasing series, every label is
+    BULL_LOW_VOL, so a single segment must span the whole labeled range and its
+    return_pct must equal the price change across exactly those bars.
+    """
+    from quant_trading.regime.detector import RegimeDetector
+
+    prices = pd.Series(
+        [100.0, 101.0, 102.0, 103.0, 104.0, 105.0],
+        index=pd.date_range("2024-01-01", periods=6, freq="D"),
+    )
+    detector = RegimeDetector(window=2, vol_threshold=10.0, return_threshold=10.0)
+    result = detector.detect(prices)
+
+    assert result.n_segments == 1
+    seg = result.segments[0]
+    # labels[0] is NaN (window warm-up), labels[1..4] are BULL_LOW_VOL.
+    assert seg.start_index == 1
+    assert seg.end_index == 5
+    assert seg.start == prices.index[2]  # label 1 -> price bar 2
+    assert seg.end == prices.index[5]  # label 4 -> price bar 5
+    assert seg.return_pct == pytest.approx((prices.iloc[5] / prices.iloc[2] - 1) * 100)
+
+
+def test_segment_boundary_at_series_end():
+    """The trailing segment must not index past the last price bar.
+
+    When labels run to the end of the series (end_idx == len(labels) ==
+    len(prices) - 1), the segment's end must be the last price bar and its
+    return_pct must be computed against the labeled range, not past it.
+    """
+    from quant_trading.regime.detector import RegimeDetector
+
+    prices = pd.Series(
+        [100.0 * (1.01**i) for i in range(10)],
+        index=pd.date_range("2024-01-01", periods=10, freq="D"),
+    )
+    detector = RegimeDetector(window=2, vol_threshold=10.0, return_threshold=10.0)
+    result = detector.detect(prices)
+
+    assert result.n_segments == 1
+    seg = result.segments[0]
+    # labels[0] is NaN (window warm-up); labels[1..8] are SIDEWAYS_LOW_VOL.
+    assert seg.start_index == 1
+    assert seg.end_index == 9
+    assert seg.start == prices.index[2]  # label 1 -> price bar 2
+    assert seg.end == prices.index[-1]  # label 8 -> price bar 9 (last)
+    assert seg.return_pct == pytest.approx((prices.iloc[-1] / prices.iloc[2] - 1) * 100)
+
+
+def test_segment_return_pct_matches_labeled_price_range():
+    """return_pct must reflect the price change across the segment's labeled
+    bars, not an off-by-one window of it."""
+    from quant_trading.regime.detector import RegimeDetector
+
+    prices = pd.Series(
+        [100.0 + i for i in range(30)],
+        index=pd.date_range("2024-01-01", periods=30, freq="D"),
+    )
+    detector = RegimeDetector(window=2, vol_threshold=10.0, return_threshold=10.0)
+    result = detector.detect(prices)
+
+    assert result.n_segments == 1
+    seg = result.segments[0]
+    assert seg.start_index == 1
+    assert seg.end_index == 29
+    assert seg.start == prices.index[2]  # label 1 -> price bar 2
+    assert seg.end == prices.index[-1]  # label 28 -> price bar 29 (last)
+    assert seg.return_pct == pytest.approx((prices.iloc[-1] / prices.iloc[2] - 1) * 100)
