@@ -1,4 +1,20 @@
-"""Monte Carlo simulation for backtest strategy analysis."""
+"""Monte Carlo simulation for backtest strategy analysis.
+
+Examples:
+    Run a bootstrap Monte Carlo simulation on a backtest result::
+
+        from quant_trading.monte_carlo import run_monte_carlo
+
+        mc = run_monte_carlo(result, n_simulations=1000, method="bootstrap", random_state=42)
+        profit_prob = mc.probability_of_profit()
+        lower, upper = mc.get_confidence_interval("total_return_pct")
+
+    Run a parametric simulation and inspect the summary::
+
+        mc = run_monte_carlo(result, n_simulations=500, method="parametric", random_state=7)
+        summary = mc.summary()
+        mean_sharpe = summary["sharpe_ratio_mean"]
+"""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -13,7 +29,22 @@ from quant_trading.backtest.metrics import BacktestMetrics
 
 @dataclass
 class MonteCarloResult:
-    """Result of a Monte Carlo simulation."""
+    """Result of a Monte Carlo simulation.
+
+    Attributes:
+        simulations: List of metric dataclasses produced by each simulation.
+        original_metrics: Metrics computed from the original backtest result.
+        n_simulations: Number of simulations that were run.
+        confidence_level: Confidence level used for intervals (0-1).
+        start_time: When the simulation run started.
+        end_time: When the simulation run finished.
+
+    Examples:
+        mc = run_monte_carlo(result, random_state=42)
+        profit_prob = mc.probability_of_profit()
+        assert 0.0 <= profit_prob <= 1.0
+        lower, upper = mc.get_confidence_interval("max_drawdown_pct")
+    """
 
     simulations: list[BacktestMetrics]
     original_metrics: BacktestMetrics
@@ -147,6 +178,11 @@ class MonteCarloSimulator:
 
         Returns:
             MonteCarloResult with simulation statistics.
+
+        Examples:
+            sim = MonteCarloSimulator(n_simulations=200, random_state=0)
+            mc = sim.run(result, method="bootstrap")
+            n_sims = mc.summary()["n_simulations"]
         """
         start_time = datetime.now()
 
@@ -258,6 +294,11 @@ def run_monte_carlo(
 
     Returns:
         MonteCarloResult with simulation statistics.
+
+    Examples:
+        mc = run_monte_carlo(result, n_simulations=500, random_state=42)
+        profit_prob = mc.probability_of_profit()
+        assert 0.0 <= profit_prob <= 1.0
     """
     simulator = MonteCarloSimulator(
         n_simulations=n_simulations,
