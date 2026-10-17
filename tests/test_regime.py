@@ -427,3 +427,55 @@ def test_segment_return_pct_matches_labeled_price_range():
     assert seg.start == prices.index[2]  # label 1 -> price bar 2
     assert seg.end == prices.index[-1]  # label 28 -> price bar 29 (last)
     assert seg.return_pct == pytest.approx((prices.iloc[-1] / prices.iloc[2] - 1) * 100)
+
+
+def test_short_series_window_larger_than_prices_returns_empty():
+    prices = pd.Series(
+        [100.0, 101.0, 102.0],
+        index=pd.date_range("2024-01-01", periods=3, freq="D"),
+    )
+    result = detect_regimes(prices, window=5)
+    assert result.segments == []
+    assert result.regimes == []
+    assert result.n_segments == 0
+    assert result.current_regime == Regime.UNKNOWN
+
+
+def test_flat_prices_single_sideways_low_vol():
+    prices = pd.Series(
+        [100.0] * 30,
+        index=pd.date_range("2024-01-01", periods=30, freq="D"),
+    )
+    result = detect_regimes(prices, window=5)
+    assert result.n_segments >= 1
+    assert all(r == Regime.SIDEWAYS_LOW_VOL for r in result.regimes)
+
+
+def test_monotonic_up_single_bull_segment():
+    prices = pd.Series(
+        [100.0 + i for i in range(30)],
+        index=pd.date_range("2024-01-01", periods=30, freq="D"),
+    )
+    result = detect_regimes(prices, window=5, vol_threshold=10.0, return_threshold=0.0001)
+    assert result.n_segments == 1
+    assert result.regimes[0] in (Regime.BULL_LOW_VOL, Regime.BULL_HIGH_VOL)
+
+
+def test_monotonic_down_single_bear_segment():
+    prices = pd.Series(
+        [100.0 - i for i in range(30)],
+        index=pd.date_range("2024-01-01", periods=30, freq="D"),
+    )
+    result = detect_regimes(prices, window=5, vol_threshold=10.0, return_threshold=0.0001)
+    assert result.n_segments == 1
+    assert result.regimes[0] in (Regime.BEAR_LOW_VOL, Regime.BEAR_HIGH_VOL)
+
+
+def test_explicit_thresholds_override_auto():
+    prices = _make_series(n=80, trend=0.001, vol=0.01, seed=7)
+    auto = detect_regimes(prices, window=10)
+    explicit = detect_regimes(prices, window=10, vol_threshold=100.0, return_threshold=100.0)
+    assert auto.n_segments >= 1
+    assert explicit.n_segments >= 1
+    # explicit high thresholds force sideways labeling
+    assert all(r in (Regime.SIDEWAYS_LOW_VOL, Regime.SIDEWAYS_HIGH_VOL) for r in explicit.regimes)
