@@ -22,11 +22,14 @@ from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
     DonchianChannelStrategy,
     IchimokuCloudStrategy,
+    KeltnerChannelStrategy,
     MACDStrategy,
     MovingAverageCrossover,
     ParabolicSARStrategy,
     RSIStrategy,
+    StochasticOscillatorStrategy,
     SuperTrendStrategy,
+    VWAPStrategy,
 )
 
 
@@ -622,6 +625,159 @@ class TestCreateStrategy:
         assert strategy.max_step == 0.25
         assert strategy.name == "Parabolic_SAR_0.05_0.25"
 
+    def test_create_keltner_strategy(self):
+        args = argparse.Namespace(
+            strategy="keltner",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            dc_period=20,
+            dc_exit_period=20,
+            aroon_period=25,
+            kc_ema_period=20,
+            kc_atr_period=10,
+            kc_multiplier=2.0,
+            kc_use_middle_cross=False,
+        )
+        strategy = create_strategy(args)
+        assert isinstance(strategy, KeltnerChannelStrategy)
+        assert strategy.ema_period == 20
+        assert strategy.atr_period == 10
+        assert strategy.multiplier == 2.0
+        assert strategy.use_middle_cross is False
+        assert strategy.name == "Keltner_20_10_2.0"
+
+    def test_create_keltner_strategy_custom_params(self):
+        args = argparse.Namespace(
+            strategy="keltner",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            dc_period=20,
+            dc_exit_period=20,
+            aroon_period=25,
+            kc_ema_period=15,
+            kc_atr_period=5,
+            kc_multiplier=1.5,
+            kc_use_middle_cross=True,
+        )
+        strategy = create_strategy(args)
+        assert isinstance(strategy, KeltnerChannelStrategy)
+        assert strategy.ema_period == 15
+        assert strategy.atr_period == 5
+        assert strategy.multiplier == 1.5
+        assert strategy.use_middle_cross is True
+        assert strategy.name == "Keltner_15_5_1.5"
+
+    def test_create_stoch_strategy(self):
+        args = argparse.Namespace(
+            strategy="stoch",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            dc_period=20,
+            dc_exit_period=20,
+            aroon_period=25,
+            kc_ema_period=20,
+            kc_atr_period=10,
+            kc_multiplier=2.0,
+            kc_use_middle_cross=False,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
+        )
+        strategy = create_strategy(args)
+        assert isinstance(strategy, StochasticOscillatorStrategy)
+        assert strategy.k_period == 14
+        assert strategy.d_period == 3
+        assert strategy.oversold == 20
+        assert strategy.overbought == 80
+        assert strategy.use_midline is False
+        assert strategy.name == "Stoch_14_3_20_80"
+
+    def test_create_stoch_strategy_custom_params(self):
+        args = argparse.Namespace(
+            strategy="stoch",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            dc_period=20,
+            dc_exit_period=20,
+            aroon_period=25,
+            kc_ema_period=20,
+            kc_atr_period=10,
+            kc_multiplier=2.0,
+            kc_use_middle_cross=False,
+            stoch_k_period=10,
+            stoch_d_period=2,
+            stoch_oversold=25,
+            stoch_overbought=75,
+            stoch_use_midline=True,
+        )
+        strategy = create_strategy(args)
+        assert isinstance(strategy, StochasticOscillatorStrategy)
+        assert strategy.k_period == 10
+        assert strategy.d_period == 2
+        assert strategy.oversold == 25
+        assert strategy.overbought == 75
+        assert strategy.use_midline is True
+        assert strategy.name == "Stoch_10_2_25_75"
+
+    def test_create_vwap_strategy(self):
+        args = argparse.Namespace(
+            strategy="vwap",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            dc_period=20,
+            dc_exit_period=20,
+            aroon_period=25,
+            kc_ema_period=20,
+            kc_atr_period=10,
+            kc_multiplier=2.0,
+            kc_use_middle_cross=False,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
+        )
+        strategy = create_strategy(args)
+        assert isinstance(strategy, VWAPStrategy)
+        assert strategy.name == "VWAP"
+
     def test_create_strategy_from_config_ma(self):
         """create_strategy uses --strategy-config YAML when provided."""
         import yaml
@@ -929,6 +1085,156 @@ class TestCreateConfig:
         combos = grid.generate_combinations()
         assert len(combos) > 0
         assert all(c["step"] <= c["max_step"] for c in combos)
+
+    def test_create_param_grid_keltner(self):
+        from examples.cli import create_param_grid
+        from quant_trading.optimization import ParameterGrid
+
+        args = argparse.Namespace(
+            strategy="keltner",
+            kc_ema_period_range="10,30,5",
+            kc_atr_period_range="5,20,2",
+            kc_multiplier_range="1.0,3.0,0.5",
+            ma_fast_range="5,20,5",
+            ma_slow_range="20,50,5",
+            rsi_period_range="10,20,2",
+            rsi_oversold_range="20,35,5",
+            rsi_overbought_range="65,80,5",
+            bb_period_range="10,30,5",
+            bb_std_range="1.5,3.0,0.5",
+            macd_fast_range="8,16,2",
+            macd_slow_range="20,30,2",
+            macd_signal_range="7,12,1",
+            st_period_range="7,20,1",
+            st_multiplier_range="2.0,4.0,0.5",
+            dc_period_range="10,40,5",
+            dc_exit_period_range="5,20,5",
+            aroon_period_range="10,50,5",
+            stoch_k_period_range="10,20,2",
+            stoch_d_period_range="2,5,1",
+            stoch_oversold_range="10,30,5",
+            stoch_overbought_range="70,90,5",
+            ichimoku_tenkan_period_range="5,15,2",
+            ichimoku_kijun_period_range="10,30,5",
+            ichimoku_senkou_b_period_range="20,60,10",
+            sar_step_range="0.01,0.05,0.01",
+            sar_max_step_range="0.10,0.20,0.05",
+        )
+
+        grid = create_param_grid(args)
+        assert isinstance(grid, ParameterGrid)
+
+        assert len(grid.spaces) == 4
+        ema_space = grid.spaces.get("ema_period")
+        assert ema_space is not None
+        assert ema_space.min_val == 10.0
+        assert ema_space.max_val == 30.0
+        assert ema_space.step == 5.0
+        assert ema_space.param_type == int
+
+        atr_space = grid.spaces.get("atr_period")
+        assert atr_space is not None
+        assert atr_space.min_val == 5.0
+        assert atr_space.max_val == 20.0
+        assert atr_space.step == 2.0
+        assert atr_space.param_type == int
+
+        mult_space = grid.spaces.get("multiplier")
+        assert mult_space is not None
+        assert mult_space.min_val == 1.0
+        assert mult_space.max_val == 3.0
+        assert mult_space.step == 0.5
+        assert mult_space.param_type == float
+
+        use_middle_space = grid.spaces.get("use_middle_cross")
+        assert use_middle_space is not None
+        assert use_middle_space.param_type == bool
+
+        combos = grid.generate_combinations()
+        assert len(combos) > 0
+        assert all(c["multiplier"] > 0 for c in combos)
+
+    def test_create_param_grid_stoch(self):
+        from examples.cli import create_param_grid
+        from quant_trading.optimization import ParameterGrid
+
+        args = argparse.Namespace(
+            strategy="stoch",
+            stoch_k_period_range="10,20,2",
+            stoch_d_period_range="2,5,1",
+            stoch_oversold_range="10,30,5",
+            stoch_overbought_range="70,90,5",
+            ma_fast_range="5,20,5",
+            ma_slow_range="20,50,5",
+            rsi_period_range="10,20,2",
+            rsi_oversold_range="20,35,5",
+            rsi_overbought_range="65,80,5",
+            bb_period_range="10,30,5",
+            bb_std_range="1.5,3.0,0.5",
+            macd_fast_range="8,16,2",
+            macd_slow_range="20,30,2",
+            macd_signal_range="7,12,1",
+            st_period_range="7,20,1",
+            st_multiplier_range="2.0,4.0,0.5",
+            dc_period_range="10,40,5",
+            dc_exit_period_range="5,20,5",
+            aroon_period_range="10,50,5",
+            kc_ema_period_range="10,30,5",
+            kc_atr_period_range="5,20,2",
+            kc_multiplier_range="1.0,3.0,0.5",
+            ichimoku_tenkan_period_range="5,15,2",
+            ichimoku_kijun_period_range="10,30,5",
+            ichimoku_senkou_b_period_range="20,60,10",
+            sar_step_range="0.01,0.05,0.01",
+            sar_max_step_range="0.10,0.20,0.05",
+        )
+
+        grid = create_param_grid(args)
+        assert isinstance(grid, ParameterGrid)
+
+        assert len(grid.spaces) == 5
+        k_space = grid.spaces.get("k_period")
+        assert k_space is not None
+        assert k_space.min_val == 10.0
+        assert k_space.max_val == 20.0
+        assert k_space.step == 2.0
+        assert k_space.param_type == int
+
+        d_space = grid.spaces.get("d_period")
+        assert d_space is not None
+        assert d_space.min_val == 2.0
+        assert d_space.max_val == 5.0
+        assert d_space.step == 1.0
+        assert d_space.param_type == int
+
+        oversold_space = grid.spaces.get("oversold")
+        assert oversold_space is not None
+        assert oversold_space.min_val == 10.0
+        assert oversold_space.max_val == 30.0
+        assert oversold_space.step == 5.0
+        assert oversold_space.param_type == int
+
+        overbought_space = grid.spaces.get("overbought")
+        assert overbought_space is not None
+        assert overbought_space.min_val == 70.0
+        assert overbought_space.max_val == 90.0
+        assert overbought_space.step == 5.0
+        assert overbought_space.param_type == int
+
+        use_midline_space = grid.spaces.get("use_midline")
+        assert use_midline_space is not None
+        assert use_midline_space.param_type == bool
+
+        # The validator enforces oversold < overbought.
+        assert grid.validator is not None
+        assert grid.validator({"oversold": 10, "overbought": 70}) is True
+        assert grid.validator({"oversold": 30, "overbought": 70}) is True
+        assert grid.validator({"oversold": 70, "overbought": 70}) is False
+        assert grid.validator({"oversold": 90, "overbought": 70}) is False
+
+        combos = grid.generate_combinations()
+        assert len(combos) > 0
+        assert all(c["oversold"] < c["overbought"] for c in combos)
 
 
 class TestRunCombined:
