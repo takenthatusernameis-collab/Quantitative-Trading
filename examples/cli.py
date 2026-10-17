@@ -805,6 +805,39 @@ def create_strategy(args: argparse.Namespace):
         return factory_create_strategy(args.strategy)
 
 
+def _save_strategy_config(path: str, strategy_cls: type, parameters: dict) -> None:
+    """Write the winning strategy configuration to a YAML file.
+
+    Args:
+        path: Destination YAML path.
+        strategy_cls: The strategy class that produced the winning parameters.
+        parameters: The winning parameter dict (may include a 'name' key).
+    """
+    import yaml
+
+    from quant_trading.strategies.factory import get_registry
+
+    # Resolve the registry key for this class, falling back to the class name.
+    registry = get_registry()
+    strategy_key = None
+    for key, cls in registry.get_all().items():
+        if cls is strategy_cls:
+            strategy_key = key
+            break
+    if strategy_key is None:
+        strategy_key = strategy_cls.__name__.lower().replace("strategy", "")
+
+    config = {
+        "type": strategy_key,
+        "name": parameters.get("name", strategy_key),
+        "parameters": {k: v for k, v in parameters.items() if k != "name"},
+    }
+
+    with open(path, "w") as f:
+        yaml.dump(config, f, default_flow_style=False)
+    print(f"Strategy configuration saved to {path}")
+
+
 def list_strategies() -> int:
     """Print available strategies and exit."""
     strategies = factory_list_strategies()
@@ -1223,6 +1256,10 @@ def run_optimization(
             json.dump(output_data, f, indent=2, default=str)
         print(f"\nResults saved to {args.output}")
 
+    # Persist the winning strategy configuration when requested
+    if args.output_strategy_config:
+        _save_strategy_config(args.output_strategy_config, strategy_cls, result.best_params)
+
     return 0
 
 
@@ -1335,6 +1372,19 @@ def run_walk_forward(
         with open(args.output, "w") as f:
             json.dump(output_data, f, indent=2, default=str)
         print(f"\nResults saved to {args.output}")
+
+    # Persist the most recent window's winning strategy configuration when
+    # requested. The last window's params are the most current calibration and
+    # the natural choice for continuing the walk-forward series.
+    if args.output_strategy_config:
+        last_params = None
+        for window in reversed(result.windows):
+            if window.best_params:
+                last_params = dict(window.best_params)
+                break
+        if last_params is None:
+            last_params = {}
+        _save_strategy_config(args.output_strategy_config, strategy_cls, last_params)
 
     return 0
 

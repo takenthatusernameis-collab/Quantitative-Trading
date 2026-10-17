@@ -1359,6 +1359,160 @@ class TestFactoryIntegration:
             registry.unregister("custom_for_combined")
 
 
+class TestSaveStrategyConfig:
+    """Tests for the --output-strategy-config flag in optimization modes."""
+
+    def _make_args(self, **overrides):
+        base = dict(
+            symbols=["AAPL"],
+            strategy="ma",
+            initial_capital=100000.0,
+            commission=0.001,
+            slippage=0.0005,
+            interval="1d",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            aroon_period=25,
+            dc_period=20,
+            dc_exit_period=20,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
+            optimizer="grid",
+            objective="sharpe",
+            n_iter=5,
+            n_jobs=1,
+            bayesian_n_initial=3,
+            bayesian_acq_func="gp_hedge",
+            bayesian_acq_optimizer="lbfgs",
+            optimize=False,
+            walk_forward=False,
+            output=None,
+            output_strategy_config=None,
+            wf_windows=3,
+            wf_train_size=0.6,
+            wf_anchored=False,
+            wf_optimizer="grid",
+            # parameter ranges consumed by create_param_grid
+            ma_fast_range="5,20,5",
+            ma_slow_range="20,50,5",
+            rsi_period_range="10,20,2",
+            rsi_oversold_range="20,35,5",
+            rsi_overbought_range="65,80,5",
+            bb_period_range="10,30,5",
+            bb_std_range="1.5,3.0,0.5",
+            macd_fast_range="8,16,2",
+            macd_slow_range="20,30,2",
+            macd_signal_range="7,12,1",
+            st_period_range="7,20,1",
+            st_multiplier_range="2.0,4.0,0.5",
+            dc_period_range="10,40,5",
+            dc_exit_period_range="5,20,5",
+            aroon_period_range="10,50,5",
+            kc_ema_period_range="10,30,5",
+            kc_atr_period_range="5,20,2",
+            kc_multiplier_range="1.0,3.0,0.5",
+            stoch_k_period_range="10,20,2",
+            stoch_d_period_range="2,5,1",
+            stoch_oversold_range="10,30,5",
+            stoch_overbought_range="70,85,5",
+            ichimoku_tenkan_period_range="5,15,2",
+            ichimoku_kijun_period_range="15,30,2",
+            ichimoku_senkou_b_period_range="30,60,5",
+        )
+        base.update(overrides)
+        return argparse.Namespace(**base)
+
+    def test_optimize_saves_best_params_config(self, tmp_path):
+        from examples.cli import run_optimization
+
+        out = tmp_path / "best.yaml"
+        args = self._make_args(optimize=True, output_strategy_config=str(out), days=120)
+        config = Config()
+        from datetime import datetime, timedelta
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=120)
+
+        result = run_optimization(args, config, start_date, end_date)
+        assert result == 0
+        assert out.exists()
+
+        import yaml
+
+        with open(out) as f:
+            saved = yaml.safe_load(f)
+        assert saved["type"] == "ma"
+        assert "fast_period" in saved["parameters"]
+        assert "slow_period" in saved["parameters"]
+        assert saved["name"] == "ma"
+
+    def test_walk_forward_saves_last_window_params_config(self, tmp_path):
+        from examples.cli import run_walk_forward
+
+        out = tmp_path / "wf_best.yaml"
+        args = self._make_args(
+            walk_forward=True,
+            output_strategy_config=str(out),
+            days=120,
+            wf_windows=2,
+            wf_train_size=0.6,
+            wf_anchored=False,
+            wf_optimizer="grid",
+            n_jobs=1,
+        )
+        config = Config()
+        from datetime import datetime, timedelta
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=120)
+
+        result = run_walk_forward(args, config, start_date, end_date)
+        assert result == 0
+        assert out.exists()
+
+        import yaml
+
+        with open(out) as f:
+            saved = yaml.safe_load(f)
+        assert saved["type"] == "ma"
+        assert "fast_period" in saved["parameters"]
+        assert "slow_period" in saved["parameters"]
+
+    def test_save_strategy_config_helper_round_trip(self, tmp_path):
+        from examples.cli import _save_strategy_config
+        from quant_trading.strategies.examples import MovingAverageCrossover
+
+        out = tmp_path / "helper.yaml"
+        params = {"fast_period": 5, "slow_period": 25, "name": "MA_Crossover_5_25"}
+        _save_strategy_config(str(out), MovingAverageCrossover, params)
+
+        import yaml
+
+        with open(out) as f:
+            saved = yaml.safe_load(f)
+        assert saved["type"] == "ma"
+        assert saved["name"] == "MA_Crossover_5_25"
+        assert saved["parameters"] == {"fast_period": 5, "slow_period": 25}
+
+        # The saved config must be loadable back through Strategy.from_config
+        from quant_trading.strategies.base import Strategy
+
+        strategy = Strategy.from_config(saved)
+        assert isinstance(strategy, MovingAverageCrossover)
+        assert strategy.fast_period == 5
+        assert strategy.slow_period == 25
+
+
 if __name__ == "__main__":
     import pytest
 
