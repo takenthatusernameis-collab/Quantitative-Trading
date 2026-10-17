@@ -322,3 +322,57 @@ class TestCalculateAllMetrics:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+    def test_var_single_value(self):
+        """Single value returns: percentile behavior should not produce NaN."""
+        result = calculate_var(pd.Series([0.01]), confidence=0.95)
+        assert not np.isnan(result)
+        assert result == pytest.approx(0.01)
+
+    def test_var_single_value_high_confidence(self):
+        """Single value with high confidence."""
+        result = calculate_var(pd.Series([-0.05]), confidence=0.99)
+        assert not np.isnan(result)
+        assert result == pytest.approx(-0.05)
+
+    def test_beta_market_single_value(self):
+        """Market with single value paired with returns < 2 aligned should give 0."""
+        returns = pd.Series([0.01, 0.02, 0.03])
+        market = pd.Series([0.01])  # only 1 value
+        assert calculate_beta(returns, market) == pytest.approx(0.0)
+
+    def test_beta_both_single_values(self):
+        returns = pd.Series([0.01])
+        market = pd.Series([0.02])
+        assert calculate_beta(returns, market) == pytest.approx(0.0)
+
+    def test_beta_market_constant_after_alignment(self):
+        returns = pd.Series([0.01, 0.02, 0.03])
+        market = pd.Series([0.05, 0.05, 0.05])
+        assert calculate_beta(returns, market) == pytest.approx(0.0)
+
+    def test_alpha_insufficient_returns(self):
+        small = pd.Series([0.01])
+        market = pd.Series([0.01, 0.02, 0.03])
+        assert calculate_alpha(small, market) == pytest.approx(0.0)
+
+    def test_alpha_insufficient_market(self):
+        returns = pd.Series([0.01, 0.02, 0.03])
+        small = pd.Series([0.01])
+        assert calculate_alpha(returns, small) == pytest.approx(0.0)
+
+    def test_returns_with_nan_dropped(self):
+        prices = pd.Series([1.0, float("nan"), 2.0, 3.0])
+        res = calculate_returns(prices)
+        assert res.isna().sum() == 0
+
+    def test_returns_all_same_extra(self):
+        prices = pd.Series([1.0, 1.0, 1.0])
+        res = calculate_returns(prices)
+        assert all(v == 0.0 for v in res)
+
+    def test_returns_two_points_extra(self):
+        prices = pd.Series([1.0, 2.0])
+        res = calculate_returns(prices)
+        assert len(res) == 1
+        assert res.iloc[0] == pytest.approx(1.0)
