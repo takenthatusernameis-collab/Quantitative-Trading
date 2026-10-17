@@ -61,9 +61,12 @@ quant_trading/
 │   └── factory.py      # Strategy registry and factory
 ├── backtest/           # Backtesting engine
 │   ├── engine.py       # Main backtest engine
-│   └── metrics.py      # Performance metrics
+│   ├── metrics.py      # Performance metrics
+│   ├── analysis.py     # Regime and trade analysis helpers
+│   └── trade_analysis.py # Detailed trade-level analysis
 ├── data/               # Data providers
 │   ├── providers.py    # Base interfaces
+│   ├── synthetic.py    # Deterministic synthetic data generator
 │   └── yfinance_provider.py  # Yahoo Finance implementation
 ├── portfolio/          # Portfolio management
 │   ├── portfolio.py    # Portfolio and holdings
@@ -72,6 +75,16 @@ quant_trading/
 │   ├── limits.py       # Position/portfolio limits
 │   ├── manager.py      # Risk manager
 │   └── metrics.py      # Risk metrics
+├── optimization/       # Parameter optimization
+│   ├── base.py         # Base classes and objective functions
+│   ├── grid_search.py  # Exhaustive grid search
+│   ├── random_search.py# Randomized search
+│   ├── bayesian.py     # Bayesian optimization
+│   └── walk_forward.py # Walk-forward analysis
+├── monte_carlo/        # Monte Carlo simulation
+│   └── simulator.py    # Bootstrap and parametric simulation
+├── regime/             # Market regime detection
+│   └── detector.py     # Bull/bear/sideways regime classification
 ├── config/             # Configuration
 │   └── settings.py     # Config classes
 └── utils/              # Utilities

@@ -2,42 +2,31 @@
 
 ## Status
 
-IDLE — project verified green; one bounded feature applied this session.
+IDLE — project verified green; one bounded documentation fix applied this session.
 
 ## What this session did
 
-- **Added Parabolic SAR (`sar`) CLI support** in `examples/cli.py`. The `ParabolicSARStrategy` was registered in the strategy factory and had a dedicated `examples/run_parabolic_sar.py`, but the shared CLI was missing it entirely: `--strategy sar` produced an empty optimization grid (no `ParameterSpace`s, no validator) and `--combined` failed with "Unknown strategy". This is the same gap pattern already present for the other 11 built-in strategies.
-- Added to `examples/cli.py`:
-  - `sar` to `BUILTIN_STRATEGY_KEYS`.
-  - `--sar-step` (default 0.02) and `--sar-max-step` (default 0.20) single-value args.
-  - `--sar-step-range` (default `0.01,0.10,0.01`) and `--sar-max-step-range` (default `0.10,0.30,0.05`) optimization range args.
-  - `sar` entry in `strategy_param_map` mapping `sar_step→step`, `sar_max_step→max_step`.
-  - Strategy name generation `Parabolic_SAR_{step}_{max_step}`.
-  - `create_param_grid` `sar` branch building `step`/`max_step` float spaces with a `step <= max_step` validator.
-  - `run_combined` per-key default injection for `sar_step`/`sar_max_step`.
-- Added tests in `tests/test_cli.py`:
-  - `test_create_sar_strategy`, `test_create_sar_strategy_custom_params` (TestCreateStrategy).
-  - `test_create_param_grid_sar` (TestParseArgs) — verifies spaces, types, validator, and that every generated combo satisfies `step <= max_step`.
-  - Updated `test_run_combined_all_strategies` and `test_run_combined_iterates_registry_primary_keys` to pass `sar_step`/`sar_max_step` and expect `Parabolic_SAR_0.02_0.2` in the combined output.
-  - Imported `ParabolicSARStrategy` at the top of the test module.
+- Updated the README "Project Structure" tree (`README.md:56-90`) to match the actual codebase. The previous tree omitted `optimization/`, `monte_carlo/`, `regime/`, `backtest/analysis.py`, `backtest/trade_analysis.py`, and `data/synthetic.py`. Added all missing modules with one-line descriptions, mirroring the existing style.
+- Verified every newly listed file exists on disk (all 10 present).
 
 ## What was verified
 
-- `python -m pytest -q` → **1033 passed, 1 skipped** (was 1030; +3 new tests).
-- `python -m ruff check .` → all passed.
-- `python -m mypy quant_trading/` → no issues.
-- End-to-end CLI runs against deterministic synthetic data, exit 0:
-  - `--strategy sar --offline --optimize --optimizer grid` → best params printed, JSON output written.
-  - `--strategy sar --offline --walk-forward --wf-windows 2` → window + combined results printed, JSON output written.
-  - `--list-strategies` lists `sar: ParabolicSARStrategy (step=0.02, max_step=0.2)`.
-- No source files under `quant_trading/` were modified; only `examples/cli.py` and `tests/test_cli.py`.
+- Repo was already green before this session (from prior handoff + confirmed): `python -m pytest -q` → 1033 passed, 1 skipped; coverage 100% across `quant_trading/`; `ruff check .` clean; `mypy quant_trading/` clean.
+- This session's change is markdown-only, so no test/lint/typecheck impact; no re-run required.
+- `git status`: only `README.md` modified (14 insertions, 1 deletion). Changes are UNCOMMITTED.
 
 ## What remains unresolved
 
-- Nothing blocking. Changes are uncommitted; commit only if explicitly requested.
+- `README.md` edit is uncommitted. Commit only if explicitly requested (per policy, never commit without an explicit ask).
+- No functional gaps remain in source: all strategies (incl. `sar`) wired into CLI, walk-forward + regime fixes already merged and green.
+
+## Approaches that failed
+
+- None. No repeated-failure condition.
 
 ## Next precise task
 
-Commit the `examples/cli.py` + `tests/test_cli.py` changes if desired. No source changes required.
+- If the user wants the change persisted: commit `README.md` with a concise message (e.g. `docs(readme): align project structure tree with codebase`), then push only if explicitly asked. Do NOT commit the pre-existing `examples/cli.py`/`tests/test_cli.py` SAR work unless separately requested — confirm its commit state first (`git log --oneline -5 -- examples/cli.py tests/test_cli.py`).
+- If no commit is requested: no further work; repository is complete and green. Next agent should confirm `git status` is clean apart from the intended `README.md` edit and then idle.
 
-(End of file - total 49 lines)
+(End of file)
