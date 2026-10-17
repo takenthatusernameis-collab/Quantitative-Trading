@@ -1,4 +1,20 @@
-"""Trade-level analysis for backtest results."""
+"""Trade-level analysis for backtest results.
+
+Examples:
+    Analyze a backtest result and inspect its trade statistics::
+
+        from quant_trading.backtest import analyze_trades
+
+        analysis = analyze_trades(result)
+        print(f"Total trades: {analysis.total_trades}")
+        print(f"Win rate: {analysis.win_rate:.2%}")
+        print(f"Profit factor: {analysis.profit_factor:.2f}")
+
+    Convert the analysis to a dictionary for serialization::
+
+        data = analysis.to_dict()
+        assert data["total_trades"] == analysis.total_trades
+"""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -12,7 +28,42 @@ from quant_trading.backtest.engine import BacktestResult
 
 @dataclass
 class TradeAnalysis:
-    """Detailed trade analysis results."""
+    """Detailed trade analysis results.
+
+    Attributes:
+        total_trades: Total number of completed trades with PnL.
+        winning_trades: Number of winning trades.
+        losing_trades: Number of losing trades.
+        win_rate: Fraction of trades that were winners (0-1).
+        total_pnl: Sum of all trade PnL.
+        avg_pnl: Average PnL per trade.
+        median_pnl: Median PnL per trade.
+        std_pnl: Standard deviation of trade PnL.
+        avg_win: Average PnL of winning trades.
+        avg_loss: Average PnL of losing trades (positive magnitude).
+        largest_win: Largest winning trade PnL.
+        largest_loss: Largest losing trade PnL.
+        profit_factor: Gross profit divided by gross loss.
+        avg_holding_period: Average holding period in days.
+        median_holding_period: Median holding period in days.
+        min_holding_period: Minimum holding period in days.
+        max_holding_period: Maximum holding period in days.
+        max_consecutive_wins: Longest streak of winning trades.
+        max_consecutive_losses: Longest streak of losing trades.
+        current_streak: Length of the current streak.
+        current_streak_type: Type of the current streak ("win" or "loss").
+        monthly_returns: Monthly return percentages keyed by date.
+        weekly_returns: Weekly return percentages keyed by date.
+        symbol_stats: Per-symbol trade statistics.
+        expectancy: Expected PnL per trade.
+        sharpe_ratio: Trade-level Sharpe ratio.
+        sortino_ratio: Trade-level Sortino ratio.
+
+    Examples:
+        analysis = analyze_trades(result)
+        assert 0.0 <= analysis.win_rate <= 1.0
+        assert analysis.profit_factor >= 0.0
+    """
 
     total_trades: int = 0
     winning_trades: int = 0
@@ -232,6 +283,11 @@ def analyze_trades(
 
     Returns:
         TradeAnalysis with detailed statistics.
+
+    Examples:
+        analysis = analyze_trades(result, risk_free_rate=0.02)
+        assert analysis.total_trades > 0
+        print(f"Expectancy: ${analysis.expectancy:,.2f}")
     """
     trades = result.trades
 
@@ -318,7 +374,15 @@ def analyze_trades(
 
 
 def print_trade_analysis(analysis: TradeAnalysis) -> None:
-    """Print a formatted trade analysis report."""
+    """Print a formatted trade analysis report.
+
+    Args:
+        analysis: TradeAnalysis to print.
+
+    Examples:
+        analysis = analyze_trades(result)
+        print_trade_analysis(analysis)
+    """
     print(f"\n{'=' * 60}")
     print("Trade Analysis")
     print(f"{'=' * 60}")

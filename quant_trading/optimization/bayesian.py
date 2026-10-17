@@ -1,4 +1,33 @@
-"""Bayesian parameter optimization using scikit-optimize."""
+"""Bayesian parameter optimization using scikit-optimize.
+
+Examples:
+    Run Bayesian optimization over a strategy's parameter grid::
+
+        from quant_trading.optimization import (
+            BayesianOptimizer,
+            ParameterGrid,
+            ParameterSpace,
+            maximize_sharpe,
+        )
+        from quant_trading.strategies.examples import MovingAverageCrossover
+
+        param_grid = ParameterGrid()
+        param_grid.add(ParameterSpace("fast_period", min_val=5, max_val=15, param_type=int))
+        param_grid.add(ParameterSpace("slow_period", min_val=20, max_val=30, param_type=int))
+
+        optimizer = BayesianOptimizer(
+            strategy_cls=MovingAverageCrossover,
+            param_grid=param_grid,
+            objective=maximize_sharpe,
+            symbols=["AAPL"],
+            start=start,
+            end=end,
+            data_manager=data_manager,
+            random_state=42,
+        )
+        result = optimizer.run()
+        print(f"Best parameters: {result.best_params}")
+"""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -13,7 +42,22 @@ from .base import (
 
 
 def _convert_to_native(obj: Any) -> Any:
-    """Convert numpy types to native Python types."""
+    """Convert numpy types to native Python types.
+
+    Args:
+        obj: Object to convert (numpy scalar, array, dict, list, or other).
+
+    Returns:
+        Native Python equivalent of the input.
+
+    Examples:
+        import numpy as np
+
+        assert _convert_to_native(np.int64(5)) == 5
+        assert _convert_to_native(np.float64(1.5)) == 1.5
+        assert _convert_to_native(np.array([1, 2])) == [1, 2]
+        assert _convert_to_native({"a": np.int64(1)}) == {"a": 1}
+    """
     import numpy as np
 
     if isinstance(obj, (np.integer,)):
@@ -47,6 +91,20 @@ class BayesianOptimizer(BaseOptimizer):
     Uses scikit-optimize to efficiently search parameter space by building
     a surrogate model of the objective function and using acquisition functions
     to balance exploration and exploitation.
+
+    Examples:
+        optimizer = BayesianOptimizer(
+            strategy_cls=MovingAverageCrossover,
+            param_grid=param_grid,
+            objective=maximize_sharpe,
+            symbols=["AAPL"],
+            start=start,
+            end=end,
+            data_manager=data_manager,
+            random_state=42,
+        )
+        result = optimizer.run()
+        assert result.best_params is not None
     """
 
     def __init__(
