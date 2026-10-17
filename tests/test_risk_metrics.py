@@ -454,6 +454,72 @@ class TestNanHandling:
         assert not np.isnan(res.var_95)
 
 
+class TestAlphaAlignment:
+    """Tests for calculate_alpha alignment consistency with calculate_beta.
+
+    Beta is computed from the overlapping-index sample, so alpha must use the
+    same observations; otherwise the two are mutually inconsistent when the
+    input series have non-overlapping indices or NaN values.
+    """
+
+    def test_alpha_uses_aligned_sample_with_misaligned_indices(self):
+        """Alpha must average the same aligned observations used for beta."""
+        returns = pd.Series([0.01, 0.02, 0.03], index=[0, 1, 2])
+        market = pd.Series([0.01, 0.02, 0.03], index=[1, 2, 3])
+
+        beta = calculate_beta(returns, market)
+        aligned = pd.concat([returns, market], axis=1).dropna()
+        expected = aligned.iloc[:, 0].mean() * 252 - (
+            0.02 + beta * (aligned.iloc[:, 1].mean() * 252 - 0.02)
+        )
+
+        assert calculate_alpha(returns, market) == pytest.approx(expected)
+
+    def test_alpha_non_overlapping_indices_returns_zero(self):
+        """Completely disjoint indices yield no aligned sample -> alpha 0."""
+        returns = pd.Series([0.01, 0.02, 0.03], index=[0, 1, 2])
+        market = pd.Series([0.01, 0.02, 0.03], index=[3, 4, 5])
+        assert calculate_alpha(returns, market) == pytest.approx(0.0)
+
+    def test_alpha_partial_overlap_uses_only_aligned_points(self):
+        """Only overlapping dates contribute to the alpha means."""
+        idx = pd.date_range("2020-01-01", periods=5)
+        returns = pd.Series([0.01, 0.02, 0.03, 0.04, 0.05], index=idx)
+        market = pd.Series([0.00, 0.01, 0.02, 0.03, 0.04], index=idx[[1, 2, 3, 4, 0]])
+
+        beta = calculate_beta(returns, market)
+        aligned = pd.concat([returns, market], axis=1).dropna()
+        expected = aligned.iloc[:, 0].mean() * 252 - (
+            0.02 + beta * (aligned.iloc[:, 1].mean() * 252 - 0.02)
+        )
+        assert calculate_alpha(returns, market) == pytest.approx(expected)
+
+    def test_alpha_consistent_with_beta_in_calculate_all_metrics(self):
+        """calculate_all_metrics must report alpha consistent with its beta."""
+        idx = pd.date_range("2020-01-01", periods=6)
+        equity = pd.Series([100.0, 105.0, 110.0, 108.0, 112.0, 118.0], index=idx)
+        market = calculate_returns(equity)
+        metrics = calculate_all_metrics(equity, market_returns=market, risk_free_rate=0.02)
+
+        expected_alpha = calculate_alpha(calculate_returns(equity), market, risk_free_rate=0.02)
+        assert metrics.alpha == pytest.approx(expected_alpha)
+        assert metrics.beta == pytest.approx(calculate_beta(calculate_returns(equity), market))
+
+    def test_alpha_nan_in_market_dropped_before_alignment(self):
+        """NaN values in either series are dropped by the shared alignment."""
+        returns = pd.Series([0.01, float("nan"), 0.02, -0.01])
+        market = pd.Series([0.005, 0.01, float("nan"), -0.005])
+        result = calculate_alpha(returns, market)
+        assert not np.isnan(result)
+
+        aligned = pd.concat([returns, market], axis=1).dropna()
+        beta = calculate_beta(returns, market)
+        expected = aligned.iloc[:, 0].mean() * 252 - (
+            0.02 + beta * (aligned.iloc[:, 1].mean() * 252 - 0.02)
+        )
+        assert result == pytest.approx(expected)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 

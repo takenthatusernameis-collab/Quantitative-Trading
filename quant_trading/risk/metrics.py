@@ -127,14 +127,32 @@ def calculate_alpha(
     market_returns: pd.Series,
     risk_free_rate: float = 0.02,
 ) -> float:
-    """Calculate Jensen's alpha."""
+    """Calculate Jensen's alpha.
+
+    Alpha is computed from the same aligned (overlapping-index) sample that
+    ``calculate_beta`` uses, so the two are always consistent even when the
+    input series have non-overlapping indices or NaN values.
+
+    Args:
+        returns: Portfolio return series.
+        market_returns: Benchmark return series.
+        risk_free_rate: Annual risk-free rate (default 0.02).
+
+    Returns:
+        Annualized Jensen's alpha, or 0.0 when beta is undefined/zero.
+    """
     beta = calculate_beta(returns, market_returns)
     if beta == 0:
         return 0.0
-    returns = returns.dropna()
-    market_returns = market_returns.dropna()
-    avg_return = returns.mean() * 252
-    avg_market = market_returns.mean() * 252
+
+    # Align on overlapping indices, mirroring calculate_beta, so the means
+    # used for alpha come from the same observations used for beta.
+    aligned = pd.concat([returns, market_returns], axis=1).dropna()
+    if len(aligned) < 2:  # pragma: no cover  (beta != 0 implies >= 2 aligned points)
+        return 0.0
+
+    avg_return = float(aligned.iloc[:, 0].mean() * 252)
+    avg_market = float(aligned.iloc[:, 1].mean() * 252)
     return float(avg_return - (risk_free_rate + beta * (avg_market - risk_free_rate)))
 
 
