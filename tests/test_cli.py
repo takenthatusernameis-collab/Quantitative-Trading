@@ -1465,6 +1465,59 @@ class TestRunCombined:
             assert "comparison" in data
             assert "best_strategy" in data
 
+    def test_main_offline_combined_end_to_end(self, capsys):
+        """Running offline --combined executes all strategies end-to-end (no mocks)."""
+        args = [
+            "--offline",
+            "--combined",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "120",
+        ]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Running combined backtest for all strategies" in captured.out
+        assert "Strategy Comparison" in captured.out
+        assert "MA_Crossover_10_30" in captured.out
+        assert "RSI_14" in captured.out
+        assert "Ichimoku_Cloud" in captured.out
+        assert "VWAP" in captured.out
+        assert "Best strategy (by Sharpe)" in captured.out
+
+    def test_main_offline_combined_with_output(self, capsys):
+        """Running offline --combined with --output writes a JSON comparison file."""
+        import json
+        import os
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = f"{tmpdir}/combined.json"
+            args = [
+                "--offline",
+                "--combined",
+                "--output",
+                output_path,
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+            ]
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 0
+            assert os.path.exists(output_path)
+
+            with open(output_path) as f:
+                data = json.load(f)
+            assert "comparison" in data
+            assert "best_strategy" in data
+            assert len(data["comparison"]) > 0
+            assert all("strategy" in entry for entry in data["comparison"])
+
 
 class TestMain:
     """Tests for main function."""
