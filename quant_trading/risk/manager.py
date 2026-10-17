@@ -1,4 +1,16 @@
-"""Risk management orchestration."""
+"""Risk management orchestration.
+
+Examples:
+    Create a risk manager and check a trading signal::
+
+        from quant_trading.risk.manager import RiskManager
+        from quant_trading.strategies.base import Signal
+
+        rm = RiskManager(initial_capital=100000.0, max_position_size=0.1)
+        signal = Signal(symbol="AAPL", action="buy", price=150.0, strength=1.0)
+        result = rm.check_signal(signal, portfolio_value=100000.0)
+        assert result.passed in (True, False)
+"""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -13,7 +25,20 @@ from quant_trading.strategies.base import Position, Signal
 
 @dataclass
 class PortfolioRisk:
-    """Current portfolio risk state."""
+    """Current portfolio risk state.
+
+    Attributes:
+        total_market_value: Total market value of portfolio (cash + positions).
+        cash: Available cash balance.
+        positions_value: Market value of all positions.
+        leverage: Portfolio leverage ratio (positions_value / total_value).
+        current_drawdown: Current drawdown from peak (0.0 = at peak).
+        peak_value: Peak portfolio value observed.
+
+    Examples:
+        pr = PortfolioRisk(total_market_value=100000.0, cash=50000.0, positions_value=50000.0)
+        assert pr.total_value == 100000.0
+    """
 
     total_market_value: float = 0.0
     cash: float = 0.0
@@ -24,11 +49,34 @@ class PortfolioRisk:
 
     @property
     def total_value(self) -> float:
+        """Total portfolio value.
+
+        Returns:
+            Equal to ``total_market_value``.
+        """
         return self.total_market_value
 
 
 class RiskManager:
-    """Manages risk for trading operations."""
+    """Manages risk for trading operations.
+
+    Attributes:
+        initial_capital: Starting capital.
+        position_limit: Position limit configuration.
+        portfolio_limit: Portfolio limit configuration.
+        portfolio_risk: Current portfolio risk state.
+        positions: Current positions by symbol.
+        equity_curve: History of total portfolio values.
+        peak_value: Peak value observed in equity curve.
+        risk_metrics: Last computed risk metrics (if any).
+        risk_enabled: Whether risk checks are enabled.
+        history: Historical risk snapshots.
+
+    Examples:
+        rm = RiskManager(initial_capital=50000.0, max_position_size=0.2)
+        assert rm.initial_capital == 50000.0
+        assert rm.risk_enabled
+    """
 
     def __init__(
         self,
@@ -40,6 +88,20 @@ class RiskManager:
         stop_loss_pct: float = 0.05,
         take_profit_pct: float = 0.15,
     ):
+        """Initialize risk manager.
+
+        Args:
+            initial_capital: Initial capital for risk calculations.
+            max_position_size: Maximum position size as fraction of portfolio.
+            max_portfolio_risk: Maximum portfolio risk per trade as fraction.
+            max_drawdown: Maximum drawdown before halt (fraction).
+            max_positions: Maximum number of positions allowed.
+            stop_loss_pct: Default stop loss percentage.
+            take_profit_pct: Default take profit percentage.
+
+        Returns:
+            None.
+        """
         self.initial_capital = initial_capital
         self.position_limit = PositionLimit(
             max_size=max_position_size,
@@ -67,7 +129,15 @@ class RiskManager:
         self.history: list[dict[str, Any]] = []
 
     def update_portfolio_value(self, positions: dict[str, Position], cash: float) -> None:
-        """Update portfolio value and track equity curve."""
+        """Update portfolio value and track equity curve.
+
+        Args:
+            positions: Current positions by symbol.
+            cash: Current cash balance.
+
+        Returns:
+            None.
+        """
         self.positions = positions
         positions_value = sum(p.market_value for p in positions.values())
         total_value = cash + positions_value
@@ -97,7 +167,15 @@ class RiskManager:
         )
 
     def check_signal(self, signal: Signal, portfolio_value: float | None = None) -> CheckResult:
-        """Check if a trading signal passes risk limits."""
+        """Check if a trading signal passes risk limits.
+
+        Args:
+            signal: Trading signal to evaluate.
+            portfolio_value: Current portfolio value (uses internal if None).
+
+        Returns:
+            CheckResult with pass/fail and any violations.
+        """
         result = CheckResult(passed=True)
 
         if not self.risk_enabled:
@@ -136,7 +214,11 @@ class RiskManager:
         return result
 
     def check_portfolio(self) -> CheckResult:
-        """Check overall portfolio risk limits."""
+        """Check overall portfolio risk limits.
+
+        Returns:
+            CheckResult with pass/fail and any violations.
+        """
         result = CheckResult(passed=True)
 
         if not self.risk_enabled:
@@ -153,7 +235,14 @@ class RiskManager:
         return result
 
     def calculate_metrics(self, market_returns: pd.Series | None = None) -> RiskMetrics:
-        """Calculate current risk metrics from equity curve."""
+        """Calculate current risk metrics from equity curve.
+
+        Args:
+            market_returns: Optional benchmark returns for beta/alpha.
+
+        Returns:
+            Computed RiskMetrics object.
+        """
         equity_series = pd.Series(self.equity_curve)
         self.risk_metrics = calculate_all_metrics(
             equity_series,
@@ -163,31 +252,65 @@ class RiskManager:
         return self.risk_metrics
 
     def get_position_stop_loss(self, symbol: str) -> float | None:
-        """Get stop loss price for a position."""
+        """Get stop loss price for a position.
+
+        Args:
+            symbol: Symbol to query.
+
+        Returns:
+            Stop loss price, or None if no position/invalid price.
+        """
         position = self.positions.get(symbol)
         if position is None or position.avg_price <= 0:
             return None
         return position.avg_price * (1 - self.position_limit.stop_loss_pct)
 
     def get_position_take_profit(self, symbol: str) -> float | None:
-        """Get take profit price for a position."""
+        """Get take profit price for a position.
+
+        Args:
+            symbol: Symbol to query.
+
+        Returns:
+            Take profit price, or None if no position/invalid price.
+        """
         position = self.positions.get(symbol)
         if position is None or position.avg_price <= 0:
             return None
         return position.avg_price * (1 + self.position_limit.take_profit_pct)
 
     def should_stop_loss(self, symbol: str, current_price: float) -> bool:
-        """Check if position should trigger stop loss."""
+        """Check if position should trigger stop loss.
+
+        Args:
+            symbol: Symbol to query.
+            current_price: Current market price.
+
+        Returns:
+            True if stop loss triggered.
+        """
         stop = self.get_position_stop_loss(symbol)
         return stop is not None and current_price <= stop
 
     def should_take_profit(self, symbol: str, current_price: float) -> bool:
-        """Check if position should trigger take profit."""
+        """Check if position should trigger take profit.
+
+        Args:
+            symbol: Symbol to query.
+            current_price: Current market price.
+
+        Returns:
+            True if take profit triggered.
+        """
         tp = self.get_position_take_profit(symbol)
         return tp is not None and current_price >= tp
 
     def reset(self) -> None:
-        """Reset risk manager state."""
+        """Reset risk manager state.
+
+        Returns:
+            None.
+        """
         self.portfolio_risk = PortfolioRisk(
             total_market_value=self.initial_capital,
             cash=self.initial_capital,
@@ -199,9 +322,17 @@ class RiskManager:
         self.history = []
 
     def enable(self) -> None:
-        """Enable risk management."""
+        """Enable risk management.
+
+        Returns:
+            None.
+        """
         self.risk_enabled = True
 
     def disable(self) -> None:
-        """Disable risk management."""
+        """Disable risk management.
+
+        Returns:
+            None.
+        """
         self.risk_enabled = False

@@ -2,18 +2,19 @@
 
 ## Status
 
-COMPLETE - Usage-example docstring treatment extended to `quant_trading/portfolio/portfolio.py` (`Holding`, `Portfolio`, and all public methods: `__post_init__`, `get_holdings_value`, `get_position_value`, `get_position_pct`, `add_holding`, `remove_holding`, `update_prices`, `get_positions`, `get_allocation`, `reset`, `summary`, `update_price`, `to_position`). Matching `Attributes:` docstring added to `Position` in `quant_trading/strategies/base.py`. All checks green.
+COMPLETE - Added comprehensive Google-style docstrings (Args/Returns/Attributes/Examples, module- and class-level where appropriate) to `quant_trading/risk/manager.py` (PortfolioRisk and RiskManager with all public methods: __init__, update_portfolio_value, check_signal, check_portfolio, calculate_metrics, get_position_stop_loss, get_position_take_profit, should_stop_loss, should_take_profit, reset, enable, disable). All risk-related tests pass and quality checks pass. No behavior changes.
 
 ## What this session did
 
-Added Google-style `Args:`/`Returns:`/`Attributes:` sections plus module- and class-level `Examples:` sections (additive, no behavior change) to portfolio.py and base.py, matching the convention in trade_analysis.py, bayesian.py, and engine.py.
+- Extended docstrings in `quant_trading/risk/manager.py` to match convention in trade_analysis.py, bayesian.py, portfolio.py and engine.py (additive, no code logic changes).
 
 ## What was verified
 
-- `python -m pytest tests/test_portfolio.py tests/test_backtest_engine.py tests/test_trade_analysis.py tests/test_integration.py -q`: 73 passed
-- `python -m ruff check quant_trading/portfolio/portfolio.py quant_trading/strategies/base.py`: All checks passed
-- `python -m black --check quant_trading/portfolio/portfolio.py quant_trading/strategies/base.py`: properly formatted
-- `python -m mypy quant_trading/portfolio/portfolio.py quant_trading/strategies/base.py`: Success
+- `python -m pytest tests/test_risk_manager.py tests/test_risk_metrics.py tests/test_limits.py -v`: 117 passed
+- `python -m pytest -q`: 1096 passed, 1 skipped
+- `python -m ruff check quant_trading/risk/manager.py quant_trading/risk/limits.py quant_trading/risk/metrics.py`: All checks passed
+- `python -m black --check quant_trading/risk/manager.py quant_trading/risk/limits.py quant_trading/risk/metrics.py`: All done (unchanged as expected)
+- `python -m mypy quant_trading/risk/manager.py quant_trading/risk/limits.py quant_trading/risk/metrics.py`: Success (no issues)
 
 ## What remains unresolved
 
@@ -25,4 +26,4 @@ Nothing blocking. Coverage unaffected (docstrings additive).
 
 ## Next precise task
 
-Extend the same usage-example docstring treatment to the next key consumer-facing module (candidate: `quant_trading/risk/manager.py` — `RiskManager` class and public methods). Follow existing convention (Google-style `Args:`/`Returns:`/`Attributes:` plus `Examples:` sections). No behavior change. Verify with `pytest tests/test_risk_manager.py -q`, `ruff check`, `black --check`, and `mypy` on the changed files.
+Extend the same usage-example docstring treatment to the next key consumer-facing module. Candidate: `quant_trading/risk/limits.py` (PositionLimit, PortfolioLimit, CheckResult classes and methods: check methods, add_violation, properties) to make risk API fully documented. Follow existing convention (Google-style Args/Returns/Attributes plus module/class Examples). No behavior change. Verify with `pytest tests/test_limits.py tests/test_risk_manager.py -q`, `ruff check`, `black --check`, and `mypy` on changed files.
