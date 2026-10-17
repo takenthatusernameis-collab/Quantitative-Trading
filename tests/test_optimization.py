@@ -2478,3 +2478,47 @@ def test_random_search_parallel_scripted_quiet(monkeypatch):
 
     assert result.best_params == {"fast_period": 5, "slow_period": 20}
     assert len(result.all_results) == 2
+
+
+def test_grid_search_parallel_worker_death_fallback_quiet(monkeypatch, capsys):
+    """Test GridSearch silent fallback when all workers die (verbose=False).
+
+    Exercises the verbose=False branches inside the BrokenProcessPool
+    handler and the sequential retry loop.
+    """
+    import quant_trading.optimization.grid_search as grid_search_module
+
+    optimizer = _make_parallel_optimizer(GridSearch, verbose=False)
+    monkeypatch.setattr(grid_search_module, "ProcessPoolExecutor", _WorkerDeathExecutor)
+
+    result = optimizer.run()
+    out = capsys.readouterr().out
+
+    assert result.best_params is not None
+    assert "fast_period" in result.best_params
+    assert "slow_period" in result.best_params
+    assert result.best_score != float("-inf")
+    assert len(result.all_results) == 4
+    assert out == ""  # No output expected in quiet mode
+
+
+def test_random_search_parallel_worker_death_fallback_quiet(monkeypatch, capsys):
+    """Test RandomSearch silent fallback when all workers die (verbose=False).
+
+    Exercises the verbose=False branches inside the BrokenProcessPool
+    handler and the sequential retry loop.
+    """
+    import quant_trading.optimization.random_search as random_search_module
+
+    optimizer = _make_parallel_optimizer(RandomSearch, n_iter=4, verbose=False)
+    monkeypatch.setattr(random_search_module, "ProcessPoolExecutor", _WorkerDeathExecutor)
+
+    result = optimizer.run()
+    out = capsys.readouterr().out
+
+    assert result.best_params is not None
+    assert "fast_period" in result.best_params
+    assert "slow_period" in result.best_params
+    assert result.best_score != float("-inf")
+    assert len(result.all_results) == 4
+    assert out == ""  # No output expected in quiet mode
