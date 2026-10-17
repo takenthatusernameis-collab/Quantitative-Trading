@@ -49,6 +49,7 @@ BUILTIN_STRATEGY_KEYS = [
     "keltner",
     "stoch",
     "ichimoku",
+    "sar",
     "vwap",
 ]
 
@@ -103,6 +104,8 @@ CLI_ARG_DEFAULTS = {
     "tenkan_period": 9,
     "kijun_period": 26,
     "senkou_b_period": 52,
+    "sar_step": 0.02,
+    "sar_max_step": 0.20,
 }
 
 
@@ -351,6 +354,18 @@ def parse_args() -> argparse.Namespace:
         default=52,
         help="Senkou Span B period",
     )
+    parser.add_argument(
+        "--sar-step",
+        type=float,
+        default=0.02,
+        help="Parabolic SAR initial acceleration factor (step)",
+    )
+    parser.add_argument(
+        "--sar-max-step",
+        type=float,
+        default=0.20,
+        help="Parabolic SAR maximum acceleration factor",
+    )
 
     # Parameter ranges for optimization
     parser.add_argument(
@@ -502,6 +517,18 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="20,120,10",
         help="Ichimoku Senkou Span B period range: min,max,step",
+    )
+    parser.add_argument(
+        "--sar-step-range",
+        type=str,
+        default="0.01,0.10,0.01",
+        help="Parabolic SAR step range: min,max,step",
+    )
+    parser.add_argument(
+        "--sar-max-step-range",
+        type=str,
+        default="0.10,0.30,0.05",
+        help="Parabolic SAR max step range: min,max,step",
     )
 
     parser.add_argument(
@@ -759,6 +786,7 @@ def create_strategy(args: argparse.Namespace):
             ("kijun_period", "kijun_period"),
             ("senkou_b_period", "senkou_b_period"),
         ],
+        "sar": [("sar_step", "step"), ("sar_max_step", "max_step")],
         "vwap": [],
     }
 
@@ -795,6 +823,8 @@ def create_strategy(args: argparse.Namespace):
             kwargs["name"] = (
                 f"Stoch_{args.stoch_k_period}_{args.stoch_d_period}_{args.stoch_oversold}_{args.stoch_overbought}"
             )
+        elif args.strategy == "sar":
+            kwargs["name"] = f"Parabolic_SAR_{args.sar_step}_{args.sar_max_step}"
         elif args.strategy == "vwap":
             kwargs["name"] = "VWAP"
 
@@ -1111,6 +1141,28 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
             lambda p: p["tenkan_period"] < p["kijun_period"]
             and p["senkou_b_period"] > p["kijun_period"]
         )
+    elif args.strategy == "sar":
+        step_min, step_max, step_step = parse_range(args.sar_step_range)
+        max_step_min, max_step_max, max_step_step = parse_range(args.sar_max_step_range)
+        grid.add(
+            ParameterSpace(
+                "step",
+                min_val=step_min,
+                max_val=step_max,
+                step=step_step,
+                param_type=float,
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "max_step",
+                min_val=max_step_min,
+                max_val=max_step_max,
+                step=max_step_step,
+                param_type=float,
+            )
+        )
+        grid.set_validator(lambda p: p["step"] <= p["max_step"])
 
     return grid
 
@@ -1670,6 +1722,9 @@ def run_combined(
             strategy_args.stoch_oversold = getattr(args, "stoch_oversold", 20)
             strategy_args.stoch_overbought = getattr(args, "stoch_overbought", 80)
             strategy_args.stoch_use_midline = getattr(args, "stoch_use_midline", False)
+        elif strategy_key == "sar":
+            strategy_args.sar_step = getattr(args, "sar_step", 0.02)
+            strategy_args.sar_max_step = getattr(args, "sar_max_step", 0.20)
         strategy = create_strategy(strategy_args)
 
         try:

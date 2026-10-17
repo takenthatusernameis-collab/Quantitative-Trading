@@ -24,6 +24,7 @@ from quant_trading.strategies.examples import (
     IchimokuCloudStrategy,
     MACDStrategy,
     MovingAverageCrossover,
+    ParabolicSARStrategy,
     RSIStrategy,
     SuperTrendStrategy,
 )
@@ -539,6 +540,88 @@ class TestCreateStrategy:
             strategy.name == "Ichimoku_Cloud"
         )  # name is not customized in create_strategy for ichimoku
 
+    def test_create_sar_strategy(self):
+        args = argparse.Namespace(
+            strategy="sar",
+            sar_step=0.02,
+            sar_max_step=0.20,
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            macd_fast=12,
+            macd_slow=26,
+            macd_signal=9,
+            macd_zero_line=False,
+            st_period=10,
+            st_multiplier=3.0,
+            dc_period=20,
+            dc_exit_period=20,
+            aroon_period=25,
+            kc_ema_period=20,
+            kc_atr_period=10,
+            kc_multiplier=2.0,
+            kc_use_middle_cross=False,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
+            tenkan_period=9,
+            kijun_period=26,
+            senkou_b_period=52,
+        )
+        strategy = create_strategy(args)
+        assert strategy is not None
+        assert isinstance(strategy, ParabolicSARStrategy)
+        assert strategy.step == 0.02
+        assert strategy.max_step == 0.20
+        assert strategy.name == "Parabolic_SAR_0.02_0.2"
+
+    def test_create_sar_strategy_custom_params(self):
+        args = argparse.Namespace(
+            strategy="sar",
+            sar_step=0.05,
+            sar_max_step=0.25,
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            macd_fast=12,
+            macd_slow=26,
+            macd_signal=9,
+            macd_zero_line=False,
+            st_period=10,
+            st_multiplier=3.0,
+            dc_period=20,
+            dc_exit_period=20,
+            aroon_period=25,
+            kc_ema_period=20,
+            kc_atr_period=10,
+            kc_multiplier=2.0,
+            kc_use_middle_cross=False,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
+            tenkan_period=9,
+            kijun_period=26,
+            senkou_b_period=52,
+        )
+        strategy = create_strategy(args)
+        assert strategy is not None
+        assert isinstance(strategy, ParabolicSARStrategy)
+        assert strategy.step == 0.05
+        assert strategy.max_step == 0.25
+        assert strategy.name == "Parabolic_SAR_0.05_0.25"
+
     def test_create_strategy_from_config_ma(self):
         """create_strategy uses --strategy-config YAML when provided."""
         import yaml
@@ -780,6 +863,73 @@ class TestCreateConfig:
             grid.validator({"tenkan_period": 5, "kijun_period": 20, "senkou_b_period": 30}) is True
         )
 
+    def test_create_param_grid_sar(self):
+        from examples.cli import create_param_grid
+        from quant_trading.optimization import ParameterGrid
+
+        args = argparse.Namespace(
+            strategy="sar",
+            sar_step_range="0.01,0.05,0.01",
+            sar_max_step_range="0.10,0.20,0.05",
+            # Other strategy ranges (irrelevant for sar but required for Namespace)
+            ma_fast_range="5,20,5",
+            ma_slow_range="20,50,5",
+            rsi_period_range="10,20,2",
+            rsi_oversold_range="20,35,5",
+            rsi_overbought_range="65,80,5",
+            bb_period_range="10,30,5",
+            bb_std_range="1.5,3.0,0.5",
+            macd_fast_range="8,16,2",
+            macd_slow_range="20,30,2",
+            macd_signal_range="7,12,1",
+            st_period_range="7,20,1",
+            st_multiplier_range="2.0,4.0,0.5",
+            dc_period_range="10,40,5",
+            dc_exit_period_range="5,20,5",
+            aroon_period_range="10,50,5",
+            kc_ema_period_range="10,30,5",
+            kc_atr_period_range="5,20,2",
+            kc_multiplier_range="1.0,3.0,0.5",
+            stoch_k_period_range="10,20,2",
+            stoch_d_period_range="2,5,1",
+            stoch_oversold_range="10,30,5",
+            stoch_overbought_range="70,90,5",
+            ichimoku_tenkan_period_range="5,15,2",
+            ichimoku_kijun_period_range="10,30,5",
+            ichimoku_senkou_b_period_range="20,60,10",
+        )
+
+        grid = create_param_grid(args)
+        assert isinstance(grid, ParameterGrid)
+
+        # Check that we added two parameter spaces
+        assert len(grid.spaces) == 2
+        step_space = grid.spaces.get("step")
+        assert step_space is not None
+        assert step_space.min_val == 0.01
+        assert step_space.max_val == 0.05
+        assert step_space.step == 0.01
+        assert step_space.param_type == float
+
+        max_step_space = grid.spaces.get("max_step")
+        assert max_step_space is not None
+        assert max_step_space.min_val == 0.10
+        assert max_step_space.max_val == 0.20
+        assert max_step_space.step == 0.05
+        assert max_step_space.param_type == float
+
+        # Check the validator enforces step <= max_step
+        assert grid.validator is not None
+        assert grid.validator({"step": 0.01, "max_step": 0.10}) is True
+        assert grid.validator({"step": 0.05, "max_step": 0.05}) is True  # equal is allowed
+        assert grid.validator({"step": 0.05, "max_step": 0.10}) is True
+        assert grid.validator({"step": 0.10, "max_step": 0.05}) is False  # step > max_step
+
+        # Every generated combination must satisfy the validator
+        combos = grid.generate_combinations()
+        assert len(combos) > 0
+        assert all(c["step"] <= c["max_step"] for c in combos)
+
 
 class TestRunCombined:
     """Tests for run_combined function."""
@@ -808,7 +958,7 @@ class TestRunCombined:
             ("Keltner_20_10_2.0", 13.0),
             ("Stoch_14_3_20_80", 12.5),
             ("Ichimoku_Cloud", 9.0),
-            ("Parabolic_SAR", 7.5),
+            ("Parabolic_SAR_0.02_0.2", 7.5),
             ("VWAP", 5.0),
         ]:
             m = MagicMock(
@@ -863,6 +1013,11 @@ class TestRunCombined:
             stoch_oversold=20,
             stoch_overbought=80,
             stoch_use_midline=False,
+            sar_step=0.02,
+            sar_max_step=0.20,
+            tenkan_period=9,
+            kijun_period=26,
+            senkou_b_period=52,
             output=None,
         )
 
@@ -1339,6 +1494,18 @@ class TestFactoryIntegration:
                     st_period=10,
                     st_multiplier=3.0,
                     aroon_period=25,
+                    dc_period=20,
+                    dc_exit_period=20,
+                    stoch_k_period=14,
+                    stoch_d_period=3,
+                    stoch_oversold=20,
+                    stoch_overbought=80,
+                    stoch_use_midline=False,
+                    sar_step=0.02,
+                    sar_max_step=0.20,
+                    tenkan_period=9,
+                    kijun_period=26,
+                    senkou_b_period=52,
                     output=None,
                 )
 
@@ -1387,6 +1554,11 @@ class TestSaveStrategyConfig:
             "stoch_oversold": 20,
             "stoch_overbought": 80,
             "stoch_use_midline": False,
+            "sar_step": 0.02,
+            "sar_max_step": 0.20,
+            "tenkan_period": 9,
+            "kijun_period": 26,
+            "senkou_b_period": 52,
             "optimizer": "grid",
             "objective": "sharpe",
             "n_iter": 5,
@@ -1428,6 +1600,8 @@ class TestSaveStrategyConfig:
             "ichimoku_tenkan_period_range": "5,15,2",
             "ichimoku_kijun_period_range": "15,30,2",
             "ichimoku_senkou_b_period_range": "30,60,5",
+            "sar_step_range": "0.01,0.05,0.01",
+            "sar_max_step_range": "0.10,0.20,0.05",
         }
         base.update(overrides)
         return argparse.Namespace(**base)
