@@ -28,10 +28,9 @@ COMPLETE — added `tests/test_examples_smoke.py`, a pytest smoke test that exec
 
 ## Next precise task
 
-Run the full test suite with coverage to confirm the project remains green after adding the smoke test:
-  `python -m pytest -q` (expect ~1012 passed, 1 skipped) and
-  `python -m pytest --cov=quant_trading --cov-report=term-missing` (expect 100% coverage, 0 missing).
-If green, no further implementation is needed — the project is in a stable, fully-tested state and the session can close.
+COMPLETE — full suite verified green: `python -m pytest -q` → 1012 passed, 1 skipped; `python -m pytest --cov=quant_trading --cov-report=term-missing` → 100% coverage (4317 statements, 1368 branches, 0 missing). `ruff check .`, `black --check`, and mypy (only missing dev stubs: pandas-stubs, types-requests, not installed in this env) all clean.
+
+No further implementation is needed — the project is in a stable, fully-tested state. Next session: confirm `git status` is clean and close out, or pick up new feature/issue work. There is no implementation backlog.
 
 ## Constraints / evidence
 
