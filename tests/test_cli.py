@@ -1086,6 +1086,49 @@ class TestCreateConfig:
         assert len(combos) > 0
         assert all(c["step"] <= c["max_step"] for c in combos)
 
+    def test_create_param_grid_vwap(self):
+        from examples.cli import create_param_grid
+        from quant_trading.optimization import ParameterGrid
+
+        args = argparse.Namespace(
+            strategy="vwap",
+            ma_fast_range="5,20,5",
+            ma_slow_range="20,50,5",
+            rsi_period_range="10,20,2",
+            rsi_oversold_range="20,35,5",
+            rsi_overbought_range="65,80,5",
+            bb_period_range="10,30,5",
+            bb_std_range="1.5,3.0,0.5",
+            macd_fast_range="8,16,2",
+            macd_slow_range="20,30,2",
+            macd_signal_range="7,12,1",
+            st_period_range="7,20,1",
+            st_multiplier_range="2.0,4.0,0.5",
+            dc_period_range="10,40,5",
+            dc_exit_period_range="5,20,5",
+            aroon_period_range="10,50,5",
+            kc_ema_period_range="10,30,5",
+            kc_atr_period_range="5,20,2",
+            kc_multiplier_range="1.0,3.0,0.5",
+            stoch_k_period_range="10,20,2",
+            stoch_d_period_range="2,5,1",
+            stoch_oversold_range="10,30,5",
+            stoch_overbought_range="70,90,5",
+            ichimoku_tenkan_period_range="5,15,2",
+            ichimoku_kijun_period_range="10,30,5",
+            ichimoku_senkou_b_period_range="20,60,10",
+            sar_step_range="0.01,0.05,0.01",
+            sar_max_step_range="0.10,0.20,0.05",
+        )
+
+        grid = create_param_grid(args)
+        assert isinstance(grid, ParameterGrid)
+        # VWAP has no parameters - should have empty or minimal grid
+        assert len(grid.spaces) == 0
+        combos = grid.generate_combinations()
+        assert len(combos) == 1  # Single empty combination
+        assert combos[0] == {}
+
     def test_create_param_grid_keltner(self):
         from examples.cli import create_param_grid
         from quant_trading.optimization import ParameterGrid

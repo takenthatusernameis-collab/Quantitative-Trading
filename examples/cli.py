@@ -873,7 +873,13 @@ def list_strategies() -> int:
     strategies = factory_list_strategies()
     print("Available strategies:")
     for key, cls in strategies.items():
-        instance = cls()
+        try:
+            instance = cls()  # type: ignore[call-arg]
+        except (TypeError, ValueError):
+            try:
+                instance = cls(name=f"{key}_dummy")
+            except (TypeError, ValueError):
+                instance = cls(name="dummy")  # type: ignore
         params = instance.get_parameters()
         param_str = ", ".join(f"{k}={v}" for k, v in params.items())
         print(f"  {key}: {cls.__name__} ({param_str})")
@@ -1163,6 +1169,10 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
             )
         )
         grid.set_validator(lambda p: p["step"] <= p["max_step"])
+
+    elif args.strategy == "vwap":
+        # VWAP has no configurable parameters
+        pass
 
     return grid
 
@@ -1486,7 +1496,10 @@ def _get_monte_carlo_analysis(result, args: argparse.Namespace):
         random_state=args.mc_seed,
     )
     # Store method for printing
-    mc._method = args.mc_method
+    try:
+        mc._method = args.mc_method  # type: ignore[attr-defined]
+    except (AttributeError, TypeError):
+        pass
     return mc
 
 
@@ -1497,7 +1510,8 @@ def _print_monte_carlo_analysis(mc) -> None:
     print(f"\n{'=' * 60}")
     print("Monte Carlo Simulation")
     print(f"{'=' * 60}")
-    print(f"Method:            {mc._method if hasattr(mc, '_method') else 'bootstrap'}")
+    method_str = getattr(mc, "_method", "bootstrap")
+    print(f"Method:            {method_str}")
     print(f"Simulations:       {mc.n_simulations}")
     print(f"Confidence Level:  {mc.confidence_level:.0%}")
     print(f"Duration (s):      {mc.duration_seconds:.2f}")
