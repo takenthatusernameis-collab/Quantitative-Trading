@@ -41,6 +41,8 @@ def calculate_returns(prices: pd.Series) -> pd.Series:
 
 def calculate_volatility(returns: pd.Series, annualize: bool = True) -> float:
     """Calculate volatility of returns."""
+    if len(returns) < 2:
+        return 0.0
     vol = returns.std()
     if annualize:
         vol *= np.sqrt(252)
@@ -52,6 +54,8 @@ def calculate_max_drawdown(equity_curve: pd.Series) -> float:
     if len(equity_curve) == 0:
         return 0.0
     running_max = equity_curve.cummax()
+    if running_max.eq(0).all():
+        return 0.0
     drawdown = (equity_curve - running_max) / running_max
     return float(drawdown.min())
 

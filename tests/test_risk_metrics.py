@@ -64,6 +64,24 @@ class TestCalculateVolatility:
         annual = calculate_volatility(RETURNS, annualize=True)
         assert annual == pytest.approx(raw * np.sqrt(252))
 
+    def test_empty_series_returns_zero(self):
+        """Empty returns must not propagate NaN (risk/metrics.py:44->47)."""
+        result = calculate_volatility(pd.Series([], dtype=float))
+        assert not np.isnan(result)
+        assert result == pytest.approx(0.0)
+
+    def test_empty_series_non_annualized_returns_zero(self):
+        """Empty returns must not propagate NaN when annualize=False."""
+        result = calculate_volatility(pd.Series([], dtype=float), annualize=False)
+        assert not np.isnan(result)
+        assert result == pytest.approx(0.0)
+
+    def test_single_value_zero(self):
+        """A single return has undefined std; must not propagate NaN."""
+        result = calculate_volatility(pd.Series([0.01]))
+        assert not np.isnan(result)
+        assert result == pytest.approx(0.0)
+
 
 class TestCalculateMaxDrawdown:
     """Tests for calculate_max_drawdown."""
@@ -84,6 +102,18 @@ class TestCalculateMaxDrawdown:
     def test_empty_zero(self):
         equity = pd.Series([], dtype=float)
         assert calculate_max_drawdown(equity) == pytest.approx(0.0)
+
+    def test_zero_equity_no_nan(self):
+        """All-zero equity must not propagate NaN (risk/metrics.py:55->56)."""
+        result = calculate_max_drawdown(pd.Series([0.0, 0.0, 0.0]))
+        assert not np.isnan(result)
+        assert result == pytest.approx(0.0)
+
+    def test_zero_then_positive_no_nan(self):
+        """Equity starting at zero then rising must not propagate NaN."""
+        result = calculate_max_drawdown(pd.Series([0.0, 0.0, 5.0, 10.0]))
+        assert not np.isnan(result)
+        assert result == pytest.approx(0.0)
 
 
 class TestCalculateSharpeRatio:
