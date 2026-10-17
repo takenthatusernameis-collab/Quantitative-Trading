@@ -1097,6 +1097,96 @@ def test_walk_forward_combine_no_equity():
     assert combined is None
 
 
+def test_walk_forward_combine_chains_equity_across_windows():
+    """Test _combine_test_results chains window equity curves instead of resetting.
+
+    Each window's backtest starts fresh at initial_capital, so the combined
+    out-of-sample curve must scale each subsequent window so it continues from
+    the previous windows' final equity. Regression test for a bug where the
+    combined curve reset to initial_capital at every window boundary.
+    """
+    from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.metrics import calculate_backtest_metrics
+    from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+    optimizer = WalkForwardOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=ParameterGrid(),
+        objective=maximize_sharpe,
+        symbols=["AAPL"],
+        start=datetime(2024, 1, 1),
+        end=datetime(2024, 4, 1),
+        initial_capital=100000.0,
+        data_manager=DataManager([MockDataProvider({"AAPL": create_test_data("AAPL", 200)})]),
+    )
+
+    start_dt = datetime(2024, 1, 1)
+    windows = [
+        WalkForwardWindow(
+            train_start=start_dt,
+            train_end=datetime(2024, 2, 1),
+            test_start=datetime(2024, 2, 1),
+            test_end=datetime(2024, 3, 1),
+            best_params={"fast_period": 5, "slow_period": 20},
+        ),
+        WalkForwardWindow(
+            train_start=start_dt,
+            train_end=datetime(2024, 3, 1),
+            test_start=datetime(2024, 3, 1),
+            test_end=datetime(2024, 4, 1),
+            best_params={"fast_period": 5, "slow_period": 20},
+        ),
+    ]
+
+    eq1 = pd.Series(
+        [100000.0, 110000.0, 105000.0],
+        index=pd.to_datetime(["2024-02-01", "2024-02-15", "2024-03-01"]),
+    )
+    eq2 = pd.Series(
+        [100000.0, 95000.0, 100000.0],
+        index=pd.to_datetime(["2024-03-01", "2024-03-15", "2024-04-01"]),
+    )
+    m1 = calculate_backtest_metrics(eq1)
+    m2 = calculate_backtest_metrics(eq2)
+    windows[0].test_result = BacktestResult(
+        equity_curve=eq1,
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=m1,
+        start_date=windows[0].test_start,
+        end_date=windows[0].test_end,
+        initial_capital=100000.0,
+        final_value=eq1.iloc[-1],
+        total_return=eq1.iloc[-1] - 100000.0,
+        total_return_pct=(eq1.iloc[-1] / 100000.0 - 1) * 100,
+    )
+    windows[1].test_result = BacktestResult(
+        equity_curve=eq2,
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=m2,
+        start_date=windows[1].test_start,
+        end_date=windows[1].test_end,
+        initial_capital=100000.0,
+        final_value=eq2.iloc[-1],
+        total_return=eq2.iloc[-1] - 100000.0,
+        total_return_pct=(eq2.iloc[-1] / 100000.0 - 1) * 100,
+    )
+
+    combined = optimizer._combine_test_results(windows)
+    assert combined is not None
+    # Window 1 ends at 105000; window 2 returns -5% from that base -> 99750,
+    # then +5.26% -> 105000. Total chained return is +5.0% from initial capital.
+    assert [round(float(v), 2) for v in combined.equity_curve.values] == [
+        100000.0,
+        110000.0,
+        105000.0,
+        99750.0,
+        105000.0,
+    ]
+    assert abs(combined.total_return_pct - 5.0) < 1e-9
+
+
 def test_walk_forward_verbose(capsys):
     """Test WalkForwardOptimizer verbose prints window progress."""
     symbols = ["AAPL"]

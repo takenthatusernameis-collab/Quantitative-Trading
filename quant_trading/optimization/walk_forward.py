@@ -333,18 +333,30 @@ class WalkForwardOptimizer:
         if not valid_windows:
             return None
 
-        # Combine equity curves
+        # Combine equity curves. Each window's backtest starts fresh at
+        # initial_capital, so the out-of-sample segments must be chained together:
+        # the final equity of one window seeds the next. The first value of each
+        # window's curve is dropped because it duplicates the previous window's
+        # last bar (or, for the first window, is the initial capital itself).
         all_equity: list[float] = []
         all_trades: list[pd.DataFrame] = []
         all_dates: list[datetime] = []
 
         initial_capital = self.initial_capital
+        cumulative_final = initial_capital
         for w in valid_windows:
             assert w.test_result is not None
             eq = w.test_result.equity_curve
-            all_equity.extend(eq.values[1:])  # Skip first (overlaps with previous end)
+            if len(eq) < 2:
+                continue
+            # Scale this window's curve so its start aligns with the previous
+            # windows' cumulative final equity, then drop the duplicated first bar.
+            scale = cumulative_final / initial_capital
+            scaled = eq.to_numpy(dtype=float) * scale
+            all_equity.extend(scaled[1:].tolist())
             all_trades.append(w.test_result.trades)
-            all_dates.extend(eq.index[1:])
+            all_dates.extend(eq.index[1:].tolist())
+            cumulative_final = float(scaled[-1])
 
         if not all_equity:
             return None
@@ -352,7 +364,8 @@ class WalkForwardOptimizer:
         assert self.start is not None, "start date must be set"
         assert self.end is not None, "end date must be set"
 
-        # Build combined equity curve
+        # Build combined equity curve. The first point is the initial capital;
+        # each subsequent point is the chained value from the previous window.
         combined_equity = pd.Series([initial_capital] + all_equity, index=[self.start] + all_dates)
         combined_trades = pd.concat(all_trades, ignore_index=True) if all_trades else pd.DataFrame()
 
