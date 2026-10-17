@@ -47,6 +47,25 @@ class TestCalculateReturns:
         result = calculate_returns(prices)
         assert len(result) == 2
 
+    def test_returns_with_nan_dropped(self):
+        prices = pd.Series([1.0, float("nan"), 2.0, 3.0])
+        res = calculate_returns(prices)
+        assert res.isna().sum() == 0
+
+    def test_returns_all_same(self):
+        prices = pd.Series([1.0, 1.0, 1.0])
+        res = calculate_returns(prices)
+        assert all(v == 0.0 for v in res)
+
+    def test_returns_two_points(self):
+        prices = pd.Series([1.0, 2.0])
+        res = calculate_returns(prices)
+        assert len(res) == 1
+        assert res.iloc[0] == pytest.approx(1.0)
+        prices = pd.Series([100.0, 90.0, 99.0])
+        result = calculate_returns(prices)
+        assert len(result) == 2
+
 
 class TestCalculateVolatility:
     """Tests for calculate_volatility."""
