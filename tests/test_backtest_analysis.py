@@ -196,6 +196,45 @@ def test_backtest_regime_analysis_empty_equity():
     assert analysis.current_regime == Regime.UNKNOWN
 
 
+def test_backtest_regime_analysis_to_dict_full_payload():
+    """to_dict exposes window, thresholds, regime stats and segment list."""
+    result = _make_result()
+    analysis = analyze_regimes(result, window=25, vol_threshold=0.12, return_threshold=0.03)
+
+    data = analysis.to_dict()
+    assert data["window"] == 25
+    assert data["vol_threshold"] == 0.12
+    assert data["return_threshold"] == 0.03
+    assert data["current_regime"] == analysis.current_regime.value
+    assert isinstance(data["total_volatility"], float)
+    assert isinstance(data["total_return_pct"], float)
+    assert isinstance(data["segments"], list)
+    assert len(data["segments"]) == analysis.n_segments
+
+
+def test_backtest_regime_analysis_summary_explicit_thresholds():
+    """summary() carries the explicitly configured window and thresholds."""
+    result = _make_result()
+    analysis = analyze_regimes(result, window=15, vol_threshold=0.25, return_threshold=0.04)
+
+    summary = analysis.summary()
+    assert summary["window"] == 15
+    assert summary["vol_threshold"] == 0.25
+    assert summary["return_threshold"] == 0.04
+    assert summary["n_segments"] == analysis.n_segments
+
+
+def test_regime_for_backtest_matches_analyze_regimes_result():
+    """regime_for_backtest returns the same RegimeResult as analyze_regimes(...).result."""
+    result = _make_result()
+    expected = analyze_regimes(result, window=20).result
+    actual = regime_for_backtest(result, window=20)
+
+    assert actual.n_segments == expected.n_segments
+    assert actual.current_regime == expected.current_regime
+    assert actual.total_volatility == expected.total_volatility
+
+
 if __name__ == "__main__":
     import pytest
 
