@@ -1,4 +1,58 @@
-"""Backtest engine for strategy validation."""
+"""Backtest engine for strategy validation.
+
+Examples:
+    Run a backtest offline using synthetic data and inspect the result::
+
+        from datetime import datetime, timedelta
+
+        from quant_trading.backtest.engine import BacktestEngine, run_backtest
+        from quant_trading.config.settings import BacktestConfig
+        from quant_trading.data.providers import DataManager
+        from quant_trading.data.synthetic import create_synthetic_provider
+        from quant_trading.strategies.examples import MovingAverageCrossover
+
+        symbols = ["AAPL"]
+        end = datetime(2023, 12, 31)
+        start = end - timedelta(days=100)
+
+        provider = create_synthetic_provider(symbols, days=100, seed=42)
+        data_manager = DataManager([provider])
+
+        engine = BacktestEngine(
+            config=BacktestConfig(initial_capital=100000.0),
+            data_manager=data_manager,
+        )
+        engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=20))
+        result = engine.run(symbols, start, end)
+        assert result is not None
+        assert result.final_value >= result.initial_capital * 0.5
+
+    Use the convenience function to run a single strategy offline::
+
+        from datetime import datetime, timedelta
+
+        from quant_trading.backtest.engine import run_backtest
+        from quant_trading.data.providers import DataManager
+        from quant_trading.data.synthetic import create_synthetic_provider
+        from quant_trading.strategies.examples import MovingAverageCrossover
+
+        symbols = ["AAPL"]
+        end = datetime(2023, 12, 31)
+        start = end - timedelta(days=100)
+
+        provider = create_synthetic_provider(symbols, days=100, seed=42)
+        data_manager = DataManager([provider])
+
+        result = run_backtest(
+            strategy=MovingAverageCrossover(fast_period=5, slow_period=20),
+            symbols=symbols,
+            start=start,
+            end=end,
+            initial_capital=100000.0,
+            data_manager=data_manager,
+        )
+        assert result.trades is not None
+"""
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -70,7 +124,31 @@ class Trade:
 
 @dataclass
 class BacktestResult:
-    """Result of a backtest run."""
+    """Result of a backtest run.
+
+    Attributes:
+        equity_curve: Equity curve as a pandas Series indexed by date.
+        trades: DataFrame containing trade details (symbol, action, quantity,
+            price, timestamp, commission, slippage, cost, pnl).
+        positions: Current positions dictionary.
+        metrics: Backtest performance metrics.
+        start_date: Backtest start date.
+        end_date: Backtest end date.
+        initial_capital: Initial capital amount.
+        final_value: Final portfolio value.
+        total_return: Total dollar return.
+        total_return_pct: Total return percentage.
+        portfolio_violations: List of portfolio-level violation messages.
+
+    Examples:
+        Inspect key result fields after a backtest run::
+
+            assert result.initial_capital > 0
+            assert result.final_value >= 0
+            assert isinstance(result.metrics.sharpe_ratio, float)
+            assert result.trades is not None
+            assert result.equity_curve is not None
+    """
 
     equity_curve: pd.Series
     trades: pd.DataFrame
@@ -86,7 +164,34 @@ class BacktestResult:
 
 
 class BacktestEngine:
-    """Engine for running backtests on trading strategies."""
+    """Engine for running backtests on trading strategies.
+
+    Examples:
+        Create an engine with offline synthetic data and run a backtest::
+
+            from datetime import datetime, timedelta
+
+            from quant_trading.backtest.engine import BacktestEngine
+            from quant_trading.config.settings import BacktestConfig
+            from quant_trading.data.providers import DataManager
+            from quant_trading.data.synthetic import create_synthetic_provider
+            from quant_trading.strategies.examples import MovingAverageCrossover
+
+            symbols = ["AAPL"]
+            end = datetime(2023, 12, 31)
+            start = end - timedelta(days=100)
+
+            provider = create_synthetic_provider(symbols, days=100, seed=42)
+            data_manager = DataManager([provider])
+
+            engine = BacktestEngine(
+                config=BacktestConfig(initial_capital=100000.0),
+                data_manager=data_manager,
+            )
+            engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=20))
+            result = engine.run(symbols, start, end)
+            assert len(result.trades) >= 0
+    """
 
     def __init__(
         self,
@@ -350,6 +455,40 @@ def run_backtest(
         config: Optional Config or DataConfig. If provided, a DataManager will
             be created from the config (supporting offline/synthetic modes).
             Takes precedence over data_manager if both are provided.
+
+    Returns:
+        BacktestResult containing equity curve, trades, metrics, and metadata.
+
+    Examples:
+        Run a single strategy backtest using synthetic offline data::
+
+            from datetime import datetime, timedelta
+
+            from quant_trading.backtest.engine import run_backtest
+            from quant_trading.data.providers import DataManager
+            from quant_trading.data.synthetic import create_synthetic_provider
+            from quant_trading.strategies.examples import MovingAverageCrossover
+
+            symbols = ["AAPL", "MSFT"]
+            end = datetime(2023, 12, 31)
+            start = end - timedelta(days=100)
+
+            provider = create_synthetic_provider(symbols, days=100, seed=42)
+            data_manager = DataManager([provider])
+
+            result = run_backtest(
+                strategy=MovingAverageCrossover(fast_period=5, slow_period=20),
+                symbols=symbols,
+                start=start,
+                end=end,
+                initial_capital=100000.0,
+                commission=0.001,
+                slippage=0.0005,
+                data_manager=data_manager,
+            )
+            assert result is not None
+            assert result.initial_capital == 100000.0
+            assert result.metrics is not None
     """
     backtest_config = BacktestConfig(
         initial_capital=initial_capital,
