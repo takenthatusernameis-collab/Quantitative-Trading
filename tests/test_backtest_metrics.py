@@ -1,6 +1,5 @@
 """Tests for backtest metrics calculation."""
 
-import numpy as np
 import pandas as pd
 
 from quant_trading.backtest.metrics import BacktestMetrics, calculate_backtest_metrics
