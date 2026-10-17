@@ -121,6 +121,11 @@ def _calculate_holding_periods(trades: pd.DataFrame) -> list[float]:
                         entry_times.pop(0)
                         entry_quantities.pop(0)
                     else:
+                        # Partial fill: record the holding period for the
+                        # portion of the entry that was sold.
+                        holding_periods.append(
+                            (trade["timestamp"] - entry_time).total_seconds() / 86400
+                        )
                         entry_quantities[0] -= qty_sold
                         qty_sold = 0
 

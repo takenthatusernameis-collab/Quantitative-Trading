@@ -396,8 +396,11 @@ def test_calculate_holding_periods_partial_fill_executes():
         ]
     )
     result = _calculate_holding_periods(trades)
-    # First partial sell hits else branch; second sells remaining fully
-    assert len(result) == 1
+    # Partial sell records a holding period for the 3 units sold on Jan 11
+    # (10 days), then the remaining 7 units are sold fully on Jan 21 (20 days).
+    assert len(result) == 2
+    assert abs(result[0] - 10.0) < 0.001  # Jan 1 -> Jan 11
+    assert abs(result[1] - 20.0) < 0.001  # Jan 1 -> Jan 21
 
 
 def test_calculate_consecutive_streaks_empty():
@@ -643,3 +646,48 @@ def test_calculate_consecutive_streaks_with_zeros():
     )
     result = _calculate_consecutive_streaks(trades)
     assert result == (2, 0, 2, "win")
+
+
+def test_calculate_holding_periods_partial_sell_records_each_leg():
+    """Regression: a partial sell must record a holding period for the sold
+    portion, not silently drop it (previously only the final full sell was
+    recorded, undercounting round-trip holding periods).
+
+    Buy 10 on day 0; sell 3 on day 10 (partial); sell 7 on day 20 (rest).
+    Expected holding periods: 10 and 20 days.
+    """
+    from datetime import datetime
+
+    import pandas as pd
+
+    from quant_trading.backtest.trade_analysis import _calculate_holding_periods
+
+    trades = pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL",
+                "action": "buy",
+                "quantity": 10.0,
+                "timestamp": datetime(2024, 1, 1),
+                "pnl": 0.0,
+            },
+            {
+                "symbol": "AAPL",
+                "action": "sell",
+                "quantity": 3.0,
+                "timestamp": datetime(2024, 1, 11),
+                "pnl": 5.0,
+            },
+            {
+                "symbol": "AAPL",
+                "action": "sell",
+                "quantity": 7.0,
+                "timestamp": datetime(2024, 1, 21),
+                "pnl": 15.0,
+            },
+        ]
+    )
+    result = _calculate_holding_periods(trades)
+    assert len(result) == 2
+    assert abs(result[0] - 10.0) < 0.001
+    assert abs(result[1] - 20.0) < 0.001
