@@ -1,6 +1,9 @@
 """Tests for the optimization module."""
 
+from concurrent.futures import _base
+from concurrent.futures.process import BrokenProcessPool, ProcessPoolExecutor
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -2104,6 +2107,60 @@ def test_grid_search_parallel():
     assert len(result.all_results) == 4
 
 
+class _WorkerDeathExecutor(ProcessPoolExecutor):
+    """Executor whose workers die before running any task."""
+
+    def submit(self, fn, *args, **kwargs):
+        future = _base.Future()
+        future.set_exception(BrokenProcessPool("worker died"))
+        return future
+
+
+class _PartialWorkerDeathExecutor(ProcessPoolExecutor):
+    """Executor whose first task succeeds but whose workers then die."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._submitted = 0
+
+    def submit(self, fn, *args, **kwargs):
+        self._submitted += 1
+        if self._submitted == 1:
+            return super().submit(fn, *args, **kwargs)
+        future = _base.Future()
+        future.set_exception(BrokenProcessPool("worker died"))
+        return future
+
+
+def _make_parallel_optimizer(cls, n_iter=None, verbose=True):
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20, 30], param_type=int))
+
+    kwargs = {}
+    if n_iter is not None:
+        kwargs["n_iter"] = n_iter
+    kwargs["verbose"] = verbose
+
+    return cls(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime.now() - timedelta(days=50),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_jobs=2,
+        **kwargs,
+    )
+
+
 def test_random_search_parallel():
     """Test RandomSearch optimization with parallel execution."""
     symbols = ["AAPL"]
@@ -2136,3 +2193,288 @@ def test_random_search_parallel():
     assert "slow_period" in result.best_params
     assert result.best_score != float("-inf")
     assert len(result.all_results) == 4
+
+
+def test_grid_search_parallel_worker_death_fallback(monkeypatch):
+    """Test GridSearch falls back to sequential execution when all workers die."""
+    import quant_trading.optimization.grid_search as grid_search_module
+
+    optimizer = _make_parallel_optimizer(GridSearch)
+    monkeypatch.setattr(grid_search_module, "ProcessPoolExecutor", _WorkerDeathExecutor)
+
+    result = optimizer.run()
+
+    assert result.best_params is not None
+    assert "fast_period" in result.best_params
+    assert "slow_period" in result.best_params
+    assert result.best_score != float("-inf")
+    assert len(result.all_results) == 4
+
+
+def test_random_search_parallel_worker_death_fallback(monkeypatch):
+    """Test RandomSearch falls back to sequential execution when all workers die."""
+    import quant_trading.optimization.random_search as random_search_module
+
+    optimizer = _make_parallel_optimizer(RandomSearch, n_iter=4)
+    monkeypatch.setattr(random_search_module, "ProcessPoolExecutor", _WorkerDeathExecutor)
+
+    result = optimizer.run()
+
+    assert result.best_params is not None
+    assert "fast_period" in result.best_params
+    assert "slow_period" in result.best_params
+    assert result.best_score != float("-inf")
+    assert len(result.all_results) == 4
+
+
+def test_grid_search_parallel_partial_worker_death_fallback(monkeypatch):
+    """Test GridSearch mixes successful parallel results with sequential retries."""
+    import quant_trading.optimization.grid_search as grid_search_module
+
+    optimizer = _make_parallel_optimizer(GridSearch)
+    monkeypatch.setattr(grid_search_module, "ProcessPoolExecutor", _PartialWorkerDeathExecutor)
+
+    result = optimizer.run()
+
+    assert result.best_params is not None
+    assert "fast_period" in result.best_params
+    assert "slow_period" in result.best_params
+    assert result.best_score != float("-inf")
+    assert len(result.all_results) == 4
+
+
+class _WorkerErrorExecutor(ProcessPoolExecutor):
+    """Executor whose workers raise a regular error instead of dying."""
+
+    def submit(self, fn, *args, **kwargs):
+        future = _base.Future()
+        future.set_exception(ValueError("worker error"))
+        return future
+
+
+def _raise_broken_as_completed(fs, *args, **kwargs):
+    raise BrokenProcessPool("as_completed failed")
+
+
+def test_grid_search_parallel_worker_error(monkeypatch, capsys):
+    """Test GridSearch records worker errors (non-fatal) for every combination."""
+    import quant_trading.optimization.grid_search as grid_search_module
+
+    optimizer = _make_parallel_optimizer(GridSearch)
+    monkeypatch.setattr(grid_search_module, "ProcessPoolExecutor", _WorkerErrorExecutor)
+
+    result = optimizer.run()
+    out = capsys.readouterr().out
+
+    assert result.best_params == {}
+    assert result.best_score == float("-inf")
+    assert len(result.all_results) == 4
+    assert "-> Error:" in out
+
+
+def test_random_search_parallel_worker_error(monkeypatch, capsys):
+    """Test RandomSearch records worker errors (non-fatal) for every combination."""
+    import quant_trading.optimization.random_search as random_search_module
+
+    optimizer = _make_parallel_optimizer(RandomSearch, n_iter=4)
+    monkeypatch.setattr(random_search_module, "ProcessPoolExecutor", _WorkerErrorExecutor)
+
+    result = optimizer.run()
+    out = capsys.readouterr().out
+
+    assert result.best_params == {}
+    assert result.best_score == float("-inf")
+    assert len(result.all_results) == 4
+    assert "-> Error:" in out
+
+
+def test_grid_search_parallel_as_completed_broken(monkeypatch):
+    """Test GridSearch falls back sequentially when as_completed itself fails."""
+    import quant_trading.optimization.grid_search as grid_search_module
+
+    optimizer = _make_parallel_optimizer(GridSearch)
+    monkeypatch.setattr(grid_search_module, "as_completed", _raise_broken_as_completed)
+
+    result = optimizer.run()
+
+    assert result.best_params is not None
+    assert "fast_period" in result.best_params
+    assert "slow_period" in result.best_params
+    assert result.best_score != float("-inf")
+    assert len(result.all_results) == 4
+
+
+def test_random_search_parallel_as_completed_broken(monkeypatch):
+    """Test RandomSearch falls back sequentially when as_completed itself fails."""
+    import quant_trading.optimization.random_search as random_search_module
+
+    optimizer = _make_parallel_optimizer(RandomSearch, n_iter=4)
+    monkeypatch.setattr(random_search_module, "as_completed", _raise_broken_as_completed)
+
+    result = optimizer.run()
+
+    assert result.best_params is not None
+    assert "fast_period" in result.best_params
+    assert "slow_period" in result.best_params
+    assert result.best_score != float("-inf")
+    assert len(result.all_results) == 4
+
+
+def _make_scripted_result(params, score=1.0):
+    return (
+        params,
+        score,
+        SimpleNamespace(
+            total_return_pct=10.0,
+            metrics=SimpleNamespace(
+                sharpe_ratio=1.0,
+                max_drawdown_pct=2.0,
+                win_rate=0.5,
+                profit_factor=1.5,
+                num_trades=3,
+            ),
+        ),
+    )
+
+
+class _ScriptedExecutor:
+    """Executor substitute that returns pre-scripted futures without a pool."""
+
+    def __init__(self, scripts):
+        self._scripts = list(scripts)
+        self._calls = 0
+
+    def submit(self, fn, *args, **kwargs):
+        kind, value = self._scripts[self._calls]
+        self._calls += 1
+        future = _base.Future()
+        if kind == "result":
+            future.set_result(value)
+        else:
+            future.set_exception(value)
+        return future
+
+    def shutdown(self, wait=True, cancel_futures=False):
+        return None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+
+def _scripted_results(params_list, scripts):
+    """Zip params with scripts into (kind, value) pairs for the scripted executor."""
+    results = []
+    for params, script in zip(params_list, scripts):
+        if script[0] == "result":
+            score = script[2] if len(script) > 2 else 1.0
+            results.append(("result", _make_scripted_result(params, score)))
+        else:
+            results.append(script)
+    return results
+
+
+def test_grid_search_parallel_scripted(monkeypatch):
+    """Test GridSearch mixes parallel successes, worker errors, and worker deaths."""
+    import quant_trading.optimization.grid_search as grid_search_module
+
+    params_list = [
+        {"fast_period": 5, "slow_period": 20},
+        {"fast_period": 5, "slow_period": 30},
+        {"fast_period": 10, "slow_period": 20},
+        {"fast_period": 10, "slow_period": 30},
+    ]
+    scripts = [
+        ("result", None, 1.0),
+        ("error", ValueError("boom")),
+        ("error", BrokenProcessPool("worker died")),
+        ("result", None, 2.0),
+    ]
+    executor = _ScriptedExecutor(_scripted_results(params_list, scripts))
+    optimizer = _make_parallel_optimizer(GridSearch)
+    monkeypatch.setattr(grid_search_module, "ProcessPoolExecutor", lambda *a, **k: executor)
+    monkeypatch.setattr(grid_search_module, "as_completed", lambda fs, *a, **k: list(fs))
+
+    result = optimizer.run()
+
+    assert result.best_params == {"fast_period": 10, "slow_period": 30}
+    assert result.best_score == 2.0
+    assert len(result.all_results) == 4
+
+
+def test_grid_search_parallel_scripted_quiet(monkeypatch):
+    """Test GridSearch parallel/error paths with verbose=False."""
+    import quant_trading.optimization.grid_search as grid_search_module
+
+    params_list = [
+        {"fast_period": 5, "slow_period": 20},
+        {"fast_period": 5, "slow_period": 30},
+        {"fast_period": 10, "slow_period": 20},
+        {"fast_period": 10, "slow_period": 30},
+    ]
+    scripts = [
+        ("result", None, 1.0),
+        ("error", ValueError("boom")),
+        ("result", None, 3.0),
+        ("error", ValueError("boom")),
+    ]
+    executor = _ScriptedExecutor(_scripted_results(params_list, scripts))
+    optimizer = _make_parallel_optimizer(GridSearch, verbose=False)
+    monkeypatch.setattr(grid_search_module, "ProcessPoolExecutor", lambda *a, **k: executor)
+    monkeypatch.setattr(grid_search_module, "as_completed", lambda fs, *a, **k: list(fs))
+
+    result = optimizer.run()
+
+    assert result.best_params == {"fast_period": 10, "slow_period": 20}
+    assert result.best_score == 3.0
+    assert len(result.all_results) == 4
+
+
+def test_random_search_parallel_scripted(monkeypatch):
+    """Test RandomSearch mixes parallel successes, worker errors, and worker deaths."""
+    import quant_trading.optimization.random_search as random_search_module
+
+    params_list = [
+        {"fast_period": 5, "slow_period": 20},
+        {"fast_period": 5, "slow_period": 30},
+        {"fast_period": 10, "slow_period": 20},
+        {"fast_period": 10, "slow_period": 30},
+    ]
+    scripts = [
+        ("result", None, 1.0),
+        ("error", ValueError("boom")),
+        ("error", BrokenProcessPool("worker died")),
+        ("result", None, 2.0),
+    ]
+    executor = _ScriptedExecutor(_scripted_results(params_list, scripts))
+    optimizer = _make_parallel_optimizer(RandomSearch, n_iter=4)
+    monkeypatch.setattr(random_search_module, "ProcessPoolExecutor", lambda *a, **k: executor)
+    monkeypatch.setattr(random_search_module, "as_completed", lambda fs, *a, **k: list(fs))
+
+    result = optimizer.run()
+
+    assert result.best_params == {"fast_period": 10, "slow_period": 30}
+    assert result.best_score == 2.0
+    assert len(result.all_results) == 4
+
+
+def test_random_search_parallel_scripted_quiet(monkeypatch):
+    """Test RandomSearch parallel/error paths with verbose=False."""
+    import quant_trading.optimization.random_search as random_search_module
+
+    params_list = [
+        {"fast_period": 5, "slow_period": 20},
+        {"fast_period": 10, "slow_period": 30},
+    ]
+    scripts = [("result", None, 1.0), ("error", ValueError("boom"))]
+    executor = _ScriptedExecutor(_scripted_results(params_list, scripts))
+    optimizer = _make_parallel_optimizer(RandomSearch, n_iter=2, verbose=False)
+    monkeypatch.setattr(random_search_module, "ProcessPoolExecutor", lambda *a, **k: executor)
+    monkeypatch.setattr(random_search_module, "as_completed", lambda fs, *a, **k: list(fs))
+
+    result = optimizer.run()
+
+    assert result.best_params == {"fast_period": 5, "slow_period": 20}
+    assert len(result.all_results) == 2

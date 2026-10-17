@@ -1,6 +1,7 @@
 """Random search parameter optimization."""
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 from datetime import datetime
 from typing import Any
 
@@ -176,7 +177,13 @@ class RandomSearch(BaseOptimizer):
         start: datetime,
         end: datetime,
     ) -> tuple[list, float, dict, Any]:
-        """Run optimization in parallel using ProcessPoolExecutor."""
+        """Run optimization in parallel using ProcessPoolExecutor.
+
+        If a worker process terminates abruptly (for example under heavy
+        system load when forking the parent process is unreliable), fall
+        back to sequential evaluation of the remaining combinations instead
+        of returning an empty result.
+        """
         from quant_trading.config.settings import Config
 
         # Prepare data config for workers
@@ -187,60 +194,97 @@ class RandomSearch(BaseOptimizer):
         # Get objective function (must be picklable)
         objective_func = self.objective
 
-        with ProcessPoolExecutor(max_workers=self.n_jobs) as executor:
-            # Submit all tasks
-            future_to_params = {
-                executor.submit(
-                    _evaluate_params_worker,
-                    self.strategy_cls,
-                    {k: v.__dict__ for k, v in self.param_grid.spaces.items()},
-                    objective_func,
-                    self.symbols,
-                    start,
-                    end,
-                    self.initial_capital,
-                    self.commission,
-                    self.slippage,
-                    self.interval,
-                    data_config,
-                    params,
-                ): params
-                for params in combinations
-            }
+        def record(params: dict[str, Any], score: float, result: Any) -> None:
+            nonlocal best_score, best_params, best_result
+            all_results.append(
+                {
+                    "params": params,
+                    "score": score,
+                    "total_return_pct": result.total_return_pct if result else None,
+                    "sharpe_ratio": result.metrics.sharpe_ratio if result else None,
+                    "max_drawdown_pct": result.metrics.max_drawdown_pct if result else None,
+                    "win_rate": result.metrics.win_rate if result else None,
+                    "profit_factor": result.metrics.profit_factor if result else None,
+                    "num_trades": result.metrics.num_trades if result else None,
+                }
+            )
+            if score > best_score:
+                best_score = score
+                best_params = params
+                best_result = result
+                if self.verbose:
+                    print(f"    -> New best: {score:.4f}")
 
-            # Collect results as they complete
-            for completed, future in enumerate(as_completed(future_to_params), 1):
-                params = future_to_params[future]
+        processed_indices: set[int] = set()
+        pool_broken = False
 
-                try:
-                    params, score, result = future.result()
-                except (ValueError, RuntimeError, KeyError) as e:
+        try:
+            with ProcessPoolExecutor(max_workers=self.n_jobs) as executor:
+                # Submit all tasks and remember each future's combination index
+                submitted: list = []
+                for params in combinations:
+                    submitted.append(
+                        executor.submit(
+                            _evaluate_params_worker,
+                            self.strategy_cls,
+                            {k: v.__dict__ for k, v in self.param_grid.spaces.items()},
+                            objective_func,
+                            self.symbols,
+                            start,
+                            end,
+                            self.initial_capital,
+                            self.commission,
+                            self.slippage,
+                            self.interval,
+                            data_config,
+                            params,
+                        )
+                    )
+                future_to_params = dict(zip(submitted, combinations))
+                index_of = {id(future): index for index, future in enumerate(submitted)}
+
+                # Collect results as they complete. A worker process may be
+                # terminated abruptly under heavy system load; those
+                # combinations are re-run sequentially below so the run still
+                # returns a result for every combination.
+                for completed, future in enumerate(as_completed(submitted), 1):
+                    index = index_of[id(future)]
+                    params = future_to_params[future]
+
+                    try:
+                        params, score, result = future.result()
+                    except BrokenProcessPool as e:
+                        pool_broken = True
+                        if self.verbose:
+                            print(f"  [{completed}/{self.n_iter}] {params} -> Error: {e}")
+                        continue
+                    except (ValueError, RuntimeError, KeyError) as e:
+                        if self.verbose:
+                            print(f"  [{completed}/{self.n_iter}] {params} -> Error: {e}")
+                        score = float("-inf")
+                        result = None
+
                     if self.verbose:
-                        print(f"  [{completed}/{self.n_iter}] {params} -> Error: {e}")
-                    score = float("-inf")
-                    result = None
+                        print(f"  [{completed}/{self.n_iter}] {params}")
 
+                    record(params, score, result)
+                    processed_indices.add(index)
+        except BrokenProcessPool:
+            pool_broken = True
+
+        if pool_broken:
+            if self.verbose:
+                print(
+                    "  [parallel] a worker process terminated; finishing remaining combinations sequentially"
+                )
+            completed = len(processed_indices)
+            for index, params in enumerate(combinations):
+                if index in processed_indices:
+                    continue
+                completed += 1
+                params, score, result = self._evaluate_params(params)
                 if self.verbose:
                     print(f"  [{completed}/{self.n_iter}] {params}")
-
-                all_results.append(
-                    {
-                        "params": params,
-                        "score": score,
-                        "total_return_pct": result.total_return_pct if result else None,
-                        "sharpe_ratio": result.metrics.sharpe_ratio if result else None,
-                        "max_drawdown_pct": result.metrics.max_drawdown_pct if result else None,
-                        "win_rate": result.metrics.win_rate if result else None,
-                        "profit_factor": result.metrics.profit_factor if result else None,
-                        "num_trades": result.metrics.num_trades if result else None,
-                    }
-                )
-
-                if score > best_score:
-                    best_score = score
-                    best_params = params
-                    best_result = result
-                    if self.verbose:
-                        print(f"    -> New best: {score:.4f}")
+                record(params, score, result)
 
         return all_results, best_score, best_params, best_result
