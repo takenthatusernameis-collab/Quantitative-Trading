@@ -152,6 +152,50 @@ def test_analyze_regimes_up_series_is_bull():
     assert bull_count >= 1
 
 
+def test_backtest_regime_analysis_defaults():
+    """BacktestRegimeAnalysis defaults to window=20 and zero thresholds."""
+    result = _make_result()
+    analysis = analyze_regimes(result)
+
+    assert analysis.window == 20
+    assert analysis.vol_threshold == 0.0
+    assert analysis.return_threshold == 0.0
+
+
+def test_backtest_regime_analysis_explicit_thresholds_persisted():
+    """Explicit vol/return thresholds are stored verbatim on the dataclass."""
+    result = _make_result()
+    analysis = analyze_regimes(result, window=15, vol_threshold=0.25, return_threshold=0.04)
+
+    assert analysis.window == 15
+    assert analysis.vol_threshold == 0.25
+    assert analysis.return_threshold == 0.04
+
+
+def test_backtest_regime_analysis_segments_are_regime_segments():
+    """Every segment exposed by the analysis is a RegimeSegment instance."""
+    from quant_trading.regime import RegimeSegment
+
+    result = _make_result()
+    analysis = analyze_regimes(result, window=20)
+
+    assert analysis.n_segments >= 1
+    for segment in analysis.segments:
+        assert isinstance(segment, RegimeSegment)
+
+
+def test_backtest_regime_analysis_empty_equity():
+    """A single-point equity curve yields no segments and UNKNOWN current regime."""
+    equity = pd.Series([100_000.0], index=[datetime(2024, 1, 1)])
+    result = _make_result(equity=equity)
+
+    analysis = analyze_regimes(result, window=20)
+
+    assert analysis.n_segments == 0
+    assert analysis.segments == []
+    assert analysis.current_regime == Regime.UNKNOWN
+
+
 if __name__ == "__main__":
     import pytest
 
