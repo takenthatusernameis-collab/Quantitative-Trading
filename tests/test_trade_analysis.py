@@ -601,3 +601,45 @@ def test_print_trade_analysis_empty_report():
     from quant_trading.backtest.trade_analysis import TradeAnalysis, print_trade_analysis
 
     print_trade_analysis(TradeAnalysis())  # Should not raise
+
+
+def test_calculate_consecutive_streaks_with_zeros():
+    """Zeros should not break or count as part of streaks."""
+    from datetime import datetime
+
+    import pandas as pd
+
+    from quant_trading.backtest.trade_analysis import _calculate_consecutive_streaks
+
+    # Win, zero, win - zeros don't increment, so win streak continues
+    trades = pd.DataFrame(
+        [
+            {"symbol": "AAPL", "pnl": 10.0, "timestamp": datetime(2024, 1, 1)},
+            {"symbol": "AAPL", "pnl": 0.0, "timestamp": datetime(2024, 1, 2)},
+            {"symbol": "AAPL", "pnl": 5.0, "timestamp": datetime(2024, 1, 3)},
+        ]
+    )
+    result = _calculate_consecutive_streaks(trades)
+    assert result == (2, 0, 2, "win")
+
+    # Loss, zero, loss
+    trades = pd.DataFrame(
+        [
+            {"symbol": "AAPL", "pnl": -10.0, "timestamp": datetime(2024, 1, 1)},
+            {"symbol": "AAPL", "pnl": 0.0, "timestamp": datetime(2024, 1, 2)},
+            {"symbol": "AAPL", "pnl": -5.0, "timestamp": datetime(2024, 1, 3)},
+        ]
+    )
+    result = _calculate_consecutive_streaks(trades)
+    assert result == (0, 2, 2, "loss")
+
+    # Win streak followed by zero - current streak remains win
+    trades = pd.DataFrame(
+        [
+            {"symbol": "AAPL", "pnl": 10.0, "timestamp": datetime(2024, 1, 1)},
+            {"symbol": "AAPL", "pnl": 5.0, "timestamp": datetime(2024, 1, 2)},
+            {"symbol": "AAPL", "pnl": 0.0, "timestamp": datetime(2024, 1, 3)},
+        ]
+    )
+    result = _calculate_consecutive_streaks(trades)
+    assert result == (2, 0, 2, "win")
