@@ -41,6 +41,7 @@ def calculate_returns(prices: pd.Series) -> pd.Series:
 
 def calculate_volatility(returns: pd.Series, annualize: bool = True) -> float:
     """Calculate volatility of returns."""
+    returns = returns.dropna()
     if len(returns) < 2:
         return 0.0
     vol = returns.std()
@@ -51,6 +52,7 @@ def calculate_volatility(returns: pd.Series, annualize: bool = True) -> float:
 
 def calculate_max_drawdown(equity_curve: pd.Series) -> float:
     """Calculate maximum drawdown from equity curve."""
+    equity_curve = equity_curve.dropna()
     if len(equity_curve) == 0:
         return 0.0
     running_max = equity_curve.cummax()
@@ -66,6 +68,7 @@ def calculate_sharpe_ratio(
     annualize: bool = True,
 ) -> float:
     """Calculate Sharpe ratio."""
+    returns = returns.dropna()
     if len(returns) == 0 or returns.std() == 0:
         return 0.0
     excess = returns.mean() - risk_free_rate / 252
@@ -81,6 +84,7 @@ def calculate_sortino_ratio(
     annualize: bool = True,
 ) -> float:
     """Calculate Sortino ratio (uses downside deviation)."""
+    returns = returns.dropna()
     if len(returns) == 0:
         return 0.0
     downside = returns[returns < 0]
@@ -98,6 +102,7 @@ def calculate_sortino_ratio(
 
 def calculate_var(returns: pd.Series, confidence: float = 0.95) -> float:
     """Calculate Value at Risk using historical method."""
+    returns = returns.dropna()
     if len(returns) == 0:
         return 0.0
     return float(np.percentile(returns, (1 - confidence) * 100))
@@ -126,6 +131,8 @@ def calculate_alpha(
     beta = calculate_beta(returns, market_returns)
     if beta == 0:
         return 0.0
+    returns = returns.dropna()
+    market_returns = market_returns.dropna()
     avg_return = returns.mean() * 252
     avg_market = market_returns.mean() * 252
     return float(avg_return - (risk_free_rate + beta * (avg_market - risk_free_rate)))
@@ -133,6 +140,7 @@ def calculate_alpha(
 
 def calculate_calmar_ratio(returns: pd.Series, equity_curve: pd.Series) -> float:
     """Calculate Calmar ratio (annual return / max drawdown)."""
+    returns = returns.dropna()
     if len(returns) == 0:
         return 0.0
     annual_return = returns.mean() * 252
