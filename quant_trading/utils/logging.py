@@ -15,6 +15,15 @@ def setup_logger(
 
     Repeated calls for the same name return the existing logger without
     duplicating handlers.
+
+    Args:
+        name: Logger name.
+        level: Logging level name.
+        log_file: Optional path to a log file.
+        fmt: Log message format string.
+
+    Returns:
+        Configured logger instance.
     """
     logger = logging.getLogger(name)
     logger.setLevel(getattr(logging, level.upper(), logging.INFO))
@@ -39,8 +48,16 @@ def setup_logger(
 
 
 def get_logger(name: str = "quant_trading") -> logging.Logger:
-    """Return a logger, creating a default one if none exists."""
+    """Return a logger, creating a default one if none exists.
+
+    Args:
+        name: Logger name.
+
+    Returns:
+        Logger instance.
+    """
     logger = logging.getLogger(name)
     if not logger.handlers:
         logger = setup_logger(name)
     return logger
+"""
