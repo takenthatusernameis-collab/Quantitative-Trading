@@ -41,4 +41,3 @@ def format_number(value: float, decimals: int = 0) -> str:
         Formatted number string.
     """
     return f"{value:,.{decimals}f}"
-"""

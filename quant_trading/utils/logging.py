@@ -60,4 +60,3 @@ def get_logger(name: str = "quant_trading") -> logging.Logger:
     if not logger.handlers:
         logger = setup_logger(name)
     return logger
-"""

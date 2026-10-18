@@ -2,16 +2,17 @@
 
 ## Status
 
-COMPLETE - Installed missing type stubs (`pandas-stubs`, `types-requests`, `types-PyYAML`); mypy now passes cleanly on all 36 source files. Added Google-style docstrings to `portfolio/rebalancer.py`, `config/settings.py`, and `strategies/factory.py`. Full test suite green: 1096 passed, 1 skipped, 0 failures.
+COMPLETE - Added comprehensive Google-style docstrings to `quant_trading/data/synthetic.py` (functions/classes with Args/Returns/Raises/Examples). All tests still green: 1096 passed, 1 skipped, 0 failures. Lint, format, typecheck passing.
 
 ## What was verified
 
-- `pip install pandas-stubs types-requests types-PyYAML`: succeeded
-- `python -m mypy quant_trading/`: Success, no issues found in 36 source files
-- `python -m ruff check quant_trading/`: All checks passed
-- `python -m black --check quant_trading/`: All files unchanged
+- `python -m doctest quant_trading/data/synthetic.py -v`: 19 tests passed in 8 items
+- `python -m doctest quant_trading/data/providers.py -v`: 35 tests passed in 27 items
+- `python -m doctest quant_trading/monte_carlo/simulator.py -v`: 10 passed in 21 items
+- `python -m ruff check quant_trading/data/synthetic.py quant_trading/utils/formatting.py quant_trading/utils/logging.py`: All checks passed
+- `python -m black --check quant_trading/`: All files unchanged (36 files)
+- `python -m mypy quant_trading/data/synthetic.py`: Success, no issues found
 - `python -m pytest -q`: 1096 passed, 1 skipped, 16 warnings (no failures)
-- `python -m pytest --doctest-modules <new modules>`: doctests pass
 
 ## What remains unresolved
 
@@ -19,17 +20,14 @@ COMPLETE - Installed missing type stubs (`pandas-stubs`, `types-requests`, `type
 
 ## Next precise task
 
-Continue the Google-style docstring theme (see commit history: `backtest/analysis.py`, `optimization/grid_search.py`, `optimization/walk_forward.py`, `regime/detector.py`, `backtest/metrics.py`, `optimization/base.py`, `portfolio/rebalancer.py`, `config/settings.py`, `strategies/factory.py`).
+Continue the Google-style docstring theme. Remaining low-docstring candidates:
 
-Remaining low-docstring candidates (files with only one-line docstrings, no Args/Returns/Raises/Examples blocks):
+- `quant_trading/strategies/examples.py` (1814 lines) — largest remaining; has dynamic registration and some classes with basic docstrings but could benefit from full Args/Returns/Raises/Examples. Approach carefully due to size.
+- `quant_trading/data/yfinance_provider.py` (3095 lines) — very large; consider scoping to one class at a time (YFinanceProvider, AlphaVantageProvider, etc.).
+- `quant_trading/data/providers.py` (295 lines) — already well-documented; review for any remaining gaps.
+- `quant_trading/backtest/engine.py` (556 lines) — partially documented.
+- `quant_trading/backtest/trade_analysis.py` (450 lines) — partially documented.
+- `quant_trading/optimization/bayesian.py` (281 lines) — partially documented.
+- `quant_trading/monte_carlo/simulator.py` (329 lines) — partially documented.
 
-- `quant_trading/strategies/examples.py` (1814 lines, 5 markers) — largest remaining file; has a `# noqa` and dynamic registration, so review carefully.
-- `quant_trading/data/yfinance_provider.py` (3095 lines, 14 markers) — very large; consider scoping to one class at a time.
-- `quant_trading/data/providers.py` (295 lines, 2 markers) — bounded; good next target.
-- `quant_trading/data/synthetic.py` (103 lines, 2 markers) — small and self-contained.
-- `quant_trading/monte_carlo/simulator.py` (329 lines, 11 markers) — already partially documented; review for gaps.
-- `quant_trading/backtest/engine.py` (556 lines, 13 markers) — partially documented.
-- `quant_trading/backtest/trade_analysis.py` (450 lines, 8 markers) — partially documented.
-- `quant_trading/optimization/bayesian.py` (281 lines, 6 markers) — partially documented.
-
-Recommended next: `quant_trading/data/providers.py` (295 lines, 2 markers) — bounded size, foundational interface, and its tests in `tests/test_data_providers.py` give clear behavioral context for accurate docstrings.
+Recommended next: `quant_trading/backtest/engine.py` (556 lines) — bounded, core backtest functionality with existing tests (`tests/test_backtest.py`) for verification. Add comprehensive docstrings to classes and methods following the same pattern used in other modules.
