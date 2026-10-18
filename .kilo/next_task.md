@@ -2,22 +2,25 @@
 
 ## Status
 
-COMPLETE - Enhanced Google-style docstrings in `quant_trading/strategies/base.py` for all public classes (`Signal`, `Position`, `Strategy`, `StrategyManager`) and methods (`__init__`, `generate_signals`, `validate_parameters`, `update_positions`, `get_parameters`, `set_parameter`, `from_config`, `add_strategy`, `remove_strategy`, `get_strategy`, `generate_all_signals`, plus `market_value` and `pnl` properties). Added Attributes/Args/Returns/Raises/Examples sections consistent with the style already used in `quant_trading/risk/manager.py`. No behavior changes.
+COMPLETE - Enhanced Google-style docstrings in `quant_trading/backtest/metrics.py` for the module docstring, the `BacktestMetrics` dataclass (Attributes/Examples), the `to_dict` method (Returns), and `calculate_backtest_metrics` (Args/Returns/Examples). No behavior changes.
 
 ## What this session did
 
-- Selected `quant_trading/strategies/base.py` from the candidate list in the prior handoff (it had the thinnest Google-style coverage: one-line docstrings on most methods).
-- Rewrote every docstring to Google style with `Attributes`, `Args`, `Returns`, `Raises`, and `Examples` sections where applicable.
-- Fixed a pre-existing ruff `RET501` violation introduced by the rewrite (explicit `return None` in `validate_parameters` -> bare `return`); this was a code-quality fix, not a behavior change.
-- Verified lint, formatting, type checking, and tests.
+- Selected `quant_trading/backtest/metrics.py` from the candidate list in the prior handoff (it had the thinnest Google-style coverage: a one-line module docstring, a one-line class docstring, and a one-line function docstring).
+- Rewrote the module docstring to describe the module's purpose and delegate relationship to `quant_trading.risk.metrics`, with an executable Examples block.
+- Added an `Attributes` section to `BacktestMetrics` describing every field, plus an `Examples` section.
+- Added `Returns` to `BacktestMetrics.to_dict`.
+- Added `Args`, `Returns`, and `Examples` to `calculate_backtest_metrics`. Removed an inaccurate `Raises` section (the function silently skips trade stats when `trades` lacks a `pnl` column; it does not raise).
+- Doctest fixes required because pandas returns numpy scalar types: used `float(...)` wrapping and concrete expected values instead of `+ELLIPSIS` placeholders, consistent with the style in `risk/metrics.py`.
 
 ## What was verified
 
-- `python -m pytest tests/test_strategy_base.py -v`: 21 passed
-- `python -m pytest -q`: 1070 passed, 1 skipped, 26 failed (all 26 failures are pre-existing baseline failures — see below)
-- `python -m ruff check quant_trading/strategies/base.py`: All checks passed
-- `python -m black --check quant_trading/strategies/base.py`: OK
-- `python -m mypy quant_trading/strategies/base.py`: Same pre-existing pandas-stubs warnings as `risk/manager.py` baseline; no new errors.
+- `python -m pytest tests/test_backtest_metrics.py tests/test_risk_metrics.py -q`: 76 passed
+- `python -m pytest --doctest-modules quant_trading/backtest/metrics.py -q`: 3 passed
+- `python -m ruff check quant_trading/backtest/metrics.py`: All checks passed
+- `python -m black --check quant_trading/backtest/metrics.py`: OK
+- `python -m mypy quant_trading/backtest/metrics.py`: Same pre-existing pandas-stubs warnings as the baseline; no new errors.
+- `python -m pytest -q`: 1070 passed, 1 skipped, 26 failed (all 26 failures are pre-existing baseline failures — see below). No regressions.
 
 ## What remains unresolved
 
@@ -25,24 +28,25 @@ Nothing blocking. Docstrings are additive; no functional changes were made.
 
 ## Approaches that failed
 
-- None. One ruff `RET501` finding was caught and fixed during the check phase.
+- First doctest attempt used `metrics.total_return` with expected `15000.0`, but pandas returns `np.int64(15000)`. Fixed by wrapping in `float()`.
+- A `+ELLIPSIS` placeholder for `sharpe_ratio` failed because the value is deterministic (9.575...). Fixed by using `round(float(...), 2)` with the concrete value 9.58.
+- An inaccurate `Raises` section was added then removed after inspection showed the function silently skips trade stats rather than raising.
 
 ## Next precise task
 
 Continue maintaining API documentation consistency by enhancing docstrings for another public API module with incomplete Google-style coverage. Remaining good candidates:
-- `quant_trading/backtest/metrics.py` - `BacktestMetrics` dataclass and `calculate_backtest_metrics` (currently only has a one-line docstring).
-- `quant_trading/regime/detector.py` - regime detection functions/classes.
+- `quant_trading/regime/detector.py` - `Regime`, `RegimeSegment`, `RegimeResult`, `detect_regimes`, and `analyze_regimes` (currently only one-line docstrings).
 - `quant_trading/optimization/walk_forward.py` - `WalkForwardOptimizer` public methods.
 - `quant_trading/optimization/grid_search.py` / `random_search.py` / `bayesian.py` - optimizer public methods.
-- `quant_trading/risk/metrics.py` - `RiskMetrics` and `calculate_all_metrics` (note: this module is imported by `backtest/metrics.py`).
+- `quant_trading/backtest/analysis.py` / `trade_analysis.py` - analysis helpers.
 
-Recommendation: Pick one (e.g., `backtest/metrics.py` or `risk/metrics.py`) and add comprehensive Google-style docstrings to public functions/classes, with Examples. No behavior change. Verify with relevant tests, ruff, black, mypy.
+Recommendation: Pick one (e.g., `regime/detector.py` or `walk_forward.py`) and add comprehensive Google-style docstrings to public functions/classes, with Examples. No behavior change. Verify with relevant tests, ruff, black, mypy, and doctests.
 
 ## Pre-existing test failures (baseline, unrelated to docstring work)
 
 The following 26 failures exist on the clean `main` baseline and are caused by environment/optional-dependency issues, NOT by documentation changes:
 
 - `tests/test_examples_smoke.py` (15 failures): each example script is executed as a subprocess with `python <script>`, and the subprocess cannot import `quant_trading` because the package is not installed in the environment (`ModuleNotFoundError: No module named 'quant_trading'`). These are environment-only.
-- `tests/test_optimization.py` (11 failures): all `test_bayesian_*` tests fail with `ImportError: BayesianOptimizer requires scikit-optimize` / `ModuleNotFoundError: No module named 'skopt'` because the optional `scikit-optimize` dependency (`quant-trading[bayesian]`) is not installed.
+- `tests/test_optimization.py` (11 failures): all `test_bayesian_*` and `test_walk_forward_with_bayesian` tests fail with `ImportError: BayesianOptimizer requires scikit-optimize` / `ModuleNotFoundError: No module named 'skopt'` because the optional `scikit-optimize` dependency (`quant-trading[bayesian]`) is not installed.
 
 Do not treat these as regressions from documentation edits.
