@@ -1045,6 +1045,12 @@ class AroonStrategy(Strategy):
         period: int = 25,
         name: str = "Aroon",
     ):
+        """Initialize the Aroon strategy.
+
+        Args:
+            period: Number of periods for Aroon calculation. Defaults to 25.
+            name: Strategy name. Defaults to "Aroon".
+        """
         super().__init__(
             name,
             {
@@ -1055,7 +1061,11 @@ class AroonStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        """Validate strategy parameters."""
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+        """
         if self.period <= 0:
             raise ValueError("period must be positive")
 
@@ -1114,6 +1124,14 @@ class AroonStrategy(Strategy):
         return aroon_up, aroon_down
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate trading signals based on Aroon indicator crossovers.
+
+        Args:
+            data: Dictionary mapping symbols to OHLCV DataFrames.
+
+        Returns:
+            List of trading signals.
+        """
         signals = []
 
         for symbol, df in data.items():
@@ -1205,6 +1223,16 @@ class KeltnerChannelStrategy(Strategy):
         use_middle_cross: bool = False,
         name: str = "Keltner_Channel",
     ):
+        """Initialize the Keltner Channel strategy.
+
+        Args:
+            ema_period: Period for EMA calculation. Defaults to 20.
+            atr_period: Period for ATR calculation. Defaults to 10.
+            multiplier: ATR multiplier for channel width. Defaults to 2.0.
+            use_middle_cross: Whether to use middle EMA crossovers for signals.
+                Defaults to False.
+            name: Strategy name. Defaults to "Keltner_Channel".
+        """
         super().__init__(
             name,
             {
@@ -1221,7 +1249,11 @@ class KeltnerChannelStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        """Validate strategy parameters."""
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+        """
         if self.ema_period <= 0:
             raise ValueError("ema_period must be positive")
         if self.atr_period <= 0:
@@ -1230,11 +1262,27 @@ class KeltnerChannelStrategy(Strategy):
             raise ValueError("multiplier must be positive")
 
     def _ema(self, close: pd.Series, period: int) -> pd.Series:
-        """Calculate Exponential Moving Average."""
+        """Calculate Exponential Moving Average.
+
+        Args:
+            close: Closing price series.
+            period: EMA period.
+
+        Returns:
+            EMA series.
+        """
         return close.ewm(span=period, adjust=False).mean()
 
     def _atr(self, df: pd.DataFrame, period: int) -> pd.Series:
-        """Calculate Average True Range (ATR)."""
+        """Calculate Average True Range (ATR).
+
+        Args:
+            df: OHLC DataFrame.
+            period: ATR period.
+
+        Returns:
+            ATR series.
+        """
         high = df["high"]
         low = df["low"]
         close = df["close"]
@@ -1251,6 +1299,14 @@ class KeltnerChannelStrategy(Strategy):
         return atr
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate trading signals based on Keltner Channel.
+
+        Args:
+            data: Dictionary mapping symbols to OHLCV DataFrames.
+
+        Returns:
+            List of trading signals.
+        """
         signals = []
 
         for symbol, df in data.items():
@@ -1388,6 +1444,16 @@ class StochasticOscillatorStrategy(Strategy):
         use_midline: bool = False,
         name: str = "Stochastic_Oscillator",
     ):
+        """Initialize the Stochastic Oscillator strategy.
+
+        Args:
+            k_period: Period for %K calculation. Defaults to 14.
+            d_period: Period for %D (SMA of %K). Defaults to 3.
+            oversold: Oversold threshold. Defaults to 20.
+            overbought: Overbought threshold. Defaults to 80.
+            use_midline: Whether to use midline crossovers. Defaults to False.
+            name: Strategy name. Defaults to "Stochastic_Oscillator".
+        """
         super().__init__(
             name,
             {
@@ -1406,7 +1472,11 @@ class StochasticOscillatorStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        """Validate strategy parameters."""
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+        """
         if self.k_period <= 0:
             raise ValueError("k_period must be positive")
         if self.d_period <= 0:
@@ -1440,6 +1510,14 @@ class StochasticOscillatorStrategy(Strategy):
         return k_percent, d_percent
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate trading signals based on Stochastic Oscillator.
+
+        Args:
+            data: Dictionary mapping symbols to OHLCV DataFrames.
+
+        Returns:
+            List of trading signals.
+        """
         signals = []
 
         for symbol, df in data.items():
@@ -1563,6 +1641,14 @@ class IchimokuCloudStrategy(Strategy):
         senkou_b_period: int = 52,
         name: str = "Ichimoku_Cloud",
     ):
+        """Initialize the Ichimoku Cloud strategy.
+
+        Args:
+            tenkan_period: Period for Tenkan-sen. Defaults to 9.
+            kijun_period: Period for Kijun-sen. Defaults to 26.
+            senkou_b_period: Period for Senkou Span B. Defaults to 52.
+            name: Strategy name. Defaults to "Ichimoku_Cloud".
+        """
         super().__init__(
             name,
             {
@@ -1577,7 +1663,11 @@ class IchimokuCloudStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        """Validate strategy parameters."""
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+        """
         if self.tenkan_period <= 0:
             raise ValueError("tenkan_period must be positive")
         if self.kijun_period <= 0:
@@ -1586,6 +1676,14 @@ class IchimokuCloudStrategy(Strategy):
             raise ValueError("senkou_b_period must be positive")
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate trading signals based on Ichimoku Cloud.
+
+        Args:
+            data: Dictionary mapping symbols to OHLCV DataFrames.
+
+        Returns:
+            List of trading signals.
+        """
         signals = []
 
         for symbol, df in data.items():
@@ -1707,6 +1805,11 @@ class VWAPStrategy(Strategy):
     """
 
     def __init__(self, name: str = "VWAP"):
+        """Initialize the VWAP strategy.
+
+        Args:
+            name: Strategy name. Defaults to "VWAP".
+        """
         super().__init__(name, {})
         self.validate_parameters()
 
@@ -1716,6 +1819,14 @@ class VWAPStrategy(Strategy):
         """
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate trading signals based on VWAP crossovers.
+
+        Args:
+            data: Dictionary mapping symbols to OHLCV DataFrames.
+
+        Returns:
+            List of trading signals.
+        """
         signals: list[Signal] = []
 
         for symbol, df in data.items():
@@ -1797,6 +1908,13 @@ class ParabolicSARStrategy(Strategy):
         max_step: float = 0.20,
         name: str = "Parabolic_SAR",
     ):
+        """Initialize the Parabolic SAR strategy.
+
+        Args:
+            step: Initial step/acceleration factor. Defaults to 0.02.
+            max_step: Maximum step/acceleration factor. Defaults to 0.20.
+            name: Strategy name. Defaults to "Parabolic_SAR".
+        """
         super().__init__(
             name,
             {
@@ -1809,7 +1927,11 @@ class ParabolicSARStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        """Validate strategy parameters."""
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+        """
         if self.step <= 0:
             raise ValueError("step must be positive")
         if self.max_step <= 0:
@@ -1911,6 +2033,14 @@ class ParabolicSARStrategy(Strategy):
         return sar, trend
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate trading signals based on Parabolic SAR trend reversals.
+
+        Args:
+            data: Dictionary mapping symbols to OHLCV DataFrames.
+
+        Returns:
+            List of trading signals.
+        """
         signals = []
 
         for symbol, df in data.items():
