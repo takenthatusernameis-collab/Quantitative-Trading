@@ -576,6 +576,18 @@ class MACDStrategy(Strategy):
         use_zero_line: bool = False,
         name: str = "MACD",
     ):
+        """Initialize the MACD strategy.
+
+        Args:
+            fast_period: Lookback window for the fast EMA.
+            slow_period: Lookback window for the slow EMA; must exceed ``fast_period``.
+            signal_period: Lookback window for the signal line EMA.
+            use_zero_line: If ``True``, also emit signals on MACD zero-axis crossovers.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+        """
         super().__init__(
             name,
             {
@@ -592,7 +604,12 @@ class MACDStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        """Validate strategy parameters."""
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``fast_period``, ``slow_period``, or ``signal_period``
+                is non-positive, or if ``fast_period`` is not less than ``slow_period``.
+        """
         if self.fast_period <= 0:
             raise ValueError("fast_period must be positive")
         if self.slow_period <= 0:
@@ -603,11 +620,22 @@ class MACDStrategy(Strategy):
             raise ValueError("fast_period must be less than slow_period")
 
     def _ema(self, close: pd.Series, period: int) -> pd.Series:
-        """Calculate Exponential Moving Average."""
+        """Calculate an Exponential Moving Average.
+
+        Args:
+            close: Series of close prices.
+            period: Lookback window for the EMA.
+
+        Returns:
+            Series of EMA values aligned with ``close``.
+        """
         return close.ewm(span=period, adjust=False).mean()
 
     def _calculate_macd(self, close: pd.Series) -> tuple[pd.Series, pd.Series, pd.Series]:
-        """Calculate MACD line, signal line, and histogram.
+        """Calculate the MACD line, signal line, and histogram.
+
+        Args:
+            close: Series of close prices.
 
         Returns:
             Tuple of (macd_line, signal_line, histogram).
@@ -620,6 +648,16 @@ class MACDStrategy(Strategy):
         return macd_line, signal_line, histogram
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from MACD line and zero-axis crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least a
+                ``"close"`` column indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose MACD line crosses
+            the signal line (or, when ``use_zero_line`` is set, the zero axis).
+        """
         signals = []
 
         for symbol, df in data.items():
