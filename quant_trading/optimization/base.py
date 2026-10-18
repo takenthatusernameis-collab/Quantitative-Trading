@@ -68,7 +68,12 @@ class ParameterSpace:
             raise ValueError("Either values or min_val must be provided")
 
     def generate_grid(self) -> list[Any]:
-        """Generate all values for grid search."""
+        """Generate all values for grid search.
+
+        Returns:
+            List of candidate values for this parameter space. Empty list if
+            neither ``values`` nor bounds/step are configured.
+        """
         if self.values is not None:
             return [self.param_type(v) for v in self.values]
         if self.min_val is not None and self.max_val is not None and self.step is not None:
@@ -81,7 +86,15 @@ class ParameterSpace:
         return []
 
     def sample_random(self, n: int, rng: Any | None = None) -> list[Any]:
-        """Sample n random values for random search."""
+        """Sample n random values for random search.
+
+        Args:
+            n: Number of values to sample.
+            rng: Optional numpy random generator. Created if None.
+
+        Returns:
+            List of n sampled values.
+        """
         import numpy as np
 
         if rng is None:
@@ -135,12 +148,22 @@ class ParameterGrid:
 
         The validator receives a parameter combination dict and should return
         True if the combination is valid, False otherwise.
+
+        Args:
+            validator: Callable taking a params dict and returning bool.
+
+        Returns:
+            This grid instance (for chaining).
         """
         self.validator = validator
         return self
 
     def generate_combinations(self) -> list[dict[str, Any]]:
-        """Generate all valid parameter combinations (Cartesian product)."""
+        """Generate all valid parameter combinations (Cartesian product).
+
+        Returns:
+            List of parameter dicts, filtered by the validator if set.
+        """
         import itertools
 
         if not self.spaces:
@@ -157,7 +180,15 @@ class ParameterGrid:
         return combinations
 
     def sample_random(self, n: int, rng: Any | None = None) -> list[dict[str, Any]]:
-        """Sample n random parameter combinations."""
+        """Sample n random parameter combinations.
+
+        Args:
+            n: Number of combinations to sample.
+            rng: Optional numpy random generator. Created if None.
+
+        Returns:
+            List of n parameter dicts.
+        """
         import numpy as np
 
         if rng is None:
@@ -238,18 +269,30 @@ class OptimizationResult:
 
     @property
     def duration_seconds(self) -> float | None:
+        """Elapsed wall-clock seconds between start and end, or None."""
         if self.start_time and self.end_time:
             return (self.end_time - self.start_time).total_seconds()
         return None
 
     def to_dataframe(self) -> pd.DataFrame:
-        """Convert all results to a DataFrame for analysis."""
+        """Convert all results to a DataFrame for analysis.
+
+        Returns:
+            DataFrame of all recorded results, or empty DataFrame if none.
+        """
         if not self.all_results:
             return pd.DataFrame()
         return pd.DataFrame(self.all_results)
 
     def get_top_n(self, n: int = 10) -> list[dict[str, Any]]:
-        """Get top N results by score."""
+        """Get top N results by score.
+
+        Args:
+            n: Number of top results to return.
+
+        Returns:
+            List of the n highest-scoring result dicts.
+        """
         sorted_results = sorted(self.all_results, key=lambda x: x["score"], reverse=True)
         return sorted_results[:n]
 
@@ -317,21 +360,46 @@ class BaseOptimizer(ABC):
 
     @abstractmethod
     def run(self) -> OptimizationResult:
-        """Run the optimization."""
+        """Run the optimization.
+
+        Returns:
+            OptimizationResult with best parameters and score.
+        """
         ...  # pragma: no cover
 
     def _assert_dates(self) -> tuple[datetime, datetime]:
-        """Assert that start and end dates are set."""
+        """Assert that start and end dates are set.
+
+        Returns:
+            Tuple of (start, end) datetimes.
+
+        Raises:
+            AssertionError: If start or end is None.
+        """
         assert self.start is not None, "start date must be set"
         assert self.end is not None, "end date must be set"
         return self.start, self.end
 
     def _create_strategy(self, params: dict[str, Any]) -> Strategy:
-        """Create strategy instance with given parameters."""
+        """Create strategy instance with given parameters.
+
+        Args:
+            params: Parameter dict passed to strategy constructor.
+
+        Returns:
+            Instantiated strategy.
+        """
         return self.strategy_cls(**params)
 
     def _run_single_backtest(self, params: dict[str, Any]) -> BacktestResult:
-        """Run a single backtest with given parameters."""
+        """Run a single backtest with given parameters.
+
+        Args:
+            params: Parameter dict for the strategy.
+
+        Returns:
+            Backtest result.
+        """
         from quant_trading.backtest.engine import run_backtest
 
         strategy = self._create_strategy(params)
@@ -352,7 +420,14 @@ class BaseOptimizer(ABC):
     def _evaluate_params(
         self, params: dict[str, Any]
     ) -> tuple[dict[str, Any], float, BacktestResult | None]:
-        """Evaluate a single parameter combination."""
+        """Evaluate a single parameter combination.
+
+        Args:
+            params: Parameter dict to evaluate.
+
+        Returns:
+            Tuple of (params, score, result or None on failure).
+        """
         try:
             result = self._run_single_backtest(params)
             score = self.objective(result)
