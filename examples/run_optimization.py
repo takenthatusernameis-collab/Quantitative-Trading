@@ -6,8 +6,10 @@ parameter stability over time.
 
 It uses synthetic data to ensure deterministic results and no network dependency.
 """
+
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 

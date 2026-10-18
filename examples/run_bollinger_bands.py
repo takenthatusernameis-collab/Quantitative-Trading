@@ -8,11 +8,13 @@ upper and lower band set at a configurable number of standard deviations away
 from the SMA. The strategy is a mean-reversion approach: it buys when price
 touches the lower band and sells when price touches the upper band.
 """
+
 from __future__ import annotations
+
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 from datetime import datetime, timedelta

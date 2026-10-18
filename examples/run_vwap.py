@@ -8,8 +8,10 @@ represents the average price a security has traded at throughout the day,
 weighted by volume. The strategy generates a buy signal when price crosses
 above the VWAP and a sell signal when price crosses below the VWAP.
 """
+
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 

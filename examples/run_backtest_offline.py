@@ -4,8 +4,10 @@ Runs the built-in strategies against deterministic synthetic price
 data, so it needs no network access and produces the same output on
 every run.
 """
+
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 

@@ -10,11 +10,13 @@ strategy generates buy signals when the MACD line crosses above the signal
 line (bullish crossover) and sell signals when the MACD line crosses below
 the signal line (bearish crossover).
 """
+
 from __future__ import annotations
+
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 from datetime import datetime, timedelta

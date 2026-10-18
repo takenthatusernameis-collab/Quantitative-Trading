@@ -9,8 +9,10 @@ a parabolic curve. It generates a buy signal when price crosses above the
 SAR (trend turns bullish) and a sell signal when price crosses below the
 SAR (trend turns bearish).
 """
+
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 

@@ -7,11 +7,13 @@ The Aroon indicator consists of Aroon Up and Aroon Down, measuring time since
 highest high and lowest low over a lookback period. Signals are generated on
 crossovers between Aroon Up and Aroon Down.
 """
+
 from __future__ import annotations
+
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 from datetime import datetime, timedelta
