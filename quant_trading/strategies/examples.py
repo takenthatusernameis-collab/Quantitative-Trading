@@ -792,6 +792,17 @@ class DonchianChannelStrategy(Strategy):
         exit_period: int | None = None,
         name: str = "Donchian_Channel",
     ):
+        """Initialize the Donchian Channel breakout strategy.
+
+        Args:
+            period: Lookback window for the entry Donchian channels.
+            exit_period: Optional separate lookback window for the exit
+                channels. When ``None``, defaults to ``period``.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+        """
         super().__init__(
             name,
             {
@@ -805,13 +816,32 @@ class DonchianChannelStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        """Validate strategy parameters."""
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` or ``exit_period`` is non-positive.
+        """
         if self.period <= 0:
             raise ValueError("period must be positive")
         if self.exit_period <= 0:
             raise ValueError("exit_period must be positive")
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate breakout and exit signals from Donchian Channel levels.
+
+        Entry signals fire when price breaks above the upper channel (buy) or
+        below the lower channel (sell). Exit signals fire for existing long or
+        short positions when price crosses the middle band or the exit
+        channel boundary.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least
+                ``"high"``, ``"low"``, and ``"close"`` columns indexed by
+                timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for breakout and exit events.
+        """
         signals = []
 
         for symbol, df in data.items():
