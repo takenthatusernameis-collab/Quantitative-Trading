@@ -43,6 +43,7 @@ class RiskMetrics:
         >>> metrics = RiskMetrics(sharpe_ratio=1.2, max_drawdown=-0.05)
         >>> metrics.to_dict()["sharpe_ratio"]
         1.2
+
     """
 
     sharpe_ratio: float = 0.0
@@ -61,6 +62,7 @@ class RiskMetrics:
         Returns:
             Dictionary containing all risk metric values with keys
             corresponding to attribute names.
+
         """
         return {
             "sharpe_ratio": self.sharpe_ratio,
@@ -89,6 +91,7 @@ def calculate_returns(prices: pd.Series) -> pd.Series:
         >>> prices = pd.Series([100, 102, 101, 104])
         >>> calculate_returns(prices).round(3).tolist()
         [0.02, -0.0098, 0.0297]
+
     """
     return prices.pct_change().dropna()
 
@@ -108,6 +111,7 @@ def calculate_volatility(returns: pd.Series, annualize: bool = True) -> float:
         >>> returns = pd.Series([0.01, -0.005, 0.015, -0.002, 0.01])
         >>> round(calculate_volatility(returns, annualize=False), 5)
         0.00868
+
     """
     returns = returns.dropna()
     if len(returns) < 2:
@@ -136,6 +140,7 @@ def calculate_max_drawdown(equity_curve: pd.Series) -> float:
         >>> equity = pd.Series([100, 110, 105, 90, 95])
         >>> calculate_max_drawdown(equity)
         -0.181818...
+
     """
     equity_curve = equity_curve.dropna()
     if len(equity_curve) == 0:
@@ -170,6 +175,7 @@ def calculate_sharpe_ratio(
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, 0.01])
         >>> round(calculate_sharpe_ratio(returns, annualize=False), 2)
         2.06
+
     """
     returns = returns.dropna()
     if len(returns) == 0 or returns.std() == 0:
@@ -205,6 +211,7 @@ def calculate_sortino_ratio(
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, 0.01])
         >>> round(calculate_sortino_ratio(returns, annualize=False), 2)
         3.79
+
     """
     returns = returns.dropna()
     if len(returns) == 0:
@@ -241,6 +248,7 @@ def calculate_var(returns: pd.Series, confidence: float = 0.95) -> float:
         >>> returns = pd.Series([-0.02, 0.01, -0.01, 0.005, -0.03])
         >>> round(calculate_var(returns, 0.95), 3)
         -0.027
+
     """
     returns = returns.dropna()
     if len(returns) == 0:
@@ -267,6 +275,7 @@ def calculate_beta(returns: pd.Series, market_returns: pd.Series) -> float:
         >>> market = pd.Series([0.008, 0.01, -0.003, 0.009])
         >>> round(calculate_beta(returns, market), 2)
         1.39
+
     """
     if len(returns) < 2 or len(market_returns) < 2:
         return 0.0
@@ -298,6 +307,7 @@ def calculate_alpha(
 
     Returns:
         Annualized Jensen's alpha, or 0.0 when beta is undefined/zero.
+
     """
     beta = calculate_beta(returns, market_returns)
     if beta == 0:
@@ -333,6 +343,7 @@ def calculate_calmar_ratio(returns: pd.Series, equity_curve: pd.Series) -> float
         >>> equity = (1 + returns).cumprod() * 100
         >>> round(calculate_calmar_ratio(returns, equity), 2)
         1.09
+
     """
     returns = returns.dropna()
     if len(returns) == 0:
@@ -370,6 +381,7 @@ def calculate_all_metrics(
         >>> metrics = calculate_all_metrics(equity)
         >>> metrics.sharpe_ratio  # doctest: +ELLIPSIS
         ...
+
     """
     returns = calculate_returns(equity_curve)
 

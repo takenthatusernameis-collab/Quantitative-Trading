@@ -27,6 +27,7 @@ Examples:
         )
         result = optimizer.run()
         print(f"Best parameters: {result.best_params}")
+
 """
 
 from dataclasses import dataclass
@@ -57,6 +58,7 @@ def _convert_to_native(obj: Any) -> Any:
         assert _convert_to_native(np.float64(1.5)) == 1.5
         assert _convert_to_native(np.array([1, 2])) == [1, 2]
         assert _convert_to_native({"a": np.int64(1)}) == {"a": 1}
+
     """
     import numpy as np
 
@@ -95,6 +97,7 @@ class BayesianOptimizerConfig:
         20
         >>> cfg.acq_func
         'EI'
+
     """
 
     n_initial_points: int = 10
@@ -125,6 +128,7 @@ class BayesianOptimizer(BaseOptimizer):
         )
         result = optimizer.run()
         assert result.best_params is not None
+
     """
 
     def __init__(
@@ -173,6 +177,7 @@ class BayesianOptimizer(BaseOptimizer):
 
         Raises:
             ImportError: If ``scikit-optimize`` is not installed.
+
         """
         try:
             from skopt.utils import use_named_args  # type: ignore[import]
@@ -224,6 +229,7 @@ class BayesianOptimizer(BaseOptimizer):
 
         Returns:
             List of scikit-optimize dimension objects, one per parameter.
+
         """
         from skopt.space import Categorical, Integer, Real  # type: ignore[import]
 
@@ -258,6 +264,7 @@ class BayesianOptimizer(BaseOptimizer):
 
         Returns:
             OptimizationResult with best parameters and all results.
+
         """
         from skopt import gp_minimize  # type: ignore[import]
 

@@ -14,6 +14,7 @@ Examples:
         mc = run_monte_carlo(result, n_simulations=500, method="parametric", random_state=7)
         summary = mc.summary()
         mean_sharpe = summary["sharpe_ratio_mean"]
+
 """
 
 from dataclasses import dataclass
@@ -44,6 +45,7 @@ class MonteCarloResult:
         profit_prob = mc.probability_of_profit()
         assert 0.0 <= profit_prob <= 1.0
         lower, upper = mc.get_confidence_interval("max_drawdown_pct")
+
     """
 
     simulations: list[BacktestMetrics]
@@ -58,6 +60,7 @@ class MonteCarloResult:
 
         Raises:
             ValueError: If :attr:`simulations` is empty.
+
         """
         if not self.simulations:
             raise ValueError("No simulations available")
@@ -84,6 +87,7 @@ class MonteCarloResult:
             ... )
             >>> mc.duration_seconds
             86400.0
+
         """
         return (self.end_time - self.start_time).total_seconds()
 
@@ -99,6 +103,7 @@ class MonteCarloResult:
 
         Raises:
             ValueError: If no simulations are available.
+
         """
         self._ensure_simulations()
         values = [getattr(s, metric) for s in self.simulations]
@@ -118,6 +123,7 @@ class MonteCarloResult:
 
         Raises:
             ValueError: If no simulations are available.
+
         """
         self._ensure_simulations()
         alpha = (1 - self.confidence_level) / 2
@@ -134,6 +140,7 @@ class MonteCarloResult:
 
         Raises:
             ValueError: If no simulations are available.
+
         """
         self._ensure_simulations()
         returns = [s.total_return_pct for s in self.simulations]
@@ -151,6 +158,7 @@ class MonteCarloResult:
 
         Raises:
             ValueError: If no simulations are available.
+
         """
         self._ensure_simulations()
         returns = [s.total_return_pct for s in self.simulations]
@@ -172,6 +180,7 @@ class MonteCarloResult:
 
         Raises:
             ValueError: If no simulations are available.
+
         """
         self._ensure_simulations()
         values = [getattr(s, metric) for s in self.simulations]
@@ -185,6 +194,7 @@ class MonteCarloResult:
         Returns:
             DataFrame with one row per simulation, or an empty DataFrame
             when no simulations were run.
+
         """
         if not self.simulations:
             return pd.DataFrame()  # type: ignore[no-any-return]
@@ -198,6 +208,7 @@ class MonteCarloResult:
             Dictionary with ``n_simulations``, ``confidence_level``,
             ``probability_of_profit``, and mean/std/median/confidence-interval
             entries for each tracked metric. Empty when no simulations ran.
+
         """
         if not self.simulations:
             return {}
@@ -257,6 +268,7 @@ class MonteCarloSimulator:
         10
         >>> sim.confidence_level
         0.95
+
     """
 
     def __init__(
@@ -271,6 +283,7 @@ class MonteCarloSimulator:
             n_simulations: Number of simulations to run.
             confidence_level: Confidence level for intervals (default 0.95).
             random_state: Random seed for reproducibility.
+
         """
         self.n_simulations = n_simulations
         self.confidence_level = confidence_level
@@ -295,6 +308,7 @@ class MonteCarloSimulator:
             sim = MonteCarloSimulator(n_simulations=200, random_state=0)
             mc = sim.run(result, method="bootstrap")
             n_sims = mc.summary()["n_simulations"]
+
         """
         start_time = datetime.now()
 
@@ -331,6 +345,7 @@ class MonteCarloSimulator:
         Returns:
             NumPy array of daily simple returns (one fewer element than the
             equity curve, since the first bar has no prior return).
+
         """
         equity = result.equity_curve
         returns = equity.pct_change().dropna().values
@@ -356,6 +371,7 @@ class MonteCarloSimulator:
 
         Returns:
             List of :class:`BacktestMetrics`, one per simulation.
+
         """
         n_days = len(returns)
         simulations = []
@@ -398,6 +414,7 @@ class MonteCarloSimulator:
 
         Returns:
             List of :class:`BacktestMetrics`, one per simulation.
+
         """
         mean_return = np.mean(returns)
         std_return = np.std(returns)
@@ -431,7 +448,7 @@ def run_monte_carlo(
     method: str = "bootstrap",
     random_state: int | None = None,
 ) -> MonteCarloResult:
-    """Convenience function to run Monte Carlo simulation.
+    """Run Monte Carlo simulation for a backtest result.
 
     Args:
         result: BacktestResult to analyze.
@@ -447,6 +464,7 @@ def run_monte_carlo(
         mc = run_monte_carlo(result, n_simulations=500, random_state=42)
         profit_prob = mc.probability_of_profit()
         assert 0.0 <= profit_prob <= 1.0
+
     """
     simulator = MonteCarloSimulator(
         n_simulations=n_simulations,

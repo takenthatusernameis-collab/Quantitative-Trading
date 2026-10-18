@@ -24,6 +24,7 @@ Examples:
         config = Config()
         config.update(logging_level="DEBUG")
         assert config.logging_level == "DEBUG"
+
 """
 
 import os
@@ -57,6 +58,7 @@ class DataConfig:
             data = DataConfig(provider="alphavantage", default_interval="1h")
             assert data.default_interval == "1h"
             assert data.alphavantage_api_key is None
+
     """
 
     provider: str = "yfinance"
@@ -89,6 +91,7 @@ def _filter_fields(dataclass_type: Any, values: dict[str, Any]) -> dict[str, Any
         True
         >>> _filter_fields(DataConfig, None)
         {}
+
     """
     if not isinstance(values, dict):
         return {}
@@ -117,6 +120,7 @@ class BacktestConfig:
         50000.0
         >>> cfg.slippage
         0.0005
+
     """
 
     initial_capital: float = 100000.0
@@ -143,6 +147,7 @@ class RiskConfig:
         >>> from quant_trading.config.settings import RiskConfig
         >>> RiskConfig().max_position_size
         0.1
+
     """
 
     max_position_size: float = 0.1
@@ -166,6 +171,7 @@ class PortfolioConfig:
         >>> from quant_trading.config.settings import PortfolioConfig
         >>> PortfolioConfig().rebalance_frequency
         'monthly'
+
     """
 
     rebalance_frequency: str = "monthly"
@@ -202,6 +208,7 @@ class Config:
 
             config.update(unknown_key="value")
             assert not hasattr(config, "unknown_key")
+
     """
 
     data: DataConfig = field(default_factory=DataConfig)
@@ -229,6 +236,7 @@ class Config:
             ValueError: If the file contains invalid YAML or the top-level
                 document is not a mapping.
             yaml.YAMLError: If the YAML cannot be parsed.
+
         """
         try:
             with open(path, "r") as f:
@@ -258,6 +266,7 @@ class Config:
 
         Returns:
             None.
+
         """
         dirname = os.path.dirname(path)
         if dirname:
@@ -271,6 +280,7 @@ class Config:
         Returns:
             Dictionary with ``data``, ``backtest``, ``risk``,
             ``portfolio``, ``logging_level``, and ``output_dir`` keys.
+
         """
         return {
             "data": self.data.__dict__,
@@ -292,6 +302,7 @@ class Config:
 
         Returns:
             None.
+
         """
         for key, value in kwargs.items():
             if hasattr(self, key):

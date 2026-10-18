@@ -13,6 +13,7 @@ Examples:
     >>> grid = ParameterGrid().add(space)
     >>> grid.generate_combinations()
     [{'x': 1.0}, {'x': 2.0}, {'x': 3.0}]
+
 """
 
 # mypy: disable-error-code="no-any-return"
@@ -53,6 +54,7 @@ class ParameterSpace:
         >>> space = ParameterSpace(name="y", min_val=0.0, max_val=1.0, step=0.5)
         >>> space.generate_grid()
         [0.0, 0.5, 1.0]
+
     """
 
     name: str
@@ -68,6 +70,7 @@ class ParameterSpace:
 
         Raises:
             ValueError: If both ``values`` and ``min_val`` are None.
+
         """
         if self.values is None and self.min_val is None:
             raise ValueError("Either values or min_val must be provided")
@@ -78,6 +81,7 @@ class ParameterSpace:
         Returns:
             List of candidate values for this parameter space. Empty list if
             neither ``values`` nor bounds/step are configured.
+
         """
         if self.values is not None:
             return [self.param_type(v) for v in self.values]
@@ -99,6 +103,7 @@ class ParameterSpace:
 
         Returns:
             List of n sampled values.
+
         """
         import numpy as np
 
@@ -131,6 +136,7 @@ class ParameterGrid:
         ParameterGrid(...)
         >>> grid.generate_combinations()
         [{'x': 1.0}, {'x': 2.0}]
+
     """
 
     spaces: dict[str, ParameterSpace] = field(default_factory=dict)
@@ -144,6 +150,7 @@ class ParameterGrid:
 
         Returns:
             This grid instance (for chaining).
+
         """
         self.spaces[space.name] = space
         return self
@@ -159,6 +166,7 @@ class ParameterGrid:
 
         Returns:
             This grid instance (for chaining).
+
         """
         self.validator = validator
         return self
@@ -168,6 +176,7 @@ class ParameterGrid:
 
         Returns:
             List of parameter dicts, filtered by the validator if set.
+
         """
         import itertools
 
@@ -193,6 +202,7 @@ class ParameterGrid:
 
         Returns:
             List of n parameter dicts.
+
         """
         import numpy as np
 
@@ -246,6 +256,7 @@ def maximize_sharpe(result: BacktestResult) -> float:
         ... )
         >>> maximize_sharpe(res)
         1.5
+
     """
     return result.metrics.sharpe_ratio or 0.0
 
@@ -280,6 +291,7 @@ def maximize_total_return(result: BacktestResult) -> float:
         ... )
         >>> maximize_total_return(res)
         10.0
+
     """
     return result.total_return_pct
 
@@ -314,6 +326,7 @@ def maximize_calmar(result: BacktestResult) -> float:
         ... )
         >>> maximize_calmar(res)
         2.0
+
     """
     return result.metrics.calmar_ratio or 0.0
 
@@ -351,6 +364,7 @@ def minimize_max_drawdown(result: BacktestResult) -> float:
         ... )
         >>> minimize_max_drawdown(res)
         -5.0
+
     """
     return -result.metrics.max_drawdown_pct
 
@@ -385,6 +399,7 @@ def maximize_profit_factor(result: BacktestResult) -> float:
         ... )
         >>> maximize_profit_factor(res)
         2.5
+
     """
     return result.metrics.profit_factor or 0.0
 
@@ -419,6 +434,7 @@ def maximize_win_rate(result: BacktestResult) -> float:
         ... )
         >>> maximize_win_rate(res)
         0.7
+
     """
     return getattr(result, "win_rate_pct", getattr(result.metrics, "win_rate", 0.0))
 
@@ -440,6 +456,7 @@ class OptimizationResult:
         >>> r = OptimizationResult(best_params={"x": 1}, best_score=1.0)
         >>> r.duration_seconds is None
         True
+
     """
 
     best_params: dict[str, Any]
@@ -461,6 +478,7 @@ class OptimizationResult:
 
         Returns:
             DataFrame of all recorded results, or empty DataFrame if none.
+
         """
         if not self.all_results:
             return pd.DataFrame()
@@ -474,6 +492,7 @@ class OptimizationResult:
 
         Returns:
             List of the n highest-scoring result dicts.
+
         """
         sorted_results = sorted(self.all_results, key=lambda x: x["score"], reverse=True)
         return sorted_results[:n]
@@ -506,6 +525,7 @@ class BaseOptimizer(ABC):
         >>> opt = Dummy(strategy_cls=object, param_grid=ParameterGrid())
         >>> opt.symbols
         ['AAPL']
+
     """
 
     def __init__(
@@ -542,6 +562,7 @@ class BaseOptimizer(ABC):
             config: Optional config.
             n_jobs: Number of parallel jobs.
             verbose: Whether to print progress.
+
         """
         self.objective = objective
         self.strategy_cls = strategy_cls
@@ -564,6 +585,7 @@ class BaseOptimizer(ABC):
 
         Returns:
             OptimizationResult with best parameters and score.
+
         """
         ...  # pragma: no cover
 
@@ -575,6 +597,7 @@ class BaseOptimizer(ABC):
 
         Raises:
             AssertionError: If start or end is None.
+
         """
         assert self.start is not None, "start date must be set"
         assert self.end is not None, "end date must be set"
@@ -588,6 +611,7 @@ class BaseOptimizer(ABC):
 
         Returns:
             Instantiated strategy.
+
         """
         return self.strategy_cls(**params)
 
@@ -599,6 +623,7 @@ class BaseOptimizer(ABC):
 
         Returns:
             Backtest result.
+
         """
         from quant_trading.backtest.engine import run_backtest
 
@@ -627,6 +652,7 @@ class BaseOptimizer(ABC):
 
         Returns:
             Tuple of (params, score, result or None on failure).
+
         """
         try:
             result = self._run_single_backtest(params)

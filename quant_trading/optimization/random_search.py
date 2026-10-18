@@ -15,6 +15,7 @@ Examples:
     3
     >>> optimizer.random_state
     42
+
 """
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -74,6 +75,7 @@ def _evaluate_params_worker(
         >>> import inspect
         >>> "param_grid_dict" in inspect.signature(_evaluate_params_worker).parameters
         True
+
     """
     from quant_trading.backtest.engine import run_backtest
     from quant_trading.config.settings import Config, DataConfig
@@ -140,6 +142,7 @@ class RandomSearch(BaseOptimizer):
         3
         >>> optimizer.random_state
         42
+
     """
 
     def __init__(
@@ -168,6 +171,7 @@ class RandomSearch(BaseOptimizer):
 
         Returns:
             None
+
         """
         super().__init__(*args, **kwargs)
         self.n_iter = n_iter
@@ -192,6 +196,7 @@ class RandomSearch(BaseOptimizer):
             >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
             >>> optimizer = RandomSearch(n_iter=1, random_state=42, strategy_cls=None, param_grid=grid)
             >>> result = optimizer.run()  # doctest: +SKIP
+
         """
         start_time = datetime.now()
         all_results: list[dict[str, Any]] = []
@@ -263,6 +268,7 @@ class RandomSearch(BaseOptimizer):
             >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
             >>> optimizer = RandomSearch(n_iter=1, random_state=42, strategy_cls=None, param_grid=grid)
             >>> optimizer._run_sequential([], [], float("-inf"), {}, None)  # doctest: +SKIP
+
         """
         for i, params in enumerate(combinations):
             if self.verbose:
@@ -331,6 +337,7 @@ class RandomSearch(BaseOptimizer):
             >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
             >>> optimizer = RandomSearch(n_iter=1, random_state=42, strategy_cls=None, param_grid=grid)
             >>> optimizer._run_parallel([], [], float("-inf"), {}, None, None, None)  # doctest: +SKIP
+
         """
         from quant_trading.config.settings import Config
 

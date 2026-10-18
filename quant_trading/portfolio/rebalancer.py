@@ -26,6 +26,7 @@ Examples:
         sell_signal = Signal(symbol="AAPL", action="sell", price=150.0)
         actions = rebalancer.generate_rebalance_actions(signals=[sell_signal])
         assert actions[0].action == "sell"
+
 """
 
 from dataclasses import dataclass, field
@@ -65,6 +66,7 @@ class RebalanceAction:
 
             sell = RebalanceAction(symbol="AAPL", action="sell", quantity=5)
             assert sell.reason == ""
+
     """
 
     symbol: str
@@ -111,6 +113,7 @@ class Rebalancer:
                 target_allocation={"AAPL": 0.6, "MSFT": 0.4},
             )
             assert rebalancer.should_rebalance() is True
+
     """
 
     def __init__(
@@ -130,6 +133,7 @@ class Rebalancer:
                 value. Defaults to an empty dict when ``None``.
             rebalance_threshold: Minimum deviation (as a fraction of total
                 portfolio value) that triggers a rebalance.
+
         """
         self.portfolio = portfolio
         self.frequency = frequency
@@ -150,6 +154,7 @@ class Rebalancer:
             True if enough time has elapsed since the last rebalance (or if
             no rebalance has occurred yet), False otherwise. An unrecognized
             :attr:`frequency` value also returns False.
+
         """
         now = datetime.now()
         if self.last_rebalance is None:
@@ -175,6 +180,7 @@ class Rebalancer:
         Returns:
             Symbol-keyed target market values. Empty when no target
             allocation is configured.
+
         """
         total_value = self.portfolio.total_value
         targets = {}
@@ -210,6 +216,7 @@ class Rebalancer:
         Returns:
             List of :class:`RebalanceAction` objects to execute. May be empty
             when no deviation or signal warrants a trade.
+
         """
         actions = []
         targets = self.calculate_target_values()
@@ -311,6 +318,7 @@ class Rebalancer:
 
         Returns:
             Quantity to buy, or 0.0 when no positive price could be resolved.
+
         """
         if symbol in self.portfolio.holdings:
             price = self.portfolio.holdings[symbol].current_price
@@ -337,6 +345,7 @@ class Rebalancer:
             Quantity to sell (``diff`` divided by the holding's current
             price), or 0.0 when the symbol is not held or the price is
             non-positive.
+
         """
         if symbol in self.portfolio.holdings:
             price = self.portfolio.holdings[symbol].current_price
@@ -354,6 +363,7 @@ class Rebalancer:
 
         Returns:
             None.
+
         """
         total = sum(allocation.values())
         if abs(total - 1.0) > 0.01:
@@ -370,6 +380,7 @@ class Rebalancer:
         Returns:
             Symbol-keyed differences (current fraction minus target
             fraction) for every symbol in :attr:`target_allocation`.
+
         """
         current = self.portfolio.get_allocation()
         deviations = {}
@@ -385,6 +396,7 @@ class Rebalancer:
             True if any symbol's absolute deviation from its target
             allocation exceeds :attr:`rebalance_threshold`, False otherwise.
             Returns False when no target allocation is configured.
+
         """
         if not self.target_allocation:
             return False

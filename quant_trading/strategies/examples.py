@@ -29,6 +29,7 @@ class MovingAverageCrossover(Strategy):
 
         Raises:
             ValueError: If any parameter is invalid.
+
         """
         super().__init__(
             name,
@@ -47,6 +48,7 @@ class MovingAverageCrossover(Strategy):
         Raises:
             ValueError: If ``fast_period`` or ``slow_period`` is non-positive,
                 or if ``fast_period`` is not less than ``slow_period``.
+
         """
         if self.fast_period <= 0:
             raise ValueError("fast_period must be positive")
@@ -69,6 +71,7 @@ class MovingAverageCrossover(Strategy):
         Returns:
             List of :class:`Signal` objects for symbols whose moving averages
             cross between the last two bars.
+
         """
         signals = []
 
@@ -149,6 +152,7 @@ class RSIStrategy(Strategy):
 
         Raises:
             ValueError: If any parameter is invalid.
+
         """
         super().__init__(
             name,
@@ -169,6 +173,7 @@ class RSIStrategy(Strategy):
         Raises:
             ValueError: If ``period`` is non-positive, thresholds are outside
                 ``(0, 100)``, or ``oversold`` is not less than ``overbought``.
+
         """
         if self.period <= 0:
             raise ValueError("period must be positive")
@@ -187,6 +192,7 @@ class RSIStrategy(Strategy):
 
         Returns:
             Series of RSI values aligned with ``close``.
+
         """
         delta = close.diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=self.period).mean()
@@ -205,6 +211,7 @@ class RSIStrategy(Strategy):
         Returns:
             List of :class:`Signal` objects for symbols whose RSI crosses the
             oversold or overbought thresholds between the last two bars.
+
         """
         signals = []
 
@@ -277,6 +284,7 @@ class BollingerBandsStrategy(Strategy):
 
         Raises:
             ValueError: If any parameter is invalid.
+
         """
         super().__init__(
             name,
@@ -294,6 +302,7 @@ class BollingerBandsStrategy(Strategy):
 
         Raises:
             ValueError: If ``period`` or ``std_dev`` is non-positive.
+
         """
         if self.period <= 0:
             raise ValueError("period must be positive")
@@ -310,6 +319,7 @@ class BollingerBandsStrategy(Strategy):
         Returns:
             List of :class:`Signal` objects for symbols whose price touches
             the lower or upper Bollinger band.
+
         """
         signals = []
 
@@ -396,6 +406,7 @@ class SuperTrendStrategy(Strategy):
 
         Raises:
             ValueError: If any parameter is invalid.
+
         """
         super().__init__(
             name,
@@ -413,6 +424,7 @@ class SuperTrendStrategy(Strategy):
 
         Raises:
             ValueError: If ``period`` or ``multiplier`` is non-positive.
+
         """
         if self.period <= 0:
             raise ValueError("period must be positive")
@@ -429,6 +441,7 @@ class SuperTrendStrategy(Strategy):
 
         Returns:
             Series of ATR values aligned with ``df`` index.
+
         """
         high = df["high"]
         low = df["low"]
@@ -451,6 +464,7 @@ class SuperTrendStrategy(Strategy):
         Returns:
             Tuple of (supertrend_line, trend_direction) where trend_direction is
             1 for bullish (supertrend is support), -1 for bearish (supertrend is resistance).
+
         """
         atr = self._calculate_atr(df, self.period)
         hl2 = (df["high"] + df["low"]) / 2
@@ -534,6 +548,7 @@ class SuperTrendStrategy(Strategy):
 
         Returns:
             List of :class:`Signal` objects representing trend reversals.
+
         """
         signals = []
 
@@ -617,6 +632,7 @@ class MACDStrategy(Strategy):
 
         Raises:
             ValueError: If any parameter is invalid.
+
         """
         super().__init__(
             name,
@@ -639,6 +655,7 @@ class MACDStrategy(Strategy):
         Raises:
             ValueError: If ``fast_period``, ``slow_period``, or ``signal_period``
                 is non-positive, or if ``fast_period`` is not less than ``slow_period``.
+
         """
         if self.fast_period <= 0:
             raise ValueError("fast_period must be positive")
@@ -658,6 +675,7 @@ class MACDStrategy(Strategy):
 
         Returns:
             Series of EMA values aligned with ``close``.
+
         """
         return close.ewm(span=period, adjust=False).mean()
 
@@ -669,6 +687,7 @@ class MACDStrategy(Strategy):
 
         Returns:
             Tuple of (macd_line, signal_line, histogram).
+
         """
         fast_ema = self._ema(close, self.fast_period)
         slow_ema = self._ema(close, self.slow_period)
@@ -687,6 +706,7 @@ class MACDStrategy(Strategy):
         Returns:
             List of :class:`Signal` objects for symbols whose MACD line crosses
             the signal line (or, when ``use_zero_line`` is set, the zero axis).
+
         """
         signals = []
 
@@ -832,6 +852,7 @@ class DonchianChannelStrategy(Strategy):
 
         Raises:
             ValueError: If any parameter is invalid.
+
         """
         super().__init__(
             name,
@@ -850,6 +871,7 @@ class DonchianChannelStrategy(Strategy):
 
         Raises:
             ValueError: If ``period`` or ``exit_period`` is non-positive.
+
         """
         if self.period <= 0:
             raise ValueError("period must be positive")
@@ -871,6 +893,7 @@ class DonchianChannelStrategy(Strategy):
 
         Returns:
             List of :class:`Signal` objects for breakout and exit events.
+
         """
         signals = []
 
@@ -1080,6 +1103,7 @@ class AroonStrategy(Strategy):
         Args:
             period: Number of periods for Aroon calculation. Defaults to 25.
             name: Strategy name. Defaults to "Aroon".
+
         """
         super().__init__(
             name,
@@ -1095,6 +1119,7 @@ class AroonStrategy(Strategy):
 
         Raises:
             ValueError: If any parameter is invalid.
+
         """
         if self.period <= 0:
             raise ValueError("period must be positive")
@@ -1106,6 +1131,7 @@ class AroonStrategy(Strategy):
             Tuple of (aroon_up, aroon_down) where:
             - aroon_up: ((period - periods since highest high) / period) * 100
             - aroon_down: ((period - periods since lowest low) / period) * 100
+
         """
         # Calculate periods since highest high and lowest low
         # Using rolling window to find the index of max/min within the period
@@ -1161,6 +1187,7 @@ class AroonStrategy(Strategy):
 
         Returns:
             List of trading signals.
+
         """
         signals = []
 
@@ -1262,6 +1289,7 @@ class KeltnerChannelStrategy(Strategy):
             use_middle_cross: Whether to use middle EMA crossovers for signals.
                 Defaults to False.
             name: Strategy name. Defaults to "Keltner_Channel".
+
         """
         super().__init__(
             name,
@@ -1283,6 +1311,7 @@ class KeltnerChannelStrategy(Strategy):
 
         Raises:
             ValueError: If any parameter is invalid.
+
         """
         if self.ema_period <= 0:
             raise ValueError("ema_period must be positive")
@@ -1300,6 +1329,7 @@ class KeltnerChannelStrategy(Strategy):
 
         Returns:
             EMA series.
+
         """
         return close.ewm(span=period, adjust=False).mean()
 
@@ -1312,6 +1342,7 @@ class KeltnerChannelStrategy(Strategy):
 
         Returns:
             ATR series.
+
         """
         high = df["high"]
         low = df["low"]
@@ -1336,6 +1367,7 @@ class KeltnerChannelStrategy(Strategy):
 
         Returns:
             List of trading signals.
+
         """
         signals = []
 
@@ -1483,6 +1515,7 @@ class StochasticOscillatorStrategy(Strategy):
             overbought: Overbought threshold. Defaults to 80.
             use_midline: Whether to use midline crossovers. Defaults to False.
             name: Strategy name. Defaults to "Stochastic_Oscillator".
+
         """
         super().__init__(
             name,
@@ -1506,6 +1539,7 @@ class StochasticOscillatorStrategy(Strategy):
 
         Raises:
             ValueError: If any parameter is invalid.
+
         """
         if self.k_period <= 0:
             raise ValueError("k_period must be positive")
@@ -1527,6 +1561,7 @@ class StochasticOscillatorStrategy(Strategy):
             Tuple of (k_percent, d_percent) where:
             - k_percent: Fast %K = 100 * (close - lowest low) / (highest high - lowest low)
             - d_percent: Slow %D = SMA of %K over d_period
+
         """
         lowest_low = low.rolling(window=self.k_period).min()
         highest_high = high.rolling(window=self.k_period).max()
@@ -1547,6 +1582,7 @@ class StochasticOscillatorStrategy(Strategy):
 
         Returns:
             List of trading signals.
+
         """
         signals = []
 
@@ -1678,6 +1714,7 @@ class IchimokuCloudStrategy(Strategy):
             kijun_period: Period for Kijun-sen. Defaults to 26.
             senkou_b_period: Period for Senkou Span B. Defaults to 52.
             name: Strategy name. Defaults to "Ichimoku_Cloud".
+
         """
         super().__init__(
             name,
@@ -1697,6 +1734,7 @@ class IchimokuCloudStrategy(Strategy):
 
         Raises:
             ValueError: If any parameter is invalid.
+
         """
         if self.tenkan_period <= 0:
             raise ValueError("tenkan_period must be positive")
@@ -1713,6 +1751,7 @@ class IchimokuCloudStrategy(Strategy):
 
         Returns:
             List of trading signals.
+
         """
         signals = []
 
@@ -1839,12 +1878,14 @@ class VWAPStrategy(Strategy):
 
         Args:
             name: Strategy name. Defaults to "VWAP".
+
         """
         super().__init__(name, {})
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
         """Validate strategy parameters.
+
         VWAP strategy has no parameters to validate.
         """
 
@@ -1856,6 +1897,7 @@ class VWAPStrategy(Strategy):
 
         Returns:
             List of trading signals.
+
         """
         signals: list[Signal] = []
 
@@ -1944,6 +1986,7 @@ class ParabolicSARStrategy(Strategy):
             step: Initial step/acceleration factor. Defaults to 0.02.
             max_step: Maximum step/acceleration factor. Defaults to 0.20.
             name: Strategy name. Defaults to "Parabolic_SAR".
+
         """
         super().__init__(
             name,
@@ -1961,6 +2004,7 @@ class ParabolicSARStrategy(Strategy):
 
         Raises:
             ValueError: If any parameter is invalid.
+
         """
         if self.step <= 0:
             raise ValueError("step must be positive")
@@ -1976,6 +2020,7 @@ class ParabolicSARStrategy(Strategy):
             Tuple of (sar, trend) where:
                 sar: Parabolic SAR values
                 trend: 1 for bullish (SAR below price), -1 for bearish (SAR above price)
+
         """
         # Initialize arrays
         sar = pd.Series(index=high.index, dtype=float)
@@ -2070,6 +2115,7 @@ class ParabolicSARStrategy(Strategy):
 
         Returns:
             List of trading signals.
+
         """
         signals = []
 

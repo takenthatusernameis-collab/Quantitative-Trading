@@ -14,6 +14,7 @@ Examples:
 
         data = analysis.to_dict()
         assert data["total_trades"] == analysis.total_trades
+
 """
 
 from dataclasses import dataclass
@@ -63,6 +64,7 @@ class TradeAnalysis:
         analysis = analyze_trades(result)
         assert 0.0 <= analysis.win_rate <= 1.0
         assert analysis.profit_factor >= 0.0
+
     """
 
     total_trades: int = 0
@@ -110,6 +112,7 @@ class TradeAnalysis:
 
         Returns:
             Dictionary of all computed trade statistics.
+
         """
         return {
             "total_trades": self.total_trades,
@@ -156,6 +159,7 @@ def _calculate_holding_periods(trades: pd.DataFrame) -> list[float]:
     Returns:
         List of holding periods in days (as floats). Empty when there are
         no completed round trips.
+
     """
     if trades.empty or "pnl" not in trades.columns:
         return []
@@ -211,6 +215,7 @@ def _calculate_consecutive_streaks(trades: pd.DataFrame) -> tuple[int, int, int,
         Tuple of ``(max_wins, max_losses, current_streak, current_streak_type)``.
         ``current_streak_type`` is ``"win"`` or ``"loss"`` (empty string when
         the streak is zero).
+
     """
     if trades.empty or "pnl" not in trades.columns:
         return 0, 0, 0, ""
@@ -256,6 +261,7 @@ def _calculate_monthly_returns(equity_curve: pd.Series) -> dict[str, float]:
     Returns:
         Mapping of month-end date string to monthly return percentage. Empty
         when fewer than two month-end values are available.
+
     """
     if len(equity_curve) < 2:
         return {}
@@ -281,6 +287,7 @@ def _calculate_weekly_returns(equity_curve: pd.Series) -> dict[str, float]:
     Returns:
         Mapping of week-end date string to weekly return percentage. Empty
         when fewer than two week-end values are available.
+
     """
     if len(equity_curve) < 2:
         return {}
@@ -304,6 +311,7 @@ def _calculate_symbol_stats(trades: pd.DataFrame) -> dict[str, dict[str, Any]]:
         ``winning_trades``, ``losing_trades``, ``win_rate``, ``total_pnl``,
         ``avg_pnl``, ``avg_win``, ``avg_loss``, ``largest_win``, and
         ``largest_loss``. Empty when there are no trades.
+
     """
     if trades.empty or "pnl" not in trades.columns:
         return {}
@@ -349,6 +357,7 @@ def analyze_trades(
         analysis = analyze_trades(result, risk_free_rate=0.02)
         assert analysis.total_trades > 0
         print(f"Expectancy: ${analysis.expectancy:,.2f}")
+
     """
     trades = result.trades
 
@@ -443,6 +452,7 @@ def print_trade_analysis(analysis: TradeAnalysis) -> None:
     Examples:
         analysis = analyze_trades(result)
         print_trade_analysis(analysis)
+
     """
     print(f"\n{'=' * 60}")
     print("Trade Analysis")

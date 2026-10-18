@@ -10,6 +10,7 @@ Examples:
         pos = Position(symbol="AAPL", quantity=100, entry_price=150.0)
         violations = limit.check(pos, portfolio_value=50000.0)
         assert len(violations) == 0
+
 """
 
 from dataclasses import dataclass, field
@@ -38,6 +39,7 @@ class PositionLimit:
             pos = Position(symbol="AAPL", quantity=200, entry_price=100.0)
             violations = pl.check(pos, portfolio_value=100000.0)
             print(violations)
+
     """
 
     max_size: float = 0.1  # Max fraction of portfolio
@@ -54,6 +56,7 @@ class PositionLimit:
 
         Returns:
             List of violation messages (empty if none).
+
         """
         violations: list[str] = []
 
@@ -95,6 +98,7 @@ class PortfolioLimit:
             positions = {"AAPL": Position(symbol="AAPL", quantity=10, entry_price=150.0)}
             violations = pl.check(positions, portfolio_value=100000.0, peak_value=105000.0)
             print(violations)
+
     """
 
     max_positions: int = 20
@@ -118,6 +122,7 @@ class PortfolioLimit:
 
         Returns:
             List of violation messages (empty if none).
+
         """
         violations = []
 
@@ -161,6 +166,7 @@ class CheckResult:
             print(res.ok)
             res.add_violation("Position too large")
             assert not res.passed
+
     """
 
     passed: bool
@@ -173,6 +179,7 @@ class CheckResult:
 
         Returns:
             True if passed, False otherwise.
+
         """
         return self.passed
 
@@ -181,6 +188,7 @@ class CheckResult:
 
         Args:
             message: Description of the violation.
+
         """
         self.violations.append(message)
         self.passed = False

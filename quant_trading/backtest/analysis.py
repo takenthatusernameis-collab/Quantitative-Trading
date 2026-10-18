@@ -33,6 +33,7 @@ Examples:
     0
     >>> analysis.current_regime.value
     'unknown'
+
 """
 
 from dataclasses import dataclass
@@ -92,6 +93,7 @@ class BacktestRegimeAnalysis:
         20
         >>> analysis.to_dict()["current_regime"]
         'unknown'
+
     """
 
     result: RegimeResult
@@ -128,6 +130,7 @@ class BacktestRegimeAnalysis:
             ... )
             >>> analyze_regimes(res).n_segments
             0
+
         """
         return self.result.n_segments
 
@@ -159,6 +162,7 @@ class BacktestRegimeAnalysis:
             ... )
             >>> analyze_regimes(res).current_regime.value
             'unknown'
+
         """
         return self.result.current_regime
 
@@ -190,6 +194,7 @@ class BacktestRegimeAnalysis:
             ... )
             >>> analyze_regimes(res).segments
             []
+
         """
         return self.result.segments
 
@@ -227,6 +232,7 @@ class BacktestRegimeAnalysis:
             20
             >>> analysis.to_dict()["current_regime"]
             'unknown'
+
         """
         return {
             "window": self.window,
@@ -269,6 +275,7 @@ class BacktestRegimeAnalysis:
             >>> analysis = analyze_regimes(res)
             >>> len(analysis.to_dataframe())
             0
+
         """
         return self.result.to_dataframe()
 
@@ -305,6 +312,7 @@ class BacktestRegimeAnalysis:
             20
             >>> analysis.summary()["current_regime"]
             'unknown'
+
         """
         summary = self.result.summary()
         summary["window"] = self.window
@@ -357,6 +365,7 @@ def analyze_regimes(
         10
         >>> analysis.n_segments
         0
+
     """
     equity = result.equity_curve
     regime_result = detect_regimes(
@@ -380,7 +389,7 @@ def regime_for_backtest(
     vol_threshold: float = 0.0,
     return_threshold: float = 0.0,
 ) -> RegimeResult:
-    """Convenience wrapper returning just the :class:`RegimeResult`.
+    """Return just the :class:`RegimeResult` from a backtest.
 
     Equivalent to ``analyze_regimes(...).result`` but cheaper to call when
     only the raw regime data is needed.
@@ -420,6 +429,7 @@ def regime_for_backtest(
         0
         >>> regime_for_backtest(res).current_regime.value
         'unknown'
+
     """
     return detect_regimes(
         result.equity_curve,

@@ -24,6 +24,7 @@ Examples:
         result = provider.fetch(["AAPL"])
         assert result.is_success
         assert "AAPL" in result.data
+
 """
 
 from datetime import datetime
@@ -73,6 +74,7 @@ def create_synthetic_data(
         >>> data2 = create_synthetic_data(["AAPL"], days=5, seed=42)
         >>> float(data["AAPL"]["close"].iloc[0]) == float(data2["AAPL"]["close"].iloc[0])
         True
+
     """
     np.random.seed(seed)
     end = end_date or datetime.now()
@@ -122,6 +124,7 @@ class SyntheticDataProvider(DataProvider):
         >>> result = provider.fetch(["MISSING"])
         >>> result.has_missing
         True
+
     """
 
     def __init__(self, data: dict[str, pd.DataFrame], name: str = "synthetic"):
@@ -130,6 +133,7 @@ class SyntheticDataProvider(DataProvider):
         Args:
             data: Symbol-keyed OHLCV DataFrames to serve.
             name: Provider identifier. Defaults to ``"synthetic"``.
+
         """
         self._data = data
         self._name = name
@@ -140,6 +144,7 @@ class SyntheticDataProvider(DataProvider):
 
         Returns:
             The provider identifier set at construction time.
+
         """
         return self._name
 
@@ -165,6 +170,7 @@ class SyntheticDataProvider(DataProvider):
 
         Returns:
             A :class:`FetchResult` with successful data and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -194,6 +200,7 @@ class SyntheticDataProvider(DataProvider):
 
         Returns:
             A :class:`FetchResult` with successful data and missing symbols.
+
         """
         return self.fetch(symbols)
 
@@ -226,6 +233,7 @@ def create_synthetic_provider(
         >>> result = provider.fetch(["AAPL", "MSFT"])
         >>> result.is_success
         True
+
     """
     data = create_synthetic_data(symbols, days=days, seed=seed, end_date=end_date)
     return SyntheticDataProvider(data)

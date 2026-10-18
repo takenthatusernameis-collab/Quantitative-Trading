@@ -19,6 +19,7 @@ Examples:
     1
     >>> result.current_regime.value
     'sideways_low_vol'
+
 """
 
 from dataclasses import dataclass, field
@@ -52,6 +53,7 @@ class Regime(Enum):
         'bull_low_vol'
         >>> Regime.UNKNOWN.value
         'unknown'
+
     """
 
     BULL_LOW_VOL = "bull_low_vol"
@@ -101,6 +103,7 @@ class RegimeSegment:
         'bull_low_vol'
         >>> seg.to_dict()["return_pct"]
         5.0
+
     """
 
     regime: Regime
@@ -118,6 +121,7 @@ class RegimeSegment:
             Dictionary with keys ``regime`` (the label's string value),
             ``start``, ``end``, ``start_index``, ``end_index``,
             ``volatility``, and ``return_pct``.
+
         """
         return {
             "regime": self.regime.value,
@@ -162,6 +166,7 @@ class RegimeResult:
         'sideways_low_vol'
         >>> result.to_dict()["n_segments"]
         1
+
     """
 
     segments: list[RegimeSegment] = field(default_factory=list)
@@ -179,6 +184,7 @@ class RegimeResult:
             ``regimes`` (list of regime string values), ``n_segments``,
             ``current_regime``, ``total_volatility``, and
             ``total_return_pct``.
+
         """
         return {
             "segments": [s.to_dict() for s in self.segments],
@@ -211,6 +217,7 @@ class RegimeResult:
             1
             >>> "regime" in df.columns
             True
+
         """
         if not self.segments:
             return pd.DataFrame()  # type: ignore[no-any-return]
@@ -238,6 +245,7 @@ class RegimeResult:
             1
             >>> "regime_counts" in summary
             True
+
         """
         counts: dict[str, int] = {}
         for r in self.regimes:
@@ -279,6 +287,7 @@ class RegimeDetector:
         20
         >>> detector.periods_per_year
         252
+
     """
 
     def __init__(
@@ -301,6 +310,7 @@ class RegimeDetector:
                 automatic derivation from the mean rolling return.
             periods_per_year: Trading periods per year used to annualize
                 volatility and return (default 252 for daily data).
+
         """
         self.window = window
         self.vol_threshold = vol_threshold
@@ -336,6 +346,7 @@ class RegimeDetector:
             1
             >>> result.current_regime.value
             'sideways_low_vol'
+
         """
         if not isinstance(prices, pd.Series):
             prices = pd.Series(prices)
@@ -400,6 +411,7 @@ class RegimeDetector:
 
         Returns:
             Ordered list of :class:`RegimeSegment` objects.
+
         """
         labels = self._label_series(rolling_vol, rolling_mean, vol_threshold, ret_threshold)
         return self._merge_segments(labels, prices, returns, rolling_vol)
@@ -428,6 +440,7 @@ class RegimeDetector:
         Returns:
             Ordered list of :class:`Regime` labels (or ``None`` for bars that
             could not be classified), one entry per bar in the rolling series.
+
         """
         labels: list[Regime | None] = []
         for i in range(len(rolling_vol)):
@@ -469,6 +482,7 @@ class RegimeDetector:
 
         Returns:
             Ordered list of :class:`RegimeSegment` objects.
+
         """
         segments: list[RegimeSegment] = []
         current: Regime | None = None
@@ -518,6 +532,7 @@ class RegimeDetector:
 
         Returns:
             A :class:`RegimeSegment` describing the labeled span.
+
         """
         # Label i corresponds to rolling stats computed on returns, whose index
         # is prices.index[1:] (pct_change drops the first bar). So label i is the
@@ -585,6 +600,7 @@ def detect_regimes(
         1
         >>> result.current_regime.value
         'sideways_low_vol'
+
     """
     detector = RegimeDetector(
         window=window, vol_threshold=vol_threshold, return_threshold=return_threshold

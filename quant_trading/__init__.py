@@ -1,5 +1,5 @@
-"""
-Quantitative Trading System
+"""Quantitative Trading System.
+
 A modular framework for algorithmic trading strategies, backtesting, and portfolio management.
 """
 

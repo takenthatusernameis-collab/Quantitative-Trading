@@ -22,6 +22,7 @@ Examples:
         summary = portfolio.summary()
         assert summary["num_positions"] == 0
         assert summary["pnl"] == 0.0
+
 """
 
 from dataclasses import dataclass, field
@@ -52,6 +53,7 @@ class Holding:
             )
             assert holding.unrealized_pnl == 5000.0
             assert holding.unrealized_pnl_pct == 0.5
+
     """
 
     symbol: str
@@ -84,6 +86,7 @@ class Holding:
 
         Args:
             price: New current price per unit.
+
         """
         self.current_price = price
         self.market_value = self.quantity * price
@@ -93,6 +96,7 @@ class Holding:
 
         Returns:
             Position mirroring this holding's symbol, quantity, prices, and PnL.
+
         """
         return Position(
             symbol=self.symbol,
@@ -124,6 +128,7 @@ class Portfolio:
             portfolio.update_prices({"AAPL": 120.0})
             assert portfolio.holdings["AAPL"].market_value == 12000.0
             assert portfolio.summary()["num_positions"] == 1
+
     """
 
     cash: float = 0.0
@@ -146,6 +151,7 @@ class Portfolio:
 
         Returns:
             Sum of market values across every holding in the portfolio.
+
         """
         return sum(h.market_value for h in self.holdings.values())
 
@@ -157,6 +163,7 @@ class Portfolio:
 
         Returns:
             Market value of the holding, or 0.0 when the symbol is absent.
+
         """
         holding = self.holdings.get(symbol)
         return holding.market_value if holding else 0.0
@@ -170,6 +177,7 @@ class Portfolio:
         Returns:
             Position market value divided by total portfolio value, or 0.0
             when total value is non-positive.
+
         """
         if self.total_value <= 0:
             return 0.0
@@ -190,6 +198,7 @@ class Portfolio:
             ZeroDivisionError: If adding a holding causes total quantity to
                 become zero with a nonzero prior cost basis (averaging is
                 undefined); guarded internally by resetting avg_cost to 0.
+
         """
         cost = quantity * price
 
@@ -226,6 +235,7 @@ class Portfolio:
         Returns:
             Proceeds from the sale (actual quantity removed times price), or
             0.0 when the symbol is not held.
+
         """
         if symbol not in self.holdings:
             return 0.0
@@ -253,6 +263,7 @@ class Portfolio:
 
         Returns:
             None.
+
         """
         for symbol, price in prices.items():
             if symbol in self.holdings:
@@ -264,6 +275,7 @@ class Portfolio:
 
         Returns:
             Symbol-keyed Position objects for every current holding.
+
         """
         return {sym: h.to_position() for sym, h in self.holdings.items()}
 
@@ -273,6 +285,7 @@ class Portfolio:
         Returns:
             Symbol-keyed market-value fractions of total portfolio value, or
             an empty dictionary when total value is non-positive.
+
         """
         if self.total_value <= 0:
             return {}
@@ -287,6 +300,7 @@ class Portfolio:
 
         Returns:
             None.
+
         """
         self.cash = capital
         self.holdings = {}
@@ -300,6 +314,7 @@ class Portfolio:
         Returns:
             Dictionary with total_value, cash, holdings_value, num_positions,
             allocation, pnl, and pnl_pct keys.
+
         """
         return {
             "total_value": self.total_value,

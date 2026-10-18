@@ -30,6 +30,7 @@ Examples:
         failed = FetchResult(errors={"AAPL": RuntimeError("boom")})
         assert failed.has_errors
         assert not failed.is_success
+
 """
 
 from abc import ABC, abstractmethod
@@ -69,6 +70,7 @@ class MarketData:
         {}
         >>> float(md.data["close"].iloc[1])
         101.0
+
     """
 
     symbol: str
@@ -114,6 +116,7 @@ class FetchResult:
         True
         >>> missing.is_success
         False
+
     """
 
     data: dict[str, MarketData] = field(default_factory=dict)
@@ -163,6 +166,7 @@ class DataProvider(ABC):
 
                 def fetch_latest(self, symbols):
                     return FetchResult()
+
     """
 
     @abstractmethod
@@ -184,6 +188,7 @@ class DataProvider(ABC):
         Returns:
             A :class:`FetchResult` containing successful data, hard errors,
             and symbols that returned no data.
+
         """
         ...  # pragma: no cover
 
@@ -197,6 +202,7 @@ class DataProvider(ABC):
         Returns:
             A :class:`FetchResult` containing successful data, hard errors,
             and symbols that returned no data.
+
         """
         ...  # pragma: no cover
 
@@ -229,6 +235,7 @@ class DataProvider(ABC):
             True
             >>> results[provider._request_key(["AAPL"], None, None, "1d")].is_success
             True
+
         """
         results: dict[str, FetchResult] = {}
         for req in requests:
@@ -267,6 +274,7 @@ class DataProvider(ABC):
             >>> from quant_trading.data.providers import DataProvider
             >>> DataProvider._request_key(["MSFT", "AAPL"], None, None, "1d")
             'AAPL,MSFT|none|none|1d'
+
         """
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
@@ -281,6 +289,7 @@ class DataProvider(ABC):
         Returns:
             A short, human-readable identifier for this provider (e.g.
             ``"yfinance"`` or ``"synthetic"``).
+
         """
         ...  # pragma: no cover
 
@@ -311,6 +320,7 @@ class DataManager:
         True
         >>> manager.get_provider("nonexistent") is None
         True
+
     """
 
     def __init__(self, providers: list[DataProvider] | None = None):
@@ -319,6 +329,7 @@ class DataManager:
         Args:
             providers: Optional list of providers to register immediately.
                 Defaults to an empty list.
+
         """
         self.providers = providers or []
         self._cache: dict[str, FetchResult] = {}
@@ -331,6 +342,7 @@ class DataManager:
 
         Returns:
             None.
+
         """
         self.providers.append(provider)
 
@@ -343,6 +355,7 @@ class DataManager:
         Returns:
             The matching provider, or ``None`` when no provider with that
             name is registered.
+
         """
         for provider in self.providers:
             if provider.name == name:
@@ -381,6 +394,7 @@ class DataManager:
         Raises:
             ValueError: If no provider matches ``provider_name`` and no
                 providers are registered.
+
         """
         provider = None
         if provider_name:
@@ -408,6 +422,7 @@ class DataManager:
 
         Returns:
             None.
+
         """
         self._cache.clear()
 
@@ -437,6 +452,7 @@ class DataManager:
         Raises:
             ValueError: If no provider matches ``provider_name`` and no
                 providers are registered.
+
         """
         provider = None
         if provider_name:
@@ -503,6 +519,7 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
         >>> manager = create_data_manager_from_config(DataConfig(provider="synthetic"))
         >>> manager.providers[0].name
         'synthetic'
+
     """
     from quant_trading.config.settings import DataConfig
 
@@ -527,6 +544,7 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
                 _initialized: Whether synthetic data has been generated for the
                     current symbol set.
                 _symbols: List of symbols for which data was last generated.
+
             """
 
             def __init__(self, config: DataConfig):
@@ -535,6 +553,7 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
                 Args:
                     config: :class:`DataConfig` instance with synthetic
                         generation parameters.
+
                 """
                 self._config = config
                 self._initialized = False
@@ -550,6 +569,7 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
 
                 Returns:
                     None.
+
                 """
                 if not self._initialized or set(symbols) != set(self._symbols or []):
                     from quant_trading.data.synthetic import create_synthetic_data
@@ -583,6 +603,7 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
 
                 Returns:
                     :class:`FetchResult` containing fetched market data.
+
                 """
                 self._ensure_initialized(symbols)
                 return super().fetch(symbols, start, end, interval)
@@ -595,6 +616,7 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
 
                 Returns:
                     :class:`FetchResult` containing the latest market data.
+
                 """
                 self._ensure_initialized(symbols)
                 return super().fetch_latest(symbols)

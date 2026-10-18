@@ -15,6 +15,7 @@ Examples:
     2
     >>> optimizer.symbols
     ['AAPL']
+
 """
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -73,6 +74,7 @@ def _evaluate_params_worker(
         >>> import inspect
         >>> "param_grid_dict" in inspect.signature(_evaluate_params_worker).parameters
         True
+
     """
     from quant_trading.backtest.engine import run_backtest
     from quant_trading.config.settings import Config, DataConfig
@@ -137,6 +139,7 @@ class GridSearch(BaseOptimizer):
         2
         >>> optimizer.symbols
         ['AAPL']
+
     """
 
     def __init__(self, *args, **kwargs):
@@ -158,6 +161,7 @@ class GridSearch(BaseOptimizer):
 
         Returns:
             None
+
         """
         super().__init__(*args, **kwargs)
         self._combinations = self.param_grid.generate_combinations()
@@ -180,6 +184,7 @@ class GridSearch(BaseOptimizer):
             >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
             >>> optimizer = GridSearch(strategy_cls=None, param_grid=grid)
             >>> result = optimizer.run()  # doctest: +SKIP
+
         """
         start_time = datetime.now()
         all_results: list[dict[str, Any]] = []
@@ -250,6 +255,7 @@ class GridSearch(BaseOptimizer):
             >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
             >>> optimizer = GridSearch(strategy_cls=None, param_grid=grid)
             >>> optimizer._run_sequential(1, [], float("-inf"), {}, None)  # doctest: +SKIP
+
         """
         for i, params in enumerate(self._combinations):
             if self.verbose:
@@ -318,6 +324,7 @@ class GridSearch(BaseOptimizer):
             >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
             >>> optimizer = GridSearch(strategy_cls=None, param_grid=grid)
             >>> optimizer._run_parallel(1, [], float("-inf"), {}, None, None, None)  # doctest: +SKIP
+
         """
         from quant_trading.config.settings import Config
 

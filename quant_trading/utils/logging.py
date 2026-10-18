@@ -24,6 +24,7 @@ def setup_logger(
 
     Returns:
         Configured logger instance.
+
     """
     logger = logging.getLogger(name)
     logger.setLevel(getattr(logging, level.upper(), logging.INFO))
@@ -55,6 +56,7 @@ def get_logger(name: str = "quant_trading") -> logging.Logger:
 
     Returns:
         Logger instance.
+
     """
     logger = logging.getLogger(name)
     if not logger.handlers:

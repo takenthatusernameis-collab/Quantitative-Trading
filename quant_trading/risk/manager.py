@@ -10,6 +10,7 @@ Examples:
         signal = Signal(symbol="AAPL", action="buy", price=150.0, strength=1.0)
         result = rm.check_signal(signal, portfolio_value=100000.0)
         assert result.passed in (True, False)
+
 """
 
 from dataclasses import dataclass
@@ -38,6 +39,7 @@ class PortfolioRisk:
     Examples:
         pr = PortfolioRisk(total_market_value=100000.0, cash=50000.0, positions_value=50000.0)
         assert pr.total_value == 100000.0
+
     """
 
     total_market_value: float = 0.0
@@ -53,6 +55,7 @@ class PortfolioRisk:
 
         Returns:
             Equal to ``total_market_value``.
+
         """
         return self.total_market_value
 
@@ -76,6 +79,7 @@ class RiskManager:
         rm = RiskManager(initial_capital=50000.0, max_position_size=0.2)
         assert rm.initial_capital == 50000.0
         assert rm.risk_enabled
+
     """
 
     def __init__(
@@ -101,6 +105,7 @@ class RiskManager:
 
         Returns:
             None.
+
         """
         self.initial_capital = initial_capital
         self.position_limit = PositionLimit(
@@ -147,6 +152,7 @@ class RiskManager:
                 positions = {"AAPL": Position("AAPL", 100, 150.0, 152.0)}
                 rm.update_portfolio_value(positions, 35000.0)
                 assert rm.portfolio_risk.positions_value > 0.0
+
         """
         self.positions = positions
         positions_value = sum(p.market_value for p in positions.values())
@@ -196,6 +202,7 @@ class RiskManager:
                 signal = Signal(symbol="AAPL", action="buy", price=150.0, strength=2.0)
                 result = rm.check_signal(signal)
                 assert result.passed in (True, False)
+
         """
         result = CheckResult(passed=True)
 
@@ -247,6 +254,7 @@ class RiskManager:
                 rm.update_portfolio_value({}, 100000.0)
                 result = rm.check_portfolio()
                 assert result.passed
+
         """
         result = CheckResult(passed=True)
 
@@ -271,6 +279,7 @@ class RiskManager:
 
         Returns:
             Computed RiskMetrics object.
+
         """
         equity_series = pd.Series(self.equity_curve)
         self.risk_metrics = calculate_all_metrics(
@@ -288,6 +297,7 @@ class RiskManager:
 
         Returns:
             Stop loss price, or None if no position/invalid price.
+
         """
         position = self.positions.get(symbol)
         if position is None or position.avg_price <= 0:
@@ -302,6 +312,7 @@ class RiskManager:
 
         Returns:
             Take profit price, or None if no position/invalid price.
+
         """
         position = self.positions.get(symbol)
         if position is None or position.avg_price <= 0:
@@ -317,6 +328,7 @@ class RiskManager:
 
         Returns:
             True if stop loss triggered.
+
         """
         stop = self.get_position_stop_loss(symbol)
         return stop is not None and current_price <= stop
@@ -330,6 +342,7 @@ class RiskManager:
 
         Returns:
             True if take profit triggered.
+
         """
         tp = self.get_position_take_profit(symbol)
         return tp is not None and current_price >= tp
@@ -339,6 +352,7 @@ class RiskManager:
 
         Returns:
             None.
+
         """
         self.portfolio_risk = PortfolioRisk(
             total_market_value=self.initial_capital,
@@ -355,6 +369,7 @@ class RiskManager:
 
         Returns:
             None.
+
         """
         self.risk_enabled = True
 
@@ -363,5 +378,6 @@ class RiskManager:
 
         Returns:
             None.
+
         """
         self.risk_enabled = False

@@ -15,6 +15,7 @@ Examples:
     ... )
     >>> w.to_dict()["test_start"].isoformat()
     '2024-02-01T00:00:00'
+
 """
 
 # mypy: disable-error-code="no-any-return"
@@ -71,6 +72,7 @@ class WalkForwardWindow:
         '2024-02-01T00:00:00'
         >>> w.best_params is None
         True
+
     """
 
     train_start: datetime
@@ -102,6 +104,7 @@ class WalkForwardWindow:
             ... )
             >>> w.to_dict()["best_params"]
             {'fast_period': 5}
+
         """
         return {
             "train_start": self.train_start,
@@ -144,6 +147,7 @@ class WalkForwardResult:
         True
         >>> r.summary()["n_windows"]
         1
+
     """
 
     windows: list[WalkForwardWindow]
@@ -174,6 +178,7 @@ class WalkForwardResult:
             True
             >>> len(df)
             1
+
         """
         rows: list[dict[str, Any]] = []
         for i, w in enumerate(self.windows):
@@ -216,6 +221,7 @@ class WalkForwardResult:
             1
             >>> s["avg_test_return_pct"]
             0
+
         """
         test_returns = [w.test_result.total_return_pct for w in self.windows if w.test_result]
         test_sharpes = [w.test_result.metrics.sharpe_ratio for w in self.windows if w.test_result]
@@ -300,6 +306,7 @@ class WalkForwardOptimizer:
         'grid'
         >>> optimizer.anchored
         True
+
     """
 
     def __init__(
@@ -347,6 +354,7 @@ class WalkForwardOptimizer:
             optimizer: Optimizer type ("grid" or "random").
             optimizer_kwargs: Additional kwargs for optimizer.
             verbose: Print progress.
+
         """
         self.strategy_cls = strategy_cls
         self.param_grid = param_grid
@@ -396,6 +404,7 @@ class WalkForwardOptimizer:
             ... )
             >>> optimizer._create_optimizer()  # doctest: +SKIP
             GridSearch(...)
+
         """
         if self.optimizer_type == "grid":
             return GridSearch(
@@ -482,6 +491,7 @@ class WalkForwardOptimizer:
             ... )
             >>> [w.train_end.date() for w in optimizer._generate_windows()]  # doctest: +SKIP
             [datetime.date(2024, 1, 3), datetime.date(2024, 1, 5)]
+
         """
         if self.start is None or self.end is None:
             raise ValueError("start and end dates must be provided")
@@ -552,6 +562,7 @@ class WalkForwardOptimizer:
             ... )
             >>> optimizer.run()  # doctest: +SKIP
             WalkForwardResult(windows=[...], anchored=True)
+
         """
         windows = self._generate_windows()
 
@@ -638,6 +649,7 @@ class WalkForwardOptimizer:
             ... )
             >>> optimizer._combine_test_results([])  # doctest: +SKIP
             None
+
         """
         import pandas as pd
 

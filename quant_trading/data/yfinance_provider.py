@@ -36,6 +36,7 @@ class YFinanceProvider(DataProvider):
 
             provider = YFinanceProvider(cache_dir="/tmp/yt_cache", cache_ttl_hours=1)
             assert provider.name == "yfinance"
+
     """
 
     def __init__(
@@ -51,6 +52,7 @@ class YFinanceProvider(DataProvider):
 
         Returns:
             None.
+
         """
         self._cache_dir = cache_dir
         self._cache_ttl = timedelta(hours=cache_ttl_hours)
@@ -64,6 +66,7 @@ class YFinanceProvider(DataProvider):
 
         Returns:
             The string ``"yfinance"``.
+
         """
         return "yfinance"
 
@@ -75,6 +78,7 @@ class YFinanceProvider(DataProvider):
 
         Raises:
             ImportError: If ``yfinance`` is not installed.
+
         """
         if self._yf is None:
             try:
@@ -104,6 +108,7 @@ class YFinanceProvider(DataProvider):
             A string of the form
             ``"<name>_<sorted_symbols>_<start>_<end>_<interval>.pkl"`` where
             missing dates are rendered as ``"none"``.
+
         """
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
@@ -118,6 +123,7 @@ class YFinanceProvider(DataProvider):
 
         Returns:
             Full filesystem path for the cache file.
+
         """
         return os.path.join(self._cache_dir, key)
 
@@ -130,6 +136,7 @@ class YFinanceProvider(DataProvider):
         Returns:
             ``True`` when the file exists and its modification time is newer
             than ``now - cache_ttl``.
+
         """
         if not os.path.exists(path):
             return False
@@ -145,6 +152,7 @@ class YFinanceProvider(DataProvider):
         Returns:
             The deserialized :class:`FetchResult`, or ``None`` when the file
             is unreadable or does not contain a valid result.
+
         """
         try:
             with open(path, "rb") as f:
@@ -166,6 +174,7 @@ class YFinanceProvider(DataProvider):
 
         Returns:
             None.
+
         """
         try:
             with open(path, "wb") as f:
@@ -196,6 +205,7 @@ class YFinanceProvider(DataProvider):
         Returns:
             A :class:`FetchResult` containing successful data, hard errors,
             and symbols that returned no data.
+
         """
         # Try cache first
         if self._cache_dir:
@@ -278,6 +288,7 @@ class YFinanceProvider(DataProvider):
 
         Returns:
             Mapping of stable request key to :class:`FetchResult`.
+
         """
         yf = self._get_yf()
         results: dict[str, FetchResult] = {}
@@ -331,6 +342,7 @@ class YFinanceProvider(DataProvider):
 
         Returns:
             A :class:`FetchResult` covering the requested symbols.
+
         """
         if self._cache_dir:
             key = self._group_cache_key(symbols, start, end, interval)
@@ -393,6 +405,7 @@ class YFinanceProvider(DataProvider):
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         if df is None or df.empty:
@@ -458,6 +471,7 @@ class YFinanceProvider(DataProvider):
             A string of the form
             ``"<name>_group_<sorted_symbols>_<start>_<end>_<interval>.pkl"``
             where missing dates are rendered as ``"none"``.
+
         """
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
@@ -478,6 +492,7 @@ class YFinanceProvider(DataProvider):
         Returns:
             A new :class:`FetchResult` containing only the requested symbols'
             data/errors, with any absent symbol recorded as missing.
+
         """
         sliced = FetchResult()
         for symbol in symbols:
@@ -500,6 +515,7 @@ class YFinanceProvider(DataProvider):
 
         Returns:
             A :class:`FetchResult` containing the latest data.
+
         """
         end = datetime.now()
         start = end - timedelta(days=2)
@@ -530,6 +546,7 @@ class AlphaVantageProvider(DataProvider):
 
             provider = AlphaVantageProvider(cache_dir="/tmp/av_cache")
             assert provider.name == "alphavantage"
+
     """
 
     BASE_URL = "https://www.alphavantage.co/query"
@@ -692,6 +709,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             None.
+
         """
         self._api_key = api_key or "demo"
         self._cache_dir = cache_dir
@@ -713,6 +731,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             The string ``"alphavantage"``.
+
         """
         return "alphavantage"
 
@@ -735,6 +754,7 @@ class AlphaVantageProvider(DataProvider):
             A string of the form
             ``"<name>_<sorted_symbols>_<start>_<end>_<interval>.pkl"`` where
             missing dates are rendered as ``"none"``.
+
         """
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
@@ -749,6 +769,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Full filesystem path for the cache file.
+
         """
         return os.path.join(self._cache_dir, key)
 
@@ -761,6 +782,7 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             ``True`` when the file exists and its modification time is newer
             than ``now - cache_ttl``.
+
         """
         if not os.path.exists(path):
             return False
@@ -776,6 +798,7 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             The deserialized :class:`FetchResult`, or ``None`` when the file
             is unreadable or does not contain a valid result.
+
         """
         try:
             with open(path, "rb") as f:
@@ -797,6 +820,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             None.
+
         """
         try:
             with open(path, "wb") as f:
@@ -823,6 +847,7 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             A string of the form ``"symbols|start|end|interval"`` where
             missing dates are rendered as ``"none"``.
+
         """
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
@@ -837,6 +862,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the Alpha Vantage API.
+
         """
         return {
             "function": "TIME_SERIES_DAILY_ADJUSTED",
@@ -854,6 +880,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the Alpha Vantage API.
+
         """
         return {
             "function": "BATCH_STOCK_PRICES",
@@ -871,6 +898,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the TIME_SERIES_INTRADAY endpoint.
+
         """
         av_interval = self.INTRADAY_INTERVALS.get(interval, interval)
         return {
@@ -890,6 +918,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the TIME_SERIES_WEEKLY endpoint.
+
         """
         return {
             "function": "TIME_SERIES_WEEKLY",
@@ -906,6 +935,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the TIME_SERIES_WEEKLY_ADJUSTED endpoint.
+
         """
         return {
             "function": "TIME_SERIES_WEEKLY_ADJUSTED",
@@ -922,6 +952,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the TIME_SERIES_MONTHLY endpoint.
+
         """
         return {
             "function": "TIME_SERIES_MONTHLY",
@@ -938,6 +969,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the TIME_SERIES_MONTHLY_ADJUSTED endpoint.
+
         """
         return {
             "function": "TIME_SERIES_MONTHLY_ADJUSTED",
@@ -954,6 +986,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the GLOBAL_QUOTE endpoint.
+
         """
         return {
             "function": "GLOBAL_QUOTE",
@@ -970,6 +1003,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the SYMBOL_SEARCH endpoint.
+
         """
         return {
             "function": "SYMBOL_SEARCH",
@@ -983,6 +1017,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the MARKET_STATUS endpoint.
+
         """
         return {
             "function": "MARKET_STATUS",
@@ -995,6 +1030,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the SECTOR_PERFORMANCE endpoint.
+
         """
         return {
             "function": "SECTOR",
@@ -1010,6 +1046,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the GOLD_SILVER_SPOT endpoint.
+
         """
         return {
             "function": "GOLD_SILVER_SPOT",
@@ -1027,6 +1064,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the GOLD_SILVER_HISTORY endpoint.
+
         """
         return {
             "function": "GOLD_SILVER_HISTORY",
@@ -1045,6 +1083,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the commodity endpoint.
+
         """
         params: dict[str, str] = {
             "function": function,
@@ -1066,6 +1105,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the economic indicator endpoint.
+
         """
         params: dict[str, str] = {
             "function": function,
@@ -1086,6 +1126,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the FX_DAILY endpoint.
+
         """
         return {
             "function": "FX_DAILY",
@@ -1107,6 +1148,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the FX_INTRADAY endpoint.
+
         """
         av_interval = self.INTRADAY_INTERVALS.get(interval.replace("fx_", ""), interval)
         return {
@@ -1129,6 +1171,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the CURRENCY_EXCHANGE_RATE endpoint.
+
         """
         return {
             "function": "CURRENCY_EXCHANGE_RATE",
@@ -1147,6 +1190,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the DIGITAL_CURRENCY_DAILY endpoint.
+
         """
         return {
             "function": "DIGITAL_CURRENCY_DAILY",
@@ -1165,6 +1209,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the DIGITAL_CURRENCY_WEEKLY endpoint.
+
         """
         return {
             "function": "DIGITAL_CURRENCY_WEEKLY",
@@ -1183,6 +1228,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the DIGITAL_CURRENCY_MONTHLY endpoint.
+
         """
         return {
             "function": "DIGITAL_CURRENCY_MONTHLY",
@@ -1204,6 +1250,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the DIGITAL_CURRENCY_INTRADAY endpoint.
+
         """
         return {
             "function": "DIGITAL_CURRENCY_INTRADAY",
@@ -1235,6 +1282,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the technical indicator endpoint.
+
         """
         params = {
             "function": indicator.upper(),
@@ -1262,6 +1310,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by timestamp with OHLCV columns, or ``None`` when no series is present.
+
         """
         # Find the time series key (e.g., "Time Series (5min)")
         time_series_key = None
@@ -1322,6 +1371,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with OHLCV/adjusted columns, or ``None`` when no series is present.
+
         """
         time_series = data.get("Time Series (Daily)")
         if not time_series:
@@ -1374,6 +1424,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Mapping of symbol to single-row DataFrame of latest quote data.
+
         """
         result = {}
         stock_prices = data.get("Stock Prices", [])
@@ -1410,6 +1461,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with OHLCV columns, or ``None`` when no series is present.
+
         """
         time_series = data.get("Weekly Time Series")
         if not time_series:
@@ -1460,6 +1512,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with OHLCV/adjusted columns, or ``None`` when no series is present.
+
         """
         time_series = data.get("Weekly Adjusted Time Series")
         if not time_series:
@@ -1513,6 +1566,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with OHLCV columns, or ``None`` when no series is present.
+
         """
         time_series = data.get("Monthly Time Series")
         if not time_series:
@@ -1563,6 +1617,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with OHLCV/adjusted columns, or ``None`` when no series is present.
+
         """
         time_series = data.get("Monthly Adjusted Time Series")
         if not time_series:
@@ -1614,6 +1669,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Single-row DataFrame of quote data, or ``None`` when no quote is present.
+
         """
         quote = data.get("Global Quote")
         if not quote:
@@ -1648,6 +1704,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             List of symbol match dicts with keys: symbol, name, type, region, market, currency, match_score.
+
         """
         best_matches = data.get("bestMatches", [])
         results: list[dict[str, str]] = []
@@ -1684,6 +1741,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with indicator values, or ``None`` when no series is present.
+
         """
         # Look for key like "Technical Analysis: SMA"
         ta_key = None
@@ -1745,6 +1803,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame with market status information, or ``None`` when no markets are present.
+
         """
         markets = data.get("markets", [])
         if not markets:
@@ -1788,6 +1847,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with OHLC columns, or ``None`` when no series is present.
+
         """
         time_series = data.get("Time Series FX (Daily)")
         if not time_series:
@@ -1843,6 +1903,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by timestamp with OHLC columns, or ``None`` when no series is present.
+
         """
         time_series_key = None
         for key in data:
@@ -1900,6 +1961,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Single-row DataFrame of exchange rate data, or ``None`` when no rate is present.
+
         """
         rate = data.get("Realtime Currency Exchange Rate")
         if not rate:
@@ -1944,6 +2006,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date/timestamp with OHLCV columns, or ``None`` when no series is present.
+
         """
         # Find the time series key
         time_series_key = None
@@ -2014,6 +2077,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with a single ``value`` column, or ``None`` when no series is present.
+
         """
         series = data.get("data")
         if not series:
@@ -2058,6 +2122,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame with columns ``sector``, ``period``, ``performance``, or ``None`` when no data is present.
+
         """
         if not data:
             return None
@@ -2097,9 +2162,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -2145,9 +2212,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         try:
@@ -2195,9 +2264,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -2244,9 +2315,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -2292,9 +2365,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -2340,9 +2415,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -2388,9 +2465,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -2436,9 +2515,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -2482,6 +2563,7 @@ class AlphaVantageProvider(DataProvider):
             List of matching symbols, each a dict with keys:
             symbol, name, type, region, market, currency, match_score.
             Sorted by match score (best first). Empty list on error.
+
         """
         try:
             params = self._build_symbol_search_params(query)
@@ -2510,6 +2592,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame with market status information, or ``None`` on error.
+
         """
         try:
             params = self._build_market_status_params()
@@ -2542,6 +2625,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame with exchange rate information, or None on error.
+
         """
         try:
             params = self._build_currency_exchange_rate_params(from_currency, to_currency)
@@ -2590,6 +2674,7 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             DataFrame indexed by date with indicator values, or ``None`` on
             error.
+
         """
         try:
             params = self._build_technical_indicator_params(
@@ -2632,6 +2717,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with SMA values, or ``None`` on error.
+
         """
         return self.get_technical_indicator(
             symbol,
@@ -2660,6 +2746,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with EMA values, or ``None`` on error.
+
         """
         return self.get_technical_indicator(
             symbol,
@@ -2688,6 +2775,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with RSI values, or ``None`` on error.
+
         """
         return self.get_technical_indicator(
             symbol,
@@ -2711,6 +2799,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with MACD values, or ``None`` on error.
+
         """
         return self.get_technical_indicator(
             symbol, indicator="MACD", interval=interval, series_type=series_type
@@ -2728,6 +2817,7 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             DataFrame indexed by date with Stochastic Oscillator values, or
             ``None`` on error.
+
         """
         return self.get_technical_indicator(symbol, indicator="STOCH", interval=interval)
 
@@ -2751,6 +2841,7 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             DataFrame indexed by date with Bollinger Bands values, or
             ``None`` on error.
+
         """
         return self.get_technical_indicator(
             symbol,
@@ -2766,6 +2857,7 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             DataFrame with columns ``sector``, ``period``, ``performance``,
             or None on error.
+
         """
         try:
             params = self._build_sector_params()
@@ -2795,6 +2887,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame with a single row of spot price data, or None on error.
+
         """
         try:
             params = self._build_gold_spot_params(symbol)
@@ -2829,6 +2922,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with a ``value`` column, or None on error.
+
         """
         try:
             params = self._build_gold_history_params(symbol, interval=interval)
@@ -2867,6 +2961,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with a ``value`` column, or None on error.
+
         """
         try:
             params = self._build_commodity_params(function, interval=interval)
@@ -2904,6 +2999,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             DataFrame indexed by date with a ``value`` column, or None on error.
+
         """
         try:
             params = self._build_economic_indicator_params(function, interval=interval, **kwargs)
@@ -2938,9 +3034,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         try:
@@ -2987,9 +3085,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         try:
@@ -3042,9 +3142,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         try:
@@ -3096,9 +3198,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         try:
@@ -3145,9 +3249,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -3208,9 +3314,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -3270,9 +3378,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -3333,9 +3443,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -3397,9 +3509,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         if not symbols:
@@ -3451,9 +3565,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -3504,9 +3620,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -3557,9 +3675,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -3610,9 +3730,11 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         for symbol in symbols:
@@ -3669,10 +3791,12 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
+            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
             indicator: Indicator name (e.g. ``"SMA"``, ``"RSI"``).
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
+
         """
         result = FetchResult()
         av_interval = (
@@ -3779,6 +3903,7 @@ class AlphaVantageProvider(DataProvider):
         For technical indicators (interval in TECHNICAL_INDICATORS), the optional
         keyword argument ``ti_interval`` specifies the time-series resolution
         (e.g., "daily", "5min", "weekly", "monthly"). Defaults to "daily".
+
         """
         # Try cache first
         if self._cache_dir:
@@ -3897,6 +4022,7 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Mapping of stable request key to :class:`FetchResult`.
+
         """
         results: dict[str, FetchResult] = {}
 
@@ -3998,5 +4124,6 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             A :class:`FetchResult` containing the latest quote data.
+
         """
         return self._fetch_batch(symbols, None, None, "1m")
