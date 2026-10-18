@@ -15,6 +15,7 @@ Examples:
     3
     >>> metrics.win_rate
     0.6666666666666666
+
 """
 
 from dataclasses import dataclass
@@ -70,6 +71,7 @@ class BacktestMetrics:
         1000.0
         >>> metrics.to_dict()["sharpe_ratio"]
         1.5
+
     """
 
     # Returns
@@ -106,6 +108,7 @@ class BacktestMetrics:
         Returns:
             Dictionary containing all metric values with keys matching
             the attribute names of this dataclass.
+
         """
         return {
             "total_return": self.total_return,
@@ -163,6 +166,7 @@ def calculate_backtest_metrics(
         15000.0
         >>> round(float(metrics.sharpe_ratio), 2)
         9.58
+
     """
     metrics = BacktestMetrics()
 
