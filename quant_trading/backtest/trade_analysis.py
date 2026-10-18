@@ -106,6 +106,11 @@ class TradeAnalysis:
     sortino_ratio: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize the trade analysis to a dictionary.
+
+        Returns:
+            Dictionary of all computed trade statistics.
+        """
         return {
             "total_trades": self.total_trades,
             "winning_trades": self.winning_trades,

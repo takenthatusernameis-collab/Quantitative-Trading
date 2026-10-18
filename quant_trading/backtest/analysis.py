@@ -39,17 +39,26 @@ class BacktestRegimeAnalysis:
 
     @property
     def n_segments(self) -> int:
+        """Number of detected regime segments."""
         return self.result.n_segments
 
     @property
     def current_regime(self) -> Regime:
+        """Regime of the most recent segment."""
         return self.result.current_regime
 
     @property
     def segments(self) -> list[RegimeSegment]:
+        """Detected regime segments in chronological order."""
         return self.result.segments
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize the analysis to a JSON-friendly dictionary.
+
+        Returns:
+            Dictionary with window thresholds, current regime, volatility,
+            return percentage, and serialized segments.
+        """
         return {
             "window": self.window,
             "vol_threshold": self.vol_threshold,
@@ -61,9 +70,19 @@ class BacktestRegimeAnalysis:
         }
 
     def to_dataframe(self) -> pd.DataFrame:
+        """Return regime segments as a DataFrame.
+
+        Returns:
+            DataFrame produced by the underlying :class:`RegimeResult`.
+        """
         return self.result.to_dataframe()
 
     def summary(self) -> dict[str, Any]:
+        """Return a summary of the regime analysis.
+
+        Returns:
+            Summary dictionary augmented with window and threshold settings.
+        """
         summary = self.result.summary()
         summary["window"] = self.window
         summary["vol_threshold"] = self.vol_threshold
