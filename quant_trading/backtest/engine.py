@@ -120,7 +120,14 @@ class Trade:
 
     @property
     def cost(self) -> float:
-        """Total cost including commission and slippage."""
+        """Total cost of the trade including commission and slippage.
+
+        Buys are charged (cost is increased) and sells are credited (cost is
+        reduced) by the commission and slippage rates.
+
+        Returns:
+            The gross trade value adjusted for commission and slippage.
+        """
         base = self.quantity * self.price
         if self.action == "buy":
             return base * (1 + self.commission + self.slippage)
@@ -129,7 +136,12 @@ class Trade:
 
     @property
     def pnl(self) -> float:
-        """Realized PnL for this trade (0.0 for opens, set on closes)."""
+        """Realized PnL for this trade.
+
+        Returns:
+            The realized PnL. This is ``0.0`` for opening trades and is set
+            on closing trades when the position is exited.
+        """
         return self.realized_pnl
 
 
@@ -177,10 +189,10 @@ class BacktestResult:
 class BacktestEngine:
     """Engine for running backtests on trading strategies.
 
-    Args:
-        config: Backtest configuration. Defaults to ``BacktestConfig()``.
-        data_manager: DataManager providing market data. Required to run.
-        risk_manager: Risk manager instance. Defaults to a new RiskManager.
+    The engine fetches market data for a set of symbols over a date range,
+    generates trading signals from registered strategies on each bar,
+    executes the signals against a :class:`Portfolio`, and records the
+    resulting equity curve and trades.
 
     Attributes:
         config: Backtest configuration.
