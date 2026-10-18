@@ -56,6 +56,13 @@ class StrategyRegistry:
     """
 
     def __init__(self):
+        """Initialize an empty strategy registry.
+
+        Creates empty mappings for strategies and aliases.
+
+        Returns:
+            None.
+        """
         self._strategies: dict[str, type[Strategy]] = {}
         self._aliases: dict[str, str] = {}
 

@@ -43,6 +43,14 @@ class Signal:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
+        """Set default timestamp if not provided.
+
+        If no timestamp is given, the current UTC time is assigned to ensure
+        signals have a well-defined ordering.
+
+        Returns:
+            None.
+        """
         if self.timestamp is None:
             self.timestamp = datetime.now()
 

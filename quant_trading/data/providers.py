@@ -513,13 +513,44 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
         from quant_trading.data.synthetic import SyntheticDataProvider
 
         class LazySyntheticProvider(SyntheticDataProvider):
+            """Synthetic provider that lazily generates data on first fetch.
+
+            Data is generated via :func:`quant_trading.data.synthetic.create_synthetic_data`
+            on demand, using the synthetic settings from :class:`DataConfig`.
+            This avoids generating unused data when symbols are not known
+            upfront and mirrors the "offline" behavior expected by the
+            configuration layer.
+
+            Attributes:
+                _config: Configuration object containing synthetic generation
+                    parameters (``synthetic_days``, ``synthetic_seed``).
+                _initialized: Whether synthetic data has been generated for the
+                    current symbol set.
+                _symbols: List of symbols for which data was last generated.
+            """
+
             def __init__(self, config: DataConfig):
+                """Initialize the lazy synthetic provider.
+
+                Args:
+                    config: :class:`DataConfig` instance with synthetic
+                        generation parameters.
+                """
                 self._config = config
                 self._initialized = False
                 self._symbols: list[str] | None = None
                 super().__init__({}, name="synthetic")
 
             def _ensure_initialized(self, symbols: list[str]) -> None:
+                """Generate synthetic data if not initialized or symbols changed.
+
+                Args:
+                    symbols: Tickers that will be fetched. If different from
+                        the previously generated set, new data is generated.
+
+                Returns:
+                    None.
+                """
                 if not self._initialized or set(symbols) != set(self._symbols or []):
                     from quant_trading.data.synthetic import create_synthetic_data
 
@@ -541,10 +572,30 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
                 end: datetime | None = None,
                 interval: str = "1d",
             ) -> FetchResult:
+                """Fetch historical data for the given symbols.
+
+                Args:
+                    symbols: List of ticker symbols to fetch.
+                    start: Optional start datetime. Defaults to None.
+                    end: Optional end datetime. Defaults to None.
+                    interval: Data interval (e.g., ``"1d"``). Defaults to
+                        ``"1d"``.
+
+                Returns:
+                    :class:`FetchResult` containing fetched market data.
+                """
                 self._ensure_initialized(symbols)
                 return super().fetch(symbols, start, end, interval)
 
             def fetch_latest(self, symbols: list[str]) -> FetchResult:
+                """Fetch the most recent data for the given symbols.
+
+                Args:
+                    symbols: List of ticker symbols to fetch latest data for.
+
+                Returns:
+                    :class:`FetchResult` containing the latest market data.
+                """
                 self._ensure_initialized(symbols)
                 return super().fetch_latest(symbols)
 
