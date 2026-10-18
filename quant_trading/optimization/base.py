@@ -1,4 +1,19 @@
-"""Base classes and utilities for parameter optimization."""
+"""Base classes and utilities for parameter optimization.
+
+This module provides the foundational building blocks used by every
+concrete optimizer in :mod:`quant_trading.optimization`: a
+:class:`ParameterSpace` describing one tunable parameter, a
+:class:`ParameterGrid` composing multiple spaces into candidate
+combinations, common objective functions, an :class:`OptimizationResult`
+container, and the abstract :class:`BaseOptimizer`.
+
+Examples:
+    >>> from quant_trading.optimization.base import ParameterSpace, ParameterGrid
+    >>> space = ParameterSpace(name="x", values=[1, 2, 3])
+    >>> grid = ParameterGrid().add(space)
+    >>> grid.generate_combinations()
+    [{'x': 1.0}, {'x': 2.0}, {'x': 3.0}]
+"""
 
 # mypy: disable-error-code="no-any-return"
 
@@ -18,7 +33,26 @@ from quant_trading.strategies.base import Strategy
 class ParameterSpace:
     """Defines a parameter space for optimization.
 
-    Can be used for both grid search (discrete values) and random search (distributions).
+    Can be used for both grid search (discrete values) and random search
+    (distributions).
+
+    Attributes:
+        name: Name of the parameter.
+        values: Discrete candidate values for grid search.
+        min_val: Lower bound for continuous sampling.
+        max_val: Upper bound for continuous sampling.
+        step: Step size used when generating a grid from bounds.
+        distribution: Sampling distribution name (e.g. ``"log"``).
+        param_type: Type to cast sampled/generated values to.
+
+    Examples:
+        >>> from quant_trading.optimization.base import ParameterSpace
+        >>> space = ParameterSpace(name="x", values=[1, 2, 3])
+        >>> space.generate_grid()
+        [1.0, 2.0, 3.0]
+        >>> space = ParameterSpace(name="y", min_val=0.0, max_val=1.0, step=0.5)
+        >>> space.generate_grid()
+        [0.0, 0.5, 1.0]
     """
 
     name: str
@@ -66,12 +100,33 @@ class ParameterSpace:
 
 @dataclass
 class ParameterGrid:
-    """Collection of parameter spaces defining a grid."""
+    """Collection of parameter spaces defining a grid.
+
+    Attributes:
+        spaces: Mapping of parameter name to :class:`ParameterSpace`.
+        validator: Optional cross-parameter validation callable.
+
+    Examples:
+        >>> from quant_trading.optimization.base import ParameterSpace, ParameterGrid
+        >>> grid = ParameterGrid()
+        >>> grid.add(ParameterSpace(name="x", values=[1, 2]))  # doctest: +ELLIPSIS
+        ParameterGrid(...)
+        >>> grid.generate_combinations()
+        [{'x': 1.0}, {'x': 2.0}]
+    """
 
     spaces: dict[str, ParameterSpace] = field(default_factory=dict)
     validator: Callable[[dict[str, Any]], bool] | None = None
 
     def add(self, space: ParameterSpace) -> "ParameterGrid":
+        """Add a parameter space to the grid.
+
+        Args:
+            space: The parameter space to add.
+
+        Returns:
+            This grid instance (for chaining).
+        """
         self.spaces[space.name] = space
         return self
 
@@ -157,7 +212,22 @@ def maximize_win_rate(result: BacktestResult) -> float:
 
 @dataclass
 class OptimizationResult:
-    """Result of a parameter optimization run."""
+    """Result of a parameter optimization run.
+
+    Attributes:
+        best_params: Best parameter combination found.
+        best_score: Score achieved by the best combination.
+        best_result: Backtest result for the best combination.
+        all_results: List of dicts with params/score for all combinations.
+        start_time: Optimization start timestamp.
+        end_time: Optimization end timestamp.
+
+    Examples:
+        >>> from quant_trading.optimization.base import OptimizationResult
+        >>> r = OptimizationResult(best_params={"x": 1}, best_score=1.0)
+        >>> r.duration_seconds is None
+        True
+    """
 
     best_params: dict[str, Any]
     best_score: float
@@ -185,7 +255,33 @@ class OptimizationResult:
 
 
 class BaseOptimizer(ABC):
-    """Base class for parameter optimizers."""
+    """Base class for parameter optimizers.
+
+    Attributes:
+        strategy_cls: Strategy class to instantiate per combination.
+        param_grid: Parameter grid defining the search space.
+        objective: Objective function mapping a backtest result to a score.
+        symbols: Symbols to backtest.
+        start: Backtest start date.
+        end: Backtest end date.
+        initial_capital: Starting capital.
+        commission: Commission rate.
+        slippage: Slippage rate.
+        interval: Data interval.
+        data_manager: Optional data manager.
+        config: Optional config.
+        n_jobs: Number of parallel jobs.
+        verbose: Whether to print progress.
+
+    Examples:
+        >>> from quant_trading.optimization.base import BaseOptimizer, ParameterGrid
+        >>> class Dummy(BaseOptimizer):
+        ...     def run(self):
+        ...         return None
+        >>> opt = Dummy(strategy_cls=object, param_grid=ParameterGrid())
+        >>> opt.symbols
+        ['AAPL']
+    """
 
     def __init__(
         self,
