@@ -64,6 +64,11 @@ class ParameterSpace:
     param_type: type = float  # Type to cast values to (int, float, bool)
 
     def __post_init__(self):
+        """Validate that at least one of ``values`` or ``min_val`` is set.
+
+        Raises:
+            ValueError: If both ``values`` and ``min_val`` are None.
+        """
         if self.values is None and self.min_val is None:
             raise ValueError("Either values or min_val must be provided")
 
@@ -343,8 +348,24 @@ class BaseOptimizer(ABC):
         n_jobs: int = 1,
         verbose: bool = False,
     ):
-        self.strategy_cls = strategy_cls
-        self.param_grid = param_grid
+        """Initialize the base optimizer.
+
+        Args:
+            strategy_cls: Strategy class to instantiate per combination.
+            param_grid: Parameter grid defining the search space.
+            objective: Objective function mapping a backtest result to a score.
+            symbols: Symbols to backtest.
+            start: Backtest start date.
+            end: Backtest end date.
+            initial_capital: Starting capital.
+            commission: Commission rate.
+            slippage: Slippage rate.
+            interval: Data interval.
+            data_manager: Optional data manager.
+            config: Optional config.
+            n_jobs: Number of parallel jobs.
+            verbose: Whether to print progress.
+        """
         self.objective = objective
         self.symbols = symbols or ["AAPL"]
         self.start = start
