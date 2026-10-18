@@ -1,5 +1,12 @@
 """Backtest engine for strategy validation.
 
+The engine fetches market data for a set of symbols over a date range,
+generates trading signals from registered strategies on each bar, executes
+the signals against a :class:`~quant_trading.portfolio.portfolio.Portfolio`,
+and records the resulting equity curve and trades. It is the core entry
+point for offline backtesting and is exercised by the test suite with
+synthetic data so that no network access is required.
+
 Examples:
     Run a backtest offline using synthetic data and inspect the result::
 
@@ -76,6 +83,10 @@ def get_default_data_manager() -> DataManager:
     Returns a shared DataManager instance that can be reused across backtest
     runs. The manager is created lazily on first access and uses a
     YFinanceProvider with default cache settings.
+
+    Returns:
+        The shared default :class:`~quant_trading.data.providers.DataManager`
+        instance.
     """
     global _default_data_manager
     if _default_data_manager is None:
@@ -89,6 +100,9 @@ def reset_default_data_manager() -> None:
     """Reset the module-level default DataManager.
 
     Useful for testing to ensure a fresh DataManager with cleared cache.
+
+    Returns:
+        None.
     """
     global _default_data_manager
     _default_data_manager = None
@@ -410,7 +424,24 @@ class BacktestEngine:
         trades_list: list[Trade],
         timestamp: datetime,
     ) -> None:
-        """Process a trading signal."""
+        """Process a single trading signal and append any resulting trades.
+
+        The signal is first validated against the risk manager. If it is
+        rejected, no trade is recorded. For buy signals the position size is
+        derived from the signal strength and the configured position limit,
+        trimmed to fit available cash. For sell signals, the entire holding
+        is sold in proportion to the signal strength and the realized PnL is
+        recorded. Signals with an unrecognized action or insufficient price
+        information are ignored.
+
+        Args:
+            signal: The trading signal to process.
+            trades_list: List that executed trades are appended to.
+            timestamp: Timestamp assigned to any trade created.
+
+        Returns:
+            None.
+        """
         # Check risk limits
         risk_result = self.risk_manager.check_signal(signal, self.portfolio.total_value)
         if not risk_result.ok:

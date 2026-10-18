@@ -384,6 +384,23 @@ class RegimeDetector:
         vol_threshold: float,
         ret_threshold: float,
     ) -> list[RegimeSegment]:
+        """Build regime segments from rolling statistics and thresholds.
+
+        First labels every bar with a :class:`Regime` (or ``None`` for bars
+        where the rolling statistics are non-finite), then merges consecutive
+        identical labels into :class:`RegimeSegment` objects.
+
+        Args:
+            prices: Full price series indexed by time.
+            returns: Daily returns derived from ``prices``.
+            rolling_vol: Rolling annualized volatility series.
+            rolling_mean: Rolling annualized mean return series.
+            vol_threshold: Volatility threshold separating low/high vol.
+            ret_threshold: Return threshold separating sideways/trending.
+
+        Returns:
+            Ordered list of :class:`RegimeSegment` objects.
+        """
         labels = self._label_series(rolling_vol, rolling_mean, vol_threshold, ret_threshold)
         return self._merge_segments(labels, prices, returns, rolling_vol)
 
@@ -394,6 +411,24 @@ class RegimeDetector:
         vol_threshold: float,
         ret_threshold: float,
     ) -> list[Regime | None]:
+        """Classify each bar into a :class:`Regime` label.
+
+        For every position in the rolling statistics, the volatility and mean
+        return are compared against the configured thresholds to derive a
+        direction (bull/bear/sideways) and a volatility level (high/low).
+        Bars whose rolling statistics are non-finite are labeled ``None`` so
+        they are skipped during segment merging.
+
+        Args:
+            rolling_vol: Rolling annualized volatility series.
+            rolling_mean: Rolling annualized mean return series.
+            vol_threshold: Volatility threshold separating low/high vol.
+            ret_threshold: Return threshold separating sideways/trending.
+
+        Returns:
+            Ordered list of :class:`Regime` labels (or ``None`` for bars that
+            could not be classified), one entry per bar in the rolling series.
+        """
         labels: list[Regime | None] = []
         for i in range(len(rolling_vol)):
             vol = rolling_vol.iloc[i]
@@ -418,6 +453,23 @@ class RegimeDetector:
         returns: pd.Series,
         rolling_vol: pd.Series,
     ) -> list[RegimeSegment]:
+        """Merge consecutive identical labels into :class:`RegimeSegment` objects.
+
+        Runs of ``None`` labels are skipped, so a segment only spans bars that
+        received a concrete :class:`Regime`. Each maximal run of the same
+        label becomes a single segment; the segment's start/end positions and
+        volatility/return statistics are computed by :meth:`_make_segment`.
+
+        Args:
+            labels: Ordered per-bar labels (or ``None``) from
+                :meth:`_label_series`.
+            prices: Full price series indexed by time.
+            returns: Daily returns derived from ``prices``.
+            rolling_vol: Rolling annualized volatility series.
+
+        Returns:
+            Ordered list of :class:`RegimeSegment` objects.
+        """
         segments: list[RegimeSegment] = []
         current: Regime | None = None
         start_idx = 0
@@ -448,6 +500,25 @@ class RegimeDetector:
         returns: pd.Series,
         rolling_vol: pd.Series,
     ) -> RegimeSegment:
+        """Build a single :class:`RegimeSegment` from a label range.
+
+        Labels are indexed into the rolling-statistics series, which corresponds
+        to ``prices.index[1:]`` (since ``pct_change`` drops the first bar). A
+        segment spanning labels ``[start_idx, end_idx)`` therefore covers price
+        bars ``[start_idx + 1, end_idx]``. The segment's start/end timestamps,
+        mean volatility, and percentage return are derived from those bars.
+
+        Args:
+            regime: The :class:`Regime` label assigned to the segment.
+            start_idx: Inclusive start index of the label range.
+            end_idx: Exclusive end index of the label range.
+            prices: Full price series indexed by time.
+            returns: Daily returns derived from ``prices``.
+            rolling_vol: Rolling annualized volatility series.
+
+        Returns:
+            A :class:`RegimeSegment` describing the labeled span.
+        """
         # Label i corresponds to rolling stats computed on returns, whose index
         # is prices.index[1:] (pct_change drops the first bar). So label i is the
         # regime of price bar (i + 1). A segment spanning labels [start_idx, end_idx)
