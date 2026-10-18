@@ -10,7 +10,7 @@ Examples:
     >>> from quant_trading.optimization.grid_search import GridSearch
     >>> from quant_trading.optimization.base import ParameterGrid, ParameterSpace
     >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
-    >>> optimizer = GridSearch(strategy_cls=None, param_grid=grid)
+    >>> optimizer = GridSearch(strategy_cls=object, param_grid=grid)
     >>> optimizer.n_combinations
     2
     >>> optimizer.symbols
@@ -18,7 +18,7 @@ Examples:
 
 """
 
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 from datetime import datetime
 from typing import Any
@@ -142,7 +142,23 @@ class GridSearch(BaseOptimizer):
 
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        strategy_cls: type,
+        param_grid: Any,
+        objective: Any = None,
+        symbols: list[str] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        initial_capital: float = 100000.0,
+        commission: float = 0.001,
+        slippage: float = 0.0005,
+        interval: str = "1d",
+        data_manager: Any | None = None,
+        config: Any | None = None,
+        n_jobs: int = 1,
+        verbose: bool = False,
+    ) -> None:
         """Initialize the grid search optimizer.
 
         All arguments are forwarded to
@@ -156,14 +172,38 @@ class GridSearch(BaseOptimizer):
         parameter grid is pre-computed and stored on ``self._combinations``.
 
         Args:
-            *args: Positional arguments forwarded to ``BaseOptimizer.__init__``.
-            **kwargs: Keyword arguments forwarded to ``BaseOptimizer.__init__``.
-
-        Returns:
-            None
+            strategy_cls: Strategy class to instantiate per combination.
+            param_grid: Parameter grid defining the search space.
+            objective: Objective function mapping a backtest result to a score.
+            symbols: Symbols to backtest.
+            start: Backtest start date.
+            end: Backtest end date.
+            initial_capital: Starting capital.
+            commission: Commission rate.
+            slippage: Slippage rate.
+            interval: Data interval.
+            data_manager: Optional data manager.
+            config: Optional config.
+            n_jobs: Number of parallel jobs.
+            verbose: Whether to print progress.
 
         """
-        super().__init__(*args, **kwargs)
+        super().__init__(
+            strategy_cls=strategy_cls,
+            param_grid=param_grid,
+            objective=objective,
+            symbols=symbols,
+            start=start,
+            end=end,
+            initial_capital=initial_capital,
+            commission=commission,
+            slippage=slippage,
+            interval=interval,
+            data_manager=data_manager,
+            config=config,
+            n_jobs=n_jobs,
+            verbose=verbose,
+        )
         self._combinations = self.param_grid.generate_combinations()
 
     def run(self) -> OptimizationResult:
@@ -227,11 +267,11 @@ class GridSearch(BaseOptimizer):
     def _run_sequential(
         self,
         total: int,
-        all_results: list,
+        all_results: list[dict[str, Any]],
         best_score: float,
-        best_params: dict,
-        best_result: Any,
-    ) -> tuple[list, float, dict, Any]:
+        best_params: dict[str, Any],
+        best_result: BacktestResult | None,
+    ) -> tuple[list[dict[str, Any]], float, dict[str, Any], BacktestResult | None]:
         """Evaluate every combination in ``self._combinations`` one at a time.
 
         This is the default execution path when ``n_jobs == 1`` or when there is
@@ -288,13 +328,13 @@ class GridSearch(BaseOptimizer):
     def _run_parallel(
         self,
         total: int,
-        all_results: list,
+        all_results: list[dict[str, Any]],
         best_score: float,
-        best_params: dict,
-        best_result: Any,
+        best_params: dict[str, Any],
+        best_result: BacktestResult | None,
         start: datetime,
         end: datetime,
-    ) -> tuple[list, float, dict, Any]:
+    ) -> tuple[list[dict[str, Any]], float, dict[str, Any], BacktestResult | None]:
         """Evaluate combinations in parallel using a ``ProcessPoolExecutor``.
 
         Each combination is submitted to a worker process via the module-level
@@ -364,7 +404,7 @@ class GridSearch(BaseOptimizer):
         try:
             with ProcessPoolExecutor(max_workers=self.n_jobs) as executor:
                 # Submit all tasks and remember each future's combination index
-                submitted: list = []
+                submitted: list[Future[Any]] = []
                 for params in self._combinations:
                     submitted.append(
                         executor.submit(
