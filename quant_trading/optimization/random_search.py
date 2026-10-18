@@ -1,4 +1,21 @@
-"""Random search parameter optimization."""
+"""Random search parameter optimization.
+
+Random search samples parameter combinations at random from the parameter
+space instead of enumerating the full Cartesian product. It is far more
+efficient than grid search for high-dimensional spaces because the number of
+evaluations is independent of the number of parameter values, and it still
+tends to locate good regions of the space with relatively few samples.
+
+Examples:
+    >>> from quant_trading.optimization.random_search import RandomSearch
+    >>> from quant_trading.optimization.base import ParameterGrid, ParameterSpace
+    >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
+    >>> optimizer = RandomSearch(n_iter=3, random_state=42, strategy_cls=None, param_grid=grid)
+    >>> optimizer.n_iter
+    3
+    >>> optimizer.random_state
+    42
+"""
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
@@ -26,9 +43,37 @@ def _evaluate_params_worker(
     data_config: Any,
     params: dict[str, Any],
 ) -> tuple[dict[str, Any], float, Any]:
-    """Worker function for parallel parameter evaluation.
+    """Evaluate a single parameter combination in a worker process.
 
-    This function must be at module level to be picklable.
+    This function must remain at module level so it can be pickled and sent to
+    a :class:`concurrent.futures.ProcessPoolExecutor` worker.
+
+    Args:
+        strategy_cls: Strategy class to instantiate with ``params``.
+        param_grid_dict: Mapping of parameter name to its
+            :class:`~quant_trading.optimization.base.ParameterSpace` (used only
+            to preserve the original grid definition in the worker).
+        objective_func: Callable mapping a backtest result to a score.
+        symbols: Symbols to backtest.
+        start: Backtest start date.
+        end: Backtest end date.
+        initial_capital: Starting capital for the backtest.
+        commission: Commission rate.
+        slippage: Slippage rate.
+        interval: Data interval.
+        data_config: Optional config (``Config`` or ``DataConfig``) used to
+            build a data manager inside the worker.
+        params: Parameter combination to evaluate.
+
+    Returns:
+        Tuple of ``(params, score, result)`` where ``result`` is the
+        :class:`~quant_trading.backtest.engine.BacktestResult` (or ``None`` on
+        failure) and ``score`` is ``float("-inf")`` when the backtest fails.
+
+    Examples:
+        >>> import inspect
+        >>> "param_grid_dict" in inspect.signature(_evaluate_params_worker).parameters
+        True
     """
     from quant_trading.backtest.engine import run_backtest
     from quant_trading.config.settings import Config, DataConfig
@@ -68,9 +113,33 @@ def _evaluate_params_worker(
 class RandomSearch(BaseOptimizer):
     """Random search optimizer for strategy parameters.
 
-    Samples random parameter combinations from the parameter space.
-    More efficient than grid search for high-dimensional spaces.
-    Supports parallel execution via n_jobs parameter.
+    Samples ``n_iter`` random parameter combinations from the parameter grid
+    instead of enumerating the full Cartesian product. Random search is far
+    more efficient than :class:`~quant_trading.optimization.grid_search.GridSearch`
+    for high-dimensional spaces because the number of evaluations is
+    independent of the number of values per parameter, and it still tends to
+    locate good regions of the space with relatively few samples.
+
+    Execution is sequential by default; set ``n_jobs > 1`` to parallelize across
+    worker processes. If a worker dies under heavy system load, the remaining
+    combinations are evaluated sequentially so a result is still returned for
+    every combination.
+
+    Attributes:
+        n_iter: Number of random combinations to sample and evaluate.
+        random_state: Seed for the underlying ``numpy.random.Generator``
+            (``None`` for non-deterministic sampling).
+        _rng: The ``numpy.random.Generator`` instance used for sampling.
+
+    Examples:
+        >>> from quant_trading.optimization.random_search import RandomSearch
+        >>> from quant_trading.optimization.base import ParameterGrid, ParameterSpace
+        >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
+        >>> optimizer = RandomSearch(n_iter=3, random_state=42, strategy_cls=None, param_grid=grid)
+        >>> optimizer.n_iter
+        3
+        >>> optimizer.random_state
+        42
     """
 
     def __init__(
@@ -80,6 +149,26 @@ class RandomSearch(BaseOptimizer):
         *args,
         **kwargs,
     ):
+        """Initialize the random search optimizer.
+
+        All arguments except ``n_iter`` and ``random_state`` are forwarded to
+        :meth:`quant_trading.optimization.base.BaseOptimizer.__init__`; see that
+        method for the full parameter list (``strategy_cls``, ``param_grid``,
+        ``objective``, ``symbols``, ``start``, ``end``, ``initial_capital``,
+        ``commission``, ``slippage``, ``interval``, ``data_manager``,
+        ``config``, ``n_jobs``, ``verbose``).
+
+        Args:
+            n_iter: Number of random parameter combinations to sample and
+                evaluate. Defaults to 100.
+            random_state: Seed for reproducible sampling. ``None`` (default)
+                produces non-deterministic results.
+            *args: Positional arguments forwarded to ``BaseOptimizer.__init__``.
+            **kwargs: Keyword arguments forwarded to ``BaseOptimizer.__init__``.
+
+        Returns:
+            None
+        """
         super().__init__(*args, **kwargs)
         self.n_iter = n_iter
         self.random_state = random_state
@@ -88,8 +177,21 @@ class RandomSearch(BaseOptimizer):
     def run(self) -> OptimizationResult:
         """Run random search optimization.
 
+        Samples ``n_iter`` random parameter combinations, evaluates each via
+        a backtest, and returns the combination with the highest objective
+        score.
+
         Returns:
-            OptimizationResult with best parameters and all results.
+            :class:`~quant_trading.optimization.base.OptimizationResult`
+            containing ``best_params``, ``best_score``, ``best_result``, and
+            ``all_results`` (one entry per sampled combination).
+
+        Examples:
+            >>> from quant_trading.optimization.random_search import RandomSearch
+            >>> from quant_trading.optimization.base import ParameterGrid, ParameterSpace
+            >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
+            >>> optimizer = RandomSearch(n_iter=1, random_state=42, strategy_cls=None, param_grid=grid)
+            >>> result = optimizer.run()  # doctest: +SKIP
         """
         start_time = datetime.now()
         all_results: list[dict[str, Any]] = []
@@ -138,7 +240,30 @@ class RandomSearch(BaseOptimizer):
         best_params: dict,
         best_result: Any,
     ) -> tuple[list, float, dict, Any]:
-        """Run optimization sequentially."""
+        """Evaluate the sampled combinations one at a time.
+
+        This is the default execution path when ``n_jobs == 1`` or when there is
+        only a single combination. Each combination is backtested via
+        :meth:`_evaluate_params` and the running best is tracked.
+
+        Args:
+            combinations: List of parameter combinations to evaluate.
+            all_results: List to append per-combination result dicts to.
+            best_score: Current best score (updated in place).
+            best_params: Current best parameters (updated in place).
+            best_result: Current best backtest result (updated in place).
+
+        Returns:
+            Tuple of ``(all_results, best_score, best_params, best_result)``
+            with the running best updated.
+
+        Examples:
+            >>> from quant_trading.optimization.random_search import RandomSearch
+            >>> from quant_trading.optimization.base import ParameterGrid, ParameterSpace
+            >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
+            >>> optimizer = RandomSearch(n_iter=1, random_state=42, strategy_cls=None, param_grid=grid)
+            >>> optimizer._run_sequential([], [], float("-inf"), {}, None)  # doctest: +SKIP
+        """
         for i, params in enumerate(combinations):
             if self.verbose:
                 print(f"  [{i+1}/{self.n_iter}] {params}")
@@ -177,12 +302,35 @@ class RandomSearch(BaseOptimizer):
         start: datetime,
         end: datetime,
     ) -> tuple[list, float, dict, Any]:
-        """Run optimization in parallel using ProcessPoolExecutor.
+        """Evaluate the sampled combinations in parallel.
 
-        If a worker process terminates abruptly (for example under heavy
-        system load when forking the parent process is unreliable), fall
-        back to sequential evaluation of the remaining combinations instead
-        of returning an empty result.
+        Each combination is submitted to a worker process via the module-level
+        :func:`_evaluate_params_worker`. Results are collected as they
+        complete and the running best is updated. If a worker process
+        terminates abruptly (for example under heavy system load when forking
+        the parent process is unreliable), the combinations that did not
+        complete are re-evaluated sequentially so a result is still returned
+        for every combination.
+
+        Args:
+            combinations: List of parameter combinations to evaluate.
+            all_results: List to append per-combination result dicts to.
+            best_score: Current best score (updated in place).
+            best_params: Current best parameters (updated in place).
+            best_result: Current best backtest result (updated in place).
+            start: Backtest start date forwarded to workers.
+            end: Backtest end date forwarded to workers.
+
+        Returns:
+            Tuple of ``(all_results, best_score, best_params, best_result)``
+            with the running best updated.
+
+        Examples:
+            >>> from quant_trading.optimization.random_search import RandomSearch
+            >>> from quant_trading.optimization.base import ParameterGrid, ParameterSpace
+            >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
+            >>> optimizer = RandomSearch(n_iter=1, random_state=42, strategy_cls=None, param_grid=grid)
+            >>> optimizer._run_parallel([], [], float("-inf"), {}, None, None, None)  # doctest: +SKIP
         """
         from quant_trading.config.settings import Config
 
