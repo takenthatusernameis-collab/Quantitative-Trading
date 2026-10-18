@@ -59,6 +59,7 @@ Examples:
             data_manager=data_manager,
         )
         assert result.trades is not None
+
 """
 
 from dataclasses import dataclass, field
@@ -87,6 +88,7 @@ def get_default_data_manager() -> DataManager:
     Returns:
         The shared default :class:`~quant_trading.data.providers.DataManager`
         instance.
+
     """
     global _default_data_manager
     if _default_data_manager is None:
@@ -103,6 +105,7 @@ def reset_default_data_manager() -> None:
 
     Returns:
         None.
+
     """
     global _default_data_manager
     _default_data_manager = None
@@ -121,6 +124,7 @@ class Trade:
         commission: Commission rate applied.
         slippage: Slippage rate applied.
         realized_pnl: Realized PnL (set on closes).
+
     """
 
     symbol: str
@@ -141,6 +145,7 @@ class Trade:
 
         Returns:
             The gross trade value adjusted for commission and slippage.
+
         """
         base = self.quantity * self.price
         if self.action == "buy":
@@ -155,6 +160,7 @@ class Trade:
         Returns:
             The realized PnL. This is ``0.0`` for opening trades and is set
             on closing trades when the position is exited.
+
         """
         return self.realized_pnl
 
@@ -185,6 +191,7 @@ class BacktestResult:
             assert isinstance(result.metrics.sharpe_ratio, float)
             assert result.trades is not None
             assert result.equity_curve is not None
+
     """
 
     equity_curve: pd.Series
@@ -240,6 +247,7 @@ class BacktestEngine:
             engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=20))
             result = engine.run(symbols, start, end)
             assert len(result.trades) >= 0
+
     """
 
     def __init__(
@@ -254,6 +262,7 @@ class BacktestEngine:
             config: Backtest configuration. Defaults to ``BacktestConfig()``.
             data_manager: DataManager providing market data.
             risk_manager: Risk manager instance. Defaults to a new RiskManager.
+
         """
         self.config = config or BacktestConfig()
         self.data_manager = data_manager
@@ -268,6 +277,7 @@ class BacktestEngine:
 
         Args:
             strategy: Strategy instance to register.
+
         """
         self.strategies[strategy.name] = strategy
 
@@ -276,6 +286,7 @@ class BacktestEngine:
 
         Args:
             name: Name of the strategy to remove.
+
         """
         self.strategies.pop(name, None)
 
@@ -300,6 +311,7 @@ class BacktestEngine:
         Raises:
             ValueError: If no data_manager is configured or no data retrieved.
             RuntimeError: If data fetch errors occur.
+
         """
         if self.data_manager is None:
             raise ValueError(
@@ -441,6 +453,7 @@ class BacktestEngine:
 
         Returns:
             None.
+
         """
         # Check risk limits
         risk_result = self.risk_manager.check_signal(signal, self.portfolio.total_value)
@@ -529,7 +542,7 @@ def run_backtest(
     data_manager: DataManager | None = None,
     config: Config | DataConfig | None = None,
 ) -> BacktestResult:
-    """Convenience function to run a single strategy backtest.
+    """Run a single strategy backtest.
 
     Args:
         strategy: The strategy to backtest.
@@ -580,6 +593,7 @@ def run_backtest(
             assert result is not None
             assert result.initial_capital == 100000.0
             assert result.metrics is not None
+
     """
     backtest_config = BacktestConfig(
         initial_capital=initial_capital,
