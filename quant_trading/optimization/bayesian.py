@@ -75,7 +75,27 @@ def _convert_to_native(obj: Any) -> Any:
 
 @dataclass
 class BayesianOptimizerConfig:
-    """Configuration for Bayesian optimizer."""
+    """Configuration for :class:`BayesianOptimizer`.
+
+    Attributes:
+        n_initial_points: Number of random points evaluated before the
+            Gaussian Process surrogate is fit.
+        n_calls: Total number of objective evaluations (initial plus guided).
+        acq_func: Acquisition function name (e.g. ``"EI"`` for expected
+            improvement).
+        acq_optimizer: Optimizer used to propose the next point (``"auto"``
+            picks a sensible default).
+        random_state: Seed for reproducible optimization runs.
+        noise: Observation noise added to the GP kernel.
+
+    Examples:
+        >>> from quant_trading.optimization.bayesian import BayesianOptimizerConfig
+        >>> cfg = BayesianOptimizerConfig(n_calls=20, random_state=42)
+        >>> cfg.n_calls
+        20
+        >>> cfg.acq_func
+        'EI'
+    """
 
     n_initial_points: int = 10
     n_calls: int = 50
@@ -128,6 +148,32 @@ class BayesianOptimizer(BaseOptimizer):
         random_state: int | None = None,
         verbose: bool = False,
     ):
+        """Initialize the Bayesian optimizer.
+
+        Args:
+            strategy_cls: Strategy class to instantiate per candidate.
+            param_grid: Parameter grid defining the search space.
+            objective: Objective function mapping a backtest result to a
+                score. Defaults to :func:`maximize_sharpe` when ``None``.
+            symbols: Symbols to backtest.
+            start: Backtest start date.
+            end: Backtest end date.
+            initial_capital: Starting capital.
+            commission: Commission rate.
+            slippage: Slippage rate.
+            interval: Data interval.
+            data_manager: Optional data manager.
+            config: Optional config.
+            n_initial_points: Number of initial random evaluations.
+            n_calls: Total number of objective evaluations.
+            acq_func: Acquisition function name.
+            acq_optimizer: Acquisition optimizer name.
+            random_state: Seed for reproducibility.
+            verbose: Whether to print progress.
+
+        Raises:
+            ImportError: If ``scikit-optimize`` is not installed.
+        """
         try:
             from skopt.utils import use_named_args  # type: ignore[import]
         except ImportError as e:
@@ -166,7 +212,19 @@ class BayesianOptimizer(BaseOptimizer):
         self._use_named_args = use_named_args(self._space)
 
     def _create_skopt_space(self) -> list:
-        """Convert ParameterGrid to skopt space."""
+        """Convert the parameter grid into a scikit-optimize search space.
+
+        Each :class:`~quant_trading.optimization.base.ParameterSpace` is
+        translated to a scikit-optimize dimension:
+
+        * Discrete ``values`` become a :class:`Categorical` dimension.
+        * Integer bounds become an :class:`Integer` dimension.
+        * Float bounds become a :class:`Real` dimension, using a
+            ``"log-uniform"`` prior when ``distribution == "log"``.
+
+        Returns:
+            List of scikit-optimize dimension objects, one per parameter.
+        """
         from skopt.space import Categorical, Integer, Real  # type: ignore[import]
 
         space = []
