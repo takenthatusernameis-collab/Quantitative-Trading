@@ -405,7 +405,8 @@ class DataManager:
         if not provider:
             raise ValueError("No data provider available")
 
-        cache_key = f"{provider.name}:{','.join(sorted(symbols))}:{start}:{end}:{interval}"
+        req_key = provider._request_key(symbols, start, end, interval)
+        cache_key = f"{provider.name}:{req_key}"
 
         if use_cache and cache_key in self._cache:
             return self._cache[cache_key]

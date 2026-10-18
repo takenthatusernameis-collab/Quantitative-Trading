@@ -190,8 +190,6 @@ def calculate_backtest_metrics(
         metrics.sortino_ratio = calculate_sortino_ratio(returns, risk_free_rate)
         metrics.calmar_ratio = calculate_calmar_ratio(returns, equity_curve)
         metrics.var_95 = calculate_var(returns, 0.95)
-    else:  # pragma: no cover
-        pass
 
     # Trade statistics
     if trades is not None and len(trades) > 0 and "pnl" in trades.columns:
