@@ -1,4 +1,32 @@
-"""Portfolio rebalancing logic."""
+"""Portfolio rebalancing logic.
+
+This module translates a portfolio's current allocation and a set of trading
+signals into concrete :class:`RebalanceAction` objects that should be
+executed to bring the portfolio back to its target allocation.
+
+Examples:
+    Generate buy and sell actions for a target allocation::
+
+        from quant_trading.portfolio.portfolio import Portfolio
+        from quant_trading.portfolio.rebalancer import Rebalancer
+        from quant_trading.strategies.base import Signal
+
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 100, 100.0)
+        rebalancer = Rebalancer(
+            portfolio,
+            frequency="monthly",
+            target_allocation={"AAPL": 0.6, "MSFT": 0.4},
+        )
+        actions = rebalancer.generate_rebalance_actions()
+        assert all(a.reason == "target_allocation" for a in actions)
+
+    React to a sell signal for an unallocated symbol::
+
+        sell_signal = Signal(symbol="AAPL", action="sell", price=150.0)
+        actions = rebalancer.generate_rebalance_actions(signals=[sell_signal])
+        assert actions[0].action == "sell"
+"""
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -9,7 +37,35 @@ from quant_trading.strategies.base import Signal
 
 @dataclass
 class RebalanceAction:
-    """Represents a rebalancing action."""
+    """A single rebalancing action produced by :class:`Rebalancer`.
+
+    Each action describes one order that should be executed to move the
+    portfolio toward its target allocation or to react to a trading signal.
+
+    Attributes:
+        symbol: Ticker symbol the action applies to.
+        action: Order direction, one of ``"buy"``, ``"sell"``, or ``"hold"``.
+        quantity: Absolute quantity to trade (always non-negative; the
+            :attr:`action` field determines whether it is a buy or a sell).
+        reason: Short explanation for the action, such as
+            ``"target_allocation"`` or ``"signal_<type>"``.
+        timestamp: Time the action was generated (defaults to now).
+
+    Examples:
+        Create a buy action for a target allocation::
+
+            from quant_trading.portfolio.rebalancer import RebalanceAction
+
+            action = RebalanceAction(
+                symbol="AAPL", action="buy", quantity=10, reason="target_allocation"
+            )
+            assert action.quantity == 10
+
+        Create a sell action driven by a signal::
+
+            sell = RebalanceAction(symbol="AAPL", action="sell", quantity=5)
+            assert sell.reason == ""
+    """
 
     symbol: str
     action: str  # 'buy', 'sell', 'hold'
@@ -19,7 +75,43 @@ class RebalanceAction:
 
 
 class Rebalancer:
-    """Manages portfolio rebalancing based on signals and targets."""
+    """Manages portfolio rebalancing based on signals and targets.
+
+    The rebalancer compares a portfolio's current allocation against a set of
+    target allocations and emits :class:`RebalanceAction` objects describing
+    the trades required to close the gap. It can also react to trading
+    :class:`~quant_trading.strategies.base.Signal` objects for symbols that
+    are not part of the target allocation.
+
+    Attributes:
+        portfolio: The :class:`~quant_trading.portfolio.portfolio.Portfolio`
+            being managed.
+        frequency: Rebalancing cadence, one of ``"daily"``, ``"weekly"``,
+            ``"monthly"``, or ``"quarterly"``.
+        target_allocation: Symbol-keyed target fractions of total portfolio
+            value (e.g. ``{"AAPL": 0.6, "MSFT": 0.4}``).
+        rebalance_threshold: Minimum deviation (as a fraction of total
+            portfolio value) that triggers a rebalance; trades smaller than
+            this are skipped.
+        last_rebalance: Timestamp of the most recent rebalance, or ``None``
+            if the rebalancer has not run yet.
+        rebalance_history: List of dicts recording each rebalance's
+            timestamp, affected symbols, and portfolio value.
+
+    Examples:
+        Create a rebalancer and check whether it is time to rebalance::
+
+            from quant_trading.portfolio.portfolio import Portfolio
+            from quant_trading.portfolio.rebalancer import Rebalancer
+
+            portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            rebalancer = Rebalancer(
+                portfolio,
+                frequency="monthly",
+                target_allocation={"AAPL": 0.6, "MSFT": 0.4},
+            )
+            assert rebalancer.should_rebalance() is True
+    """
 
     def __init__(
         self,
@@ -28,6 +120,17 @@ class Rebalancer:
         target_allocation: dict[str, float] | None = None,
         rebalance_threshold: float = 0.05,  # Rebalance if deviation > 5%
     ):
+        """Initialize the rebalancer.
+
+        Args:
+            portfolio: The portfolio to manage.
+            frequency: Rebalancing cadence (``"daily"``, ``"weekly"``,
+                ``"monthly"``, or ``"quarterly"``).
+            target_allocation: Symbol-keyed target fractions of total portfolio
+                value. Defaults to an empty dict when ``None``.
+            rebalance_threshold: Minimum deviation (as a fraction of total
+                portfolio value) that triggers a rebalance.
+        """
         self.portfolio = portfolio
         self.frequency = frequency
         self.target_allocation = target_allocation or {}
@@ -36,7 +139,18 @@ class Rebalancer:
         self.rebalance_history: list[dict] = []
 
     def should_rebalance(self) -> bool:
-        """Check if it's time to rebalance."""
+        """Check if it is time to rebalance based on the configured frequency.
+
+        The first call always returns ``True`` (since no prior rebalance has
+        been recorded). Subsequent calls compare the elapsed time since
+        :attr:`last_rebalance` against the cadence implied by
+        :attr:`frequency`.
+
+        Returns:
+            True if enough time has elapsed since the last rebalance (or if
+            no rebalance has occurred yet), False otherwise. An unrecognized
+            :attr:`frequency` value also returns False.
+        """
         now = datetime.now()
         if self.last_rebalance is None:
             return True
@@ -53,7 +167,15 @@ class Rebalancer:
             return False
 
     def calculate_target_values(self) -> dict[str, float]:
-        """Calculate target values based on target allocation."""
+        """Calculate target market values for every symbol in the allocation.
+
+        Each target is the product of the portfolio's current total value and
+        the symbol's target allocation fraction.
+
+        Returns:
+            Symbol-keyed target market values. Empty when no target
+            allocation is configured.
+        """
         total_value = self.portfolio.total_value
         targets = {}
         for symbol, pct in self.target_allocation.items():
@@ -65,7 +187,30 @@ class Rebalancer:
         signals: list[Signal] | None = None,
         prices: dict[str, float] | None = None,
     ) -> list[RebalanceAction]:
-        """Generate rebalancing actions based on target allocation."""
+        """Generate rebalancing actions to move the portfolio to its targets.
+
+        Two sources of actions are considered:
+
+        1. **Target allocations** - for every symbol in
+           :attr:`target_allocation`, a buy or sell action is emitted when the
+           current deviation exceeds :attr:`rebalance_threshold`.
+        2. **Trading signals** - buy signals for symbols outside the target
+           allocation are sized to 5% of portfolio value times signal strength;
+           sell signals liquidate the full holdings of the signaled symbol.
+
+        After computing the actions the rebalancer records the run in
+        :attr:`rebalance_history` and updates :attr:`last_rebalance`.
+
+        Args:
+            signals: Optional list of :class:`~quant_trading.strategies.base.Signal`
+                objects to act on.
+            prices: Optional symbol-keyed price map used to resolve buy
+                quantities when the portfolio has no holding for a symbol.
+
+        Returns:
+            List of :class:`RebalanceAction` objects to execute. May be empty
+            when no deviation or signal warrants a trade.
+        """
         actions = []
         targets = self.calculate_target_values()
         prices = prices or {}
@@ -151,7 +296,22 @@ class Rebalancer:
         signals: list[Signal] | None,
         prices: dict[str, float],
     ) -> float:
-        """Resolve a buy quantity for a symbol, guarding against zero prices."""
+        """Resolve a buy quantity for a symbol, guarding against zero prices.
+
+        The price used to convert a dollar ``diff`` into a quantity is taken
+        from the first available source in order: the portfolio's existing
+        holding, the ``prices`` map, and finally the average price of matching
+        signals.
+
+        Args:
+            symbol: Symbol being bought.
+            diff: Dollar amount to buy (target value minus current value).
+            signals: Optional signals for the symbol, used as a price source.
+            prices: Optional symbol-keyed price map.
+
+        Returns:
+            Quantity to buy, or 0.0 when no positive price could be resolved.
+        """
         if symbol in self.portfolio.holdings:
             price = self.portfolio.holdings[symbol].current_price
             if price and price > 0:
@@ -167,7 +327,17 @@ class Rebalancer:
         return 0.0
 
     def _resolve_sell_quantity(self, symbol: str, diff: float) -> float:
-        """Resolve a sell quantity for a symbol, guarding against zero prices."""
+        """Resolve a sell quantity for a symbol, guarding against zero prices.
+
+        Args:
+            symbol: Symbol being sold.
+            diff: Dollar amount to sell (absolute value of the deviation).
+
+        Returns:
+            Quantity to sell (``diff`` divided by the holding's current
+            price), or 0.0 when the symbol is not held or the price is
+            non-positive.
+        """
         if symbol in self.portfolio.holdings:
             price = self.portfolio.holdings[symbol].current_price
             if price and price > 0:
@@ -175,7 +345,16 @@ class Rebalancer:
         return 0.0
 
     def set_target_allocation(self, allocation: dict[str, float]) -> None:
-        """Set target allocation."""
+        """Set the target allocation, normalizing it to sum to 1.0.
+
+        Args:
+            allocation: Symbol-keyed target fractions of total portfolio value.
+                When the fractions do not sum to 1.0 (within a 0.01 tolerance)
+                they are rescaled so they do.
+
+        Returns:
+            None.
+        """
         total = sum(allocation.values())
         if abs(total - 1.0) > 0.01:
             # Normalize
@@ -183,7 +362,15 @@ class Rebalancer:
         self.target_allocation = allocation
 
     def get_current_deviation(self) -> dict[str, float]:
-        """Get current deviation from target allocation."""
+        """Get the deviation of each symbol from its target allocation.
+
+        Args:
+            None.
+
+        Returns:
+            Symbol-keyed differences (current fraction minus target
+            fraction) for every symbol in :attr:`target_allocation`.
+        """
         current = self.portfolio.get_allocation()
         deviations = {}
         for symbol, target_pct in self.target_allocation.items():
@@ -192,7 +379,13 @@ class Rebalancer:
         return deviations
 
     def needs_rebalance(self) -> bool:
-        """Check if portfolio needs rebalancing based on deviations."""
+        """Check if the portfolio needs rebalancing based on deviations.
+
+        Returns:
+            True if any symbol's absolute deviation from its target
+            allocation exceeds :attr:`rebalance_threshold`, False otherwise.
+            Returns False when no target allocation is configured.
+        """
         if not self.target_allocation:
             return False
         deviations = self.get_current_deviation()
