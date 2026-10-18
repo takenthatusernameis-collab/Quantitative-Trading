@@ -54,7 +54,11 @@ class MonteCarloResult:
     end_time: datetime
 
     def _ensure_simulations(self) -> None:
-        """Raise if no simulation results are available for statistics."""
+        """Raise if no simulation results are available for statistics.
+
+        Raises:
+            ValueError: If :attr:`simulations` is empty.
+        """
         if not self.simulations:
             raise ValueError("No simulations available")
 
@@ -84,13 +88,37 @@ class MonteCarloResult:
         return (self.end_time - self.start_time).total_seconds()
 
     def get_percentile(self, metric: str, percentile: float) -> float:
-        """Get percentile value for a metric across simulations."""
+        """Get the percentile value for a metric across simulations.
+
+        Args:
+            metric: Name of the :class:`BacktestMetrics` attribute to read.
+            percentile: Percentile in the range 0-100.
+
+        Returns:
+            The requested percentile as a float.
+
+        Raises:
+            ValueError: If no simulations are available.
+        """
         self._ensure_simulations()
         values = [getattr(s, metric) for s in self.simulations]
         return float(np.percentile(values, percentile))
 
     def get_confidence_interval(self, metric: str) -> tuple[float, float]:
-        """Get confidence interval for a metric."""
+        """Get the confidence interval for a metric across simulations.
+
+        The interval is centered on the configured :attr:`confidence_level`,
+        computed via the corresponding percentiles.
+
+        Args:
+            metric: Name of the :class:`BacktestMetrics` attribute to read.
+
+        Returns:
+            Tuple of ``(lower, upper)`` bounds.
+
+        Raises:
+            ValueError: If no simulations are available.
+        """
         self._ensure_simulations()
         alpha = (1 - self.confidence_level) / 2
         lower = self.get_percentile(metric, alpha * 100)
@@ -98,19 +126,53 @@ class MonteCarloResult:
         return (lower, upper)
 
     def probability_of_profit(self) -> float:
-        """Probability that total return is positive."""
+        """Get the probability that total return is positive.
+
+        Returns:
+            Fraction of simulations with a positive ``total_return_pct``,
+            in the range 0.0-1.0.
+
+        Raises:
+            ValueError: If no simulations are available.
+        """
         self._ensure_simulations()
         returns = [s.total_return_pct for s in self.simulations]
         return sum(1 for r in returns if r > 0) / len(returns)
 
     def probability_of_beat_benchmark(self, benchmark_return_pct: float) -> float:
-        """Probability that total return exceeds benchmark."""
+        """Get the probability that total return exceeds a benchmark.
+
+        Args:
+            benchmark_return_pct: Benchmark total return to compare against.
+
+        Returns:
+            Fraction of simulations whose ``total_return_pct`` exceeds the
+            benchmark, in the range 0.0-1.0.
+
+        Raises:
+            ValueError: If no simulations are available.
+        """
         self._ensure_simulations()
         returns = [s.total_return_pct for s in self.simulations]
         return sum(1 for r in returns if r > benchmark_return_pct) / len(returns)
 
     def expected_shortfall(self, metric: str, confidence: float = 0.95) -> float:
-        """Expected shortfall (CVaR) for a metric at given confidence level."""
+        """Get expected shortfall (CVaR) for a metric at a given confidence level.
+
+        Expected shortfall is the average of the worst ``1 - confidence``
+        fraction of observations, providing a more conservative tail-risk
+        measure than Value at Risk.
+
+        Args:
+            metric: Name of the :class:`BacktestMetrics` attribute to read.
+            confidence: Confidence level (e.g. 0.95 for the 95% ES).
+
+        Returns:
+            The expected shortfall value.
+
+        Raises:
+            ValueError: If no simulations are available.
+        """
         self._ensure_simulations()
         values = [getattr(s, metric) for s in self.simulations]
         var = np.percentile(values, (1 - confidence) * 100)
@@ -118,14 +180,25 @@ class MonteCarloResult:
         return float(np.mean(tail_values)) if tail_values else var
 
     def to_dataframe(self) -> pd.DataFrame:
-        """Convert simulation results to DataFrame for analysis."""
+        """Convert simulation results to a DataFrame for analysis.
+
+        Returns:
+            DataFrame with one row per simulation, or an empty DataFrame
+            when no simulations were run.
+        """
         if not self.simulations:
             return pd.DataFrame()  # type: ignore[no-any-return]
         data = [s.to_dict() for s in self.simulations]
         return pd.DataFrame(data)  # type: ignore[no-any-return]
 
     def summary(self) -> dict[str, Any]:
-        """Get summary statistics."""
+        """Get summary statistics for the simulation distribution.
+
+        Returns:
+            Dictionary with ``n_simulations``, ``confidence_level``,
+            ``probability_of_profit``, and mean/std/median/confidence-interval
+            entries for each tracked metric. Empty when no simulations ran.
+        """
         if not self.simulations:
             return {}
 
@@ -164,8 +237,26 @@ class MonteCarloResult:
 class MonteCarloSimulator:
     """Monte Carlo simulator for backtest strategy analysis.
 
-    Uses bootstrap resampling of returns to simulate alternative equity curves
-    and estimate the distribution of performance metrics.
+    Simulates alternative equity curves by resampling the backtest's daily
+    returns, then aggregates the distribution of performance metrics across
+    simulations. Two methods are supported:
+
+    * ``"bootstrap"`` - non-parametric resampling with replacement.
+    * ``"parametric"`` - sampling from a fitted normal distribution.
+
+    Attributes:
+        n_simulations: Number of alternative equity curves to generate.
+        confidence_level: Confidence level used for intervals (0-1).
+        random_state: Seed for reproducible simulation runs.
+        _rng: Internal numpy random generator.
+
+    Examples:
+        >>> from quant_trading.monte_carlo.simulator import MonteCarloSimulator
+        >>> sim = MonteCarloSimulator(n_simulations=10, random_state=0)
+        >>> sim.n_simulations
+        10
+        >>> sim.confidence_level
+        0.95
     """
 
     def __init__(
@@ -174,7 +265,7 @@ class MonteCarloSimulator:
         confidence_level: float = 0.95,
         random_state: int | None = None,
     ):
-        """Initialize Monte Carlo simulator.
+        """Initialize the Monte Carlo simulator.
 
         Args:
             n_simulations: Number of simulations to run.
@@ -232,7 +323,15 @@ class MonteCarloSimulator:
         )
 
     def _extract_returns(self, result: BacktestResult) -> np.ndarray:
-        """Extract daily returns from equity curve."""
+        """Extract daily returns from the backtest's equity curve.
+
+        Args:
+            result: Backtest result whose equity curve is analyzed.
+
+        Returns:
+            NumPy array of daily simple returns (one fewer element than the
+            equity curve, since the first bar has no prior return).
+        """
         equity = result.equity_curve
         returns = equity.pct_change().dropna().values
         return np.asarray(returns)
@@ -243,7 +342,21 @@ class MonteCarloSimulator:
         initial_capital: float,
         original_metrics: BacktestMetrics,
     ) -> list[BacktestMetrics]:
-        """Run bootstrap resampling simulation."""
+        """Run a bootstrap resampling simulation.
+
+        Each simulation resamples the historical returns with replacement,
+        rebuilds an equity curve from the resampled returns, and computes
+        performance metrics for it.
+
+        Args:
+            returns: Historical daily returns to resample.
+            initial_capital: Starting capital for each simulated curve.
+            original_metrics: Metrics of the original backtest (unused but
+                kept for API symmetry with :meth:`_run_parametric`).
+
+        Returns:
+            List of :class:`BacktestMetrics`, one per simulation.
+        """
         n_days = len(returns)
         simulations = []
 
@@ -271,7 +384,21 @@ class MonteCarloSimulator:
         initial_capital: float,
         original_metrics: BacktestMetrics,
     ) -> list[BacktestMetrics]:
-        """Run parametric simulation assuming normal distribution."""
+        """Run a parametric simulation assuming a normal distribution.
+
+        Each simulation draws returns from a normal distribution fitted to
+        the historical returns' mean and standard deviation, then rebuilds
+        an equity curve and computes performance metrics.
+
+        Args:
+            returns: Historical daily returns used to fit the distribution.
+            initial_capital: Starting capital for each simulated curve.
+            original_metrics: Metrics of the original backtest (unused but
+                kept for API symmetry with :meth:`_run_bootstrap`).
+
+        Returns:
+            List of :class:`BacktestMetrics`, one per simulation.
+        """
         mean_return = np.mean(returns)
         std_return = np.std(returns)
         n_days = len(returns)
