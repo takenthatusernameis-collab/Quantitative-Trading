@@ -28,3 +28,34 @@ Evidence:
 Grant the GitHub App the `workflows` permission on this repo (or obtain a token/personal access token with `push` + `workflows` scope), then push local commit `9b272db` to origin/main and confirm the GitHub Actions CI run (ruff, black, mypy, pytest) succeeds. If a job fails, fix with the smallest change, re-verify locally, and re-push.
 
 Constraints: do not weaken CI checks; preserve green baseline; keep local commit 9b272db intact until pushed.
+
+---
+
+# Completed in this session
+
+## What changed
+
+- Removed orphaned trailing lines at the end of `examples/run_backtest.py` (was lines 94-97):
+  ```python
+  import sys
+  from pathlib import Path
+
+  sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+  ```
+  These were dead module-level statements that executed on every import of the module and mutated the importing process's `sys.path`. They were left over from the offline-example pattern used in other `examples/run_*.py` scripts (which guard their `sys.path.insert` inside `if __name__ == "__main__":`).
+
+## What was verified
+
+- `examples/run_backtest.py` parses; importing it no longer mutates `sys.path` (asserted `before == after`).
+- `ruff check examples/run_backtest.py` → All checks passed.
+- `black --check` → 1 file would be left unchanged.
+- `mypy examples/run_backtest.py` → Success: no issues found.
+- `tests/test_examples_smoke.py` → 15 passed, 1 skipped.
+- Full suite after the change: `pytest tests/` → 1096 passed, 1 skipped, 16 warnings.
+- `ruff check quant_trading/ examples/ tests/` → All checks passed.
+- `mypy quant_trading/` → Success: no issues found in 36 source files.
+- Working tree clean except this one-file change; baseline (1096 passed) preserved.
+
+## Approach that worked
+
+Isolated, single-file deletion of dead code, verified by an explicit import-time invariant check plus the existing smoke suite. No behavior change for any user-facing path.
