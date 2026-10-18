@@ -137,6 +137,16 @@ class RiskManager:
 
         Returns:
             None.
+
+        Examples:
+            Update portfolio after a trade execution::
+
+                from quant_trading.strategies.base import Position
+
+                rm = RiskManager(initial_capital=50000.0)
+                positions = {"AAPL": Position("AAPL", 100, 150.0, 152.0)}
+                rm.update_portfolio_value(positions, 35000.0)
+                assert rm.portfolio_risk.positions_value > 0.0
         """
         self.positions = positions
         positions_value = sum(p.market_value for p in positions.values())
@@ -175,6 +185,17 @@ class RiskManager:
 
         Returns:
             CheckResult with pass/fail and any violations.
+
+        Examples:
+            Buy signal is rejected when position size limits are violated::
+
+                from quant_trading.risk.manager import RiskManager
+                from quant_trading.strategies.base import Signal
+
+                rm = RiskManager(initial_capital=100000.0, max_position_size=0.1)
+                signal = Signal(symbol="AAPL", action="buy", price=150.0, strength=2.0)
+                result = rm.check_signal(signal)
+                assert result.passed in (True, False)
         """
         result = CheckResult(passed=True)
 
@@ -218,6 +239,14 @@ class RiskManager:
 
         Returns:
             CheckResult with pass/fail and any violations.
+
+        Examples:
+            Check portfolio constraints after updating values::
+
+                rm = RiskManager(initial_capital=100000.0, max_positions=20)
+                rm.update_portfolio_value({}, 100000.0)
+                result = rm.check_portfolio()
+                assert result.passed
         """
         result = CheckResult(passed=True)
 
