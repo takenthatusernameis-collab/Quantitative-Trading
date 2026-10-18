@@ -149,9 +149,9 @@ class RandomSearch(BaseOptimizer):
         self,
         n_iter: int = 100,
         random_state: int | None = None,
-        *args,
-        **kwargs,
-    ):
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         """Initialize the random search optimizer.
 
         All arguments except ``n_iter`` and ``random_state`` are forwarded to
@@ -240,11 +240,11 @@ class RandomSearch(BaseOptimizer):
     def _run_sequential(
         self,
         combinations: list[dict[str, Any]],
-        all_results: list,
+        all_results: list[dict[str, Any]],
         best_score: float,
-        best_params: dict,
-        best_result: Any,
-    ) -> tuple[list, float, dict, Any]:
+        best_params: dict[str, Any],
+        best_result: BacktestResult | None,
+    ) -> tuple[list[dict[str, Any]], float, dict[str, Any], BacktestResult | None]:
         """Evaluate the sampled combinations one at a time.
 
         This is the default execution path when ``n_jobs == 1`` or when there is
@@ -301,13 +301,13 @@ class RandomSearch(BaseOptimizer):
     def _run_parallel(
         self,
         combinations: list[dict[str, Any]],
-        all_results: list,
+        all_results: list[dict[str, Any]],
         best_score: float,
-        best_params: dict,
-        best_result: Any,
+        best_params: dict[str, Any],
+        best_result: BacktestResult | None,
         start: datetime,
         end: datetime,
-    ) -> tuple[list, float, dict, Any]:
+    ) -> tuple[list[dict[str, Any]], float, dict[str, Any], BacktestResult | None]:
         """Evaluate the sampled combinations in parallel.
 
         Each combination is submitted to a worker process via the module-level
@@ -376,7 +376,7 @@ class RandomSearch(BaseOptimizer):
         try:
             with ProcessPoolExecutor(max_workers=self.n_jobs) as executor:
                 # Submit all tasks and remember each future's combination index
-                submitted: list = []
+                submitted: list[Any] = []
                 for params in combinations:
                     submitted.append(
                         executor.submit(

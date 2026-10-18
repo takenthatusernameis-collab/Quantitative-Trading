@@ -65,7 +65,7 @@ class ParameterSpace:
     distribution: str | None = None
     param_type: type = float  # Type to cast values to (int, float, bool)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate that at least one of ``values`` or ``min_val`` is set.
 
         Raises:

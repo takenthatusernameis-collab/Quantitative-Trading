@@ -216,7 +216,7 @@ class BayesianOptimizer(BaseOptimizer):
         self._space = self._create_skopt_space()
         self._use_named_args = use_named_args(self._space)
 
-    def _create_skopt_space(self) -> list:
+    def _create_skopt_space(self) -> list[Any]:
         """Convert the parameter grid into a scikit-optimize search space.
 
         Each :class:`~quant_trading.optimization.base.ParameterSpace` is
@@ -281,8 +281,8 @@ class BayesianOptimizer(BaseOptimizer):
                 f"{self.n_calls - self.n_initial_points} guided)"
             )
 
-        @self._use_named_args
-        def objective_func(**params):
+        @self._use_named_args  # type: ignore[untyped-decorator]
+        def objective_func(**params: Any) -> float:
             nonlocal best_score, best_params, best_result
             params_cast = {k: v for k, v in params.items()}
             params_eval, score, result = self._evaluate_params(params_cast)
