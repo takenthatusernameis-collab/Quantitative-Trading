@@ -3,6 +3,18 @@
 Walk-forward analysis splits data into in-sample (training) and out-of-sample (testing)
 periods, optimizing parameters on in-sample data and validating on out-of-sample data.
 This reduces overfitting compared to simple backtest optimization.
+
+Examples:
+    >>> from datetime import datetime
+    >>> from quant_trading.optimization.walk_forward import WalkForwardWindow
+    >>> w = WalkForwardWindow(
+    ...     train_start=datetime(2024, 1, 1),
+    ...     train_end=datetime(2024, 2, 1),
+    ...     test_start=datetime(2024, 2, 1),
+    ...     test_end=datetime(2024, 3, 1),
+    ... )
+    >>> w.to_dict()["test_start"].isoformat()
+    '2024-02-01T00:00:00'
 """
 
 # mypy: disable-error-code="no-any-return"
@@ -26,7 +38,40 @@ from quant_trading.strategies.base import Strategy
 
 @dataclass
 class WalkForwardWindow:
-    """A single walk-forward window with in-sample and out-of-sample periods."""
+    """A single walk-forward window with in-sample and out-of-sample periods.
+
+    Each window represents one fold of the walk-forward procedure: parameters
+    are optimized on the in-sample (training) span and then validated on the
+    adjacent out-of-sample (test) span. The :attr:`best_params`,
+    :attr:`train_result`, and :attr:`test_result` fields are populated by
+    :meth:`WalkForwardOptimizer.run` after optimization and validation complete.
+
+    Attributes:
+        train_start: Start timestamp of the in-sample (training) period.
+        train_end: End timestamp of the in-sample (training) period.
+        test_start: Start timestamp of the out-of-sample (test) period.
+        test_end: End timestamp of the out-of-sample (test) period.
+        best_params: Parameter combination selected by the optimizer on the
+            training data. ``None`` until optimization runs.
+        train_result: Backtest result on the training data using the best
+            parameters. ``None`` until optimization runs.
+        test_result: Backtest result on the out-of-sample data using the best
+            parameters. ``None`` until validation runs.
+
+    Examples:
+        >>> from datetime import datetime
+        >>> from quant_trading.optimization.walk_forward import WalkForwardWindow
+        >>> w = WalkForwardWindow(
+        ...     train_start=datetime(2024, 1, 1),
+        ...     train_end=datetime(2024, 2, 1),
+        ...     test_start=datetime(2024, 2, 1),
+        ...     test_end=datetime(2024, 3, 1),
+        ... )
+        >>> w.to_dict()["test_start"].isoformat()
+        '2024-02-01T00:00:00'
+        >>> w.best_params is None
+        True
+    """
 
     train_start: datetime
     train_end: datetime
@@ -36,17 +81,100 @@ class WalkForwardWindow:
     train_result: BacktestResult | None = None
     test_result: BacktestResult | None = None
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the window to a plain dictionary.
+
+        Returns:
+            Dictionary with keys ``train_start``, ``train_end``,
+            ``test_start``, ``test_end``, ``best_params``, ``train_result``,
+            and ``test_result``. Backtest results are included as-is (they are
+            not recursively serialized).
+
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.optimization.walk_forward import WalkForwardWindow
+            >>> w = WalkForwardWindow(
+            ...     train_start=datetime(2024, 1, 1),
+            ...     train_end=datetime(2024, 2, 1),
+            ...     test_start=datetime(2024, 2, 1),
+            ...     test_end=datetime(2024, 3, 1),
+            ...     best_params={"fast_period": 5},
+            ... )
+            >>> w.to_dict()["best_params"]
+            {'fast_period': 5}
+        """
+        return {
+            "train_start": self.train_start,
+            "train_end": self.train_end,
+            "test_start": self.test_start,
+            "test_end": self.test_end,
+            "best_params": self.best_params,
+            "train_result": self.train_result,
+            "test_result": self.test_result,
+        }
+
 
 @dataclass
 class WalkForwardResult:
-    """Result of walk-forward optimization."""
+    """Result of walk-forward optimization.
+
+    Aggregates every :class:`WalkForwardWindow` produced by a single
+    :meth:`WalkForwardOptimizer.run` call along with a combined out-of-sample
+    backtest that chains each window's test-period equity curve together.
+
+    Attributes:
+        windows: List of per-window results in chronological order.
+        combined_test_result: Backtest result spanning the full out-of-sample
+            period, built by chaining each window's test equity curve. ``None``
+            when no window produced a valid test result.
+        anchored: Whether anchored (expanding) walk-forward was used. When
+            ``False``, rolling (sliding) walk-forward was used.
+
+    Examples:
+        >>> from datetime import datetime
+        >>> from quant_trading.optimization.walk_forward import WalkForwardResult, WalkForwardWindow
+        >>> w = WalkForwardWindow(
+        ...     train_start=datetime(2024, 1, 1),
+        ...     train_end=datetime(2024, 2, 1),
+        ...     test_start=datetime(2024, 2, 1),
+        ...     test_end=datetime(2024, 3, 1),
+        ... )
+        >>> r = WalkForwardResult(windows=[w], combined_test_result=None, anchored=True)
+        >>> r.anchored
+        True
+        >>> r.summary()["n_windows"]
+        1
+    """
 
     windows: list[WalkForwardWindow]
     combined_test_result: BacktestResult | None = None
     anchored: bool = True
 
     def to_dataframe(self) -> pd.DataFrame:
-        """Convert window results to DataFrame."""
+        """Convert window results to a DataFrame.
+
+        Returns:
+            A DataFrame with one row per window. Columns include ``window``,
+            the train/test date boundaries, training and test performance
+            metrics (return, Sharpe, max drawdown), and one ``param_<name>``
+            column per entry in the window's ``best_params``.
+
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.optimization.walk_forward import WalkForwardResult, WalkForwardWindow
+            >>> w = WalkForwardWindow(
+            ...     train_start=datetime(2024, 1, 1),
+            ...     train_end=datetime(2024, 2, 1),
+            ...     test_start=datetime(2024, 2, 1),
+            ...     test_end=datetime(2024, 3, 1),
+            ...     best_params={"fast_period": 5},
+            ... )
+            >>> df = WalkForwardResult(windows=[w], anchored=True).to_dataframe()
+            >>> "param_fast_period" in df.columns
+            True
+            >>> len(df)
+            1
+        """
         rows: list[dict[str, Any]] = []
         for i, w in enumerate(self.windows):
             row: dict[str, Any] = {
@@ -67,7 +195,28 @@ class WalkForwardResult:
         return pd.DataFrame(rows)
 
     def summary(self) -> dict[str, Any]:
-        """Get summary statistics."""
+        """Get summary statistics.
+
+        Returns:
+            Dictionary with ``n_windows``, average test return, average test
+            Sharpe, average test max drawdown, win-rate of positive-test-return
+            windows, and the combined test result's return and Sharpe.
+
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.optimization.walk_forward import WalkForwardResult, WalkForwardWindow
+            >>> w = WalkForwardWindow(
+            ...     train_start=datetime(2024, 1, 1),
+            ...     train_end=datetime(2024, 2, 1),
+            ...     test_start=datetime(2024, 2, 1),
+            ...     test_end=datetime(2024, 3, 1),
+            ... )
+            >>> s = WalkForwardResult(windows=[w], anchored=True).summary()
+            >>> s["n_windows"]
+            1
+            >>> s["avg_test_return_pct"]
+            0
+        """
         test_returns = [w.test_result.total_return_pct for w in self.windows if w.test_result]
         test_sharpes = [w.test_result.metrics.sharpe_ratio for w in self.windows if w.test_result]
         test_dds = [w.test_result.metrics.max_drawdown_pct for w in self.windows if w.test_result]
@@ -94,8 +243,63 @@ class WalkForwardResult:
 class WalkForwardOptimizer:
     """Walk-forward optimizer for strategy parameters.
 
-    Splits data into multiple in-sample/out-of-sample windows,
-    optimizes parameters on in-sample data, and tests on out-of-sample data.
+    Walk-forward analysis splits the available data into a sequence of
+    in-sample (training) and out-of-sample (testing) windows. For each window,
+    the optimizer searches for the parameters that maximize the chosen
+    objective on the training data, then validates those parameters on the
+    adjacent out-of-sample window. Aggregating out-of-sample performance
+    across windows gives a more realistic estimate of strategy performance
+    than optimizing once over the entire period, because it reduces
+    overfitting to a single historical segment.
+
+    Two walk-forward modes are supported:
+
+    * **Anchored** (``anchored=True``): the training window starts at a fixed
+      point and expands forward as each window progresses. This mimics the
+      real-world scenario where all information available up to the current
+      date is used for optimization.
+    * **Rolling** (``anchored=False``): the training window keeps a fixed
+      length and slides forward with each window.
+
+    Attributes:
+        strategy_cls: Strategy class being optimized.
+        param_grid: Parameter grid defining the search space.
+        objective: Objective function maximized during optimization.
+        symbols: Symbols traded during each backtest.
+        start: Start date of the full walk-forward period.
+        end: End date of the full walk-forward period.
+        initial_capital: Initial capital for each backtest.
+        commission: Commission rate applied to each trade.
+        slippage: Slippage rate applied to each trade.
+        interval: Data interval used for backtests.
+        data_manager: DataManager instance supplying price data.
+        config: Optional configuration object passed to strategies.
+        n_windows: Number of walk-forward windows to generate.
+        train_size: Fraction of each window allocated to training (0-1).
+        step_size: Step size between windows as a fraction of a window's span.
+        anchored: Whether anchored (expanding) walk-forward is used.
+        optimizer_type: Backend optimizer identifier ("grid", "random", or
+            "bayesian").
+        optimizer_kwargs: Additional keyword arguments forwarded to the
+            backend optimizer.
+        verbose: Whether to print progress information.
+
+    Examples:
+        >>> from datetime import datetime
+        >>> from quant_trading.optimization.walk_forward import WalkForwardOptimizer
+        >>> from quant_trading.optimization.base import ParameterGrid, ParameterSpace, maximize_sharpe
+        >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
+        >>> optimizer = WalkForwardOptimizer(
+        ...     strategy_cls=None,
+        ...     param_grid=grid,
+        ...     objective=maximize_sharpe,
+        ...     start=None,
+        ...     end=None,
+        ... )
+        >>> optimizer.optimizer_type
+        'grid'
+        >>> optimizer.anchored
+        True
     """
 
     def __init__(
@@ -169,7 +373,30 @@ class WalkForwardOptimizer:
             self.step_size = step_size
 
     def _create_optimizer(self) -> BaseOptimizer:
-        """Create optimizer instance."""
+        """Create the backend optimizer instance for the current window.
+
+        Returns:
+            A fresh optimizer configured with this walk-forward optimizer's
+            strategy, parameter grid, objective, and backtest settings.
+
+        Raises:
+            ValueError: If ``optimizer_type`` is not one of "grid", "random",
+                or "bayesian".
+
+        Examples:
+            >>> from quant_trading.optimization.walk_forward import WalkForwardOptimizer
+            >>> from quant_trading.optimization.base import ParameterGrid, ParameterSpace, maximize_sharpe
+            >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
+            >>> optimizer = WalkForwardOptimizer(
+            ...     strategy_cls=None,  # doctest: +SKIP
+            ...     param_grid=grid,
+            ...     objective=maximize_sharpe,
+            ...     start=None,
+            ...     end=None,
+            ... )
+            >>> optimizer._create_optimizer()  # doctest: +SKIP
+            GridSearch(...)
+        """
         if self.optimizer_type == "grid":
             return GridSearch(
                 strategy_cls=self.strategy_cls,
@@ -223,7 +450,39 @@ class WalkForwardOptimizer:
             raise ValueError(f"Unknown optimizer type: {self.optimizer_type}")
 
     def _generate_windows(self) -> list[WalkForwardWindow]:
-        """Generate walk-forward windows."""
+        """Generate the walk-forward windows for the configured period.
+
+        The full span from ``start`` to ``end`` is divided into ``n_windows``
+        sub-intervals. For anchored walk-forward, the training start is fixed
+        at ``start`` and the training end expands forward; for rolling
+        walk-forward, both training start and end slide forward by ``step_size``
+        each iteration. The test period immediately follows the training period
+        within each window.
+
+        Returns:
+            List of :class:`WalkForwardWindow` objects, one per valid window.
+            Windows whose test span degenerates to zero length are skipped.
+
+        Raises:
+            ValueError: If ``start`` or ``end`` is not set.
+
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.optimization.walk_forward import WalkForwardOptimizer
+            >>> from quant_trading.optimization.base import ParameterGrid, maximize_sharpe
+            >>> optimizer = WalkForwardOptimizer(
+            ...     strategy_cls=None,  # doctest: +SKIP
+            ...     param_grid=ParameterGrid(),
+            ...     objective=maximize_sharpe,
+            ...     start=datetime(2024, 1, 1),
+            ...     end=datetime(2024, 1, 11),
+            ...     n_windows=2,
+            ...     train_size=0.5,
+            ...     anchored=True,
+            ... )
+            >>> [w.train_end.date() for w in optimizer._generate_windows()]  # doctest: +SKIP
+            [datetime.date(2024, 1, 3), datetime.date(2024, 1, 5)]
+        """
         if self.start is None or self.end is None:
             raise ValueError("start and end dates must be provided")
 
@@ -268,8 +527,31 @@ class WalkForwardOptimizer:
     def run(self) -> WalkForwardResult:
         """Run walk-forward optimization.
 
+        For each generated window, the backend optimizer searches for the best
+        parameters on the training data, then those parameters are validated on
+        the out-of-sample test data. Test-period equity curves are chained
+        together into a single combined out-of-sample result.
+
         Returns:
-            WalkForwardResult with all window results and combined test result.
+            WalkForwardResult with all window results and the combined test
+            result. Windows whose optimization or validation fails are kept
+            with their ``best_params``/``test_result`` left as ``None``.
+
+        Raises:
+            ValueError: If the windows cannot be generated (e.g. missing
+                start/end dates) or an unknown optimizer type was configured.
+
+        Examples:
+            >>> from quant_trading.optimization.walk_forward import WalkForwardOptimizer
+            >>> optimizer = WalkForwardOptimizer(
+            ...     strategy_cls=None,  # doctest: +SKIP
+            ...     param_grid=ParameterGrid(),
+            ...     objective=maximize_sharpe,
+            ...     start=None,
+            ...     end=None,
+            ... )
+            >>> optimizer.run()  # doctest: +SKIP
+            WalkForwardResult(windows=[...], anchored=True)
         """
         windows = self._generate_windows()
 
@@ -326,7 +608,37 @@ class WalkForwardOptimizer:
         )
 
     def _combine_test_results(self, windows: list[WalkForwardWindow]) -> BacktestResult | None:
-        """Combine test period results from all windows into a single result."""
+        """Combine test period results from all windows into a single result.
+
+        Each window's backtest starts fresh at ``initial_capital``, so the
+        out-of-sample equity segments are chained together: the final equity of
+        one window seeds the next. The first bar of each window's curve is
+        dropped because it duplicates the previous window's last bar (or, for
+        the first window, is the initial capital itself). The resulting
+        combined equity curve is re-evaluated into a fresh :class:`BacktestResult`.
+
+        Args:
+            windows: Walk-forward windows, some of which may have a ``None``
+                ``test_result`` (skipped during combination).
+
+        Returns:
+            A single :class:`BacktestResult` spanning the combined out-of-sample
+            period, or ``None`` when no window produced a usable test result.
+
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.optimization.walk_forward import WalkForwardOptimizer
+            >>> from quant_trading.optimization.base import ParameterGrid, maximize_sharpe
+            >>> optimizer = WalkForwardOptimizer(
+            ...     strategy_cls=None,  # doctest: +SKIP
+            ...     param_grid=ParameterGrid(),
+            ...     objective=maximize_sharpe,
+            ...     start=datetime(2024, 1, 1),
+            ...     end=datetime(2024, 1, 11),
+            ... )
+            >>> optimizer._combine_test_results([])  # doctest: +SKIP
+            None
+        """
         import pandas as pd
 
         valid_windows = [w for w in windows if w.test_result is not None]
