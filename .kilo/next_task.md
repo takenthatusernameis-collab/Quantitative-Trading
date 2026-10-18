@@ -2,28 +2,22 @@
 
 ## Status
 
-COMPLETE - Type stubs installed and mypy clean; CI workflow added.
-
-- `pip install -e ".[dev]"` installed mypy 2.4.0, pandas-stubs 3.0.5, types-PyYAML 6.0.12, types-requests 2.33.0.
-- `python -m mypy quant_trading`: Success, no issues found in 36 source files (only notes about untyped def bodies, not errors).
-- `python -m ruff check quant_trading tests`: 0 errors.
-- `python -m black --check quant_trading`: 36 files unchanged, pass.
-- `python -m pytest -q`: 1096 passed, 1 skipped (baseline unchanged).
+BLOCKED - CI workflow file created and committed locally, but push rejected by GitHub because the token lacks `workflows` permission to create/update `.github/workflows/ci.yml`.
 
 ## What changed
 
-Added `.github/workflows/ci.yml` — runs on push to main and PRs to main: setup Python 3.10, install `.[dev]`, then ruff check, black --check, mypy, pytest.
+Added `.github/workflows/ci.yml` — runs on push/PR to main: Python 3.10, install `.[dev]`, ruff check, black --check, mypy, pytest. Committed locally as 09cd300.
 
 ## What was actually verified
 
-All four CI steps pass locally (ruff, black, mypy "Success", pytest 1096 passed/1 skipped). YAML validated with pyyaml.
+YAML parses (pyyaml). Local ruff/black/mypy/pytest baseline already green (1096 passed, 1 skipped). Push failed: remote rejected (GitHub App missing `workflows` permission).
 
 ## What remains unresolved
 
-CI workflow has not been exercised on GitHub Actions (cannot run Actions locally). It may need adjustment once a real push runs it.
+Push to origin/main blocked. Need a token/credentials with `workflows` scope, or push via a user with appropriate permissions, or grant the GitHub App workflows permission.
 
 ## Next precise task
 
-Commit the new `.github/workflows/ci.yml` (and any other desired changes) and push to trigger the GitHub Actions run; confirm all jobs pass. If a job fails, fix the workflow or code with the smallest change and re-verify locally before re-pushing.
+Push commit 09cd300 to origin/main using credentials with `workflows` permission; then confirm the GitHub Actions run succeeds. If a job fails, fix with smallest change and re-verify locally before re-pushing.
 
-Constraints: do not commit unless explicitly asked by the user; keep changes minimal and reversible; preserve the green test baseline (1096 passed, 1 skipped).
+Constraints: do not weaken CI checks; preserve green baseline.
