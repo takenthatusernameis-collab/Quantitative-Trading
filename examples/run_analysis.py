@@ -10,6 +10,10 @@ then exercises all three built-in analysis modules:
 It uses synthetic data so it is fully deterministic and requires no network
 access.
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 
 from datetime import datetime, timedelta
 

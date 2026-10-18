@@ -9,6 +9,10 @@ It consists of five lines and generates buy signals when Tenkan-sen crosses
 above Kijun-sen with price above the cloud, and sell signals when Tenkan-sen
 crosses below Kijun-sen with price below the cloud.
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 
 from __future__ import annotations
 

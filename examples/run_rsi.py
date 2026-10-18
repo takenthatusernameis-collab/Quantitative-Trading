@@ -8,6 +8,10 @@ speed and change of price movements. It oscillates between 0 and 100. The
 strategy is a mean-reversion approach: it buys when RSI is oversold (< 30)
 and sells when RSI is overbought (> 70).
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 
 from __future__ import annotations
 
