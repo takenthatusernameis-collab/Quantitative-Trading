@@ -2133,10 +2133,54 @@ class ParabolicSARStrategy(Strategy):
             current_price = close.iloc[-1]
             current_sar = sar.iloc[-1]
             current_trend = trend.iloc[-1]
-            prev_trend = trend.iloc[-2]
+            prev_trend = trend.iloc[-2] if len(trend) > 1 else current_trend
             timestamp = df.index[-1]
 
             # Skip if SAR is NaN (insufficient data)
+            if pd.isna(current_sar) or pd.isna(current_trend) or pd.isna(prev_trend):
+                continue
+
+            # Check for trend reversal
+            if current_trend != prev_trend:
+                if current_trend == 1 and prev_trend == -1:
+                    # Short to long reversal - bullish buy signal
+                    strength = 1.0
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="buy",
+                            strength=strength,
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "signal_type": "trend_reversal_bullish",
+                                "trend": "bullish",
+                                "sar": float(current_sar),
+                                "current_trend": int(current_trend),
+                                "prev_trend": int(prev_trend),
+                            },
+                        )
+                    )
+                elif current_trend == -1 and prev_trend == 1:
+                    # Long to short reversal - bearish sell signal
+                    strength = 1.0
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="sell",
+                            strength=strength,
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "signal_type": "trend_reversal_bearish",
+                                "trend": "bearish",
+                                "sar": float(current_sar),
+                                "current_trend": int(current_trend),
+                                "prev_trend": int(prev_trend),
+                            },
+                        )
+                    )
+
         return signals
 
 
