@@ -238,6 +238,16 @@ class BollingerBandsStrategy(Strategy):
         std_dev: float = 2.0,
         name: str = "Bollinger_Bands",
     ):
+        """Initialize the Bollinger Bands mean reversion strategy.
+
+        Args:
+            period: Lookback window for the moving average and standard deviation.
+            std_dev: Number of standard deviations for the bands.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+        """
         super().__init__(
             name,
             {
@@ -250,13 +260,27 @@ class BollingerBandsStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        """Validate strategy parameters."""
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` or ``std_dev`` is non-positive.
+        """
         if self.period <= 0:
             raise ValueError("period must be positive")
         if self.std_dev <= 0:
             raise ValueError("std_dev must be positive")
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from Bollinger Band touches.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least a
+                ``"close"`` column indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose price touches
+            the lower or upper Bollinger band.
+        """
         signals = []
 
         for symbol, df in data.items():
