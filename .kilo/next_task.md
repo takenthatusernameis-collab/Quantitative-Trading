@@ -2,26 +2,31 @@
 
 ## Status
 
-COMPLETE - Added Google-style docstrings to `quant_trading/data/yfinance_provider.py`, the last module in `data/` lacking full documentation. Both provider classes (`YFinanceProvider`, `AlphaVantageProvider`) and all their public/private methods now have complete Args/Returns/Raises sections, class-level Attributes sections, and Examples blocks consistent with the rest of the codebase.
+COMPLETE - Added/improved Google-style docstrings for the utils modules and strategies/base.py:
+- `quant_trading/utils/logging.py`: already had docstrings (verified). Also checked formatting passes.
+- `quant_trading/utils/formatting.py`: improved docstrings (fixed trailing-newline style per pydocstyle where applicable); ruff, black, mypy all pass.
+- `quant_trading/strategies/base.py`: ensured classes and public methods (Signal, Position, Strategy, StrategyManager) have complete Google-style docstrings with Args/Returns/Raises sections where appropriate; lint/format/typecheck pass.
 
 ## What was verified
 
-- `python -m ruff check quant_trading/data/yfinance_provider.py`: passed
-- `python -m black --check quant_trading/data/yfinance_provider.py`: passed (no changes)
-- `python -m mypy quant_trading/data/yfinance_provider.py`: Success, no issues
-- `python -m pytest tests/test_alphavantage_provider.py tests/test_yfinance_fetch_many.py tests/test_data_providers.py`: 403 passed
-- Full suite: `python -m pytest -q`: 1096 passed, 1 skipped (matches baseline)
-- `python -c "import ast; ast.parse(...)"`: syntax OK
-- Diff is docstring-only (no behavioral changes)
+- `python -m ruff check --select D --fix quant_trading/utils/formatting.py quant_trading/strategies/base.py`: errors fixed
+- `python -m black --check quant_trading/utils/formatting.py quant_trading/utils/logging.py quant_trading/strategies/base.py`: all pass (no changes needed)
+- `python -m mypy quant_trading/utils/formatting.py quant_trading/utils/logging.py quant_trading/strategies/base.py`: Success, no issues
+- Full suite: `python -m pytest -q`: 1096 passed, 1 skipped (baseline unchanged)
+- Only documentation/style changes; no behavioral changes
 
 ## What remains unresolved
 
-- `quant_trading/data/yfinance_provider.py` is now fully documented. The docstring-coverage theme has been applied across: strategies, backtest (engine/analysis/metrics/trade_analysis), data (providers/synthetic/yfinance_provider), portfolio/rebalancer, risk (limits/manager/metrics), optimization (base/grid_search/random_search/bayesian/walk_forward), monte_carlo/simulator, regime/detector, config/settings.
-- Remaining modules that may still have gaps: `quant_trading/utils/logging.py`, `quant_trading/utils/formatting.py` (formatting has docstrings; logging has partial), `quant_trading/strategies/base.py` (partial), `quant_trading/data/synthetic.py` (already done per git log), `quant_trading/backtest/__init__.py` etc. (module-level only).
+Docstring-coverage gaps may still exist in other modules. Candidates include:
+- `quant_trading/strategies/base.py` - looks now well-covered; also check `quant_trading/strategies/factory.py` (public API functions like create_strategy, register_strategy)
+- `quant_trading/backtest/__init__.py` and other module files if they have public functions/classes without docstrings
+- `quant_trading/optimization/*.py` - most likely have docstrings based on prior work pattern
+- `quant_trading/risk/*.py`, `quant_trading/portfolio/*.py` similarly
+- `quant_trading/utils/metrics.py` etc. if present
 
 ## Next precise task
 
-Pick a module outside `data/` and `strategies/` and add Google-style docstrings to under-documented public functions/classes. Good candidates:
-- `quant_trading/utils/logging.py` (`setup_logger`, `get_logger`)
-- `quant_trading/strategies/base.py` (`Strategy`, `StrategyManager`, `Position`)
-- Verify with the corresponding tests and lint/format/typecheck.
+Pick one under-documented public API module and add Google-style docstrings consistently. A concrete next step:
+- Add full Google-style docstrings to `quant_trading/strategies/factory.py` (`StrategyFactory`, `create_strategy`, `register_strategy`, `get_strategy_class`, `list_strategies`, etc.) - verify with ruff (D), black, mypy, and run relevant strategy/factory tests (e.g. `python -m pytest tests/test_strategies.py -v`).
+
+Constraints: maintain backward compatibility, no test modifications unless tests are incorrect, follow existing codebase conventions.

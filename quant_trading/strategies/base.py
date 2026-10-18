@@ -33,6 +33,7 @@ class Signal:
 
             hold = Signal(symbol="AAPL", action="hold")
             assert hold.price is None
+
     """
 
     symbol: str
@@ -50,6 +51,7 @@ class Signal:
 
         Returns:
             None.
+
         """
         if self.timestamp is None:
             self.timestamp = datetime.now()
@@ -88,6 +90,7 @@ class Position:
             flat = Position(symbol="AAPL")
             assert flat.market_value == 0.0
             assert flat.pnl == 0.0
+
     """
 
     symbol: str
@@ -103,6 +106,7 @@ class Position:
 
         Returns:
             Quantity multiplied by the latest price.
+
         """
         return self.quantity * self.current_price
 
@@ -112,6 +116,7 @@ class Position:
 
         Returns:
             Sum of unrealized and realized PnL.
+
         """
         return self.unrealized_pnl + self.realized_pnl
 
@@ -141,6 +146,7 @@ class Strategy(ABC):
             strategy = MyStrategy(name="My")
             assert strategy.name == "My"
             assert strategy.parameters == {}
+
     """
 
     def __init__(self, name: str, parameters: dict[str, Any] | None = None):
@@ -152,6 +158,7 @@ class Strategy(ABC):
 
         Returns:
             None.
+
         """
         self.name = name
         self.parameters = parameters or {}
@@ -167,6 +174,7 @@ class Strategy(ABC):
 
         Returns:
             List of trading signals.
+
         """
         ...
 
@@ -182,6 +190,7 @@ class Strategy(ABC):
 
         Raises:
             ValueError: If parameters are invalid.
+
         """
         return
 
@@ -193,6 +202,7 @@ class Strategy(ABC):
 
         Returns:
             None.
+
         """
         self.positions = positions
 
@@ -201,6 +211,7 @@ class Strategy(ABC):
 
         Returns:
             Shallow copy of the parameters dictionary.
+
         """
         return self.parameters.copy()
 
@@ -221,6 +232,7 @@ class Strategy(ABC):
 
         Raises:
             ValueError: If validation fails after the tentative update.
+
         """
         # Store old values for rollback on validation failure
         old_param_value = self.parameters.get(key)
@@ -259,6 +271,7 @@ class Strategy(ABC):
 
         Raises:
             ValueError: If the config does not contain a 'type' key.
+
         """
         from quant_trading.strategies.factory import create_strategy
 
@@ -294,6 +307,7 @@ class StrategyManager:
 
             signals = manager.generate_all_signals({"AAPL": pd.DataFrame()})
             assert set(signals) == {"Strat1", "Strat2"}
+
     """
 
     def __init__(self):
@@ -301,6 +315,7 @@ class StrategyManager:
 
         Returns:
             None.
+
         """
         self.strategies: dict[str, Strategy] = {}
 
@@ -314,6 +329,7 @@ class StrategyManager:
 
         Returns:
             None.
+
         """
         self.strategies[strategy.name] = strategy
 
@@ -327,6 +343,7 @@ class StrategyManager:
 
         Returns:
             None.
+
         """
         self.strategies.pop(name, None)
 
@@ -338,6 +355,7 @@ class StrategyManager:
 
         Returns:
             The matching strategy, or None if not found.
+
         """
         return self.strategies.get(name)
 
@@ -349,6 +367,7 @@ class StrategyManager:
 
         Returns:
             Dictionary mapping each strategy name to its list of signals.
+
         """
         signals = {}
         for name, strategy in self.strategies.items():
