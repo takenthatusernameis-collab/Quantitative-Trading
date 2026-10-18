@@ -60,6 +60,27 @@ class MonteCarloResult:
 
     @property
     def duration_seconds(self) -> float:
+        """Elapsed wall-clock seconds between ``start_time`` and ``end_time``.
+
+        Returns:
+            Duration in seconds as a float.
+
+        Examples:
+            >>> from quant_trading.monte_carlo.simulator import MonteCarloResult
+            >>> from quant_trading.backtest.metrics import BacktestMetrics
+            >>> from datetime import datetime
+            >>> metrics = BacktestMetrics()
+            >>> mc = MonteCarloResult(
+            ...     simulations=[],
+            ...     original_metrics=metrics,
+            ...     n_simulations=0,
+            ...     confidence_level=0.95,
+            ...     start_time=datetime(2024, 1, 1),
+            ...     end_time=datetime(2024, 1, 2),
+            ... )
+            >>> mc.duration_seconds
+            86400.0
+        """
         return (self.end_time - self.start_time).total_seconds()
 
     def get_percentile(self, metric: str, percentile: float) -> float:
