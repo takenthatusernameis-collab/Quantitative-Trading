@@ -16,13 +16,42 @@ logger = get_logger(__name__)
 
 
 class YFinanceProvider(DataProvider):
-    """Yahoo Finance data provider using yfinance library."""
+    """Yahoo Finance data provider backed by the ``yfinance`` library.
+
+    Fetches OHLCV history for one or more symbols via ``yfinance.Ticker``
+    and caches :class:`FetchResult` objects on disk as pickle files. Cache
+    entries are invalidated after ``cache_ttl_hours``. The ``yfinance``
+    dependency is imported lazily on first fetch so constructing the
+    provider does not require it.
+
+    Attributes:
+        _cache_dir: Directory used for on-disk cache files.
+        _cache_ttl: Time-to-live for cached results.
+        _yf: Lazily imported ``yfinance`` module (``None`` until first use).
+
+    Examples:
+        Construct a provider with a short cache TTL for testing::
+
+            from quant_trading.data.yfinance_provider import YFinanceProvider
+
+            provider = YFinanceProvider(cache_dir="/tmp/yt_cache", cache_ttl_hours=1)
+            assert provider.name == "yfinance"
+    """
 
     def __init__(
         self,
         cache_dir: str = "./data/cache",
         cache_ttl_hours: float = 24.0,
     ):
+        """Initialize the Yahoo Finance provider.
+
+        Args:
+            cache_dir: Directory for on-disk cache files. Created if missing.
+            cache_ttl_hours: Age (in hours) after which cached results expire.
+
+        Returns:
+            None.
+        """
         self._cache_dir = cache_dir
         self._cache_ttl = timedelta(hours=cache_ttl_hours)
         self._yf = None
@@ -31,10 +60,22 @@ class YFinanceProvider(DataProvider):
 
     @property
     def name(self) -> str:
+        """Return the provider identifier.
+
+        Returns:
+            The string ``"yfinance"``.
+        """
         return "yfinance"
 
     def _get_yf(self):
-        """Lazy import yfinance."""
+        """Import and cache the ``yfinance`` module on first use.
+
+        Returns:
+            The imported ``yfinance`` module.
+
+        Raises:
+            ImportError: If ``yfinance`` is not installed.
+        """
         if self._yf is None:
             try:
                 import yfinance as yf  # type: ignore[import-untyped]
@@ -47,25 +88,64 @@ class YFinanceProvider(DataProvider):
     def _cache_key(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> str:
-        """Generate a deterministic cache key."""
+        """Build a deterministic on-disk cache filename for a fetch request.
+
+        The filename is order-independent with respect to ``symbols`` (they
+        are sorted) and deterministic, so it can be used as a stable cache
+        key.
+
+        Args:
+            symbols: Tickers for the request.
+            start: Optional start of the requested window.
+            end: Optional end of the requested window.
+            interval: Bar interval.
+
+        Returns:
+            A string of the form
+            ``"<name>_<sorted_symbols>_<start>_<end>_<interval>.pkl"`` where
+            missing dates are rendered as ``"none"``.
+        """
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
         end_str = end.isoformat() if end else "none"
         return f"{self.name}_{symbols_str}_{start_str}_{end_str}_{interval}.pkl"
 
     def _cache_path(self, key: str) -> str:
-        """Get full cache file path."""
+        """Join the cache directory with a cache key.
+
+        Args:
+            key: Cache key returned by :meth:`_cache_key`.
+
+        Returns:
+            Full filesystem path for the cache file.
+        """
         return os.path.join(self._cache_dir, key)
 
     def _is_cache_valid(self, path: str) -> bool:
-        """Check if cache file exists and is not expired."""
+        """Check whether a cache file exists and has not expired.
+
+        Args:
+            path: Filesystem path to the cache file.
+
+        Returns:
+            ``True`` when the file exists and its modification time is newer
+            than ``now - cache_ttl``.
+        """
         if not os.path.exists(path):
             return False
         mtime = datetime.fromtimestamp(os.path.getmtime(path))
         return datetime.now() - mtime < self._cache_ttl
 
     def _load_cache(self, path: str) -> FetchResult | None:
-        """Load FetchResult from cache file."""
+        """Load a :class:`FetchResult` from a pickle cache file.
+
+        Args:
+            path: Filesystem path to the cache file.
+
+        Returns:
+            The deserialized :class:`FetchResult`, or ``None`` when the file
+            is unreadable or does not contain a valid result.
+        """
         try:
             with open(path, "rb") as f:
                 result = pickle.load(f)
@@ -78,7 +158,15 @@ class YFinanceProvider(DataProvider):
             return None
 
     def _save_cache(self, path: str, result: FetchResult) -> None:
-        """Save FetchResult to cache file."""
+        """Persist a :class:`FetchResult` to a pickle cache file.
+
+        Args:
+            path: Filesystem path to write.
+            result: Fetch result to cache.
+
+        Returns:
+            None.
+        """
         try:
             with open(path, "wb") as f:
                 pickle.dump(result, f)
@@ -92,11 +180,22 @@ class YFinanceProvider(DataProvider):
         end: datetime | None = None,
         interval: str = "1d",
     ) -> FetchResult:
-        """Fetch market data from Yahoo Finance.
+        """Fetch OHLCV history for one or more symbols from Yahoo Finance.
 
-        Returns a FetchResult with data, errors, and missing symbols.
-        Missing symbols (no data returned) are tracked separately from errors.
-        Uses disk caching if cache_dir is configured.
+        Each symbol is fetched via ``yfinance.Ticker``. Symbols that return
+        no data are recorded in :attr:`FetchResult.missing`; symbols whose
+        fetch raises are recorded in :attr:`FetchResult.errors`. Results are
+        cached on disk when ``cache_dir`` is configured.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval (e.g. ``"1d"``, ``"1h"``).
+
+        Returns:
+            A :class:`FetchResult` containing successful data, hard errors,
+            and symbols that returned no data.
         """
         # Try cache first
         if self._cache_dir:
@@ -166,12 +265,19 @@ class YFinanceProvider(DataProvider):
     ) -> dict[str, FetchResult]:
         """Fetch multiple requests using batched multi-ticker downloads.
 
-        Requests sharing the same (start, end, interval) are grouped and
+        Requests sharing the same ``(start, end, interval)`` are grouped and
         served by a single ``yfinance.download`` call (``group_by="ticker"``),
         issuing one HTTP request for the group's symbols instead of N
         per-symbol requests. Each request's result is keyed by
-        ``_request_key`` and the group result is cached on disk separately
-        from per-symbol ``fetch`` calls.
+        :meth:`DataProvider._request_key` and the group result is cached on
+        disk separately from per-symbol :meth:`fetch` calls.
+
+        Args:
+            requests: List of request dicts (each may contain ``symbols``,
+                ``start``, ``end``, and ``interval``).
+
+        Returns:
+            Mapping of stable request key to :class:`FetchResult`.
         """
         yf = self._get_yf()
         results: dict[str, FetchResult] = {}
@@ -210,7 +316,22 @@ class YFinanceProvider(DataProvider):
         end: datetime | None,
         interval: str,
     ) -> FetchResult:
-        """Fetch all symbols for one date range with a single download call."""
+        """Fetch all symbols for one date range with a single download call.
+
+        Issues a single ``yfinance.download`` call for the whole group and
+        caches the resulting :class:`FetchResult` on disk separately from
+        per-symbol :meth:`fetch` results.
+
+        Args:
+            yf: Imported ``yfinance`` module.
+            symbols: Tickers to download.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval.
+
+        Returns:
+            A :class:`FetchResult` covering the requested symbols.
+        """
         if self._cache_dir:
             key = self._group_cache_key(symbols, start, end, interval)
             path = self._cache_path(key)
@@ -264,7 +385,15 @@ class YFinanceProvider(DataProvider):
         df: pd.DataFrame | None,
         symbols: list[str],
     ) -> FetchResult:
-        """Convert a yfinance.download (group_by='ticker') result to a FetchResult."""
+        """Convert a ``yfinance.download`` (``group_by="ticker"``) result to a :class:`FetchResult`.
+
+        Args:
+            df: Raw download result, or ``None``/empty when no data was returned.
+            symbols: Tickers that were requested.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+        """
         result = FetchResult()
         if df is None or df.empty:
             result.missing.extend(symbols)
@@ -314,7 +443,22 @@ class YFinanceProvider(DataProvider):
         end: datetime | None,
         interval: str,
     ) -> str:
-        """Cache filename for a batched group download (distinct from per-symbol)."""
+        """Build a cache filename for a batched group download.
+
+        Distinct from per-symbol cache keys so group results and individual
+        ``fetch`` results do not collide.
+
+        Args:
+            symbols: Tickers in the group.
+            start: Optional start of the requested window.
+            end: Optional end of the requested window.
+            interval: Bar interval.
+
+        Returns:
+            A string of the form
+            ``"<name>_group_<sorted_symbols>_<start>_<end>_<interval>.pkl"``
+            where missing dates are rendered as ``"none"``.
+        """
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
         end_str = end.isoformat() if end else "none"
@@ -325,7 +469,16 @@ class YFinanceProvider(DataProvider):
         group_result: FetchResult,
         symbols: list[str],
     ) -> FetchResult:
-        """Pick only the requested symbols out of a group FetchResult."""
+        """Pick only the requested symbols out of a group :class:`FetchResult`.
+
+        Args:
+            group_result: Full group result returned by :meth:`_fetch_group`.
+            symbols: Subset of symbols to keep.
+
+        Returns:
+            A new :class:`FetchResult` containing only the requested symbols'
+            data/errors, with any absent symbol recorded as missing.
+        """
         sliced = FetchResult()
         for symbol in symbols:
             if symbol in group_result.data:
@@ -337,27 +490,46 @@ class YFinanceProvider(DataProvider):
         return sliced
 
     def fetch_latest(self, symbols: list[str]) -> FetchResult:
-        """Fetch latest market data (last 1 day)."""
+        """Fetch the most recent market data for the given symbols.
+
+        Issues a 1-minute interval fetch covering the last two days and
+        returns the resulting :class:`FetchResult`.
+
+        Args:
+            symbols: Tickers to fetch.
+
+        Returns:
+            A :class:`FetchResult` containing the latest data.
+        """
         end = datetime.now()
         start = end - timedelta(days=2)
         return self.fetch(symbols, start=start, end=end, interval="1m")
 
 
 class AlphaVantageProvider(DataProvider):
-    """Alpha Vantage data provider using REST API.
+    """Alpha Vantage data provider backed by the Alpha Vantage REST API.
 
-    Supports:
-    - TIME_SERIES_DAILY_ADJUSTED for daily historical data
-    - TIME_SERIES_WEEKLY for weekly historical data
-    - TIME_SERIES_WEEKLY_ADJUSTED for weekly adjusted historical data
-    - TIME_SERIES_MONTHLY for monthly historical data
-    - TIME_SERIES_MONTHLY_ADJUSTED for monthly adjusted historical data
-    - TIME_SERIES_INTRADAY for intraday historical data (1min, 5min, 15min, 30min, 60min)
-    - GLOBAL_QUOTE for real-time single symbol quotes
-    - BATCH_STOCK_PRICES for real-time batch quotes
-    - SYMBOL_SEARCH for symbol lookup by name or ticker
+    Supports a wide range of endpoints (daily/weekly/monthly time series,
+    intraday, real-time quotes, technical indicators, sector performance,
+    commodities, economic indicators, FX, crypto, symbol search, and more).
+    Responses are normalized into :class:`MarketData` DataFrames and cached
+    on disk as pickle files when ``cache_dir`` is configured.
 
-    Alpha Vantage provides a free demo key ("demo") for testing.
+    Attributes:
+        BASE_URL: Base URL for Alpha Vantage API requests.
+        _api_key: API key used for requests (defaults to ``"demo"``).
+        _cache_dir: Directory used for on-disk cache files.
+        _cache_ttl: Time-to-live for cached results.
+        _timeout: HTTP request timeout in seconds.
+        _warn_on_demo: Whether to warn when using the demo key.
+
+    Examples:
+        Construct a provider with a custom cache directory::
+
+            from quant_trading.data.yfinance_provider import AlphaVantageProvider
+
+            provider = AlphaVantageProvider(cache_dir="/tmp/av_cache")
+            assert provider.name == "alphavantage"
     """
 
     BASE_URL = "https://www.alphavantage.co/query"
@@ -507,6 +679,20 @@ class AlphaVantageProvider(DataProvider):
         timeout: float = 30.0,
         warn_on_demo: bool = True,
     ):
+        """Initialize the Alpha Vantage provider.
+
+        Args:
+            api_key: Alpha Vantage API key. Defaults to ``"demo"`` when not
+                provided (rate-limited, suitable for testing).
+            cache_dir: Directory for on-disk cache files. Created if missing.
+            cache_ttl_hours: Age (in hours) after which cached results expire.
+            timeout: HTTP request timeout in seconds.
+            warn_on_demo: When True and the demo key is used, emit a warning
+                about rate limits.
+
+        Returns:
+            None.
+        """
         self._api_key = api_key or "demo"
         self._cache_dir = cache_dir
         self._cache_ttl = timedelta(hours=cache_ttl_hours)
@@ -523,30 +709,74 @@ class AlphaVantageProvider(DataProvider):
 
     @property
     def name(self) -> str:
+        """Return the provider identifier.
+
+        Returns:
+            The string ``"alphavantage"``.
+        """
         return "alphavantage"
 
     def _cache_key(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> str:
-        """Generate a deterministic cache key."""
+        """Build a deterministic on-disk cache filename for a fetch request.
+
+        The filename is order-independent with respect to ``symbols`` (they
+        are sorted) and deterministic, so it can be used as a stable cache
+        key.
+
+        Args:
+            symbols: Tickers for the request.
+            start: Optional start of the requested window.
+            end: Optional end of the requested window.
+            interval: Bar interval.
+
+        Returns:
+            A string of the form
+            ``"<name>_<sorted_symbols>_<start>_<end>_<interval>.pkl"`` where
+            missing dates are rendered as ``"none"``.
+        """
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
         end_str = end.isoformat() if end else "none"
         return f"{self.name}_{symbols_str}_{start_str}_{end_str}_{interval}.pkl"
 
     def _cache_path(self, key: str) -> str:
-        """Get full cache file path."""
+        """Join the cache directory with a cache key.
+
+        Args:
+            key: Cache key returned by :meth:`_cache_key`.
+
+        Returns:
+            Full filesystem path for the cache file.
+        """
         return os.path.join(self._cache_dir, key)
 
     def _is_cache_valid(self, path: str) -> bool:
-        """Check if cache file exists and is not expired."""
+        """Check whether a cache file exists and has not expired.
+
+        Args:
+            path: Filesystem path to the cache file.
+
+        Returns:
+            ``True`` when the file exists and its modification time is newer
+            than ``now - cache_ttl``.
+        """
         if not os.path.exists(path):
             return False
         mtime = datetime.fromtimestamp(os.path.getmtime(path))
         return datetime.now() - mtime < self._cache_ttl
 
     def _load_cache(self, path: str) -> FetchResult | None:
-        """Load FetchResult from cache file."""
+        """Load a :class:`FetchResult` from a pickle cache file.
+
+        Args:
+            path: Filesystem path to the cache file.
+
+        Returns:
+            The deserialized :class:`FetchResult`, or ``None`` when the file
+            is unreadable or does not contain a valid result.
+        """
         try:
             with open(path, "rb") as f:
                 result = pickle.load(f)
@@ -559,7 +789,15 @@ class AlphaVantageProvider(DataProvider):
             return None
 
     def _save_cache(self, path: str, result: FetchResult) -> None:
-        """Save FetchResult to cache file."""
+        """Persist a :class:`FetchResult` to a pickle cache file.
+
+        Args:
+            path: Filesystem path to write.
+            result: Fetch result to cache.
+
+        Returns:
+            None.
+        """
         try:
             with open(path, "wb") as f:
                 pickle.dump(result, f)
@@ -570,14 +808,36 @@ class AlphaVantageProvider(DataProvider):
     def _request_key(
         symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> str:
-        """Build a stable string key for a fetch request."""
+        """Build a stable string key for a fetch request.
+
+        The key is order-independent with respect to ``symbols`` (they are
+        sorted) and deterministic, so it can be used as a cache or result
+        dictionary key.
+
+        Args:
+            symbols: Tickers for the request.
+            start: Optional start of the window.
+            end: Optional end of the window.
+            interval: Bar interval.
+
+        Returns:
+            A string of the form ``"symbols|start|end|interval"`` where
+            missing dates are rendered as ``"none"``.
+        """
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
         end_str = end.isoformat() if end else "none"
         return f"{symbols_str}|{start_str}|{end_str}|{interval}"
 
     def _build_daily_params(self, symbol: str) -> dict[str, str]:
-        """Build parameters for TIME_SERIES_DAILY_ADJUSTED endpoint."""
+        """Build query parameters for the TIME_SERIES_DAILY_ADJUSTED endpoint.
+
+        Args:
+            symbol: Ticker symbol to fetch.
+
+        Returns:
+            Dict of query parameters for the Alpha Vantage API.
+        """
         return {
             "function": "TIME_SERIES_DAILY_ADJUSTED",
             "symbol": symbol,
@@ -587,7 +847,14 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_batch_params(self, symbols: list[str]) -> dict[str, str]:
-        """Build parameters for BATCH_STOCK_PRICES endpoint."""
+        """Build query parameters for the BATCH_STOCK_PRICES endpoint.
+
+        Args:
+            symbols: Tickers to fetch real-time quotes for.
+
+        Returns:
+            Dict of query parameters for the Alpha Vantage API.
+        """
         return {
             "function": "BATCH_STOCK_PRICES",
             "symbols": ",".join(symbols),
@@ -596,7 +863,15 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_intraday_params(self, symbol: str, interval: str) -> dict[str, str]:
-        """Build parameters for TIME_SERIES_INTRADAY endpoint."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            symbol: Ticker to fetch.
+            interval: Intraday interval (e.g. ``"1m"``, ``"5m"``, ``"1h"``).
+
+        Returns:
+            Dict of query parameters for the TIME_SERIES_INTRADAY endpoint.
+        """
         av_interval = self.INTRADAY_INTERVALS.get(interval, interval)
         return {
             "function": "TIME_SERIES_INTRADAY",
@@ -608,7 +883,14 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_weekly_params(self, symbol: str) -> dict[str, str]:
-        """Build parameters for TIME_SERIES_WEEKLY endpoint."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            symbol: Ticker to fetch.
+
+        Returns:
+            Dict of query parameters for the TIME_SERIES_WEEKLY endpoint.
+        """
         return {
             "function": "TIME_SERIES_WEEKLY",
             "symbol": symbol,
@@ -617,7 +899,14 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_weekly_adjusted_params(self, symbol: str) -> dict[str, str]:
-        """Build parameters for TIME_SERIES_WEEKLY_ADJUSTED endpoint."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            symbol: Ticker to fetch.
+
+        Returns:
+            Dict of query parameters for the TIME_SERIES_WEEKLY_ADJUSTED endpoint.
+        """
         return {
             "function": "TIME_SERIES_WEEKLY_ADJUSTED",
             "symbol": symbol,
@@ -626,7 +915,14 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_monthly_params(self, symbol: str) -> dict[str, str]:
-        """Build parameters for TIME_SERIES_MONTHLY endpoint."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            symbol: Ticker to fetch.
+
+        Returns:
+            Dict of query parameters for the TIME_SERIES_MONTHLY endpoint.
+        """
         return {
             "function": "TIME_SERIES_MONTHLY",
             "symbol": symbol,
@@ -635,7 +931,14 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_monthly_adjusted_params(self, symbol: str) -> dict[str, str]:
-        """Build parameters for TIME_SERIES_MONTHLY_ADJUSTED endpoint."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            symbol: Ticker to fetch.
+
+        Returns:
+            Dict of query parameters for the TIME_SERIES_MONTHLY_ADJUSTED endpoint.
+        """
         return {
             "function": "TIME_SERIES_MONTHLY_ADJUSTED",
             "symbol": symbol,
@@ -644,7 +947,14 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_global_quote_params(self, symbol: str) -> dict[str, str]:
-        """Build parameters for GLOBAL_QUOTE endpoint."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            symbol: Ticker to fetch a real-time quote for.
+
+        Returns:
+            Dict of query parameters for the GLOBAL_QUOTE endpoint.
+        """
         return {
             "function": "GLOBAL_QUOTE",
             "symbol": symbol,
@@ -653,7 +963,14 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_symbol_search_params(self, query: str) -> dict[str, str]:
-        """Build parameters for SYMBOL_SEARCH endpoint."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            query: Search query (company name or ticker symbol fragment).
+
+        Returns:
+            Dict of query parameters for the SYMBOL_SEARCH endpoint.
+        """
         return {
             "function": "SYMBOL_SEARCH",
             "keywords": query,
@@ -662,7 +979,11 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_market_status_params(self) -> dict[str, str]:
-        """Build parameters for MARKET_STATUS endpoint."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Returns:
+            Dict of query parameters for the MARKET_STATUS endpoint.
+        """
         return {
             "function": "MARKET_STATUS",
             "apikey": self._api_key,
@@ -670,7 +991,11 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_sector_params(self) -> dict[str, str]:
-        """Build parameters for SECTOR_PERFORMANCE endpoint."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Returns:
+            Dict of query parameters for the SECTOR_PERFORMANCE endpoint.
+        """
         return {
             "function": "SECTOR",
             "apikey": self._api_key,
@@ -678,7 +1003,14 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_gold_spot_params(self, symbol: str) -> dict[str, str]:
-        """Build parameters for GOLD_SILVER_SPOT endpoint."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            symbol: ``"GOLD"``/``"XAU"`` for gold or ``"SILVER"``/``"XAG"`` for silver.
+
+        Returns:
+            Dict of query parameters for the GOLD_SILVER_SPOT endpoint.
+        """
         return {
             "function": "GOLD_SILVER_SPOT",
             "symbol": symbol,
@@ -687,7 +1019,15 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_gold_history_params(self, symbol: str, interval: str = "daily") -> dict[str, str]:
-        """Build parameters for GOLD_SILVER_HISTORY endpoint."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            symbol: ``"GOLD"``/``"XAU"`` for gold or ``"SILVER"``/``"XAG"`` for silver.
+            interval: ``"daily"``, ``"weekly"``, or ``"monthly"``.
+
+        Returns:
+            Dict of query parameters for the GOLD_SILVER_HISTORY endpoint.
+        """
         return {
             "function": "GOLD_SILVER_HISTORY",
             "symbol": symbol,
@@ -697,11 +1037,14 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_commodity_params(self, function: str, interval: str = "monthly") -> dict[str, str]:
-        """Build parameters for a commodity endpoint (WTI, BRENT, COPPER, etc.).
+        """Build query parameters for the Alpha Vantage endpoint.
 
-        The commodity functions accept an ``interval`` argument whose valid
-        values depend on the commodity (daily/weekly/monthly for energy,
-        monthly/quarterly/annual for metals and agriculture).
+        Args:
+            function: Commodity function name (e.g. ``"WTI"``, ``"BRENT"``, ``"COPPER"``).
+            interval: Frequency of the returned time series.
+
+        Returns:
+            Dict of query parameters for the commodity endpoint.
         """
         params: dict[str, str] = {
             "function": function,
@@ -715,12 +1058,14 @@ class AlphaVantageProvider(DataProvider):
         return params
 
     def _build_economic_indicator_params(self, function: str, **kwargs) -> dict[str, str]:
-        """Build parameters for an economic indicator endpoint.
+        """Build query parameters for the Alpha Vantage endpoint.
 
-        Most economic indicators accept only ``apikey``/``datatype``; a few
-        (REAL_GDP, CPI, FEDERAL_FUNDS_RATE, TREASURY_YIELD) accept an
-        ``interval`` and, for TREASURY_YIELD, a ``maturity``. Extra keyword
-        arguments are forwarded verbatim.
+        Args:
+            function: Economic indicator function name (e.g. ``"REAL_GDP"``, ``"CPI"``).
+            **kwargs: Additional params such as ``interval``/``maturity``.
+
+        Returns:
+            Dict of query parameters for the economic indicator endpoint.
         """
         params: dict[str, str] = {
             "function": function,
@@ -733,7 +1078,15 @@ class AlphaVantageProvider(DataProvider):
         return params
 
     def _build_fx_daily_params(self, from_symbol: str, to_symbol: str) -> dict[str, str]:
-        """Build parameters for FX_DAILY endpoint."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            from_symbol: Currency code to convert from (e.g. ``"USD"``).
+            to_symbol: Currency code to convert to (e.g. ``"EUR"``).
+
+        Returns:
+            Dict of query parameters for the FX_DAILY endpoint.
+        """
         return {
             "function": "FX_DAILY",
             "from_symbol": from_symbol,
@@ -745,7 +1098,16 @@ class AlphaVantageProvider(DataProvider):
     def _build_fx_intraday_params(
         self, from_symbol: str, to_symbol: str, interval: str
     ) -> dict[str, str]:
-        """Build parameters for FX_INTRADAY endpoint."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            from_symbol: Currency code to convert from.
+            to_symbol: Currency code to convert to.
+            interval: Intraday interval (e.g. ``"fx_5m"``).
+
+        Returns:
+            Dict of query parameters for the FX_INTRADAY endpoint.
+        """
         av_interval = self.INTRADAY_INTERVALS.get(interval.replace("fx_", ""), interval)
         return {
             "function": "FX_INTRADAY",
@@ -759,7 +1121,15 @@ class AlphaVantageProvider(DataProvider):
     def _build_currency_exchange_rate_params(
         self, from_currency: str, to_currency: str
     ) -> dict[str, str]:
-        """Build parameters for CURRENCY_EXCHANGE_RATE endpoint."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            from_currency: Currency code to convert from.
+            to_currency: Currency code to convert to.
+
+        Returns:
+            Dict of query parameters for the CURRENCY_EXCHANGE_RATE endpoint.
+        """
         return {
             "function": "CURRENCY_EXCHANGE_RATE",
             "from_currency": from_currency,
@@ -769,7 +1139,15 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_crypto_daily_params(self, symbol: str, market: str = "USD") -> dict[str, str]:
-        """Build parameters for CRYPTO_DAILY endpoint (DIGITAL_CURRENCY_DAILY)."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            symbol: Cryptocurrency symbol (e.g. ``"BTC"``).
+            market: Market/currency code (default ``"USD"``).
+
+        Returns:
+            Dict of query parameters for the DIGITAL_CURRENCY_DAILY endpoint.
+        """
         return {
             "function": "DIGITAL_CURRENCY_DAILY",
             "symbol": symbol,
@@ -779,7 +1157,15 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_crypto_weekly_params(self, symbol: str, market: str = "USD") -> dict[str, str]:
-        """Build parameters for CRYPTO_WEEKLY endpoint (DIGITAL_CURRENCY_WEEKLY)."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            symbol: Cryptocurrency symbol.
+            market: Market/currency code (default ``"USD"``).
+
+        Returns:
+            Dict of query parameters for the DIGITAL_CURRENCY_WEEKLY endpoint.
+        """
         return {
             "function": "DIGITAL_CURRENCY_WEEKLY",
             "symbol": symbol,
@@ -789,7 +1175,15 @@ class AlphaVantageProvider(DataProvider):
         }
 
     def _build_crypto_monthly_params(self, symbol: str, market: str = "USD") -> dict[str, str]:
-        """Build parameters for CRYPTO_MONTHLY endpoint (DIGITAL_CURRENCY_MONTHLY)."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            symbol: Cryptocurrency symbol.
+            market: Market/currency code (default ``"USD"``).
+
+        Returns:
+            Dict of query parameters for the DIGITAL_CURRENCY_MONTHLY endpoint.
+        """
         return {
             "function": "DIGITAL_CURRENCY_MONTHLY",
             "symbol": symbol,
@@ -801,7 +1195,16 @@ class AlphaVantageProvider(DataProvider):
     def _build_crypto_intraday_params(
         self, symbol: str, market: str = "USD", interval: str = "5min"
     ) -> dict[str, str]:
-        """Build parameters for CRYPTO_INTRADAY endpoint (DIGITAL_CURRENCY_INTRADAY)."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            symbol: Cryptocurrency symbol.
+            market: Market/currency code (default ``"USD"``).
+            interval: Intraday interval (default ``"5min"``).
+
+        Returns:
+            Dict of query parameters for the DIGITAL_CURRENCY_INTRADAY endpoint.
+        """
         return {
             "function": "DIGITAL_CURRENCY_INTRADAY",
             "symbol": symbol,
@@ -820,7 +1223,19 @@ class AlphaVantageProvider(DataProvider):
         series_type: str = "close",
         **kwargs,
     ) -> dict[str, str]:
-        """Build parameters for a technical indicator."""
+        """Build query parameters for the Alpha Vantage endpoint.
+
+        Args:
+            symbol: Ticker symbol.
+            indicator: Indicator name (e.g. ``"SMA"``, ``"RSI"``).
+            interval: Time-series resolution (e.g. ``"daily"``, ``"5min"``).
+            time_period: Indicator lookback period.
+            series_type: Price series type (e.g. ``"close"``).
+            **kwargs: Additional indicator-specific parameters.
+
+        Returns:
+            Dict of query parameters for the technical indicator endpoint.
+        """
         params = {
             "function": indicator.upper(),
             "symbol": symbol,
@@ -837,7 +1252,17 @@ class AlphaVantageProvider(DataProvider):
     def _parse_intraday_response(
         self, symbol: str, data: dict[str, Any], start: datetime | None, end: datetime | None
     ) -> pd.DataFrame | None:
-        """Parse TIME_SERIES_INTRADAY response into DataFrame."""
+        """Parse an Alpha Vantage response into a normalized structure.
+
+        Args:
+            symbol: Ticker the response applies to.
+            data: Raw Alpha Vantage JSON response.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+
+        Returns:
+            DataFrame indexed by timestamp with OHLCV columns, or ``None`` when no series is present.
+        """
         # Find the time series key (e.g., "Time Series (5min)")
         time_series_key = None
         for key in data:
@@ -887,7 +1312,17 @@ class AlphaVantageProvider(DataProvider):
     def _parse_daily_response(
         self, symbol: str, data: dict[str, Any], start: datetime | None, end: datetime | None
     ) -> pd.DataFrame | None:
-        """Parse TIME_SERIES_DAILY_ADJUSTED response into DataFrame."""
+        """Parse an Alpha Vantage response into a normalized structure.
+
+        Args:
+            symbol: Ticker the response applies to.
+            data: Raw Alpha Vantage JSON response.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+
+        Returns:
+            DataFrame indexed by date with OHLCV/adjusted columns, or ``None`` when no series is present.
+        """
         time_series = data.get("Time Series (Daily)")
         if not time_series:
             return None
@@ -931,7 +1366,15 @@ class AlphaVantageProvider(DataProvider):
     def _parse_batch_response(
         self, symbols: list[str], data: dict[str, Any]
     ) -> dict[str, pd.DataFrame]:
-        """Parse BATCH_STOCK_PRICES response into per-symbol DataFrames."""
+        """Parse BATCH_STOCK_PRICES response into per-symbol DataFrames.
+
+        Args:
+            symbols: Tickers that were requested.
+            data: Raw Alpha Vantage JSON response.
+
+        Returns:
+            Mapping of symbol to single-row DataFrame of latest quote data.
+        """
         result = {}
         stock_prices = data.get("Stock Prices", [])
         for item in stock_prices:
@@ -957,7 +1400,17 @@ class AlphaVantageProvider(DataProvider):
     def _parse_weekly_response(
         self, symbol: str, data: dict[str, Any], start: datetime | None, end: datetime | None
     ) -> pd.DataFrame | None:
-        """Parse TIME_SERIES_WEEKLY response into DataFrame."""
+        """Parse an Alpha Vantage response into a normalized structure.
+
+        Args:
+            symbol: Ticker the response applies to.
+            data: Raw Alpha Vantage JSON response.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+
+        Returns:
+            DataFrame indexed by date with OHLCV columns, or ``None`` when no series is present.
+        """
         time_series = data.get("Weekly Time Series")
         if not time_series:
             return None
@@ -997,7 +1450,17 @@ class AlphaVantageProvider(DataProvider):
     def _parse_weekly_adjusted_response(
         self, symbol: str, data: dict[str, Any], start: datetime | None, end: datetime | None
     ) -> pd.DataFrame | None:
-        """Parse TIME_SERIES_WEEKLY_ADJUSTED response into DataFrame."""
+        """Parse an Alpha Vantage response into a normalized structure.
+
+        Args:
+            symbol: Ticker the response applies to.
+            data: Raw Alpha Vantage JSON response.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+
+        Returns:
+            DataFrame indexed by date with OHLCV/adjusted columns, or ``None`` when no series is present.
+        """
         time_series = data.get("Weekly Adjusted Time Series")
         if not time_series:
             return None
@@ -1040,7 +1503,17 @@ class AlphaVantageProvider(DataProvider):
     def _parse_monthly_response(
         self, symbol: str, data: dict[str, Any], start: datetime | None, end: datetime | None
     ) -> pd.DataFrame | None:
-        """Parse TIME_SERIES_MONTHLY response into DataFrame."""
+        """Parse an Alpha Vantage response into a normalized structure.
+
+        Args:
+            symbol: Ticker the response applies to.
+            data: Raw Alpha Vantage JSON response.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+
+        Returns:
+            DataFrame indexed by date with OHLCV columns, or ``None`` when no series is present.
+        """
         time_series = data.get("Monthly Time Series")
         if not time_series:
             return None
@@ -1080,7 +1553,17 @@ class AlphaVantageProvider(DataProvider):
     def _parse_monthly_adjusted_response(
         self, symbol: str, data: dict[str, Any], start: datetime | None, end: datetime | None
     ) -> pd.DataFrame | None:
-        """Parse TIME_SERIES_MONTHLY_ADJUSTED response into DataFrame."""
+        """Parse an Alpha Vantage response into a normalized structure.
+
+        Args:
+            symbol: Ticker the response applies to.
+            data: Raw Alpha Vantage JSON response.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+
+        Returns:
+            DataFrame indexed by date with OHLCV/adjusted columns, or ``None`` when no series is present.
+        """
         time_series = data.get("Monthly Adjusted Time Series")
         if not time_series:
             return None
@@ -1123,7 +1606,15 @@ class AlphaVantageProvider(DataProvider):
     def _parse_global_quote_response(
         self, symbol: str, data: dict[str, Any]
     ) -> pd.DataFrame | None:
-        """Parse GLOBAL_QUOTE response into DataFrame."""
+        """Parse an Alpha Vantage response into a normalized structure.
+
+        Args:
+            symbol: Ticker the quote applies to.
+            data: Raw Alpha Vantage JSON response.
+
+        Returns:
+            Single-row DataFrame of quote data, or ``None`` when no quote is present.
+        """
         quote = data.get("Global Quote")
         if not quote:
             return None
@@ -1150,10 +1641,13 @@ class AlphaVantageProvider(DataProvider):
         return cast(pd.DataFrame, df)
 
     def _parse_symbol_search_response(self, data: dict[str, Any]) -> list[dict[str, str]]:
-        """Parse SYMBOL_SEARCH response into a list of symbol matches.
+        """Parse an Alpha Vantage response into a normalized structure.
 
-        Each match is a dict with keys: symbol, name, type, region, market,
-        currency, match_score.
+        Args:
+            data: Raw Alpha Vantage JSON response.
+
+        Returns:
+            List of symbol match dicts with keys: symbol, name, type, region, market, currency, match_score.
         """
         best_matches = data.get("bestMatches", [])
         results: list[dict[str, str]] = []
@@ -1179,7 +1673,18 @@ class AlphaVantageProvider(DataProvider):
         start: datetime | None,
         end: datetime | None,
     ) -> pd.DataFrame | None:
-        """Parse technical indicator response into DataFrame."""
+        """Parse an Alpha Vantage response into a normalized structure.
+
+        Args:
+            symbol: Ticker the indicator applies to.
+            indicator: Indicator name.
+            data: Raw Alpha Vantage JSON response.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+
+        Returns:
+            DataFrame indexed by date with indicator values, or ``None`` when no series is present.
+        """
         # Look for key like "Technical Analysis: SMA"
         ta_key = None
         for key in data:
@@ -1233,9 +1738,13 @@ class AlphaVantageProvider(DataProvider):
         return cast(pd.DataFrame, df)
 
     def _parse_market_status_response(self, data: dict[str, Any]) -> pd.DataFrame | None:
-        """Parse MARKET_STATUS response into DataFrame.
+        """Parse an Alpha Vantage response into a normalized structure.
 
-        Returns a DataFrame with market status information for various regions/markets.
+        Args:
+            data: Raw Alpha Vantage JSON response.
+
+        Returns:
+            DataFrame with market status information, or ``None`` when no markets are present.
         """
         markets = data.get("markets", [])
         if not markets:
@@ -1268,7 +1777,18 @@ class AlphaVantageProvider(DataProvider):
         start: datetime | None,
         end: datetime | None,
     ) -> pd.DataFrame | None:
-        """Parse FX_DAILY response into DataFrame."""
+        """Parse an Alpha Vantage response into a normalized structure.
+
+        Args:
+            from_symbol: Currency code converted from.
+            to_symbol: Currency code converted to.
+            data: Raw Alpha Vantage JSON response.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+
+        Returns:
+            DataFrame indexed by date with OHLC columns, or ``None`` when no series is present.
+        """
         time_series = data.get("Time Series FX (Daily)")
         if not time_series:
             return None
@@ -1312,7 +1832,18 @@ class AlphaVantageProvider(DataProvider):
         start: datetime | None,
         end: datetime | None,
     ) -> pd.DataFrame | None:
-        """Parse FX_INTRADAY response into DataFrame."""
+        """Parse an Alpha Vantage response into a normalized structure.
+
+        Args:
+            from_symbol: Currency code converted from.
+            to_symbol: Currency code converted to.
+            data: Raw Alpha Vantage JSON response.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+
+        Returns:
+            DataFrame indexed by timestamp with OHLC columns, or ``None`` when no series is present.
+        """
         time_series_key = None
         for key in data:
             if key.startswith("Time Series FX"):
@@ -1360,7 +1891,16 @@ class AlphaVantageProvider(DataProvider):
     def _parse_currency_exchange_rate_response(
         self, from_currency: str, to_currency: str, data: dict[str, Any]
     ) -> pd.DataFrame | None:
-        """Parse CURRENCY_EXCHANGE_RATE response into DataFrame."""
+        """Parse an Alpha Vantage response into a normalized structure.
+
+        Args:
+            from_currency: Currency code converted from.
+            to_currency: Currency code converted to.
+            data: Raw Alpha Vantage JSON response.
+
+        Returns:
+            Single-row DataFrame of exchange rate data, or ``None`` when no rate is present.
+        """
         rate = data.get("Realtime Currency Exchange Rate")
         if not rate:
             return None
@@ -1393,7 +1933,18 @@ class AlphaVantageProvider(DataProvider):
         start: datetime | None,
         end: datetime | None,
     ) -> pd.DataFrame | None:
-        """Parse DIGITAL_CURRENCY_DAILY/WEEKLY/MONTHLY/INTRADAY response into DataFrame."""
+        """Parse an Alpha Vantage response into a normalized structure.
+
+        Args:
+            symbol: Cryptocurrency symbol.
+            market: Market/currency code.
+            data: Raw Alpha Vantage JSON response.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+
+        Returns:
+            DataFrame indexed by date/timestamp with OHLCV columns, or ``None`` when no series is present.
+        """
         # Find the time series key
         time_series_key = None
         for key in data:
@@ -1454,15 +2005,15 @@ class AlphaVantageProvider(DataProvider):
     def _parse_single_series_response(
         self, data: dict[str, Any], start: datetime | None, end: datetime | None
     ) -> pd.DataFrame | None:
-        """Parse the commodity/economic indicator response envelope.
+        """Parse an Alpha Vantage response into a normalized structure.
 
-        These endpoints return::
+        Args:
+            data: Raw Alpha Vantage JSON response.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
 
-            {"name": "...", "interval": "...", "unit": "...",
-             "data": [{"date": "YYYY-MM-DD", "value": "123.4"}, ...]}
-
-        Returns a DataFrame indexed by date with a single ``value`` column,
-        or None when no series is present.
+        Returns:
+            DataFrame indexed by date with a single ``value`` column, or ``None`` when no series is present.
         """
         series = data.get("data")
         if not series:
@@ -1500,11 +2051,13 @@ class AlphaVantageProvider(DataProvider):
         return cast(pd.DataFrame, df)
 
     def _parse_sector_performance_response(self, data: dict[str, Any]) -> pd.DataFrame | None:
-        """Parse SECTOR_PERFORMANCE (function=SECTOR) response into DataFrame.
+        """Parse an Alpha Vantage response into a normalized structure.
 
-        The response is a mapping of rank keys (e.g. "Rank A: Real-Time
-        Performance") to a dict of ``sector -> performance``. The returned
-        DataFrame has columns ``sector``, ``period``, ``performance``.
+        Args:
+            data: Raw Alpha Vantage JSON response.
+
+        Returns:
+            DataFrame with columns ``sector``, ``period``, ``performance``, or ``None`` when no data is present.
         """
         if not data:
             return None
@@ -1535,7 +2088,19 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_single(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using TIME_SERIES_DAILY_ADJUSTED per symbol."""
+        """Fetch market data using the TIME_SERIES_DAILY_ADJUSTED endpoint.
+
+        Fetches daily adjusted OHLCV data per symbol via the TIME_SERIES_DAILY_ADJUSTED endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+        """
         result = FetchResult()
         for symbol in symbols:
             try:
@@ -1571,7 +2136,19 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_batch(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using BATCH_STOCK_PRICES endpoint (real-time quotes only)."""
+        """Fetch market data using the BATCH_STOCK_PRICES endpoint.
+
+        Fetches real-time quotes for all symbols via the BATCH_STOCK_PRICES endpoint in a single request.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+        """
         result = FetchResult()
         try:
             params = self._build_batch_params(symbols)
@@ -1609,7 +2186,19 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_intraday(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using TIME_SERIES_INTRADAY endpoint per symbol."""
+        """Fetch market data using the TIME_SERIES_INTRADAY endpoint.
+
+        Fetches intraday OHLCV data per symbol via the TIME_SERIES_INTRADAY endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+        """
         result = FetchResult()
         for symbol in symbols:
             try:
@@ -1646,7 +2235,19 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_weekly(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using TIME_SERIES_WEEKLY endpoint per symbol."""
+        """Fetch market data using the TIME_SERIES_WEEKLY endpoint.
+
+        Fetches weekly OHLCV data per symbol via the TIME_SERIES_WEEKLY endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+        """
         result = FetchResult()
         for symbol in symbols:
             try:
@@ -1682,7 +2283,19 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_weekly_adjusted(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using TIME_SERIES_WEEKLY_ADJUSTED endpoint per symbol."""
+        """Fetch market data using the TIME_SERIES_WEEKLY_ADJUSTED endpoint.
+
+        Fetches weekly adjusted OHLCV data per symbol via the TIME_SERIES_WEEKLY_ADJUSTED endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+        """
         result = FetchResult()
         for symbol in symbols:
             try:
@@ -1718,7 +2331,19 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_monthly(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using TIME_SERIES_MONTHLY endpoint per symbol."""
+        """Fetch market data using the TIME_SERIES_MONTHLY endpoint.
+
+        Fetches monthly OHLCV data per symbol via the TIME_SERIES_MONTHLY endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+        """
         result = FetchResult()
         for symbol in symbols:
             try:
@@ -1754,7 +2379,19 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_monthly_adjusted(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using TIME_SERIES_MONTHLY_ADJUSTED endpoint per symbol."""
+        """Fetch market data using the TIME_SERIES_MONTHLY_ADJUSTED endpoint.
+
+        Fetches monthly adjusted OHLCV data per symbol via the TIME_SERIES_MONTHLY_ADJUSTED endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+        """
         result = FetchResult()
         for symbol in symbols:
             try:
@@ -1790,7 +2427,19 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_global_quote(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using GLOBAL_QUOTE endpoint per symbol (real-time single quote)."""
+        """Fetch market data using the GLOBAL_QUOTE endpoint.
+
+        Fetches a real-time single-symbol quote per symbol via the GLOBAL_QUOTE endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+        """
         result = FetchResult()
         for symbol in symbols:
             try:
@@ -1855,10 +2504,12 @@ class AlphaVantageProvider(DataProvider):
             return []
 
     def get_market_status(self) -> pd.DataFrame | None:
-        """Get current market status for various regions/markets using MARKET_STATUS endpoint.
+        """Get current market status for various regions/markets.
+
+        Uses the MARKET_STATUS endpoint.
 
         Returns:
-            DataFrame with market status information, or None on error.
+            DataFrame with market status information, or ``None`` on error.
         """
         try:
             params = self._build_market_status_params()
@@ -1926,6 +2577,20 @@ class AlphaVantageProvider(DataProvider):
         series_type: str = "close",
         **kwargs,
     ) -> pd.DataFrame | None:
+        """Fetch a technical indicator series for a single symbol.
+
+        Args:
+            symbol: Ticker symbol.
+            indicator: Indicator name (e.g. ``"SMA"``, ``"RSI"``).
+            interval: Time-series resolution (e.g. ``"daily"``, ``"5min"``).
+            time_period: Indicator lookback period.
+            series_type: Price series type (e.g. ``"close"``).
+            **kwargs: Additional indicator-specific parameters.
+
+        Returns:
+            DataFrame indexed by date with indicator values, or ``None`` on
+            error.
+        """
         try:
             params = self._build_technical_indicator_params(
                 symbol,
@@ -1957,6 +2622,17 @@ class AlphaVantageProvider(DataProvider):
         time_period: int = 20,
         series_type: str = "close",
     ) -> pd.DataFrame | None:
+        """Fetch a Simple Moving Average (SMA) series for a single symbol.
+
+        Args:
+            symbol: Ticker symbol.
+            interval: Time-series resolution (e.g. ``"daily"``, ``"5min"``).
+            time_period: SMA lookback period.
+            series_type: Price series type (e.g. ``"close"``).
+
+        Returns:
+            DataFrame indexed by date with SMA values, or ``None`` on error.
+        """
         return self.get_technical_indicator(
             symbol,
             indicator="SMA",
@@ -1972,6 +2648,19 @@ class AlphaVantageProvider(DataProvider):
         time_period: int = 20,
         series_type: str = "close",
     ) -> pd.DataFrame | None:
+        """Fetch an Exponential Moving Average (EMA) series for a single symbol.
+
+        Convenience wrapper around :meth:`get_technical_indicator`.
+
+        Args:
+            symbol: Ticker symbol.
+            interval: Time-series resolution (e.g. ``"daily"``).
+            time_period: EMA lookback period.
+            series_type: Price series type (e.g. ``"close"``).
+
+        Returns:
+            DataFrame indexed by date with EMA values, or ``None`` on error.
+        """
         return self.get_technical_indicator(
             symbol,
             indicator="EMA",
@@ -1987,6 +2676,19 @@ class AlphaVantageProvider(DataProvider):
         time_period: int = 14,
         series_type: str = "close",
     ) -> pd.DataFrame | None:
+        """Fetch a Relative Strength Index (RSI) series for a single symbol.
+
+        Convenience wrapper around :meth:`get_technical_indicator`.
+
+        Args:
+            symbol: Ticker symbol.
+            interval: Time-series resolution (e.g. ``"daily"``).
+            time_period: RSI lookback period.
+            series_type: Price series type (e.g. ``"close"``).
+
+        Returns:
+            DataFrame indexed by date with RSI values, or ``None`` on error.
+        """
         return self.get_technical_indicator(
             symbol,
             indicator="RSI",
@@ -1998,11 +2700,35 @@ class AlphaVantageProvider(DataProvider):
     def get_macd(
         self, symbol: str, interval: str = "daily", series_type: str = "close"
     ) -> pd.DataFrame | None:
+        """Fetch a Moving Average Convergence Divergence (MACD) series.
+
+        Convenience wrapper around :meth:`get_technical_indicator`.
+
+        Args:
+            symbol: Ticker symbol.
+            interval: Time-series resolution (e.g. ``"daily"``).
+            series_type: Price series type (e.g. ``"close"``).
+
+        Returns:
+            DataFrame indexed by date with MACD values, or ``None`` on error.
+        """
         return self.get_technical_indicator(
             symbol, indicator="MACD", interval=interval, series_type=series_type
         )
 
     def get_stoch(self, symbol: str, interval: str = "daily") -> pd.DataFrame | None:
+        """Fetch a Stochastic Oscillator (STOCH) series for a single symbol.
+
+        Convenience wrapper around :meth:`get_technical_indicator`.
+
+        Args:
+            symbol: Ticker symbol.
+            interval: Time-series resolution (e.g. ``"daily"``).
+
+        Returns:
+            DataFrame indexed by date with Stochastic Oscillator values, or
+            ``None`` on error.
+        """
         return self.get_technical_indicator(symbol, indicator="STOCH", interval=interval)
 
     def get_bbands(
@@ -2012,6 +2738,20 @@ class AlphaVantageProvider(DataProvider):
         time_period: int = 20,
         series_type: str = "close",
     ) -> pd.DataFrame | None:
+        """Fetch Bollinger Bands (BBANDS) for a single symbol.
+
+        Convenience wrapper around :meth:`get_technical_indicator`.
+
+        Args:
+            symbol: Ticker symbol.
+            interval: Time-series resolution (e.g. ``"daily"``).
+            time_period: BBANDS lookback period.
+            series_type: Price series type (e.g. ``"close"``).
+
+        Returns:
+            DataFrame indexed by date with Bollinger Bands values, or
+            ``None`` on error.
+        """
         return self.get_technical_indicator(
             symbol,
             indicator="BBANDS",
@@ -2188,11 +2928,19 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_sector_performance(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using SECTOR_PERFORMANCE endpoint.
+        """Fetch market data using the SECTOR_PERFORMANCE endpoint.
 
         The endpoint returns a single global result that is replicated for
-        every requested symbol (mirroring the behaviour of
-        ``_fetch_market_status``).
+        every requested symbol.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
         """
         result = FetchResult()
         try:
@@ -2230,7 +2978,19 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_market_status(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using MARKET_STATUS endpoint."""
+        """Fetch market data using the MARKET_STATUS endpoint.
+
+        Fetches global market status data and replicates it for every requested symbol.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+        """
         result = FetchResult()
         try:
             params = self._build_market_status_params()
@@ -2273,10 +3033,18 @@ class AlphaVantageProvider(DataProvider):
         interval: str,
         function: str = "WTI",
     ) -> FetchResult:
-        """Fetch commodity data using the commodity endpoint (e.g. WTI, BRENT).
+        """Fetch market data using the commodity endpoint (WTI, BRENT, COPPER, etc.) endpoint.
 
-        Commodity endpoints return a single global series; the same data is
-        replicated for every requested symbol.
+        Fetches a global commodity time series and replicates it for every requested symbol.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
         """
         result = FetchResult()
         try:
@@ -2319,10 +3087,18 @@ class AlphaVantageProvider(DataProvider):
         interval: str,
         function: str = "REAL_GDP",
     ) -> FetchResult:
-        """Fetch an economic indicator (e.g. REAL_GDP, CPI, UNEMPLOYMENT).
+        """Fetch market data using the economic indicator endpoint (REAL_GDP, CPI, UNEMPLOYMENT, etc.) endpoint.
 
-        These endpoints return a single global series; the same data is
-        replicated for every requested symbol.
+        Fetches a global economic indicator time series and replicates it for every requested symbol.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
         """
         result = FetchResult()
         try:
@@ -2360,11 +3136,18 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_gold(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using GOLD_SILVER_SPOT endpoint per symbol.
+        """Fetch market data using the GOLD_SILVER_SPOT endpoint.
 
-        Symbols should be "GOLD"/"XAU" for gold or "SILVER"/"XAG" for
-        silver. This endpoint returns the real-time spot price; start/end
-        are ignored.
+        Fetches real-time gold/silver spot prices per symbol via the GOLD_SILVER_SPOT endpoint. Symbols should be ``"GOLD"``/``"XAU"`` for gold or ``"SILVER"``/``"XAG"`` for silver; start/end are ignored.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
         """
         result = FetchResult()
         for symbol in symbols:
@@ -2416,9 +3199,18 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_fx_daily(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using FX_DAILY endpoint per symbol pair.
+        """Fetch market data using the FX_DAILY endpoint.
 
-        Symbols should be in format "FROM/TO" (e.g., "USD/EUR", "EUR/USD").
+        Fetches daily FX rates per symbol pair (``FROM/TO``) via the FX_DAILY endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
         """
         result = FetchResult()
         for symbol in symbols:
@@ -2469,10 +3261,18 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_fx_intraday(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using FX_INTRADAY endpoint per symbol pair.
+        """Fetch market data using the FX_INTRADAY endpoint.
 
-        Symbols should be in format "FROM/TO" (e.g., "USD/EUR", "EUR/USD").
-        Interval should be like "fx_5m", "fx_15m", etc.
+        Fetches intraday FX rates per symbol pair (``FROM/TO``) via the FX_INTRADAY endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
         """
         result = FetchResult()
         for symbol in symbols:
@@ -2524,10 +3324,18 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_currency_exchange_rate(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using CURRENCY_EXCHANGE_RATE endpoint per symbol pair.
+        """Fetch market data using the CURRENCY_EXCHANGE_RATE endpoint.
 
-        Symbols should be in format "FROM/TO" (e.g., "USD/EUR", "EUR/USD").
-        This endpoint returns real-time exchange rates; start/end are ignored.
+        Fetches real-time currency exchange rates per symbol pair (``FROM/TO``) via the CURRENCY_EXCHANGE_RATE endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
         """
         result = FetchResult()
         for symbol in symbols:
@@ -2580,10 +3388,18 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_symbol_search(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using SYMBOL_SEARCH endpoint.
+        """Fetch market data using the SYMBOL_SEARCH endpoint.
 
-        The symbols list should contain a single query string (e.g., ["Apple"]).
-        This endpoint returns symbol matches; start/end are ignored.
+        Searches for symbols matching a query via the SYMBOL_SEARCH endpoint (single query string in ``symbols``).
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
         """
         result = FetchResult()
         if not symbols:
@@ -2626,10 +3442,18 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_crypto_daily(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using DIGITAL_CURRENCY_DAILY endpoint per symbol.
+        """Fetch market data using the DIGITAL_CURRENCY_DAILY endpoint.
 
-        Symbols should be in format "SYMBOL" (e.g., "BTC", "ETH").
-        Market is USD by default.
+        Fetches daily cryptocurrency data per symbol via the DIGITAL_CURRENCY_DAILY endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
         """
         result = FetchResult()
         for symbol in symbols:
@@ -2671,7 +3495,19 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_crypto_weekly(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using DIGITAL_CURRENCY_WEEKLY endpoint per symbol."""
+        """Fetch market data using the DIGITAL_CURRENCY_WEEKLY endpoint.
+
+        Fetches weekly cryptocurrency data per symbol via the DIGITAL_CURRENCY_WEEKLY endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+        """
         result = FetchResult()
         for symbol in symbols:
             try:
@@ -2712,7 +3548,19 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_crypto_monthly(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using DIGITAL_CURRENCY_MONTHLY endpoint per symbol."""
+        """Fetch market data using the DIGITAL_CURRENCY_MONTHLY endpoint.
+
+        Fetches monthly cryptocurrency data per symbol via the DIGITAL_CURRENCY_MONTHLY endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+        """
         result = FetchResult()
         for symbol in symbols:
             try:
@@ -2753,7 +3601,19 @@ class AlphaVantageProvider(DataProvider):
     def _fetch_crypto_intraday(
         self, symbols: list[str], start: datetime | None, end: datetime | None, interval: str
     ) -> FetchResult:
-        """Fetch using DIGITAL_CURRENCY_INTRADAY endpoint per symbol."""
+        """Fetch market data using the DIGITAL_CURRENCY_INTRADAY endpoint.
+
+        Fetches intraday cryptocurrency data per symbol via the DIGITAL_CURRENCY_INTRADAY endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+        """
         result = FetchResult()
         for symbol in symbols:
             try:
@@ -2799,6 +3659,21 @@ class AlphaVantageProvider(DataProvider):
         interval: str,
         indicator: str = "SMA",
     ) -> FetchResult:
+        """Fetch market data using a technical indicator endpoint.
+
+        Fetches technical indicator values per symbol via the corresponding
+        Alpha Vantage indicator endpoint (e.g. SMA, EMA, RSI).
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Bar interval or endpoint selector.
+            indicator: Indicator name (e.g. ``"SMA"``, ``"RSI"``).
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+        """
         result = FetchResult()
         av_interval = (
             self.INTRADAY_INTERVALS.get(interval, interval)
@@ -2856,6 +3731,21 @@ class AlphaVantageProvider(DataProvider):
         **kwargs,
     ) -> FetchResult:
         """Fetch market data from Alpha Vantage.
+
+        Args:
+            symbols: Tickers to fetch.
+            start: Optional inclusive start of the requested window.
+            end: Optional inclusive end of the requested window.
+            interval: Alpha Vantage endpoint selector (see supported
+                intervals below).
+            **kwargs: Additional request options (e.g. ``ti_interval`` for
+                technical indicators).
+
+        Returns:
+            A :class:`FetchResult` with data, errors, and missing symbols.
+
+        Raises:
+            ValueError: If an unknown interval/provider is requested.
 
         Supported intervals:
         - Daily: "1d", "daily" -> TIME_SERIES_DAILY_ADJUSTED
@@ -2992,14 +3882,21 @@ class AlphaVantageProvider(DataProvider):
     ) -> dict[str, FetchResult]:
         """Fetch multiple requests using batched endpoints where possible.
 
-        Groups requests by interval. For daily/weekly/monthly intervals, fetches each symbol
-        individually (Alpha Vantage does not support batch historical).
-        For intraday intervals, fetches each symbol individually via TIME_SERIES_INTRADAY.
-        For real-time quotes, uses BATCH_STOCK_PRICES per group.
-        For global quote, fetches per symbol via GLOBAL_QUOTE endpoint.
-        For market status, sector, commodities, economic indicators, FX, crypto,
-        currency exchange rate, symbol search, and precious metals endpoints,
-        fetches per symbol.
+        Groups requests by interval. For daily/weekly/monthly intervals,
+        fetches each symbol individually (Alpha Vantage does not support
+        batch historical). For intraday intervals, fetches each symbol
+        individually via TIME_SERIES_INTRADAY. For real-time quotes, uses
+        BATCH_STOCK_PRICES per group. For global quote, fetches per symbol
+        via GLOBAL_QUOTE endpoint. For market status, sector, commodities,
+        economic indicators, FX, crypto, currency exchange rate, symbol
+        search, and precious metals endpoints, fetches per symbol.
+
+        Args:
+            requests: List of request dicts (each may contain ``symbols``,
+                ``start``, ``end``, and ``interval``).
+
+        Returns:
+            Mapping of stable request key to :class:`FetchResult`.
         """
         results: dict[str, FetchResult] = {}
 
@@ -3091,5 +3988,15 @@ class AlphaVantageProvider(DataProvider):
         return results
 
     def fetch_latest(self, symbols: list[str]) -> FetchResult:
-        """Fetch latest market data (real-time quotes) using BATCH_STOCK_PRICES."""
+        """Fetch the most recent market data for the given symbols.
+
+        Issues a real-time batch quote request via the BATCH_STOCK_PRICES
+        endpoint.
+
+        Args:
+            symbols: Tickers to fetch.
+
+        Returns:
+            A :class:`FetchResult` containing the latest quote data.
+        """
         return self._fetch_batch(symbols, None, None, "1m")
