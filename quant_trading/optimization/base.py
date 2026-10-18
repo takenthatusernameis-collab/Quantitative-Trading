@@ -217,33 +217,210 @@ ObjectiveFunction = Callable[[BacktestResult], float]
 
 
 def maximize_sharpe(result: BacktestResult) -> float:
-    """Objective: maximize Sharpe ratio."""
-    return result.metrics.sharpe_ratio
+    """Objective function that maximizes the Sharpe ratio.
+
+    Args:
+        result: Backtest result containing performance metrics.
+
+    Returns:
+        Sharpe ratio value, or 0.0 if the Sharpe ratio is None.
+
+    Examples:
+        >>> from quant_trading.optimization.base import maximize_sharpe
+        >>> from quant_trading.backtest.engine import BacktestResult
+        >>> from quant_trading.backtest.metrics import BacktestMetrics
+        >>> import pandas as pd
+        >>> metrics = BacktestMetrics(sharpe_ratio=1.5)
+        >>> eq = pd.Series([100000, 105000], index=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-31")])
+        >>> res = BacktestResult(
+        ...     equity_curve=eq,
+        ...     trades=pd.DataFrame(),
+        ...     positions={},
+        ...     metrics=metrics,
+        ...     start_date=pd.Timestamp("2024-01-01"),
+        ...     end_date=pd.Timestamp("2024-01-31"),
+        ...     initial_capital=100000,
+        ...     final_value=105000,
+        ...     total_return=5000,
+        ...     total_return_pct=5.0,
+        ... )
+        >>> maximize_sharpe(res)
+        1.5
+    """
+    return result.metrics.sharpe_ratio or 0.0
 
 
 def maximize_total_return(result: BacktestResult) -> float:
-    """Objective: maximize total return percentage."""
+    """Objective function that maximizes total return percentage.
+
+    Args:
+        result: Backtest result containing total return information.
+
+    Returns:
+        Total return as a percentage.
+
+    Examples:
+        >>> from quant_trading.optimization.base import maximize_total_return
+        >>> from quant_trading.backtest.engine import BacktestResult
+        >>> from quant_trading.backtest.metrics import BacktestMetrics
+        >>> import pandas as pd
+        >>> metrics = BacktestMetrics(sharpe_ratio=1.0)
+        >>> eq = pd.Series([100000, 110000], index=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-31")])
+        >>> res = BacktestResult(
+        ...     equity_curve=eq,
+        ...     trades=pd.DataFrame(),
+        ...     positions={},
+        ...     metrics=metrics,
+        ...     start_date=pd.Timestamp("2024-01-01"),
+        ...     end_date=pd.Timestamp("2024-01-31"),
+        ...     initial_capital=100000,
+        ...     final_value=110000,
+        ...     total_return=10000,
+        ...     total_return_pct=10.0,
+        ... )
+        >>> maximize_total_return(res)
+        10.0
+    """
     return result.total_return_pct
 
 
 def maximize_calmar(result: BacktestResult) -> float:
-    """Objective: maximize Calmar ratio."""
-    return result.metrics.calmar_ratio
+    """Objective function that maximizes the Calmar ratio.
+
+    Args:
+        result: Backtest result containing performance metrics.
+
+    Returns:
+        Calmar ratio value, or 0.0 if the Calmar ratio is None.
+
+    Examples:
+        >>> from quant_trading.optimization.base import maximize_calmar
+        >>> from quant_trading.backtest.engine import BacktestResult
+        >>> from quant_trading.backtest.metrics import BacktestMetrics
+        >>> import pandas as pd
+        >>> metrics = BacktestMetrics(sharpe_ratio=1.0, calmar_ratio=2.0)
+        >>> eq = pd.Series([100000, 105000], index=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-31")])
+        >>> res = BacktestResult(
+        ...     equity_curve=eq,
+        ...     trades=pd.DataFrame(),
+        ...     positions={},
+        ...     metrics=metrics,
+        ...     start_date=pd.Timestamp("2024-01-01"),
+        ...     end_date=pd.Timestamp("2024-01-31"),
+        ...     initial_capital=100000,
+        ...     final_value=105000,
+        ...     total_return=5000,
+        ...     total_return_pct=5.0,
+        ... )
+        >>> maximize_calmar(res)
+        2.0
+    """
+    return result.metrics.calmar_ratio or 0.0
 
 
 def minimize_max_drawdown(result: BacktestResult) -> float:
-    """Objective: minimize max drawdown (negative for maximization)."""
+    """Objective function that minimizes maximum drawdown.
+
+    Returns the negative maximum drawdown so the score increases as drawdown
+    decreases (for maximization objective).
+
+    Args:
+        result: Backtest result containing performance metrics.
+
+    Returns:
+        Negative maximum drawdown value (e.g., -0.05 for 5% drawdown).
+
+    Examples:
+        >>> from quant_trading.optimization.base import minimize_max_drawdown
+        >>> from quant_trading.backtest.engine import BacktestResult
+        >>> from quant_trading.backtest.metrics import BacktestMetrics
+        >>> import pandas as pd
+        >>> metrics = BacktestMetrics(sharpe_ratio=1.0, max_drawdown_pct=5.0)
+        >>> eq = pd.Series([100000, 105000], index=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-31")])
+        >>> res = BacktestResult(
+        ...     equity_curve=eq,
+        ...     trades=pd.DataFrame(),
+        ...     positions={},
+        ...     metrics=metrics,
+        ...     start_date=pd.Timestamp("2024-01-01"),
+        ...     end_date=pd.Timestamp("2024-01-31"),
+        ...     initial_capital=100000,
+        ...     final_value=105000,
+        ...     total_return=5000,
+        ...     total_return_pct=5.0,
+        ... )
+        >>> minimize_max_drawdown(res)
+        -5.0
+    """
     return -result.metrics.max_drawdown_pct
 
 
 def maximize_profit_factor(result: BacktestResult) -> float:
-    """Objective: maximize profit factor."""
-    return result.metrics.profit_factor
+    """Objective function that maximizes the profit factor.
+
+    Args:
+        result: Backtest result containing performance metrics.
+
+    Returns:
+        Profit factor value, or 0.0 if the profit factor is None.
+
+    Examples:
+        >>> from quant_trading.optimization.base import maximize_profit_factor
+        >>> from quant_trading.backtest.engine import BacktestResult
+        >>> from quant_trading.backtest.metrics import BacktestMetrics
+        >>> import pandas as pd
+        >>> metrics = BacktestMetrics(sharpe_ratio=1.0, profit_factor=2.5)
+        >>> eq = pd.Series([100000, 105000], index=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-31")])
+        >>> res = BacktestResult(
+        ...     equity_curve=eq,
+        ...     trades=pd.DataFrame(),
+        ...     positions={},
+        ...     metrics=metrics,
+        ...     start_date=pd.Timestamp("2024-01-01"),
+        ...     end_date=pd.Timestamp("2024-01-31"),
+        ...     initial_capital=100000,
+        ...     final_value=105000,
+        ...     total_return=5000,
+        ...     total_return_pct=5.0,
+        ... )
+        >>> maximize_profit_factor(res)
+        2.5
+    """
+    return result.metrics.profit_factor or 0.0
 
 
 def maximize_win_rate(result: BacktestResult) -> float:
-    """Objective: maximize win rate."""
-    return result.metrics.win_rate
+    """Objective function that maximizes the win rate.
+
+    Args:
+        result: Backtest result containing win rate information.
+
+    Returns:
+        Win rate (typically 0-100 if stored as percentage).
+
+    Examples:
+        >>> from quant_trading.optimization.base import maximize_win_rate
+        >>> from quant_trading.backtest.engine import BacktestResult
+        >>> from quant_trading.backtest.metrics import BacktestMetrics
+        >>> import pandas as pd
+        >>> metrics = BacktestMetrics(sharpe_ratio=1.0, win_rate=0.7)
+        >>> eq = pd.Series([100000, 105000], index=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-31")])
+        >>> res = BacktestResult(
+        ...     equity_curve=eq,
+        ...     trades=pd.DataFrame(),
+        ...     positions={},
+        ...     metrics=metrics,
+        ...     start_date=pd.Timestamp("2024-01-01"),
+        ...     end_date=pd.Timestamp("2024-01-31"),
+        ...     initial_capital=100000,
+        ...     final_value=105000,
+        ...     total_return=5000,
+        ...     total_return_pct=5.0,
+        ... )
+        >>> maximize_win_rate(res)
+        0.7
+    """
+    return getattr(result, "win_rate_pct", getattr(result.metrics, "win_rate", 0.0))
 
 
 @dataclass
@@ -367,6 +544,8 @@ class BaseOptimizer(ABC):
             verbose: Whether to print progress.
         """
         self.objective = objective
+        self.strategy_cls = strategy_cls
+        self.param_grid = param_grid
         self.symbols = symbols or ["AAPL"]
         self.start = start
         self.end = end
