@@ -1045,6 +1045,15 @@ class AroonStrategy(Strategy):
         period: int = 25,
         name: str = "Aroon",
     ):
+        """Initialize the Aroon trend strategy.
+
+        Args:
+            period: Lookback window for the Aroon indicator calculation.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+        """
         super().__init__(
             name,
             {
@@ -1055,12 +1064,20 @@ class AroonStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        """Validate strategy parameters."""
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+        """
         if self.period <= 0:
             raise ValueError("period must be positive")
 
     def _calculate_aroon(self, high: pd.Series, low: pd.Series) -> tuple[pd.Series, pd.Series]:
         """Calculate Aroon Up and Aroon Down indicators.
+
+        Args:
+            high: Series of high prices.
+            low: Series of low prices.
 
         Returns:
             Tuple of (aroon_up, aroon_down) where:
@@ -1114,6 +1131,20 @@ class AroonStrategy(Strategy):
         return aroon_up, aroon_down
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from Aroon Up/Down crossovers.
+
+        A bullish crossover fires when Aroon Up crosses above Aroon Down,
+        and a bearish crossover fires when Aroon Down crosses above Aroon Up.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least
+                ``"high"``, ``"low"``, and ``"close"`` columns indexed by
+                timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose Aroon lines
+            cross between the last two bars.
+        """
         signals = []
 
         for symbol, df in data.items():
