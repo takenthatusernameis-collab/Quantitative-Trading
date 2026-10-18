@@ -109,6 +109,17 @@ class RSIStrategy(Strategy):
         overbought: float = 70,
         name: str = "RSI_MeanReversion",
     ):
+        """Initialize the RSI mean reversion strategy.
+
+        Args:
+            period: Lookback window for the RSI calculation.
+            oversold: RSI level below which an asset is considered oversold.
+            overbought: RSI level above which an asset is considered overbought.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+        """
         super().__init__(
             name,
             {
@@ -123,7 +134,12 @@ class RSIStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        """Validate strategy parameters."""
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is non-positive, thresholds are outside
+                ``(0, 100)``, or ``oversold`` is not less than ``overbought``.
+        """
         if self.period <= 0:
             raise ValueError("period must be positive")
         if not (0 < self.oversold < 100):
@@ -134,7 +150,14 @@ class RSIStrategy(Strategy):
             raise ValueError("oversold must be less than overbought")
 
     def _calculate_rsi(self, close: pd.Series) -> pd.Series:
-        """Calculate RSI indicator."""
+        """Calculate the Relative Strength Index for a price series.
+
+        Args:
+            close: Series of close prices.
+
+        Returns:
+            Series of RSI values aligned with ``close``.
+        """
         delta = close.diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=self.period).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=self.period).mean()
@@ -143,6 +166,16 @@ class RSIStrategy(Strategy):
         return rsi
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from RSI crossovers of thresholds.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least a
+                ``"close"`` column indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose RSI crosses the
+            oversold or overbought thresholds between the last two bars.
+        """
         signals = []
 
         for symbol, df in data.items():
