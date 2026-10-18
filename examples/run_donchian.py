@@ -7,12 +7,12 @@ The Donchian Channel consists of upper and lower bands (highest high and lowest 
 over a lookback period). The strategy generates buy signals when price breaks above
 the upper band and sell signals when price breaks below the lower band.
 """
+from __future__ import annotations
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from __future__ import annotations
 
 from datetime import datetime, timedelta
 

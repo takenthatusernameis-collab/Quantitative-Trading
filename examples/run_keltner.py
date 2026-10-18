@@ -6,12 +6,12 @@ needs no network access and produces the same output on every run.
 The Keltner Channel uses EMA and ATR to form volatility-based channels.
 Breakouts above/below the channels generate trading signals.
 """
+from __future__ import annotations
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from __future__ import annotations
 
 from datetime import datetime, timedelta
 

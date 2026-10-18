@@ -6,12 +6,12 @@ so it needs no network access and produces the same output on every run.
 Moving Average Crossover generates buy signals on golden crosses (fast MA crosses
 above slow MA) and sell signals on death crosses (fast MA crosses below slow MA).
 """
+from __future__ import annotations
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from __future__ import annotations
 
 from datetime import datetime, timedelta
 

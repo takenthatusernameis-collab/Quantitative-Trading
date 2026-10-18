@@ -9,12 +9,12 @@ range over a given period. It consists of %K (fast) and %D (slow). The
 strategy buys when %K crosses above %D in oversold territory (< 20) and sells
 when %K crosses below %D in overbought territory (> 80).
 """
+from __future__ import annotations
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from __future__ import annotations
 
 from datetime import datetime, timedelta
 

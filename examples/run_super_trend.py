@@ -9,12 +9,12 @@ volatility-adjusted trailing stops. It generates buy signals when price crosses
 above the SuperTrend line (trend turns bullish) and sell signals when price
 crosses below (trend turns bearish).
 """
+from __future__ import annotations
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from __future__ import annotations
 
 from datetime import datetime, timedelta
 
