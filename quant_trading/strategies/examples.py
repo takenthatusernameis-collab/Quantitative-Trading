@@ -357,6 +357,16 @@ class SuperTrendStrategy(Strategy):
         multiplier: float = 3.0,
         name: str = "SuperTrend",
     ):
+        """Initialize the SuperTrend strategy.
+
+        Args:
+            period: Lookback window for Average True Range calculation.
+            multiplier: Multiplier applied to ATR for band width.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+        """
         super().__init__(
             name,
             {
@@ -369,14 +379,27 @@ class SuperTrendStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        """Validate strategy parameters."""
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` or ``multiplier`` is non-positive.
+        """
         if self.period <= 0:
             raise ValueError("period must be positive")
         if self.multiplier <= 0:
             raise ValueError("multiplier must be positive")
 
     def _calculate_atr(self, df: pd.DataFrame, period: int) -> pd.Series:
-        """Calculate Average True Range (ATR)."""
+        """Calculate Average True Range (ATR).
+
+        Args:
+            df: DataFrame containing at least ``"high"``, ``"low"``, and
+                ``"close"`` columns.
+            period: Lookback window for ATR calculation.
+
+        Returns:
+            Series of ATR values aligned with ``df`` index.
+        """
         high = df["high"]
         low = df["low"]
         close = df["close"]
@@ -472,6 +495,16 @@ class SuperTrendStrategy(Strategy):
         return supertrend, trend
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from SuperTrend trend reversals.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least
+                ``"close"``, ``"high"``, and ``"low"`` columns indexed by
+                timestamp.
+
+        Returns:
+            List of :class:`Signal` objects representing trend reversals.
+        """
         signals = []
 
         for symbol, df in data.items():
