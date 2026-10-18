@@ -19,6 +19,17 @@ class MovingAverageCrossover(Strategy):
         slow_period: int = 30,
         name: str = "MA_Crossover",
     ):
+        """Initialize the Moving Average Crossover strategy.
+
+        Args:
+            fast_period: Lookback window for the fast moving average.
+            slow_period: Lookback window for the slow moving average; must
+                exceed ``fast_period``.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+        """
         super().__init__(
             name,
             {
@@ -31,7 +42,12 @@ class MovingAverageCrossover(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        """Validate strategy parameters."""
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``fast_period`` or ``slow_period`` is non-positive,
+                or if ``fast_period`` is not less than ``slow_period``.
+        """
         if self.fast_period <= 0:
             raise ValueError("fast_period must be positive")
         if self.slow_period <= 0:
@@ -40,6 +56,20 @@ class MovingAverageCrossover(Strategy):
             raise ValueError("fast_period must be less than slow_period")
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from fast/slow MA crossovers.
+
+        A golden cross (fast MA crossing above the slow MA) produces a buy
+        signal; a death cross (fast MA crossing below the slow MA) produces a
+        sell signal.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least a
+                ``"close"`` column indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose moving averages
+            cross between the last two bars.
+        """
         signals = []
 
         for symbol, df in data.items():

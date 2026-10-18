@@ -2,7 +2,7 @@
 
 ## Status
 
-COMPLETE - Added/expanded Google-style docstrings for AroonStrategy, KeltnerChannelStrategy, StochasticOscillatorStrategy, IchimokuCloudStrategy, VWAPStrategy, ParabolicSARStrategy in `quant_trading/strategies/examples.py` (classes, __init__, validate_parameters, key methods like _calculate_aroon/_calculate_stochastic/_calculate_sar where applicable, and generate_signals). All checks green.
+COMPLETE - Added Google-style docstrings to `MovingAverageCrossover` in `quant_trading/strategies/examples.py` (class already had one; `__init__`, `validate_parameters`, and `generate_signals` were missing Args/Returns/Raises sections). This was the only strategy class in the file lacking full docstrings — all 11 strategy classes now have complete Google-style docstrings.
 
 ## What was verified
 
@@ -13,9 +13,8 @@ COMPLETE - Added/expanded Google-style docstrings for AroonStrategy, KeltnerChan
 
 ## What remains unresolved
 
-- Remaining strategy classes in `quant_trading/strategies/examples.py` may still benefit from full Google-style docstrings (e.g. MACDStrategy variants already have some, others like WilliamsRStrategy, CCI, etc. depending on full file contents).
-- Other modules (backtest, data, portfolio, risk, etc.) also have docstring coverage gaps as a broader theme.
+- `quant_trading/strategies/examples.py` is now fully documented. The broader docstring-coverage theme extends to other modules (backtest, data, portfolio, risk, optimization, monte_carlo, regime, config, utils) which may still have gaps.
 
 ## Next precise task
 
-Continue adding Google-style docstrings to under-documented strategy classes in `quant_trading/strategies/examples.py`, preferably one class at a time. Start with WilliamsRStrategy (if present) - identify its class, add complete docstrings for class, __init__, validate_parameters, and generate_signals, then verify with the strategy/example tests and lint/format/typecheck.
+Pick a module outside `strategies/` and add Google-style docstrings to under-documented public functions/classes. A good starting point is `quant_trading/backtest/engine.py` (the core `run_backtest` entry point and `BacktestResult`) or `quant_trading/data/providers.py` (`DataManager`, `DataProvider`). Verify with the corresponding tests and lint/format/typecheck.
