@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+from typing import Any
 
 from .base import Signal, Strategy
 
@@ -2136,13 +2137,92 @@ class ParabolicSARStrategy(Strategy):
             timestamp = df.index[-1]
 
             # Skip if SAR is NaN (insufficient data)
-            if pd.isna(current_sar):
+        return signals
+
+
+class EMACrossover(Strategy):
+    """Exponential Moving Average (EMA) crossover strategy.
+
+    Signals:
+        - Buy when fast EMA crosses above slow EMA
+        - Sell when fast EMA crosses below slow EMA
+
+    Parameters:
+        fast_period (int): Lookback window for the fast EMA (default: 12)
+        slow_period (int): Lookback window for the slow EMA (default: 26)
+
+    """
+
+    def __init__(self, fast_period: int = 12, slow_period: int = 26, name: str = "EMA_Crossover", **kwargs: Any) -> None:
+        """Initialize the EMA crossover strategy.
+
+        Args:
+            fast_period: Lookback window for the fast EMA.
+            slow_period: Lookback window for the slow EMA; must exceed ``fast_period``.
+            name: Strategy name.
+            **kwargs: Additional arguments.
+
+        Raises:
+            ValueError: If ``fast_period >= slow_period``.
+
+        """
+        if fast_period >= slow_period:
+            raise ValueError("fast_period must be less than slow_period")
+
+        super().__init__(
+            name,
+            {
+                "fast_period": fast_period,
+                "slow_period": slow_period,
+            },
+        )
+        self.fast_period = fast_period
+        self.slow_period = slow_period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters."""
+
+        if not isinstance(self.fast_period, int) or self.fast_period < 1:
+            raise ValueError("fast_period must be a positive integer")
+        if not isinstance(self.slow_period, int) or self.slow_period < 1:
+            raise ValueError("slow_period must be a positive integer")
+        if self.fast_period >= self.slow_period:
+            raise ValueError("fast_period must be less than slow_period")
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals based on EMA crossover.
+
+        Args:
+            data: Dictionary mapping symbols to OHLCV DataFrames.
+
+        Returns:
+            List of trading signals.
+
+        """
+        signals = []
+
+        for symbol, df in data.items():
+            if len(df) < self.slow_period:
                 continue
 
-            # Trend change detection
-            if prev_trend == -1 and current_trend == 1:
-                # Trend changed from bearish to bullish - buy signal
-                strength = min(1.0, (current_price - current_sar) / current_price * 20 + 0.5)
+            close = df["close"]
+            fast_ema = close.ewm(span=self.fast_period, min_periods=self.fast_period).mean()
+            slow_ema = close.ewm(span=self.slow_period, min_periods=self.slow_period).mean()
+
+            timestamp = df.index[-1]
+            current_price = close.iloc[-1]
+            current_fast = fast_ema.iloc[-1]
+            current_slow = slow_ema.iloc[-1]
+            prev_fast = fast_ema.iloc[-2] if len(fast_ema) > 1 else current_fast
+            prev_slow = slow_ema.iloc[-2] if len(slow_ema) > 1 else current_slow
+
+            if pd.isna(current_fast) or pd.isna(current_slow) or pd.isna(prev_fast) or pd.isna(prev_slow):
+                continue
+
+            # Buy when fast EMA crosses above slow EMA
+            if prev_fast <= prev_slow and current_fast > current_slow:
+                strength = min(1.0, (current_fast - current_slow) / current_price * 10.0 + 0.5)
                 signals.append(
                     Signal(
                         symbol=symbol,
@@ -2151,15 +2231,15 @@ class ParabolicSARStrategy(Strategy):
                         price=current_price,
                         timestamp=timestamp,
                         metadata={
-                            "sar": current_sar,
-                            "trend": "bullish",
-                            "signal_type": "trend_reversal_bullish",
+                            "fast_ema": current_fast,
+                            "slow_ema": current_slow,
+                            "signal_type": "ema_crossover_bullish",
                         },
                     )
                 )
-            elif prev_trend == 1 and current_trend == -1:
-                # Trend changed from bullish to bearish - sell signal
-                strength = min(1.0, (current_sar - current_price) / current_price * 20 + 0.5)
+            # Sell when fast EMA crosses below slow EMA
+            elif prev_fast >= prev_slow and current_fast < current_slow:
+                strength = min(1.0, (current_slow - current_fast) / current_price * 10.0 + 0.5)
                 signals.append(
                     Signal(
                         symbol=symbol,
@@ -2168,9 +2248,9 @@ class ParabolicSARStrategy(Strategy):
                         price=current_price,
                         timestamp=timestamp,
                         metadata={
-                            "sar": current_sar,
-                            "trend": "bearish",
-                            "signal_type": "trend_reversal_bearish",
+                            "fast_ema": current_fast,
+                            "slow_ema": current_slow,
+                            "signal_type": "ema_crossover_bearish",
                         },
                     )
                 )

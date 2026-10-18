@@ -82,7 +82,7 @@ class YFinanceProvider(DataProvider):
         """
         if self._yf is None:
             try:
-                import yfinance as yf  # type: ignore[import-untyped]
+                import yfinance as yf
 
                 self._yf = yf
             except ImportError:

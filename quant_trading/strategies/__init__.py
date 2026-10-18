@@ -5,6 +5,7 @@ from .examples import (
     AroonStrategy,
     BollingerBandsStrategy,
     DonchianChannelStrategy,
+    EMACrossover,
     IchimokuCloudStrategy,
     KeltnerChannelStrategy,
     MACDStrategy,
@@ -26,6 +27,7 @@ from .factory import (
 )
 
 # Register built-in strategies
+register_strategy("ema", EMACrossover, aliases=["ema_crossover", "exponential_ma_crossover"])
 register_strategy("ma", MovingAverageCrossover, aliases=["moving_average", "ma_crossover"])
 register_strategy("rsi", RSIStrategy, aliases=["rsi_mean_reversion"])
 register_strategy("bb", BollingerBandsStrategy, aliases=["bollinger_bands", "bollinger"])
@@ -44,6 +46,7 @@ __all__ = [
     "AroonStrategy",
     "BollingerBandsStrategy",
     "DonchianChannelStrategy",
+    "EMACrossover",
     "IchimokuCloudStrategy",
     "KeltnerChannelStrategy",
     "MACDStrategy",

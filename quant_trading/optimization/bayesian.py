@@ -180,7 +180,7 @@ class BayesianOptimizer(BaseOptimizer):
 
         """
         try:
-            from skopt.utils import use_named_args  # type: ignore[import-untyped]
+            from skopt.utils import use_named_args
         except ImportError as e:
             raise ImportError(
                 "BayesianOptimizer requires scikit-optimize. "
@@ -231,7 +231,7 @@ class BayesianOptimizer(BaseOptimizer):
             List of scikit-optimize dimension objects, one per parameter.
 
         """
-        from skopt.space import Categorical, Integer, Real  # type: ignore[import-untyped]
+        from skopt.space import Categorical, Integer, Real
 
         space = []
         for name, param_space in self.param_grid.spaces.items():
@@ -266,7 +266,7 @@ class BayesianOptimizer(BaseOptimizer):
             OptimizationResult with best parameters and all results.
 
         """
-        from skopt import gp_minimize  # type: ignore[import-untyped]
+        from skopt import gp_minimize
 
         start_time = datetime.now()
         all_results = []

@@ -753,6 +753,7 @@ def create_strategy(args: argparse.Namespace):
     # Map strategy keys to lists of (cli_arg, param_name) tuples for built-in strategies
     strategy_param_map = {
         "ma": [("fast_period", "fast_period"), ("slow_period", "slow_period")],
+        "ema": [("fast_period", "fast_period"), ("slow_period", "slow_period")],
         "rsi": [
             ("rsi_period", "period"),
             ("rsi_oversold", "oversold"),
@@ -800,6 +801,8 @@ def create_strategy(args: argparse.Namespace):
         # Generate the strategy name based on the strategy and parameters
         if args.strategy == "ma":
             kwargs["name"] = f"MA_Crossover_{args.fast_period}_{args.slow_period}"
+        elif args.strategy == "ema":
+            kwargs["name"] = f"EMA_Crossover_{args.fast_period}_{args.slow_period}"
         elif args.strategy == "rsi":
             kwargs["name"] = f"RSI_{args.rsi_period}"
         elif args.strategy == "bb":
