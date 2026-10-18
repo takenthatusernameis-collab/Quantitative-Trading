@@ -1,4 +1,21 @@
-"""Backtest metrics calculation."""
+"""Backtest metrics calculation.
+
+This module aggregates return, risk, and trade-level statistics from an
+equity curve and a trades DataFrame into a single ``BacktestMetrics``
+dataclass. The underlying risk calculations are delegated to
+``quant_trading.risk.metrics``.
+
+Examples:
+    >>> import pandas as pd
+    >>> equity = pd.Series([100000, 105000, 110000])
+    >>> trades = pd.DataFrame({"pnl": [1000, -500, 2000]})
+    >>> from quant_trading.backtest.metrics import calculate_backtest_metrics
+    >>> metrics = calculate_backtest_metrics(equity, trades=trades)
+    >>> metrics.num_trades
+    3
+    >>> metrics.win_rate
+    0.6666666666666666
+"""
 
 from dataclasses import dataclass
 from typing import Any
@@ -18,7 +35,42 @@ from quant_trading.risk.metrics import (
 
 @dataclass
 class BacktestMetrics:
-    """Comprehensive backtest performance metrics."""
+    """Comprehensive backtest performance metrics.
+
+    Aggregates return, risk, and trade-level statistics computed from an
+    equity curve and a trades DataFrame. All monetary fields are expressed
+    in the account's base currency, while ratios and percentages are
+    unitless or expressed as percentages.
+
+    Attributes:
+        total_return: Absolute net profit/loss (final value - initial value).
+        total_return_pct: Total return as a percentage of initial value.
+        annual_return: Annualized mean return (decimal).
+        annual_return_pct: Annualized mean return as a percentage.
+        volatility: Annualized volatility of returns.
+        max_drawdown: Maximum drawdown as a negative decimal.
+        max_drawdown_pct: Maximum drawdown as a negative percentage.
+        sharpe_ratio: Annualized Sharpe ratio.
+        sortino_ratio: Annualized Sortino ratio.
+        calmar_ratio: Calmar ratio (annual return / |max drawdown|).
+        win_rate: Fraction of trades that were profitable (0.0 - 1.0).
+        profit_factor: Gross profit / gross loss (0.0 if no losers).
+        num_trades: Total number of trades recorded.
+        num_winning_trades: Number of trades with positive PnL.
+        num_losing_trades: Number of trades with negative PnL.
+        avg_win: Average PnL of winning trades (0.0 if none).
+        avg_loss: Average PnL of losing trades (0.0 if none).
+        largest_win: Largest single-trade PnL (0.0 if none).
+        largest_loss: Smallest (most negative) single-trade PnL (0.0 if none).
+        var_95: Value at Risk at 95% confidence (historical method).
+
+    Examples:
+        >>> metrics = BacktestMetrics(total_return=1000.0, sharpe_ratio=1.5)
+        >>> metrics.total_return
+        1000.0
+        >>> metrics.to_dict()["sharpe_ratio"]
+        1.5
+    """
 
     # Returns
     total_return: float = 0.0
@@ -49,6 +101,12 @@ class BacktestMetrics:
     var_95: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert metrics to a dictionary.
+
+        Returns:
+            Dictionary containing all metric values with keys matching
+            the attribute names of this dataclass.
+        """
         return {
             "total_return": self.total_return,
             "total_return_pct": self.total_return_pct,
@@ -79,7 +137,33 @@ def calculate_backtest_metrics(
     risk_free_rate: float = 0.02,
     periods_per_year: int = 252,
 ) -> BacktestMetrics:
-    """Calculate comprehensive backtest metrics."""
+    """Calculate comprehensive backtest metrics from an equity curve.
+
+    Computes return, risk, and trade-level statistics. When the equity
+    curve has fewer than two points, all return/risk fields remain at their
+    default zero values. Trade statistics are only populated when ``trades``
+    is provided, contains at least one row, and includes a ``pnl`` column.
+
+    Args:
+        equity_curve: Cumulative portfolio value series indexed by time.
+        trades: Optional DataFrame of trades; must contain a ``pnl`` column
+            to populate trade statistics.
+        risk_free_rate: Annual risk-free rate used for Sharpe/Sortino.
+        periods_per_year: Trading periods per year for annualization
+            (default 252 for daily data).
+
+    Returns:
+        BacktestMetrics object populated with the computed values.
+
+    Examples:
+        >>> import pandas as pd
+        >>> equity = pd.Series([100000, 110000, 105000, 115000])
+        >>> metrics = calculate_backtest_metrics(equity)
+        >>> float(metrics.total_return)
+        15000.0
+        >>> round(float(metrics.sharpe_ratio), 2)
+        9.58
+    """
     metrics = BacktestMetrics()
 
     if len(equity_curve) < 2:
