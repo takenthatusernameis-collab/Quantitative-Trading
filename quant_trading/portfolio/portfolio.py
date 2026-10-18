@@ -62,7 +62,7 @@ class Holding:
     current_price: float = 0.0
     market_value: float = 0.0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Derive market value from quantity and current price when initialized."""
         if self.quantity > 0 and self.avg_cost > 0:
             self.market_value = self.quantity * self.current_price
@@ -137,7 +137,7 @@ class Portfolio:
     initial_capital: float = 0.0
     last_rebalance: datetime | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Derive initial capital and total value when not explicitly provided."""
         if self.initial_capital == 0 and self.cash == 0:
             self.initial_capital = 0.0

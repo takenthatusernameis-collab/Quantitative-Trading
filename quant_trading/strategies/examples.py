@@ -1137,7 +1137,7 @@ class AroonStrategy(Strategy):
         # Using rolling window to find the index of max/min within the period
         # Then calculate how many periods ago that was
 
-        def periods_since_high(x):
+        def periods_since_high(x: pd.Series) -> int:
             # Get the index of the maximum value (most recent if tie)
             # When all values are equal, we want the most recent (highest index)
             max_val = x.max()
@@ -1151,7 +1151,7 @@ class AroonStrategy(Strategy):
                 pass
             return self.period - 1 - max_idx
 
-        def periods_since_low(x):
+        def periods_since_low(x: pd.Series) -> int:
             # Get the index of the minimum value (most recent if tie)
             # When all values are equal, we want the most recent (highest index)
             min_val = x.min()

@@ -79,7 +79,7 @@ class MarketData:
     fetched_at: datetime
     metadata: dict[str, Any] | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize metadata to an empty dict when not provided."""
         if self.metadata is None:
             self.metadata = {}

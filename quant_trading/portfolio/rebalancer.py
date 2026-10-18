@@ -31,6 +31,7 @@ Examples:
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from quant_trading.portfolio.portfolio import Portfolio
 from quant_trading.strategies.base import Signal
@@ -140,7 +141,7 @@ class Rebalancer:
         self.target_allocation = target_allocation or {}
         self.rebalance_threshold = rebalance_threshold
         self.last_rebalance: datetime | None = None
-        self.rebalance_history: list[dict] = []
+        self.rebalance_history: list[dict[str, Any]] = []
 
     def should_rebalance(self) -> bool:
         """Check if it is time to rebalance based on the configured frequency.

@@ -56,7 +56,7 @@ class RiskMetrics:
     alpha: float = 0.0
     calmar_ratio: float = 0.0
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, float]:
         """Convert metrics to a dictionary.
 
         Returns:

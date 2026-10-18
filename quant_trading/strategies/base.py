@@ -43,7 +43,7 @@ class Signal:
     timestamp: datetime | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Set default timestamp if not provided.
 
         If no timestamp is given, the current UTC time is assigned to ensure
@@ -310,7 +310,7 @@ class StrategyManager:
 
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize an empty strategy manager.
 
         Returns:
@@ -369,7 +369,7 @@ class StrategyManager:
             Dictionary mapping each strategy name to its list of signals.
 
         """
-        signals = {}
+        signals: dict[str, list[Signal]] = {}
         for name, strategy in self.strategies.items():
             signals[name] = strategy.generate_signals(data)
         return signals

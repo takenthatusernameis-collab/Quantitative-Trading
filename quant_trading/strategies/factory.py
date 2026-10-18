@@ -27,6 +27,8 @@ Examples:
 
 """
 
+from typing import Any
+
 from .base import Strategy
 
 
@@ -57,7 +59,7 @@ class StrategyRegistry:
 
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize an empty strategy registry.
 
         Creates empty mappings for strategies and aliases.
@@ -152,7 +154,7 @@ class StrategyRegistry:
         """
         return list(self._strategies.keys())
 
-    def create(self, key: str, **kwargs) -> Strategy:
+    def create(self, key: str, **kwargs: Any) -> Strategy:
         """Create a strategy instance from a key and parameters.
 
         Args:
@@ -208,7 +210,7 @@ def get_strategy(key: str) -> type[Strategy] | None:
     return _registry.get(key)
 
 
-def create_strategy(key: str, **kwargs) -> Strategy:
+def create_strategy(key: str, **kwargs: Any) -> Strategy:
     """Create a strategy instance from the global registry.
 
     Args:

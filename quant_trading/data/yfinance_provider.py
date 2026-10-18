@@ -70,7 +70,7 @@ class YFinanceProvider(DataProvider):
         """
         return "yfinance"
 
-    def _get_yf(self):
+    def _get_yf(self) -> Any:
         """Import and cache the ``yfinance`` module on first use.
 
         Returns:
@@ -293,7 +293,7 @@ class YFinanceProvider(DataProvider):
         yf = self._get_yf()
         results: dict[str, FetchResult] = {}
 
-        groups: dict[tuple[datetime | None, datetime | None, str], dict[str, list]] = {}
+        groups: dict[tuple[datetime | None, datetime | None, str], dict[str, list[Any]]] = {}
         order: list[tuple[datetime | None, datetime | None, str]] = []
         for req in requests:
             symbols = req.get("symbols", [])
@@ -1096,7 +1096,7 @@ class AlphaVantageProvider(DataProvider):
             pass
         return params
 
-    def _build_economic_indicator_params(self, function: str, **kwargs) -> dict[str, str]:
+    def _build_economic_indicator_params(self, function: str, **kwargs: Any) -> dict[str, str]:
         """Build query parameters for the Alpha Vantage endpoint.
 
         Args:
@@ -1268,7 +1268,7 @@ class AlphaVantageProvider(DataProvider):
         interval: str = "daily",
         time_period: int = 20,
         series_type: str = "close",
-        **kwargs,
+        **kwargs: Any,
     ) -> dict[str, str]:
         """Build query parameters for the Alpha Vantage endpoint.
 
@@ -2659,7 +2659,7 @@ class AlphaVantageProvider(DataProvider):
         interval: str = "daily",
         time_period: int = 20,
         series_type: str = "close",
-        **kwargs,
+        **kwargs: Any,
     ) -> pd.DataFrame | None:
         """Fetch a technical indicator series for a single symbol.
 
@@ -2984,7 +2984,7 @@ class AlphaVantageProvider(DataProvider):
             return None
 
     def get_economic_indicator(
-        self, function: str, interval: str | None = None, **kwargs
+        self, function: str, interval: str | None = None, **kwargs: Any
     ) -> pd.DataFrame | None:
         """Get an economic indicator (REAL_GDP, CPI, UNEMPLOYMENT, etc.).
 
@@ -3852,7 +3852,7 @@ class AlphaVantageProvider(DataProvider):
         start: datetime | None = None,
         end: datetime | None = None,
         interval: str = "1d",
-        **kwargs,
+        **kwargs: Any,
     ) -> FetchResult:
         """Fetch market data from Alpha Vantage.
 
