@@ -2,24 +2,26 @@
 
 ## Status
 
-COMPLETE - Enhanced Google-style docstrings in `quant_trading/backtest/metrics.py` for the module docstring, the `BacktestMetrics` dataclass (Attributes/Examples), the `to_dict` method (Returns), and `calculate_backtest_metrics` (Args/Returns/Examples). No behavior changes.
+COMPLETE - Enhanced Google-style docstrings in `quant_trading/regime/detector.py` for the module docstring, the `Regime` enum (Attributes/Examples), the `RegimeSegment` dataclass (Attributes/Examples), `RegimeSegment.to_dict` (Returns), the `RegimeResult` dataclass (Attributes/Examples), `RegimeResult.to_dict` (Returns), `RegimeResult.to_dataframe` (Returns/Examples), `RegimeResult.summary` (Returns/Examples), `RegimeDetector` (Attributes), `RegimeDetector.__init__` (Args), `RegimeDetector.detect` (Args/Returns/Examples), and `detect_regimes` (Args/Returns/Examples). No behavior changes.
 
 ## What this session did
 
-- Selected `quant_trading/backtest/metrics.py` from the candidate list in the prior handoff (it had the thinnest Google-style coverage: a one-line module docstring, a one-line class docstring, and a one-line function docstring).
-- Rewrote the module docstring to describe the module's purpose and delegate relationship to `quant_trading.risk.metrics`, with an executable Examples block.
-- Added an `Attributes` section to `BacktestMetrics` describing every field, plus an `Examples` section.
-- Added `Returns` to `BacktestMetrics.to_dict`.
-- Added `Args`, `Returns`, and `Examples` to `calculate_backtest_metrics`. Removed an inaccurate `Raises` section (the function silently skips trade stats when `trades` lacks a `pnl` column; it does not raise).
-- Doctest fixes required because pandas returns numpy scalar types: used `float(...)` wrapping and concrete expected values instead of `+ELLIPSIS` placeholders, consistent with the style in `risk/metrics.py`.
+- Selected `quant_trading/regime/detector.py` from the candidate list in the prior handoff (it had the thinnest Google-style coverage: one-line docstrings on the module, `Regime`, `RegimeSegment`, `RegimeResult`, `RegimeDetector`, and `detect_regimes`).
+- Added an executable module-level Examples block using a 6-bar strictly increasing series with explicit thresholds so the regime is deterministic (`sideways_low_vol`).
+- Added an `Attributes` section to `Regime` describing all seven labels, including `UNKNOWN`.
+- Added `Attributes` and `Examples` to `RegimeSegment`; added `Returns` to `RegimeSegment.to_dict`.
+- Added `Attributes` and `Examples` to `RegimeResult`; added `Returns` to `RegimeResult.to_dict`, `Returns` + `Examples` to `to_dataframe`, and `Returns` + `Examples` to `summary`.
+- Added `Attributes` to `RegimeDetector`, `Args` to `__init__`, and `Args`/`Returns`/`Examples` to `detect`.
+- Added `Args`/`Returns`/`Examples` to the `detect_regimes` convenience wrapper.
+- Doctest values were pre-verified against live output (e.g. `current_regime.value == 'sideways_low_vol'`, `n_segments == 1`) before writing, to avoid the numpy-scalar pitfalls encountered in the prior metrics.py session.
 
 ## What was verified
 
-- `python -m pytest tests/test_backtest_metrics.py tests/test_risk_metrics.py -q`: 76 passed
-- `python -m pytest --doctest-modules quant_trading/backtest/metrics.py -q`: 3 passed
-- `python -m ruff check quant_trading/backtest/metrics.py`: All checks passed
-- `python -m black --check quant_trading/backtest/metrics.py`: OK
-- `python -m mypy quant_trading/backtest/metrics.py`: Same pre-existing pandas-stubs warnings as the baseline; no new errors.
+- `python -m pytest --doctest-modules quant_trading/regime/detector.py -q`: 9 passed
+- `python -m pytest tests/test_regime.py -q`: 35 passed
+- `python -m ruff check quant_trading/regime/detector.py`: All checks passed
+- `python -m black --check quant_trading/regime/detector.py`: OK
+- `python -m mypy quant_trading/regime/detector.py`: Only the pre-existing pandas-stubs warning; no new errors.
 - `python -m pytest -q`: 1070 passed, 1 skipped, 26 failed (all 26 failures are pre-existing baseline failures — see below). No regressions.
 
 ## What remains unresolved
@@ -28,19 +30,16 @@ Nothing blocking. Docstrings are additive; no functional changes were made.
 
 ## Approaches that failed
 
-- First doctest attempt used `metrics.total_return` with expected `15000.0`, but pandas returns `np.int64(15000)`. Fixed by wrapping in `float()`.
-- A `+ELLIPSIS` placeholder for `sharpe_ratio` failed because the value is deterministic (9.575...). Fixed by using `round(float(...), 2)` with the concrete value 9.58.
-- An inaccurate `Raises` section was added then removed after inspection showed the function silently skips trade stats rather than raising.
+- None this session. All doctest expected values were confirmed against live interpreter output before being written, so the doctest run passed on the first attempt.
 
 ## Next precise task
 
 Continue maintaining API documentation consistency by enhancing docstrings for another public API module with incomplete Google-style coverage. Remaining good candidates:
-- `quant_trading/regime/detector.py` - `Regime`, `RegimeSegment`, `RegimeResult`, `detect_regimes`, and `analyze_regimes` (currently only one-line docstrings).
 - `quant_trading/optimization/walk_forward.py` - `WalkForwardOptimizer` public methods.
 - `quant_trading/optimization/grid_search.py` / `random_search.py` / `bayesian.py` - optimizer public methods.
 - `quant_trading/backtest/analysis.py` / `trade_analysis.py` - analysis helpers.
 
-Recommendation: Pick one (e.g., `regime/detector.py` or `walk_forward.py`) and add comprehensive Google-style docstrings to public functions/classes, with Examples. No behavior change. Verify with relevant tests, ruff, black, mypy, and doctests.
+Recommendation: Pick one and add comprehensive Google-style docstrings to public functions/classes, with Examples. No behavior change. Verify with relevant tests, ruff, black, mypy, and doctests.
 
 ## Pre-existing test failures (baseline, unrelated to docstring work)
 

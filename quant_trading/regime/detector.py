@@ -1,4 +1,25 @@
-"""Market regime detection for backtest analysis."""
+"""Market regime detection for backtest analysis.
+
+This module classifies a price or equity series into a sequence of market
+regimes. Each regime is a combination of a direction signal
+(bull/bear/sideways) and a volatility signal (high/low) computed relative to
+rolling reference statistics. The classification is performed by
+:class:`RegimeDetector`, with :func:`detect_regimes` providing a convenient
+convenience wrapper around it.
+
+Examples:
+    >>> import pandas as pd
+    >>> prices = pd.Series(
+    ...     [100.0, 101.0, 102.0, 103.0, 104.0, 105.0],
+    ...     index=pd.date_range("2024-01-01", periods=6, freq="D"),
+    ... )
+    >>> from quant_trading.regime.detector import detect_regimes
+    >>> result = detect_regimes(prices, window=2, vol_threshold=10.0, return_threshold=10.0)
+    >>> result.n_segments
+    1
+    >>> result.current_regime.value
+    'sideways_low_vol'
+"""
 
 from dataclasses import dataclass, field
 from enum import Enum
@@ -9,7 +30,29 @@ import pandas as pd
 
 
 class Regime(Enum):
-    """Market regime labels."""
+    """Market regime labels.
+
+    Regimes combine a direction (bull/bear/sideways) with a volatility level
+    (high/low). The :attr:`UNKNOWN` label is used when a regime cannot be
+    determined, for example when the input series is too short or contains
+    non-finite values.
+
+    Attributes:
+        BULL_LOW_VOL: Rising prices with below-threshold volatility.
+        BULL_HIGH_VOL: Rising prices with above-threshold volatility.
+        BEAR_LOW_VOL: Falling prices with below-threshold volatility.
+        BEAR_HIGH_VOL: Falling prices with above-threshold volatility.
+        SIDEWAYS_LOW_VOL: Flat prices with below-threshold volatility.
+        SIDEWAYS_HIGH_VOL: Flat prices with above-threshold volatility.
+        UNKNOWN: Regime could not be determined.
+
+    Examples:
+        >>> from quant_trading.regime import Regime
+        >>> Regime.BULL_LOW_VOL.value
+        'bull_low_vol'
+        >>> Regime.UNKNOWN.value
+        'unknown'
+    """
 
     BULL_LOW_VOL = "bull_low_vol"
     BULL_HIGH_VOL = "bull_high_vol"
@@ -22,7 +65,43 @@ class Regime(Enum):
 
 @dataclass
 class RegimeSegment:
-    """A single labeled regime segment."""
+    """A single labeled regime segment.
+
+    A segment is a maximal contiguous run of price bars that share the same
+    :class:`Regime` label. Segments are produced by merging consecutive
+    identical labels emitted by the rolling classifier.
+
+    Attributes:
+        regime: The :class:`Regime` label assigned to every bar in the segment.
+        start: Timestamp of the segment's first labeled price bar.
+        end: Timestamp of the segment's last labeled price bar.
+        start_index: Position of the segment's first label within the label
+            series (0-based index into the rolling-statistics series, which is
+            ``prices.index[1:]`` after ``pct_change``).
+        end_index: Exclusive end position of the segment within the label
+            series.
+        volatility: Mean annualized volatility over the segment's labeled
+            bars.
+        return_pct: Percentage price change across the segment's labeled
+            bars (end price relative to start price).
+
+    Examples:
+        >>> import pandas as pd
+        >>> from quant_trading.regime import Regime, RegimeSegment
+        >>> seg = RegimeSegment(
+        ...     regime=Regime.BULL_LOW_VOL,
+        ...     start=pd.Timestamp("2024-01-01"),
+        ...     end=pd.Timestamp("2024-01-31"),
+        ...     start_index=0,
+        ...     end_index=20,
+        ...     volatility=0.1,
+        ...     return_pct=5.0,
+        ... )
+        >>> seg.to_dict()["regime"]
+        'bull_low_vol'
+        >>> seg.to_dict()["return_pct"]
+        5.0
+    """
 
     regime: Regime
     start: Any
@@ -33,6 +112,13 @@ class RegimeSegment:
     return_pct: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert the segment to a plain dictionary.
+
+        Returns:
+            Dictionary with keys ``regime`` (the label's string value),
+            ``start``, ``end``, ``start_index``, ``end_index``,
+            ``volatility``, and ``return_pct``.
+        """
         return {
             "regime": self.regime.value,
             "start": str(self.start),
@@ -46,7 +132,37 @@ class RegimeSegment:
 
 @dataclass
 class RegimeResult:
-    """Result of regime detection."""
+    """Result of a regime detection run.
+
+    Aggregates the labeled segments produced by :class:`RegimeDetector`
+    along with summary statistics for the whole series.
+
+    Attributes:
+        segments: Ordered list of :class:`RegimeSegment` objects.
+        regimes: Ordered list of :class:`Regime` labels, one per segment.
+        n_segments: Number of detected segments (``len(segments)``).
+        current_regime: The regime of the last segment, or
+            :attr:`Regime.UNKNOWN` when no segment was detected.
+        total_volatility: Annualized volatility of the last labeled bar
+            (0.0 when not computable).
+        total_return_pct: Percentage change from the first to the last price
+            bar of the full input series.
+
+    Examples:
+        >>> import pandas as pd
+        >>> from quant_trading.regime.detector import detect_regimes
+        >>> prices = pd.Series(
+        ...     [100.0, 101.0, 102.0, 103.0, 104.0, 105.0],
+        ...     index=pd.date_range("2024-01-01", periods=6, freq="D"),
+        ... )
+        >>> result = detect_regimes(prices, window=2, vol_threshold=10.0, return_threshold=10.0)
+        >>> result.n_segments
+        1
+        >>> result.current_regime.value
+        'sideways_low_vol'
+        >>> result.to_dict()["n_segments"]
+        1
+    """
 
     segments: list[RegimeSegment] = field(default_factory=list)
     regimes: list[Regime] = field(default_factory=list)
@@ -56,6 +172,14 @@ class RegimeResult:
     total_return_pct: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert the result to a plain dictionary.
+
+        Returns:
+            Dictionary with keys ``segments`` (list of segment dicts),
+            ``regimes`` (list of regime string values), ``n_segments``,
+            ``current_regime``, ``total_volatility``, and
+            ``total_return_pct``.
+        """
         return {
             "segments": [s.to_dict() for s in self.segments],
             "regimes": [r.value for r in self.regimes],
@@ -66,11 +190,55 @@ class RegimeResult:
         }
 
     def to_dataframe(self) -> pd.DataFrame:
+        """Convert the segments to a DataFrame.
+
+        Returns:
+            DataFrame with one row per segment and columns ``regime``,
+            ``start``, ``end``, ``start_index``, ``end_index``,
+            ``volatility``, and ``return_pct``. An empty DataFrame is
+            returned when there are no segments.
+
+        Examples:
+            >>> import pandas as pd
+            >>> from quant_trading.regime.detector import detect_regimes
+            >>> prices = pd.Series(
+            ...     [100.0, 101.0, 102.0, 103.0, 104.0, 105.0],
+            ...     index=pd.date_range("2024-01-01", periods=6, freq="D"),
+            ... )
+            >>> result = detect_regimes(prices, window=2, vol_threshold=10.0, return_threshold=10.0)
+            >>> df = result.to_dataframe()
+            >>> len(df)
+            1
+            >>> "regime" in df.columns
+            True
+        """
         if not self.segments:
             return pd.DataFrame()  # type: ignore[no-any-return]
         return pd.DataFrame([s.to_dict() for s in self.segments])  # type: ignore[no-any-return]
 
     def summary(self) -> dict[str, Any]:
+        """Return a compact summary of the detection result.
+
+        Returns:
+            Dictionary with keys ``n_segments``, ``current_regime``,
+            ``total_volatility``, ``total_return_pct``, and
+            ``regime_counts`` (a mapping from regime string value to the
+            number of segments with that label).
+
+        Examples:
+            >>> import pandas as pd
+            >>> from quant_trading.regime.detector import detect_regimes
+            >>> prices = pd.Series(
+            ...     [100.0, 101.0, 102.0, 103.0, 104.0, 105.0],
+            ...     index=pd.date_range("2024-01-01", periods=6, freq="D"),
+            ... )
+            >>> result = detect_regimes(prices, window=2, vol_threshold=10.0, return_threshold=10.0)
+            >>> summary = result.summary()
+            >>> summary["n_segments"]
+            1
+            >>> "regime_counts" in summary
+            True
+        """
         counts: dict[str, int] = {}
         for r in self.regimes:
             counts[r.value] = counts.get(r.value, 0) + 1
@@ -88,6 +256,29 @@ class RegimeDetector:
 
     Regimes are determined by combining a direction signal (bull/bear/sideways)
     with a volatility signal (high/low) relative to rolling reference statistics.
+    Rolling volatility and rolling mean return are computed over a trailing
+    ``window`` of returns, then compared against thresholds. When a threshold
+    is left at its default (``0.0`` or below), it is derived from the series
+    itself (the mean of the rolling statistics).
+
+    Attributes:
+        window: Number of trailing returns used for the rolling statistics.
+        vol_threshold: Annualized volatility threshold separating low and
+            high volatility. Defaults to the mean rolling volatility when
+            ``<= 0``.
+        return_threshold: Annualized return threshold separating sideways
+            from trending markets. Defaults to the mean rolling return when
+            ``<= 0``.
+        periods_per_year: Number of trading periods per year used to
+            annualize volatility and return (default 252 for daily data).
+
+    Examples:
+        >>> from quant_trading.regime.detector import RegimeDetector
+        >>> detector = RegimeDetector()
+        >>> detector.window
+        20
+        >>> detector.periods_per_year
+        252
     """
 
     def __init__(
@@ -97,12 +288,55 @@ class RegimeDetector:
         return_threshold: float = 0.0,
         periods_per_year: int = 252,
     ):
+        """Configure the regime detector.
+
+        Args:
+            window: Number of trailing returns used for the rolling
+                statistics (default 20).
+            vol_threshold: Annualized volatility threshold separating low
+                and high volatility. A non-positive value triggers automatic
+                derivation from the mean rolling volatility.
+            return_threshold: Annualized return threshold separating
+                sideways from trending markets. A non-positive value triggers
+                automatic derivation from the mean rolling return.
+            periods_per_year: Trading periods per year used to annualize
+                volatility and return (default 252 for daily data).
+        """
         self.window = window
         self.vol_threshold = vol_threshold
         self.return_threshold = return_threshold
         self.periods_per_year = periods_per_year
 
     def detect(self, prices: pd.Series) -> RegimeResult:
+        """Classify regimes over a price or equity series.
+
+        The input may be any iterable convertible to a :class:`pandas.Series`.
+        When the series is too short to compute returns (fewer than two
+        points) or when the returns are entirely non-finite, an empty
+        :class:`RegimeResult` is returned with ``current_regime`` set to
+        :attr:`Regime.UNKNOWN`.
+
+        Args:
+            prices: Price or equity curve series indexed by time. Any
+                non-Series input is converted to a ``pd.Series``.
+
+        Returns:
+            A :class:`RegimeResult` containing the labeled segments and
+            summary statistics.
+
+        Examples:
+            >>> import pandas as pd
+            >>> from quant_trading.regime.detector import RegimeDetector
+            >>> prices = pd.Series(
+            ...     [100.0, 101.0, 102.0, 103.0, 104.0, 105.0],
+            ...     index=pd.date_range("2024-01-01", periods=6, freq="D"),
+            ... )
+            >>> result = RegimeDetector(window=2, vol_threshold=10.0, return_threshold=10.0).detect(prices)
+            >>> result.n_segments
+            1
+            >>> result.current_regime.value
+            'sideways_low_vol'
+        """
         if not isinstance(prices, pd.Series):
             prices = pd.Series(prices)
         if len(prices) < 2:
@@ -247,6 +481,40 @@ def detect_regimes(
     vol_threshold: float = 0.0,
     return_threshold: float = 0.0,
 ) -> RegimeResult:
+    """Detect market regimes over a price series using default thresholds.
+
+    Convenience wrapper around :class:`RegimeDetector` that constructs a
+    detector with the given parameters and runs :meth:`RegimeDetector.detect`.
+
+    Args:
+        prices: Price or equity curve series indexed by time. Any
+            non-Series input is converted to a ``pd.Series``.
+        window: Number of trailing returns used for the rolling
+            statistics (default 20).
+        vol_threshold: Annualized volatility threshold separating low and
+            high volatility. A non-positive value triggers automatic
+            derivation from the mean rolling volatility.
+        return_threshold: Annualized return threshold separating sideways
+            from trending markets. A non-positive value triggers automatic
+            derivation from the mean rolling return.
+
+    Returns:
+        A :class:`RegimeResult` containing the labeled segments and summary
+        statistics.
+
+    Examples:
+        >>> import pandas as pd
+        >>> from quant_trading.regime.detector import detect_regimes
+        >>> prices = pd.Series(
+        ...     [100.0, 101.0, 102.0, 103.0, 104.0, 105.0],
+        ...     index=pd.date_range("2024-01-01", periods=6, freq="D"),
+        ... )
+        >>> result = detect_regimes(prices, window=2, vol_threshold=10.0, return_threshold=10.0)
+        >>> result.n_segments
+        1
+        >>> result.current_regime.value
+        'sideways_low_vol'
+    """
     detector = RegimeDetector(
         window=window, vol_threshold=vol_threshold, return_threshold=return_threshold
     )
