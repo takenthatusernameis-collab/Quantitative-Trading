@@ -143,7 +143,20 @@ class TradeAnalysis:
 
 
 def _calculate_holding_periods(trades: pd.DataFrame) -> list[float]:
-    """Calculate holding periods in days for each completed round trip."""
+    """Calculate holding periods in days for each completed round trip.
+
+    Buys and sells are matched per symbol using a FIFO queue of open
+    entries. Each sell (or portion of a sell) is paired with the oldest
+    open entry, and the elapsed days between entry and fill are recorded.
+
+    Args:
+        trades: Trade DataFrame with at least ``symbol``, ``timestamp``,
+            ``action``, and ``quantity`` columns.
+
+    Returns:
+        List of holding periods in days (as floats). Empty when there are
+        no completed round trips.
+    """
     if trades.empty or "pnl" not in trades.columns:
         return []
 
@@ -189,7 +202,16 @@ def _calculate_holding_periods(trades: pd.DataFrame) -> list[float]:
 
 
 def _calculate_consecutive_streaks(trades: pd.DataFrame) -> tuple[int, int, int, str]:
-    """Calculate max consecutive wins/losses and current streak."""
+    """Calculate max consecutive wins/losses and the current streak.
+
+    Args:
+        trades: Trade DataFrame with a ``pnl`` column.
+
+    Returns:
+        Tuple of ``(max_wins, max_losses, current_streak, current_streak_type)``.
+        ``current_streak_type`` is ``"win"`` or ``"loss"`` (empty string when
+        the streak is zero).
+    """
     if trades.empty or "pnl" not in trades.columns:
         return 0, 0, 0, ""
 
@@ -222,7 +244,19 @@ def _calculate_consecutive_streaks(trades: pd.DataFrame) -> tuple[int, int, int,
 
 
 def _calculate_monthly_returns(equity_curve: pd.Series) -> dict[str, float]:
-    """Calculate monthly returns from equity curve."""
+    """Calculate monthly returns from an equity curve.
+
+    The equity curve is resampled to month-end, the percentage change between
+    consecutive month-ends is computed, and the result is keyed by the
+    month-end date as ``"YYYY-MM-DD"``.
+
+    Args:
+        equity_curve: Time-indexed portfolio equity values.
+
+    Returns:
+        Mapping of month-end date string to monthly return percentage. Empty
+        when fewer than two month-end values are available.
+    """
     if len(equity_curve) < 2:
         return {}
 
@@ -235,7 +269,19 @@ def _calculate_monthly_returns(equity_curve: pd.Series) -> dict[str, float]:
 
 
 def _calculate_weekly_returns(equity_curve: pd.Series) -> dict[str, float]:
-    """Calculate weekly returns from equity curve."""
+    """Calculate weekly returns from an equity curve.
+
+    The equity curve is resampled to week-end, the percentage change between
+    consecutive week-ends is computed, and the result is keyed by the
+    week-end date as ``"YYYY-MM-DD"``.
+
+    Args:
+        equity_curve: Time-indexed portfolio equity values.
+
+    Returns:
+        Mapping of week-end date string to weekly return percentage. Empty
+        when fewer than two week-end values are available.
+    """
     if len(equity_curve) < 2:
         return {}
 
@@ -248,7 +294,17 @@ def _calculate_weekly_returns(equity_curve: pd.Series) -> dict[str, float]:
 
 
 def _calculate_symbol_stats(trades: pd.DataFrame) -> dict[str, dict[str, Any]]:
-    """Calculate per-symbol trade statistics."""
+    """Calculate per-symbol trade statistics.
+
+    Args:
+        trades: Trade DataFrame with at least ``symbol`` and ``pnl`` columns.
+
+    Returns:
+        Mapping of symbol to a dict with ``total_trades``,
+        ``winning_trades``, ``losing_trades``, ``win_rate``, ``total_pnl``,
+        ``avg_pnl``, ``avg_win``, ``avg_loss``, ``largest_win``, and
+        ``largest_loss``. Empty when there are no trades.
+    """
     if trades.empty or "pnl" not in trades.columns:
         return {}
 
