@@ -110,7 +110,7 @@ def calculate_volatility(returns: pd.Series, annualize: bool = True) -> float:
         >>> import pandas as pd
         >>> returns = pd.Series([0.01, -0.005, 0.015, -0.002, 0.01])
         >>> round(calculate_volatility(returns, annualize=False), 5)
-        0.00868
+        0.00862
 
     """
     returns = returns.dropna()
@@ -210,7 +210,7 @@ def calculate_sortino_ratio(
         >>> import pandas as pd
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, 0.01])
         >>> round(calculate_sortino_ratio(returns, annualize=False), 2)
-        3.79
+        1.98
 
     """
     returns = returns.dropna()
@@ -247,7 +247,7 @@ def calculate_var(returns: pd.Series, confidence: float = 0.95) -> float:
         >>> import pandas as pd
         >>> returns = pd.Series([-0.02, 0.01, -0.01, 0.005, -0.03])
         >>> round(calculate_var(returns, 0.95), 3)
-        -0.027
+        -0.028
 
     """
     returns = returns.dropna()
@@ -274,7 +274,7 @@ def calculate_beta(returns: pd.Series, market_returns: pd.Series) -> float:
         >>> returns = pd.Series([0.01, 0.015, -0.005, 0.012])
         >>> market = pd.Series([0.008, 0.01, -0.003, 0.009])
         >>> round(calculate_beta(returns, market), 2)
-        1.39
+        1.46
 
     """
     if len(returns) < 2 or len(market_returns) < 2:
