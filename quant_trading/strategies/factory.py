@@ -24,6 +24,7 @@ Examples:
         from quant_trading.strategies.factory import strategy_keys
 
         assert "ma" in strategy_keys()
+
 """
 
 from .base import Strategy
@@ -53,6 +54,7 @@ class StrategyRegistry:
         ['ma']
         >>> registry.keys()
         ['ma', 'moving_average']
+
     """
 
     def __init__(self):
@@ -62,6 +64,7 @@ class StrategyRegistry:
 
         Returns:
             None.
+
         """
         self._strategies: dict[str, type[Strategy]] = {}
         self._aliases: dict[str, str] = {}
@@ -84,6 +87,7 @@ class StrategyRegistry:
 
         Returns:
             None.
+
         """
         if not issubclass(strategy_cls, Strategy):
             raise TypeError(f"{strategy_cls.__name__} must be a subclass of Strategy")
@@ -100,6 +104,7 @@ class StrategyRegistry:
 
         Returns:
             None.
+
         """
         self._strategies.pop(key, None)
         # Remove aliases pointing to this key
@@ -114,6 +119,7 @@ class StrategyRegistry:
         Returns:
             The matching strategy class, or ``None`` when the key is not
             registered.
+
         """
         actual_key = self._aliases.get(key, key)
         return self._strategies.get(actual_key)
@@ -124,6 +130,7 @@ class StrategyRegistry:
         Returns:
             A shallow copy of the primary-key-to-class mapping, so callers
             cannot mutate the registry's internal state.
+
         """
         return self._strategies.copy()
 
@@ -132,6 +139,7 @@ class StrategyRegistry:
 
         Returns:
             List of primary keys followed by alias keys.
+
         """
         return list(self._strategies.keys()) + list(self._aliases.keys())
 
@@ -140,6 +148,7 @@ class StrategyRegistry:
 
         Returns:
             List of primary keys in insertion order.
+
         """
         return list(self._strategies.keys())
 
@@ -157,6 +166,7 @@ class StrategyRegistry:
         Raises:
             ValueError: If ``key`` is not registered. The error message
                 lists the available primary keys.
+
         """
         strategy_cls = self.get(key)
         if strategy_cls is None:
@@ -180,6 +190,7 @@ def register_strategy(
 
     Returns:
         None.
+
     """
     _registry.register(key, strategy_cls, aliases)
 
@@ -192,6 +203,7 @@ def get_strategy(key: str) -> type[Strategy] | None:
 
     Returns:
         The matching strategy class, or ``None`` when not found.
+
     """
     return _registry.get(key)
 
@@ -208,6 +220,7 @@ def create_strategy(key: str, **kwargs) -> Strategy:
 
     Raises:
         ValueError: If ``key`` is not registered.
+
     """
     return _registry.create(key, **kwargs)
 
@@ -217,6 +230,7 @@ def list_strategies() -> dict[str, type[Strategy]]:
 
     Returns:
         Mapping of primary key to strategy class.
+
     """
     return _registry.get_all()
 
@@ -226,6 +240,7 @@ def strategy_keys() -> list[str]:
 
     Returns:
         List of primary keys and aliases.
+
     """
     return _registry.keys()
 
@@ -235,5 +250,6 @@ def get_registry() -> StrategyRegistry:
 
     Returns:
         The process-wide :class:`StrategyRegistry` instance.
+
     """
     return _registry
