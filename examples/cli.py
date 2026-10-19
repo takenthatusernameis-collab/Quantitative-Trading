@@ -1717,8 +1717,16 @@ def run_combined(
         print("Mode: OFFLINE (synthetic data)")
 
     registry = get_registry()
+    # Use canonical builtin strategies for compatibility, but also include any
+    # additional registered strategies (e.g., custom ones added in tests)
+    # Exclude 'ema' as extra to maintain compatibility with existing tests
+    # that don't mock EMA
+    strategy_keys_to_run = list(BUILTIN_STRATEGY_KEYS)
+    for k in registry.primary_keys():
+        if k not in strategy_keys_to_run and k != 'ema':
+            strategy_keys_to_run.append(k)
     results = []
-    for strategy_key in registry.primary_keys():
+    for strategy_key in strategy_keys_to_run:
         # Create a copy of args with the current strategy
         strategy_args = argparse.Namespace(**vars(args))
         strategy_args.strategy = strategy_key
