@@ -1764,6 +1764,21 @@ def create_parabolic_data(
     )
 
 
+# Hand-traced OHLC scenarios (high, low, close) that drive the SAR through a
+# short->long reversal, a long->short reversal, a sustained uptrend and a
+# reversal that follows a sustained uptrend.
+SAR_SCENARIOS: list[tuple[list[float], list[float], list[float]]] = [
+    ([100.0, 99.0, 98.0, 100.0], [90.0, 95.0, 88.0, 99.0], [100.0, 99.0, 98.0, 99.5]),
+    ([100.0, 105.0, 103.0, 106.0], [90.0, 92.0, 93.0, 85.0], [100.0, 105.0, 103.0, 85.0]),
+    ([100.0, 105.0, 108.0, 110.0], [90.0, 92.0, 94.0, 95.0], [100.0, 105.0, 108.0, 110.0]),
+    (
+        [100.0, 102.0, 104.0, 106.0, 108.0, 110.0, 112.0, 115.0, 118.0, 120.0],
+        [98.0, 100.0, 102.0, 104.0, 106.0, 108.0, 110.0, 113.0, 116.0, 85.0],
+        [99.0, 101.0, 103.0, 105.0, 107.0, 109.0, 111.0, 114.0, 117.0, 90.0],
+    ),
+]
+
+
 class TestParabolicSARStrategy:
     """Tests for ParabolicSARStrategy (examples.py lines 1539-1736)."""
 
@@ -1923,6 +1938,46 @@ class TestParabolicSARStrategy:
         by_symbol = {s.symbol: s for s in signals}
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
+
+    def test_generate_signals_bearish_reversal_after_sustained_uptrend(self):
+        """A long->short reversal that follows a sustained uptrend still sells."""
+        strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
+        high, low, close = SAR_SCENARIOS[3]
+        data = {"AAPL": create_parabolic_data("AAPL", high, low, close)}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].metadata["signal_type"] == "trend_reversal_bearish"
+        assert signals[0].metadata["trend"] == "bearish"
+
+    @pytest.mark.parametrize(("high", "low", "close"), SAR_SCENARIOS)
+    def test_calculate_sar_trend_is_always_bipolar(self, high, low, close):
+        """The SAR trend only ever takes the values +1 and -1.
+
+        That invariant is what makes the fall-through of the bearish ``elif`` in
+        generate_signals unreachable, so it is asserted explicitly here.
+        """
+        strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
+        df = create_parabolic_data("AAPL", high, low, close)
+        _, trend = strategy._calculate_sar(df["high"], df["low"])
+        assert set(trend.tolist()) <= {-1.0, 1.0}
+
+    @pytest.mark.parametrize(("high", "low", "close"), SAR_SCENARIOS)
+    def test_signal_matches_trend_reversal(self, high, low, close):
+        """A trend change always produces exactly one signal of the right side.
+
+        The bullish and bearish patterns in generate_signals between them cover
+        every possible trend change, so no reversal is ever silently dropped.
+        """
+        strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
+        df = create_parabolic_data("AAPL", high, low, close)
+        _, trend = strategy._calculate_sar(df["high"], df["low"])
+        signals = strategy.generate_signals({"AAPL": df})
+        if trend.iloc[-1] == trend.iloc[-2]:
+            assert signals == []
+        else:
+            assert len(signals) == 1
+            assert signals[0].action == ("buy" if trend.iloc[-1] == 1 else "sell")
 
 
 class TestEMACrossover:
@@ -2214,19 +2269,6 @@ def create_momentum_data(closes: list[float]) -> pd.DataFrame:
     )
 
 
-
-    def test_generate_signals_long_to_short_reversal(self):
-        """Cover the long-to-short reversal branch (line 2165)."""
-        strategy = ParabolicSARStrategy()
-        high = [10, 12, 14, 15, 16, 17, 18, 14]
-        low = [9, 11, 13, 14, 15, 16, 17, 9]
-        close = [9.5, 11.5, 13.5, 14.5, 15.5, 16.5, 17.5, 9.5]
-        data = {"AAPL": create_parabolic_data("AAPL", high, low, close)}
-        signals = strategy.generate_signals(data)
-        assert len(signals) == 1
-        assert signals[0].action == "sell"
-        assert signals[0].metadata["signal_type"] == "trend_reversal_bearish"
-
 class TestMomentumStrategy:
     """Tests for MomentumStrategy (examples.py lines 2323-2438)."""
 
@@ -2316,51 +2358,24 @@ class TestMomentumStrategy:
         assert by_symbol["AAPL"].metadata["signal_type"] == "positive_momentum"
         assert by_symbol["MSFT"].metadata["signal_type"] == "negative_momentum"
 
-
-
-    def test_generate_signals_skips_nan_price(self):
-        """Cover the NaN guard (line 2400)."""
+    def test_generate_signals_skips_nan_current_price(self):
+        """A NaN last close is skipped by the guard before momentum is computed."""
         strategy = MomentumStrategy(period=2, threshold=0.01)
-        closes = [float("nan"), 100.0, 100.0]
-        data = {"AAPL": create_momentum_data(closes)}
+        data = {"AAPL": create_momentum_data([100.0, 100.0, float("nan")])}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_nan_prev_price(self):
+        """A NaN price `period + 1` bars back is skipped by the guard."""
+        strategy = MomentumStrategy(period=2, threshold=0.01)
+        data = {"AAPL": create_momentum_data([float("nan"), 100.0, 100.0])}
         assert strategy.generate_signals(data) == []
 
     def test_generate_signals_skips_zero_prev_price(self):
-        """Cover the zero-prev-price guard (line 2400)."""
+        """A zero reference price is skipped instead of dividing by zero."""
         strategy = MomentumStrategy(period=2, threshold=0.01)
-        closes = [0.0, 100.0, 100.0]
-        data = {"AAPL": create_momentum_data(closes)}
+        data = {"AAPL": create_momentum_data([0.0, 100.0, 100.0])}
         assert strategy.generate_signals(data) == []
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
-    def test_generate_signals_skips_prev_price_zero_in_guard(self):
-        """Cover the prev_price == 0 guard (line 2401)."""
-        strategy = MomentumStrategy(period=2, threshold=0.01)
-        closes = [100.0, 0.0, 0.0]
-        data = {"AAPL": create_momentum_data(closes)}
-        assert strategy.generate_signals(data) == []
-
-    def test_generate_signals_skips_when_prev_price_zero(self):
-        """Cover the prev_price == 0 branch more explicitly."""
-        strategy = MomentumStrategy(period=2, threshold=0.01)
-        closes = [100.0, 200.0, 0.0, 100.0]
-        data = {"AAPL": create_momentum_data(closes)}
-        assert strategy.generate_signals(data) == []
-
-
-class TestParabolicSARStrategyAdditional:
-    """Additional tests to cover edge cases."""
-
-    def test_generate_signals_long_to_short_reversal(self):
-        """Cover the long-to-short reversal branch (line 2165->2124 context)."""
-        strategy = ParabolicSARStrategy(step=0.02, max_step=0.2)
-        # Create data that forces a trend reversal from long to short
-        high = [100, 102, 104, 106, 108, 110, 112, 115, 118, 120]
-        low = [98, 100, 102, 104, 106, 108, 110, 113, 116, 85]  # Sharp drop at end
-        close = [99, 101, 103, 105, 107, 109, 111, 114, 117, 90]
-        data = {"AAPL": create_parabolic_data("AAPL", high, low, close)}
-        signals = strategy.generate_signals(data)
-        # Should detect a bearish reversal
-        assert any(s.action == "sell" and s.metadata["signal_type"] == "trend_reversal_bearish" for s in signals)

@@ -2162,7 +2162,10 @@ class ParabolicSARStrategy(Strategy):
                             },
                         )
                     )
-                elif current_trend == -1 and prev_trend == 1:
+                # The fall-through of this elif is unreachable: _calculate_sar only
+                # emits trend values of +1/-1, so a trend change always matches
+                # exactly one of the two reversal patterns.
+                elif current_trend == -1 and prev_trend == 1:  # pragma: no branch
                     # Long to short reversal - bearish sell signal
                     strength = 1.0
                     signals.append(

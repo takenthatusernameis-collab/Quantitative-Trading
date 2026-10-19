@@ -5,7 +5,7 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 ## Features
 
 - **Strategy Framework**: Abstract base class for creating custom trading strategies
-- **Built-in Strategies**: Moving Average Crossover, RSI Mean Reversion, Bollinger Bands
+- **Built-in Strategies**: 14 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR, VWAP and Momentum
 - **Backtesting Engine**: Event-driven backtest with realistic costs (commission, slippage)
 - **Data Providers**: Yahoo Finance integration with caching support
 - **Portfolio Management**: Position tracking, rebalancing, and allocation
@@ -101,6 +101,16 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `rsi` (alias: `rsi_mean_reversion`) → `RSIStrategy`
 - `bb` (aliases: `bollinger_bands`, `bollinger`) → `BollingerBandsStrategy`
 - `macd` (alias: `macd_crossover`) → `MACDStrategy`
+- `ema` (aliases: `ema_crossover`, `exponential_ma_crossover`) → `EMACrossover`
+- `supertrend` (aliases: `st`, `super_trend`) → `SuperTrendStrategy`
+- `donchian` (aliases: `donchian_channel`, `dc`) → `DonchianChannelStrategy`
+- `aroon` (alias: `aroon_oscillator`) → `AroonStrategy`
+- `keltner` (aliases: `kc`, `keltner_channel`) → `KeltnerChannelStrategy`
+- `stoch` (aliases: `stochastic`, `stoch_oscillator`) → `StochasticOscillatorStrategy`
+- `ichimoku` (aliases: `ichimoku_cloud`, `ichimoku`) → `IchimokuCloudStrategy`
+- `sar` (aliases: `parabolic_sar`, `psar`) → `ParabolicSARStrategy`
+- `vwap` → `VWAPStrategy`
+- `momentum` (alias: `mom`) → `MomentumStrategy`
 
 ```python
 from quant_trading.strategies import (
