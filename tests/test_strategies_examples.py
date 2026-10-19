@@ -2334,3 +2334,33 @@ class TestMomentumStrategy:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+    def test_generate_signals_skips_prev_price_zero_in_guard(self):
+        """Cover the prev_price == 0 guard (line 2401)."""
+        strategy = MomentumStrategy(period=2, threshold=0.01)
+        closes = [100.0, 0.0, 0.0]
+        data = {"AAPL": create_momentum_data(closes)}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_when_prev_price_zero(self):
+        """Cover the prev_price == 0 branch more explicitly."""
+        strategy = MomentumStrategy(period=2, threshold=0.01)
+        closes = [100.0, 200.0, 0.0, 100.0]
+        data = {"AAPL": create_momentum_data(closes)}
+        assert strategy.generate_signals(data) == []
+
+
+class TestParabolicSARStrategyAdditional:
+    """Additional tests to cover edge cases."""
+
+    def test_generate_signals_long_to_short_reversal(self):
+        """Cover the long-to-short reversal branch (line 2165->2124 context)."""
+        strategy = ParabolicSARStrategy(step=0.02, max_step=0.2)
+        # Create data that forces a trend reversal from long to short
+        high = [100, 102, 104, 106, 108, 110, 112, 115, 118, 120]
+        low = [98, 100, 102, 104, 106, 108, 110, 113, 116, 85]  # Sharp drop at end
+        close = [99, 101, 103, 105, 107, 109, 111, 114, 117, 90]
+        data = {"AAPL": create_parabolic_data("AAPL", high, low, close)}
+        signals = strategy.generate_signals(data)
+        # Should detect a bearish reversal
+        assert any(s.action == "sell" and s.metadata["signal_type"] == "trend_reversal_bearish" for s in signals)
