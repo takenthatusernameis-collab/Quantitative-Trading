@@ -2,160 +2,199 @@
 
 ## What changed (this session)
 
-Task: make the annualization period configurable and internally consistent
-across the risk/backtest metrics layer, and stop single-observation Sharpe
-from returning NaN.
+Two commits, both pushed to `origin/main` (`f60ac45`, `baeb83d`).
 
-- `quant_trading/risk/metrics.py`
-  - `calculate_volatility`, `calculate_sharpe_ratio`, `calculate_sortino_ratio`,
-    `calculate_alpha`, `calculate_calmar_ratio` and `calculate_all_metrics` now
-    accept an optional `periods_per_year: int = 252`. The value drives the
-    `sqrt(periods_per_year)` annualization scaling **and** the conversion of
-    the annual risk-free rate into a per-period rate
-    (`risk_free_rate / periods_per_year`). The hardcoded `252` literals are
-    gone.
-  - `calculate_sharpe_ratio` no longer returns `NaN` for a single observation.
-    The old guard `returns.std() == 0` is `False` for a 1-element series
-    (`std` is `NaN`), so the ratio evaluated to `NaN` despite the docstring
-    promising `0.0`. The guard is now `not np.isfinite(std) or std == 0`.
-    `calculate_sortino_ratio` got the same `np.isfinite` guard for symmetry.
-  - Defaults are unchanged (252), so all previously computed numbers are
-    bit-for-bit identical.
-- `quant_trading/backtest/metrics.py`: `calculate_backtest_metrics` already
-  accepted `periods_per_year` but only used it for `annual_return` — every
-  risk metric still used the hardcoded 252. It now forwards the value to
-  volatility/Sharpe/Sortino/Calmar.
-- `quant_trading/risk/manager.py`: `RiskManager.calculate_metrics` accepts
-  and forwards `periods_per_year`.
-- `quant_trading/config/settings.py`: `BacktestConfig` gained a
-  `periods_per_year: int = 252` field (round-trips through YAML via the
-  existing `__dict__` / `_filter_fields` plumbing).
-- `quant_trading/backtest/engine.py`: `BacktestEngine.run` forwards
-  `config.periods_per_year`; `run_backtest()` gained a `periods_per_year`
-  parameter.
-- `quant_trading/optimization/{base,grid_search,random_search,bayesian,walk_forward}.py`:
-  `periods_per_year` threaded through `BaseOptimizer` (and the three
-  subclasses) and `WalkForwardOptimizer` into every backtest they run and
-  into the combined out-of-sample metrics.
-- `quant_trading/monte_carlo/simulator.py`: `MonteCarloSimulator` and
-  `run_monte_carlo` accept `periods_per_year` and forward it to the metrics
-  computed for each resampled equity curve.
-- `examples/cli.py`: new `--periods-per-year` flag and a
-  `resolve_periods_per_year(interval, override)` helper that maps
-  `1d -> 252`, `1wk -> 52`, `1mo -> 12` and intraday `Nm -> 252 * 390 / N`
-  (390 = minutes in a 6.5h US equity session); unknown intervals fall back to
-  252. The value is written to `config.backtest.periods_per_year` and passed
-  to the backtest, the optimizers, the walk-forward optimizer and the Monte
-  Carlo analysis. The synthetic provider always emits daily bars (its
-  `fetch` documents the interval as ignored), so offline runs are pinned to
-  252 unless `--periods-per-year` is given explicitly.
-- `README.md`: new "Annualization Periods" section, the `periods_per_year`
-  key in the example `config.yaml`, and a CLI usage example.
-- Tests added (33 new): `tests/test_risk_metrics.py` (10),
-  `tests/test_backtest_metrics.py` (4), `tests/test_cli.py` (13),
-  `tests/test_config.py` (1), `tests/test_backtest_engine.py` (2),
-  `tests/test_optimization.py` (1), `tests/test_monte_carlo.py` (2).
-- Committed as `50c56e5` and pushed to `origin/main`. The commit was
-  **rebased** on top of `dd99f1b` (a remote commit from another session that
-  added `examples/run_momentum.py` and its README entry); the rebase was
-  conflict-free and both sets of changes are present.
+### 1. Closed the last coverage gap in the package (`f60ac45`)
+
+- `quant_trading/strategies/examples.py` — the only module that still had a
+  coverage gap. The reported arc `2165->2124` is the **fall-through of the
+  bearish `elif`** in `ParabolicSARStrategy.generate_signals`, *not* the
+  long-to-short reversal path. It is **unreachable**: `_calculate_sar` only
+  ever emits trend values of `+1`/`-1`, so `current_trend != prev_trend`
+  always matches exactly one of the two reversal patterns and the `elif`
+  never falls through. The arc is now marked `# pragma: no branch` (with a
+  comment stating why). **No strategy logic was changed.**
+- `tests/test_strategies_examples.py`:
+  - Repaired the tests added for this gap in the previous two commits
+    (`aac5991`, `3604d96`). Three of them **never executed**: one was
+    nested inside the module-level `create_momentum_data` helper and two
+    were nested inside the `if __name__ == "__main__":` block, so Python
+    parsed them as nested functions, not tests. They are now real test
+    methods.
+  - Removed `TestParabolicSARStrategyAdditional`, which duplicated the
+    existing `test_generate_signals_bearish_reversal`; its scenario is kept
+    as `test_generate_signals_bearish_reversal_after_sustained_uptrend`.
+  - Added `test_generate_signals_skips_nan_current_price` (the
+    `MomentumStrategy` guard's first clause had no test).
+  - Added two parametrized invariant tests over four hand-traced SAR
+    scenarios (`SAR_SCENARIOS`): the SAR trend is always bipolar
+    (`+1`/`-1`), and every trend change produces exactly one signal of the
+    matching side. These encode the invariant that makes the `elif`
+    fall-through dead, so a future change that breaks it fails loudly
+    instead of silently invalidating the pragma.
+- `README.md` — the "Strategy Registry" table documented only 4 of the 14
+  registered strategies; it now documents all 14, and the "Built-in
+  Strategies" feature bullet was corrected.
+- `tests/test_readme.py` (new, 3 tests) — parses the README registry table
+  and checks it against `quant_trading.strategies.list_strategies()`, so the
+  table can no longer drift.
+
+### 2. Untracked generated runtime artifacts (`baeb83d`)
+
+`git rm --cached` (working-tree copies untouched) for:
+
+- `coverage.xml` — a stale Cobertura report describing 4392 statements /
+  1402 branches, while the current package has 4489 / 1440. The repo's own
+  tooling already treats it as an artifact: `.github/scripts/kilo-controller.sh`
+  excludes `**/coverage.xml` and `**/.coverage` from the changes it stages.
+- `test_output.json` — the JSON result of one `examples/cli.py --output` run.
+- `data/cache/yfinance_AAPL,GOOGL_..._1d.pkl` — a 48 KB pickled market-data
+  cache. `.gitignore` already listed `data/cache/`, but the rule never
+  applied to an already-tracked file, so the ignore list was misleading.
+
+`coverage.xml` and `test_output.json` were added to `.gitignore` so they
+cannot be re-added.
 
 ## What was actually verified (this session)
 
-- `python -m pytest` → **1157 passed, 1 skipped** (baseline before this
-  session: 1123 passed, 1 skipped; +33 new tests, +1 from the rebased
-  remote commit's momentum example). Run took ~139 s.
-- `python -m pytest --cov=quant_trading --cov-report=term-missing` → 100%
-  line and branch coverage on **every module touched by this change**
-  (`risk/metrics.py`, `backtest/metrics.py`, `backtest/engine.py`,
-  `config/settings.py`, `risk/manager.py`, `optimization/*`,
-  `monte_carlo/simulator.py`).
+- `python -m pytest` → **1172 passed, 1 skipped** (baseline at session start:
+  1160 passed, 1 skipped; +12 new tests).
+- `python -m pytest --cov=quant_trading --cov-report=term-missing` →
+  **TOTAL 100%** — 4489 statements, 1440 branches, 0 missing, 0 partial.
+  At session start the same command reported `examples.py ... 2165->2124`
+  and `TOTAL 99%`. The two spots named in the previous handoff
+  (`2165->2124` and `2401`) were the only gaps in the whole package; both
+  are now closed.
 - `python -m ruff check .` → All checks passed.
-- `python -m black --check .` → 79 files would be left unchanged.
-- `python -m mypy quant_trading examples/cli.py` → Success: no issues found
-  in 37 source files.
-- Baseline confirmation for the pre-existing coverage gap: on the
-  **unmodified** tree (`git stash`), the same run reported
-  `quant_trading/strategies/examples.py 720 1 268 2 99% 2165->2124, 2401`
-  and `TOTAL 99%` — i.e. that one uncovered line/branch pair is pre-existing
-  and unrelated to this change.
-- Manual CLI checks (offline, synthetic data):
-  - `PYTHONPATH=. python examples/cli.py --offline --strategy ma --symbols AAPL --days 120`
-    → Sharpe -129.79 (252-period annualization).
-  - `... --periods-per-year 52` → Sharpe -288.65.
-  - `... --interval 1wk` → Sharpe -288.65 (identical to the explicit
-    `--periods-per-year 52` run, confirming the interval derivation).
-- NaN regression confirmed fixed:
-  `calculate_sharpe_ratio(pd.Series([0.01]))` returned `nan` before the
-  change and returns `0.0` now; `calculate_backtest_metrics` on a two-point
-  equity curve no longer puts `NaN` into `metrics.sharpe_ratio`.
+- `python -m black --check .` → 81 files unchanged. **Note: black was
+  failing at session start** — the previous session's commits left
+  `tests/test_strategies_examples.py` unformatted. Now fixed.
+- `python -m mypy quant_trading examples/cli.py` → Success, 37 source files.
+- The `# pragma: no branch` was proved to suppress **only** the dead arc:
+  using the coverage API on a run that does not exercise the sell path, the
+  bearish branch body statements (lines 2168/2170/2171/...) are still in
+  the measured statement set and are still reported as **missing**. A/B
+  tested on a toy module: with the pragma the missing-branch count drops
+  to 0 while the branch body stays required; without it the branch is
+  reported missing again. `no branch` comes from coverage's
+  `partial_always` list, so it stays active even though this project
+  overrides `exclude_lines` in `pyproject.toml`.
+- The README drift test was negative-tested: deleting one registry row and
+  corrupting one class name makes 2 of the 3 tests fail; restoring the file
+  makes all 3 pass.
+- The untracked files were confirmed to still exist on disk after
+  `git rm --cached`, and `git check-ignore --no-index` confirms all three
+  are now matched by `.gitignore` rules.
 
 ## What remains unresolved
 
-- **Pre-existing coverage gap (not from this session):**
-  `quant_trading/strategies/examples.py` line 2401 and the `2165->2124`
-  branch are uncovered. `2401` is inside `MomentumStrategy.generate_signals`
-  (the `prev_price == 0` / NaN guard) and `2165->2124` is a
-  long-to-short reversal branch in `ParabolicSARStrategy`. Reproduced on the
-  unmodified tree, so it is not a regression. A bounded follow-up would be to
-  add targeted tests for those two branches.
+- **Trading costs do not affect the backtest equity curve** — this is the
+  next task, described below. It is a real, reproducible defect, not a
+  cosmetic issue.
 - **External CI workflow blocker (unchanged from prior handoffs):** the
   GitHub App token lacks the `workflows` permission, so workflow files
   cannot be pushed. `.github/workflows/` contains `kilo-workflow-audit.yml`
-  and `main.yml` but no `ci.yml`. This requires maintainer action and cannot
-  be fixed with a code change. Do not retry the identical workflow push.
-- **README drift (not from this session):** the "Strategy Registry" section
-  still documents only 4 of the 14 registered strategies (`ma`, `rsi`, `bb`,
-  `macd`). The registry in `quant_trading/strategies/__init__.py` registers
-  `ema`, `supertrend`, `donchian`, `aroon`, `keltner`, `stoch`, `ichimoku`,
-  `sar`, `vwap` and `momentum` as well. The "Built-in Strategies" bullet in
-  the Features list is stale for the same reason.
+  and `main.yml` but no `ci.yml`. This requires maintainer action and
+  cannot be fixed with a code change. Do not retry the identical workflow
+  push.
 
 ## Approaches already failed
 
-- **Pushing `ci.yml` / retrying the identical CI push** → blocked by the
-  missing `workflows` permission on the GitHub App token. Do not repeat.
-- **A first attempt at the `run_backtest` docstring/signature edit in
-  `quant_trading/backtest/engine.py` duplicated the function body** (the
-  edit's `newString` re-emitted the docstring and the `BacktestConfig(...)`
-  block while the original text remained). Detected immediately by
-  `python -m ruff check` reporting `invalid-syntax` at `engine.py:609`; fixed
-  by removing the duplicated block. Lesson: when replacing a whole function
-  in this repo, make the `oldString` cover the *entire* function through its
-  final line, or verify with `ruff` immediately.
-- **First draft of the optimizer annualization test used MA
-  `(fast=5, slow=20)`** on the mock data and asserted the two annualization
-  periods produced different scores. The score was `0.0` for both because
-  the mock data's MA crossover fires on the *last* bar of the window, so the
-  equity curve is flat (`std == 0`) and the Sharpe is `0.0` regardless of
-  the annualization period. Fixed by switching to `(fast=2, slow=3)`, which
-  produces 10 trades inside the window and a non-zero Sharpe. The same data
-  artifact is why `tests/test_optimization.py` scores are frequently `0.0`.
+- **Trying to cover `2165->2124` with new OHLC test data.** The arc is the
+  *fall-through* of the bearish `elif`, not the reversal path; the
+  reversal path is the arc `2165->2167`, which was already covered. The
+  previous handoff misidentified the arc, which is why two sessions spent
+  effort on data that could never reach it.
+- **Adding tests at the wrong indentation level.** Commits `aac5991` and
+  `3604d96` placed test functions one level too deep, so they were parsed
+  as nested functions inside `create_momentum_data` and inside the
+  `if __name__ == "__main__":` block. The file still parsed and pytest
+  still passed — the tests were simply never collected. Lesson: after
+  adding tests, check the *collected* count (`pytest --collect-only -q`)
+  or assert on `trades_df` content, not just on a green run.
+- **`pytest --cov=quant_trading.strategies.examples`** → `ImportError:
+  cannot load module more than once per process`. Use `--cov=quant_trading`
+  (the package) instead of a module path.
 
 ## One precise next task
 
-**Close the pre-existing coverage gap in `quant_trading/strategies/examples.py`
-(line 2401 and the `2165->2124` branch) with targeted unit tests.**
+**Make the backtest actually charge commission and slippage to the
+portfolio, so the equity curve, `final_value`, `total_return_pct` and every
+equity-derived metric (Sharpe, Sortino, Calmar, max drawdown) agree with
+the trade log.**
 
-- `2401` is in `MomentumStrategy.generate_signals`: the
-  `if pd.isna(current_price) or pd.isna(prev_price) or prev_price == 0:
-  continue` guard. A test needs a price frame whose last two closes contain
-  a NaN or a zero.
-- `2165->2124` is the long-to-short reversal branch of
-  `ParabolicSARStrategy.generate_signals` (the `current_trend == -1 and
-  prev_trend == 1` path), which needs a hand-built SAR state sequence that
-  flips from long to short.
+### The defect, with reproduction
 
-Constraints and evidence:
-- Do **not** change `quant_trading/strategies/examples.py` itself — the
-  goal is to cover the existing branches, not to alter strategy logic.
-- The target is `python -m pytest --cov=quant_trading --cov-report=term-missing`
-  reporting `quant_trading/strategies/examples.py 720 0 268 0 100%` and
-  `TOTAL 100%`. That same command on the unmodified tree reports
-  `2165->2124, 2401` and `TOTAL 99%`, so these two spots are the only
-  remaining gaps in the whole package.
-- Keep the existing suite green: `1157 passed, 1 skipped`, plus
-  `ruff check .`, `black --check .` and `mypy quant_trading` all clean.
-- Add the new tests to `tests/test_strategies_examples.py`, which already
-  contains `TestParabolicSARStrategy` and `TestMomentumStrategy` classes
-  for exactly these two strategies.
+`BacktestConfig.commission` is documented as "Commission rate per trade (as
+a fraction of trade value)" and `slippage` as "Slippage rate applied to
+each fill"; the README advertises "Event-driven backtest with realistic
+costs (commission, slippage)". But the costs never reach the portfolio:
+
+- `quant_trading/portfolio/portfolio.py:224` — `add_holding` does
+  `self.cash -= quantity * price`. No commission, no slippage.
+- `quant_trading/portfolio/portfolio.py:253` — `remove_holding` does
+  `self.cash += actual_qty * price`. No commission, no slippage.
+- `quant_trading/backtest/engine.py:483` — the buy sizing check *does* use a
+  cost-inclusive `cost = quantity * price * (1 + commission + slippage)`,
+  so a trade can be sized against costs it never pays.
+- `quant_trading/backtest/engine.py:516` — the sell's `realized_pnl` *is*
+  cost-aware, and `Trade.cost` / `Trade.pnl` are cost-aware properties.
+
+So the trade log is cost-aware while the portfolio is cost-blind, and the
+two do not reconcile.
+
+Reproduction (deterministic, no network, ~1 s):
+
+```python
+# 6 daily bars, buy on bar 1 at 110, sell on bar 3 at 130
+# run the same strategy with (commission, slippage) = (0.0, 0.0)
+#                                       and with (0.01, 0.005)
+```
+
+Observed on this tree:
+
+```
+equity zero-cost: [10000.0, 10000.0, 10100.0, 10200.0, 10200.0, 10200.0, 10200.0]
+equity costed   : [10000.0, 10000.0, 10100.0, 10200.0, 10200.0, 10200.0, 10200.0]
+EQUITY CURVES IDENTICAL? True
+zero-cost final_value: 10200.0   ret%: 2.0
+costed    final_value: 10200.0   ret%: 2.0
+costed trades 'cost' column: [1014.9999999999999, 1182.0]   sum: 2197.0
+costed trades 'pnl'  column: [0.0, 182.0]                    sum: 182.0
+```
+
+`final_value - initial_capital` is 200 but the sum of realized PnL is 182;
+the 18 difference is exactly the uncharged costs.
+
+### Constraints and evidence for the next agent
+
+- **Decide the cost model explicitly before coding.** Two defensible
+  models: (a) charge costs as fees on the cash leg — buy cash reduced by
+  `quantity * price * (1 + commission + slippage)`, sell proceeds credited
+  `quantity * price * (1 - commission - slippage)`; or (b) model slippage
+  as a worse fill price — buy at `price * (1 + slippage)`, sell at
+  `price * (1 - slippage)`, plus commission as a fee. The existing
+  `Trade.cost` property implies (a); (b) is what most engines do. Whichever
+  is chosen, `Trade.cost`, `Trade.pnl`, the portfolio cash and the trade
+  log must all agree.
+- **Target invariants, to be encoded as executable tests:**
+  1. A costed run's equity curve must be strictly below a zero-cost run's
+     for the same data and strategy.
+  2. `final_value - initial_capital` must equal the sum of the trades'
+     `pnl` column (within float tolerance) once costs are charged to cash.
+  3. The sum of `trades["cost"]` must be consistent with the cash
+     reduction across the run.
+- **Do not silently change unrelated numbers.** This fix changes every
+  previously reported backtest result. Audit the existing tests that assert
+  on equity values, `final_value` or metrics and update them deliberately
+  (e.g. `tests/test_backtest_engine.py:168` asserts
+  `result.total_return_pct == 2.0`; `tests/test_integration.py` and
+  `tests/test_backtest_analysis.py` may assert on other values).
+- Keep the package at **100% line and branch coverage** — it is there now
+  and the new cost branches must be covered.
+- Keep `ruff check .`, `black --check .` and `mypy quant_trading` clean.
+- The suite must stay green at **1172 passed, 1 skipped** (plus the new
+  tests).
+- A useful side effect to consider: `BacktestResult` could expose the
+  total costs paid, so the headline numbers and the trade log can be
+  reconciled by a reader without recomputing them.
