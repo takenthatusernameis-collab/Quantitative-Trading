@@ -755,3 +755,13 @@ the lower band:
 ```bash
 python examples/run_donchian.py
 ```
+
+For a momentum demonstration using the Momentum indicator, see
+`examples/run_momentum.py`. It runs the `MomentumStrategy` against seeded
+synthetic data, generating buy signals when price momentum over the lookback
+period is positive and above a threshold, and sell signals when momentum is
+negative and below the negative threshold:
+
+```bash
+python examples/run_momentum.py
+```
