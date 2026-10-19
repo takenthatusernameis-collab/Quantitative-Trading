@@ -13,6 +13,7 @@ from quant_trading.strategies.examples import (
     IchimokuCloudStrategy,
     KeltnerChannelStrategy,
     MACDStrategy,
+    MomentumStrategy,
     MovingAverageCrossover,
     ParabolicSARStrategy,
     RSIStrategy,
@@ -2197,6 +2198,110 @@ class TestEMACrossoverStrategy:
         signals = strategy.generate_signals({"AAPL": df})
         # Should handle zero price in strength calculation
         assert len(signals) >= 0
+
+
+def create_momentum_data(closes: list[float]) -> pd.DataFrame:
+    """Create deterministic OHLC data from explicit close prices for momentum tests."""
+    close = pd.Series(closes, dtype=float)
+    return pd.DataFrame(
+        {
+            "open": close,
+            "high": close * 1.001,
+            "low": close * 0.999,
+            "close": close,
+            "volume": pd.Series([1_000_000] * len(closes), dtype=float),
+        }
+    )
+
+
+class TestMomentumStrategy:
+    """Tests for MomentumStrategy (examples.py lines 2323-2438)."""
+
+    def test_initialization(self):
+        """Test strategy initialization and parameter storage."""
+        strategy = MomentumStrategy(period=10, threshold=0.01, name="Test_Momentum")
+        assert strategy.name == "Test_Momentum"
+        assert strategy.period == 10
+        assert strategy.threshold == 0.01
+        assert strategy.parameters["period"] == 10
+        assert strategy.parameters["threshold"] == 0.01
+
+    def test_initialization_defaults(self):
+        """Test default parameter values."""
+        strategy = MomentumStrategy()
+        assert strategy.period == 10
+        assert strategy.threshold == 0.01
+        assert strategy.name == "Momentum"
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises on invalid period or threshold."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            MomentumStrategy(period=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            MomentumStrategy(period=-1)
+        with pytest.raises(ValueError, match="threshold must be non-negative"):
+            MomentumStrategy(threshold=-0.01)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals returns empty when fewer than period + 1 bars."""
+        strategy = MomentumStrategy(period=10)
+        data = {"AAPL": create_momentum_data([100.0] * 10)}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_buy_positive_momentum(self):
+        """Test buy signal when momentum exceeds the threshold."""
+        strategy = MomentumStrategy(period=10, threshold=0.01)
+        # momentum = 110 / 100 - 1 = 0.10 > 0.01 -> buy, strength capped at 1.0
+        data = {"AAPL": create_momentum_data([100.0] * 10 + [110.0])}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(110.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "positive_momentum"
+        assert signal.metadata["momentum"] == pytest.approx(0.10)
+        assert signal.metadata["period"] == 10
+
+    def test_generate_signals_sell_negative_momentum(self):
+        """Test sell signal when momentum is below the negative threshold."""
+        strategy = MomentumStrategy(period=10, threshold=0.01)
+        # momentum = 90 / 100 - 1 = -0.10 < -0.01 -> sell
+        data = {"AAPL": create_momentum_data([100.0] * 10 + [90.0])}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(90.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "negative_momentum"
+        assert signal.metadata["momentum"] == pytest.approx(-0.10)
+
+    def test_generate_signals_no_signal_within_threshold(self):
+        """Test no signal when momentum magnitude is within the threshold."""
+        strategy = MomentumStrategy(period=10, threshold=0.01)
+        # momentum = 100.5 / 100 - 1 = 0.005, within [-0.01, 0.01]
+        data = {"AAPL": create_momentum_data([100.0] * 10 + [100.5])}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals evaluates each symbol independently."""
+        strategy = MomentumStrategy(period=10, threshold=0.01)
+        data = {
+            "AAPL": create_momentum_data([100.0] * 10 + [110.0]),
+            "MSFT": create_momentum_data([100.0] * 10 + [90.0]),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+        assert by_symbol["AAPL"].metadata["signal_type"] == "positive_momentum"
+        assert by_symbol["MSFT"].metadata["signal_type"] == "negative_momentum"
 
 
 if __name__ == "__main__":
