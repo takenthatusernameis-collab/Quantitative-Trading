@@ -34,6 +34,8 @@ env/
 *,cover
 htmlcov/
 .tox/
+coverage.xml
+test_output.json
 
 # Type checking / linting caches
 .mypy_cache/
