@@ -1720,12 +1720,10 @@ def run_combined(
 
     registry = get_registry()
     # Use canonical builtin strategies for compatibility, but also include any
-    # additional registered strategies (e.g., custom ones added in tests)
-    # Exclude 'ema' as extra to maintain compatibility with existing tests
-    # that don't mock EMA
+    # additional registered strategies (e.g., custom ones added in tests).
     strategy_keys_to_run = list(BUILTIN_STRATEGY_KEYS)
     for k in registry.primary_keys():
-        if k not in strategy_keys_to_run and k != "ema":
+        if k not in strategy_keys_to_run:
             strategy_keys_to_run.append(k)
     results = []
     for strategy_key in strategy_keys_to_run:
