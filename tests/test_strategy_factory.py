@@ -218,3 +218,17 @@ class TestStrategyFromConfig:
     def test_from_config_unknown_type_raises(self):
         with pytest.raises(ValueError, match="Unknown strategy"):
             Strategy.from_config({"type": "not_a_real_strategy"})
+
+
+class TestStrategyBase:
+    """Tests for the Strategy base class (base.py)."""
+
+    def test_generate_signals_abstract_body_executed(self):
+        """A subclass delegating to super() runs the abstract body (base.py:179)."""
+
+        class DelegatingStrategy(Strategy):
+            def generate_signals(self, data):
+                return super().generate_signals(data)
+
+        strategy = DelegatingStrategy(name="Delegating")
+        assert strategy.generate_signals({}) is None

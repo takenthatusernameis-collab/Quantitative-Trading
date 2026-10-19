@@ -1481,6 +1481,31 @@ def test_walk_forward_result_to_dataframe_without_best_params():
     assert not any(c.startswith("param_") for c in df.columns)
 
 
+def test_walk_forward_window_to_dict():
+    """WalkForwardWindow.to_dict returns every field (line 109)."""
+    from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+    window = WalkForwardWindow(
+        train_start=datetime(2024, 1, 1),
+        train_end=datetime(2024, 2, 1),
+        test_start=datetime(2024, 2, 1),
+        test_end=datetime(2024, 3, 1),
+        best_params={"fast_period": 5},
+        train_result=None,
+        test_result=None,
+    )
+    result = window.to_dict()
+    assert result == {
+        "train_start": datetime(2024, 1, 1),
+        "train_end": datetime(2024, 2, 1),
+        "test_start": datetime(2024, 2, 1),
+        "test_end": datetime(2024, 3, 1),
+        "best_params": {"fast_period": 5},
+        "train_result": None,
+        "test_result": None,
+    }
+
+
 def test_walk_forward_with_failing_strategy_skips_test():
     """When every window's optimization yields an empty best_params dict (the
     strategy raises during backtesting), the test backtest is skipped for every

@@ -1924,6 +1924,55 @@ class TestParabolicSARStrategy:
         assert by_symbol["MSFT"].action == "sell"
 
 
+class TestEMACrossover:
+    """Tests for EMACrossover (examples.py EMA crossover strategy)."""
+
+    @staticmethod
+    def _ohlcv(closes: list[float]) -> pd.DataFrame:
+        close = pd.Series(closes, dtype=float)
+        return pd.DataFrame(
+            {
+                "open": close,
+                "high": close * 1.001,
+                "low": close * 0.999,
+                "close": close,
+                "volume": pd.Series([1_000_000] * len(closes), dtype=float),
+            }
+        )
+
+    def test_generate_signals_insufficient_data(self):
+        strategy = EMACrossover(fast_period=2, slow_period=4)
+        data = {"AAPL": self._ohlcv([100.0, 100.0, 100.0])}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_golden_cross(self):
+        strategy = EMACrossover(fast_period=2, slow_period=4)
+        data = {"AAPL": self._ohlcv([100.0, 100.0, 100.0, 100.0, 100.0, 200.0])}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "buy"
+        assert signals[0].price == pytest.approx(200.0)
+
+    def test_generate_signals_death_cross(self):
+        strategy = EMACrossover(fast_period=2, slow_period=4)
+        data = {"AAPL": self._ohlcv([200.0, 200.0, 200.0, 200.0, 200.0, 100.0])}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].price == pytest.approx(100.0)
+
+    def test_generate_signals_no_crossover(self):
+        strategy = EMACrossover(fast_period=2, slow_period=4)
+        data = {"AAPL": self._ohlcv([100.0, 105.0, 110.0, 115.0, 120.0, 125.0])}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_nan_close_skipped(self):
+        strategy = EMACrossover(fast_period=2, slow_period=4)
+        # All-NaN closes yield NaN EWM values, which are skipped (line 2275).
+        data = {"AAPL": self._ohlcv([float("nan")] * 6)}
+        assert strategy.generate_signals(data) == []
+
+
 def create_vwap_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     """Create deterministic OHLC data from explicit close prices.
 
