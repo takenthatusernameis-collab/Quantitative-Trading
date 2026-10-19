@@ -220,8 +220,8 @@ class RegimeResult:
 
         """
         if not self.segments:
-            return pd.DataFrame()  # type: ignore[no-any-return]
-        return pd.DataFrame([s.to_dict() for s in self.segments])  # type: ignore[no-any-return]
+            return pd.DataFrame()
+        return pd.DataFrame([s.to_dict() for s in self.segments])
 
     def summary(self) -> dict[str, Any]:
         """Return a compact summary of the detection result.

@@ -197,9 +197,9 @@ class MonteCarloResult:
 
         """
         if not self.simulations:
-            return pd.DataFrame()  # type: ignore[no-any-return]
+            return pd.DataFrame()
         data = [s.to_dict() for s in self.simulations]
-        return pd.DataFrame(data)  # type: ignore[no-any-return]
+        return pd.DataFrame(data)
 
     def summary(self) -> dict[str, Any]:
         """Get summary statistics for the simulation distribution.
