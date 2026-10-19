@@ -1,32 +1,23 @@
 # Next Task
 
-## What changed
-- Added focused unit tests for `MomentumStrategy` in `tests/test_strategies_examples.py` (new `TestMomentumStrategy` class, 8 tests), following the existing strategy-test style:
-  - `test_initialization` / `test_initialization_defaults` — parameter storage and defaults (period=10, threshold=0.01, name="Momentum").
-  - `test_validate_parameters` — `period must be positive` (0, -1) and `threshold must be non-negative` (-0.01).
-  - `test_generate_signals_insufficient_data` — fewer than period+1 bars → no signals.
-  - `test_generate_signals_buy_positive_momentum` — momentum 0.10 > 0.01 → buy, strength 1.0, `positive_momentum` metadata.
-  - `test_generate_signals_sell_negative_momentum` — momentum -0.10 < -0.01 → sell, strength 1.0, `negative_momentum` metadata.
-  - `test_generate_signals_no_signal_within_threshold` — momentum within [-threshold, threshold] → no signal.
-  - `test_generate_signals_multiple_symbols` — independent per-symbol buy/sell signals.
-- Added module-level `create_momentum_data(closes)` helper and `MomentumStrategy` import to the test file.
+## What changed (this session)
+- `examples/cli.py`: added `"ema"` and `"momentum"` to `BUILTIN_STRATEGY_KEYS` (cli.py:41-54). Both are already registered in `quant_trading/strategies/__init__.py` and already supported by `create_strategy`; this makes combined CLI runs include them (ema was previously excluded only by the `k != "ema"` guard at cli.py:1726).
+- `tests/test_cli.py`: added `("EMA_Crossover_10_30", 6.5)` and `("Momentum", 9.5)` to `mock_results` in `TestRunCombined.test_run_combined_all_strategies` so the mocked `run_backtest` covers every strategy combined mode actually iterates.
+- No changes to `quant_trading/` source or the registry.
 
 ## What was actually verified (this session)
-- New tests: `tests/test_strategies_examples.py -k Momentum` → 8 passed.
-- Regression check: `tests/test_strategies_examples.py tests/test_strategy_factory.py tests/test_integration.py` → 166 passed.
-- Full suite: `pytest` → 1122 passed, 1 failed, 1 skipped (~142s).
+- `tests/test_cli.py::TestRunCombined` → 4 passed (includes `test_run_combined_all_strategies`, previously failing with `Momentum: Error - Unknown strategy`).
+- Offline end-to-end combined tests (`test_main_offline_combined_end_to_end`, `test_main_offline_combined_with_output`) → pass.
+- Full suite: `pytest` → 1123 passed, 1 skipped (~150s). Previously 1122 passed, 1 failed — the pre-existing combined-run failure is resolved.
 - Linting: `python -m ruff check .` → All checks passed.
-- Formatting: `python -m black --check .` → 79 files unchanged.
-- Type checking: `python -m mypy quant_trading` → Success, no issues in 36 source files.
+- Formatting: `python -m black --check examples/cli.py tests/test_cli.py` → 2 files unchanged.
+- Type checking: `python -m mypy quant_trading examples/cli.py` → Success, no issues in 37 source files.
 
 ## What remains unresolved
-- Full-suite failure (pre-existing, NOT caused by this change): `tests/test_cli.py::TestRunCombined::test_run_combined_all_strategies` → `assert 1 == 0`, with `Momentum: Error - Unknown strategy`. Verified it fails identically on the clean baseline via `git stash` (source code untouched by this session).
-  - Root cause: `cli.py` keeps its own hardcoded `BUILTIN_STRATEGY_KEYS` (cli.py:41-54) which omits `momentum` (and `ema`, special-cased at cli.py:1726), while `quant_trading/strategies/__init__.py:44` already registers `momentum`/`mom` in the registry. Combined mode iterates `BUILTIN_STRATEGY_KEYS` (cli.py:1724) and the unknown-strategy branch fires (cli.py:1190/1338).
-- External CI workflow permission issue (from prior handoffs) remains unresolved; requires maintainer action, not a code change.
+- External CI workflow permission issue (from prior handoffs): GitHub App token lacks `workflows` permission; workflow files are maintainer-managed. Requires external maintainer action, not a code change. Do not retry the identical workflow push.
 
 ## Approaches already failed
-- N/A (no repeated failures in this session).
+- Adding only `"momentum"`/`"ema"` to `BUILTIN_STRATEGY_KEYS` without updating the test mock: insufficient — `momentum` was already iterated via the registry loop (cli.py:1725-1727), and the mocked `run_backtest` raised `ValueError("Unknown strategy")` for any strategy name absent from `mock_results`. Fix required both the key-list change and the mock entries.
 
 ## One precise next task
-- Fix the pre-existing `test_cli.py` combined-run failure by adding `"momentum"` (and `"ema"` for consistency, since it is already special-cased at cli.py:1726) to `cli.py`'s `BUILTIN_STRATEGY_KEYS` list (cli.py:41-54) so the combined CLI run includes the already-registered MomentumStrategy. Then re-run `tests/test_cli.py::TestRunCombined::test_run_combined_all_strategies` and the full `pytest` suite to confirm green (expect only the pre-existing baseline to be resolved; CI workflow permission issue is external and out of scope).
-- Constraint: keep the change minimal and reversible; do not touch `quant_trading/` source or the registry — only `examples/cli.py`'s hardcoded key list.
+- No code work remains; the codebase is green. Next session: (a) commit the two changed files when authorized (changes are currently uncommitted: `examples/cli.py`, `tests/test_cli.py`), and (b) wait for the maintainer to grant the `workflows` permission to the GitHub App token or push `.github/workflows/ci.yml` manually. Inspect `.kilo/next-task.md` evidence rather than re-running full verification or retrying the workflow push.
