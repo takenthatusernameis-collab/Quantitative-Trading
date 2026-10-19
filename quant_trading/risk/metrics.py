@@ -96,12 +96,18 @@ def calculate_returns(prices: pd.Series) -> pd.Series:
     return prices.pct_change().dropna()
 
 
-def calculate_volatility(returns: pd.Series, annualize: bool = True) -> float:
+def calculate_volatility(
+    returns: pd.Series,
+    annualize: bool = True,
+    periods_per_year: int = 252,
+) -> float:
     """Calculate volatility of returns.
 
     Args:
         returns: Return series.
-        annualize: Whether to annualize volatility using sqrt(252).
+        annualize: Whether to annualize volatility using sqrt(periods_per_year).
+        periods_per_year: Number of periods per year used for annualization
+            (default 252 for daily data).
 
     Returns:
         Volatility (annualized if requested), or 0.0 if insufficient data.
@@ -118,7 +124,7 @@ def calculate_volatility(returns: pd.Series, annualize: bool = True) -> float:
         return 0.0
     vol = returns.std()
     if annualize:
-        vol *= np.sqrt(252)
+        vol *= np.sqrt(periods_per_year)
     return float(vol)
 
 
@@ -156,6 +162,7 @@ def calculate_sharpe_ratio(
     returns: pd.Series,
     risk_free_rate: float = 0.02,
     annualize: bool = True,
+    periods_per_year: int = 252,
 ) -> float:
     """Calculate Sharpe ratio.
 
@@ -165,10 +172,14 @@ def calculate_sharpe_ratio(
     Args:
         returns: Return series.
         risk_free_rate: Annual risk-free rate (default 0.02).
-        annualize: Whether to annualize using sqrt(252).
+        annualize: Whether to annualize using sqrt(periods_per_year).
+        periods_per_year: Number of periods per year used to annualize the
+            risk-free rate and the ratio (default 252 for daily data).
 
     Returns:
-        Sharpe ratio, or 0.0 if insufficient data or zero volatility.
+        Sharpe ratio, or 0.0 if insufficient data or zero volatility. A
+        single observation has an undefined standard deviation and yields
+        0.0 rather than NaN.
 
     Examples:
         >>> import pandas as pd
@@ -178,12 +189,15 @@ def calculate_sharpe_ratio(
 
     """
     returns = returns.dropna()
-    if len(returns) == 0 or returns.std() == 0:
+    if len(returns) == 0:
         return 0.0
-    excess = returns.mean() - risk_free_rate / 252
-    sharpe = excess / returns.std()
+    std = returns.std()
+    if not np.isfinite(std) or std == 0:
+        return 0.0
+    excess = returns.mean() - risk_free_rate / periods_per_year
+    sharpe = excess / std
     if annualize:
-        sharpe *= np.sqrt(252)
+        sharpe *= np.sqrt(periods_per_year)
     return float(sharpe)
 
 
@@ -191,6 +205,7 @@ def calculate_sortino_ratio(
     returns: pd.Series,
     risk_free_rate: float = 0.02,
     annualize: bool = True,
+    periods_per_year: int = 252,
 ) -> float:
     """Calculate Sortino ratio (uses downside deviation).
 
@@ -200,7 +215,9 @@ def calculate_sortino_ratio(
     Args:
         returns: Return series.
         risk_free_rate: Annual risk-free rate (default 0.02).
-        annualize: Whether to annualize using sqrt(252).
+        annualize: Whether to annualize using sqrt(periods_per_year).
+        periods_per_year: Number of periods per year used to annualize the
+            risk-free rate and the ratio (default 252 for daily data).
 
     Returns:
         Sortino ratio, or 0.0 if insufficient data or zero downside
@@ -220,12 +237,12 @@ def calculate_sortino_ratio(
     if len(downside) < 2:
         return 0.0
     downside_std = downside.std()
-    if downside_std == 0:
+    if not np.isfinite(downside_std) or downside_std == 0:
         return 0.0
-    excess = returns.mean() - risk_free_rate / 252
+    excess = returns.mean() - risk_free_rate / periods_per_year
     sortino = excess / downside_std
     if annualize:
-        sortino *= np.sqrt(252)
+        sortino *= np.sqrt(periods_per_year)
     return float(sortino)
 
 
@@ -293,6 +310,7 @@ def calculate_alpha(
     returns: pd.Series,
     market_returns: pd.Series,
     risk_free_rate: float = 0.02,
+    periods_per_year: int = 252,
 ) -> float:
     """Calculate Jensen's alpha.
 
@@ -304,6 +322,8 @@ def calculate_alpha(
         returns: Portfolio return series.
         market_returns: Benchmark return series.
         risk_free_rate: Annual risk-free rate (default 0.02).
+        periods_per_year: Number of periods per year used to annualize the
+            mean returns (default 252 for daily data).
 
     Returns:
         Annualized Jensen's alpha, or 0.0 when beta is undefined/zero.
@@ -319,12 +339,16 @@ def calculate_alpha(
     if len(aligned) < 2:  # pragma: no cover  (beta != 0 implies >= 2 aligned points)
         return 0.0
 
-    avg_return = float(aligned.iloc[:, 0].mean() * 252)
-    avg_market = float(aligned.iloc[:, 1].mean() * 252)
+    avg_return = float(aligned.iloc[:, 0].mean() * periods_per_year)
+    avg_market = float(aligned.iloc[:, 1].mean() * periods_per_year)
     return float(avg_return - (risk_free_rate + beta * (avg_market - risk_free_rate)))
 
 
-def calculate_calmar_ratio(returns: pd.Series, equity_curve: pd.Series) -> float:
+def calculate_calmar_ratio(
+    returns: pd.Series,
+    equity_curve: pd.Series,
+    periods_per_year: int = 252,
+) -> float:
     """Calculate Calmar ratio (annual return / max drawdown).
 
     The Calmar ratio measures risk-adjusted performance as annualized
@@ -333,6 +357,8 @@ def calculate_calmar_ratio(returns: pd.Series, equity_curve: pd.Series) -> float
     Args:
         returns: Return series.
         equity_curve: Equity curve series.
+        periods_per_year: Number of periods per year used to annualize the
+            return (default 252 for daily data).
 
     Returns:
         Calmar ratio, or 0.0 if insufficient data or zero drawdown.
@@ -348,7 +374,7 @@ def calculate_calmar_ratio(returns: pd.Series, equity_curve: pd.Series) -> float
     returns = returns.dropna()
     if len(returns) == 0:
         return 0.0
-    annual_return = returns.mean() * 252
+    annual_return = returns.mean() * periods_per_year
     max_dd = calculate_max_drawdown(equity_curve)
     if max_dd == 0:
         return 0.0
@@ -359,6 +385,7 @@ def calculate_all_metrics(
     equity_curve: pd.Series,
     market_returns: pd.Series | None = None,
     risk_free_rate: float = 0.02,
+    periods_per_year: int = 252,
 ) -> RiskMetrics:
     """Calculate all risk metrics from an equity curve.
 
@@ -370,6 +397,8 @@ def calculate_all_metrics(
         equity_curve: Equity curve series (cumulative value).
         market_returns: Optional benchmark return series for beta/alpha.
         risk_free_rate: Annual risk-free rate (default 0.02).
+        periods_per_year: Number of periods per year used for annualization
+            (default 252 for daily data).
 
     Returns:
         RiskMetrics object containing calculated values.
@@ -386,17 +415,25 @@ def calculate_all_metrics(
     returns = calculate_returns(equity_curve)
 
     metrics = RiskMetrics(
-        sharpe_ratio=calculate_sharpe_ratio(returns, risk_free_rate),
-        sortino_ratio=calculate_sortino_ratio(returns, risk_free_rate),
+        sharpe_ratio=calculate_sharpe_ratio(
+            returns, risk_free_rate, periods_per_year=periods_per_year
+        ),
+        sortino_ratio=calculate_sortino_ratio(
+            returns, risk_free_rate, periods_per_year=periods_per_year
+        ),
         max_drawdown=calculate_max_drawdown(equity_curve),
-        volatility=calculate_volatility(returns),
+        volatility=calculate_volatility(returns, periods_per_year=periods_per_year),
         var_95=calculate_var(returns, 0.95),
         var_99=calculate_var(returns, 0.99),
-        calmar_ratio=calculate_calmar_ratio(returns, equity_curve),
+        calmar_ratio=calculate_calmar_ratio(
+            returns, equity_curve, periods_per_year=periods_per_year
+        ),
     )
 
     if market_returns is not None:
         metrics.beta = calculate_beta(returns, market_returns)
-        metrics.alpha = calculate_alpha(returns, market_returns, risk_free_rate)
+        metrics.alpha = calculate_alpha(
+            returns, market_returns, risk_free_rate, periods_per_year=periods_per_year
+        )
 
     return metrics

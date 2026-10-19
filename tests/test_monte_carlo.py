@@ -76,6 +76,24 @@ def test_run_monte_carlo_convenience_function():
     assert sim.duration_seconds >= 0.0
 
 
+def test_monte_carlo_periods_per_year_annualizes_simulated_metrics():
+    """The simulated metrics must be annualized with the requested period count."""
+    result = _make_result()
+    daily = run_monte_carlo(result, n_simulations=10, random_state=7, periods_per_year=252)
+    monthly = run_monte_carlo(result, n_simulations=10, random_state=7, periods_per_year=12)
+
+    assert daily.simulations[0].volatility != pytest.approx(monthly.simulations[0].volatility)
+    assert daily.simulations[0].sharpe_ratio != pytest.approx(monthly.simulations[0].sharpe_ratio)
+
+
+def test_monte_carlo_simulator_stores_periods_per_year():
+    result = _make_result()
+    simulator = MonteCarloSimulator(n_simulations=5, random_state=7, periods_per_year=52)
+    assert simulator.periods_per_year == 52
+    sim = simulator.run(result, method="parametric")
+    assert len(sim.simulations) == 5
+
+
 def test_monte_carlo_reproducible_with_seed():
     result = _make_result()
     a = run_monte_carlo(result, n_simulations=30, random_state=123)

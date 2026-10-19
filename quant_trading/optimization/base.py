@@ -515,6 +515,7 @@ class BaseOptimizer(ABC):
         data_manager: Optional data manager.
         config: Optional config.
         n_jobs: Number of parallel jobs.
+        periods_per_year: Trading periods per year used for annualization.
         verbose: Whether to print progress.
 
     Examples:
@@ -543,6 +544,7 @@ class BaseOptimizer(ABC):
         data_manager: Any | None = None,
         config: Any | None = None,
         n_jobs: int = 1,
+        periods_per_year: int = 252,
         verbose: bool = False,
     ):
         """Initialize the base optimizer.
@@ -561,6 +563,9 @@ class BaseOptimizer(ABC):
             data_manager: Optional data manager.
             config: Optional config.
             n_jobs: Number of parallel jobs.
+            periods_per_year: Trading periods per year used to annualize the
+                return, volatility, Sharpe, Sortino and Calmar metrics
+                (default 252 for daily data).
             verbose: Whether to print progress.
 
         """
@@ -577,6 +582,7 @@ class BaseOptimizer(ABC):
         self.data_manager = data_manager
         self.config = config
         self.n_jobs = n_jobs
+        self.periods_per_year = periods_per_year
         self.verbose = verbose
 
     @abstractmethod
@@ -640,6 +646,7 @@ class BaseOptimizer(ABC):
             interval=self.interval,
             data_manager=self.data_manager,
             config=self.config,
+            periods_per_year=self.periods_per_year,
         )
 
     def _evaluate_params(

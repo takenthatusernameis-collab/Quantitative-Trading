@@ -15,6 +15,7 @@ from examples.cli import (
     list_strategies,
     main,
     parse_args,
+    resolve_periods_per_year,
     run_combined,
 )
 from quant_trading.config.settings import Config
@@ -2089,6 +2090,118 @@ class TestSaveStrategyConfig:
         assert isinstance(strategy, MovingAverageCrossover)
         assert strategy.fast_period == 5
         assert strategy.slow_period == 25
+
+
+class TestResolvePeriodsPerYear:
+    """Tests for the resolve_periods_per_year helper."""
+
+    def test_daily_interval(self):
+        assert resolve_periods_per_year("1d") == 252
+
+    def test_weekly_interval(self):
+        assert resolve_periods_per_year("1wk") == 52
+        assert resolve_periods_per_year("1w") == 52
+
+    def test_monthly_interval(self):
+        assert resolve_periods_per_year("1mo") == 12
+
+    def test_intraday_interval(self):
+        """Intraday intervals scale the daily count by the bar duration."""
+        assert resolve_periods_per_year("5m") == 390 * 252 // 5
+        assert resolve_periods_per_year("1h") == 390 * 252 // 60
+
+    def test_unknown_interval_falls_back_to_daily(self):
+        assert resolve_periods_per_year("unknown") == 252
+        assert resolve_periods_per_year("") == 252
+
+    def test_override_takes_precedence(self):
+        assert resolve_periods_per_year("1d", override=12) == 12
+        assert resolve_periods_per_year("5m", override=252) == 252
+
+    def test_case_and_whitespace_insensitive(self):
+        assert resolve_periods_per_year(" 1D ") == 252
+        assert resolve_periods_per_year("WEEKLY") == 52
+
+
+class TestPeriodsPerYearFlag:
+    """Tests for the --periods-per-year CLI flag and its config wiring."""
+
+    def test_default_flag_is_unset(self):
+        with patch("sys.argv", ["cli.py"]):
+            args = parse_args()
+        assert args.periods_per_year is None
+
+    def test_explicit_flag(self):
+        with patch("sys.argv", ["cli.py", "--periods-per-year", "52"]):
+            args = parse_args()
+        assert args.periods_per_year == 52
+
+    def test_create_config_derives_periods_from_interval(self):
+        args = argparse.Namespace(
+            config=None,
+            offline=False,
+            provider=None,
+            cache_dir=None,
+            synthetic_days=None,
+            synthetic_seed=None,
+            alphavantage_key=None,
+            risk_free_rate=None,
+            interval="1wk",
+            periods_per_year=None,
+        )
+        config = create_config(args)
+        assert config.backtest.periods_per_year == 52
+
+    def test_create_config_explicit_periods_win(self):
+        args = argparse.Namespace(
+            config=None,
+            offline=False,
+            provider=None,
+            cache_dir=None,
+            synthetic_days=None,
+            synthetic_seed=None,
+            alphavantage_key=None,
+            risk_free_rate=None,
+            interval="1wk",
+            periods_per_year=252,
+        )
+        config = create_config(args)
+        assert config.backtest.periods_per_year == 252
+
+    def test_create_config_synthetic_provider_stays_daily(self):
+        """The synthetic provider always emits daily bars, so annualize daily."""
+        args = argparse.Namespace(
+            config=None,
+            offline=True,
+            provider=None,
+            cache_dir=None,
+            synthetic_days=None,
+            synthetic_seed=None,
+            alphavantage_key=None,
+            risk_free_rate=None,
+            interval="1wk",
+            periods_per_year=None,
+        )
+        config = create_config(args)
+        assert config.data.provider == "synthetic"
+        assert config.backtest.periods_per_year == 252
+
+    def test_create_config_synthetic_provider_respects_override(self):
+        """An explicit override still wins for the synthetic provider."""
+        args = argparse.Namespace(
+            config=None,
+            offline=True,
+            provider=None,
+            cache_dir=None,
+            synthetic_days=None,
+            synthetic_seed=None,
+            alphavantage_key=None,
+            risk_free_rate=None,
+            interval="1wk",
+            periods_per_year=52,
+        )
+        config = create_config(args)
+        assert config.backtest.periods_per_year == 52
 
 
 if __name__ == "__main__":

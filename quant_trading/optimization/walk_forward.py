@@ -329,6 +329,7 @@ class WalkForwardOptimizer:
         anchored: bool = True,
         optimizer: str = "grid",
         optimizer_kwargs: dict[str, Any] | None = None,
+        periods_per_year: int = 252,
         verbose: bool = False,
     ):
         """Initialize walk-forward optimizer.
@@ -353,6 +354,9 @@ class WalkForwardOptimizer:
                       If False, training window slides (rolling walk-forward).
             optimizer: Optimizer type ("grid" or "random").
             optimizer_kwargs: Additional kwargs for optimizer.
+            periods_per_year: Trading periods per year used to annualize the
+                return, volatility, Sharpe, Sortino and Calmar metrics
+                (default 252 for daily data).
             verbose: Print progress.
 
         """
@@ -373,6 +377,7 @@ class WalkForwardOptimizer:
         self.anchored = anchored
         self.optimizer_type = optimizer
         self.optimizer_kwargs = optimizer_kwargs or {}
+        self.periods_per_year = periods_per_year
         self.verbose = verbose
 
         if step_size is None:
@@ -418,6 +423,7 @@ class WalkForwardOptimizer:
                 interval=self.interval,
                 data_manager=self.data_manager,
                 config=self.config,
+                periods_per_year=self.periods_per_year,
                 verbose=self.verbose,
                 **self.optimizer_kwargs,
             )
@@ -435,6 +441,7 @@ class WalkForwardOptimizer:
                 interval=self.interval,
                 data_manager=self.data_manager,
                 config=self.config,
+                periods_per_year=self.periods_per_year,
                 verbose=self.verbose,
                 **self.optimizer_kwargs,
             )
@@ -452,6 +459,7 @@ class WalkForwardOptimizer:
                 interval=self.interval,
                 data_manager=self.data_manager,
                 config=self.config,
+                periods_per_year=self.periods_per_year,
                 verbose=self.verbose,
                 **self.optimizer_kwargs,
             )
@@ -602,6 +610,7 @@ class WalkForwardOptimizer:
                     interval=self.interval,
                     data_manager=self.data_manager,
                     config=self.config,
+                    periods_per_year=self.periods_per_year,
                 )
                 window.test_result = test_result
 
@@ -699,6 +708,7 @@ class WalkForwardOptimizer:
             combined_equity,
             combined_trades,
             risk_free_rate=0.02,
+            periods_per_year=self.periods_per_year,
         )
 
         return BacktestResult(

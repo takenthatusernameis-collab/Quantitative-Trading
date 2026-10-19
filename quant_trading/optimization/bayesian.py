@@ -150,6 +150,7 @@ class BayesianOptimizer(BaseOptimizer):
         acq_func: str = "EI",
         acq_optimizer: str = "auto",
         random_state: int | None = None,
+        periods_per_year: int = 252,
         verbose: bool = False,
     ):
         """Initialize the Bayesian optimizer.
@@ -173,6 +174,8 @@ class BayesianOptimizer(BaseOptimizer):
             acq_func: Acquisition function name.
             acq_optimizer: Acquisition optimizer name.
             random_state: Seed for reproducibility.
+            periods_per_year: Trading periods per year used to annualize the
+                return, volatility, Sharpe, Sortino and Calmar metrics.
             verbose: Whether to print progress.
 
         Raises:
@@ -205,6 +208,7 @@ class BayesianOptimizer(BaseOptimizer):
             interval=interval,
             data_manager=data_manager,
             config=config,
+            periods_per_year=periods_per_year,
             verbose=verbose,
         )
 

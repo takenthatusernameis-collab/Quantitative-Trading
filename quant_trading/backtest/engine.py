@@ -414,6 +414,7 @@ class BacktestEngine:
             equity_series,
             trades_df,
             risk_free_rate=self.config.risk_free_rate,
+            periods_per_year=self.config.periods_per_year,
         )
 
         return BacktestResult(
@@ -541,6 +542,7 @@ def run_backtest(
     interval: str = "1d",
     data_manager: DataManager | None = None,
     config: Config | DataConfig | None = None,
+    periods_per_year: int = 252,
 ) -> BacktestResult:
     """Run a single strategy backtest.
 
@@ -549,9 +551,9 @@ def run_backtest(
         symbols: List of symbols to trade.
         start: Start date for backtest.
         end: End date for backtest.
-        initial_capital: Initial capital (default: 100000.0).
-        commission: Commission rate (default: 0.001).
-        slippage: Slippage rate (default: 0.0005).
+        initial_capital: Initial capital (default 100000.0).
+        commission: Commission rate (default 0.001).
+        slippage: Slippage rate (default 0.0005).
         interval: Data interval (default: "1d").
         data_manager: Optional DataManager for offline/testing. If not provided
             and no config is given, a shared default DataManager with
@@ -559,6 +561,9 @@ def run_backtest(
         config: Optional Config or DataConfig. If provided, a DataManager will
             be created from the config (supporting offline/synthetic modes).
             Takes precedence over data_manager if both are provided.
+        periods_per_year: Trading periods per year used to annualize the
+            return, volatility, Sharpe, Sortino and Calmar metrics
+            (default 252 for daily data).
 
     Returns:
         BacktestResult containing equity curve, trades, metrics, and metadata.
@@ -599,6 +604,7 @@ def run_backtest(
         initial_capital=initial_capital,
         commission=commission,
         slippage=slippage,
+        periods_per_year=periods_per_year,
     )
 
     if data_manager is None:

@@ -110,6 +110,9 @@ class BacktestConfig:
         slippage: Slippage rate applied to each fill (as a fraction of
             trade value).
         risk_free_rate: Risk-free rate used for risk-adjusted metrics.
+        periods_per_year: Number of trading periods per year used to annualize
+            the return, volatility, Sharpe, Sortino and Calmar metrics
+            (252 for daily data, 52 for weekly, 12 for monthly).
         halt_on_portfolio_violation: When True, stop the backtest if the
             portfolio breaches a configured risk limit.
 
@@ -127,6 +130,7 @@ class BacktestConfig:
     commission: float = 0.001
     slippage: float = 0.0005
     risk_free_rate: float = 0.02
+    periods_per_year: int = 252
     halt_on_portfolio_violation: bool = False
 
 

@@ -157,6 +157,7 @@ class GridSearch(BaseOptimizer):
         data_manager: Any | None = None,
         config: Any | None = None,
         n_jobs: int = 1,
+        periods_per_year: int = 252,
         verbose: bool = False,
     ) -> None:
         """Initialize the grid search optimizer.
@@ -166,7 +167,7 @@ class GridSearch(BaseOptimizer):
         method for the full parameter list (``strategy_cls``, ``param_grid``,
         ``objective``, ``symbols``, ``start``, ``end``, ``initial_capital``,
         ``commission``, ``slippage``, ``interval``, ``data_manager``,
-        ``config``, ``n_jobs``, ``verbose``).
+        ``config``, ``n_jobs``, ``periods_per_year``, ``verbose``).
 
         After delegating to the base class, the full Cartesian product of the
         parameter grid is pre-computed and stored on ``self._combinations``.
@@ -185,6 +186,8 @@ class GridSearch(BaseOptimizer):
             data_manager: Optional data manager.
             config: Optional config.
             n_jobs: Number of parallel jobs.
+            periods_per_year: Trading periods per year used to annualize the
+                return, volatility, Sharpe, Sortino and Calmar metrics.
             verbose: Whether to print progress.
 
         """
@@ -202,6 +205,7 @@ class GridSearch(BaseOptimizer):
             data_manager=data_manager,
             config=config,
             n_jobs=n_jobs,
+            periods_per_year=periods_per_year,
             verbose=verbose,
         )
         self._combinations = self.param_grid.generate_combinations()

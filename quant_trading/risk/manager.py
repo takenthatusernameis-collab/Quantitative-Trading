@@ -271,11 +271,17 @@ class RiskManager:
 
         return result
 
-    def calculate_metrics(self, market_returns: pd.Series | None = None) -> RiskMetrics:
+    def calculate_metrics(
+        self,
+        market_returns: pd.Series | None = None,
+        periods_per_year: int = 252,
+    ) -> RiskMetrics:
         """Calculate current risk metrics from equity curve.
 
         Args:
             market_returns: Optional benchmark returns for beta/alpha.
+            periods_per_year: Number of periods per year used for annualization
+                (default 252 for daily data).
 
         Returns:
             Computed RiskMetrics object.
@@ -286,6 +292,7 @@ class RiskManager:
             equity_series,
             market_returns=market_returns,
             risk_free_rate=0.02,
+            periods_per_year=periods_per_year,
         )
         return self.risk_metrics
 

@@ -8,6 +8,7 @@ Additional feature:
 """
 
 import argparse
+import re
 from datetime import datetime, timedelta
 
 from quant_trading.backtest.engine import run_backtest
@@ -60,6 +61,72 @@ PROVIDERS = {
     "alphavantage": ("AlphaVantageProvider", "Alpha Vantage (requires API key)"),
     "synthetic": ("SyntheticDataProvider", "Synthetic data generator (offline, deterministic)"),
 }
+
+# Trading periods per year for each supported bar frequency. Used to
+# annualize return, volatility, Sharpe, Sortino and Calmar metrics.
+INTERVAL_PERIODS_PER_YEAR = {
+    "1d": 252,
+    "d": 252,
+    "day": 252,
+    "daily": 252,
+    "1w": 52,
+    "1wk": 52,
+    "w": 52,
+    "wk": 52,
+    "week": 52,
+    "weekly": 52,
+    "1mo": 12,
+    "mo": 12,
+    "month": 12,
+    "monthly": 12,
+}
+
+# Minutes in a standard US equity trading session (6.5 hours), used to
+# annualize intraday intervals.
+MINUTES_PER_TRADING_DAY = 390
+
+
+def resolve_periods_per_year(interval: str, override: int | None = None) -> int:
+    """Resolve the number of trading periods per year for a data interval.
+
+    Args:
+        interval: Data interval string (e.g. ``"1d"``, ``"1wk"``, ``"5m"``).
+        override: Explicit value that takes precedence when not ``None``.
+
+    Returns:
+        Number of periods per year to use for annualization. Falls back to
+        252 (daily) for unrecognized intervals.
+
+    Examples:
+        >>> resolve_periods_per_year("1d")
+        252
+        >>> resolve_periods_per_year("1wk")
+        52
+        >>> resolve_periods_per_year("1d", override=12)
+        12
+
+    """
+    if override is not None:
+        return override
+
+    key = (interval or "").strip().lower()
+    if key in INTERVAL_PERIODS_PER_YEAR:
+        return INTERVAL_PERIODS_PER_YEAR[key]
+
+    match = re.fullmatch(r"(\d+)\s*(m|min|mins|minute|minutes)", key)
+    if match:
+        minutes = int(match.group(1))
+        if minutes > 0:
+            return max(1, MINUTES_PER_TRADING_DAY * 252 // minutes)
+
+    match = re.fullmatch(r"(\d+)\s*(h|hr|hrs|hour|hours)", key)
+    if match:
+        hours = int(match.group(1))
+        if hours > 0:
+            return max(1, MINUTES_PER_TRADING_DAY * 252 // (hours * 60))
+
+    return 252
+
 
 OBJECTIVES = {
     "sharpe": maximize_sharpe,
@@ -184,6 +251,17 @@ def parse_args() -> argparse.Namespace:
         "--interval",
         default="1d",
         help="Data interval",
+    )
+    parser.add_argument(
+        "--periods-per-year",
+        type=int,
+        default=None,
+        help=(
+            "Trading periods per year used to annualize return, volatility, "
+            "Sharpe, Sortino and Calmar metrics. Defaults to a value derived "
+            "from --interval (252 daily, 52 weekly, 12 monthly, and "
+            "252 * 390 / bar-minutes for intraday intervals)."
+        ),
     )
 
     parser.add_argument(
@@ -936,6 +1014,13 @@ def create_config(args: argparse.Namespace) -> Config:
     if args.risk_free_rate is not None:
         config.backtest.risk_free_rate = args.risk_free_rate
 
+    # The synthetic provider always emits daily bars regardless of --interval,
+    # so daily annualization is the only correct choice for offline runs.
+    interval = "1d" if config.data.provider == "synthetic" else getattr(args, "interval", "1d")
+    config.backtest.periods_per_year = resolve_periods_per_year(
+        interval, getattr(args, "periods_per_year", None)
+    )
+
     return config
 
 
@@ -1219,6 +1304,7 @@ def run_optimization(
             config=config,
             n_iter=args.n_iter,
             n_jobs=args.n_jobs,
+            periods_per_year=config.backtest.periods_per_year,
             verbose=True,
         )
     elif args.optimizer == "bayesian":
@@ -1238,6 +1324,7 @@ def run_optimization(
             n_calls=args.n_iter,
             acq_func=args.bayesian_acq_func,
             acq_optimizer=args.bayesian_acq_optimizer,
+            periods_per_year=config.backtest.periods_per_year,
             verbose=True,
         )
     else:
@@ -1254,6 +1341,7 @@ def run_optimization(
             interval=args.interval,
             config=config,
             n_jobs=args.n_jobs,
+            periods_per_year=config.backtest.periods_per_year,
             verbose=True,
         )
 
@@ -1383,6 +1471,7 @@ def run_walk_forward(
         anchored=args.wf_anchored,
         optimizer=args.wf_optimizer,
         optimizer_kwargs=optimizer_kwargs,
+        periods_per_year=config.backtest.periods_per_year,
         verbose=True,
     )
 
@@ -1491,14 +1580,23 @@ def _print_regime_analysis(analysis) -> None:
             )
 
 
-def _get_monte_carlo_analysis(result, args: argparse.Namespace):
-    """Get Monte Carlo simulation results for a backtest's equity curve."""
+def _get_monte_carlo_analysis(result, args: argparse.Namespace, periods_per_year: int = 252):
+    """Get Monte Carlo simulation results for a backtest's equity curve.
+
+    Args:
+        result: Backtest result whose equity curve is resampled.
+        args: Parsed CLI arguments.
+        periods_per_year: Trading periods per year of the resampled returns,
+            used to annualize the simulated metrics.
+
+    """
     mc = run_monte_carlo(
         result,
         n_simulations=args.mc_simulations,
         confidence_level=args.mc_confidence,
         method=args.mc_method,
         random_state=args.mc_seed,
+        periods_per_year=periods_per_year,
     )
     # Store method for printing
     try:
@@ -1638,6 +1736,7 @@ def main() -> int:
             slippage=args.slippage,
             interval=args.interval,
             config=config,
+            periods_per_year=config.backtest.periods_per_year,
         )
 
         print(f"\n{'=' * 60}")
@@ -1661,7 +1760,9 @@ def main() -> int:
             _print_regime_analysis(regime_analysis)
 
         if args.monte_carlo:
-            mc_analysis = _get_monte_carlo_analysis(result, args)
+            mc_analysis = _get_monte_carlo_analysis(
+                result, args, periods_per_year=config.backtest.periods_per_year
+            )
             _print_monte_carlo_analysis(mc_analysis)
 
         if args.trade_analysis:
@@ -1763,6 +1864,7 @@ def run_combined(
                 slippage=args.slippage,
                 interval=args.interval,
                 config=config,
+                periods_per_year=config.backtest.periods_per_year,
             )
             results.append((strategy.name, result))
             print(

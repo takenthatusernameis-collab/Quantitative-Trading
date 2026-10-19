@@ -101,6 +101,20 @@ class TestCalculateVolatility:
         assert not np.isnan(result)
         assert result == pytest.approx(0.0)
 
+    def test_periods_per_year_scales_annualization(self):
+        """Annualized volatility must scale with the requested periods per year."""
+        raw = calculate_volatility(RETURNS, annualize=False)
+        weekly = calculate_volatility(RETURNS, annualize=True, periods_per_year=52)
+        assert weekly == pytest.approx(raw * np.sqrt(52))
+        assert weekly != pytest.approx(raw * np.sqrt(252))
+
+    def test_periods_per_year_ignored_when_not_annualizing(self):
+        """The raw (non-annualized) volatility is independent of periods_per_year."""
+        raw = calculate_volatility(RETURNS, annualize=False)
+        assert calculate_volatility(RETURNS, annualize=False, periods_per_year=52) == pytest.approx(
+            raw
+        )
+
 
 class TestCalculateMaxDrawdown:
     """Tests for calculate_max_drawdown."""
@@ -155,6 +169,24 @@ class TestCalculateSharpeRatio:
         flat = pd.Series([0.01, 0.01, 0.01])
         assert calculate_sharpe_ratio(flat) == pytest.approx(0.0)
 
+    def test_single_observation_no_nan(self):
+        """A single return has undefined std; must not propagate NaN."""
+        result = calculate_sharpe_ratio(pd.Series([0.01]))
+        assert not np.isnan(result)
+        assert result == pytest.approx(0.0)
+
+    def test_periods_per_year_used_for_risk_free_and_scaling(self):
+        """The annual risk-free rate and the sqrt scaling must use periods_per_year."""
+        expected = (RETURNS.mean() - 0.02 / 52) / RETURNS.std() * np.sqrt(52)
+        sharpe = calculate_sharpe_ratio(RETURNS, risk_free_rate=0.02, periods_per_year=52)
+        assert sharpe == pytest.approx(expected)
+
+    def test_periods_per_year_differs_from_default(self):
+        """A non-daily annualization period must change the Sharpe ratio."""
+        daily = calculate_sharpe_ratio(RETURNS, risk_free_rate=0.02)
+        monthly = calculate_sharpe_ratio(RETURNS, risk_free_rate=0.02, periods_per_year=12)
+        assert monthly != pytest.approx(daily)
+
 
 class TestCalculateSortinoRatio:
     """Tests for calculate_sortino_ratio."""
@@ -188,6 +220,13 @@ class TestCalculateSortinoRatio:
         non_annual = calculate_sortino_ratio(RETURNS, risk_free_rate=0.02, annualize=False)
         annual = calculate_sortino_ratio(RETURNS, risk_free_rate=0.02, annualize=True)
         assert non_annual == pytest.approx(annual / np.sqrt(252))
+
+    def test_periods_per_year_used_for_risk_free_and_scaling(self):
+        """The annual risk-free rate and the sqrt scaling must use periods_per_year."""
+        downside = RETURNS[RETURNS < 0]
+        expected = (RETURNS.mean() - 0.02 / 52) / downside.std() * np.sqrt(52)
+        sortino = calculate_sortino_ratio(RETURNS, risk_free_rate=0.02, periods_per_year=52)
+        assert sortino == pytest.approx(expected)
 
 
 class TestCalculateVar:
@@ -248,6 +287,13 @@ class TestCalculateAlpha:
         constant = pd.Series([1.0, 1.0, 1.0, 1.0, 1.0])
         assert calculate_alpha(RETURNS, constant) == pytest.approx(0.0)
 
+    def test_alpha_periods_per_year_scales_annualization(self):
+        """Alpha annualization must follow the requested periods per year."""
+        beta = calculate_beta(RETURNS, MARKET_RETURNS)
+        expected = RETURNS.mean() * 12 - (0.02 + beta * (MARKET_RETURNS.mean() * 12 - 0.02))
+        alpha = calculate_alpha(RETURNS, MARKET_RETURNS, risk_free_rate=0.02, periods_per_year=12)
+        assert alpha == pytest.approx(expected)
+
 
 class TestCalculateCalmarRatio:
     """Tests for calculate_calmar_ratio."""
@@ -265,6 +311,13 @@ class TestCalculateCalmarRatio:
     def test_calmar_empty_returns_zero(self):
         equity = pd.Series([100.0])
         assert calculate_calmar_ratio(pd.Series([], dtype=float), equity) == pytest.approx(0.0)
+
+    def test_calmar_periods_per_year_scales_annual_return(self):
+        """The annualized return in the Calmar ratio must follow periods_per_year."""
+        equity = pd.Series([100.0, 110.0, 90.0, 95.0])
+        expected = (RETURNS.mean() * 12) / abs(calculate_max_drawdown(equity))
+        calmar = calculate_calmar_ratio(RETURNS, equity, periods_per_year=12)
+        assert calmar == pytest.approx(expected)
 
 
 class TestRiskMetricsDataclass:
@@ -337,6 +390,45 @@ class TestCalculateAllMetrics:
             calculate_returns(equity), calculate_returns(market), risk_free_rate=0.02
         )
         assert metrics.alpha == pytest.approx(expected_alpha)
+
+    def test_periods_per_year_threaded_to_every_metric(self):
+        """calculate_all_metrics must use the requested periods per year everywhere."""
+        equity = pd.Series([100.0, 105.0, 110.0, 108.0, 115.0, 112.0, 120.0])
+        returns = calculate_returns(equity)
+        market = pd.Series([100.0, 102.0, 104.0, 103.0, 107.0, 109.0, 111.0])
+        metrics = calculate_all_metrics(
+            equity,
+            market_returns=calculate_returns(market),
+            risk_free_rate=0.02,
+            periods_per_year=52,
+        )
+        assert metrics.volatility == pytest.approx(
+            calculate_volatility(returns, periods_per_year=52)
+        )
+        assert metrics.sharpe_ratio == pytest.approx(
+            calculate_sharpe_ratio(returns, risk_free_rate=0.02, periods_per_year=52)
+        )
+        assert metrics.sortino_ratio == pytest.approx(
+            calculate_sortino_ratio(returns, risk_free_rate=0.02, periods_per_year=52)
+        )
+        assert metrics.calmar_ratio == pytest.approx(
+            calculate_calmar_ratio(returns, equity, periods_per_year=52)
+        )
+        assert metrics.alpha == pytest.approx(
+            calculate_alpha(
+                returns, calculate_returns(market), risk_free_rate=0.02, periods_per_year=52
+            )
+        )
+
+    def test_default_periods_per_year_matches_daily_annualization(self):
+        """The default (252) must reproduce the documented daily annualization."""
+        equity = pd.Series([100.0, 105.0, 110.0, 108.0, 115.0, 112.0, 120.0])
+        returns = calculate_returns(equity)
+        metrics = calculate_all_metrics(equity, risk_free_rate=0.02)
+        assert metrics.volatility == pytest.approx(returns.std() * np.sqrt(252))
+        assert metrics.sharpe_ratio == pytest.approx(
+            calculate_sharpe_ratio(returns, risk_free_rate=0.02, periods_per_year=252)
+        )
 
 
 if __name__ == "__main__":

@@ -261,6 +261,35 @@ def test_grid_search():
     assert len(result.all_results) == 4
 
 
+def test_grid_search_periods_per_year_is_threaded():
+    """The optimizer must annualize its backtests with the requested period count."""
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[2], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[3], param_type=int))
+
+    def _score(periods_per_year: int) -> float:
+        optimizer = GridSearch(
+            strategy_cls=MovingAverageCrossover,
+            param_grid=param_grid,
+            objective=maximize_sharpe,
+            symbols=symbols,
+            start=datetime.now() - timedelta(days=50),
+            end=datetime.now(),
+            initial_capital=100000.0,
+            data_manager=data_manager,
+            periods_per_year=periods_per_year,
+            verbose=False,
+        )
+        return optimizer.run().best_score
+
+    assert _score(12) != pytest.approx(_score(252))
+
+
 def test_random_search():
     """Test RandomSearch optimization."""
     symbols = ["AAPL"]

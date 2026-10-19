@@ -153,7 +153,9 @@ def calculate_backtest_metrics(
             to populate trade statistics.
         risk_free_rate: Annual risk-free rate used for Sharpe/Sortino.
         periods_per_year: Trading periods per year for annualization
-            (default 252 for daily data).
+            (default 252 for daily data). The same value is applied to the
+            annualized return, volatility, Sharpe, Sortino and Calmar
+            figures so the metrics stay mutually consistent.
 
     Returns:
         BacktestMetrics object populated with the computed values.
@@ -186,12 +188,18 @@ def calculate_backtest_metrics(
     if len(returns) > 0:
         metrics.annual_return = returns.mean() * periods_per_year
         metrics.annual_return_pct = metrics.annual_return * 100
-        metrics.volatility = calculate_volatility(returns)
+        metrics.volatility = calculate_volatility(returns, periods_per_year=periods_per_year)
         metrics.max_drawdown = calculate_max_drawdown(equity_curve)
         metrics.max_drawdown_pct = metrics.max_drawdown * 100
-        metrics.sharpe_ratio = calculate_sharpe_ratio(returns, risk_free_rate)
-        metrics.sortino_ratio = calculate_sortino_ratio(returns, risk_free_rate)
-        metrics.calmar_ratio = calculate_calmar_ratio(returns, equity_curve)
+        metrics.sharpe_ratio = calculate_sharpe_ratio(
+            returns, risk_free_rate, periods_per_year=periods_per_year
+        )
+        metrics.sortino_ratio = calculate_sortino_ratio(
+            returns, risk_free_rate, periods_per_year=periods_per_year
+        )
+        metrics.calmar_ratio = calculate_calmar_ratio(
+            returns, equity_curve, periods_per_year=periods_per_year
+        )
         metrics.var_95 = calculate_var(returns, 0.95)
 
     # Trade statistics

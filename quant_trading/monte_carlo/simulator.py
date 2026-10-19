@@ -276,6 +276,7 @@ class MonteCarloSimulator:
         n_simulations: int = 1000,
         confidence_level: float = 0.95,
         random_state: int | None = None,
+        periods_per_year: int = 252,
     ):
         """Initialize the Monte Carlo simulator.
 
@@ -283,11 +284,15 @@ class MonteCarloSimulator:
             n_simulations: Number of simulations to run.
             confidence_level: Confidence level for intervals (default 0.95).
             random_state: Random seed for reproducibility.
+            periods_per_year: Trading periods per year of the resampled
+                returns, used to annualize the simulated metrics (default 252
+                for daily data).
 
         """
         self.n_simulations = n_simulations
         self.confidence_level = confidence_level
         self.random_state = random_state
+        self.periods_per_year = periods_per_year
         self._rng = np.random.default_rng(random_state)
 
     def run(
@@ -389,7 +394,11 @@ class MonteCarloSimulator:
             # Calculate metrics
             from quant_trading.backtest.metrics import calculate_backtest_metrics
 
-            metrics = calculate_backtest_metrics(equity_series, risk_free_rate=0.02)
+            metrics = calculate_backtest_metrics(
+                equity_series,
+                risk_free_rate=0.02,
+                periods_per_year=self.periods_per_year,
+            )
             simulations.append(metrics)
 
         return simulations
@@ -435,7 +444,11 @@ class MonteCarloSimulator:
             # Calculate metrics
             from quant_trading.backtest.metrics import calculate_backtest_metrics
 
-            metrics = calculate_backtest_metrics(equity_series, risk_free_rate=0.02)
+            metrics = calculate_backtest_metrics(
+                equity_series,
+                risk_free_rate=0.02,
+                periods_per_year=self.periods_per_year,
+            )
             simulations.append(metrics)
 
         return simulations
@@ -447,6 +460,7 @@ def run_monte_carlo(
     confidence_level: float = 0.95,
     method: str = "bootstrap",
     random_state: int | None = None,
+    periods_per_year: int = 252,
 ) -> MonteCarloResult:
     """Run Monte Carlo simulation for a backtest result.
 
@@ -456,6 +470,9 @@ def run_monte_carlo(
         confidence_level: Confidence level for intervals.
         method: Simulation method ("bootstrap" or "parametric").
         random_state: Random seed for reproducibility.
+        periods_per_year: Trading periods per year of the resampled returns,
+            used to annualize the simulated metrics (default 252 for daily
+            data).
 
     Returns:
         MonteCarloResult with simulation statistics.
@@ -470,5 +487,6 @@ def run_monte_carlo(
         n_simulations=n_simulations,
         confidence_level=confidence_level,
         random_state=random_state,
+        periods_per_year=periods_per_year,
     )
     return simulator.run(result, method=method)

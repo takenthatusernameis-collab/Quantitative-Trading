@@ -4,6 +4,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from quant_trading.backtest.metrics import BacktestMetrics, calculate_backtest_metrics
 
@@ -208,3 +209,62 @@ class TestBacktestMetricsNanHandling:
             issubclass(w.category, RuntimeWarning) and "divide by zero" in str(w.message)
             for w in recorded
         )
+
+    def test_calculate_backtest_metrics_single_return_no_nan(self):
+        """A two-point equity curve yields a single return with undefined std.
+
+        The Sharpe ratio must be 0.0 rather than NaN.
+        """
+        equity_curve = pd.Series([100000, 101000])
+        metrics = calculate_backtest_metrics(equity_curve)
+        assert not np.isnan(metrics.sharpe_ratio)
+        assert metrics.sharpe_ratio == pytest.approx(0.0)
+
+
+class TestBacktestMetricsPeriodsPerYear:
+    """Test the ``periods_per_year`` annualization parameter."""
+
+    EQUITY = pd.Series([100.0, 102.0, 101.0, 104.0, 103.0, 106.0, 108.0])
+
+    def _returns(self):
+        return self.EQUITY.pct_change().dropna()
+
+    def test_periods_per_year_applies_to_every_annualized_metric(self):
+        """All annualized metrics must use the same periods_per_year value."""
+        returns = self._returns()
+        metrics = calculate_backtest_metrics(self.EQUITY, risk_free_rate=0.02, periods_per_year=12)
+
+        assert metrics.annual_return == pytest.approx(returns.mean() * 12)
+        assert metrics.annual_return_pct == pytest.approx(returns.mean() * 12 * 100)
+        assert metrics.volatility == pytest.approx(returns.std() * np.sqrt(12))
+        assert metrics.sharpe_ratio == pytest.approx(
+            (returns.mean() - 0.02 / 12) / returns.std() * np.sqrt(12)
+        )
+        downside = returns[returns < 0]
+        assert metrics.sortino_ratio == pytest.approx(
+            (returns.mean() - 0.02 / 12) / downside.std() * np.sqrt(12)
+        )
+        running_max = self.EQUITY.cummax()
+        max_dd = ((self.EQUITY - running_max) / running_max).min()
+        assert metrics.calmar_ratio == pytest.approx((returns.mean() * 12) / abs(max_dd))
+
+    def test_default_is_daily_annualization(self):
+        """The default periods_per_year (252) reproduces daily annualization."""
+        returns = self._returns()
+        metrics = calculate_backtest_metrics(self.EQUITY, risk_free_rate=0.02)
+
+        assert metrics.annual_return == pytest.approx(returns.mean() * 252)
+        assert metrics.volatility == pytest.approx(returns.std() * np.sqrt(252))
+        assert metrics.sharpe_ratio == pytest.approx(
+            (returns.mean() - 0.02 / 252) / returns.std() * np.sqrt(252)
+        )
+
+    def test_metrics_are_internally_consistent_across_periods(self):
+        """Changing only periods_per_year must not desynchronize the metrics."""
+        for periods in (12, 52, 252):
+            metrics = calculate_backtest_metrics(self.EQUITY, periods_per_year=periods)
+            returns = self._returns()
+            assert metrics.volatility == pytest.approx(returns.std() * np.sqrt(periods))
+            assert metrics.sharpe_ratio == pytest.approx(
+                (returns.mean() - 0.02 / periods) / returns.std() * np.sqrt(periods)
+            )

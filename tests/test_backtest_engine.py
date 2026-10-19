@@ -194,8 +194,63 @@ def test_mock_backtest_run():
     assert result.metrics is not None
 
 
+def test_engine_applies_config_periods_per_year():
+    """The engine must annualize metrics with the configured periods per year."""
+    symbols = ["AAPL"]
+    mock_data = create_synthetic_data(symbols, days=60)
+
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    start_date = datetime.now() - timedelta(days=50)
+    end_date = datetime.now()
+
+    def _run(periods_per_year: int):
+        config = BacktestConfig(initial_capital=100000.0, periods_per_year=periods_per_year)
+        engine = BacktestEngine(config=config, data_manager=data_manager)
+        engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=15, name="Test_MA"))
+        return engine.run(symbols, start_date, end_date, "1d")
+
+    daily = _run(252)
+    monthly = _run(12)
+
+    assert daily.metrics.volatility != pytest.approx(monthly.metrics.volatility)
+    assert daily.metrics.sharpe_ratio != pytest.approx(monthly.metrics.sharpe_ratio)
+
+    returns = daily.equity_curve.pct_change().dropna()
+    assert daily.metrics.volatility == pytest.approx(returns.std() * (252**0.5))
+    assert monthly.metrics.volatility == pytest.approx(returns.std() * (12**0.5))
+    assert monthly.metrics.annual_return == pytest.approx(returns.mean() * 12)
+
+
+def test_run_backtest_periods_per_year_argument():
+    """The run_backtest convenience function must expose periods_per_year."""
+    symbols = ["AAPL"]
+    mock_data = create_synthetic_data(symbols, days=60)
+
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    strategy = MovingAverageCrossover(fast_period=5, slow_period=15, name="Test_MA")
+
+    start_date = datetime.now() - timedelta(days=50)
+    end_date = datetime.now()
+
+    result = run_backtest(
+        strategy=strategy,
+        symbols=symbols,
+        start=start_date,
+        end=end_date,
+        data_manager=data_manager,
+        periods_per_year=12,
+    )
+
+    returns = result.equity_curve.pct_change().dropna()
+    assert result.metrics.annual_return == pytest.approx(returns.mean() * 12)
+    assert result.metrics.volatility == pytest.approx(returns.std() * (12**0.5))
+
+
 def test_run_backtest_convenience_function():
-    """Test the run_backtest convenience function with mock data."""
     symbols = ["AAPL"]
     mock_data = create_synthetic_data(symbols, days=60)
 

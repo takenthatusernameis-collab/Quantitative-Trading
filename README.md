@@ -168,6 +168,9 @@ python examples/cli.py --strategy rsi --symbols AAPL MSFT --days 180
 
 # Run with custom parameters
 python examples/cli.py --strategy bb --bb-period 20 --bb-std 2.5 --initial-capital 50000
+
+# Set the annualization period explicitly (defaults to a value derived from --interval)
+python examples/cli.py --offline --interval 1wk --periods-per-year 52
 ```
 
 ### Data Providers
@@ -660,6 +663,7 @@ backtest:
   commission: 0.001
   slippage: 0.0005
   risk_free_rate: 0.02
+  periods_per_year: 252
 
 risk:
   max_position_size: 0.1
@@ -683,6 +687,47 @@ Load in code:
 from quant_trading.config.settings import Config
 
 config = Config.from_yaml("config.yaml")
+```
+
+## Annualization Periods
+
+The return, volatility, Sharpe, Sortino, Calmar and alpha figures are
+annualized. `periods_per_year` controls how many periods make up a trading
+year and defaults to `252` (daily bars). Use `52` for weekly bars or `12`
+for monthly bars.
+
+The same value is applied to every annualized metric, so the figures stay
+mutually consistent:
+
+```python
+from quant_trading.backtest.metrics import calculate_backtest_metrics
+
+metrics = calculate_backtest_metrics(equity_curve, periods_per_year=52)
+```
+
+It is configurable at every layer:
+
+```python
+# Configuration file / dataclass
+config.backtest.periods_per_year = 52
+
+# Backtest engine and convenience function
+run_backtest(strategy, symbols, start, end, periods_per_year=52)
+BacktestEngine(config=BacktestConfig(periods_per_year=52)).run(symbols, start, end)
+
+# Optimizers and Monte Carlo simulation
+GridSearch(..., periods_per_year=52)
+WalkForwardOptimizer(..., periods_per_year=52)
+run_monte_carlo(result, periods_per_year=52)
+```
+
+The CLI derives the value from `--interval` (252 for daily, 52 for weekly,
+12 for monthly, and `252 * 390 / bar-minutes` for intraday intervals). Use
+`--periods-per-year` to override it:
+
+```bash
+python examples/cli.py --offline --interval 1wk
+python examples/cli.py --offline --interval 1wk --periods-per-year 52
 ```
 
 

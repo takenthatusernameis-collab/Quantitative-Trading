@@ -169,6 +169,7 @@ class RandomSearch(BaseOptimizer):
         data_manager: Any | None = None,
         config: Any | None = None,
         n_jobs: int = 1,
+        periods_per_year: int = 252,
         verbose: bool = False,
     ) -> None:
         """Initialize the random search optimizer.
@@ -178,7 +179,7 @@ class RandomSearch(BaseOptimizer):
         method for the full parameter list (``strategy_cls``, ``param_grid``,
         ``objective``, ``symbols``, ``start``, ``end``, ``initial_capital``,
         ``commission``, ``slippage``, ``interval``, ``data_manager``,
-        ``config``, ``n_jobs``, ``verbose``).
+        ``config``, ``n_jobs``, ``periods_per_year``, ``verbose``).
 
         Args:
             n_iter: Number of random parameter combinations to sample and
@@ -198,6 +199,8 @@ class RandomSearch(BaseOptimizer):
             data_manager: Optional data manager.
             config: Optional config.
             n_jobs: Number of parallel jobs.
+            periods_per_year: Trading periods per year used to annualize the
+                return, volatility, Sharpe, Sortino and Calmar metrics.
             verbose: Whether to print progress.
 
         """
@@ -217,6 +220,7 @@ class RandomSearch(BaseOptimizer):
             data_manager=data_manager,
             config=config,
             n_jobs=n_jobs,
+            periods_per_year=periods_per_year,
             verbose=verbose,
         )
         self.n_iter = n_iter

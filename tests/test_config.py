@@ -21,11 +21,17 @@ class TestBacktestConfig:
         assert config.commission == 0.001
         assert config.slippage == 0.0005
         assert config.risk_free_rate == 0.02
+        assert config.periods_per_year == 252
 
     def test_custom(self):
         config = BacktestConfig(initial_capital=50000.0, commission=0.002)
         assert config.initial_capital == 50000.0
         assert config.commission == 0.002
+
+    def test_periods_per_year_is_configurable(self):
+        """Non-daily annualization periods must be configurable."""
+        config = BacktestConfig(periods_per_year=12)
+        assert config.periods_per_year == 12
 
 
 class TestRiskConfig:
