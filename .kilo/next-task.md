@@ -55,11 +55,16 @@ from returning NaN.
   `tests/test_backtest_metrics.py` (4), `tests/test_cli.py` (13),
   `tests/test_config.py` (1), `tests/test_backtest_engine.py` (2),
   `tests/test_optimization.py` (1), `tests/test_monte_carlo.py` (2).
+- Committed as `50c56e5` and pushed to `origin/main`. The commit was
+  **rebased** on top of `dd99f1b` (a remote commit from another session that
+  added `examples/run_momentum.py` and its README entry); the rebase was
+  conflict-free and both sets of changes are present.
 
 ## What was actually verified (this session)
 
-- `python -m pytest` → **1156 passed, 1 skipped** (baseline before this
-  session: 1123 passed, 1 skipped; +33 new tests). Run took ~177 s.
+- `python -m pytest` → **1157 passed, 1 skipped** (baseline before this
+  session: 1123 passed, 1 skipped; +33 new tests, +1 from the rebased
+  remote commit's momentum example). Run took ~139 s.
 - `python -m pytest --cov=quant_trading --cov-report=term-missing` → 100%
   line and branch coverage on **every module touched by this change**
   (`risk/metrics.py`, `backtest/metrics.py`, `backtest/engine.py`,
@@ -149,7 +154,7 @@ Constraints and evidence:
   `TOTAL 100%`. That same command on the unmodified tree reports
   `2165->2124, 2401` and `TOTAL 99%`, so these two spots are the only
   remaining gaps in the whole package.
-- Keep the existing suite green: `1156 passed, 1 skipped`, plus
+- Keep the existing suite green: `1157 passed, 1 skipped`, plus
   `ruff check .`, `black --check .` and `mypy quant_trading` all clean.
 - Add the new tests to `tests/test_strategies_examples.py`, which already
   contains `TestParabolicSARStrategy` and `TestMomentumStrategy` classes
