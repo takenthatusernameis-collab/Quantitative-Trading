@@ -1,5 +1,7 @@
 """Tests for backtest metrics calculation."""
 
+import warnings
+
 import numpy as np
 import pandas as pd
 
@@ -195,6 +197,14 @@ class TestBacktestMetricsNanHandling:
     def test_calculate_backtest_metrics_zero_initial_value(self):
         """Test when initial equity is zero."""
         equity_curve = pd.Series([0, 1000, 2000])
-        metrics = calculate_backtest_metrics(equity_curve)
-        # Division by zero gives inf in general, but depends on implementation
-        assert isinstance(metrics.total_return_pct, (int, float))
+        with warnings.catch_warnings(record=True) as recorded:
+            warnings.simplefilter("always")
+            metrics = calculate_backtest_metrics(equity_curve)
+        # Division by zero is avoided; pct return is defined as 0.0
+        assert metrics.total_return == 2000.0
+        assert metrics.total_return_pct == 0.0
+        # No "divide by zero" RuntimeWarning should be raised
+        assert not any(
+            issubclass(w.category, RuntimeWarning) and "divide by zero" in str(w.message)
+            for w in recorded
+        )

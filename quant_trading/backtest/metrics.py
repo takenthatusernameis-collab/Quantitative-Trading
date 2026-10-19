@@ -177,7 +177,10 @@ def calculate_backtest_metrics(
     final_value = equity_curve.iloc[-1]
 
     metrics.total_return = final_value - initial_value
-    metrics.total_return_pct = (final_value / initial_value - 1) * 100
+    if initial_value != 0:
+        metrics.total_return_pct = (final_value / initial_value - 1) * 100
+    else:
+        metrics.total_return_pct = 0.0
 
     returns = calculate_returns(equity_curve)
     if len(returns) > 0:
