@@ -2214,6 +2214,19 @@ def create_momentum_data(closes: list[float]) -> pd.DataFrame:
     )
 
 
+
+    def test_generate_signals_long_to_short_reversal(self):
+        """Cover the long-to-short reversal branch (line 2165)."""
+        strategy = ParabolicSARStrategy()
+        high = [10, 12, 14, 15, 16, 17, 18, 14]
+        low = [9, 11, 13, 14, 15, 16, 17, 9]
+        close = [9.5, 11.5, 13.5, 14.5, 15.5, 16.5, 17.5, 9.5]
+        data = {"AAPL": create_parabolic_data("AAPL", high, low, close)}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].metadata["signal_type"] == "trend_reversal_bearish"
+
 class TestMomentumStrategy:
     """Tests for MomentumStrategy (examples.py lines 2323-2438)."""
 
@@ -2303,6 +2316,21 @@ class TestMomentumStrategy:
         assert by_symbol["AAPL"].metadata["signal_type"] == "positive_momentum"
         assert by_symbol["MSFT"].metadata["signal_type"] == "negative_momentum"
 
+
+
+    def test_generate_signals_skips_nan_price(self):
+        """Cover the NaN guard (line 2400)."""
+        strategy = MomentumStrategy(period=2, threshold=0.01)
+        closes = [float("nan"), 100.0, 100.0]
+        data = {"AAPL": create_momentum_data(closes)}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_zero_prev_price(self):
+        """Cover the zero-prev-price guard (line 2400)."""
+        strategy = MomentumStrategy(period=2, threshold=0.01)
+        closes = [0.0, 100.0, 100.0]
+        data = {"AAPL": create_momentum_data(closes)}
+        assert strategy.generate_signals(data) == []
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
