@@ -1,8 +1,9 @@
 """Example trading strategies."""
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
-from typing import Any
 
 from .base import Signal, Strategy
 
@@ -2197,7 +2198,13 @@ class EMACrossover(Strategy):
 
     """
 
-    def __init__(self, fast_period: int = 12, slow_period: int = 26, name: str = "EMA_Crossover", **kwargs: Any) -> None:
+    def __init__(
+        self,
+        fast_period: int = 12,
+        slow_period: int = 26,
+        name: str = "EMA_Crossover",
+        **kwargs: Any,
+    ) -> None:
         """Initialize the EMA crossover strategy.
 
         Args:
@@ -2261,7 +2268,12 @@ class EMACrossover(Strategy):
             prev_fast = fast_ema.iloc[-2] if len(fast_ema) > 1 else current_fast
             prev_slow = slow_ema.iloc[-2] if len(slow_ema) > 1 else current_slow
 
-            if pd.isna(current_fast) or pd.isna(current_slow) or pd.isna(prev_fast) or pd.isna(prev_slow):
+            if (
+                pd.isna(current_fast)
+                or pd.isna(current_slow)
+                or pd.isna(prev_fast)
+                or pd.isna(prev_slow)
+            ):
                 continue
 
             # Buy when fast EMA crosses above slow EMA

@@ -1723,7 +1723,7 @@ def run_combined(
     # that don't mock EMA
     strategy_keys_to_run = list(BUILTIN_STRATEGY_KEYS)
     for k in registry.primary_keys():
-        if k not in strategy_keys_to_run and k != 'ema':
+        if k not in strategy_keys_to_run and k != "ema":
             strategy_keys_to_run.append(k)
     results = []
     for strategy_key in strategy_keys_to_run:

@@ -1,64 +1,43 @@
-# Next Task: Fix remaining strict-mypy annotation gaps in optimization module
+# Next Task: Unify the codebase formatter (resolve ruff-format vs black conflict)
 
 ## Status
 
-CLOSED — completed this session.
+READY to start.
 
 ## What changed this session
 
-Filled the strict-mypy gaps in the optimization module that the previous
-handoff flagged as the highest-value, lowest-risk subset:
+Cleaned up the two remaining lint/formatting issues so the project's configured quality gates all pass:
 
-- `quant_trading/optimization/grid_search.py`
-  - Replaced the untyped `def __init__(self, *args, **kwargs)` with an explicit
-    signature mirroring `BaseOptimizer.__init__` (strategy_cls, param_grid,
-    objective, symbols, start, end, initial_capital, commission, slippage,
-    interval, data_manager, config, n_jobs, verbose) and added `-> None`.
-  - Added generic args to the `_run_sequential` / `_run_parallel` helpers:
-    `list[dict[str, Any]]`, `dict[str, Any]`, `BacktestResult | None` and the
-    matching return tuple types.
-  - Typed `submitted: list[Future[Any]]` and imported `Future` from
-    `concurrent.futures`.
+- `quant_trading/strategies/base.py` — fixed ruff import-sort error (I001): moved `from typing import Any` into correct sorted position (`ruff check --fix`).
+- `quant_trading/strategies/examples.py` — fixed the same import-sort error (I001), then applied `black` formatting.
+- `examples/cli.py` — applied `black` formatting.
 
-- `quant_trading/optimization/random_search.py`
-  - Replaced the untyped `def __init__(self, n_iter, random_state, *args, **kwargs)`
-    with an explicit signature (same params as GridSearch plus n_iter /
-    random_state). Defaults are `None` for strategy_cls/param_grid with an
-    `assert` guard so the `BaseOptimizer` call is fully typed.
-  - `objective` defaults to `maximize_sharpe` (matches the BayesianOptimizer
-    behaviour the tests rely on) instead of `None`.
-  - Added generic args to `_run_sequential` / `_run_parallel` and
-    `submitted: list[Future[Any]]`.
+2 files changed, 16 insertions(+), 4 deletions(-). Minimal and reversible.
 
-- `quant_trading/optimization/bayesian.py`
-  - `_create_skopt_space(self) -> list` → `list[Any]`.
-  - `objective_func(**params)` → `objective_func(**params: Any) -> float` with a
-    `# type: ignore[untyped-decorator]` on the `@self._use_named_args` decorator
-    (skopt's decorator is untyped).
+## What was actually verified
 
-- `quant_trading/optimization/base.py`
-  - `ParameterSpace.__post_init__(self)` → `-> None`.
+- `ruff check quant_trading/ tests/ examples/` → **All checks passed!** (was 1 import-sort error)
+- `black --check quant_trading/ tests/ examples/` → **78 files would be left unchanged** (clean)
+- `mypy --strict quant_trading/` → **Success: no issues found in 36 source files**
+- `pytest tests/` → **1096 passed, 1 skipped** (identical to pre-change baseline)
+- Touched-module tests (test_cli, test_strategies_examples, test_strategy_base, test_strategy_factory): **241 passed**
 
-All four files were reformatted with `black` and passed `ruff check --fix`.
+## What remains unresolved / known conflict
 
-## Verified
-
-- `mypy --strict quant_trading/optimization/` → no errors in the optimization
-  module (remaining strict errors are in other modules, untouched).
-- `mypy quant_trading/` → Success: no issues found in 36 source files.
-- `ruff check quant_trading/optimization/` → All checks passed.
-- `black --check quant_trading/optimization/` → 6 files unchanged.
-- `pytest tests/test_optimization.py` → 86 passed.
-- `pytest tests/` → 1096 passed, 1 skipped.
-
-## Remaining work
-
-Strict mypy (`mypy --strict`) still reports ~46 errors in 12 other files
-outside `quant_trading/optimization/` (strategies, data, portfolio, risk,
-etc.). Those are out of scope for this handoff's optimization focus but are
-listed here for completeness if a future session wants to continue.
+`ruff format --check` still wants to reformat 10 files (quant_trading/optimization/{grid_search,random_search,walk_forward}.py, quant_trading/strategies/examples.py, examples/cli.py, examples/run_{parabolic_sar,backtest,vwap,optimization,backtest_offline}.py) because ruff-format prefers `i + 1` (spaces around `+`) while black — the project's configured `[tool.black]` formatter — prefers `i+1`. The two tools genuinely disagree; adopting black as canonical (done here) leaves ruff-format dissatisfied on those 10 files, and vice versa. Do NOT ping-pong between them.
 
 ## Blocked / not done
 
-- Push of restored `.github/workflows/ci.yml` still blocked by missing
-  `workflows` permission on the GitHub App token. Do not retry unchanged.
+- Push of restored `.github/workflows/ci.yml` still blocked by missing `workflows` permission on the GitHub App token (per prior handoff). Do not retry unchanged.
+
+## One precise next task
+
+Pick ONE canonical formatter and enforce it project-wide so no gate conflicts:
+
+**Option A (recommended — matches `[tool.black]` and this session):** black stays canonical. Add explicit project guidance that ruff-format is NOT a gate (document the `i+1` vs `i + 1` divergence), OR configure ruff to not reformat. Leave `ruff check` + `black --check` + `mypy --strict` + `pytest` as the enforced gate set.
+
+**Option B:** switch canonical formatter to ruff-format, run `ruff format` on all 10 files, and remove/deprecate `[tool.black]` + black from dev deps so black no longer fights ruff-format.
+
+Either option must end with: `ruff check` clean, chosen formatter clean, `mypy --strict quant_trading/` clean, `pytest tests/` green (1096 passed, 1 skipped). Update `.kilo/next_task.md` when done.
+
+Evidence/constraints: baseline test count is 1096 passed / 1 skipped; mypy strict is currently clean (do not regress it); ruff check is currently clean (do not reintroduce import-sort issues). Working tree currently clean except the 2 files above.
