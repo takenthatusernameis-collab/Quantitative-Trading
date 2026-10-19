@@ -2,7 +2,7 @@
 
 ## What changed
 - No code changes made in this session. Working tree is clean (`git status`: nothing to commit, working tree clean).
-- Expanded the verified baseline beyond prior sessions (no code was modified).
+- Re-verified the green baseline; no code was modified.
 
 ## What was actually verified (this session)
 - `python -m pytest tests/ -q` → 1114 passed, 1 skipped (~113s)
