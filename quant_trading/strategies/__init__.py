@@ -9,6 +9,7 @@ from .examples import (
     IchimokuCloudStrategy,
     KeltnerChannelStrategy,
     MACDStrategy,
+    MomentumStrategy,
     MovingAverageCrossover,
     ParabolicSARStrategy,
     RSIStrategy,
@@ -40,6 +41,7 @@ register_strategy("stoch", StochasticOscillatorStrategy, aliases=["stochastic", 
 register_strategy("ichimoku", IchimokuCloudStrategy, aliases=["ichimoku_cloud", "ichimoku"])
 register_strategy("sar", ParabolicSARStrategy, aliases=["parabolic_sar", "psar"])
 register_strategy("vwap", VWAPStrategy)
+register_strategy("momentum", MomentumStrategy, aliases=["mom"])
 
 
 __all__ = [

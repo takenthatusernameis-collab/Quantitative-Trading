@@ -2318,3 +2318,121 @@ class EMACrossover(Strategy):
                 )
 
         return signals
+
+
+class MomentumStrategy(Strategy):
+    """Momentum Strategy.
+
+    A simple momentum-based strategy that generates signals based on price
+    momentum relative to a lookback period. Buy signals are generated when
+    momentum is positive and above a threshold, sell signals when momentum
+    is negative.
+
+    Momentum is calculated as:
+        Momentum = (Close_t / Close_{t-n}) - 1
+
+    Trading signals:
+        - Buy when momentum > threshold (positive momentum)
+        - Sell when momentum < -threshold (negative momentum)
+    """
+
+    def __init__(
+        self,
+        period: int = 10,
+        threshold: float = 0.01,
+        name: str = "Momentum",
+    ):
+        """Initialize the Momentum strategy.
+
+        Args:
+            period: Lookback period for momentum calculation. Defaults to 10.
+            threshold: Threshold for signal generation. Defaults to 0.01 (1%).
+            name: Strategy name. Defaults to "Momentum".
+
+        Raises:
+            ValueError: If parameters are invalid.
+
+        """
+        super().__init__(
+            name,
+            {
+                "period": period,
+                "threshold": threshold,
+            },
+        )
+        self.period = period
+        self.threshold = threshold
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If period is non-positive or threshold is negative.
+
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+        if self.threshold < 0:
+            raise ValueError("threshold must be non-negative")
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate trading signals based on momentum.
+
+        Args:
+            data: Dictionary mapping symbols to OHLCV DataFrames.
+
+        Returns:
+            List of trading signals.
+
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 1:
+                continue
+
+            close = df["close"]
+            current_price = close.iloc[-1]
+            prev_price = close.iloc[-(self.period + 1)]
+            timestamp = df.index[-1]
+
+            if pd.isna(current_price) or pd.isna(prev_price) or prev_price == 0:
+                continue
+
+            momentum = (current_price / prev_price) - 1.0
+
+            if momentum > self.threshold:
+                strength = min(1.0, abs(momentum) / self.threshold)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "momentum": momentum,
+                            "period": self.period,
+                            "signal_type": "positive_momentum",
+                        },
+                    )
+                )
+            elif momentum < -self.threshold:
+                strength = min(1.0, abs(momentum) / self.threshold)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "momentum": momentum,
+                            "period": self.period,
+                            "signal_type": "negative_momentum",
+                        },
+                    )
+                )
+
+        return signals
