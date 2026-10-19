@@ -2214,11 +2214,9 @@ class EMACrossover(Strategy):
             **kwargs: Additional arguments.
 
         Raises:
-            ValueError: If ``fast_period >= slow_period``.
+            ValueError: If parameters are invalid.
 
         """
-        if fast_period >= slow_period:
-            raise ValueError("fast_period must be less than slow_period")
 
         super().__init__(
             name,
@@ -2278,7 +2276,11 @@ class EMACrossover(Strategy):
 
             # Buy when fast EMA crosses above slow EMA
             if prev_fast <= prev_slow and current_fast > current_slow:
-                strength = min(1.0, (current_fast - current_slow) / current_price * 10.0 + 0.5) if current_price else 0.5
+                strength = (
+                    min(1.0, (current_fast - current_slow) / current_price * 10.0 + 0.5)
+                    if current_price
+                    else 0.5
+                )
                 signals.append(
                     Signal(
                         symbol=symbol,
@@ -2295,7 +2297,11 @@ class EMACrossover(Strategy):
                 )
             # Sell when fast EMA crosses below slow EMA
             elif prev_fast >= prev_slow and current_fast < current_slow:
-                strength = min(1.0, (current_slow - current_fast) / current_price * 10.0 + 0.5) if current_price else 0.5
+                strength = (
+                    min(1.0, (current_slow - current_fast) / current_price * 10.0 + 0.5)
+                    if current_price
+                    else 0.5
+                )
                 signals.append(
                     Signal(
                         symbol=symbol,

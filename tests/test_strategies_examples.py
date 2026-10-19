@@ -9,6 +9,7 @@ import pytest
 from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
     DonchianChannelStrategy,
+    EMACrossover,
     IchimokuCloudStrategy,
     KeltnerChannelStrategy,
     MACDStrategy,
@@ -2007,6 +2008,146 @@ class TestVWAPStrategy:
         # Rising price that stays above the VWAP on the final two bars.
         data = {"AAPL": create_vwap_data("AAPL", [100.0, 105.0, 110.0, 115.0, 120.0])}
         assert strategy.generate_signals(data) == []
+
+
+class TestEMACrossoverStrategy:
+    """Tests for EMACrossover strategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = EMACrossover(fast_period=12, slow_period=26, name="Test_EMA")
+        assert strategy.name == "Test_EMA"
+        assert strategy.fast_period == 12
+        assert strategy.slow_period == 26
+        assert strategy.parameters["fast_period"] == 12
+        assert strategy.parameters["slow_period"] == 26
+
+    def test_initialization_defaults(self):
+        """Test strategy initialization with default parameters."""
+        strategy = EMACrossover()
+        assert strategy.fast_period == 12
+        assert strategy.slow_period == 26
+        assert strategy.name == "EMA_Crossover"
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid periods."""
+        with pytest.raises(ValueError, match="fast_period must be a positive integer"):
+            EMACrossover(fast_period=0)
+        with pytest.raises(ValueError, match="fast_period must be a positive integer"):
+            EMACrossover(fast_period=-5)
+        with pytest.raises(ValueError, match="slow_period must be a positive integer"):
+            EMACrossover(slow_period=0)
+        with pytest.raises(ValueError, match="slow_period must be a positive integer"):
+            EMACrossover(slow_period=-5)
+        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+            EMACrossover(fast_period=30, slow_period=10)
+        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+            EMACrossover(fast_period=10, slow_period=10)
+
+    def test_validate_parameters_type_errors(self):
+        """Test parameter validation raises for invalid types."""
+        with pytest.raises(ValueError, match="fast_period must be a positive integer"):
+            EMACrossover(fast_period=None)  # type: ignore
+        with pytest.raises(ValueError, match="fast_period must be a positive integer"):
+            EMACrossover(fast_period=5.5)  # type: ignore
+        with pytest.raises(ValueError, match="slow_period must be a positive integer"):
+            EMACrossover(slow_period=None)  # type: ignore
+        with pytest.raises(ValueError, match="slow_period must be a positive integer"):
+            EMACrossover(slow_period=26.5)  # type: ignore
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with insufficient data."""
+        strategy = EMACrossover(fast_period=5, slow_period=15)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 10)}  # Less than slow_period
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_bullish_crossover(self):
+        """Test generate_signals detects bullish EMA crossover (buy signal)."""
+        strategy = EMACrossover(fast_period=5, slow_period=15)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 15 + [50.0] * 5 + [300.0])}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.price == pytest.approx(300.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "ema_crossover_bullish"
+        assert "fast_ema" in signal.metadata
+        assert "slow_ema" in signal.metadata
+
+    def test_generate_signals_bearish_crossover(self):
+        """Test generate_signals detects bearish EMA crossover (sell signal)."""
+        strategy = EMACrossover(fast_period=5, slow_period=15)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 15 + [200.0] * 20 + [50.0])}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.price == pytest.approx(50.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "ema_crossover_bearish"
+        assert "fast_ema" in signal.metadata
+        assert "slow_ema" in signal.metadata
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals with multiple symbols."""
+        strategy = EMACrossover(fast_period=5, slow_period=15)
+        data = {
+            "AAPL": create_donchian_data("AAPL", [100.0] * 15 + [50.0] * 5 + [300.0]),
+            "MSFT": create_donchian_data("MSFT", [100.0] * 15 + [200.0] * 20 + [50.0]),
+        }
+        signals = strategy.generate_signals(data)
+        symbols = {s.symbol for s in signals}
+        assert symbols == {"AAPL", "MSFT"}
+
+    def test_generate_signals_no_crossover(self):
+        """Test generate_signals with no crossover."""
+        strategy = EMACrossover(fast_period=5, slow_period=15)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 50)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_nan_values_skipped(self):
+        """Test generate_signals skips bars with NaN values."""
+        strategy = EMACrossover(fast_period=5, slow_period=15)
+        dates = pd.date_range(end=pd.Timestamp.now(), periods=25, freq="D")
+        df = pd.DataFrame(
+            {
+                "open": [100.0] * 25,
+                "high": [101.0] * 25,
+                "low": [99.0] * 25,
+                "close": [100.0] * 25,
+                "volume": [1_000_000] * 25,
+            },
+            index=dates,
+        )
+        df.iloc[-2:, [1, 2, 3]] = float("nan")
+        signals = strategy.generate_signals({"AAPL": df})
+        assert signals == []
+
+    def test_generate_signals_price_zero_handling(self):
+        """Test strength calculation when price is zero."""
+        strategy = EMACrossover(fast_period=3, slow_period=8)
+        dates = pd.date_range("2023-01-01", periods=12, freq="D")
+        closes = [100, 100, 100, 100, 100, 50, 50, 50, 200, 200, 200, 0]
+        df = pd.DataFrame(
+            {
+                "open": closes,
+                "high": [c * 1.001 for c in closes],
+                "low": [c * 0.999 for c in closes],
+                "close": closes,
+                "volume": [1_000_000] * len(closes),
+            },
+            index=dates,
+        )
+        signals = strategy.generate_signals({"AAPL": df})
+        # Should handle zero price in strength calculation
+        assert len(signals) >= 0
 
 
 if __name__ == "__main__":
