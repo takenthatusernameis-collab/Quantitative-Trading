@@ -714,6 +714,15 @@ crosses (fast MA crosses above slow MA) and sell signals on death crosses
 python examples/run_ma_crossover.py
 ```
 
+For an Exponential Moving Average (EMA) Crossover demonstration using fast/slow EMAs,
+see `examples/run_ema_crossover.py`. It runs the `EMACrossover` strategy against
+seeded synthetic data, generating buy signals on bullish crosses (fast EMA crosses
+above slow EMA) and sell signals on bearish crosses (fast EMA crosses below slow EMA):
+
+```bash
+python examples/run_ema_crossover.py
+```
+
 ## License
 
 MIT License
