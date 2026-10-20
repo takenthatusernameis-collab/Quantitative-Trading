@@ -1389,9 +1389,7 @@ def run_optimization(
                     "total_return_pct": (
                         result.best_result.total_return_pct if result.best_result else None
                     ),
-                    "total_costs": (
-                        result.best_result.total_costs if result.best_result else None
-                    ),
+                    "total_costs": (result.best_result.total_costs if result.best_result else None),
                     "sharpe_ratio": (
                         result.best_result.metrics.sharpe_ratio if result.best_result else None
                     ),
