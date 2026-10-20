@@ -91,9 +91,7 @@ class BuyThenSellStrategy(Strategy):
         price = float(df["close"].iloc[-1])
         if self._phase == 0:
             self._phase = 1
-            return [
-                Signal(symbol=symbol, action="buy", strength=1.0, price=price)
-            ]
+            return [Signal(symbol=symbol, action="buy", strength=1.0, price=price)]
         self._phase = 2
         return [Signal(symbol=symbol, action="sell", strength=1.0, price=price)]
 
@@ -788,85 +786,8 @@ def test_total_costs_reconciles_with_pnl_and_final_value():
     # Both runs are fully liquidated, so all fees land in the final value.
     assert zero.final_value - costed.final_value == pytest.approx(costed.total_costs)
 
-
-def test_total_costs_equals_sum_of_per_trade_fees():
-    """total_costs equals the sum of per-trade commission + slippage fees.
-
-    Buy fee: quantity * price * (commission + slippage).
-    Sell fee: quantity * price * (commission + slippage).
-    """
-    idx = pd.date_range("2024-01-01", periods=4, freq="D")
-    data = {
-        "TEST": pd.DataFrame(
-            {
-                "open": [100.0, 110.0, 120.0, 130.0],
-                "high": [105.0, 115.0, 125.0, 135.0],
-                "low": [95.0, 105.0, 115.0, 125.0],
-                "close": [100.0, 110.0, 120.0, 130.0],
-            },
-            index=idx,
-        )
-    }
-
-    commission, slippage = 0.01, 0.005
-    costed = _engine_run(BuyThenSellStrategy(), data, commission, slippage)
-
-    expected = 0.0
-    for _, trade in costed.trades.iterrows():
-        base = trade["quantity"] * trade["price"]
-        expected += base * (commission + slippage)
-    assert costed.total_costs == pytest.approx(expected)
-
-
-def test_total_costs_reconciles_fully_liquidated_run():
-    """For a fully liquidated round trip, cash change reconciles via signed cost.
-
-    Buy-side fees are a cash drag not captured in realized Trade.pnl, so
-    final_value - initial_capital equals sum(pnl) minus buy-side fees, not
-    sum(pnl) minus total costs (total costs also include sell-side fees already
-    reflected in realized pnl).
-    """
-    idx = pd.date_range("2024-01-01", periods=4, freq="D")
-    data = {
-        "TEST": pd.DataFrame(
-            {
-                "open": [100.0, 110.0, 120.0, 130.0],
-                "high": [105.0, 115.0, 125.0, 135.0],
-                "low": [95.0, 105.0, 115.0, 125.0],
-                "close": [100.0, 110.0, 120.0, 130.0],
-            },
-            index=idx,
-        )
-    }
-
-    commission, slippage = 0.01, 0.005
-    costed = _engine_run(BuyThenSellStrategy(), data, commission, slippage)
-
     # Fully liquidated: no remaining holdings.
     assert len(costed.positions) == 0
-
-    # Reconciliation via signed trade cost (cash impact of every trade).
-    signed_cost = 0.0
-    buy_fees = 0.0
-    for _, trade in costed.trades.iterrows():
-        base = trade["quantity"] * trade["price"]
-        if trade["action"] == "buy":
-            signed_cost -= trade["cost"]
-            buy_fees += base * (commission + slippage)
-        else:
-            signed_cost += trade["cost"]
-    assert costed.final_value - costed.initial_capital == pytest.approx(signed_cost)
-
-    # PnL-based reconciliation: realized pnl excludes the buy-side cash drag.
-    assert costed.final_value - costed.initial_capital == pytest.approx(
-        costed.trades["pnl"].sum() - buy_fees
-    )
-    # Buy-side fees are not in pnl: pnl sum alone understates the cash drag.
-    assert costed.trades["pnl"].sum() != pytest.approx(costed.final_value - costed.initial_capital)
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
 
 
 def test_buy_signal_with_existing_position_at_target_does_not_trade():
@@ -883,7 +804,9 @@ def test_buy_signal_with_existing_position_at_target_does_not_trade():
     initial_cash = engine.portfolio.cash
     trades: list[Trade] = []
     engine._process_signal(
-        Signal(symbol="AAPL", action="buy", strength=0.1, price=float(data["AAPL"]["close"].iloc[0])),
+        Signal(
+            symbol="AAPL", action="buy", strength=0.1, price=float(data["AAPL"]["close"].iloc[0])
+        ),
         trades,
         datetime.now(),
     )
@@ -913,6 +836,7 @@ def test_run_backtest_with_config_creates_data_manager():
     assert result.initial_capital == 100000.0
     assert result.metrics is not None
 
+
 def test_buy_returns_when_available_value_non_positive():
     """Test buy returns early when available_value <= 0."""
     end = datetime(2023, 12, 31)
@@ -925,10 +849,13 @@ def test_buy_returns_when_available_value_non_positive():
     class LargeBuyStrategy(Strategy):
         def __init__(self):
             super().__init__(name="LargeBuyStrategy")
+
         def generate_signals(self, data: dict):
             symbol = next(iter(data.keys()))
             df = data[symbol]
-            return [Signal(symbol=symbol, action="buy", strength=1.0, price=float(df["close"].iloc[-1]))]
+            return [
+                Signal(symbol=symbol, action="buy", strength=1.0, price=float(df["close"].iloc[-1]))
+            ]
 
     engine.add_strategy(LargeBuyStrategy())
     engine.portfolio.add_holding("AAPL", 600, 150.0)
@@ -953,3 +880,7 @@ def test_run_backtest_with_config_and_no_data_manager():
         data_manager=None,
     )
     assert result is not None
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

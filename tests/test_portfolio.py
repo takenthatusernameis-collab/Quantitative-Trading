@@ -138,9 +138,7 @@ class TestPortfolio:
         portfolio.add_holding("AAPL", 10, 100.0, commission=0.001, slippage=0.0005)
         assert portfolio.holdings["AAPL"].quantity == 10
         assert portfolio.holdings["AAPL"].avg_cost == pytest.approx(100.0 * (1 + 0.001 + 0.0005))
-        assert portfolio.cash == pytest.approx(
-            100000.0 - 10 * 100.0 * (1 + 0.001 + 0.0005)
-        )
+        assert portfolio.cash == pytest.approx(100000.0 - 10 * 100.0 * (1 + 0.001 + 0.0005))
 
     def test_add_holding_averaging_includes_entry_fees(self):
         """Lots added to a long are averaged at their fee-inclusive cost."""
@@ -157,6 +155,22 @@ class TestPortfolio:
         portfolio.add_holding("AAPL", -100, 100.0, commission=0.001, slippage=0.0005)
         assert portfolio.holdings["AAPL"].quantity == -100
         assert portfolio.holdings["AAPL"].avg_cost == pytest.approx(100.0)
+
+    def test_add_holding_partial_reduction_keeps_weighted_basis(self):
+        """Reducing a long partially re-averages the remaining basis.
+
+        A negative quantity that does not fully offset the long keeps the
+        position open, so the remaining basis is the weighted average of the
+        opening basis and the (negative) reduction cost.
+        """
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 100, 100.0)
+        portfolio.add_holding("AAPL", -40, 110.0)
+        holding = portfolio.holdings["AAPL"]
+        assert holding.quantity == 60
+        assert holding.avg_cost == pytest.approx((100.0 * 100 + (-40 * 110.0)) / 60)
+        # Cash is credited with the net proceeds of the reduction.
+        assert portfolio.cash == pytest.approx(100000.0 - 100 * 100.0 + 40 * 110.0)
 
     def test_update_prices_existing(self):
         """update_prices recalculates market value for held symbols."""

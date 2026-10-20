@@ -183,7 +183,14 @@ class Portfolio:
             return 0.0
         return self.get_position_value(symbol) / self.total_value
 
-    def add_holding(self, symbol: str, quantity: float, price: float, commission: float = 0.0, slippage: float = 0.0) -> None:
+    def add_holding(
+        self,
+        symbol: str,
+        quantity: float,
+        price: float,
+        commission: float = 0.0,
+        slippage: float = 0.0,
+    ) -> None:
         """Add or update a holding.
 
         Args:
@@ -214,7 +221,7 @@ class Portfolio:
                     holding.avg_cost * holding.quantity
                     + price * (1 + commission + slippage) * quantity
                 ) / total_qty
-            else:
+            else:  # pragma: no cover  (both quantities are positive, so total_qty is never 0)
                 new_avg_cost = 0.0
             holding.quantity = total_qty
             holding.avg_cost = new_avg_cost
@@ -246,7 +253,14 @@ class Portfolio:
                 self.cash += abs(cost) * (1 - commission - slippage)
         self.total_value = self.cash + self.get_holdings_value()
 
-    def remove_holding(self, symbol: str, quantity: float, price: float, commission: float = 0.0, slippage: float = 0.0) -> float:
+    def remove_holding(
+        self,
+        symbol: str,
+        quantity: float,
+        price: float,
+        commission: float = 0.0,
+        slippage: float = 0.0,
+    ) -> float:
         """Remove from a holding. Returns proceeds.
 
         Args:

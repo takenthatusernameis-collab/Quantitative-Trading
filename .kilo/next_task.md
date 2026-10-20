@@ -2,45 +2,64 @@
 
 ## What changed (this session)
 
-Closed the realized-PnL vs cash reconciliation gap by capitalizing entry fees into the cost basis of long positions.
+- **Fixed a `SyntaxError` that made the whole `quant_trading.backtest` package unimportable.**
+  `quant_trading/backtest/engine.py` had been left with a patch applied twice by the previous session (commit `01eb720`): the `BacktestResult(...)` call passed `total_costs=total_costs,` twice, the `BacktestResult` dataclass declared the `total_costs` field twice, the `total_costs` total was computed twice, and the attribute was documented twice. The repeated keyword argument is a `SyntaxError`, so `import quant_trading.backtest` failed and **6 test modules failed at collection** (`test_backtest_analysis.py`, `test_backtest_engine.py`, `test_backtest_metrics.py`, `test_integration.py`, `test_monte_carlo.py`, `test_trade_analysis.py`).
+  Removed the four duplicated fragments and kept one of each (the `total_costs` total stays derived from the executed trades: `sum(t.fee for t in trades_list)`).
 
-- `quant_trading/portfolio/portfolio.py` (`add_holding`):
-  - New long position: `avg_cost = price * (1 + commission + slippage)` (was `price`).
-  - Adding to an existing long: the added lot is averaged in at its fee-inclusive cost `price * (1 + commission + slippage) * quantity` (was gross `cost = quantity * price`).
-  - Reductions of a long and new short positions are unchanged (engine only sells longs via `remove_holding` and never opens shorts).
-  - Docstring updated to document the fee-inclusive basis semantics.
-- `quant_trading/backtest/engine.py`:
-  - No logic change needed: `realized_pnl = quantity * price * (1 - commission - slippage) - avg_cost * quantity` (engine.py:569-572) now nets both buy-side and sell-side fees because `avg_cost` includes entry fees.
-  - `BacktestResult` class docstring updated: `sum(Trade.pnl)` is now net of both fee sides and equals `final_value - initial_capital` for fully liquidated round trips.
-- `tests/test_backtest_engine.py`:
-  - `test_signed_trade_cost_reconciles_with_final_value`: flipped the pnl-sum assertion from `!=` to `==` (gap closed); docstring updated.
-  - `test_total_costs_reconciles_with_pnl_and_final_value`: `cash_change == pnl.sum()` (was `== pnl.sum() - buy_fees`); inequality assertion replaced with equality; docstring updated.
-- `tests/test_portfolio.py`: added `test_add_holding_capitalizes_entry_fees`, `test_add_holding_averaging_includes_entry_fees`, `test_short_position_keeps_execution_price_as_basis`.
+- **Removed the stale duplicated test block** in `tests/test_backtest_engine.py`.
+  `test_total_costs_equals_sum_of_per_trade_fees` was defined twice; the later (older) definition silently shadowed the earlier one, so it was never collected. `test_total_costs_reconciles_fully_liquidated_run` asserted the superseded semantics ("realized PnL excludes the buy-side cash drag"), which the current fee-capitalizing cost basis (`Portfolio.add_holding`, `quant_trading/portfolio/portfolio.py:186-245`) no longer satisfies — it was the only failing test once the import error was fixed. Both were deleted; the unique coverage they carried (`positions` is empty after a fully liquidated round trip) was merged into `test_total_costs_reconciles_with_pnl_and_final_value`.
+
+- **`tests/test_portfolio.py`**: added `test_add_holding_partial_reduction_keeps_weighted_basis`, which covers the partial-reduction branch of `Portfolio.add_holding` (`quant_trading/portfolio/portfolio.py:227`) that no test had exercised.
+
+- **`quant_trading/portfolio/portfolio.py`**: marked the provably unreachable `else` branch of the add-to-long path (`portfolio.py:218`) with `# pragma: no cover  (both quantities are positive, so total_qty is never 0)`, matching the convention already used in `quant_trading/risk/metrics.py:339` and `quant_trading/strategies/examples.py`.
+
+- **New `tests/test_repository_integrity.py`**: four executable invariants that catch the failure mode that broke this repository (a patch applied twice): every source file compiles, no module-level function/class is defined twice, no class defines the same method or annotated field twice, and every `quant_trading` module imports cleanly.
+
+- Ran `black` over the four files this session touched (pre-existing formatting drift only, no behavior change).
 
 ## What was actually verified (this session)
 
-- `python -m pytest tests/test_portfolio.py tests/test_backtest_engine.py -q` → 59 passed (56 baseline + 3 new).
-- Full non-dependency subset: `python -m pytest tests/ --ignore=tests/test_cli.py --ignore=tests/test_optimization.py --ignore=tests/test_alphavantage_provider.py --ignore=tests/test_yfinance_fetch_many.py -q` → 624 passed, 1 skipped (baseline was 621 passed, 1 skipped; delta is the 3 new portfolio tests).
-- `python -m pytest tests/test_cli.py -q` → 92 passed, 2 failed (pre-existing: `TestSaveStrategyConfig::test_optimize_saves_best_params_config` and `test_walk_forward_saves_last_window_params_config` fail due to missing `yfinance`; unchanged from baseline).
-- The closed reconciliation is asserted directly: for the costed BuyThenSell round trip, `trades["pnl"].sum() == final_value - initial_capital` now passes.
-
-All changes are minimal and localized to `portfolio.py` `add_holding`, the engine docstring, and affected tests.
+- `python -m pytest tests/ -q` → **1232 passed, 1 skipped** (before this session: 6 modules failing to collect + 31 dependency failures).
+- `python -m coverage run --branch -m pytest tests/ -q` + `coverage report -m` → **100% statement and branch coverage for the whole package** (4513 statements, 1444 branches, 0 missed).
+  The coverage gaps quoted in the previous handoff (`regime/detector.py` 28%, `backtest/trade_analysis.py` 18%, `monte_carlo/simulator.py` 0%, `strategies/examples.py` 11%, `data/yfinance_provider.py` 6%) were **artifacts of the import-breaking `SyntaxError`**, not real gaps. `quant_trading/regime/detector.py` was already at 100% branch coverage from the existing `tests/test_regime.py`, so the assigned task ("add `tests/test_regime_detector.py`") was already satisfied by the current suite — no new regime test file was added.
+- `python -m ruff check .` → All checks passed. `python -m black --check quant_trading tests` → clean except `tests/test_portfolio_rebalancer.py` (pre-existing, untouched this session). `python -m mypy quant_trading/backtest/engine.py quant_trading/portfolio/portfolio.py` → Success: no issues found.
+- The new guard was proven effective: with the broken `engine.py` restored from `HEAD`, `python -m pytest tests/test_repository_integrity.py -q` → **4 failed** with precise diagnostics (`quant_trading/backtest/engine.py does not compile: keyword argument repeated: total_costs`); with the fix restored → **4 passed**.
+- Environment: `yfinance`, `scikit-optimize`, `coverage`, `ruff`, `black`, `mypy`, `pytest-cov` were installed (network is reachable here). All 31 previously failing tests were purely missing-dependency failures, not product defects.
 
 ## What remains unresolved
 
-- **Pre-existing coverage gaps in engine.py** (not caused by this change): `available_value <= 0` early return at engine.py:535-536 and the `config is not None` data-manager branch at engine.py:666-668.
-- **Pre-existing environment constraints:** `yfinance` not installed (2 CLI test failures), `scikit-optimize` not installed (optimization test failures); `ruff`, `black`, `mypy`, `coverage` not installed locally.
+- `tests/test_portfolio_rebalancer.py` is the only file `black` would reformat; it was deliberately left untouched to avoid unrelated modifications.
+- No CI workflow runs the test suite: `.github/workflows/main.yml` only runs the Kilo controller. The new integrity invariants therefore only execute when an agent invokes pytest locally.
+- 100% line/branch coverage is not the same as behavioral verification: the accounting reconciliation is currently asserted by a single hand-built 4-bar round trip with one commission/slippage pair and full-size orders only.
+- `README.md` (31 KB) documents the public API; `tests/test_readme.py` covers snippets, but a full doc-vs-code audit has not been performed.
 
 ## Approaches already failed
 
-- None in this session. Previous session established that `total_costs == sum(all fees)` and `final_value - initial_capital == sum(pnl)` cannot hold simultaneously under the old PnL semantics (buy fees excluded from cost basis); this session resolves it by capitalizing entry fees into `avg_cost`, at the cost of a documented semantics change for `Holding.avg_cost`/`Position.avg_price` (stop-loss/take-profit triggers in risk/manager.py:310-327 now use a fee-inclusive breakeven).
+- The previous two sessions both ended with "add regime detector tests". The second attempt re-applied an already-applied patch and broke the package import (commit `01eb720`). Writing more regime tests would duplicate existing coverage (`tests/test_regime.py` already yields 100% branch coverage of `quant_trading/regime/detector.py`), so that line of work was closed rather than repeated.
+- Stale contradictory tests cannot be "reconciled" by editing assertions: "realized PnL nets both fee sides" and "realized PnL excludes buy-side fees" cannot both hold. The implementation deliberately capitalizes entry fees into `Holding.avg_cost`, so the superseded variant was deleted instead of being updated to match.
 
 ## One precise next task
 
-**Add tests covering the two pre-existing uncovered branches in `quant_trading/backtest/engine.py` and confirm engine coverage.**
+**Add seeded, randomized invariant tests for the cost/cash reconciliation across the engine and portfolio.**
 
-1. `engine.py:535-536` (`if available_value <= 0: return` in the buy path): add a test where a buy signal arrives when the existing position already meets/exceeds the risk-target value (e.g. pre-load a holding via `add_holding`, then issue a low-strength buy signal), asserting no trade is executed and no cash changes.
-2. `engine.py:666-668` (`if data_manager is None: if config is not None:` in `run_backtest`): add a test calling `run_backtest(..., config=<Config or DataConfig>, data_manager=None)` with an offline/synthetic-backed config so the `create_data_manager_from_config` path runs, asserting a result is returned.
-3. Run `python -m pytest tests/test_backtest_engine.py -q` and, if `coverage` is available, `python -m coverage run -m pytest tests/test_backtest_engine.py && python -m coverage report --include=quant_trading/backtest/engine.py` to confirm the previously uncovered lines (~533-536, ~665-668) are now exercised.
+Evidence and rationale:
 
-Constraints: keep tests deterministic (use `MockDataProvider`/synthetic data, no network); match existing test style in tests/test_backtest_engine.py (see `_engine_run` helper and `BuyThenSellStrategy`/`FirstDayBuyStrategy` at the top of the file).
+- The semantics chosen by the previous session (`sum(Trade.pnl) == final_value - initial_capital` for a fully liquidated run) is asserted by exactly **one** test: `tests/test_backtest_engine.py::test_total_costs_reconciles_with_pnl_and_final_value`, using a single 4-bar price series, a single commission/slippage pair (`0.01` / `0.005`), and full-size orders only.
+- The engine supports partial exits (`quantity = holding.quantity * signal.strength` in `BacktestEngine._process_signal`) and arbitrary commission/slippage; neither is covered by that single case, and both directly affect the reconciliation.
+
+Steps:
+
+1. Create `tests/test_cost_accounting_invariants.py` using a fixed-seed RNG (`numpy.random.default_rng(seed)`) to generate random buy/sell sequences (varying signal strength so partial sells occur), random prices, and random commission/slippage pairs. Reuse the existing helpers in `tests/test_backtest_engine.py` (`_engine_run`, `MockDataProvider`, `BuyThenSellStrategy`) or add a small deterministic strategy that emits a scripted signal sequence.
+2. Assert, for every generated run, the invariants that must hold:
+   - `result.total_costs == pytest.approx(result.trades["fee"].sum())`
+   - `result.final_value - result.initial_capital == pytest.approx(signed sum of Trade.cost)` (buys negative, sells positive)
+   - for a fully liquidated run: `result.trades["pnl"].sum() == pytest.approx(result.final_value - result.initial_capital)`
+   - `portfolio.cash + sum(holding market values) == pytest.approx(result.final_value)`
+3. Verify with `python -m pytest tests/test_cost_accounting_invariants.py -v`, then the full suite `python -m pytest tests/ -q` (baseline: **1232 passed, 1 skipped**), and keep `coverage` at 100% (`python -m coverage run --branch -m pytest tests/ -q && python -m coverage report -m`).
+4. Run `python -m ruff check .`, `python -m black --check quant_trading tests`, and `python -m mypy quant_trading` before finishing.
+
+Constraints:
+
+- Deterministic: fixed seeds only, no network, no unseeded randomness.
+- If an invariant fails, **do not weaken the assertion to make it pass**: determine whether the implementation or the invariant is wrong, keep the evidence in the handoff, and keep `tests/test_backtest_engine.py` / `tests/test_portfolio.py` green for any implementation change.
+- Follow the repo conventions: tests live in `tests/`, use `pytest.approx`, black line length 100, `# pragma: no cover` only for provably unreachable branches.

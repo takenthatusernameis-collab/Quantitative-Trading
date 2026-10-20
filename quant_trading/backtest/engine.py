@@ -212,7 +212,6 @@ class BacktestResult:
         final_value: Final portfolio value.
         total_return: Total dollar return.
         total_return_pct: Total return percentage.
-        total_costs: Total commission and slippage paid across the run.
         portfolio_violations: List of portfolio-level violation messages.
         total_costs: Total commission and slippage paid over the run. It is
             the sum of the per-trade fees, i.e. ``quantity * price *
@@ -254,7 +253,6 @@ class BacktestResult:
     final_value: float
     total_return: float
     total_return_pct: float
-    total_costs: float = 0.0
     portfolio_violations: list[str] = field(default_factory=list)
     total_costs: float = 0.0
 
@@ -467,10 +465,6 @@ class BacktestEngine:
 
         from quant_trading.backtest.metrics import calculate_backtest_metrics
 
-        total_costs = sum(
-            t.quantity * t.price * (t.commission + t.slippage) for t in trades_list
-        )
-
         metrics = calculate_backtest_metrics(
             equity_series,
             trades_df,
@@ -489,7 +483,6 @@ class BacktestEngine:
             final_value=self.portfolio.total_value,
             total_return=self.portfolio.total_value - self.config.initial_capital,
             total_return_pct=(self.portfolio.total_value / self.config.initial_capital - 1) * 100,
-            total_costs=total_costs,
             portfolio_violations=portfolio_violations,
             total_costs=total_costs,
         )
@@ -552,7 +545,13 @@ class BacktestEngine:
                 if quantity <= 0:
                     return
 
-            self.portfolio.add_holding(symbol, quantity, price, commission=self.config.commission, slippage=self.config.slippage)
+            self.portfolio.add_holding(
+                symbol,
+                quantity,
+                price,
+                commission=self.config.commission,
+                slippage=self.config.slippage,
+            )
             trades_list.append(
                 Trade(
                     symbol=symbol,
@@ -575,7 +574,13 @@ class BacktestEngine:
                 return
 
             avg_cost = holding.avg_cost
-            self.portfolio.remove_holding(symbol, quantity, price, commission=self.config.commission, slippage=self.config.slippage)
+            self.portfolio.remove_holding(
+                symbol,
+                quantity,
+                price,
+                commission=self.config.commission,
+                slippage=self.config.slippage,
+            )
             realized_pnl = (
                 quantity * price * (1 - self.config.commission - self.config.slippage)
                 - avg_cost * quantity
