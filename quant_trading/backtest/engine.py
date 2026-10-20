@@ -489,7 +489,7 @@ class BacktestEngine:
                 if quantity <= 0:
                     return
 
-            self.portfolio.add_holding(symbol, quantity, price)
+            self.portfolio.add_holding(symbol, quantity, price, commission=self.config.commission, slippage=self.config.slippage)
             trades_list.append(
                 Trade(
                     symbol=symbol,
@@ -512,7 +512,7 @@ class BacktestEngine:
                 return
 
             avg_cost = holding.avg_cost
-            self.portfolio.remove_holding(symbol, quantity, price)
+            self.portfolio.remove_holding(symbol, quantity, price, commission=self.config.commission, slippage=self.config.slippage)
             realized_pnl = (
                 quantity * price * (1 - self.config.commission - self.config.slippage)
                 - avg_cost * quantity

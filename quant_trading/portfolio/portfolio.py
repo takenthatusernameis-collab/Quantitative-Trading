@@ -183,26 +183,23 @@ class Portfolio:
             return 0.0
         return self.get_position_value(symbol) / self.total_value
 
-    def add_holding(self, symbol: str, quantity: float, price: float) -> None:
+    def add_holding(self, symbol: str, quantity: float, price: float, commission: float = 0.0, slippage: float = 0.0) -> None:
         """Add or update a holding.
 
         Args:
             symbol: Symbol of the holding to add or increase.
             quantity: Quantity to add (use a negative quantity to reduce).
             price: Execution price per unit.
+            commission: Commission rate applied to the trade.
+            slippage: Slippage rate applied to the trade.
 
         Returns:
             None.
 
-        Raises:
-            ZeroDivisionError: If adding a holding causes total quantity to
-                become zero with a nonzero prior cost basis (averaging is
-                undefined); guarded internally by resetting avg_cost to 0.
-
         """
         cost = quantity * price
 
-        if symbol in self.holdings and self.holdings[symbol].quantity > 0:
+        if symbol in self.holdings and self.holdings[symbol].quantity > 0 and quantity > 0:
             holding = self.holdings[symbol]
             total_qty = holding.quantity + quantity
             if total_qty != 0:
@@ -212,6 +209,18 @@ class Portfolio:
             holding.quantity = total_qty
             holding.avg_cost = new_avg_cost
             holding.update_price(price)
+            self.cash -= cost * (1 + commission + slippage)
+        elif symbol in self.holdings and self.holdings[symbol].quantity > 0 and quantity < 0:
+            holding = self.holdings[symbol]
+            total_qty = holding.quantity + quantity
+            if total_qty != 0:
+                new_avg_cost = (holding.avg_cost * holding.quantity + cost) / total_qty
+            else:
+                new_avg_cost = 0.0
+            holding.quantity = total_qty
+            holding.avg_cost = new_avg_cost
+            holding.update_price(price)
+            self.cash += abs(cost) * (1 - commission - slippage)
         else:
             self.holdings[symbol] = Holding(
                 symbol=symbol,
@@ -220,17 +229,21 @@ class Portfolio:
                 current_price=price,
                 market_value=quantity * price,
             )
-
-        self.cash -= cost
+            if quantity > 0:
+                self.cash -= cost * (1 + commission + slippage)
+            else:
+                self.cash += abs(cost) * (1 - commission - slippage)
         self.total_value = self.cash + self.get_holdings_value()
 
-    def remove_holding(self, symbol: str, quantity: float, price: float) -> float:
+    def remove_holding(self, symbol: str, quantity: float, price: float, commission: float = 0.0, slippage: float = 0.0) -> float:
         """Remove from a holding. Returns proceeds.
 
         Args:
             symbol: Symbol of the holding to reduce.
             quantity: Quantity to remove (capped at the current holding size).
             price: Execution price per unit.
+            commission: Commission rate applied to the trade.
+            slippage: Slippage rate applied to the trade.
 
         Returns:
             Proceeds from the sale (actual quantity removed times price), or
@@ -250,9 +263,9 @@ class Portfolio:
         else:
             holding.update_price(price)
 
-        self.cash += proceeds
+        self.cash += proceeds * (1 - commission - slippage)
         self.total_value = self.cash + self.get_holdings_value()
-        return proceeds
+        return proceeds * (1 - commission - slippage)
 
     def update_prices(self, prices: dict[str, float]) -> None:
         """Update prices for all holdings.
