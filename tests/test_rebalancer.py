@@ -128,9 +128,9 @@ class TestRebalancer:
         assert len(signal_actions) == 1
         assert signal_actions[0].symbol == "GOOGL"
 
-    def test_generate_rebalance_actions_sell_signal(self):
-        """Test generate_rebalance_actions processes sell signals."""
-        self.portfolio.add_holding("AAPL", 100, 150.0)
+    def test_generate_rebalance_actions_sell_signal_short(self):
+        """Sell signals on short positions produce a buy-to-close action."""
+        self.portfolio.add_holding("AAPL", -50, 150.0)
         self.portfolio.total_value = self.portfolio.cash + self.portfolio.get_holdings_value()
 
         signals = [
@@ -140,6 +140,7 @@ class TestRebalancer:
 
         sell_actions = [a for a in actions if a.action == "sell" and a.symbol == "AAPL"]
         assert len(sell_actions) == 1
+        assert sell_actions[0].quantity == 50
 
     def test_generate_rebalance_actions_zero_price_holdings(self):
         """Test generate_rebalance_actions guards against zero prices in holdings."""

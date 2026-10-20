@@ -419,14 +419,15 @@ class Rebalancer:
                                     )
                 elif signal.action == "sell":
                     holding = self.portfolio.holdings.get(signal.symbol)
-                    if holding and holding.quantity > 0:
+                    if holding and holding.quantity != 0:
                         price = self._resolve_execution_price(signal.symbol, prices)
-                        self._plan_sell(plan, signal.symbol, holding.quantity, price)
+                        quantity = abs(holding.quantity)
+                        self._plan_sell(plan, signal.symbol, quantity, price)
                         actions.append(
                             RebalanceAction(
                                 symbol=signal.symbol,
                                 action="sell",
-                                quantity=holding.quantity,
+                                quantity=quantity,
                                 reason=f"signal_{signal.metadata.get('signal_type', 'sell')}",
                             )
                         )
