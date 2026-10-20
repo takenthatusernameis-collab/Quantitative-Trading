@@ -340,7 +340,7 @@ def test_merge_segments_alternating():
     from quant_trading.regime.detector import RegimeDetector
 
     detector = RegimeDetector()
-    prices = _make_series(n=10)
+    prices = _make_series(n=11)  # 11 prices -> 10 returns, matching the 10 labels
     returns = prices.pct_change().dropna()
     rolling_vol = returns.rolling(window=2).std()
 
@@ -427,6 +427,32 @@ def test_segment_return_pct_matches_labeled_price_range():
     assert seg.start == prices.index[2]  # label 1 -> price bar 2
     assert seg.end == prices.index[-1]  # label 28 -> price bar 29 (last)
     assert seg.return_pct == pytest.approx((prices.iloc[-1] / prices.iloc[2] - 1) * 100)
+
+
+def test_one_bar_segment_reports_own_return():
+    """A single-bar segment must report that bar's own close-to-close return,
+    not 0.0%, since its start and end price bars coincide."""
+    from quant_trading.regime.detector import RegimeDetector
+
+    prices = pd.Series(
+        [100.0, 101.0, 102.0, 95.0, 102.0],
+        index=pd.date_range("2024-01-01", periods=5, freq="D"),
+    )
+    # vol_threshold high -> all LOW_VOL; return_threshold=1.0 isolates a single
+    # BEAR bar between two BULL bars, yielding three one-bar segments.
+    result = RegimeDetector(window=2, vol_threshold=50.0, return_threshold=1.0).detect(prices)
+
+    assert result.n_segments == 3
+    bull, bear, sideways = result.segments
+    assert bull.regime == Regime.BULL_LOW_VOL
+    assert bear.regime == Regime.BEAR_LOW_VOL
+    assert sideways.regime == Regime.SIDEWAYS_LOW_VOL
+    # Each one-bar segment reports that bar's own return vs its predecessor.
+    assert bull.return_pct == pytest.approx((prices.iloc[2] / prices.iloc[1] - 1) * 100)
+    assert bear.return_pct == pytest.approx((prices.iloc[3] / prices.iloc[2] - 1) * 100)
+    assert sideways.return_pct == pytest.approx((prices.iloc[4] / prices.iloc[3] - 1) * 100)
+    # Sanity: none of the one-bar segments report 0.0.
+    assert all(s.return_pct != 0.0 for s in result.segments)
 
 
 def test_short_series_window_larger_than_prices_returns_empty():

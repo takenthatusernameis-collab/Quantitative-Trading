@@ -19,12 +19,14 @@ Examples:
     1
     >>> result.current_regime.value
     'sideways_low_vol'
+    >>> round(result.segments[0].return_pct, 2)
+    2.94
 
 """
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -84,8 +86,10 @@ class RegimeSegment:
             series.
         volatility: Mean annualized volatility over the segment's labeled
             bars.
-        return_pct: Percentage price change across the segment's labeled
-            bars (end price relative to start price).
+        return_pct: Percentage price change across the segment's labeled bars
+            (end price relative to start price). For a single-bar segment the
+            start and end coincide, so this is that bar's own close-to-close
+            return rather than 0.0.
 
     Examples:
         >>> import pandas as pd
@@ -519,10 +523,13 @@ class RegimeDetector:
         """Build a single :class:`RegimeSegment` from a label range.
 
         Labels are indexed into the rolling-statistics series, which corresponds
-        to ``prices.index[1:]`` (since ``pct_change`` drops the first bar). A
-        segment spanning labels ``[start_idx, end_idx)`` therefore covers price
-        bars ``[start_idx + 1, end_idx]``. The segment's start/end timestamps,
-        mean volatility, and percentage return are derived from those bars.
+        to ``returns.index`` (``pct_change`` drops the first bar of ``prices``,
+        and ``dropna`` compacts non-finite returns). A segment spanning labels
+        ``[start_idx, end_idx)`` therefore covers price bars
+        ``returns.index[start_idx] .. returns.index[end_idx - 1]``. The segment's
+        start/end timestamps, mean volatility, and percentage return are derived
+        from those bars; a single-bar segment reports that bar's own
+        close-to-close return.
 
         Args:
             regime: The :class:`Regime` label assigned to the segment.
@@ -536,26 +543,32 @@ class RegimeDetector:
             A :class:`RegimeSegment` describing the labeled span.
 
         """
-        # Label i corresponds to rolling stats computed on returns, whose index
-        # is prices.index[1:] (pct_change drops the first bar). So label i is the
-        # regime of price bar (i + 1). A segment spanning labels [start_idx, end_idx)
-        # therefore covers price bars [start_idx + 1, end_idx].
-        n_prices = len(prices)
-        seg_start_idx = min(start_idx + 1, n_prices - 1)
-        seg_end_idx = min(end_idx, n_prices - 1)
-        price_start = prices.index[seg_start_idx]
-        price_end = prices.index[seg_end_idx]
+        # Label i is the regime of price bar returns.index[i] (pct_change drops
+        # the first bar of the input series, and dropna() compacts the result).
+        # A segment spanning labels [start_idx, end_idx) therefore covers price
+        # bars returns.index[start_idx] .. returns.index[end_idx - 1].
+        price_start_ts = returns.index[start_idx]
+        price_end_ts = returns.index[end_idx - 1]
         seg_vol = rolling_vol.iloc[start_idx:end_idx]
-        ret_pct = (
-            float((prices.iloc[seg_end_idx] / prices.iloc[seg_start_idx] - 1) * 100)
-            if seg_end_idx > seg_start_idx and seg_end_idx < n_prices
-            else 0.0
-        )
+        if end_idx > start_idx + 1:
+            ret_pct = float((prices.loc[price_end_ts] / prices.loc[price_start_ts] - 1) * 100)
+        elif end_idx > start_idx:
+            # Single labeled bar: start and end coincide, so "end price relative to
+            # start price" is 0.0 and uninformative. Report that bar's own
+            # close-to-close return vs its predecessor price bar instead.
+            start_pos = cast(int, prices.index.get_loc(price_start_ts))
+            if start_pos > 0:
+                pred_ts = prices.index[start_pos - 1]
+                ret_pct = float((prices.loc[price_start_ts] / prices.loc[pred_ts] - 1) * 100)
+            else:
+                ret_pct = 0.0
+        else:
+            ret_pct = 0.0
         vol = float(seg_vol.mean()) if len(seg_vol) > 0 and not np.isnan(seg_vol.mean()) else 0.0
         return RegimeSegment(
             regime=regime,
-            start=price_start,
-            end=price_end,
+            start=price_start_ts,
+            end=price_end_ts,
             start_index=start_idx,
             end_index=end_idx,
             volatility=vol,
