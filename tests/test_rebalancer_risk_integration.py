@@ -25,14 +25,32 @@ def _assert_solvency(portfolio, risk_manager):
 
 
 def test_multi_round_solvency():
+    """Repeated risk-managed rebalance rounds keep the portfolio solvent.
+
+    Prices move deterministically between rounds so the portfolio drifts away
+    from its targets and each round produces real rebalancing activity. After
+    every round the portfolio must stay solvent (cash non-negative), the
+    cash-plus-holdings identity must hold, and no position may exceed the
+    risk manager's position-value cap.
+    """
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
-    portfolio.add_holding("AAPL", 100, 100.0)
-    rm = _risk_manager()
+    rm = RiskManager(initial_capital=100000.0, max_position_size=0.5, max_drawdown=0.20)
     rebalancer = Rebalancer(
-        portfolio, target_allocation={"AAPL": 0.5, "MSFT": 0.3}, risk_manager=rm
+        portfolio,
+        target_allocation={"AAPL": 0.4, "MSFT": 0.3, "GOOGL": 0.3},
+        rebalance_threshold=0.01,
+        risk_manager=rm,
     )
-    prices = {"AAPL": 100.0, "MSFT": 50.0}
-    for _ in range(5):
+    price_scenarios = [
+        {"AAPL": 100.0, "MSFT": 100.0, "GOOGL": 100.0},
+        {"AAPL": 105.0, "MSFT": 95.0, "GOOGL": 100.0},
+        {"AAPL": 95.0, "MSFT": 105.0, "GOOGL": 105.0},
+        {"AAPL": 110.0, "MSFT": 90.0, "GOOGL": 95.0},
+        {"AAPL": 100.0, "MSFT": 110.0, "GOOGL": 90.0},
+        {"AAPL": 105.0, "MSFT": 105.0, "GOOGL": 110.0},
+    ]
+    for prices in price_scenarios:
+        portfolio.update_prices(prices)
         actions = rebalancer.generate_rebalance_actions(
             prices=prices, commission=0.001, slippage=0.0005
         )
@@ -41,12 +59,25 @@ def test_multi_round_solvency():
 
 
 def test_drawdown_breach_stops_buys_allows_sells():
+    """A breached drawdown limit blocks buys but still permits sells."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
-    portfolio.add_holding("AAPL", 100, 200.0)  # deep loss -> drawdown
+    portfolio.add_holding("AAPL", 100, 100.0)
     rm = RiskManager(initial_capital=100000.0, max_position_size=0.1, max_drawdown=0.05)
-    rm.portfolio_risk.current_drawdown = -0.5
-    rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.5}, risk_manager=rm)
+    rm.portfolio_risk.current_drawdown = -0.5  # breach the loss limit
+    rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.0}, risk_manager=rm)
     prices = {"AAPL": 50.0}
     actions = rebalancer.generate_rebalance_actions(prices=prices)
     buys = [a for a in actions if a.action == "buy"]
-    assert buys == []
+    sells = [a for a in actions if a.action == "sell"]
+    assert buys == []  # drawdown halt blocks all buying
+    assert len(sells) == 1  # selling still works despite the breach
+    assert sells[0].symbol == "AAPL"
+    assert sells[0].quantity == pytest.approx(100.0)
+
+    executions = rebalancer.execute_actions(actions, prices=prices)
+    assert len(executions) == 1
+    assert executions[0].action == "sell"
+    assert executions[0].executed_quantity == pytest.approx(100.0)
+    assert portfolio.cash >= 0.0
+    assert "AAPL" not in portfolio.holdings
+    _assert_solvency(portfolio, rm)
