@@ -146,6 +146,8 @@ class RiskConfig:
         stop_loss_pct: Stop-loss distance as a fraction of entry price.
         take_profit_pct: Take-profit distance as a fraction of entry price.
         max_drawdown: Maximum tolerated portfolio drawdown as a fraction.
+        max_leverage: Maximum gross exposure as a multiple of the portfolio
+            value (1.0 = fully invested with no borrowing).
 
     Examples:
         >>> from quant_trading.config.settings import RiskConfig
@@ -159,6 +161,7 @@ class RiskConfig:
     stop_loss_pct: float = 0.05
     take_profit_pct: float = 0.15
     max_drawdown: float = 0.20
+    max_leverage: float = 1.0
 
 
 @dataclass

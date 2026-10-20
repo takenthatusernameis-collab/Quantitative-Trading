@@ -41,6 +41,7 @@ class TestRiskConfig:
         config = RiskConfig()
         assert config.max_position_size == 0.1
         assert config.max_drawdown == 0.20
+        assert config.max_leverage == 1.0
 
 
 class TestPortfolioConfig:

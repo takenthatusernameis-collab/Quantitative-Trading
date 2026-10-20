@@ -683,6 +683,7 @@ risk:
   stop_loss_pct: 0.05
   take_profit_pct: 0.15
   max_drawdown: 0.20
+  max_leverage: 1.0
 
 portfolio:
   rebalance_frequency: "monthly"
@@ -699,6 +700,44 @@ Load in code:
 from quant_trading.config.settings import Config
 
 config = Config.from_yaml("config.yaml")
+```
+
+## Risk Limits
+
+`PortfolioLimit.check()` enforces the portfolio-level limits on every risk
+check. Each breach is reported as a violation message, and
+`RiskManager.check_portfolio()` turns those messages into a failed
+`CheckResult`:
+
+| Limit | Meaning | Default |
+| --- | --- | --- |
+| `max_positions` | Maximum number of open positions | `20` |
+| `max_position_size` | Largest single position, as a fraction of the portfolio | `0.1` |
+| `max_portfolio_risk` | Largest fraction of the portfolio value that may be at risk at once | `0.02` |
+| `max_drawdown` | Drawdown from the peak that halts trading | `0.20` |
+| `max_leverage` | Largest gross exposure, as a multiple of the portfolio value | `1.0` |
+| `stop_loss_pct` | Stop loss distance used to size the risk of each open position | `0.05` |
+
+The risk of a position is the loss that would be realised if its planned stop
+loss were hit: `size x entry price x stop_loss_pct`. The portfolio risk is the
+sum of that risk over all open positions, expressed as a fraction of the
+portfolio value. Measuring from the entry price keeps the risk committed to a
+trade stable while the market moves.
+
+Leverage is *gross* exposure: the absolute market value of every open position
+divided by the portfolio value, so an equally sized long and short do not
+cancel each other out.
+
+```python
+from quant_trading.risk.limits import PortfolioLimit
+from quant_trading.strategies.base import Position
+
+limit = PortfolioLimit(max_portfolio_risk=0.02, max_leverage=1.0, max_position_size=1.0)
+positions = {
+    "AAPL": Position(symbol="AAPL", quantity=400, avg_price=150.0, current_price=150.0),
+}
+limit.check(positions, portfolio_value=100000.0, peak_value=100000.0)
+# ['Portfolio risk 3.00% exceeds max 2.00%']
 ```
 
 ## Annualization Periods

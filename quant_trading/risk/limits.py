@@ -3,13 +3,12 @@
 Examples:
     Check a single position against limits::
 
-        from quant_trading.risk.limits import PositionLimit
-        from quant_trading.strategies.base import Position
-
-        limit = PositionLimit(max_size=0.1, max_value=10000.0)
-        pos = Position(symbol="AAPL", quantity=100, entry_price=150.0)
-        violations = limit.check(pos, portfolio_value=50000.0)
-        assert len(violations) == 0
+        >>> from quant_trading.risk.limits import PositionLimit
+        >>> from quant_trading.strategies.base import Position
+        >>> limit = PositionLimit(max_size=0.1, max_value=10000.0)
+        >>> pos = Position(symbol="AAPL", quantity=10, avg_price=150.0, current_price=150.0)
+        >>> limit.check(pos, portfolio_value=50000.0)
+        []
 
 """
 
@@ -32,13 +31,12 @@ class PositionLimit:
     Examples:
         Create position limits and check for violations::
 
-            from quant_trading.risk.limits import PositionLimit
-            from quant_trading.strategies.base import Position
-
-            pl = PositionLimit(max_size=0.1, max_value=50000.0)
-            pos = Position(symbol="AAPL", quantity=200, entry_price=100.0)
-            violations = pl.check(pos, portfolio_value=100000.0)
-            print(violations)
+            >>> from quant_trading.risk.limits import PositionLimit
+            >>> from quant_trading.strategies.base import Position
+            >>> pl = PositionLimit(max_size=0.1, max_value=50000.0)
+            >>> pos = Position(symbol="AAPL", quantity=200, avg_price=100.0, current_price=110.0)
+            >>> pl.check(pos, portfolio_value=100000.0)
+            ['Position size 22.00% exceeds max 10.00%']
 
     """
 
@@ -84,28 +82,129 @@ class PortfolioLimit:
     Attributes:
         max_positions: Maximum number of open positions allowed.
         max_position_size: Maximum single position size as fraction of portfolio.
-        max_portfolio_risk: Maximum portfolio risk per trade as fraction.
+        max_portfolio_risk: Maximum fraction of the portfolio value that may
+            be at risk at any time. The risk of a position is the loss that
+            would be realised if its planned stop loss were hit; the portfolio
+            risk is the sum of that risk over all open positions.
         max_drawdown: Maximum drawdown before halt (fraction, e.g., 0.20 = 20%).
-        max_leverage: Maximum portfolio leverage allowed.
+        max_leverage: Maximum gross exposure as a multiple of the portfolio
+            value (1.0 = fully invested with no borrowing).
+        stop_loss_pct: Stop loss distance used to size the risk of each open
+            position (fraction, e.g., 0.05 = 5%).
 
     Examples:
         Check portfolio-level constraints::
 
-            from quant_trading.risk.limits import PortfolioLimit
-            from quant_trading.strategies.base import Position
+            >>> from quant_trading.risk.limits import PortfolioLimit
+            >>> from quant_trading.strategies.base import Position
+            >>> pl = PortfolioLimit(max_positions=20, max_drawdown=0.20)
+            >>> positions = {
+            ...     "AAPL": Position(symbol="AAPL", quantity=10, avg_price=150.0, current_price=150.0)
+            ... }
+            >>> pl.check(positions, portfolio_value=100000.0, peak_value=105000.0)
+            []
 
-            pl = PortfolioLimit(max_positions=20, max_drawdown=0.20)
-            positions = {"AAPL": Position(symbol="AAPL", quantity=10, entry_price=150.0)}
-            violations = pl.check(positions, portfolio_value=100000.0, peak_value=105000.0)
-            print(violations)
+        Too much open risk at once is reported::
+
+            >>> pl = PortfolioLimit(max_portfolio_risk=0.02, max_position_size=1.0)
+            >>> positions = {
+            ...     "AAPL": Position(symbol="AAPL", quantity=400, avg_price=150.0, current_price=150.0)
+            ... }
+            >>> pl.check(positions, portfolio_value=100000.0, peak_value=100000.0)
+            ['Portfolio risk 3.00% exceeds max 2.00%']
+
+        Gross exposure above the leverage limit is reported::
+
+            >>> pl = PortfolioLimit(max_position_size=1.0, max_portfolio_risk=0.10, max_leverage=1.0)
+            >>> positions = {
+            ...     "AAPL": Position(symbol="AAPL", quantity=400, avg_price=150.0, current_price=150.0),
+            ...     "MSFT": Position(symbol="MSFT", quantity=200, avg_price=300.0, current_price=300.0),
+            ... }
+            >>> pl.check(positions, portfolio_value=100000.0, peak_value=100000.0)
+            ['Portfolio leverage 1.20x exceeds max 1.00x']
 
     """
 
     max_positions: int = 20
     max_position_size: float = 0.1  # Max single position as fraction
-    max_portfolio_risk: float = 0.02  # Max risk per trade as fraction
+    max_portfolio_risk: float = 0.02  # Max open risk as fraction of portfolio
     max_drawdown: float = 0.20  # Max drawdown before halt
-    max_leverage: float = 1.0  # Max leverage
+    max_leverage: float = 1.0  # Max gross exposure as multiple of portfolio value
+    stop_loss_pct: float = 0.05  # Stop loss distance used to size position risk
+
+    def position_risk(self, position: Position) -> float:
+        """Compute the risk committed by a single position.
+
+        The risk of a position is the loss that would be realised if its
+        planned stop loss were hit: the position size multiplied by the entry
+        price and by the stop loss distance. Measuring from the entry price
+        keeps the risk committed to a trade stable while the market moves.
+        Positions without a usable entry price fall back to the current price.
+
+        Args:
+            position: Position to size the risk of.
+
+        Returns:
+            Dollar amount at risk for the position (0.0 for flat positions).
+
+        """
+        quantity = position.quantity
+        if quantity == 0:
+            return 0.0
+
+        basis = position.avg_price if position.avg_price > 0 else position.current_price
+        if basis <= 0:
+            return 0.0
+
+        return abs(quantity) * basis * self.stop_loss_pct
+
+    def portfolio_risk(self, positions: dict[str, Position]) -> float:
+        """Compute the total open risk of the portfolio.
+
+        Args:
+            positions: Dictionary mapping symbol to current position.
+
+        Returns:
+            Sum of the risk of every open position, in dollars.
+
+        """
+        return sum(self.position_risk(pos) for pos in positions.values())
+
+    def portfolio_risk_pct(self, positions: dict[str, Position], portfolio_value: float) -> float:
+        """Compute the total open risk as a fraction of the portfolio value.
+
+        Args:
+            positions: Dictionary mapping symbol to current position.
+            portfolio_value: Current total portfolio value.
+
+        Returns:
+            Open risk as a fraction of the portfolio value (0.0 when the
+            portfolio value is not positive).
+
+        """
+        if portfolio_value <= 0:
+            return 0.0
+        return self.portfolio_risk(positions) / portfolio_value
+
+    def leverage(self, positions: dict[str, Position], portfolio_value: float) -> float:
+        """Compute the gross exposure of the portfolio.
+
+        Gross exposure sums the absolute market value of every open position,
+        so an equally sized long and short do not cancel each other out.
+
+        Args:
+            positions: Dictionary mapping symbol to current position.
+            portfolio_value: Current total portfolio value.
+
+        Returns:
+            Gross exposure as a multiple of the portfolio value (0.0 when the
+            portfolio value is not positive).
+
+        """
+        if portfolio_value <= 0:
+            return 0.0
+        gross_exposure = sum(abs(pos.market_value) for pos in positions.values())
+        return gross_exposure / portfolio_value
 
     def check(
         self,
@@ -124,7 +223,7 @@ class PortfolioLimit:
             List of violation messages (empty if none).
 
         """
-        violations = []
+        violations: list[str] = []
 
         if len(positions) > self.max_positions:
             violations.append(
@@ -144,6 +243,18 @@ class PortfolioLimit:
             drawdown = (portfolio_value - peak_value) / peak_value
             if drawdown < -self.max_drawdown:
                 violations.append(f"Drawdown {drawdown:.2%} exceeds max {self.max_drawdown:.2%}")
+
+        risk_pct = self.portfolio_risk_pct(positions, portfolio_value)
+        if risk_pct > self.max_portfolio_risk:
+            violations.append(
+                f"Portfolio risk {risk_pct:.2%} exceeds max {self.max_portfolio_risk:.2%}"
+            )
+
+        leverage = self.leverage(positions, portfolio_value)
+        if leverage > self.max_leverage:
+            violations.append(
+                f"Portfolio leverage {leverage:.2f}x exceeds max {self.max_leverage:.2f}x"
+            )
 
         return violations
 

@@ -94,13 +94,15 @@ class RiskManager:
         stop_loss_pct: float = 0.05,
         take_profit_pct: float = 0.15,
         risk_free_rate: float = 0.02,
+        max_leverage: float = 1.0,
     ):
         """Initialize risk manager.
 
         Args:
             initial_capital: Initial capital for risk calculations.
             max_position_size: Maximum position size as fraction of portfolio.
-            max_portfolio_risk: Maximum portfolio risk per trade as fraction.
+            max_portfolio_risk: Maximum fraction of the portfolio value that may
+                be at risk at any time.
             max_drawdown: Maximum drawdown before halt (fraction).
             max_positions: Maximum number of positions allowed.
             stop_loss_pct: Default stop loss percentage.
@@ -108,6 +110,8 @@ class RiskManager:
             risk_free_rate: Annual risk-free rate used for risk-adjusted
                 metrics (Sharpe/Sortino/alpha). Defaults to 0.02 to match
                 the rest of the framework.
+            max_leverage: Maximum gross exposure as a multiple of the portfolio
+                value (1.0 = fully invested with no borrowing).
 
         Returns:
             None.
@@ -126,6 +130,8 @@ class RiskManager:
             max_position_size=max_position_size,
             max_portfolio_risk=max_portfolio_risk,
             max_drawdown=max_drawdown,
+            max_leverage=max_leverage,
+            stop_loss_pct=stop_loss_pct,
         )
 
         self.portfolio_risk = PortfolioRisk(

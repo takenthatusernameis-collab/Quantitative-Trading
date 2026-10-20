@@ -49,6 +49,16 @@ class TestRiskManagerInit:
         rm = RiskManager(initial_capital=100000.0)
         assert rm.portfolio_risk.total_value == rm.portfolio_risk.total_market_value == 100000.0
 
+    def test_portfolio_limit_receives_stop_loss_pct(self):
+        """The stop loss distance is shared with the portfolio risk limit."""
+        rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10)
+        assert rm.portfolio_limit.stop_loss_pct == 0.10
+
+    def test_portfolio_limit_receives_max_leverage(self):
+        """The leverage limit is forwarded to the portfolio limit."""
+        rm = RiskManager(initial_capital=100000.0, max_leverage=2.5)
+        assert rm.portfolio_limit.max_leverage == 2.5
+
 
 class TestUpdatePortfolioValue:
     """Tests for update_portfolio_value."""
@@ -266,6 +276,51 @@ class TestCheckPortfolio:
         rm.peak_value = 100000.0
         result = rm.check_portfolio()
         assert result.passed is True
+
+    def test_leverage_violation(self):
+        """Gross exposure above the leverage limit fails the portfolio check."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_leverage=1.0,
+            max_position_size=1.0,
+            max_portfolio_risk=0.5,
+        )
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=400, avg_price=150.0, current_price=150.0),
+            "MSFT": Position(symbol="MSFT", quantity=200, avg_price=300.0, current_price=300.0),
+        }
+        result = rm.check_portfolio()
+        assert result.passed is False
+        assert any("Portfolio leverage 1.20x" in v for v in result.violations)
+
+    def test_portfolio_risk_violation(self):
+        """Open risk above the risk budget fails the portfolio check."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_portfolio_risk=0.02,
+            max_position_size=1.0,
+        )
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=400, avg_price=150.0, current_price=150.0),
+        }
+        result = rm.check_portfolio()
+        assert result.passed is False
+        assert any("Portfolio risk 3.00%" in v for v in result.violations)
+
+    def test_portfolio_risk_uses_configured_stop_loss(self):
+        """The risk budget is sized with the configured stop loss distance."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_portfolio_risk=0.02,
+            max_position_size=1.0,
+            stop_loss_pct=0.10,
+        )
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=200, avg_price=150.0, current_price=150.0),
+        }
+        result = rm.check_portfolio()
+        assert result.passed is False
+        assert any("Portfolio risk 3.00%" in v for v in result.violations)
 
 
 class TestCalculateMetrics:

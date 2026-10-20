@@ -115,7 +115,9 @@ class TestPortfolioLimit:
 
     def test_check_position_size_violation(self):
         """Test check detects individual position size violation."""
-        limit = PortfolioLimit(max_positions=10, max_position_size=0.1)
+        # The risk budget is raised so this test isolates the position size
+        # check; the portfolio risk limit has its own tests below.
+        limit = PortfolioLimit(max_positions=10, max_position_size=0.1, max_portfolio_risk=0.05)
         # AAPL is 31% of portfolio, MSFT is 15.5%
         positions = {
             "AAPL": Position(symbol="AAPL", quantity=200, avg_price=150.0, current_price=155.0),
@@ -191,6 +193,140 @@ class TestPortfolioLimit:
         assert len(violations) == 2
         assert any("exceeds max" in v and "positions" in v for v in violations)
         assert any("AAPL" in v for v in violations)
+
+
+class TestPortfolioLimitPortfolioRisk:
+    """Tests for the portfolio risk limit (total open risk at once)."""
+
+    def test_defaults_include_stop_loss_pct(self):
+        """The stop loss distance used to size position risk has a default."""
+        assert PortfolioLimit().stop_loss_pct == 0.05
+
+    def test_risk_within_limit(self):
+        """Open risk below the budget produces no violation."""
+        limit = PortfolioLimit(max_portfolio_risk=0.02, max_position_size=1.0)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0),
+        }
+        # 100 shares * $150 entry * 5% stop = $750 at risk = 0.75% of portfolio
+        assert limit.portfolio_risk(positions) == pytest.approx(750.0)
+        assert limit.portfolio_risk_pct(positions, 100000.0) == pytest.approx(0.0075)
+        assert limit.check(positions, 100000.0, 100000.0) == []
+
+    def test_risk_violation(self):
+        """Open risk above the budget is reported."""
+        limit = PortfolioLimit(max_portfolio_risk=0.02, max_position_size=1.0)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=400, avg_price=150.0, current_price=150.0),
+        }
+        # 400 shares * $150 entry * 5% stop = $3000 at risk = 3% of portfolio
+        violations = limit.check(positions, 100000.0, 100000.0)
+        assert len(violations) == 1
+        assert "Portfolio risk 3.00%" in violations[0]
+        assert "exceeds max 2.00%" in violations[0]
+
+    def test_risk_sums_across_positions(self):
+        """The risk of several positions is summed."""
+        limit = PortfolioLimit(max_portfolio_risk=1.0, max_position_size=1.0)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0),
+            "MSFT": Position(symbol="MSFT", quantity=50, avg_price=300.0, current_price=300.0),
+        }
+        # 100 * 150 * 5% + 50 * 300 * 5% = $1500
+        assert limit.portfolio_risk(positions) == pytest.approx(1500.0)
+
+    def test_risk_measured_from_entry_price(self):
+        """The risk committed to a trade does not drift with the market price."""
+        limit = PortfolioLimit(max_portfolio_risk=1.0, max_position_size=1.0)
+        position = Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=300.0)
+        assert limit.position_risk(position) == pytest.approx(750.0)
+
+    def test_risk_of_short_position(self):
+        """A short risks the same amount as a long of equal size."""
+        limit = PortfolioLimit(max_portfolio_risk=1.0, max_position_size=1.0)
+        long_pos = Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0)
+        short_pos = Position(symbol="AAPL", quantity=-100, avg_price=150.0, current_price=150.0)
+        assert limit.position_risk(short_pos) == pytest.approx(limit.position_risk(long_pos))
+
+    def test_risk_ignores_flat_positions(self):
+        """Flat positions contribute no risk."""
+        limit = PortfolioLimit(max_portfolio_risk=0.0, max_position_size=1.0)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=0, avg_price=150.0, current_price=150.0),
+        }
+        assert limit.portfolio_risk(positions) == 0.0
+        assert limit.check(positions, 100000.0, 100000.0) == []
+
+    def test_risk_falls_back_to_current_price(self):
+        """A position without an entry price is sized from its current price."""
+        limit = PortfolioLimit(max_portfolio_risk=1.0, max_position_size=1.0)
+        position = Position(symbol="AAPL", quantity=100, avg_price=0.0, current_price=200.0)
+        assert limit.position_risk(position) == pytest.approx(1000.0)
+
+    def test_risk_with_zero_portfolio_value(self):
+        """A non-positive portfolio value is handled without dividing by zero."""
+        limit = PortfolioLimit(max_portfolio_risk=0.0, max_position_size=1.0)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0),
+        }
+        assert limit.portfolio_risk_pct(positions, 0.0) == 0.0
+        assert limit.check(positions, 0.0, 0.0) == []
+
+
+class TestPortfolioLimitLeverage:
+    """Tests for the leverage limit (gross exposure)."""
+
+    def test_leverage_within_limit(self):
+        """Gross exposure below the limit produces no violation."""
+        limit = PortfolioLimit(max_leverage=1.0, max_position_size=1.0, max_portfolio_risk=1.0)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=400, avg_price=150.0, current_price=150.0),
+        }
+        assert limit.leverage(positions, 100000.0) == pytest.approx(0.6)
+        assert limit.check(positions, 100000.0, 100000.0) == []
+
+    def test_leverage_violation(self):
+        """Gross exposure above the limit is reported."""
+        limit = PortfolioLimit(max_leverage=1.0, max_position_size=1.0, max_portfolio_risk=1.0)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=400, avg_price=150.0, current_price=150.0),
+            "MSFT": Position(symbol="MSFT", quantity=200, avg_price=300.0, current_price=300.0),
+        }
+        assert limit.leverage(positions, 100000.0) == pytest.approx(1.2)
+        violations = limit.check(positions, 100000.0, 100000.0)
+        assert len(violations) == 1
+        assert "Portfolio leverage 1.20x" in violations[0]
+        assert "exceeds max 1.00x" in violations[0]
+
+    def test_leverage_is_gross_not_net(self):
+        """An offsetting short does not cancel the long for leverage purposes."""
+        limit = PortfolioLimit(max_leverage=1.0, max_position_size=10.0, max_portfolio_risk=1.0)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=400, avg_price=150.0, current_price=150.0),
+            "MSFT": Position(symbol="MSFT", quantity=-400, avg_price=150.0, current_price=150.0),
+        }
+        # Net exposure is zero, but gross exposure is 120% of the portfolio
+        assert limit.leverage(positions, 100000.0) == pytest.approx(1.2)
+        violations = limit.check(positions, 100000.0, 100000.0)
+        assert any("Portfolio leverage 1.20x" in v for v in violations)
+
+    def test_higher_leverage_limit_allows_exposure(self):
+        """A leverage limit above the exposure allows the same portfolio."""
+        limit = PortfolioLimit(max_leverage=2.0, max_position_size=1.0, max_portfolio_risk=1.0)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=400, avg_price=150.0, current_price=150.0),
+            "MSFT": Position(symbol="MSFT", quantity=200, avg_price=300.0, current_price=300.0),
+        }
+        assert limit.check(positions, 100000.0, 100000.0) == []
+
+    def test_leverage_with_zero_portfolio_value(self):
+        """A non-positive portfolio value is handled without dividing by zero."""
+        limit = PortfolioLimit(max_leverage=0.0, max_position_size=1.0, max_portfolio_risk=1.0)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0),
+        }
+        assert limit.leverage(positions, 0.0) == 0.0
+        assert limit.check(positions, 0.0, 0.0) == []
 
 
 class TestCheckResult:
