@@ -12,7 +12,7 @@ from quant_trading.backtest.engine import (
     Trade,
     run_backtest,
 )
-from quant_trading.config.settings import BacktestConfig
+from quant_trading.config.settings import BacktestConfig, Config, PortfolioConfig
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
 from quant_trading.data.synthetic import create_synthetic_data
 from quant_trading.risk.manager import RiskManager
@@ -441,6 +441,34 @@ def test_halt_on_portfolio_violation_stops_backtest():
     assert len(result.equity_curve.index) == len(result.equity_curve)
 
 
+def test_config_driven_max_positions_halts_backtest():
+    """A YAML/config-driven max_positions=1 halts a multi-symbol backtest."""
+    symbols = ["AAPL", "MSFT"]
+    mock_data = create_synthetic_data(symbols, days=60)
+
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    config = Config(
+        backtest=BacktestConfig(
+            initial_capital=100000.0,
+            halt_on_portfolio_violation=True,
+        ),
+        portfolio=PortfolioConfig(max_positions=1),
+    )
+    engine = BacktestEngine(config=config, data_manager=data_manager)
+    engine.add_strategy(FirstDayBuyStrategy())
+
+    start_date = datetime.now() - timedelta(days=50)
+    end_date = datetime.now()
+
+    result = engine.run(symbols, start_date, end_date, "1d")
+
+    assert isinstance(result, BacktestResult)
+    assert len(result.portfolio_violations) > 0
+    assert len(result.equity_curve) < len(mock_data["AAPL"]) + 1
+
+
 def test_run_without_data_manager_raises():
     """run() raises ValueError when no data_manager is configured."""
     engine = BacktestEngine()
@@ -792,7 +820,7 @@ def test_total_costs_reconciles_with_pnl_and_final_value():
 
 def test_buy_signal_with_existing_position_at_target_does_not_trade():
     """available_value <= 0 branch: no trade when position already at target."""
-    from quant_trading.config.settings import BacktestConfig
+    from quant_trading.config.settings import BacktestConfig, Config, PortfolioConfig
 
     data = create_synthetic_data(["AAPL"], days=5)
     provider = MockDataProvider(data)
