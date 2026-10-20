@@ -389,10 +389,7 @@ class Portfolio:
         if self.total_value <= 0:
             return {}
         if use_absolute:
-            return {
-                sym: abs(h.market_value) / self.total_value
-                for sym, h in self.holdings.items()
-            }
+            return {sym: abs(h.market_value) / self.total_value for sym, h in self.holdings.items()}
         return {sym: h.market_value / self.total_value for sym, h in self.holdings.items()}
 
     def get_net_allocation(self) -> dict[str, float]:
