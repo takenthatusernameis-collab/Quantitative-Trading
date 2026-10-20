@@ -27,6 +27,11 @@ Examples:
         actions = rebalancer.generate_rebalance_actions(signals=[sell_signal])
         assert actions[0].action == "sell"
 
+    Apply the generated actions to the portfolio::
+
+        executions = rebalancer.execute_actions(actions, prices={"AAPL": 150.0})
+        assert all(e.executed_quantity >= 0 for e in executions)
+
 """
 
 from dataclasses import dataclass, field
@@ -77,6 +82,54 @@ class RebalanceAction:
     timestamp: datetime = field(default_factory=datetime.now)
 
 
+@dataclass
+class RebalanceExecution:
+    """The outcome of applying a single :class:`RebalanceAction` to a portfolio.
+
+    Attributes:
+        symbol: Ticker symbol the action applied to.
+        action: Order direction of the action (``"buy"``, ``"sell"`` or
+            ``"hold"``).
+        requested_quantity: Quantity the action asked for, as an absolute
+            number of units.
+        executed_quantity: Units actually traded. It is 0.0 for a ``"hold"``
+            action and for an action that could not be executed, and it is
+            capped at the size of the open position when the action trades
+            against one.
+        price: Price per unit resolved for the action, or 0.0 when no price
+            could be resolved.
+        cash_effect: Change in the portfolio's cash balance caused by the
+            action (negative for a buy, positive for a sale).
+        reason: The reason carried by the action.
+        timestamp: Time the action was applied (defaults to now).
+
+    Examples:
+        Record the execution of a buy action::
+
+            from quant_trading.portfolio.rebalancer import RebalanceExecution
+
+            execution = RebalanceExecution(
+                symbol="AAPL",
+                action="buy",
+                requested_quantity=10.0,
+                executed_quantity=10.0,
+                price=150.0,
+                cash_effect=-1500.0,
+            )
+            assert execution.executed_quantity == 10.0
+
+    """
+
+    symbol: str
+    action: str
+    requested_quantity: float = 0.0
+    executed_quantity: float = 0.0
+    price: float = 0.0
+    cash_effect: float = 0.0
+    reason: str = ""
+    timestamp: datetime = field(default_factory=datetime.now)
+
+
 class Rebalancer:
     """Manages portfolio rebalancing based on signals and targets.
 
@@ -85,6 +138,9 @@ class Rebalancer:
     the trades required to close the gap. It can also react to trading
     :class:`~quant_trading.strategies.base.Signal` objects for symbols that
     are not part of the target allocation.
+
+    The emitted actions can be applied to the managed portfolio with
+    :meth:`execute_actions`, which reports what each action actually traded.
 
     Attributes:
         portfolio: The :class:`~quant_trading.portfolio.portfolio.Portfolio`
@@ -296,6 +352,146 @@ class Rebalancer:
         )
 
         return actions
+
+    def execute_actions(
+        self,
+        actions: list[RebalanceAction],
+        prices: dict[str, float] | None = None,
+        commission: float = 0.0,
+        slippage: float = 0.0,
+    ) -> list[RebalanceExecution]:
+        """Apply rebalancing actions to the managed portfolio.
+
+        Each action is translated into a trade on :attr:`portfolio`:
+
+        * a ``"buy"`` buys ``quantity`` units, opening a long position or
+          adding to the one already held (and covering an open short);
+        * a ``"sell"`` sells ``quantity`` units, reducing an open long or
+          covering an open short;
+        * a ``"hold"`` does nothing.
+
+        The portfolio caps a trade against an open position at the size of that
+        position, so an action can never open or flip a position, and a fully
+        offset position is removed from the portfolio. The execution reports
+        what was actually traded, which may be less than the quantity the
+        action asked for.
+
+        The execution price of an action is taken from the ``prices`` map when
+        it holds a positive price for the symbol, and otherwise from the
+        current price of the holding. An action with no resolvable price, a
+        zero quantity, or a ``"hold"`` direction is skipped and reported with
+        an executed quantity of 0.0.
+
+        After the actions are applied the run is recorded in
+        :attr:`rebalance_history` and :attr:`last_rebalance` is updated.
+
+        Args:
+            actions: Actions to apply, typically the list returned by
+                :meth:`generate_rebalance_actions`.
+            prices: Optional symbol-keyed price map used to resolve the
+                execution price of each action.
+            commission: Commission rate applied to every trade.
+            slippage: Slippage rate applied to every trade.
+
+        Returns:
+            One :class:`RebalanceExecution` per action, in the order the
+            actions were given.
+
+        Raises:
+            ValueError: If an action carries an unrecognized direction.
+
+        """
+        prices = prices or {}
+        executions: list[RebalanceExecution] = []
+
+        for action in actions:
+            if action.action not in ("buy", "sell", "hold"):
+                raise ValueError(f"Unknown rebalance action: {action.action!r}")
+
+            quantity = abs(action.quantity)
+            price = self._resolve_execution_price(action.symbol, prices)
+            position_before = self._position_of(action.symbol)
+            cash_before = self.portfolio.cash
+
+            if quantity > 0 and price > 0:
+                if action.action == "buy":
+                    self.portfolio.add_holding(action.symbol, quantity, price, commission, slippage)
+                elif action.action == "sell":
+                    self.portfolio.remove_holding(
+                        action.symbol, quantity, price, commission, slippage
+                    )
+
+            position_after = self._position_of(action.symbol)
+            executions.append(
+                RebalanceExecution(
+                    symbol=action.symbol,
+                    action=action.action,
+                    requested_quantity=quantity,
+                    executed_quantity=abs(position_after - position_before),
+                    price=price,
+                    cash_effect=self.portfolio.cash - cash_before,
+                    reason=action.reason,
+                )
+            )
+
+        self.last_rebalance = datetime.now()
+        self.portfolio.last_rebalance = self.last_rebalance
+        self.rebalance_history.append(
+            {
+                "timestamp": self.last_rebalance,
+                "actions": [e.symbol for e in executions],
+                "portfolio_value": self.portfolio.total_value,
+                "executions": [
+                    {
+                        "symbol": e.symbol,
+                        "action": e.action,
+                        "requested_quantity": e.requested_quantity,
+                        "executed_quantity": e.executed_quantity,
+                        "price": e.price,
+                        "cash_effect": e.cash_effect,
+                        "reason": e.reason,
+                    }
+                    for e in executions
+                ],
+            }
+        )
+
+        return executions
+
+    def _resolve_execution_price(self, symbol: str, prices: dict[str, float]) -> float:
+        """Resolve the price an action is executed at.
+
+        The ``prices`` map wins when it holds a positive price for the symbol,
+        and the current price of the holding is used otherwise.
+
+        Args:
+            symbol: Symbol the action applies to.
+            prices: Symbol-keyed price map.
+
+        Returns:
+            The execution price, or 0.0 when no positive price is available.
+
+        """
+        price = prices.get(symbol)
+        if price is not None and price > 0:
+            return price
+        holding = self.portfolio.holdings.get(symbol)
+        if holding is not None and holding.current_price > 0:
+            return holding.current_price
+        return 0.0
+
+    def _position_of(self, symbol: str) -> float:
+        """Return the signed quantity currently held in a symbol.
+
+        Args:
+            symbol: Symbol to look up.
+
+        Returns:
+            The quantity held, or 0.0 when the symbol is not held.
+
+        """
+        holding = self.portfolio.holdings.get(symbol)
+        return holding.quantity if holding is not None else 0.0
 
     def _resolve_buy_quantity(
         self,
