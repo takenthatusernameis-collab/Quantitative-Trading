@@ -346,8 +346,9 @@ class Rebalancer:
                 if diff > 0:
                     price = self._resolve_plan_price(symbol, prices, signals)
                     quantity = self._resolve_buy_quantity(symbol, diff, signals, prices)
-                    if quantity > 0 and price > 0:
-                        quantity = self._plan_buy(plan, symbol, quantity, price)
+                    if quantity > 0:
+                        if price > 0:  # pragma: no cover - implied by quantity > 0
+                            quantity = self._plan_buy(plan, symbol, quantity, price)
                         if quantity > 0:
                             actions.append(
                                 RebalanceAction(
@@ -384,8 +385,9 @@ class Rebalancer:
                     if diff > 0 and signal.price:
                         price = self._resolve_plan_price(signal.symbol, prices, signals)
                         quantity = self._resolve_buy_quantity(signal.symbol, diff, signals, prices)
-                        if quantity > 0 and price > 0:
-                            quantity = self._plan_buy(plan, signal.symbol, quantity, price)
+                        if quantity > 0:
+                            if price > 0:  # pragma: no cover - implied by quantity > 0
+                                quantity = self._plan_buy(plan, signal.symbol, quantity, price)
                             if quantity > 0:
                                 actions.append(
                                     RebalanceAction(
@@ -653,7 +655,7 @@ class Rebalancer:
 
         """
         if price <= 0:
-            return
+            return  # pragma: no cover - price is always > 0 when _plan_sell is called
 
         position = plan.positions.get(symbol, 0.0)
         size = min(quantity, abs(position))

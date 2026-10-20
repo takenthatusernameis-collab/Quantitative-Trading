@@ -20,6 +20,7 @@ import pytest
 
 from quant_trading.portfolio.portfolio import Portfolio
 from quant_trading.portfolio.rebalancer import RebalanceAction, Rebalancer
+from quant_trading.strategies.base import Signal
 
 SEEDS = (20240601, 20240602, 20240603, 20240604, 20240605)
 SYMBOLS = ("AAA", "BBB", "CCC")
@@ -440,3 +441,163 @@ def test_execute_actions_applies_the_generated_actions():
         assert abs(deviations_after[symbol]) < abs(deviation)
 
     assert portfolio.summary()["num_positions"] == 2
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_generated_actions_are_affordable(seed: int):
+    """A generated batch of actions never drives cash negative.
+
+    The buys are sized against the remaining cash (net of fees) and against the
+    cash committed to earlier actions in the same batch, so executing the full
+    batch with the same prices and fees leaves the portfolio solvent:
+    cash stays non-negative and total value moves by exactly the fees.
+    """
+    rng = np.random.default_rng(seed)
+    commission = float(rng.uniform(0.0, 0.01))
+    slippage = float(rng.uniform(0.0, 0.005))
+    fee_rate = commission + slippage
+
+    portfolio = Portfolio(cash=INITIAL_CASH, initial_capital=INITIAL_CASH)
+    rebalancer = Rebalancer(portfolio, frequency="monthly")
+
+    n_symbols = int(rng.integers(2, 5))
+    symbols = tuple(f"SYM{i}" for i in range(n_symbols))
+    prices = {symbol: float(rng.uniform(20.0, 200.0)) for symbol in symbols}
+    portfolio.update_prices(prices)
+
+    for symbol in symbols:
+        if rng.random() < 0.5:
+            quantity = float(rng.integers(1, 100))
+            if rng.random() < 0.3:
+                quantity = -quantity
+            portfolio.add_holding(symbol, quantity, prices[symbol], commission, slippage)
+
+    raw = rng.uniform(0.0, 1.0, size=n_symbols)
+    target_allocation = {s: float(v / raw.sum()) for s, v in zip(symbols, raw)}
+    rebalancer.set_target_allocation(target_allocation)
+
+    total_before = portfolio.total_value
+    cash_before = portfolio.cash
+
+    actions = rebalancer.generate_rebalance_actions(
+        prices=prices, commission=commission, slippage=slippage
+    )
+    executions = rebalancer.execute_actions(
+        actions, prices=prices, commission=commission, slippage=slippage
+    )
+
+    assert len(executions) == len(actions)
+
+    # Cash must never go negative.
+    assert portfolio.cash >= 0.0
+
+    # The accounting invariant holds.
+    assert portfolio.cash + _market_value(portfolio) == pytest.approx(
+        portfolio.total_value, rel=1e-9, abs=1e-9
+    )
+
+    # Total value moved by exactly the fees of the executed trades.
+    expected_fee_drag = sum(
+        e.executed_quantity * e.price * fee_rate for e in executions if e.executed_quantity > 0
+    )
+    assert portfolio.total_value == pytest.approx(
+        total_before - expected_fee_drag, rel=1e-9, abs=1e-6
+    )
+
+    # Every buy that was executed was affordable on its own: its cost never
+    # exceeded the cash the portfolio had at that point. Since cash ended
+    # non-negative and sells only add cash, this is guaranteed by the plan.
+    for execution in executions:
+        if execution.action == "buy" and execution.executed_quantity > 0:
+            assert execution.executed_quantity * execution.price * (1.0 + fee_rate) <= (
+                cash_before + 1e-9
+            )
+
+
+def test_generated_actions_affordable_with_high_fees():
+    """Even with large fee rates, generated buys stay within available cash."""
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    rebalancer = Rebalancer(portfolio, frequency="monthly", target_allocation={"AAPL": 1.0})
+    prices = {"AAPL": 100.0}
+    commission, slippage = 0.5, 0.5
+
+    actions = rebalancer.generate_rebalance_actions(
+        prices=prices, commission=commission, slippage=slippage
+    )
+    assert actions
+
+    executions = rebalancer.execute_actions(
+        actions, prices=prices, commission=commission, slippage=slippage
+    )
+    assert portfolio.cash >= 0.0
+    assert all(e.executed_quantity > 0 for e in executions if e.action == "buy")
+
+
+def test_generated_actions_sell_funds_later_buy():
+    """A sell earlier in the batch releases cash a later buy can use."""
+    portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
+    portfolio.add_holding("AAPL", 100, 100.0)
+    rebalancer = Rebalancer(
+        portfolio,
+        frequency="monthly",
+        target_allocation={"AAPL": 0.1, "MSFT": 0.9},
+    )
+    prices = {"AAPL": 100.0, "MSFT": 200.0}
+
+    actions = rebalancer.generate_rebalance_actions(prices=prices)
+    # Sell AAPL first to release cash, then buy MSFT.
+    assert actions[0].action == "sell" or len(actions) == 1
+
+    rebalancer.execute_actions(actions, prices=prices)
+    assert portfolio.cash >= 0.0
+
+
+def test_plan_sell_size_zero_after_prior_sell():
+    """_plan_sell returns early when the position was already sold earlier in
+    the batch (size <= 0 branch)."""
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    portfolio.add_holding("AAPL", 100, 100.0)
+    rebalancer = Rebalancer(portfolio, frequency="monthly", target_allocation={"AAPL": 0.0})
+    prices = {"AAPL": 100.0}
+    signal = Signal(symbol="AAPL", action="sell", strength=1.0, price=100.0)
+
+    actions = rebalancer.generate_rebalance_actions(prices=prices, signals=[signal])
+    # Target allocation sells AAPL first; the signal sell then finds no
+    # remaining position in the plan (size <= 0 → early return).
+    assert any(a.action == "sell" and a.symbol == "AAPL" for a in actions)
+    assert portfolio.cash >= 0.0
+
+
+def test_plan_sell_against_short_position_costs_cash():
+    """_plan_sell against a short position costs cash (else branch of
+    ``if position > 0``)."""
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    portfolio.add_holding("AAPL", -100, 100.0)  # Short 100 shares
+    rebalancer = Rebalancer(
+        portfolio,
+        frequency="monthly",
+        target_allocation={"AAPL": -0.5, "MSFT": 1.5},
+    )
+    prices = {"AAPL": 100.0, "MSFT": 200.0}
+
+    actions = rebalancer.generate_rebalance_actions(prices=prices)
+    sell_actions = [a for a in actions if a.action == "sell" and a.symbol == "AAPL"]
+    assert len(sell_actions) == 1
+
+    rebalancer.execute_actions(actions, prices=prices)
+    assert portfolio.cash >= 0.0
+
+
+def test_signal_buy_unaffordable_when_cash_exhausted():
+    """A signal buy that _plan_buy sizes to zero produces no action."""
+    portfolio = Portfolio(cash=100.0, initial_capital=100.0)
+    portfolio.add_holding("AAPL", 1, 100.0)  # cash -> 0, total_value -> 100
+    assert portfolio.cash == 0.0
+    assert portfolio.total_value > 0
+    rebalancer = Rebalancer(portfolio, frequency="monthly", target_allocation={})
+    prices = {"GOOGL": 100.0}
+    signal = Signal(symbol="GOOGL", action="buy", strength=1.0, price=100.0)
+
+    actions = rebalancer.generate_rebalance_actions(prices=prices, signals=[signal])
+    # _plan_buy returns 0.0 because cash is exhausted, so no action is emitted.
+    assert all(not (a.symbol == "GOOGL" and a.action == "buy") for a in actions)
