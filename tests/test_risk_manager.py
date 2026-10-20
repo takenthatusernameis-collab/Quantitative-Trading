@@ -232,6 +232,42 @@ class TestCheckSignal:
         assert result.passed is True
         assert result.violations == []
 
+    def test_buy_exceeds_portfolio_risk_budget(self):
+        """A buy that would push open risk above the budget is rejected at the signal gate."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_portfolio_risk=0.02,
+            max_position_size=1.0,
+            max_leverage=10.0,
+            stop_loss_pct=0.05,
+        )
+        # Existing 200 AAPL @ 150 -> risk 1.5% of 100000, leaving little budget.
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=200, avg_price=150.0, current_price=150.0),
+        }
+        signal = Signal(symbol="MSFT", action="buy", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("exceed max portfolio risk" in v for v in result.violations)
+
+    def test_buy_exceeds_leverage_limit(self):
+        """A buy that would push gross exposure above the leverage limit is rejected at the signal gate."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_portfolio_risk=1.0,
+            max_position_size=1.0,
+            max_leverage=1.0,
+            stop_loss_pct=0.05,
+        )
+        # Existing 400 AAPL @ 150 -> gross 60000 = 0.6x leverage.
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=400, avg_price=150.0, current_price=150.0),
+        }
+        signal = Signal(symbol="MSFT", action="buy", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("exceed max leverage" in v for v in result.violations)
+
 
 class TestCheckPortfolio:
     """Tests for check_portfolio."""
