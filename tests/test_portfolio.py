@@ -288,6 +288,77 @@ class TestPortfolio:
         summary = portfolio.summary()
         assert summary["pnl_pct"] == 0
 
+    def test_get_allocation_short_positions_signed(self):
+        """get_allocation with use_absolute=False returns signed weights for shorts."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", -100, 100.0)  # Short position
+        allocation = portfolio.get_allocation(use_absolute=False)
+        # Short position has negative market value
+        assert "AAPL" in allocation
+        assert allocation["AAPL"] < 0
+
+    def test_get_allocation_short_positions_absolute(self):
+        """get_allocation with use_absolute=True returns positive weights for shorts."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", -100, 100.0)  # Short position
+        allocation = portfolio.get_allocation(use_absolute=True)
+        assert "AAPL" in allocation
+        assert allocation["AAPL"] > 0
+
+    def test_get_net_allocation_short_positions(self):
+        """get_net_allocation returns signed weights with shorts negative."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", -100, 100.0)
+        net_alloc = portfolio.get_net_allocation()
+        assert net_alloc["AAPL"] < 0
+        assert net_alloc == portfolio.get_allocation(use_absolute=False)
+
+    def test_get_gross_allocation_short_positions(self):
+        """get_gross_allocation returns absolute weights with shorts positive."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", -100, 100.0)
+        gross_alloc = portfolio.get_gross_allocation()
+        assert gross_alloc["AAPL"] > 0
+        assert gross_alloc == portfolio.get_allocation(use_absolute=True)
+
+    def test_allocation_invariants_mixed_long_short(self):
+        """Test allocation invariants with mixed long and short positions."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 100, 100.0)  # Long
+        portfolio.add_holding("GOOG", -50, 200.0)  # Short
+
+        net_alloc = portfolio.get_net_allocation()
+        gross_alloc = portfolio.get_gross_allocation()
+
+        # Net allocation: long positive, short negative
+        assert net_alloc["AAPL"] > 0
+        assert net_alloc["GOOG"] < 0
+
+        # Gross allocation: both positive
+        assert gross_alloc["AAPL"] > 0
+        assert gross_alloc["GOOG"] > 0
+
+        # Invariants
+        # Sum of absolute values for gross should equal sum of abs for all
+        assert sum(gross_alloc.values()) == pytest.approx(
+            sum(abs(v) for v in net_alloc.values())
+        )
+        # Net and gross should have same magnitude per position
+        for sym in net_alloc:
+            assert abs(net_alloc[sym]) == pytest.approx(abs(gross_alloc[sym]))
+
+    def test_allocation_invariants_long_only(self):
+        """Test allocation invariants for long-only portfolio."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 100, 100.0)
+
+        net_alloc = portfolio.get_net_allocation()
+        gross_alloc = portfolio.get_gross_allocation()
+
+        # For long positions, net and gross should be identical
+        assert net_alloc["AAPL"] == pytest.approx(gross_alloc["AAPL"])
+        assert net_alloc["AAPL"] > 0
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
