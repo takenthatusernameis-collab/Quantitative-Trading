@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 
 from quant_trading.backtest.engine import BacktestResult
+from quant_trading.risk.metrics import calculate_sharpe_ratio, calculate_sortino_ratio
 
 
 @dataclass
@@ -57,8 +58,8 @@ class TradeAnalysis:
         weekly_returns: Weekly return percentages keyed by date.
         symbol_stats: Per-symbol trade statistics.
         expectancy: Expected PnL per trade.
-        sharpe_ratio: Trade-level Sharpe ratio.
-        sortino_ratio: Trade-level Sortino ratio.
+        sharpe_ratio: Annualized Sharpe ratio of the per-trade return series.
+        sortino_ratio: Annualized Sortino ratio of the per-trade return series.
 
     Examples:
         analysis = analyze_trades(result)
@@ -208,8 +209,13 @@ def _calculate_holding_periods(trades: pd.DataFrame) -> list[float]:
 def _calculate_consecutive_streaks(trades: pd.DataFrame) -> tuple[int, int, int, str]:
     """Calculate max consecutive wins/losses and the current streak.
 
+    Streaks are temporal sequences, so the trades are ordered by their
+    timestamp before the streaks are counted. The ordering is stable, so trades
+    that share a timestamp keep the order they were given in.
+
     Args:
-        trades: Trade DataFrame with a ``pnl`` column.
+        trades: Trade DataFrame with a ``pnl`` column and, optionally, a
+            ``timestamp`` column used to order the trades.
 
     Returns:
         Tuple of ``(max_wins, max_losses, current_streak, current_streak_type)``.
@@ -219,6 +225,9 @@ def _calculate_consecutive_streaks(trades: pd.DataFrame) -> tuple[int, int, int,
     """
     if trades.empty or "pnl" not in trades.columns:
         return 0, 0, 0, ""
+
+    if "timestamp" in trades.columns:
+        trades = trades.sort_values("timestamp", kind="stable")
 
     max_wins = 0
     max_losses = 0
@@ -260,10 +269,13 @@ def _calculate_monthly_returns(equity_curve: pd.Series) -> dict[str, float]:
 
     Returns:
         Mapping of month-end date string to monthly return percentage. Empty
-        when fewer than two month-end values are available.
+        when fewer than two month-end values are available or when the equity
+        curve is not indexed by time.
 
     """
     if len(equity_curve) < 2:
+        return {}
+    if not isinstance(equity_curve.index, pd.DatetimeIndex):
         return {}
 
     monthly = equity_curve.resample("ME").last()
@@ -286,10 +298,13 @@ def _calculate_weekly_returns(equity_curve: pd.Series) -> dict[str, float]:
 
     Returns:
         Mapping of week-end date string to weekly return percentage. Empty
-        when fewer than two week-end values are available.
+        when fewer than two week-end values are available or when the equity
+        curve is not indexed by time.
 
     """
     if len(equity_curve) < 2:
+        return {}
+    if not isinstance(equity_curve.index, pd.DatetimeIndex):
         return {}
 
     weekly = equity_curve.resample("W").last()
@@ -338,6 +353,73 @@ def _calculate_symbol_stats(trades: pd.DataFrame) -> dict[str, dict[str, Any]]:
     return stats
 
 
+def _equity_at_trade_times(equity_curve: pd.Series, timestamps: pd.Series) -> pd.Series:
+    """Look up the portfolio equity at each trade timestamp.
+
+    The equity curve is treated as the value of the account over time, so the
+    value known at or before a trade's timestamp is the capital the trade was
+    taken with.
+
+    Args:
+        equity_curve: Time-indexed portfolio equity values.
+        timestamps: Trade timestamps to look up.
+
+    Returns:
+        Series of equity values aligned with ``timestamps``. Entries are NaN
+        when the equity curve is empty, is not indexed by time, or does not
+        cover the timestamp.
+
+    """
+    resolved: pd.Series = pd.Series(np.nan, index=timestamps.index, dtype=float)
+
+    if equity_curve is None or len(equity_curve) == 0:
+        return resolved
+    if not isinstance(equity_curve.index, pd.DatetimeIndex):
+        return resolved
+
+    equity = equity_curve.sort_index()
+    values: list[Any] = []
+    for timestamp in timestamps:
+        try:
+            values.append(equity.asof(timestamp))
+        except (TypeError, ValueError):
+            values.append(np.nan)
+
+    resolved = pd.Series(values, index=timestamps.index, dtype=float)
+    return resolved
+
+
+def _calculate_trade_returns(pnl_trades: pd.DataFrame, equity_curve: pd.Series) -> pd.Series:
+    """Convert trade PnL into per-trade portfolio returns.
+
+    Each trade's PnL is expressed as a fraction of the portfolio equity at the
+    time of the trade. A return series is what a Sharpe or Sortino ratio is
+    defined on, and it is comparable between accounts of different sizes.
+
+    Args:
+        pnl_trades: Trades with a ``pnl`` column and a ``timestamp`` column.
+        equity_curve: Time-indexed portfolio equity values.
+
+    Returns:
+        Series of per-trade returns aligned with ``pnl_trades``. Entries are
+        NaN when the equity at the trade time is unknown or not positive.
+
+    """
+    returns: pd.Series = pd.Series(np.nan, index=pnl_trades.index, dtype=float)
+
+    if pnl_trades.empty or "timestamp" not in pnl_trades.columns:
+        return returns
+
+    equity = _equity_at_trade_times(equity_curve, pnl_trades["timestamp"])
+    usable = equity > 0
+    if not usable.any():
+        return returns
+
+    returns.loc[usable] = pnl_trades.loc[usable, "pnl"] / equity.loc[usable]
+
+    return returns
+
+
 def analyze_trades(
     result: BacktestResult,
     risk_free_rate: float = 0.02,
@@ -345,10 +427,20 @@ def analyze_trades(
 ) -> TradeAnalysis:
     """Perform detailed trade analysis on a backtest result.
 
+    The trade level risk metrics are computed on the per-trade return series:
+    the PnL of every trade is expressed as a fraction of the portfolio equity
+    at the time of the trade. The trade level metrics treat one trade as one
+    period, so ``risk_free_rate`` is converted to a per-period rate with
+    ``periods_per_year`` and subtracted from the per-trade returns before the
+    ratio is annualized.
+
     Args:
         result: BacktestResult to analyze.
-        risk_free_rate: Annual risk-free rate for Sharpe/Sortino.
-        periods_per_year: Number of periods per year for annualization.
+        risk_free_rate: Annual risk-free rate for Sharpe/Sortino. It is
+            applied to the per-trade return series as a per-period rate.
+        periods_per_year: Number of periods per year for annualization. The
+            trade level metrics treat a trade as a period, so this is also the
+            number of trades per year they assume.
 
     Returns:
         TradeAnalysis with detailed statistics.
@@ -396,21 +488,21 @@ def analyze_trades(
     win_rate = len(winning) / len(pnl_trades) if len(pnl_trades) > 0 else 0
     avg_win = float(winning["pnl"].mean()) if len(winning) > 0 else 0
     avg_loss = float(abs(losing["pnl"].mean())) if len(losing) > 0 else 0
-    expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss) if avg_loss > 0 else 0
+    expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
 
-    # Trade-level Sharpe/Sortino
-    pnl_series = pnl_trades["pnl"]
-    if len(pnl_series) > 1:
-        mean_pnl = pnl_series.mean()
-        std_pnl = pnl_series.std()
-        sharpe = (mean_pnl * np.sqrt(periods_per_year)) / std_pnl if std_pnl > 0 else 0
-
-        downside = pnl_series[pnl_series < 0]
-        downside_std = downside.std() if len(downside) > 1 else 0
-        sortino = (mean_pnl * np.sqrt(periods_per_year)) / downside_std if downside_std > 0 else 0
-    else:
-        sharpe = 0.0
-        sortino = 0.0
+    # Trade-level Sharpe/Sortino, computed on the per-trade return series so
+    # that the risk-free rate can be applied to it.
+    trade_returns = _calculate_trade_returns(pnl_trades, result.equity_curve)
+    sharpe = calculate_sharpe_ratio(
+        trade_returns,
+        risk_free_rate,
+        periods_per_year=periods_per_year,
+    )
+    sortino = calculate_sortino_ratio(
+        trade_returns,
+        risk_free_rate,
+        periods_per_year=periods_per_year,
+    )
 
     return TradeAnalysis(
         total_trades=len(pnl_trades),

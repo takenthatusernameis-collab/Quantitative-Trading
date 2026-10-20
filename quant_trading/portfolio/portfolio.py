@@ -79,8 +79,14 @@ class Holding:
     market_value: float = 0.0
 
     def __post_init__(self) -> None:
-        """Derive market value from quantity and current price when initialized."""
-        if self.quantity > 0 and self.avg_cost > 0:
+        """Derive market value from quantity and current price when initialized.
+
+        The market value of a position is always ``quantity *
+        current_price``, for longs and for shorts alike, so it is derived
+        here rather than left to the caller. A zero-quantity holding has no
+        market value and keeps the ``0.0`` default.
+        """
+        if self.quantity != 0:
             self.market_value = self.quantity * self.current_price
 
     @property

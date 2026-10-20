@@ -432,3 +432,27 @@ class TestPortfolio:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestHoldingMarketValue:
+    """Tests for the market value derived when a holding is created."""
+
+    def test_market_value_derived_for_long_position(self):
+        """A long holding is worth quantity times its current price."""
+        holding = Holding(symbol="AAPL", quantity=100, avg_cost=100.0, current_price=150.0)
+        assert holding.market_value == pytest.approx(15000.0)
+
+    def test_market_value_derived_for_short_position(self):
+        """A short holding is worth the negative of quantity times its price."""
+        holding = Holding(symbol="AAPL", quantity=-100, avg_cost=100.0, current_price=150.0)
+        assert holding.market_value == pytest.approx(-15000.0)
+
+    def test_market_value_derived_for_zero_cost_position(self):
+        """A zero cost basis does not stop the market value from being derived."""
+        holding = Holding(symbol="AAPL", quantity=100, avg_cost=0.0, current_price=150.0)
+        assert holding.market_value == pytest.approx(15000.0)
+
+    def test_market_value_is_zero_for_zero_quantity(self):
+        """A holding without units has no market value."""
+        holding = Holding(symbol="AAPL", quantity=0, avg_cost=100.0, current_price=150.0)
+        assert holding.market_value == 0.0

@@ -884,3 +884,29 @@ def test_run_backtest_with_config_and_no_data_manager():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_run_with_zero_initial_capital_does_not_divide_by_zero():
+    """A zero initial capital must not crash when the total return is reported.
+
+    The percentage return is undefined without a starting capital, so it is
+    reported as 0.0 -- the same convention the metrics use.
+    """
+    symbols = ["AAPL"]
+    mock_data = create_synthetic_data(symbols, days=60)
+
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    config = BacktestConfig(initial_capital=0.0)
+    engine = BacktestEngine(config=config, data_manager=data_manager)
+    engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=15, name="Test_MA"))
+
+    start_date = datetime.now() - timedelta(days=50)
+    end_date = datetime.now()
+
+    result = engine.run(symbols, start_date, end_date, "1d")
+
+    assert result.initial_capital == 0.0
+    assert result.total_return_pct == 0.0
+    assert result.metrics.total_return_pct == 0.0

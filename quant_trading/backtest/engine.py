@@ -472,6 +472,13 @@ class BacktestEngine:
             periods_per_year=self.config.periods_per_year,
         )
 
+        initial_capital = self.config.initial_capital
+        total_return_pct = (
+            (self.portfolio.total_value / initial_capital - 1) * 100
+            if initial_capital != 0
+            else 0.0
+        )
+
         return BacktestResult(
             equity_curve=equity_series,
             trades=trades_df,
@@ -479,10 +486,10 @@ class BacktestEngine:
             metrics=metrics,
             start_date=start,
             end_date=end,
-            initial_capital=self.config.initial_capital,
+            initial_capital=initial_capital,
             final_value=self.portfolio.total_value,
-            total_return=self.portfolio.total_value - self.config.initial_capital,
-            total_return_pct=(self.portfolio.total_value / self.config.initial_capital - 1) * 100,
+            total_return=self.portfolio.total_value - initial_capital,
+            total_return_pct=total_return_pct,
             portfolio_violations=portfolio_violations,
             total_costs=total_costs,
         )

@@ -3,6 +3,7 @@
 from datetime import datetime
 
 import pandas as pd
+import pytest
 
 from quant_trading.backtest.engine import BacktestResult
 from quant_trading.backtest.metrics import BacktestMetrics
@@ -691,3 +692,208 @@ def test_calculate_holding_periods_partial_sell_records_each_leg():
     assert len(result) == 2
     assert abs(result[0] - 10.0) < 0.001
     assert abs(result[1] - 20.0) < 0.001
+
+
+def _result_with_trades(pnls, equity_values=None):
+    """Build a BacktestResult with one closing trade per PnL.
+
+    The equity curve is indexed by day starting at 2024-01-01, so the n-th
+    trade is stamped on the n-th equity point.
+    """
+    from datetime import datetime, timedelta
+
+    from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.metrics import BacktestMetrics
+
+    start = datetime(2024, 1, 1)
+    trades = pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL",
+                "action": "sell",
+                "quantity": 10,
+                "price": 100.0,
+                "timestamp": start + timedelta(days=index),
+                "commission": 0.0,
+                "slippage": 0.0,
+                "cost": 1000.0,
+                "pnl": pnl,
+            }
+            for index, pnl in enumerate(pnls)
+        ]
+    )
+
+    if equity_values is None:
+        equity_values = [10000.0] * len(pnls)
+    equity = pd.Series(equity_values, index=pd.date_range(start, periods=len(equity_values)))
+
+    return BacktestResult(
+        equity_curve=equity,
+        trades=trades,
+        positions={},
+        metrics=BacktestMetrics(),
+        start_date=start,
+        end_date=start + timedelta(days=max(len(pnls) - 1, 0)),
+        initial_capital=10000.0,
+        final_value=10000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+    )
+
+
+def test_expectancy_is_positive_when_every_trade_wins():
+    """Regression: expectancy must not collapse to zero when no trade lost.
+
+    The expectancy is ``win_rate * avg_win - loss_rate * avg_loss``. With no
+    losing trades the second term is zero, so the expectancy is the average
+    winning trade.
+    """
+    analysis = analyze_trades(_result_with_trades([50.0, 75.0]))
+
+    assert analysis.losing_trades == 0
+    assert analysis.avg_win == pytest.approx(62.5)
+    assert analysis.expectancy == pytest.approx(62.5)
+
+
+def test_expectancy_is_negative_when_every_trade_loses():
+    """Every trade losing must give the negative average loss as expectancy."""
+    analysis = analyze_trades(_result_with_trades([-50.0, -20.0]))
+
+    assert analysis.winning_trades == 0
+    assert analysis.avg_loss == pytest.approx(35.0)
+    assert analysis.expectancy == pytest.approx(-35.0)
+
+
+def test_expectancy_matches_the_weighted_average():
+    """The expectancy is the win rate weighted average of wins and losses."""
+    analysis = analyze_trades(_result_with_trades([50.0, -20.0]))
+
+    assert analysis.expectancy == pytest.approx(0.5 * 50.0 - 0.5 * 20.0)
+
+
+def test_trade_sharpe_changes_with_the_risk_free_rate():
+    """Regression: the documented risk_free_rate must reach the trade Sharpe."""
+    result = _result_with_trades([50.0, -20.0, -30.0, 10.0])
+
+    without_risk_free = analyze_trades(result, risk_free_rate=0.0)
+    with_risk_free = analyze_trades(result, risk_free_rate=0.10)
+
+    assert without_risk_free.sharpe_ratio != pytest.approx(with_risk_free.sharpe_ratio)
+    assert with_risk_free.sharpe_ratio < without_risk_free.sharpe_ratio
+
+
+def test_trade_sharpe_uses_the_per_trade_return_series():
+    """The trade-level Sharpe is the Sharpe of the per-trade return series."""
+    from quant_trading.risk.metrics import calculate_sharpe_ratio
+
+    pnls = [50.0, -20.0, -30.0, 10.0]
+    equity_values = [10000.0, 10200.0, 10000.0, 9800.0, 9900.0]
+    result = _result_with_trades(pnls, equity_values=equity_values)
+
+    analysis = analyze_trades(result, risk_free_rate=0.02, periods_per_year=252)
+
+    expected_returns = pd.Series([pnl / equity for pnl, equity in zip(pnls, equity_values)])
+    expected = calculate_sharpe_ratio(expected_returns, 0.02, periods_per_year=252)
+    assert analysis.sharpe_ratio == pytest.approx(expected)
+
+
+def test_trade_sortino_uses_the_per_trade_return_series():
+    """The trade-level Sortino is the Sortino of the per-trade return series."""
+    from quant_trading.risk.metrics import calculate_sortino_ratio
+
+    pnls = [50.0, -20.0, -30.0, 10.0]
+    equity_values = [10000.0, 10200.0, 10000.0, 9800.0, 9900.0]
+    result = _result_with_trades(pnls, equity_values=equity_values)
+
+    analysis = analyze_trades(result, risk_free_rate=0.02, periods_per_year=252)
+
+    expected_returns = pd.Series([pnl / equity for pnl, equity in zip(pnls, equity_values)])
+    expected = calculate_sortino_ratio(expected_returns, 0.02, periods_per_year=252)
+    assert analysis.sortino_ratio == pytest.approx(expected)
+
+
+def test_trade_risk_metrics_are_zero_without_a_usable_equity_curve():
+    """An unusable equity curve yields zero risk metrics instead of raising."""
+    result = _result_with_trades([50.0, -20.0, -30.0])
+    result.equity_curve = pd.Series(dtype=float)
+
+    analysis = analyze_trades(result)
+
+    assert analysis.sharpe_ratio == 0.0
+    assert analysis.sortino_ratio == 0.0
+
+
+def test_trade_risk_metrics_survive_an_equity_curve_without_dates():
+    """An equity curve that is not indexed by time yields zero risk metrics."""
+    result = _result_with_trades([50.0, -20.0, -30.0])
+    result.equity_curve = pd.Series([10000.0, 10000.0, 10000.0], index=[0, 1, 2])
+
+    analysis = analyze_trades(result)
+
+    assert analysis.sharpe_ratio == 0.0
+    assert analysis.sortino_ratio == 0.0
+
+
+def test_calculate_consecutive_streaks_uses_chronological_order():
+    """Regression: streaks are temporal, so trades are ordered by timestamp."""
+    from datetime import datetime
+
+    from quant_trading.backtest.trade_analysis import _calculate_consecutive_streaks
+
+    trades = pd.DataFrame(
+        [
+            {"symbol": "AAPL", "pnl": -10.0, "timestamp": datetime(2024, 1, 3)},
+            {"symbol": "AAPL", "pnl": 10.0, "timestamp": datetime(2024, 1, 1)},
+            {"symbol": "AAPL", "pnl": 10.0, "timestamp": datetime(2024, 1, 2)},
+        ]
+    )
+
+    max_wins, max_losses, current_streak, current_type = _calculate_consecutive_streaks(trades)
+
+    assert max_wins == 2
+    assert max_losses == 1
+    assert current_streak == 1
+    assert current_type == "loss"
+
+
+def test_analyze_trades_reports_the_chronological_current_streak():
+    """The reported current streak follows the order the trades happened in."""
+    from datetime import datetime, timedelta
+
+    start = datetime(2024, 1, 1)
+    trades = pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL",
+                "action": "sell",
+                "quantity": 10,
+                "price": 100.0,
+                "timestamp": start + timedelta(days=offset),
+                "commission": 0.0,
+                "slippage": 0.0,
+                "cost": 1000.0,
+                "pnl": pnl,
+            }
+            for offset, pnl in ((2, -10.0), (0, 10.0), (1, 10.0))
+        ]
+    )
+    equity = pd.Series([10000.0, 10000.0, 10000.0], index=pd.date_range(start, periods=3))
+    result = BacktestResult(
+        equity_curve=equity,
+        trades=trades,
+        positions={},
+        metrics=BacktestMetrics(),
+        start_date=start,
+        end_date=start + timedelta(days=2),
+        initial_capital=10000.0,
+        final_value=10000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+    )
+
+    analysis = analyze_trades(result)
+
+    assert analysis.max_consecutive_wins == 2
+    assert analysis.max_consecutive_losses == 1
+    assert analysis.current_streak == 1
+    assert analysis.current_streak_type == "loss"

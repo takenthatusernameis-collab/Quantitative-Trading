@@ -654,7 +654,7 @@ This provides:
 - **PnL Statistics**: Total/avg/median PnL, avg win/loss, largest win/loss, profit factor, expectancy
 - **Holding Periods**: Average, median, min, max holding periods in days
 - **Streaks**: Maximum consecutive wins/losses, current streak
-- **Trade-Level Risk**: Trade-level Sharpe and Sortino ratios
+- **Trade-Level Risk**: Annualized Sharpe and Sortino ratios of the per-trade return series, adjusted for the risk-free rate
 - **Monthly/Weekly Returns**: Periodic return breakdowns
 - **Per-Symbol Statistics**: Detailed breakdown by symbol
 
