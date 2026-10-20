@@ -431,7 +431,7 @@ request's result is keyed by its stable request key.
 `DataManager` manages multiple data providers and provides in-memory caching:
 
 ```python
-from quant_trading.data.providers import DataManager, YFinanceProvider, AlphaVantageProvider
+from quant_trading.data import DataManager, YFinanceProvider, AlphaVantageProvider
 
 # Create manager with providers
 manager = DataManager([YFinanceProvider(), AlphaVantageProvider()])
