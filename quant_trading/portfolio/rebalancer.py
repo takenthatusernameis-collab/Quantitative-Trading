@@ -40,6 +40,7 @@ from math import copysign
 from typing import Any
 
 from quant_trading.portfolio.portfolio import Portfolio
+from quant_trading.risk.manager import RiskManager
 from quant_trading.strategies.base import Signal
 
 # Relative cushion kept when a buy is sized against the available cash.  It
@@ -182,6 +183,10 @@ class Rebalancer:
             if the rebalancer has not run yet.
         rebalance_history: List of dicts recording each rebalance's
             timestamp, affected symbols, and portfolio value.
+        risk_manager: Optional :class:`~quant_trading.risk.manager.RiskManager`
+            used to size buys against the position and loss limits before
+            actions are emitted. When ``None`` (the default) no risk checks
+            are applied.
 
     Examples:
         Create a rebalancer and check whether it is time to rebalance::
@@ -204,7 +209,8 @@ class Rebalancer:
         portfolio: Portfolio,
         frequency: str = "monthly",
         target_allocation: dict[str, float] | None = None,
-        rebalance_threshold: float = 0.05,  # Rebalance if deviation > 5%
+        rebalance_threshold: float = 0.05,
+        risk_manager: RiskManager | None = None,
     ):
         """Initialize the rebalancer.
 
@@ -216,12 +222,16 @@ class Rebalancer:
                 value. Defaults to an empty dict when ``None``.
             rebalance_threshold: Minimum deviation (as a fraction of total
                 portfolio value) that triggers a rebalance.
+            risk_manager: Optional risk manager used to check buy sizes
+                against the position and loss limits before actions are
+                emitted. When ``None`` no risk checks are applied.
 
         """
         self.portfolio = portfolio
         self.frequency = frequency
         self.target_allocation = target_allocation or {}
         self.rebalance_threshold = rebalance_threshold
+        self.risk_manager = risk_manager
         self.last_rebalance: datetime | None = None
         self.rebalance_history: list[dict[str, Any]] = []
 
@@ -347,17 +357,19 @@ class Rebalancer:
                     price = self._resolve_plan_price(symbol, prices, signals)
                     quantity = self._resolve_buy_quantity(symbol, diff, signals, prices)
                     if quantity > 0:
-                        if price > 0:  # pragma: no cover - implied by quantity > 0
-                            quantity = self._plan_buy(plan, symbol, quantity, price)
+                        quantity = self._risk_adjust_buy(plan, symbol, quantity, price, total_value)
                         if quantity > 0:
-                            actions.append(
-                                RebalanceAction(
-                                    symbol=symbol,
-                                    action="buy",
-                                    quantity=quantity,
-                                    reason="target_allocation",
+                            if price > 0:  # pragma: no cover - implied by quantity > 0
+                                quantity = self._plan_buy(plan, symbol, quantity, price)
+                            if quantity > 0:
+                                actions.append(
+                                    RebalanceAction(
+                                        symbol=symbol,
+                                        action="buy",
+                                        quantity=quantity,
+                                        reason="target_allocation",
+                                    )
                                 )
-                            )
                 elif diff < 0:
                     quantity = self._resolve_sell_quantity(symbol, abs(diff))
                     if quantity > 0:
@@ -386,17 +398,25 @@ class Rebalancer:
                         price = self._resolve_plan_price(signal.symbol, prices, signals)
                         quantity = self._resolve_buy_quantity(signal.symbol, diff, signals, prices)
                         if quantity > 0:
-                            if price > 0:  # pragma: no cover - implied by quantity > 0
-                                quantity = self._plan_buy(plan, signal.symbol, quantity, price)
+                            quantity = self._risk_adjust_buy(
+                                plan,
+                                signal.symbol,
+                                quantity,
+                                price,
+                                total_value,
+                            )
                             if quantity > 0:
-                                actions.append(
-                                    RebalanceAction(
-                                        symbol=signal.symbol,
-                                        action="buy",
-                                        quantity=quantity,
-                                        reason=f"signal_{signal.metadata.get('signal_type', 'unknown')}",
+                                if price > 0:  # pragma: no cover - implied by quantity > 0
+                                    quantity = self._plan_buy(plan, signal.symbol, quantity, price)
+                                if quantity > 0:
+                                    actions.append(
+                                        RebalanceAction(
+                                            symbol=signal.symbol,
+                                            action="buy",
+                                            quantity=quantity,
+                                            reason=f"signal_{signal.metadata.get('signal_type', 'unknown')}",
+                                        )
                                     )
-                                )
                 elif signal.action == "sell":
                     holding = self.portfolio.holdings.get(signal.symbol)
                     if holding and holding.quantity > 0:
@@ -629,6 +649,53 @@ class Rebalancer:
         plan.cash -= quantity * price * (1.0 + plan.fee_rate)
         plan.positions[symbol] = position + quantity
         return quantity
+
+    def _risk_adjust_buy(
+        self,
+        plan: _RebalancePlan,
+        symbol: str,
+        quantity: float,
+        price: float,
+        total_value: float,
+    ) -> float:
+        """Size a buy down so the resulting position stays within risk limits.
+
+        Applies the position limit (the smaller of the maximum position
+        fraction and the maximum position dollar value) and halts buying when
+        the portfolio's drawdown (loss) limit has been breached. A buy that
+        would exceed the position limit is reduced to the largest quantity
+        that still fits; a buy with no room left is dropped entirely.
+        Available cash is enforced separately by :meth:`_plan_buy`.
+
+        Args:
+            plan: Cash and position state of the batch being planned.
+            symbol: Symbol being bought.
+            quantity: Quantity the plan would like to buy.
+            price: Price the buy is planned at.
+            total_value: Current total portfolio value.
+
+        Returns:
+            The risk-adjusted quantity to buy, or 0.0 when the buy is not
+            permitted.
+
+        """
+        if self.risk_manager is None or not self.risk_manager.risk_enabled:
+            return quantity
+
+        drawdown_limit = self.risk_manager.portfolio_limit.max_drawdown
+        if (
+            drawdown_limit > 0
+            and self.risk_manager.portfolio_risk.current_drawdown <= -drawdown_limit
+        ):
+            return 0.0
+
+        limit = self.risk_manager.position_limit
+        current_position = plan.positions.get(symbol, 0.0)
+        max_position_value = min(limit.max_size * total_value, limit.max_value)
+        room = max_position_value - current_position * price
+        if room <= 0:
+            return 0.0
+        return min(quantity, room / price)
 
     def _plan_sell(
         self,
