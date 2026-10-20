@@ -27,6 +27,7 @@ Examples:
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from math import copysign
 from typing import Any
 
 from quant_trading.strategies.base import Position
@@ -191,11 +192,12 @@ class Portfolio:
         commission: float = 0.0,
         slippage: float = 0.0,
     ) -> None:
-        """Add or update a holding.
+        """Add to, reduce, or open a holding.
 
         Args:
-            symbol: Symbol of the holding to add or increase.
-            quantity: Quantity to add (use a negative quantity to reduce).
+            symbol: Symbol of the holding to add to or reduce.
+            quantity: Signed quantity to trade. A positive quantity buys and a
+                negative quantity sells.
             price: Execution price per unit.
             commission: Commission rate applied to the trade.
             slippage: Slippage rate applied to the trade.
@@ -205,39 +207,28 @@ class Portfolio:
         ``price * (1 + commission + slippage)``, and lots added to an existing
         long are averaged at their fee-inclusive cost. Reductions of a long
         leave the remaining basis untouched. Short positions keep the execution
-        price as their basis.
+        price as their basis, and lots added to an existing short are averaged
+        at the raw execution price.
+
+        A trade in the opposite direction to the open position reduces it. The
+        executed quantity is capped at the size of the position, so a reduction
+        can never open or flip a position, and a fully offset position is
+        removed from the portfolio instead of being left behind with a zero
+        quantity. A zero quantity is a no-op and never creates a position.
 
         Returns:
             None.
 
         """
-        cost = quantity * price
+        holding = self.holdings.get(symbol)
 
-        if symbol in self.holdings and self.holdings[symbol].quantity > 0 and quantity > 0:
-            holding = self.holdings[symbol]
-            total_qty = holding.quantity + quantity
-            if total_qty != 0:
-                new_avg_cost = (
-                    holding.avg_cost * holding.quantity
-                    + price * (1 + commission + slippage) * quantity
-                ) / total_qty
-            else:  # pragma: no cover  (both quantities are positive, so total_qty is never 0)
-                new_avg_cost = 0.0
-            holding.quantity = total_qty
-            holding.avg_cost = new_avg_cost
-            holding.update_price(price)
-            self.cash -= cost * (1 + commission + slippage)
-        elif symbol in self.holdings and self.holdings[symbol].quantity > 0 and quantity < 0:
-            holding = self.holdings[symbol]
-            total_qty = holding.quantity + quantity
-            if total_qty <= 0:
-                del self.holdings[symbol]
-            else:
-                holding.quantity = total_qty
-                holding.avg_cost = holding.avg_cost
-                holding.update_price(price)
-            self.cash += abs(cost) * (1 - commission - slippage)
-        else:
+        if quantity == 0:
+            # A zero-sized trade must not create a position.
+            self.total_value = self.cash + self.get_holdings_value()
+            return
+
+        if holding is None or holding.quantity == 0:
+            # Open a new position, replacing a stale zero-quantity entry.
             entry_price = price * (1 + commission + slippage) if quantity > 0 else price
             self.holdings[symbol] = Holding(
                 symbol=symbol,
@@ -246,10 +237,43 @@ class Portfolio:
                 current_price=price,
                 market_value=quantity * price,
             )
+            executed = quantity
+        elif (holding.quantity > 0) == (quantity > 0):
+            # Add to the open position and average its cost basis.
             if quantity > 0:
-                self.cash -= cost * (1 + commission + slippage)
+                total_qty = holding.quantity + quantity
+                holding.avg_cost = (
+                    holding.avg_cost * holding.quantity
+                    + price * (1 + commission + slippage) * quantity
+                ) / total_qty
             else:
-                self.cash += abs(cost) * (1 - commission - slippage)
+                total_qty = holding.quantity + quantity
+                holding.avg_cost = (
+                    holding.avg_cost * abs(holding.quantity) + price * abs(quantity)
+                ) / abs(total_qty)
+            holding.quantity = total_qty
+            holding.update_price(price)
+            executed = quantity
+        else:
+            # Reduce the open position. The executed quantity is capped at the
+            # size of the position, so a reduction can never open or flip a
+            # position, and the remaining basis is left untouched.
+            size = min(abs(quantity), abs(holding.quantity))
+            executed = -copysign(size, holding.quantity)
+            remaining = holding.quantity + executed
+            if remaining == 0:
+                del self.holdings[symbol]
+            else:
+                holding.quantity = remaining
+                holding.update_price(price)
+
+        if executed > 0:
+            # A buy debits cash, fees included.
+            self.cash -= executed * price * (1 + commission + slippage)
+        else:
+            # A sell credits cash, fees deducted.
+            self.cash += abs(executed) * price * (1 - commission - slippage)
+
         self.total_value = self.cash + self.get_holdings_value()
 
     def remove_holding(
@@ -260,7 +284,7 @@ class Portfolio:
         commission: float = 0.0,
         slippage: float = 0.0,
     ) -> float:
-        """Remove from a holding. Returns proceeds.
+        """Remove from a holding. Returns the cash effect of the sale.
 
         Args:
             symbol: Symbol of the holding to reduce.
@@ -270,26 +294,34 @@ class Portfolio:
             slippage: Slippage rate applied to the trade.
 
         Returns:
-            Proceeds from the sale (actual quantity removed times price), or
+            Net cash effect of the trade: the proceeds of a sale for a long
+            position, the (negative) cost of covering for a short position, or
             0.0 when the symbol is not held.
 
         """
-        if symbol not in self.holdings:
+        holding = self.holdings.get(symbol)
+        if holding is None:
             return 0.0
 
-        holding = self.holdings[symbol]
-        actual_qty = min(quantity, holding.quantity)
-        proceeds = actual_qty * price
+        size = min(abs(quantity), abs(holding.quantity))
+        gross = size * price
+        if holding.quantity > 0:
+            # Selling a long position credits cash.
+            holding.quantity -= size
+            cash_effect = gross * (1 - commission - slippage)
+        else:
+            # Covering a short position costs cash.
+            holding.quantity += size
+            cash_effect = -gross * (1 + commission + slippage)
 
-        holding.quantity -= actual_qty
-        if holding.quantity <= 0:
+        if holding.quantity == 0:
             del self.holdings[symbol]
         else:
             holding.update_price(price)
 
-        self.cash += proceeds * (1 - commission - slippage)
+        self.cash += cash_effect
         self.total_value = self.cash + self.get_holdings_value()
-        return proceeds * (1 - commission - slippage)
+        return cash_effect
 
     def update_prices(self, prices: dict[str, float]) -> None:
         """Update prices for all holdings.

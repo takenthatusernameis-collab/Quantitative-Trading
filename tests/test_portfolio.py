@@ -95,7 +95,7 @@ class TestPortfolio:
         assert portfolio.get_allocation() == {}
 
     def test_add_holding_net_zero(self):
-        """Adding an opposite position that nets to zero resets avg_cost to 0."""
+        """A position that is fully offset is removed from the portfolio."""
         portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
         portfolio.add_holding("AAPL", 100, 100.0)
         # Short to exactly offset the long position
@@ -165,6 +165,60 @@ class TestPortfolio:
         assert holding.avg_cost == pytest.approx(100.0)
         # Cash is credited with the net proceeds of the reduction.
         assert portfolio.cash == pytest.approx(100000.0 - 100 * 100.0 + 40 * 110.0)
+
+    def test_add_holding_reduction_larger_than_position_is_capped(self):
+        """A reduction sells only what is held and credits only that much cash."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 100, 100.0)
+        portfolio.add_holding("AAPL", -150, 110.0)
+        assert "AAPL" not in portfolio.holdings
+        assert portfolio.cash == pytest.approx(100000.0 - 100 * 100.0 + 100 * 110.0)
+
+    def test_add_holding_grows_an_existing_short(self):
+        """Selling more of an open short grows it instead of replacing it."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", -100, 100.0)
+        portfolio.add_holding("AAPL", -50, 120.0)
+        holding = portfolio.holdings["AAPL"]
+        assert holding.quantity == -150
+        assert holding.avg_cost == pytest.approx((100 * 100.0 + 120 * 50.0) / 150)
+        assert portfolio.cash == pytest.approx(100000.0 + 100 * 100.0 + 50 * 120.0)
+
+    def test_add_holding_reduces_an_existing_short(self):
+        """Buying back an open short reduces it instead of flipping the sign."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", -100, 100.0)
+        portfolio.add_holding("AAPL", 40, 90.0)
+        holding = portfolio.holdings["AAPL"]
+        assert holding.quantity == -60
+        assert holding.avg_cost == pytest.approx(100.0)
+        assert portfolio.cash == pytest.approx(100000.0 + 100 * 100.0 - 40 * 90.0)
+
+    def test_add_holding_zero_quantity_creates_no_position(self):
+        """A zero-sized trade does not create a position."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 0, 100.0)
+        assert "AAPL" not in portfolio.holdings
+        assert portfolio.cash == 100000.0
+
+    def test_remove_holding_covers_a_short(self):
+        """remove_holding buys back a short position."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", -100, 100.0)
+        cash_effect = portfolio.remove_holding("AAPL", 40, 90.0)
+        holding = portfolio.holdings["AAPL"]
+        assert holding.quantity == -60
+        assert holding.avg_cost == pytest.approx(100.0)
+        assert cash_effect == pytest.approx(-40 * 90.0)
+        assert portfolio.cash == pytest.approx(100000.0 + 100 * 100.0 - 40 * 90.0)
+
+    def test_remove_holding_fully_covers_a_short(self):
+        """remove_holding deletes the position when the short is fully covered."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", -100, 100.0)
+        portfolio.remove_holding("AAPL", 100, 90.0)
+        assert "AAPL" not in portfolio.holdings
+        assert portfolio.cash == pytest.approx(100000.0 + 100 * 100.0 - 100 * 90.0)
 
     def test_update_prices_existing(self):
         """update_prices recalculates market value for held symbols."""
