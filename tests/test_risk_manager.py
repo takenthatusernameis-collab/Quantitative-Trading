@@ -81,10 +81,32 @@ class TestUpdatePortfolioValue:
         rm = RiskManager(initial_capital=100000.0)
         rm.update_portfolio_value({}, 120000.0)
         assert rm.peak_value == 120000.0
-        assert rm.portfolio_risk.current_drawdown == pytest.approx((120000 - 100000) / 100000)
+        # A new high is not a drawdown. The drawdown is measured against the
+        # peak the portfolio is actually at, so it is 0.0 at the peak.
+        assert rm.portfolio_risk.current_drawdown == 0.0
+        assert rm.portfolio_risk.peak_value == 120000.0
         rm.update_portfolio_value({}, 90000.0)
         assert rm.peak_value == 120000.0
         assert rm.portfolio_risk.current_drawdown == pytest.approx((90000 - 120000) / 120000)
+
+    def test_update_at_new_peak_reports_no_drawdown(self):
+        """A portfolio at a new high reports a zero drawdown, never a positive one."""
+        rm = RiskManager(initial_capital=100000.0)
+        for value in (120000.0, 150000.0, 200000.0):
+            rm.update_portfolio_value({}, value)
+            assert rm.portfolio_risk.current_drawdown == 0.0
+            assert rm.portfolio_risk.peak_value == value
+            assert rm.peak_value == value
+            assert rm.history[-1]["drawdown"] == 0.0
+
+    def test_update_reports_drawdown_below_the_peak(self):
+        """Below the peak the drawdown is negative and matches the peak."""
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value({}, 120000.0)
+        rm.update_portfolio_value({}, 90000.0)
+        assert rm.portfolio_risk.current_drawdown == pytest.approx((90000 - 120000) / 120000)
+        assert rm.portfolio_risk.current_drawdown < 0.0
+        assert rm.portfolio_risk.peak_value == 120000.0
 
     def test_update_zero_value_no_leverage(self):
         rm = RiskManager(initial_capital=100000.0)
@@ -111,6 +133,28 @@ class TestCheckSignal:
         result = rm.check_signal(signal, portfolio_value=-1.0)
         assert result.passed is False
         assert any("zero or negative" in v for v in result.violations)
+
+    def test_explicit_zero_portfolio_value_is_rejected(self):
+        """An explicit portfolio value of 0.0 is rejected, not treated as unset.
+
+        The internal portfolio value is only used when the argument is None,
+        so a wiped-out portfolio is caught by the zero-value guard.
+        """
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value({}, 100000.0)
+        signal = Signal(symbol="AAPL", action="buy", price=150.0)
+        result = rm.check_signal(signal, portfolio_value=0.0)
+        assert result.passed is False
+        assert any("zero or negative" in v for v in result.violations)
+
+    def test_missing_portfolio_value_uses_the_internal_value(self):
+        """A None portfolio value falls back to the manager's own value."""
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value({}, 100000.0)
+        signal = Signal(symbol="AAPL", action="buy", price=150.0, strength=1.0)
+        result = rm.check_signal(signal, portfolio_value=None)
+        assert result.passed is True
+        assert result.violations == []
 
     def test_buy_no_price(self):
         rm = RiskManager()
@@ -385,6 +429,15 @@ class TestResetEnableDisable:
         assert rm.history == []
         assert rm.portfolio_risk.total_market_value == 100000.0
         assert rm.portfolio_risk.peak_value == 100000.0
+        assert rm.risk_metrics is None
+
+    def test_reset_clears_computed_metrics(self):
+        """Metrics computed before a reset describe the discarded equity curve."""
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value({}, 50000.0)
+        rm.calculate_metrics()
+        assert rm.risk_metrics is not None
+        rm.reset()
         assert rm.risk_metrics is None
 
     def test_disable_during_check_signal(self):

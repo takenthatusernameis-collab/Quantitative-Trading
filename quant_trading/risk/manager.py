@@ -33,7 +33,8 @@ class PortfolioRisk:
         cash: Available cash balance.
         positions_value: Market value of all positions.
         leverage: Portfolio leverage ratio (positions_value / total_value).
-        current_drawdown: Current drawdown from peak (0.0 = at peak).
+        current_drawdown: Current drawdown from peak (0.0 = at peak, negative
+            while the portfolio is below its peak).
         peak_value: Peak portfolio value observed.
 
     Examples:
@@ -164,19 +165,22 @@ class RiskManager:
         positions_value = sum(p.market_value for p in positions.values())
         total_value = cash + positions_value
 
+        # The peak is updated first so the drawdown is measured against the
+        # peak the portfolio is actually at. Measuring against the previous
+        # peak would report a positive drawdown at a new high.
+        peak_value = max(self.peak_value, total_value)
+
         self.portfolio_risk = PortfolioRisk(
             total_market_value=total_value,
             cash=cash,
             positions_value=positions_value,
             leverage=positions_value / total_value if total_value > 0 else 0,
-            current_drawdown=(
-                (total_value - self.peak_value) / self.peak_value if self.peak_value > 0 else 0
-            ),
-            peak_value=self.peak_value,
+            current_drawdown=((total_value - peak_value) / peak_value if peak_value > 0 else 0),
+            peak_value=peak_value,
         )
 
         self.equity_curve.append(total_value)
-        self.peak_value = max(self.peak_value, total_value)
+        self.peak_value = peak_value
 
         self.history.append(
             {
@@ -193,7 +197,10 @@ class RiskManager:
 
         Args:
             signal: Trading signal to evaluate.
-            portfolio_value: Current portfolio value (uses internal if None).
+            portfolio_value: Current portfolio value. The manager's internal
+                portfolio value is used when this is ``None``; any explicit
+                value overrides it, including ``0.0`` (a wiped-out portfolio,
+                which is rejected below).
 
         Returns:
             CheckResult with pass/fail and any violations.
@@ -215,7 +222,9 @@ class RiskManager:
         if not self.risk_enabled:
             return result
 
-        value = portfolio_value or self.portfolio_risk.total_market_value
+        value = (
+            self.portfolio_risk.total_market_value if portfolio_value is None else portfolio_value
+        )
         if value <= 0:
             result.add_violation("Portfolio value is zero or negative")
             return result
@@ -366,6 +375,10 @@ class RiskManager:
     def reset(self) -> None:
         """Reset risk manager state.
 
+        The portfolio state, the equity curve, the peak, the history and the
+        last computed risk metrics are all cleared, so no value from the
+        discarded run is left behind.
+
         Returns:
             None.
 
@@ -378,6 +391,7 @@ class RiskManager:
         self.positions = {}
         self.equity_curve = [self.initial_capital]
         self.peak_value = self.initial_capital
+        self.risk_metrics = None
         self.history = []
 
     def enable(self) -> None:
