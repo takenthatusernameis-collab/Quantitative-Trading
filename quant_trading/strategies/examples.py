@@ -248,6 +248,8 @@ class RSIStrategy(Strategy):
             current_rsi = rsi.iloc[-1]
             prev_rsi = rsi.iloc[-2]
             current_price = close.iloc[-1]
+            if pd.isna(current_rsi) or pd.isna(prev_rsi) or pd.isna(current_price):
+                continue
             timestamp = df.index[-1]
 
             # Oversold - buy signal
