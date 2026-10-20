@@ -372,8 +372,14 @@ class Portfolio:
         """
         return {sym: h.to_position() for sym, h in self.holdings.items()}
 
-    def get_allocation(self) -> dict[str, float]:
+    def get_allocation(self, use_absolute: bool = False) -> dict[str, float]:
         """Get portfolio allocation percentages.
+
+        Args:
+            use_absolute: When True, use absolute market values so short
+                positions contribute positively to gross exposure. When False
+                (default), use signed market values (net allocation), where
+                shorts appear as negative weights.
 
         Returns:
             Symbol-keyed market-value fractions of total portfolio value, or
@@ -382,7 +388,20 @@ class Portfolio:
         """
         if self.total_value <= 0:
             return {}
+        if use_absolute:
+            return {
+                sym: abs(h.market_value) / self.total_value
+                for sym, h in self.holdings.items()
+            }
         return {sym: h.market_value / self.total_value for sym, h in self.holdings.items()}
+
+    def get_net_allocation(self) -> dict[str, float]:
+        """Get net allocation (signed weights; shorts are negative)."""
+        return self.get_allocation(use_absolute=False)
+
+    def get_gross_allocation(self) -> dict[str, float]:
+        """Get gross allocation (absolute weights; shorts contribute positively)."""
+        return self.get_allocation(use_absolute=True)
 
     def reset(self, capital: float) -> None:
         """Reset portfolio to initial state.
