@@ -498,10 +498,10 @@ class BacktestEngine:
         The signal is first validated against the risk manager. If it is
         rejected, no trade is recorded. For buy signals the position size is
         derived from the signal strength and the configured position limit,
-        trimmed to fit available cash. For sell signals, the entire holding
-        is sold in proportion to the signal strength and the realized PnL is
-        recorded. Signals with an unrecognized action or insufficient price
-        information are ignored.
+        trimmed to fit available cash. For sell signals the holding is sold in
+        proportion to the signal strength, capped at the size of the position,
+        and the realized PnL is recorded. Signals with an unrecognized action
+        or insufficient price information are ignored.
 
         Args:
             signal: The trading signal to process.
@@ -569,7 +569,11 @@ class BacktestEngine:
             if holding is None or holding.quantity <= 0:
                 return
 
-            quantity = holding.quantity * signal.strength
+            # The portfolio caps the removal at the position size, so the
+            # executed quantity is capped here as well. Otherwise a signal with
+            # ``strength > 1`` would record a trade larger than the position it
+            # actually closed.
+            quantity = min(holding.quantity * signal.strength, holding.quantity)
             if quantity <= 0:
                 return
 
