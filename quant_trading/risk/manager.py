@@ -180,7 +180,11 @@ class RiskManager:
             total_market_value=total_value,
             cash=cash,
             positions_value=positions_value,
-            leverage=positions_value / total_value if total_value > 0 else 0,
+            leverage=(
+                sum(abs(p.market_value) for p in positions.values()) / total_value
+                if total_value > 0
+                else 0
+            ),
             current_drawdown=((total_value - peak_value) / peak_value if peak_value > 0 else 0),
             peak_value=peak_value,
         )

@@ -124,6 +124,15 @@ class TestUpdatePortfolioValue:
         assert rm.portfolio_risk.leverage == 0.0
         assert rm.portfolio_risk.current_drawdown == pytest.approx((0 - 100000) / 100000)
 
+    def test_short_position_reports_gross_leverage(self):
+        rm = RiskManager(initial_capital=100000.0)
+        positions = {"AAPL": Position("AAPL", -100, 150.0, 152.0)}
+        rm.update_portfolio_value(positions, 50000.0)
+        mv = positions["AAPL"].market_value
+        total = 50000.0 + mv
+        assert rm.portfolio_risk.leverage == pytest.approx(abs(mv) / total)
+        assert rm.portfolio_risk.leverage > 0
+
 
 class TestCheckSignal:
     """Tests for check_signal."""
