@@ -28,6 +28,7 @@ dev = [
     "pandas-stubs>=3.0.0",
     "types-requests>=2.31.0",
     "types-PyYAML>=6.0",
+    "scikit-optimize>=0.10.0",
 ]
 bayesian = [
     "scikit-optimize>=0.10.0",
