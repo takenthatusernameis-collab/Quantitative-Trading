@@ -85,23 +85,40 @@ class MovingAverageCrossover(Strategy):
             fast_ma = close.rolling(window=self.fast_period).mean()
             slow_ma = close.rolling(window=self.slow_period).mean()
 
+            if len(fast_ma) < 2 or len(slow_ma) < 2:
+                continue
+
             # Current and previous values
             fast_current = fast_ma.iloc[-1]
             fast_prev = fast_ma.iloc[-2]
             slow_current = slow_ma.iloc[-1]
             slow_prev = slow_ma.iloc[-2]
 
+            if (
+                pd.isna(fast_current)
+                or pd.isna(fast_prev)
+                or pd.isna(slow_current)
+                or pd.isna(slow_prev)
+            ):
+                continue
+
             current_price = close.iloc[-1]
+            if pd.isna(current_price):
+                continue
             timestamp = df.index[-1]
 
             # Crossover detection
             if fast_prev <= slow_prev and fast_current > slow_current:
                 # Golden cross - buy signal
+                if slow_current and slow_current != 0:
+                    strength = min(1.0, (fast_current - slow_current) / slow_current * 10)
+                else:
+                    strength = 0.5
                 signals.append(
                     Signal(
                         symbol=symbol,
                         action="buy",
-                        strength=min(1.0, (fast_current - slow_current) / slow_current * 10),
+                        strength=strength,
                         price=current_price,
                         timestamp=timestamp,
                         metadata={
@@ -113,11 +130,15 @@ class MovingAverageCrossover(Strategy):
                 )
             elif fast_prev >= slow_prev and fast_current < slow_current:
                 # Death cross - sell signal
+                if slow_current and slow_current != 0:
+                    strength = min(1.0, (slow_current - fast_current) / slow_current * 10)
+                else:
+                    strength = 0.5
                 signals.append(
                     Signal(
                         symbol=symbol,
                         action="sell",
-                        strength=min(1.0, (slow_current - fast_current) / slow_current * 10),
+                        strength=strength,
                         price=current_price,
                         timestamp=timestamp,
                         metadata={

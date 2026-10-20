@@ -1,12 +1,13 @@
 # Next Task
 
 ## What changed
-- Added 7 tests to `tests/test_portfolio.py` covering short positions for `get_allocation` / `get_gross_allocation` / `get_net_allocation` with exact values and additional invariants (short-only portfolio, net-sum equals holdings-value fraction, gross exposure when leveraged).
+- Added NaN-safe handling to `MovingAverageCrossover.generate_signals()` (check last two MA values and current price for NaN; guard division when `slow_current` is zero).
+- Added `test_generate_signals_nan_values_skipped_ma` to `tests/test_strategies_examples.py` to match NaN-skip behavior of other strategies.
 
 ## Verified
-- `tests/test_portfolio.py` 50 passed (was 43).
-- Full suite: 1466 passed, 1 skipped.
-- `ruff check` clean; `mypy` clean on the test file.
+- `tests/test_strategies_examples.py` 149 passed (added 1 test).
+- Full suite: 1467 passed, 1 skipped.
+- `ruff check` clean on modified files; `mypy` passes.
 
 ## Next task
-Pick a bounded, high-value task from the repo — e.g. review `examples/` or `quant_trading/strategies/` for a missing test or a deterministic bug, implement, and verify with the relevant test command.
+Look for other strategies missing NaN/zero-price guards (e.g. compare edge cases across strategies) and add minimal guards + tests if missing. Prioritize deterministic, bounded changes.

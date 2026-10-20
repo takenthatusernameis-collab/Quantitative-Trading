@@ -2217,6 +2217,24 @@ class TestEMACrossoverStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
+    def test_generate_signals_nan_values_skipped_ma(self):
+        """Test generate_signals skips bars with NaN values."""
+        strategy = MovingAverageCrossover(fast_period=5, slow_period=15)
+        dates = pd.date_range(end=datetime.now(), periods=25, freq="D")
+        df = pd.DataFrame(
+            {
+                "open": [100.0] * 25,
+                "high": [101.0] * 25,
+                "low": [99.0] * 25,
+                "close": [100.0] * 25,
+                "volume": [1_000_000] * 25,
+            },
+            index=dates,
+        )
+        df.iloc[-2:, [1, 2, 3]] = float("nan")
+        signals = strategy.generate_signals({"AAPL": df})
+        assert signals == []
+
     def test_generate_signals_nan_values_skipped(self):
         """Test generate_signals skips bars with NaN values."""
         strategy = EMACrossover(fast_period=5, slow_period=15)
