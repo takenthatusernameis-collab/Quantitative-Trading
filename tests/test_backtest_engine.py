@@ -836,3 +836,44 @@ def test_run_backtest_with_config_creates_data_manager():
     assert isinstance(result, BacktestResult)
     assert result.initial_capital == 100000.0
     assert result.metrics is not None
+
+def test_buy_returns_when_available_value_non_positive():
+    """Test buy returns early when available_value <= 0."""
+    end = datetime(2023, 12, 31)
+    start = end - timedelta(days=30)
+    d = create_synthetic_data(["AAPL"], days=30, seed=42)
+    provider = MockDataProvider(d)
+    dm = DataManager([provider])
+    engine = BacktestEngine(config=BacktestConfig(initial_capital=100000.0), data_manager=dm)
+
+    class LargeBuyStrategy(Strategy):
+        def __init__(self):
+            super().__init__(name="LargeBuyStrategy")
+        def generate_signals(self, data: dict):
+            symbol = list(data.keys())[0]
+            df = data[symbol]
+            return [Signal(symbol=symbol, action="buy", strength=1.0, price=float(df["close"].iloc[-1]))]
+
+    engine.add_strategy(LargeBuyStrategy())
+    engine.portfolio.add_holding("AAPL", 600, 150.0)
+    result = engine.run(["AAPL"], start, end)
+    assert result is not None
+
+
+def test_run_backtest_with_config_and_no_data_manager():
+    """Test run_backtest creates data_manager from config when None."""
+    from quant_trading.config.settings import Config, DataConfig
+
+    end = datetime(2023, 12, 31)
+    start = end - timedelta(days=10)
+    config = Config(data=DataConfig(provider="synthetic", offline=True))
+    strategy = NoTradeStrategy()
+    result = run_backtest(
+        strategy=strategy,
+        symbols=["AAPL"],
+        start=start,
+        end=end,
+        config=config,
+        data_manager=None,
+    )
+    assert result is not None
