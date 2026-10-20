@@ -1355,6 +1355,7 @@ def run_optimization(
 
     if result.best_result:
         print(f"Total Return:    {result.best_result.total_return_pct:.2f}%")
+        print(f"Total Costs:     ${result.best_result.total_costs:,.2f}")
         print(f"Sharpe Ratio:    {result.best_result.metrics.sharpe_ratio:.4f}")
         print(f"Max Drawdown:    {result.best_result.metrics.max_drawdown_pct:.2f}%")
         print(f"Win Rate:        {result.best_result.metrics.win_rate:.2%}")
@@ -1387,6 +1388,9 @@ def run_optimization(
                 {
                     "total_return_pct": (
                         result.best_result.total_return_pct if result.best_result else None
+                    ),
+                    "total_costs": (
+                        result.best_result.total_costs if result.best_result else None
                     ),
                     "sharpe_ratio": (
                         result.best_result.metrics.sharpe_ratio if result.best_result else None
@@ -1505,6 +1509,7 @@ def run_walk_forward(
 
     if result.combined_test_result:
         print(f"  Combined Test Return: {summary['combined_test_return_pct']:.2f}%")
+        print(f"  Combined Test Costs:  ${result.combined_test_result.total_costs:,.2f}")
         print(f"  Combined Test Sharpe: {summary['combined_test_sharpe']:.4f}")
 
     if args.output:
@@ -1745,6 +1750,7 @@ def main() -> int:
         print(f"Initial Capital: ${result.initial_capital:,.2f}")
         print(f"Final Value:     ${result.final_value:,.2f}")
         print(f"Total Return:    ${result.total_return:,.2f} " f"({result.total_return_pct:.2f}%)")
+        print(f"Total Costs:     ${result.total_costs:,.2f}")
         print(f"Total Trades:    {result.metrics.num_trades}")
         print(f"Win Rate:        {result.metrics.win_rate:.2%}")
         print(f"Sharpe Ratio:    {result.metrics.sharpe_ratio:.2f}")
@@ -1781,6 +1787,7 @@ def main() -> int:
                 "final_value": result.final_value,
                 "total_return": result.total_return,
                 "total_return_pct": result.total_return_pct,
+                "total_costs": result.total_costs,
                 "num_trades": result.metrics.num_trades,
                 "win_rate": result.metrics.win_rate,
                 "sharpe_ratio": result.metrics.sharpe_ratio,
@@ -1883,7 +1890,7 @@ def run_combined(
     print("Strategy Comparison")
     print(f"{'=' * 80}")
     print(
-        f"{'Strategy':<30} {'Return %':>10} {'Sharpe':>8} {'Max DD %':>10} {'Win Rate':>10} {'Trades':>8}"
+        f"{'Strategy':<30} {'Return %':>10} {'Sharpe':>8} {'Max DD %':>10} {'Win Rate':>10} {'Trades':>8} {'Costs':>12}"
     )
     print(f"{'-' * 80}")
     for name, result in results:
@@ -1892,7 +1899,8 @@ def run_combined(
             f"{result.metrics.sharpe_ratio:>8.2f} "
             f"{result.metrics.max_drawdown_pct:>10.2f} "
             f"{result.metrics.win_rate:>9.2%} "
-            f"{result.metrics.num_trades:>8}"
+            f"{result.metrics.num_trades:>8} "
+            f"${result.total_costs:>11,.2f}"
         )
 
     # Find best by Sharpe ratio
@@ -1907,6 +1915,7 @@ def run_combined(
                 {
                     "strategy": name,
                     "total_return_pct": result.total_return_pct,
+                    "total_costs": result.total_costs,
                     "sharpe_ratio": result.metrics.sharpe_ratio,
                     "max_drawdown_pct": result.metrics.max_drawdown_pct,
                     "win_rate": result.metrics.win_rate,

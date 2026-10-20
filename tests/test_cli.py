@@ -1648,6 +1648,7 @@ class TestMain:
         assert "Initial Capital:" in captured.out
         assert "Final Value:" in captured.out
         assert "Total Return:" in captured.out
+        assert "Total Costs:" in captured.out
         assert "Total Trades:" in captured.out
         assert "Win Rate:" in captured.out
         assert "Sharpe Ratio:" in captured.out
@@ -1724,6 +1725,7 @@ class TestMain:
             assert "regime_analysis" in data
             assert "monte_carlo" in data
             assert "trade_analysis" in data
+            assert "total_costs" in data
 
     def test_main_offline_optimize_ichimoku_calls_run_optimization(self):
         """Running offline with --optimize and ichimoku strategy calls run_optimization."""
