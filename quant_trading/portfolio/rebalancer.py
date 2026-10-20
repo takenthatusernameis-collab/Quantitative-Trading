@@ -36,10 +36,15 @@ Examples:
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from math import copysign
 from typing import Any
 
 from quant_trading.portfolio.portfolio import Portfolio
 from quant_trading.strategies.base import Signal
+
+# Relative cushion kept when a buy is sized against the available cash.  It
+# keeps floating point rounding from pushing the cash balance below zero.
+_CASH_SAFETY_MARGIN = 1e-9
 
 
 @dataclass
@@ -128,6 +133,27 @@ class RebalanceExecution:
     cash_effect: float = 0.0
     reason: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
+class _RebalancePlan:
+    """Cash and position state a planned batch of actions expects.
+
+    The planner walks the actions in the order they will be executed and keeps
+    track of the cash that is still available and of the positions the
+    portfolio is expected to hold once the batch is done.  A buy is therefore
+    never sized against cash that an earlier action of the same batch already
+    committed.
+
+    Attributes:
+        cash: Cash the batch may still spend.
+        fee_rate: Combined commission and slippage rate of the batch.
+        positions: Signed quantity the batch expects to hold per symbol.
+    """
+
+    cash: float
+    fee_rate: float = 0.0
+    positions: dict[str, float] = field(default_factory=dict)
 
 
 class Rebalancer:
@@ -249,6 +275,8 @@ class Rebalancer:
         self,
         signals: list[Signal] | None = None,
         prices: dict[str, float] | None = None,
+        commission: float = 0.0,
+        slippage: float = 0.0,
     ) -> list[RebalanceAction]:
         """Generate rebalancing actions to move the portfolio to its targets.
 
@@ -261,6 +289,23 @@ class Rebalancer:
            allocation are sized to 5% of portfolio value times signal strength;
            sell signals liquidate the full holdings of the signaled symbol.
 
+        The actions are **affordable**: a buy is sized against the cash the
+        portfolio actually has, net of the fees, and against the cash that the
+        earlier actions of the same batch have not committed yet.  A buy that
+        cannot be paid for in full is reduced to what the remaining cash can
+        buy, and a buy that cannot be paid for at all is dropped.  A sell
+        releases cash that the buys later in the batch can use.
+
+        The actions are planned in the order they are returned, so a buy is
+        only sized against the cash that is available at that point of the
+        sequence: a sell that comes later in the list cannot fund a buy that
+        comes before it.
+
+        The fees are part of the sizing, so the same ``commission`` and
+        ``slippage`` must be passed to :meth:`execute_actions` that are passed
+        here.  Passing the execution fees to this method is what keeps the
+        cash balance of the portfolio non-negative.
+
         After computing the actions the rebalancer records the run in
         :attr:`rebalance_history` and updates :attr:`last_rebalance`.
 
@@ -269,6 +314,8 @@ class Rebalancer:
                 objects to act on.
             prices: Optional symbol-keyed price map used to resolve buy
                 quantities when the portfolio has no holding for a symbol.
+            commission: Commission rate the actions will be executed with.
+            slippage: Slippage rate the actions will be executed with.
 
         Returns:
             List of :class:`RebalanceAction` objects to execute. May be empty
@@ -278,6 +325,12 @@ class Rebalancer:
         actions = []
         targets = self.calculate_target_values()
         prices = prices or {}
+        total_value = self.portfolio.total_value
+        plan = _RebalancePlan(
+            cash=self.portfolio.cash,
+            fee_rate=commission + slippage,
+            positions={symbol: holding.quantity for symbol, holding in self.portfolio.holdings.items()},
+        )
 
         # Process target allocations
         for symbol in self.target_allocation:
@@ -285,23 +338,28 @@ class Rebalancer:
             target_value = targets[symbol]
             diff = target_value - current_value
 
-            if self.portfolio.total_value <= 0:
+            if total_value <= 0:
                 continue
-            if abs(diff) / self.portfolio.total_value > self.rebalance_threshold:
+            if abs(diff) / total_value > self.rebalance_threshold:
                 if diff > 0:
+                    price = self._resolve_plan_price(symbol, prices, signals)
                     quantity = self._resolve_buy_quantity(symbol, diff, signals, prices)
-                    if quantity > 0:
-                        actions.append(
-                            RebalanceAction(
-                                symbol=symbol,
-                                action="buy",
-                                quantity=quantity,
-                                reason="target_allocation",
+                    if quantity > 0 and price > 0:
+                        quantity = self._plan_buy(plan, symbol, quantity, price)
+                        if quantity > 0:
+                            actions.append(
+                                RebalanceAction(
+                                    symbol=symbol,
+                                    action="buy",
+                                    quantity=quantity,
+                                    reason="target_allocation",
+                                )
                             )
-                        )
                 elif diff < 0:
                     quantity = self._resolve_sell_quantity(symbol, abs(diff))
                     if quantity > 0:
+                        price = self._resolve_execution_price(symbol, prices)
+                        self._plan_sell(plan, symbol, quantity, price)
                         actions.append(
                             RebalanceAction(
                                 symbol=symbol,
@@ -322,17 +380,24 @@ class Rebalancer:
                     current_value = self.portfolio.get_position_value(signal.symbol)
                     diff = target_value - current_value
                     if diff > 0 and signal.price:
-                        actions.append(
-                            RebalanceAction(
-                                symbol=signal.symbol,
-                                action="buy",
-                                quantity=diff / signal.price,
-                                reason=f"signal_{signal.metadata.get('signal_type', 'unknown')}",
-                            )
-                        )
+                        price = self._resolve_plan_price(signal.symbol, prices, signals)
+                        quantity = self._resolve_buy_quantity(signal.symbol, diff, signals, prices)
+                        if quantity > 0 and price > 0:
+                            quantity = self._plan_buy(plan, signal.symbol, quantity, price)
+                            if quantity > 0:
+                                actions.append(
+                                    RebalanceAction(
+                                        symbol=signal.symbol,
+                                        action="buy",
+                                        quantity=quantity,
+                                        reason=f"signal_{signal.metadata.get('signal_type', 'unknown')}",
+                                    )
+                                )
                 elif signal.action == "sell":
                     holding = self.portfolio.holdings.get(signal.symbol)
                     if holding and holding.quantity > 0:
+                        price = self._resolve_execution_price(signal.symbol, prices)
+                        self._plan_sell(plan, signal.symbol, holding.quantity, price)
                         actions.append(
                             RebalanceAction(
                                 symbol=signal.symbol,
@@ -472,12 +537,42 @@ class Rebalancer:
             The execution price, or 0.0 when no positive price is available.
 
         """
+        return self._resolve_plan_price(symbol, prices)
+
+    def _resolve_plan_price(
+        self,
+        symbol: str,
+        prices: dict[str, float],
+        signals: list[Signal] | None = None,
+    ) -> float:
+        """Resolve the price a planned trade is sized at.
+
+        The precedence matches the execution price resolution -- the ``prices``
+        map first, then the current price of the holding -- so that a planned
+        trade is priced exactly like the trade it produces.  When neither is
+        available the average price of the matching signals is used.
+
+        Args:
+            symbol: Symbol the trade applies to.
+            prices: Symbol-keyed price map.
+            signals: Optional signals for the symbol, used as a price source.
+
+        Returns:
+            The price, or 0.0 when no positive price is available.
+
+        """
         price = prices.get(symbol)
         if price is not None and price > 0:
             return price
         holding = self.portfolio.holdings.get(symbol)
         if holding is not None and holding.current_price > 0:
             return holding.current_price
+        if signals:
+            signal_prices = [s.price for s in signals if s.symbol == symbol and s.price]
+            if signal_prices:
+                avg_price = sum(signal_prices) / len(signal_prices)
+                if avg_price > 0:
+                    return avg_price
         return 0.0
 
     def _position_of(self, symbol: str) -> float:
@@ -493,6 +588,82 @@ class Rebalancer:
         holding = self.portfolio.holdings.get(symbol)
         return holding.quantity if holding is not None else 0.0
 
+    def _plan_buy(
+        self,
+        plan: _RebalancePlan,
+        symbol: str,
+        quantity: float,
+        price: float,
+    ) -> float:
+        """Size a planned buy so that the batch stays solvent.
+
+        The buy is reduced to what the remaining cash can pay for, fees
+        included, and a buy that covers an open short is capped at the size of
+        that short exactly like the execution is.
+
+        Args:
+            plan: Cash and position state of the batch being planned.
+            symbol: Symbol being bought.
+            quantity: Quantity the plan would like to buy.
+            price: Price the buy is planned at.
+
+        Returns:
+            The quantity that can actually be bought, or 0.0 when nothing can
+            be afforded.
+
+        """
+        position = plan.positions.get(symbol, 0.0)
+        if position < 0:
+            # The buy covers an open short; it cannot flip it.
+            quantity = min(quantity, -position)
+
+        affordable = plan.cash * (1.0 - _CASH_SAFETY_MARGIN) / (price * (1.0 + plan.fee_rate))
+        quantity = min(quantity, affordable)
+        if quantity <= 0:
+            return 0.0
+
+        plan.cash -= quantity * price * (1.0 + plan.fee_rate)
+        plan.positions[symbol] = position + quantity
+        return quantity
+
+    def _plan_sell(
+        self,
+        plan: _RebalancePlan,
+        symbol: str,
+        quantity: float,
+        price: float,
+    ) -> None:
+        """Book the cash a planned sell releases.
+
+        A sell of a long position credits the cash the sale brings in, fees
+        deducted.  A sell against an open short covers it and therefore costs
+        cash.  Only the part of the position that is actually sold is booked,
+        exactly like the execution does.
+
+        Args:
+            plan: Cash and position state of the batch being planned.
+            symbol: Symbol being sold.
+            quantity: Quantity the plan would like to sell.
+            price: Price the sell is planned at.
+
+        Returns:
+            None.
+
+        """
+        if price <= 0:
+            return
+
+        position = plan.positions.get(symbol, 0.0)
+        size = min(quantity, abs(position))
+        if size <= 0:
+            return
+
+        if position > 0:
+            plan.cash += size * price * (1.0 - plan.fee_rate)
+        else:
+            plan.cash -= size * price * (1.0 + plan.fee_rate)
+        plan.positions[symbol] = position - copysign(size, position)
+
     def _resolve_buy_quantity(
         self,
         symbol: str,
@@ -503,9 +674,10 @@ class Rebalancer:
         """Resolve a buy quantity for a symbol, guarding against zero prices.
 
         The price used to convert a dollar ``diff`` into a quantity is taken
-        from the first available source in order: the portfolio's existing
-        holding, the ``prices`` map, and finally the average price of matching
-        signals.
+        from the first available source in order: the ``prices`` map, the
+        portfolio's existing holding, and finally the average price of matching
+        signals.  The order matches the execution price resolution, so a
+        planned buy is priced like the trade it produces.
 
         Args:
             symbol: Symbol being bought.
@@ -517,18 +689,9 @@ class Rebalancer:
             Quantity to buy, or 0.0 when no positive price could be resolved.
 
         """
-        if symbol in self.portfolio.holdings:
-            price = self.portfolio.holdings[symbol].current_price
-            if price and price > 0:
-                return diff / price
-        if symbol in prices and prices[symbol] > 0:
-            return diff / prices[symbol]
-        if signals:
-            signal_prices = [s.price for s in signals if s.symbol == symbol and s.price]
-            if signal_prices:
-                avg_price = sum(signal_prices) / len(signal_prices)
-                if avg_price > 0:
-                    return diff / avg_price
+        price = self._resolve_plan_price(symbol, prices, signals)
+        if price > 0:
+            return diff / price
         return 0.0
 
     def _resolve_sell_quantity(self, symbol: str, diff: float) -> float:
