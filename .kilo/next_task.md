@@ -1,10 +1,12 @@
 # Next Task
 
 ## What changed
-- `Portfolio.get_allocation()` now accepts `use_absolute=False`; added `get_net_allocation()` and `get_gross_allocation()`.
+- Added 7 tests to `tests/test_portfolio.py` covering short positions for `get_allocation` / `get_gross_allocation` / `get_net_allocation` with exact values and additional invariants (short-only portfolio, net-sum equals holdings-value fraction, gross exposure when leveraged).
 
 ## Verified
-- `tests/test_portfolio.py` 37 passed.
+- `tests/test_portfolio.py` 50 passed (was 43).
+- Full suite: 1466 passed, 1 skipped.
+- `ruff check` clean; `mypy` clean on the test file.
 
 ## Next task
-Add tests in tests/test_portfolio.py covering short positions for get_allocation/get_gross_allocation/get_net_allocation and verify invariants.
+Pick a bounded, high-value task from the repo — e.g. review `examples/` or `quant_trading/strategies/` for a missing test or a deterministic bug, implement, and verify with the relevant test command.
