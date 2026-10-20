@@ -1321,6 +1321,7 @@ class TestRunCombined:
                     "initial_capital",
                     "final_value",
                     "total_return",
+                    "total_costs",
                 ]
             )
             m.name = name
@@ -1329,6 +1330,7 @@ class TestRunCombined:
             m.initial_capital = 100000.0
             m.final_value = 100000.0 * (1 + ret / 100)
             m.total_return = 100000.0 * ret / 100
+            m.total_costs = 0.0
             mock_results.append(m)
 
         def side_effect(*args, **kwargs):
@@ -1416,6 +1418,7 @@ class TestRunCombined:
                 "initial_capital",
                 "final_value",
                 "total_return",
+                "total_costs",
             ]
         )
         mock_result.name = "MA_Crossover_10_30"
@@ -1424,6 +1427,7 @@ class TestRunCombined:
         mock_result.initial_capital = 100000.0
         mock_result.final_value = 115500.0
         mock_result.total_return = 15500.0
+        mock_result.total_costs = 0.0
 
         def side_effect(*args, **kwargs):
             return mock_result
@@ -1879,6 +1883,9 @@ class TestFactoryIntegration:
                 mock_result.total_return_pct = 5.0
                 mock_result.metrics = mock_metrics
                 mock_result.initial_capital = 100000.0
+                mock_result.final_value = 105000.0
+                mock_result.total_return = 5000.0
+                mock_result.total_costs = 0.0
                 mock_result.final_value = 105000.0
                 mock_result.total_return = 5000.0
                 mock_run.return_value = mock_result
