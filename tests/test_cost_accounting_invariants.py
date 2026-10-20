@@ -148,7 +148,10 @@ def _signed_cost(trades: pd.DataFrame) -> float:
     """Sum the trade costs with the sign that matches their effect on cash."""
     total = 0.0
     for _, trade in trades.iterrows():
-        total += trade["cost"] if trade["action"] == "sell" else -trade["cost"]
+        if trade["action"] in ("sell", "short"):
+            total += trade["cost"]
+        else:
+            total -= trade["cost"]
     return total
 
 
@@ -194,7 +197,10 @@ def _assert_cost_accounting_invariants(result: BacktestResult, portfolio: Portfo
         for _, trade in trades.iterrows():
             if trade["symbol"] != symbol:
                 continue
-            net += trade["quantity"] if trade["action"] == "buy" else -trade["quantity"]
+            if trade["action"] in ("buy", "cover"):
+                net += trade["quantity"]
+            else:
+                net -= trade["quantity"]
         held = portfolio.holdings[symbol].quantity if symbol in portfolio.holdings else 0.0
         assert net == pytest.approx(held, rel=1e-9, abs=1e-9)
 
@@ -303,5 +309,53 @@ def test_sell_signal_larger_than_position_records_executed_quantity():
     # The whole position was sold, and the log says exactly that.
     assert sell["quantity"] == pytest.approx(buy["quantity"], rel=1e-9, abs=1e-9)
     assert portfolio.holdings == {}
+
+    _assert_cost_accounting_invariants(result, portfolio)
+
+
+@pytest.mark.parametrize("seed", range(20))
+def test_randomized_short_round_trip_invariants(seed: int):
+    """A short position covered in random partial steps reconciles.
+
+    A short keeps the raw execution price as its cost basis, so the entry fee
+    it pays is booked as realized PnL on the short trade itself. The covers
+    book the price move and the cover fee. The sum of the two is the change in
+    the portfolio value, exactly like it is for a long.
+    """
+    rng = np.random.default_rng(seed)
+    partial_covers = int(rng.integers(1, 4))
+    strengths = [float(value) for value in rng.uniform(0.1, 0.3, size=partial_covers)]
+    script = [("short", 1.0)] + [("buy", strength) for strength in strengths]
+    script.append(("buy", 1.0))
+
+    data = _make_data(["TEST"], len(script) + 2, rng)
+    commission = float(rng.uniform(0.0, 0.02))
+    slippage = float(rng.uniform(0.0, 0.01))
+
+    result, portfolio = _run_scenario(script, data, commission, slippage)
+
+    # The short was opened and then covered, and the position is flat again.
+    assert not result.trades.empty
+    assert (result.trades["action"] == "short").sum() == 1
+    assert (result.trades["action"] == "cover").sum() == len(script) - 1
+    assert portfolio.holdings == {}
+
+    _assert_cost_accounting_invariants(result, portfolio)
+
+
+@pytest.mark.parametrize("seed", range(10))
+def test_randomized_open_short_invariants(seed: int):
+    """A short that is never covered still reconciles while it is open."""
+    rng = np.random.default_rng(seed)
+    script = [("short", 1.0)]
+
+    data = _make_data(["TEST"], len(script) + 2, rng)
+    commission = float(rng.uniform(0.0, 0.02))
+    slippage = float(rng.uniform(0.0, 0.01))
+
+    result, portfolio = _run_scenario(script, data, commission, slippage)
+
+    assert len(result.trades) == 1
+    assert portfolio.holdings["TEST"].quantity < 0
 
     _assert_cost_accounting_invariants(result, portfolio)

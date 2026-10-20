@@ -243,6 +243,12 @@ class RiskManager:
         and kept up to date with :meth:`sync_position` as trades are
         executed.
 
+        A ``"buy"`` signal against an open short covers that short. Covering
+        reduces the gross exposure of the portfolio, so it cannot breach any
+        of the position limits and only the presence of a price is checked. A
+        ``"short"`` signal is gated exactly like a ``"buy"`` signal, because
+        both add gross exposure.
+
         Args:
             signal: Trading signal to evaluate.
             portfolio_value: Current portfolio value. The manager's internal
@@ -278,50 +284,108 @@ class RiskManager:
             return result
 
         if signal.action == "buy":
-            # Check position size limit
             position = self.positions.get(signal.symbol)
             if signal.price is None:
                 result.add_violation("Buy signal has no price")
                 return result
-            current_size = position.quantity * signal.price if position else 0
-            new_size = current_size + (signal.strength * value * self.position_limit.max_size)
-
-            if new_size > self.position_limit.max_value:
-                result.add_violation(
-                    f"Buy signal would exceed max position value: ${new_size:,.2f} > ${self.position_limit.max_value:,.2f}"
-                )
-
-            position_pct = new_size / value if value > 0 else 0
-            if position_pct > self.position_limit.max_size:
-                result.add_violation(
-                    f"Buy signal would exceed max position size: {position_pct:.2%} > {self.position_limit.max_size:.2%}"
-                )
-
-            # Gate the buy on the portfolio risk budget and the leverage limit,
-            # so a strategy cannot keep opening positions until the post-hoc
-            # portfolio check reports a breach. The buy adds |quantity| * price
-            # of gross exposure and |quantity| * price * stop_loss_pct of risk.
-            buy_value = signal.strength * value * self.position_limit.max_size
-            current_risk = self.portfolio_limit.portfolio_risk_pct(self.positions, value)
-            new_risk = current_risk + (buy_value * self.portfolio_limit.stop_loss_pct / value)
-            if new_risk > self.portfolio_limit.max_portfolio_risk:
-                result.add_violation(
-                    f"Buy signal would exceed max portfolio risk: {new_risk:.2%} > {self.portfolio_limit.max_portfolio_risk:.2%}"
-                )
-
-            current_gross = self.portfolio_limit.leverage(self.positions, value)
-            new_leverage = current_gross + (buy_value / value)
-            if new_leverage > self.portfolio_limit.max_leverage:
-                result.add_violation(
-                    f"Buy signal would exceed max leverage: {new_leverage:.2f}x > {self.portfolio_limit.max_leverage:.2f}x"
-                )
+            if position is not None and position.quantity < 0:
+                # The buy covers an open short. Covering reduces the gross
+                # exposure, so no position limit can be breached by it.
+                return result
+            current_gross = abs(position.quantity) * signal.price if position else 0.0
+            self._check_exposure_increase(
+                result,
+                label="Buy",
+                trade_value=signal.strength * value * self.position_limit.max_size,
+                current_gross=current_gross,
+                portfolio_value=value,
+            )
 
         elif signal.action == "sell":
             position = self.positions.get(signal.symbol)
-            if position is None or position.quantity <= 0:
+            if position is None or position.quantity == 0:
                 result.add_violation("Sell signal for position with no holdings")
+            elif position.quantity < 0:
+                result.add_violation("Sell signal for position with an open short")
+
+        elif signal.action == "short":
+            position = self.positions.get(signal.symbol)
+            if position is not None and position.quantity > 0:
+                result.add_violation("Short signal for position with long holdings")
+                return result
+            if signal.price is None:
+                result.add_violation("Short signal has no price")
+                return result
+            current_gross = abs(position.quantity) * signal.price if position else 0.0
+            self._check_exposure_increase(
+                result,
+                label="Short",
+                trade_value=signal.strength * value * self.position_limit.max_size,
+                current_gross=current_gross,
+                portfolio_value=value,
+            )
 
         return result
+
+    def _check_exposure_increase(
+        self,
+        result: CheckResult,
+        label: str,
+        trade_value: float,
+        current_gross: float,
+        portfolio_value: float,
+    ) -> None:
+        """Check the limits that bound an increase of the gross exposure.
+
+        The trade is measured on its gross exposure, so a short is limited
+        exactly like a long of the same size. The position size is checked on
+        the gross exposure of the symbol, the portfolio risk budget on the
+        risk the trade adds, and the leverage limit on the gross exposure the
+        trade adds to the portfolio.
+
+        Args:
+            result: Check result that collects the violations.
+            label: Name of the signal used in the violation messages.
+            trade_value: Dollar value of the exposure the signal would add.
+            current_gross: Gross exposure the symbol already carries.
+            portfolio_value: Current portfolio value.
+
+        Returns:
+            None.
+
+        """
+        new_size = current_gross + trade_value
+
+        if new_size > self.position_limit.max_value:
+            result.add_violation(
+                f"{label} signal would exceed max position value: ${new_size:,.2f} > ${self.position_limit.max_value:,.2f}"
+            )
+
+        position_pct = new_size / portfolio_value if portfolio_value > 0 else 0
+        if position_pct > self.position_limit.max_size:
+            result.add_violation(
+                f"{label} signal would exceed max position size: {position_pct:.2%} > {self.position_limit.max_size:.2%}"
+            )
+
+        # Gate the trade on the portfolio risk budget and the leverage limit,
+        # so a strategy cannot keep opening positions until the post-hoc
+        # portfolio check reports a breach. The trade adds trade_value of
+        # gross exposure and trade_value * stop_loss_pct of risk.
+        current_risk = self.portfolio_limit.portfolio_risk_pct(self.positions, portfolio_value)
+        new_risk = current_risk + (
+            trade_value * self.portfolio_limit.stop_loss_pct / portfolio_value
+        )
+        if new_risk > self.portfolio_limit.max_portfolio_risk:
+            result.add_violation(
+                f"{label} signal would exceed max portfolio risk: {new_risk:.2%} > {self.portfolio_limit.max_portfolio_risk:.2%}"
+            )
+
+        current_gross_exposure = self.portfolio_limit.leverage(self.positions, portfolio_value)
+        new_leverage = current_gross_exposure + (trade_value / portfolio_value)
+        if new_leverage > self.portfolio_limit.max_leverage:
+            result.add_violation(
+                f"{label} signal would exceed max leverage: {new_leverage:.2f}x > {self.portfolio_limit.max_leverage:.2f}x"
+            )
 
     def check_portfolio(self) -> CheckResult:
         """Check overall portfolio risk limits.

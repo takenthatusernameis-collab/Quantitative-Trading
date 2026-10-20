@@ -1034,3 +1034,338 @@ def test_run_with_zero_initial_capital_does_not_divide_by_zero():
     assert result.initial_capital == 0.0
     assert result.total_return_pct == 0.0
     assert result.metrics.total_return_pct == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Short selling
+# ---------------------------------------------------------------------------
+
+
+class ScriptedSignalStrategy(Strategy):
+    """Emits a scripted sequence of ``(action, strength)`` signals, one per bar."""
+
+    def __init__(self, script: list[tuple[str, float]], symbols: list[str]):
+        super().__init__(name="Scripted")
+        self._script = list(script)
+        self._symbols = list(symbols)
+        self._index = 0
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        if self._index >= len(self._script):
+            return []
+        action, strength = self._script[self._index]
+        symbol = self._symbols[self._index % len(self._symbols)]
+        self._index += 1
+        price = float(data[symbol]["close"].iloc[-1])
+        return [Signal(symbol=symbol, action=action, strength=strength, price=price)]
+
+
+class SameBarSignalStrategy(Strategy):
+    """Emits every scripted signal inside the first bar it is called for."""
+
+    def __init__(self, script: list[tuple[str, float]], symbols: list[str]):
+        super().__init__(name="SameBar")
+        self._script = list(script)
+        self._symbols = list(symbols)
+        self._done = False
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        if self._done:
+            return []
+        self._done = True
+        signals = []
+        for offset, (action, strength) in enumerate(self._script):
+            symbol = self._symbols[offset % len(self._symbols)]
+            price = float(data[symbol]["close"].iloc[-1])
+            signals.append(Signal(symbol=symbol, action=action, strength=strength, price=price))
+        return signals
+
+
+def _price_frame(prices: list[float], start: str = "2024-01-01") -> pd.DataFrame:
+    """Build an OHLC frame with the given close prices."""
+    index = pd.date_range(start, periods=len(prices), freq="D")
+    return pd.DataFrame(
+        {
+            "open": prices,
+            "high": [price * 1.01 for price in prices],
+            "low": [price * 0.99 for price in prices],
+            "close": prices,
+        },
+        index=index,
+    )
+
+
+def _run_script(
+    script: list[tuple[str, float]],
+    data: dict[str, pd.DataFrame],
+    config: Config | None = None,
+    same_bar: bool = False,
+) -> tuple[BacktestResult, BacktestEngine]:
+    """Run a scripted backtest and return its result and the engine."""
+    symbols = list(data.keys())
+    provider = MockDataProvider(data)
+    engine = BacktestEngine(config=config, data_manager=DataManager([provider]))
+    strategy = (
+        SameBarSignalStrategy(script, symbols)
+        if same_bar
+        else ScriptedSignalStrategy(script, symbols)
+    )
+    engine.add_strategy(strategy)
+    index = next(iter(data.values())).index
+    result = engine.run(
+        symbols,
+        index[0].to_pydatetime(),
+        index[-1].to_pydatetime(),
+        "1d",
+    )
+    return result, engine
+
+
+def _short_config(**risk: float) -> Config:
+    """Build a config whose risk limits are given as keyword arguments."""
+    return Config(
+        backtest=BacktestConfig(initial_capital=100000.0),
+        risk=RiskConfig(**risk),
+    )
+
+
+def test_short_signal_opens_a_short_sized_by_the_position_limit():
+    """A short signal opens a short of the size the position limit allows."""
+    data = {"TEST": _price_frame([50.0, 50.0])}
+    config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
+
+    result, _ = _run_script([("short", 1.0)], data, config)
+
+    assert len(result.trades) == 1
+    trade = result.trades.iloc[0]
+    assert trade["action"] == "short"
+    # 10% of 100000 at 50.00 a unit.
+    assert trade["quantity"] == pytest.approx(200.0)
+    assert trade["price"] == pytest.approx(50.0)
+    # The position is short and the sale credited its proceeds to cash.
+    assert result.positions["TEST"].quantity == pytest.approx(-200.0)
+    assert result.positions["TEST"].avg_price == pytest.approx(50.0)
+
+
+def test_short_entry_books_the_fee_it_pays():
+    """The entry fee of a short is charged to cash and booked as realized PnL."""
+    data = {"TEST": _price_frame([50.0, 50.0])}
+    config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
+
+    result, engine = _run_script([("short", 1.0)], data, config)
+
+    trade = result.trades.iloc[0]
+    expected_fee = (
+        trade["quantity"] * trade["price"] * (config.backtest.commission + config.backtest.slippage)
+    )
+    assert trade["fee"] == pytest.approx(expected_fee)
+    # A short keeps the raw execution price as its basis, so the entry fee is
+    # booked as realized PnL on the trade that paid it.
+    assert trade["pnl"] == pytest.approx(-expected_fee)
+    # The fee left the cash balance.
+    assert engine.portfolio.cash == pytest.approx(
+        result.initial_capital + trade["quantity"] * trade["price"] - expected_fee
+    )
+
+
+def test_short_round_trip_reconciles_cash_pnl_and_equity():
+    """A short that is covered again books the PnL, the cash and the equity."""
+    data = {"TEST": _price_frame([50.0, 50.0, 40.0])}
+    config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
+
+    result, engine = _run_script([("short", 1.0), ("hold", 0.0), ("buy", 1.0)], data, config)
+
+    assert len(result.trades) == 2
+    short = result.trades.iloc[0]
+    cover = result.trades.iloc[1]
+    assert short["action"] == "short"
+    assert cover["action"] == "cover"
+    assert cover["price"] == pytest.approx(40.0)
+
+    # The position is flat again.
+    assert result.positions == {}
+
+    # The round trip paid the price move minus the fee of both legs.
+    fees = short["fee"] + cover["fee"]
+    expected_pnl = short["quantity"] * (50.0 - 40.0) - fees
+    assert result.trades["pnl"].sum() == pytest.approx(expected_pnl)
+
+    # The cash moved by exactly the signed trade costs.
+    signed_cost = short["cost"] - cover["cost"]
+    assert engine.portfolio.cash - result.initial_capital == pytest.approx(signed_cost)
+    assert result.final_value == pytest.approx(result.initial_capital + signed_cost)
+    assert result.equity_curve.iloc[-1] == pytest.approx(result.final_value)
+
+
+def test_buy_signal_covers_an_open_short():
+    """A buy signal against an open short buys it back."""
+    data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
+    config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
+
+    result, engine = _run_script([("short", 1.0), ("hold", 0.0), ("buy", 1.0)], data, config)
+
+    cover = result.trades.iloc[1]
+    assert cover["action"] == "cover"
+    # The whole short was covered, so the position is flat again.
+    assert cover["quantity"] == pytest.approx(result.trades.iloc[0]["quantity"])
+    assert result.positions == {}
+    assert engine.portfolio.holdings == {}
+
+
+def test_cover_can_be_smaller_than_the_open_short():
+    """A cover with a strength below one closes only that part of the short."""
+    data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
+    config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
+
+    result, _ = _run_script([("short", 1.0), ("hold", 0.0), ("buy", 0.5)], data, config)
+
+    short = result.trades.iloc[0]
+    cover = result.trades.iloc[1]
+    assert cover["quantity"] == pytest.approx(short["quantity"] / 2)
+    # The rest of the short is still open.
+    assert result.positions["TEST"].quantity == pytest.approx(-short["quantity"] / 2)
+
+
+def test_oversized_short_is_rejected_by_the_signal_gate():
+    """A short that would breach the position limit is not traded."""
+    data = {"TEST": _price_frame([50.0, 50.0])}
+    config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
+
+    result, engine = _run_script([("short", 2.0)], data, config)
+
+    assert result.trades.empty
+    assert engine.portfolio.holdings == {}
+
+
+def test_short_that_would_breach_the_leverage_limit_is_rejected():
+    """A short is measured on gross exposure, so it cannot hide behind a long."""
+    data = {
+        "AAA": _price_frame([50.0, 50.0]),
+        "BBB": _price_frame([50.0, 50.0]),
+    }
+    config = _short_config(max_position_size=0.5, max_leverage=0.75, max_portfolio_risk=1.0)
+
+    result, _ = _run_script([("buy", 1.0), ("short", 1.0)], data, config, same_bar=True)
+
+    # The long filled 0.5x of the portfolio; the short would add another
+    # 0.5x of gross exposure, which is above the 0.75x limit.
+    assert len(result.trades) == 1
+    assert result.trades.iloc[0]["action"] == "buy"
+    assert result.positions["AAA"].quantity > 0
+    assert "BBB" not in result.positions
+
+
+def test_long_and_short_pair_is_measured_on_gross_exposure():
+    """An equally sized long and short do not cancel each other out."""
+    data = {
+        "AAA": _price_frame([50.0, 50.0]),
+        "BBB": _price_frame([50.0, 50.0]),
+    }
+    config = _short_config(max_position_size=0.5, max_leverage=0.75, max_portfolio_risk=1.0)
+
+    result, _ = _run_script([("short", 1.0), ("buy", 1.0)], data, config, same_bar=True)
+
+    # Net exposure would be zero, gross exposure is 1.0x, so the second
+    # trade is rejected by the leverage limit.
+    assert len(result.trades) == 1
+    assert result.trades.iloc[0]["action"] == "short"
+    assert result.positions["AAA"].quantity < 0
+    assert "BBB" not in result.positions
+
+
+def test_second_short_in_the_same_bar_is_measured_against_the_first():
+    """A second short in the same bar is measured against the exposure it adds."""
+    data = {"TEST": _price_frame([50.0, 50.0])}
+    config = _short_config(max_position_size=0.25, max_leverage=1.0, max_portfolio_risk=1.0)
+
+    result, _ = _run_script([("short", 1.0), ("short", 1.0)], data, config, same_bar=True)
+
+    # The first short filled the position limit, so the second one has no
+    # room left and is not traded.
+    assert len(result.trades) == 1
+    assert result.positions["TEST"].quantity == pytest.approx(-500.0)
+
+
+def test_sell_signal_does_not_add_to_an_open_short():
+    """A sell signal is not a way to short: an open short is left alone."""
+    data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
+    config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
+
+    result, _ = _run_script([("short", 1.0), ("hold", 0.0), ("sell", 1.0)], data, config)
+
+    assert len(result.trades) == 1
+    assert result.positions["TEST"].quantity < 0
+
+
+def test_short_signal_is_rejected_while_a_long_position_is_open():
+    """A short signal does not flip an open long position."""
+    data = {"TEST": _price_frame([50.0, 50.0])}
+    config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
+
+    result, _ = _run_script([("buy", 1.0), ("short", 1.0)], data, config, same_bar=True)
+
+    assert len(result.trades) == 1
+    assert result.trades.iloc[0]["action"] == "buy"
+    assert result.positions["TEST"].quantity > 0
+
+
+def test_short_and_cover_in_the_same_bar_end_flat():
+    """A short that is covered inside the same bar leaves no position behind."""
+    data = {"TEST": _price_frame([50.0, 50.0])}
+    config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
+
+    result, _engine = _run_script([("short", 1.0), ("buy", 1.0)], data, config, same_bar=True)
+
+    assert len(result.trades) == 2
+    assert result.trades.iloc[0]["action"] == "short"
+    assert result.trades.iloc[1]["action"] == "cover"
+    assert result.positions == {}
+    # Only the fees were paid, the price did not move.
+    assert result.final_value == pytest.approx(result.initial_capital - result.total_costs)
+
+
+def test_process_signal_short_executes_a_trade():
+    """A short signal is executed directly against the engine."""
+    config = BacktestConfig(initial_capital=100000.0, commission=0.001, slippage=0.0005)
+    engine = BacktestEngine(config=config)
+    engine.risk_manager.disable()
+    short = Signal(symbol="AAPL", action="short", strength=1.0, price=150.0)
+    trades: list[Trade] = []
+
+    engine._process_signal(short, trades, datetime.now())
+
+    assert len(trades) == 1
+    assert trades[0].action == "short"
+    assert trades[0].quantity > 0
+    assert engine.portfolio.get_position("AAPL").quantity == pytest.approx(-trades[0].quantity)
+
+
+def test_process_signal_short_without_price_is_skipped():
+    """A short signal without a usable price is skipped."""
+    config = BacktestConfig(initial_capital=100000.0)
+    engine = BacktestEngine(config=config)
+    engine.risk_manager.disable()
+    short = Signal(symbol="AAPL", action="short", strength=1.0, price=0.0)
+    trades: list[Trade] = []
+
+    engine._process_signal(short, trades, datetime.now())
+
+    assert trades == []
+
+
+def test_process_signal_buy_covers_an_open_short():
+    """A buy signal against an open short covers it instead of flipping it."""
+    config = BacktestConfig(initial_capital=100000.0, commission=0.001, slippage=0.0005)
+    engine = BacktestEngine(config=config)
+    engine.risk_manager.disable()
+    engine.portfolio.add_holding("AAPL", -100.0, 150.0)
+    buy = Signal(symbol="AAPL", action="buy", strength=1.0, price=140.0)
+    trades: list[Trade] = []
+
+    engine._process_signal(buy, trades, datetime.now())
+
+    assert len(trades) == 1
+    assert trades[0].action == "cover"
+    # The short was covered, not flipped into a long.
+    assert trades[0].quantity == pytest.approx(100.0)
+    assert engine.portfolio.get_position("AAPL") is None

@@ -77,7 +77,7 @@ from quant_trading.config.settings import (
     RiskConfig,
 )
 from quant_trading.data.providers import DataManager, create_data_manager_from_config
-from quant_trading.portfolio.portfolio import Portfolio
+from quant_trading.portfolio.portfolio import Holding, Portfolio
 from quant_trading.risk.manager import RiskManager
 from quant_trading.strategies.base import Signal, Strategy
 
@@ -123,18 +123,25 @@ class Trade:
 
     Attributes:
         symbol: Traded symbol.
-        action: Trade action ("buy" or "sell").
-        quantity: Number of units traded.
+        action: Trade action ("buy", "sell", "short", or "cover"). A "buy"
+            opens or adds to a long position, a "sell" reduces or closes one,
+            a "short" opens or adds to a short position, and a "cover" reduces
+            or closes one.
+        quantity: Number of units traded. It is always positive; the action
+            says which way the trade went.
         price: Execution price.
         timestamp: Trade timestamp.
         commission: Commission rate applied.
         slippage: Slippage rate applied.
-        realized_pnl: Realized PnL (set on closes).
+        realized_pnl: Realized PnL. It is 0.0 when a position is opened and
+            holds the PnL of the closed part when a position is reduced. A
+            short entry books the entry fee it paid, because a short keeps
+            the raw execution price as its cost basis.
 
     """
 
     symbol: str
-    action: str  # 'buy' or 'sell'
+    action: str  # 'buy', 'sell', 'short', 'cover'
     quantity: float
     price: float
     timestamp: datetime
@@ -146,15 +153,15 @@ class Trade:
     def cost(self) -> float:
         """Total cost of the trade including commission and slippage.
 
-        Buys are charged (cost is increased) and sells are credited (cost is
-        reduced) by the commission and slippage rates.
+        Buys and covers are charged (cost is increased) and sells and shorts
+        are credited (cost is reduced) by the commission and slippage rates.
 
         Returns:
             The gross trade value adjusted for commission and slippage.
 
         """
         base = self.quantity * self.price
-        if self.action == "buy":
+        if self.action in ("buy", "cover"):
             return base * (1 + self.commission + self.slippage)
         else:
             return base * (1 - self.commission - self.slippage)
@@ -226,13 +233,18 @@ class BacktestResult:
     The headline numbers reconcile against the trade log as follows:
 
     - ``final_value - initial_capital`` equals the sum of the signed
-      ``Trade.cost`` values (buys reduce cash, sells increase it), because
-      commission and slippage are charged to cash on both sides.
+      ``Trade.cost`` values (buys and covers reduce cash, sells and shorts
+      increase it), because commission and slippage are charged to cash on
+      both sides.
     - Entry fees are capitalized into the position's cost basis
       (``Holding.avg_cost``), so realized PnL is net of both buy-side and
       sell-side fees. For a fully liquidated round trip,
       ``final_value - initial_capital == sum(Trade.pnl)``; with open
       positions remaining, realized PnL excludes the basis of unsold shares.
+    - A short keeps the raw execution price as its cost basis, so the entry
+      fee it pays is booked as realized PnL on the short trade itself and the
+      cover books the price move and the cover fee. A fully liquidated short
+      round trip therefore reconciles the same way.
     - The buy-side share of costs is
       ``trades[trades["action"] == "buy"]["fee"].sum()`` and the sell-side
       share is the remainder of ``total_costs``.
@@ -533,10 +545,13 @@ class BacktestEngine:
         The signal is first validated against the risk manager. If it is
         rejected, no trade is recorded. For buy signals the position size is
         derived from the signal strength and the configured position limit,
-        trimmed to fit available cash. For sell signals the holding is sold in
-        proportion to the signal strength, capped at the size of the position,
-        and the realized PnL is recorded. Signals with an unrecognized action
-        or insufficient price information are ignored.
+        trimmed to fit available cash. A buy against an open short covers
+        that short instead, because a buy never flips a position. For sell
+        signals the holding is sold in proportion to the signal strength,
+        capped at the size of the position, and the realized PnL is recorded.
+        A short signal opens a short position of the same size a buy would
+        open; the sale credits its proceeds to cash. Signals with an
+        unrecognized action or insufficient price information are ignored.
 
         Args:
             signal: The trading signal to process.
@@ -559,91 +574,287 @@ class BacktestEngine:
             return
 
         if signal.action == "buy":
-            # Calculate position size based on signal strength and risk limits
-            max_position_value = (
-                self.portfolio.total_value * self.risk_manager.position_limit.max_size
-            )
-            target_value = max_position_value * signal.strength
-            current_value = self.portfolio.get_position_value(symbol)
-            available_value = target_value - current_value
-
-            if available_value <= 0:
-                return
-
-            quantity = available_value / price
-            cost = quantity * price * (1 + self.config.commission + self.config.slippage)
-
-            if cost > self.portfolio.cash:
-                quantity = self.portfolio.cash / (
-                    price * (1 + self.config.commission + self.config.slippage)
-                )
-                if quantity <= 0:
-                    return
-
-            self.portfolio.add_holding(
-                symbol,
-                quantity,
-                price,
-                commission=self.config.commission,
-                slippage=self.config.slippage,
-            )
-            # Keep the risk manager's view of the portfolio current, so a
-            # later signal in this same bar is measured against the exposure
-            # this trade just added instead of the exposure of the previous bar.
-            self.risk_manager.sync_position(symbol, self.portfolio.get_position(symbol))
-            trades_list.append(
-                Trade(
-                    symbol=symbol,
-                    action="buy",
-                    quantity=quantity,
-                    price=price,
-                    timestamp=timestamp,
-                    commission=self.config.commission,
-                    slippage=self.config.slippage,
-                )
-            )
+            if holding is not None and holding.quantity < 0:
+                # A buy against an open short covers it.
+                self._cover_short(symbol, signal, trades_list, timestamp, price, holding)
+            else:
+                self._open_long(symbol, signal, trades_list, timestamp, price)
 
         elif signal.action == "sell":
-            holding = self.portfolio.holdings.get(symbol)
-            if holding is None or holding.quantity <= 0:
-                return
+            self._reduce_long(symbol, signal, trades_list, timestamp, price)
 
-            # The portfolio caps the removal at the position size, so the
-            # executed quantity is capped here as well. Otherwise a signal with
-            # ``strength > 1`` would record a trade larger than the position it
-            # actually closed.
-            quantity = min(holding.quantity * signal.strength, holding.quantity)
+        elif signal.action == "short":
+            self._open_short(symbol, signal, trades_list, timestamp, price)
+
+    def _open_long(
+        self,
+        symbol: str,
+        signal: Signal,
+        trades_list: list[Trade],
+        timestamp: datetime,
+        price: float,
+    ) -> None:
+        """Open or add to a long position.
+
+        The position size is derived from the signal strength and the
+        configured position limit, less the value the symbol already holds,
+        and is trimmed to fit the available cash.
+
+        Args:
+            symbol: Symbol that is traded.
+            signal: The trading signal that triggered the trade.
+            trades_list: List that executed trades are appended to.
+            timestamp: Timestamp assigned to the trade.
+            price: Execution price of the trade.
+
+        Returns:
+            None.
+
+        """
+        # Calculate position size based on signal strength and risk limits
+        max_position_value = self.portfolio.total_value * self.risk_manager.position_limit.max_size
+        target_value = max_position_value * signal.strength
+        current_value = self.portfolio.get_position_value(symbol)
+        available_value = target_value - current_value
+
+        if available_value <= 0:
+            return
+
+        quantity = available_value / price
+        cost = quantity * price * (1 + self.config.commission + self.config.slippage)
+
+        if cost > self.portfolio.cash:
+            quantity = self.portfolio.cash / (
+                price * (1 + self.config.commission + self.config.slippage)
+            )
             if quantity <= 0:
                 return
 
-            avg_cost = holding.avg_cost
-            self.portfolio.remove_holding(
-                symbol,
-                quantity,
-                price,
+        self.portfolio.add_holding(
+            symbol,
+            quantity,
+            price,
+            commission=self.config.commission,
+            slippage=self.config.slippage,
+        )
+        # Keep the risk manager's view of the portfolio current, so a
+        # later signal in this same bar is measured against the exposure
+        # this trade just added instead of the exposure of the previous bar.
+        self.risk_manager.sync_position(symbol, self.portfolio.get_position(symbol))
+        trades_list.append(
+            Trade(
+                symbol=symbol,
+                action="buy",
+                quantity=quantity,
+                price=price,
+                timestamp=timestamp,
                 commission=self.config.commission,
                 slippage=self.config.slippage,
             )
-            realized_pnl = (
-                quantity * price * (1 - self.config.commission - self.config.slippage)
-                - avg_cost * quantity
+        )
+
+    def _reduce_long(
+        self,
+        symbol: str,
+        signal: Signal,
+        trades_list: list[Trade],
+        timestamp: datetime,
+        price: float,
+    ) -> None:
+        """Sell part of a long position or close it completely.
+
+        The holding is sold in proportion to the signal strength and capped
+        at the size of the position, and the realized PnL is recorded.
+
+        Args:
+            symbol: Symbol that is traded.
+            signal: The trading signal that triggered the trade.
+            trades_list: List that executed trades are appended to.
+            timestamp: Timestamp assigned to the trade.
+            price: Execution price of the trade.
+
+        Returns:
+            None.
+
+        """
+        holding = self.portfolio.holdings.get(symbol)
+        if holding is None or holding.quantity <= 0:
+            return
+
+        # The portfolio caps the removal at the position size, so the
+        # executed quantity is capped here as well. Otherwise a signal with
+        # ``strength > 1`` would record a trade larger than the position it
+        # actually closed.
+        quantity = min(holding.quantity * signal.strength, holding.quantity)
+        if quantity <= 0:
+            return
+
+        avg_cost = holding.avg_cost
+        self.portfolio.remove_holding(
+            symbol,
+            quantity,
+            price,
+            commission=self.config.commission,
+            slippage=self.config.slippage,
+        )
+        realized_pnl = (
+            quantity * price * (1 - self.config.commission - self.config.slippage)
+            - avg_cost * quantity
+        )
+        # The risk manager's view of the portfolio is refreshed here as
+        # well, so a position closed in this bar stops counting towards
+        # the exposure of the signals that follow it.
+        self.risk_manager.sync_position(symbol, self.portfolio.get_position(symbol))
+        trades_list.append(
+            Trade(
+                symbol=symbol,
+                action="sell",
+                quantity=quantity,
+                price=price,
+                timestamp=timestamp,
+                commission=self.config.commission,
+                slippage=self.config.slippage,
+                realized_pnl=realized_pnl,
             )
-            # The risk manager's view of the portfolio is refreshed here as
-            # well, so a position closed in this bar stops counting towards
-            # the exposure of the signals that follow it.
-            self.risk_manager.sync_position(symbol, self.portfolio.get_position(symbol))
-            trades_list.append(
-                Trade(
-                    symbol=symbol,
-                    action="sell",
-                    quantity=quantity,
-                    price=price,
-                    timestamp=timestamp,
-                    commission=self.config.commission,
-                    slippage=self.config.slippage,
-                    realized_pnl=realized_pnl,
-                )
+        )
+
+    def _open_short(
+        self,
+        symbol: str,
+        signal: Signal,
+        trades_list: list[Trade],
+        timestamp: datetime,
+        price: float,
+    ) -> None:
+        """Open or add to a short position.
+
+        A short is sized exactly like a long: the signal strength times the
+        configured position limit, less the gross exposure the symbol already
+        carries. The sale credits its proceeds to the cash balance, so there
+        is no cash constraint on the size of a short; the position size, the
+        risk budget and the leverage limit of the risk manager are what bound
+        it.
+
+        Args:
+            symbol: Symbol that is traded.
+            signal: The trading signal that triggered the trade.
+            trades_list: List that executed trades are appended to.
+            timestamp: Timestamp assigned to the trade.
+            price: Execution price of the trade.
+
+        Returns:
+            None.
+
+        """
+        max_position_value = self.portfolio.total_value * self.risk_manager.position_limit.max_size
+        target_value = max_position_value * signal.strength
+        # The exposure of an open short is its gross value, so a short is
+        # sized against the same budget as a long of the same size.
+        current_value = abs(self.portfolio.get_position_value(symbol))
+        available_value = target_value - current_value
+
+        if available_value <= 0:
+            return
+
+        quantity = available_value / price
+        self.portfolio.add_holding(
+            symbol,
+            -quantity,
+            price,
+            commission=self.config.commission,
+            slippage=self.config.slippage,
+        )
+        # Keep the risk manager's view of the portfolio current, so a later
+        # signal in this same bar is measured against the exposure this
+        # trade just added instead of the exposure of the previous bar.
+        self.risk_manager.sync_position(symbol, self.portfolio.get_position(symbol))
+        # A short keeps the raw execution price as its cost basis, so the
+        # entry fee that is deducted from the proceeds is booked as realized
+        # PnL here. The cover books the price move and its own fee.
+        entry_fee = quantity * price * (self.config.commission + self.config.slippage)
+        trades_list.append(
+            Trade(
+                symbol=symbol,
+                action="short",
+                quantity=quantity,
+                price=price,
+                timestamp=timestamp,
+                commission=self.config.commission,
+                slippage=self.config.slippage,
+                realized_pnl=-entry_fee,
             )
+        )
+
+    def _cover_short(
+        self,
+        symbol: str,
+        signal: Signal,
+        trades_list: list[Trade],
+        timestamp: datetime,
+        price: float,
+        holding: Holding,
+    ) -> None:
+        """Buy back part of an open short position or close it completely.
+
+        The short is covered in proportion to the signal strength and capped
+        at the size of the position. Covering costs cash, so the cover is
+        trimmed to what the cash balance can pay for.
+
+        Args:
+            symbol: Symbol that is traded.
+            signal: The trading signal that triggered the trade.
+            trades_list: List that executed trades are appended to.
+            timestamp: Timestamp assigned to the trade.
+            price: Execution price of the trade.
+            holding: The open short position that is covered.
+
+        Returns:
+            None.
+
+        """
+        size = abs(holding.quantity)
+        quantity = min(size * signal.strength, size)
+        if quantity <= 0:
+            return
+
+        cost = quantity * price * (1 + self.config.commission + self.config.slippage)
+        if cost > self.portfolio.cash:
+            quantity = self.portfolio.cash / (
+                price * (1 + self.config.commission + self.config.slippage)
+            )
+            if quantity <= 0:
+                return
+
+        avg_cost = holding.avg_cost
+        self.portfolio.remove_holding(
+            symbol,
+            quantity,
+            price,
+            commission=self.config.commission,
+            slippage=self.config.slippage,
+        )
+        # The short was opened at ``avg_cost``, so covering it realizes the
+        # price move and pays the cover fee. The entry fee was already
+        # booked by the short itself.
+        realized_pnl = quantity * avg_cost - quantity * price * (
+            1 + self.config.commission + self.config.slippage
+        )
+        # The risk manager's view of the portfolio is refreshed here as
+        # well, so a short closed in this bar stops counting towards the
+        # exposure of the signals that follow it.
+        self.risk_manager.sync_position(symbol, self.portfolio.get_position(symbol))
+        trades_list.append(
+            Trade(
+                symbol=symbol,
+                action="cover",
+                quantity=quantity,
+                price=price,
+                timestamp=timestamp,
+                commission=self.config.commission,
+                slippage=self.config.slippage,
+                realized_pnl=realized_pnl,
+            )
+        )
 
 
 def run_backtest(

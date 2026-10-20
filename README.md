@@ -6,7 +6,7 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 
 - **Strategy Framework**: Abstract base class for creating custom trading strategies
 - **Built-in Strategies**: 14 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR, VWAP and Momentum
-- **Backtesting Engine**: Event-driven backtest with realistic costs (commission, slippage)
+- **Backtesting Engine**: Event-driven backtest with realistic costs (commission, slippage), long and short positions
 - **Data Providers**: Yahoo Finance integration with caching support
 - **Portfolio Management**: Position tracking, rebalancing, and allocation
 - **Risk Management**: Position limits, portfolio limits, stop-loss/take-profit
@@ -750,6 +750,45 @@ exposure that may be open at once: with the default `max_portfolio_risk` of
 may be open before the risk limit is breached. The portfolio risk and leverage
 limits are reported when a portfolio is checked; they do not by themselves
 resize or reject an individual order.
+
+## Short Selling
+
+The backtest engine can open and close short positions. A strategy asks for
+one with the `"short"` action; a `"buy"` signal against an open short buys it
+back, so a short is closed the same way a long is.
+
+| Action | Effect |
+| --- | --- |
+| `buy` | Opens or adds to a long position. Against an open short it covers that short instead. |
+| `sell` | Reduces or closes a long position. It is rejected when no long position is held. |
+| `short` | Opens or adds to a short position. It is rejected while a long position is held. |
+| `hold` | No order. |
+
+```python
+from quant_trading.strategies.base import Signal
+
+short = Signal(symbol="AAPL", action="short", price=150.0, strength=1.0)
+cover = Signal(symbol="AAPL", action="buy", price=140.0, strength=1.0)
+```
+
+A short is sized exactly like a long: the signal strength times the
+`max_position_size` limit, less the gross exposure the symbol already
+carries. It is gated by the same limits as a buy — the position size, the
+portfolio risk budget and the `max_leverage` limit — and all of them are
+measured on *gross* exposure, so a long and a short of the same size do not
+cancel each other out. The sale credits its proceeds to the cash balance, so
+a short is not limited by the cash on hand.
+
+The trade log records what each trade did to the position: `buy` and `sell`
+act on a long, `short` opens a short and `cover` closes one. A short keeps
+the raw execution price as its cost basis, so the entry fee it pays is booked
+as realized PnL on the `short` trade and the `cover` books the price move and
+the cover fee. A fully liquidated short round trip therefore reconciles the
+same way a long one does:
+
+```python
+final_value - initial_capital == sum(trades["pnl"])
+```
 
 ## Annualization Periods
 

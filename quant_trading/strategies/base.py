@@ -12,9 +12,21 @@ import pandas as pd
 class Signal:
     """Trading signal emitted by a strategy.
 
+    The action is the order the strategy wants to place:
+
+    - ``"buy"``: a buy order. It opens or adds to a long position. Against an
+      open short it covers that short instead (up to the size of the short);
+      a buy never flips a position.
+    - ``"sell"``: a sell order. It reduces or closes a long position. It is
+      rejected when no long position is held, so the framework never shorts a
+      symbol through a plain sell.
+    - ``"short"``: a short sale. It opens or adds to a short position. It is
+      rejected while a long position is held; close the long first.
+    - ``"hold"``: no order at all.
+
     Attributes:
         symbol: Ticker symbol the signal applies to.
-        action: Direction of the signal ("buy", "sell", or "hold").
+        action: Direction of the signal ("buy", "sell", "short", or "hold").
         strength: Signal strength from 0.0 (no strength) to 1.0 (maximum).
         price: Limit price for the signal, if known.
         timestamp: Time the signal was created (defaults to now).
@@ -34,10 +46,15 @@ class Signal:
             hold = Signal(symbol="AAPL", action="hold")
             assert hold.price is None
 
+        Open a short position::
+
+            short = Signal(symbol="AAPL", action="short", price=150.0)
+            assert short.action == "short"
+
     """
 
     symbol: str
-    action: str  # 'buy', 'sell', 'hold'
+    action: str  # 'buy', 'sell', 'short', 'hold'
     strength: float = 1.0  # 0.0 to 1.0
     price: float | None = None
     timestamp: datetime | None = None

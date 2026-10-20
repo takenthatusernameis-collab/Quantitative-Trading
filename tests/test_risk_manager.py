@@ -325,6 +325,126 @@ class TestSyncPosition:
         assert result.violations == []
 
 
+class TestShortSignals:
+    """Tests for the short signal gate."""
+
+    def test_short_within_limits(self):
+        """A short inside the position limit is allowed."""
+        rm = RiskManager(initial_capital=100000.0, max_position_size=0.1)
+        signal = Signal(symbol="AAPL", action="short", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_short_no_price(self):
+        """A short signal without a price is rejected."""
+        rm = RiskManager(initial_capital=100000.0)
+        signal = Signal(symbol="AAPL", action="short", strength=1.0, price=None)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("no price" in v for v in result.violations)
+
+    def test_short_exceeds_max_position_size(self):
+        """An oversized short is rejected like an oversized long."""
+        rm = RiskManager(initial_capital=100000.0, max_position_size=0.1)
+        signal = Signal(symbol="AAPL", action="short", strength=2.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("exceed max position value" in v for v in result.violations)
+        assert any("exceed max position size" in v for v in result.violations)
+
+    def test_short_exceeds_portfolio_risk_budget(self):
+        """A short that would push open risk above the budget is rejected."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_portfolio_risk=0.02,
+            max_position_size=1.0,
+            max_leverage=10.0,
+            stop_loss_pct=0.05,
+        )
+        # Existing 200 AAPL @ 150 -> risk 1.5% of 100000, leaving little budget.
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=200, avg_price=150.0, current_price=150.0),
+        }
+        signal = Signal(symbol="MSFT", action="short", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("exceed max portfolio risk" in v for v in result.violations)
+
+    def test_short_exceeds_leverage_limit(self):
+        """A short is measured on gross exposure, so it cannot hide behind a long."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_portfolio_risk=1.0,
+            max_position_size=1.0,
+            max_leverage=1.0,
+            stop_loss_pct=0.05,
+        )
+        # Existing 400 AAPL @ 150 -> gross 60000 = 0.6x leverage.
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=400, avg_price=150.0, current_price=150.0),
+        }
+        signal = Signal(symbol="MSFT", action="short", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("exceed max leverage" in v for v in result.violations)
+
+    def test_short_against_a_long_position_is_rejected(self):
+        """A short signal does not flip an open long position."""
+        rm = RiskManager(initial_capital=100000.0, max_position_size=0.1)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0),
+        }
+        signal = Signal(symbol="AAPL", action="short", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("long holdings" in v for v in result.violations)
+
+    def test_short_can_add_to_an_open_short(self):
+        """A short that adds to an open short is measured on the gross exposure."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_position_size=0.1,
+            max_leverage=1.0,
+            max_portfolio_risk=1.0,
+        )
+        # The open short already fills the position limit.
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=-100, avg_price=150.0, current_price=150.0),
+        }
+        signal = Signal(symbol="AAPL", action="short", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("exceed max position value" in v for v in result.violations)
+
+    def test_buy_against_an_open_short_is_allowed(self):
+        """A buy covers an open short, which cannot breach a position limit."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_position_size=0.1,
+            max_leverage=1.0,
+            max_portfolio_risk=0.001,
+        )
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=-100, avg_price=150.0, current_price=150.0),
+        }
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_sell_against_an_open_short_is_rejected(self):
+        """A sell is not a way to add to a short."""
+        rm = RiskManager(initial_capital=100000.0)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=-100, avg_price=150.0, current_price=150.0),
+        }
+        signal = Signal(symbol="AAPL", action="sell", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("open short" in v for v in result.violations)
+
+
 class TestCheckPortfolio:
     """Tests for check_portfolio."""
 
