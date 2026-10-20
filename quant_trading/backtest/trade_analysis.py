@@ -171,37 +171,51 @@ def _calculate_holding_periods(trades: pd.DataFrame) -> list[float]:
         symbol_trades = trades[trades["symbol"] == symbol].copy()
         symbol_trades = symbol_trades.sort_values("timestamp")
 
-        # Track positions
-        position = 0.0
-        entry_times: list[datetime] = []
-        entry_quantities: list[float] = []
+        # Track long entries (buy -> sell) and short entries (short -> cover)
+        # independently, each with its own FIFO queue.
+        long_times: list[datetime] = []
+        long_quantities: list[float] = []
+        short_times: list[datetime] = []
+        short_quantities: list[float] = []
 
         for _, trade in symbol_trades.iterrows():
-            if trade["action"] == "buy":
-                position += trade["quantity"]
-                entry_times.append(trade["timestamp"])
-                entry_quantities.append(trade["quantity"])
-            elif trade["action"] == "sell" and entry_times:
+            action = trade["action"]
+            if action == "buy":
+                long_times.append(trade["timestamp"])
+                long_quantities.append(trade["quantity"])
+            elif action == "sell" and long_times:
                 qty_sold = trade["quantity"]
-                while qty_sold > 0 and entry_times:
-                    entry_time = entry_times[0]
-                    entry_qty = entry_quantities[0]
-
+                while qty_sold > 0 and long_times:
+                    entry_time = long_times[0]
+                    entry_qty = long_quantities[0]
+                    holding_periods.append(
+                        (trade["timestamp"] - entry_time).total_seconds() / 86400
+                    )
                     if qty_sold >= entry_qty:
-                        holding_periods.append(
-                            (trade["timestamp"] - entry_time).total_seconds() / 86400
-                        )
                         qty_sold -= entry_qty
-                        entry_times.pop(0)
-                        entry_quantities.pop(0)
+                        long_times.pop(0)
+                        long_quantities.pop(0)
                     else:
-                        # Partial fill: record the holding period for the
-                        # portion of the entry that was sold.
-                        holding_periods.append(
-                            (trade["timestamp"] - entry_time).total_seconds() / 86400
-                        )
-                        entry_quantities[0] -= qty_sold
+                        long_quantities[0] -= qty_sold
                         qty_sold = 0
+            elif action == "short":
+                short_times.append(trade["timestamp"])
+                short_quantities.append(trade["quantity"])
+            elif action == "cover" and short_times:
+                qty_covered = trade["quantity"]
+                while qty_covered > 0 and short_times:
+                    entry_time = short_times[0]
+                    entry_qty = short_quantities[0]
+                    holding_periods.append(
+                        (trade["timestamp"] - entry_time).total_seconds() / 86400
+                    )
+                    if qty_covered >= entry_qty:
+                        qty_covered -= entry_qty
+                        short_times.pop(0)
+                        short_quantities.pop(0)
+                    else:
+                        short_quantities[0] -= qty_covered
+                        qty_covered = 0
 
     return holding_periods
 
@@ -451,10 +465,45 @@ def analyze_trades(
         print(f"Expectancy: ${analysis.expectancy:,.2f}")
 
     """
-    trades = result.trades
+    trades = result.trades.copy()
 
     if trades.empty or "pnl" not in trades.columns:
         return TradeAnalysis()
+
+    # Pair short entries with their covers so a short round trip counts as one
+    # trade (entry fee + price move belong to the same round trip), mirroring
+    # the long side. The short entry's realized PnL (negative entry fee) is
+    # folded into the cover that closes it.
+    if "action" in trades.columns:
+        trades = trades.sort_values("timestamp", kind="stable").reset_index(drop=True)
+        queues: dict[str, list[list[float]]] = {}
+        drop_idx = set()
+        for i, row in trades.iterrows():
+            sym = row["symbol"]
+            action = row["action"]
+            if action == "short":
+                queues.setdefault(sym, []).append([float(row["quantity"]), float(row["pnl"])])
+                drop_idx.add(i)
+            elif action == "cover":
+                q = float(row["quantity"])
+                added = 0.0
+                queue = queues.setdefault(sym, [])
+                while q > 0 and queue:
+                    entry = queue[0]
+                    if q >= entry[0]:
+                        added += entry[1]
+                        q -= entry[0]
+                        queue.pop(0)
+                    else:
+                        portion = q / entry[0]
+                        added += entry[1] * portion
+                        entry[0] -= q
+                        entry[1] *= 1 - portion
+                        q = 0
+                if added:
+                    trades.at[i, "pnl"] = float(trades.at[i, "pnl"]) + added
+
+        trades = trades.drop(index=sorted(drop_idx)).reset_index(drop=True)
 
     # Filter trades with PnL (exclude opening trades)
     pnl_trades = trades[trades["pnl"] != 0].copy()
