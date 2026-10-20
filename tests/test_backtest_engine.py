@@ -12,7 +12,7 @@ from quant_trading.backtest.engine import (
     Trade,
     run_backtest,
 )
-from quant_trading.config.settings import BacktestConfig, Config, PortfolioConfig
+from quant_trading.config.settings import BacktestConfig, Config, PortfolioConfig, RiskConfig
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
 from quant_trading.data.synthetic import create_synthetic_data
 from quant_trading.risk.manager import RiskManager
@@ -104,6 +104,47 @@ class NoTradeStrategy(Strategy):
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         return []
+
+
+class BuyAllSymbolsStrategy(Strategy):
+    """Buys every symbol on the first simulated date, all in the same bar."""
+
+    def __init__(self):
+        super().__init__(name="BuyAllSymbols")
+        self._bought = False
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        if self._bought:
+            return []
+        self._bought = True
+        return [
+            Signal(
+                symbol=symbol,
+                action="buy",
+                strength=1.0,
+                price=float(df["close"].iloc[-1]),
+            )
+            for symbol, df in data.items()
+        ]
+
+
+class BuyThenSellSameBarStrategy(Strategy):
+    """Buys and then sells the same symbol inside a single bar."""
+
+    def __init__(self):
+        super().__init__(name="BuyThenSellSameBar")
+        self._done = False
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        if self._done:
+            return []
+        self._done = True
+        symbol, df = next(iter(data.items()))
+        price = float(df["close"].iloc[-1])
+        return [
+            Signal(symbol=symbol, action="buy", strength=1.0, price=price),
+            Signal(symbol=symbol, action="sell", strength=1.0, price=price),
+        ]
 
 
 def test_trade_cost_calculation():
@@ -469,6 +510,63 @@ def test_config_driven_max_positions_halts_backtest():
     assert len(result.equity_curve) < len(mock_data["AAPL"]) + 1
 
 
+def test_same_bar_buys_are_measured_against_the_exposure_they_add():
+    """A second buy in the same bar is rejected when it breaks the leverage limit."""
+    symbols = ["AAPL", "MSFT"]
+    mock_data = create_synthetic_data(symbols, days=60)
+
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    config = Config(
+        backtest=BacktestConfig(initial_capital=100000.0),
+        risk=RiskConfig(
+            max_position_size=0.5,
+            max_portfolio_risk=1.0,
+            max_leverage=0.5,
+        ),
+    )
+    engine = BacktestEngine(config=config, data_manager=data_manager)
+    engine.add_strategy(BuyAllSymbolsStrategy())
+
+    start_date = datetime.now() - timedelta(days=50)
+    end_date = datetime.now()
+
+    result = engine.run(symbols, start_date, end_date, "1d")
+
+    assert isinstance(result, BacktestResult)
+    # The first buy uses the whole leverage budget, so the second one is rejected.
+    assert len(result.trades) == 1
+    assert list(result.positions) == ["AAPL"]
+    gross = sum(abs(p.market_value) for p in result.positions.values())
+    assert gross / result.final_value <= 0.5
+
+
+def test_position_opened_in_the_same_bar_can_be_sold_again():
+    """A sell in the same bar as its buy is executed instead of being rejected."""
+    symbols = ["AAPL"]
+    mock_data = create_synthetic_data(symbols, days=60)
+
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    engine = BacktestEngine(
+        config=BacktestConfig(initial_capital=100000.0),
+        data_manager=data_manager,
+    )
+    engine.add_strategy(BuyThenSellSameBarStrategy())
+
+    start_date = datetime.now() - timedelta(days=50)
+    end_date = datetime.now()
+
+    result = engine.run(symbols, start_date, end_date, "1d")
+
+    assert isinstance(result, BacktestResult)
+    assert list(result.trades["action"]) == ["buy", "sell"]
+    # The round trip closed the position again.
+    assert result.positions == {}
+
+
 def test_run_without_data_manager_raises():
     """run() raises ValueError when no data_manager is configured."""
     engine = BacktestEngine()
@@ -820,8 +918,6 @@ def test_total_costs_reconciles_with_pnl_and_final_value():
 
 def test_buy_signal_with_existing_position_at_target_does_not_trade():
     """available_value <= 0 branch: no trade when position already at target."""
-    from quant_trading.config.settings import BacktestConfig, Config, PortfolioConfig
-
     data = create_synthetic_data(["AAPL"], days=5)
     provider = MockDataProvider(data)
     config = BacktestConfig(initial_capital=100000.0, commission=0.001, slippage=0.0005)

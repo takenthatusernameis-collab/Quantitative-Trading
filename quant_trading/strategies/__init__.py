@@ -62,9 +62,12 @@ __all__ = [
     "StrategyManager",
     "StrategyRegistry",
     "SuperTrendStrategy",
+    "available_strategies",
     "create_strategy",
+    "get_available_strategies",
     "get_registry",
     "get_strategy",
+    "get_strategy_factory",
     "list_strategies",
     "register_strategy",
     "strategy_keys",
@@ -72,16 +75,31 @@ __all__ = [
 
 
 # Convenience functions
-def get_available_strategies() -> list[str]:
-    """Get list of all available strategy keys."""
+def get_available_strategies() -> dict[str, type[Strategy]]:
+    """Get the strategies registered in the global registry.
+
+    Returns:
+        Mapping of strategy key to strategy class.
+
+    """
     return list_strategies()
 
 
-def available_strategies() -> list[str]:
-    """Get list of all available strategy keys."""
+def available_strategies() -> dict[str, type[Strategy]]:
+    """Get the strategies registered in the global registry.
+
+    Returns:
+        Mapping of strategy key to strategy class.
+
+    """
     return list_strategies()
 
 
 def get_strategy_factory() -> StrategyRegistry:
-    """Get the global strategy registry."""
+    """Get the global strategy registry.
+
+    Returns:
+        The process-wide :class:`StrategyRegistry` instance.
+
+    """
     return get_registry()

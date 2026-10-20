@@ -186,6 +186,19 @@ class Portfolio:
         """
         return sum(h.market_value for h in self.holdings.values())
 
+    def get_position(self, symbol: str) -> Position | None:
+        """Get a single holding as a Position object.
+
+        Args:
+            symbol: Ticker symbol of the position to look up.
+
+        Returns:
+            The Position for the symbol, or None when the symbol is not held.
+
+        """
+        holding = self.holdings.get(symbol)
+        return holding.to_position() if holding else None
+
     def get_position_value(self, symbol: str) -> float:
         """Get market value of a specific holding.
 

@@ -198,8 +198,50 @@ class RiskManager:
             }
         )
 
+    def sync_position(self, symbol: str, position: Position | None) -> None:
+        """Refresh the manager's view of a single position.
+
+        The portfolio snapshot is otherwise only refreshed by
+        :meth:`update_portfolio_value`, which a caller naturally calls once
+        per update cycle. A caller that executes several trades between two
+        such refreshes can keep the snapshot current with this method, so a
+        risk check performed after the first trade already sees the exposure
+        that trade created instead of the exposure of the previous cycle.
+
+        Only the position view is refreshed. The totals held in
+        ``portfolio_risk`` and the equity curve are not recomputed; call
+        :meth:`update_portfolio_value` for a full refresh.
+
+        Args:
+            symbol: Symbol whose position changed.
+            position: The new position, or None when the position was closed.
+
+        Returns:
+            None.
+
+        Examples:
+            Keep the snapshot current while a batch of trades is executed::
+
+                from quant_trading.risk.manager import RiskManager
+                from quant_trading.strategies.base import Position
+
+                rm = RiskManager(initial_capital=100000.0, max_leverage=0.5)
+                rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
+                assert "AAPL" in rm.positions
+
+        """
+        if position is None:
+            self.positions.pop(symbol, None)
+        else:
+            self.positions[symbol] = position
+
     def check_signal(self, signal: Signal, portfolio_value: float | None = None) -> CheckResult:
         """Check if a trading signal passes risk limits.
+
+        The position limits are measured against the manager's current
+        position view, which is refreshed by :meth:`update_portfolio_value`
+        and kept up to date with :meth:`sync_position` as trades are
+        executed.
 
         Args:
             signal: Trading signal to evaluate.

@@ -254,6 +254,21 @@ class TestPortfolio:
         assert "AAPL" in positions
         assert positions["AAPL"].quantity == 100
 
+    def test_get_position(self):
+        """get_position returns the Position of a single held symbol."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 100, 150.0)
+        position = portfolio.get_position("AAPL")
+        assert position is not None
+        assert position.symbol == "AAPL"
+        assert position.quantity == 100
+        assert position.avg_price == 150.0
+
+    def test_get_position_missing_symbol(self):
+        """get_position returns None for a symbol that is not held."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        assert portfolio.get_position("AAPL") is None
+
     def test_reset(self):
         """reset clears the portfolio back to a single cash balance."""
         portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)

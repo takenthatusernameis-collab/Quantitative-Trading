@@ -587,6 +587,10 @@ class BacktestEngine:
                 commission=self.config.commission,
                 slippage=self.config.slippage,
             )
+            # Keep the risk manager's view of the portfolio current, so a
+            # later signal in this same bar is measured against the exposure
+            # this trade just added instead of the exposure of the previous bar.
+            self.risk_manager.sync_position(symbol, self.portfolio.get_position(symbol))
             trades_list.append(
                 Trade(
                     symbol=symbol,
@@ -624,6 +628,10 @@ class BacktestEngine:
                 quantity * price * (1 - self.config.commission - self.config.slippage)
                 - avg_cost * quantity
             )
+            # The risk manager's view of the portfolio is refreshed here as
+            # well, so a position closed in this bar stops counting towards
+            # the exposure of the signals that follow it.
+            self.risk_manager.sync_position(symbol, self.portfolio.get_position(symbol))
             trades_list.append(
                 Trade(
                     symbol=symbol,

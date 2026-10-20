@@ -8,9 +8,12 @@ from quant_trading.strategies import (
     MovingAverageCrossover,
     RSIStrategy,
     Strategy,
+    available_strategies,
     create_strategy,
+    get_available_strategies,
     get_registry,
     get_strategy,
+    get_strategy_factory,
     list_strategies,
     register_strategy,
     strategy_keys,
@@ -189,6 +192,20 @@ class TestGlobalRegistry:
     def test_create_strategy_unknown_raises(self):
         with pytest.raises(ValueError, match="Unknown strategy"):
             create_strategy("not_a_real_strategy")
+
+
+class TestStrategyConvenienceHelpers:
+    """Tests for the convenience helpers exported by the strategies package."""
+
+    def test_get_available_strategies_returns_the_registered_strategies(self):
+        assert get_available_strategies() == list_strategies()
+        assert get_available_strategies()["ma"] is MovingAverageCrossover
+
+    def test_available_strategies_returns_the_registered_strategies(self):
+        assert available_strategies() == list_strategies()
+
+    def test_get_strategy_factory_returns_the_global_registry(self):
+        assert get_strategy_factory() is get_registry()
 
 
 class TestStrategyFromConfig:

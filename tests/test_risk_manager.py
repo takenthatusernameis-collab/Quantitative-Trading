@@ -269,6 +269,62 @@ class TestCheckSignal:
         assert any("exceed max leverage" in v for v in result.violations)
 
 
+class TestSyncPosition:
+    """Tests for sync_position."""
+
+    def test_sync_position_adds_to_the_position_view(self):
+        """A synced position becomes visible in the manager's position view."""
+        rm = RiskManager(initial_capital=100000.0)
+        rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
+        assert "AAPL" in rm.positions
+        assert rm.positions["AAPL"].quantity == 100
+
+    def test_sync_position_replaces_an_existing_position(self):
+        """A synced position replaces the one the manager already held."""
+        rm = RiskManager(initial_capital=100000.0)
+        rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
+        rm.sync_position("AAPL", Position("AAPL", 200, 150.0, 150.0))
+        assert rm.positions["AAPL"].quantity == 200
+
+    def test_sync_position_none_removes_the_position(self):
+        """A closed position is dropped from the position view."""
+        rm = RiskManager(initial_capital=100000.0)
+        rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
+        rm.sync_position("AAPL", None)
+        assert "AAPL" not in rm.positions
+
+    def test_sync_position_does_not_record_equity(self):
+        """Syncing a position does not add a point to the equity curve."""
+        rm = RiskManager(initial_capital=100000.0)
+        rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
+        assert rm.equity_curve == [100000.0]
+        assert rm.history == []
+
+    def test_synced_position_counts_towards_the_leverage_limit(self):
+        """A buy is rejected when a synced position already fills the leverage budget."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_portfolio_risk=1.0,
+            max_position_size=1.0,
+            max_leverage=1.0,
+        )
+        # The synced position already uses the whole leverage budget.
+        rm.sync_position("AAPL", Position("AAPL", 500, 100.0, 100.0))
+        signal = Signal(symbol="MSFT", action="buy", strength=1.0, price=100.0)
+        result = rm.check_signal(signal, portfolio_value=100000.0)
+        assert result.passed is False
+        assert any("exceed max leverage" in v for v in result.violations)
+
+    def test_synced_position_allows_a_sell_of_that_position(self):
+        """A position opened earlier in the same cycle can be sold."""
+        rm = RiskManager(initial_capital=100000.0)
+        rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
+        signal = Signal(symbol="AAPL", action="sell", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is True
+        assert result.violations == []
+
+
 class TestCheckPortfolio:
     """Tests for check_portfolio."""
 
