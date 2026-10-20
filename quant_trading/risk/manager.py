@@ -19,7 +19,7 @@ from typing import Any
 
 import pandas as pd
 
-from quant_trading.risk.limits import CheckResult, PortfolioLimit, PositionLimit
+from quant_trading.risk.limits import CheckResult, PortfolioLimit, PositionLimit, gross_exposure
 from quant_trading.risk.metrics import RiskMetrics, calculate_all_metrics
 from quant_trading.strategies.base import Position, Signal
 
@@ -253,6 +253,25 @@ class RiskManager:
             if position_pct > self.position_limit.max_size:
                 result.add_violation(
                     f"Buy signal would exceed max position size: {position_pct:.2%} > {self.position_limit.max_size:.2%}"
+                )
+
+            # Gate the buy on the portfolio risk budget and the leverage limit,
+            # so a strategy cannot keep opening positions until the post-hoc
+            # portfolio check reports a breach. The buy adds |quantity| * price
+            # of gross exposure and |quantity| * price * stop_loss_pct of risk.
+            buy_value = signal.strength * value * self.position_limit.max_size
+            current_risk = self.portfolio_limit.portfolio_risk_pct(self.positions, value)
+            new_risk = current_risk + (buy_value * self.portfolio_limit.stop_loss_pct / value)
+            if new_risk > self.portfolio_limit.max_portfolio_risk:
+                result.add_violation(
+                    f"Buy signal would exceed max portfolio risk: {new_risk:.2%} > {self.portfolio_limit.max_portfolio_risk:.2%}"
+                )
+
+            current_gross = self.portfolio_limit.leverage(self.positions, value)
+            new_leverage = current_gross + (buy_value / value)
+            if new_leverage > self.portfolio_limit.max_leverage:
+                result.add_violation(
+                    f"Buy signal would exceed max leverage: {new_leverage:.2f}x > {self.portfolio_limit.max_leverage:.2f}x"
                 )
 
         elif signal.action == "sell":
