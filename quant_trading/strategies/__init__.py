@@ -69,3 +69,19 @@ __all__ = [
     "register_strategy",
     "strategy_keys",
 ]
+
+
+# Convenience functions
+def get_available_strategies() -> list[str]:
+    """Get list of all available strategy keys."""
+    return list_strategies()
+
+
+def available_strategies() -> list[str]:
+    """Get list of all available strategy keys."""
+    return list_strategies()
+
+
+def get_strategy_factory() -> StrategyRegistry:
+    """Get the global strategy registry."""
+    return get_registry()
