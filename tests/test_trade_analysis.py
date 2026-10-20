@@ -897,3 +897,128 @@ def test_analyze_trades_reports_the_chronological_current_streak():
     assert analysis.max_consecutive_losses == 1
     assert analysis.current_streak == 1
     assert analysis.current_streak_type == "loss"
+
+
+def _short_result(trades_rows):
+    """Build a BacktestResult whose trades are the given short/cover rows."""
+    from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.metrics import BacktestMetrics
+
+    trades = pd.DataFrame(trades_rows)
+    first = trades["timestamp"].min()
+    last = trades["timestamp"].max()
+    equity = pd.Series(100000.0, index=pd.date_range(first, last, freq="D"))
+
+    return BacktestResult(
+        equity_curve=equity,
+        trades=trades,
+        positions={},
+        metrics=BacktestMetrics(),
+        start_date=first,
+        end_date=last,
+        initial_capital=100000.0,
+        final_value=100000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+    )
+
+
+def _trade(symbol, action, quantity, price, timestamp, pnl):
+    return {
+        "symbol": symbol,
+        "action": action,
+        "quantity": quantity,
+        "price": price,
+        "timestamp": timestamp,
+        "commission": 0.0,
+        "slippage": 0.0,
+        "cost": 0.0,
+        "pnl": pnl,
+    }
+
+
+def test_short_round_trip_that_wins_counts_as_one_trade():
+    """A short entered below the exit price is a winner: one trade, one holding
+    period, and the entry fee is folded into the cover rather than counted as a
+    separate losing trade."""
+    from datetime import datetime
+
+    result = _short_result(
+        [
+            _trade("TEST", "short", 200.0, 50.0, datetime(2024, 1, 1), 0.0),
+            _trade("TEST", "cover", 200.0, 40.0, datetime(2024, 1, 3), 2000.0),
+        ]
+    )
+    analysis = analyze_trades(result)
+
+    assert analysis.total_trades == 1
+    assert analysis.winning_trades == 1
+    assert analysis.losing_trades == 0
+    assert analysis.win_rate == 1.0
+    assert analysis.total_pnl == 2000.0
+    assert analysis.avg_holding_period == 2.0
+    assert analysis.min_holding_period == 2.0
+    assert analysis.max_holding_period == 2.0
+
+
+def test_short_round_trip_that_loses_counts_as_one_trade():
+    """A short exited above the entry price is a loser: one trade, one holding
+    period."""
+    from datetime import datetime
+
+    result = _short_result(
+        [
+            _trade("TEST", "short", 200.0, 40.0, datetime(2024, 1, 1), 0.0),
+            _trade("TEST", "cover", 200.0, 50.0, datetime(2024, 1, 3), -2000.0),
+        ]
+    )
+    analysis = analyze_trades(result)
+
+    assert analysis.total_trades == 1
+    assert analysis.winning_trades == 0
+    assert analysis.losing_trades == 1
+    assert analysis.win_rate == 0.0
+    assert analysis.total_pnl == -2000.0
+    assert analysis.avg_holding_period == 2.0
+
+
+def test_partially_covered_short_records_one_holding_period_per_cover():
+    """Several covers against one short: each cover is its own trade (mirrors
+    the long side selling in parts) and each cover records its own holding
+    period against the FIFO short entry."""
+    from datetime import datetime
+
+    result = _short_result(
+        [
+            _trade("TEST", "short", 100.0, 50.0, datetime(2024, 1, 1), 0.0),
+            _trade("TEST", "cover", 40.0, 40.0, datetime(2024, 1, 11), 400.0),
+            _trade("TEST", "cover", 60.0, 40.0, datetime(2024, 1, 21), 600.0),
+        ]
+    )
+    analysis = analyze_trades(result)
+
+    assert analysis.total_trades == 2
+    assert analysis.winning_trades == 2
+    assert analysis.losing_trades == 0
+    assert analysis.win_rate == 1.0
+    assert analysis.total_pnl == 1000.0
+    assert abs(analysis.avg_holding_period - 15.0) < 0.001
+    assert analysis.min_holding_period == 10.0
+    assert analysis.max_holding_period == 20.0
+    stats = analysis.symbol_stats["TEST"]
+    assert stats["total_trades"] == 2
+    assert stats["winning_trades"] == 2
+
+
+def test_short_never_covered_is_not_counted():
+    """A short with no cover is not a round trip: it contributes no trade even
+    though its entry booked a (fee) PnL."""
+    from datetime import datetime
+
+    result = _short_result([_trade("TEST", "short", 100.0, 50.0, datetime(2024, 1, 1), -5.0)])
+    analysis = analyze_trades(result)
+
+    assert analysis.total_trades == 0
+    assert analysis.winning_trades == 0
+    assert analysis.losing_trades == 0
+    assert analysis.total_pnl == 0.0

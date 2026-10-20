@@ -474,6 +474,7 @@ def analyze_trades(
     # trade (entry fee + price move belong to the same round trip), mirroring
     # the long side. The short entry's realized PnL (negative entry fee) is
     # folded into the cover that closes it.
+    holding_periods: list[float] = []
     if "action" in trades.columns:
         trades = trades.sort_values("timestamp", kind="stable").reset_index(drop=True)
         queues: dict[str, list[list[float]]] = {}
@@ -503,7 +504,15 @@ def analyze_trades(
                 if added:
                     trades.at[i, "pnl"] = float(trades.at[i, "pnl"]) + added
 
+        # Holding periods are computed before the short entry rows are dropped:
+        # a short's entry row carries the entry timestamp its cover must be
+        # matched against. Dropping it first would leave every short with no
+        # holding period (long entries are never dropped).
+        holding_periods = _calculate_holding_periods(trades)
+
         trades = trades.drop(index=sorted(drop_idx)).reset_index(drop=True)
+    else:
+        holding_periods = _calculate_holding_periods(trades)
 
     # Filter trades with PnL (exclude opening trades)
     pnl_trades = trades[trades["pnl"] != 0].copy()
@@ -517,9 +526,6 @@ def analyze_trades(
     total_pnl = float(pnl_trades["pnl"].sum())
     gross_profit = float(winning["pnl"].sum()) if len(winning) > 0 else 0.0
     gross_loss = float(abs(losing["pnl"].sum())) if len(losing) > 0 else 0.0
-
-    # Holding periods
-    holding_periods = _calculate_holding_periods(trades)
 
     # Consecutive streaks
     max_wins, max_losses, current_streak, current_streak_type = _calculate_consecutive_streaks(
