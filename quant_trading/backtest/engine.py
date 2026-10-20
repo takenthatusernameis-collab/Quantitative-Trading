@@ -69,7 +69,13 @@ from typing import Any
 import pandas as pd
 
 from quant_trading.backtest.metrics import BacktestMetrics
-from quant_trading.config.settings import BacktestConfig, Config, DataConfig
+from quant_trading.config.settings import (
+    BacktestConfig,
+    Config,
+    DataConfig,
+    PortfolioConfig,
+    RiskConfig,
+)
 from quant_trading.data.providers import DataManager, create_data_manager_from_config
 from quant_trading.portfolio.portfolio import Portfolio
 from quant_trading.risk.manager import RiskManager
@@ -302,24 +308,46 @@ class BacktestEngine:
 
     def __init__(
         self,
-        config: BacktestConfig | None = None,
+        config: BacktestConfig | Config | None = None,
         data_manager: DataManager | None = None,
         risk_manager: RiskManager | None = None,
     ):
         """Initialize the backtest engine.
 
         Args:
-            config: Backtest configuration. Defaults to ``BacktestConfig()``.
+            config: Backtest configuration or a full :class:`Config`. When a
+                full ``Config`` is supplied, its ``risk`` and ``portfolio``
+                sub-configs drive the default :class:`RiskManager`; when only a
+                ``BacktestConfig`` is supplied, the risk/portfolio defaults are
+                used. Defaults to ``BacktestConfig()``.
             data_manager: DataManager providing market data.
             risk_manager: Risk manager instance. Defaults to a new RiskManager.
 
         """
-        self.config = config or BacktestConfig()
+        if config is None:
+            config = BacktestConfig()
+        if isinstance(config, Config):
+            backtest_cfg = config.backtest
+            risk_cfg = config.risk
+            portfolio_cfg = config.portfolio
+        else:
+            backtest_cfg = config
+            risk_cfg = RiskConfig()
+            portfolio_cfg = PortfolioConfig()
+        self.config = backtest_cfg
         self.data_manager = data_manager
+
         self.risk_manager = risk_manager or RiskManager(
-            initial_capital=self.config.initial_capital,
+            initial_capital=backtest_cfg.initial_capital,
+            max_position_size=risk_cfg.max_position_size,
+            max_portfolio_risk=risk_cfg.max_portfolio_risk,
+            max_leverage=risk_cfg.max_leverage,
+            stop_loss_pct=risk_cfg.stop_loss_pct,
+            take_profit_pct=risk_cfg.take_profit_pct,
+            max_drawdown=risk_cfg.max_drawdown,
+            max_positions=portfolio_cfg.max_positions,
         )
-        self.portfolio = Portfolio(cash=self.config.initial_capital)
+        self.portfolio = Portfolio(cash=backtest_cfg.initial_capital)
         self.strategies: dict[str, Strategy] = {}
 
     def add_strategy(self, strategy: Strategy) -> None:

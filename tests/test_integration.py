@@ -5,9 +5,15 @@ import tempfile
 from datetime import datetime, timedelta
 
 from quant_trading.backtest.engine import BacktestEngine
-from quant_trading.config.settings import Config
+from quant_trading.config.settings import (
+    BacktestConfig,
+    Config,
+    PortfolioConfig,
+    RiskConfig,
+)
 from quant_trading.data.providers import DataManager
 from quant_trading.data.synthetic import create_synthetic_data
+from quant_trading.risk.manager import RiskManager
 from quant_trading.strategies.examples import MovingAverageCrossover
 
 from .test_backtest_engine import MockDataProvider
@@ -96,6 +102,76 @@ def test_default_config_feeds_engine():
 
     assert result.initial_capital == config.backtest.initial_capital
     assert result.final_value > 0
+
+
+def test_full_config_drives_risk_manager():
+    """A full Config wires its risk/portfolio sub-configs into the engine's RiskManager.
+
+    A tight risk budget must actually reject buys that a default config would
+    allow, proving the YAML ``risk:`` block is not inert.
+    """
+    config = Config(
+        backtest=BacktestConfig(initial_capital=100000.0),
+        risk=RiskConfig(
+            max_position_size=1.0,
+            max_portfolio_risk=0.001,
+            max_leverage=10.0,
+            stop_loss_pct=0.05,
+        ),
+        portfolio=PortfolioConfig(max_positions=20),
+    )
+
+    symbols = ["AAPL"]
+    mock_data = create_synthetic_data(symbols, days=60)
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    engine = BacktestEngine(config=config, data_manager=data_manager)
+    engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=15, name="TightRisk"))
+
+    start_date = datetime.now() - timedelta(days=50)
+    end_date = datetime.now()
+    result = engine.run(symbols, start_date, end_date, "1d")
+
+    # The tight budget rejects every buy, so no trades are opened.
+    assert len(result.trades) == 0
+    # And the risk manager really did receive the configured limit.
+    assert engine.risk_manager.portfolio_limit.max_portfolio_risk == 0.001
+
+
+def test_backtest_config_only_uses_risk_defaults():
+    """A bare BacktestConfig still builds a RiskManager with default limits."""
+    config = BacktestConfig(initial_capital=100000.0)
+
+    symbols = ["AAPL"]
+    mock_data = create_synthetic_data(symbols, days=60)
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    engine = BacktestEngine(config=config, data_manager=data_manager)
+
+    assert engine.risk_manager.portfolio_limit.max_portfolio_risk == 0.02
+    assert engine.risk_manager.portfolio_limit.max_leverage == 1.0
+    assert engine.risk_manager.portfolio_limit.max_positions == 20
+
+
+def test_caller_supplied_risk_manager_wins_over_config():
+    """An explicit risk_manager argument overrides the config-driven default."""
+    config = Config(
+        backtest=BacktestConfig(initial_capital=100000.0),
+        risk=RiskConfig(max_portfolio_risk=0.001),
+    )
+
+    symbols = ["AAPL"]
+    mock_data = create_synthetic_data(symbols, days=60)
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    custom = RiskManager(initial_capital=100000.0, max_portfolio_risk=0.5)
+    engine = BacktestEngine(config=config, data_manager=data_manager, risk_manager=custom)
+
+    assert engine.risk_manager is custom
+    assert engine.risk_manager.portfolio_limit.max_portfolio_risk == 0.5
 
 
 if __name__ == "__main__":

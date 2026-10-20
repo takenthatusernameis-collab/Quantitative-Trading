@@ -2,43 +2,45 @@
 
 ## What changed
 
-**The assigned task (make the portfolio risk budget and leverage limit gate new
-buys in `RiskManager.check_signal()`) was already implemented in HEAD**
-(commit `d287e00`, which added the gating block; commit `b053112` only removed
-an unused `gross_exposure` import). The gating block at
-`quant_trading/risk/manager.py:258-275` rejects a buy when the post-trade
-portfolio risk (`current_risk + buy_value * stop_loss_pct / value`) would
-exceed `max_portfolio_risk`, or when post-trade gross leverage
-(`current_gross + buy_value / value`) would exceed `max_leverage`.
+**The assigned task (wire `config.risk` and `config.portfolio.max_positions`
+into the `RiskManager` built by `BacktestEngine.__init__`) is implemented.**
 
-**This session verified the assigned task and added signal-path tests.**
-
-- `tests/test_risk_manager.py::TestCheckSignal::test_buy_exceeds_portfolio_risk_budget`
-  and `::test_buy_exceeds_leverage_limit`: confirm `check_signal` rejects a buy
-  that would breach the portfolio risk budget / leverage limit.
-- Confirmed non-vacuous: both tests **fail** when the gating block is
-  temporarily removed and **pass** with it restored.
-- `PositionLimit.check()` / `PortfolioLimit.check()` already measure gross
-  exposure (commit `7a81504`), so shorts are limited like longs.
+- `BacktestEngine.__init__` now accepts `BacktestConfig | Config | None`.
+  When a full `Config` is supplied, its `risk` and `portfolio` sub-configs
+  drive the default `RiskManager`; when only a `BacktestConfig` is supplied,
+  the `RiskManager` defaults are used (backward compatible).
+- `self.config` is normalized to a `BacktestConfig` so every existing
+  `self.config.*` access (commission, slippage, risk_free_rate, etc.)
+  keeps working unchanged.
+- `quant_trading/backtest/engine.py:303-353` constructs
+  `RiskManager(initial_capital=..., max_position_size=..., max_portfolio_risk=...,
+  max_leverage=..., stop_loss_pct=..., take_profit_pct=..., max_drawdown=...,
+  max_positions=...)` from the config, so the YAML `risk:` block is no longer
+  inert. `check_signal()` already gates on `max_portfolio_risk` and
+  `max_leverage`, so the limits actually bind.
 
 ## Verified
 
 - `pytest` (default run, includes `quant_trading/` doctests):
-  **1629 passed, 1 skipped, 0 failed** (baseline before this session: 1627
-  passed, 1 skipped; delta = the 2 new unit tests).
+  **1632 passed, 1 skipped, 0 failed** (baseline before this session: 1629
+  passed, 1 skipped; delta = the 3 new tests below).
 - `ruff check .`: clean.
 - `mypy quant_trading/`: clean (36 source files).
 - `black --check quant_trading/ tests/`: clean (69 files).
 
+New tests in `tests/test_integration.py`:
+
+- `test_full_config_drives_risk_manager`: a `Config` with a tight
+  `max_portfolio_risk=0.001` rejects every buy (0 trades opened), proving the
+  YAML risk block is not inert.
+- `test_backtest_config_only_uses_risk_defaults`: a bare `BacktestConfig`
+  still builds a `RiskManager` with the default limits (0.02 risk, 1.0x
+  leverage, 20 positions).
+- `test_caller_supplied_risk_manager_wins_over_config`: an explicit
+  `risk_manager=` argument overrides the config-driven default.
+
 ## Remaining unresolved
 
-- **The YAML `risk:` block is inert.** `Config.risk` (`RiskConfig`) is loaded
-  from `config.yaml` and documented in the README, but nothing applies it:
-  `BacktestEngine.__init__` builds `RiskManager(initial_capital=...)`
-  with hardcoded defaults
-  (`quant_trading/backtest/engine.py:319`), so `max_position_size: 0.2` in
-  `config.yaml` has no effect on a backtest. `config.portfolio.max_positions`
-  is likewise ignored. This is the next task (below).
 - **`RiskManager.portfolio_risk.leverage` is net** (`positions_value /
   total_value`) while `PortfolioLimit.leverage()` is gross. Both docstrings
   say which is which; the names collide, so a reader can easily confuse them.
@@ -50,7 +52,12 @@ exceed `max_portfolio_risk`, or when post-trade gross leverage
   portfolio.
 - The portfolio risk budget / leverage limit gate new buys in `check_signal()`
   but remain advisory elsewhere: `check_portfolio()` is report-only and the
-  backtest only stops when `halt_on_portfolio_violation=True` (default `False`).
+  backtest only stops when `halt_on_portfolio_violation=True` (default
+  `False`).
+- `config.portfolio.max_positions` is now wired into the `RiskManager`, but
+  the engine does not halt when the limit is breached; it is only enforced
+  through `check_signal()` (which does not count positions) and the
+  report-only `check_portfolio()`.
 
 ## Approaches already tried and rejected
 
@@ -61,31 +68,29 @@ exceed `max_portfolio_risk`, or when post-trade gross leverage
 - Enforcing the portfolio risk budget by *shrinking* orders inside
   `PortfolioLimit.check()`: rejected. `check()` is a pure reporting API
   (`-> list[str]`); sizing belongs in the order path.
+- Normalizing `self.config` to a full `Config` instead of a `BacktestConfig`:
+  rejected. It would break every existing caller that passes a bare
+  `BacktestConfig` (all examples and most tests) and add no value over
+  keeping `self.config` as a `BacktestConfig` and deriving the risk/portfolio
+  sub-configs separately in `__init__`.
 
 ## Next task (precise)
 
-**Wire `config.risk` (`RiskConfig`) and `config.portfolio.max_positions` into
-the `RiskManager` built by `BacktestEngine.__init__`
-(`quant_trading/backtest/engine.py:319-321`), so YAML-configured risk limits
-take effect in backtests.**
+**Decide whether `config.portfolio.max_positions` should halt the backtest
+when breached, and if so, wire that into the run loop.**
 
 Evidence/constraints carried forward:
 
-- `BacktestEngine.__init__` currently constructs
-  `RiskManager(initial_capital=self.config.initial_capital)` only, ignoring
-  `self.config.risk.max_position_size`, `.max_portfolio_risk`, `.max_leverage`,
-  `.stop_loss_pct`, `.max_drawdown` and `self.config.portfolio.max_positions`.
-- Pass them through: `RiskManager(initial_capital=..., max_position_size=...,
-  max_portfolio_risk=..., max_leverage=..., stop_loss_pct=..., max_drawdown=...,
-  max_positions=...)`. `RiskManager.__init__` already forwards these to
-  `PositionLimit`/`PortfolioLimit` and `check_signal()` now gates on
-  `max_portfolio_risk` and `max_leverage`, so the limits will actually bind.
-- Add a test proving a config with tight risk limits changes backtest behaviour
-  (e.g. a low `max_portfolio_risk`/`max_leverage` causes `check_signal` to
-  reject buys that default limits allow) and that default config is unchanged.
-- Keep `risk_manager` constructor override supported (caller-supplied
-  `RiskManager` still wins).
-- `pytest` collects the `quant_trading/` doctests, so any new docstring
-  example must be executable. Run `pytest` (no path argument), then
-  `ruff check .`, `mypy quant_trading/` and `black --check quant_trading/
-  tests/`.
+- `max_positions` is now loaded from YAML and forwarded to the
+  `RiskManager` via `BacktestEngine.__init__`, but the engine only enforces it
+  through the report-only `check_portfolio()` call at
+  `quant_trading/backtest/engine.py:437-440`. With
+  `halt_on_portfolio_violation=False` (the default), a breach is recorded in
+  `result.portfolio_violations` but the run continues.
+- The existing `test_halt_on_portfolio_violation_stops_backtest` test uses a
+  caller-supplied `RiskManager(max_positions=0)` and `halt_on_portfolio_violation=True`
+  to prove halting works; a config-driven equivalent would be the natural
+  follow-up.
+- If halting is added, keep `risk_manager` constructor override supported
+  (caller-supplied `RiskManager` still wins) and add a test proving a YAML
+  `portfolio.max_positions: 1` halts a multi-symbol backtest.
