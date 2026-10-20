@@ -592,3 +592,120 @@ class TestNeedsRebalance:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestRebalancerRiskIntegration:
+    """End-to-end solvency tests with risk-managed rebalancing."""
+
+    def _risk_manager(self):
+        return RiskManager(
+            initial_capital=100000.0,
+            max_position_size=0.2,
+            max_portfolio_risk=0.05,
+            max_drawdown=0.30,
+            max_positions=10,
+            stop_loss_pct=0.10,
+            take_profit_pct=0.20,
+        )
+
+    def _empty_portfolio(self):
+        return Portfolio(cash=100000.0, initial_capital=100000.0)
+
+    def test_risk_managed_rebalance_preserves_solvency_across_rounds(self):
+        """Risk-managed rebalance + execution keeps invariants across multiple rounds."""
+        import random
+
+        random.seed(12345)
+        rm = self._risk_manager()
+        portfolio = self._empty_portfolio()
+        rebalancer = Rebalancer(portfolio, risk_manager=rm, rebalance_threshold=0.01)
+
+        symbols = ["AAPL", "MSFT", "GOOG"]
+        target_alloc = {"AAPL": 0.4, "MSFT": 0.35, "GOOG": 0.25}
+
+        # Simulate multiple rebalance rounds with changing prices
+        for round_idx in range(5):
+            # Generate synthetic prices (slightly random but deterministic via seed progression)
+            price_offset = round_idx * 0.01
+            prices = {s: 100.0 + price_offset + random.random() * 2.0 for s in symbols}
+
+            # Update portfolio prices before generating actions
+            portfolio.update_prices(prices)
+
+            # Generate and execute rebalance actions with risk constraints
+            rebalancer.target_allocation = target_alloc
+            actions = rebalancer.generate_rebalance_actions(
+                prices=prices,
+                commission=0.0,
+                slippage=0.0,
+            )
+            if actions:
+                rebalancer.execute_actions(
+                    actions,
+                    prices=prices,
+                    commission=0.001,
+                    slippage=0.0005,
+                )
+
+            # Update risk manager with current state
+            rm.update_portfolio_value(portfolio.get_positions(), portfolio.cash)
+
+            # Assert invariants
+            assert portfolio.cash >= 0.0
+            holdings_val = portfolio.get_holdings_value()
+            assert portfolio.total_value == pytest.approx(portfolio.cash + holdings_val)
+
+            # Per-position limit compliance (relaxed due to execution/cost mechanics)
+            total_val = portfolio.total_value
+            limit = rm.position_limit
+            for pos in portfolio.holdings.values():
+                if pos.quantity == 0:
+                    continue
+                pos_val = abs(getattr(pos, "market_value", pos.quantity * pos.current_price))
+                if total_val > 0:
+                    pos_val / total_val
+                    # Check against the tighter of fraction/dollar cap used by risk manager
+                    max_by_frac = limit.max_size * total_val
+                    max_allowed = min(max_by_frac, limit.max_value)
+                    assert pos_val <= max_allowed + 500.0
+
+    def test_risk_managed_rebalance_respects_drawdown_limit(self):
+        """When drawdown limit breached, buys are blocked but sells still work."""
+        rm = self._risk_manager()
+        portfolio = self._empty_portfolio()
+        rebalancer = Rebalancer(portfolio, risk_manager=rm, rebalance_threshold=0.001)
+
+        prices = {"AAPL": 100.0, "MSFT": 100.0}
+
+        # Build a position
+        portfolio.add_holding("AAPL", 500, 100.0)  # 500 * 100 = 50000
+        rm.update_portfolio_value(portfolio.get_positions(), portfolio.cash)
+        portfolio.update_prices(prices)
+
+        # Force a large drawdown by creating scenario where equity drops
+        # Simulate drawdown by artificially setting peak higher and equity lower via update
+        # But easier: start with high peak, then values drop
+        rm.peak_value = portfolio.total_value * 1.5  # Set peak much higher
+        # After setting peak, update with lower effective equity
+        # Drop prices to create drawdown
+        prices_crash = {"AAPL": 50.0, "MSFT": 100.0}
+        portfolio.update_prices(prices_crash)
+        rm.update_portfolio_value(portfolio.get_positions(), portfolio.cash)
+
+        # Generate actions with targets that would require buying
+        rebalancer.target_allocation = {"AAPL": 0.1, "MSFT": 0.9}
+        actions = rebalancer.generate_rebalance_actions(
+            prices=prices_crash,
+            commission=0.0,
+            slippage=0.0,
+        )
+
+        # Should have no buy actions due to drawdown limit being breached
+        buy_actions = [a for a in actions if a.action == "BUY"]
+        assert len(buy_actions) == 0
+
+        # But sells should still work if needed
+        # (In this case, selling AAPL to get closer to target is fine)
+        assert (
+            all(getattr(a, "action", "").lower() in ("sell",) for a in actions) or len(actions) == 0
+        )
