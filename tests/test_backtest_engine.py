@@ -850,7 +850,7 @@ def test_buy_returns_when_available_value_non_positive():
         def __init__(self):
             super().__init__(name="LargeBuyStrategy")
         def generate_signals(self, data: dict):
-            symbol = list(data.keys())[0]
+            symbol = next(iter(data.keys()))
             df = data[symbol]
             return [Signal(symbol=symbol, action="buy", strength=1.0, price=float(df["close"].iloc[-1]))]
 

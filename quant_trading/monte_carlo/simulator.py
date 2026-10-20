@@ -197,9 +197,11 @@ class MonteCarloResult:
 
         """
         if not self.simulations:
-            return pd.DataFrame()
+            empty: pd.DataFrame = pd.DataFrame()
+            return empty
         data = [s.to_dict() for s in self.simulations]
-        return pd.DataFrame(data)
+        frame: pd.DataFrame = pd.DataFrame(data)
+        return frame
 
     def summary(self) -> dict[str, Any]:
         """Get summary statistics for the simulation distribution.

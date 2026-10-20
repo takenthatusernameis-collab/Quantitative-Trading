@@ -328,7 +328,7 @@ class TestGenerateRebalanceActions:
         )
         assert rebalancer.last_rebalance is None
         assert rebalancer.rebalance_history == []
-        actions = rebalancer.generate_rebalance_actions()
+        rebalancer.generate_rebalance_actions()
         assert rebalancer.last_rebalance is not None
         assert isinstance(rebalancer.last_rebalance, datetime)
         assert len(rebalancer.rebalance_history) == 1
