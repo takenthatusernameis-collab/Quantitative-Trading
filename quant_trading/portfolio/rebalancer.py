@@ -354,6 +354,101 @@ class Rebalancer:
                 return diff / price
         return 0.0
 
+    def execute_actions(
+        self,
+        actions: list[RebalanceAction],
+        prices: dict[str, float] | None = None,
+        commission: float = 0.0,
+        slippage: float = 0.0,
+    ) -> list[RebalanceAction]:
+        """Execute rebalance actions against the portfolio.
+
+        A "buy" action adds to the position (calling :meth:`Portfolio.add_holding`
+        with a positive quantity). A "sell" action reduces the position via
+        :meth:`Portfolio.remove_holding` (and falls back to ``add_holding`` with a
+        negative quantity). A "hold" action is a no-op. The price is resolved from
+        ``prices``, falling back to the holding's ``current_price`` when no
+        explicit price is provided. Executions are appended to
+        :attr:`rebalance_history` and :attr:`last_rebalance` is updated. The
+        method returns the executed actions.
+
+        Args:
+            actions: List of :class:`RebalanceAction` objects to execute.
+            prices: Optional symbol-keyed price map used to resolve prices.
+            commission: Commission rate applied to trades.
+            slippage: Slippage rate applied to trades.
+
+        Returns:
+            The list of executed :class:`RebalanceAction` objects.
+        """
+        prices = prices or {}
+        executed_actions: list[RebalanceAction] = []
+
+        for action in actions:
+            if action.action == "hold" or action.quantity <= 0:
+                executed_actions.append(action)
+                continue
+
+            symbol = action.symbol
+            price = prices.get(symbol)
+            if price is None:
+                holding = self.portfolio.holdings.get(symbol)
+                if holding is not None:
+                    price = holding.current_price
+            if price is None or price <= 0:
+                executed_actions.append(action)
+                continue
+
+            if action.action == "buy":
+                self.portfolio.add_holding(
+                    symbol,
+                    action.quantity,
+                    price,
+                    commission=commission,
+                    slippage=slippage,
+                )
+            elif action.action == "sell":
+                holding = self.portfolio.holdings.get(symbol)
+                if holding is not None and holding.quantity > 0:
+                    self.portfolio.remove_holding(
+                        symbol,
+                        action.quantity,
+                        price,
+                        commission=commission,
+                        slippage=slippage,
+                    )
+                elif holding is not None and holding.quantity < 0:
+                    # Cover short by adding to position (reducing short)
+                    self.portfolio.add_holding(
+                        symbol,
+                        action.quantity,
+                        price,
+                        commission=commission,
+                        slippage=slippage,
+                    )
+                else:
+                    # No position to sell against; still allow adding negative via add_holding
+                    self.portfolio.add_holding(
+                        symbol,
+                        -action.quantity,
+                        price,
+                        commission=commission,
+                        slippage=slippage,
+                    )
+            executed_actions.append(action)
+
+        self.last_rebalance = datetime.now()
+        self.rebalance_history.append(
+            {
+                "timestamp": self.last_rebalance,
+                "actions": [a.symbol for a in executed_actions],
+                "portfolio_value": self.portfolio.total_value,
+                "executed": True,
+            }
+        )
+
+        return executed_actions
+
     def set_target_allocation(self, allocation: dict[str, float]) -> None:
         """Set the target allocation, normalizing it to sum to 1.0.
 
