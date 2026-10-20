@@ -392,6 +392,21 @@ class TestDonchianChannelStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
+    def test_generate_signals_skips_nan_values(self):
+        """NaN channel values on the last bar are skipped."""
+        strategy = DonchianChannelStrategy(period=20, exit_period=10)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 40 + [101.0])}
+        df = data["AAPL"]
+        df.iloc[-1, df.columns.get_loc("close")] = float("nan")
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_zero_upper_band(self):
+        """A zero upper band is skipped to avoid division by zero."""
+        strategy = DonchianChannelStrategy(period=20, exit_period=10)
+        # All-zero highs/lows produce zero bands; last bar must not divide by zero.
+        data = {"AAPL": create_donchian_data("AAPL", [0.0] * 40 + [0.0])}
+        assert strategy.generate_signals(data) == []
+
 
 class TestMovingAverageCrossover:
     """Tests for MovingAverageCrossover strategy."""
@@ -675,6 +690,20 @@ class TestBollingerBandsStrategy:
         symbols = {s.symbol for s in signals}
         assert symbols.issubset({"AAPL", "MSFT"})
 
+    def test_generate_signals_skips_nan_values(self):
+        """NaN indicator values on the last bar are skipped."""
+        strategy = BollingerBandsStrategy(period=20, std_dev=2.0)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0, 102.0] * 10 + [95.0])}
+        df = data["AAPL"]
+        df.iloc[-1, df.columns.get_loc("close")] = float("nan")
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_zero_price(self):
+        """A zero close on the last bar is skipped to avoid division by zero."""
+        strategy = BollingerBandsStrategy(period=20, std_dev=2.0)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0, 102.0] * 10 + [0.0])}
+        assert strategy.generate_signals(data) == []
+
 
 def create_macd_data(symbol: str, days: int = 100) -> pd.DataFrame:
     """Create mock price data that produces a MACD bullish crossover at the end.
@@ -920,6 +949,22 @@ class TestMACDStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
+    def test_generate_signals_skips_nan_values(self):
+        """NaN MACD/signal values on the last bar are skipped."""
+        strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5)
+        data = {"AAPL": create_macd_falling_data("AAPL", days=100)}
+        df = data["AAPL"]
+        df.iloc[-1, df.columns.get_loc("close")] = float("nan")
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_zero_price(self):
+        """A zero close on the last bar is skipped to avoid division by zero."""
+        strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5)
+        data = {"AAPL": create_macd_falling_data("AAPL", days=100)}
+        df = data["AAPL"]
+        df.iloc[-1, df.columns.get_loc("close")] = 0.0
+        assert strategy.generate_signals(data) == []
+
 
 class TestSuperTrendStrategy:
     """Tests for SuperTrendStrategy."""
@@ -1075,6 +1120,22 @@ class TestSuperTrendStrategy:
         assert set(trend.dropna().unique()).issubset({1, -1})
         # SuperTrend should be positive
         assert (supertrend.dropna() > 0).all()
+
+    def test_generate_signals_skips_nan_values(self):
+        """NaN supertrend/trend values on the last bar are skipped."""
+        strategy = SuperTrendStrategy(period=10, multiplier=3.0)
+        data = {"AAPL": create_supertrend_data("AAPL", days=60, trend=0.003)}
+        df = data["AAPL"]
+        df.iloc[-1, df.columns.get_loc("close")] = float("nan")
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_zero_price(self):
+        """A zero close on the last bar is skipped to avoid division by zero."""
+        strategy = SuperTrendStrategy(period=10, multiplier=3.0)
+        data = {"AAPL": create_supertrend_data("AAPL", days=60, trend=0.003)}
+        df = data["AAPL"]
+        df.iloc[-1, df.columns.get_loc("close")] = 0.0
+        assert strategy.generate_signals(data) == []
 
 
 class TestStrategyParameters:
@@ -1275,6 +1336,20 @@ class TestKeltnerChannelStrategy:
             if s.metadata.get("signal_type") in ("middle_cross_up", "middle_cross_down")
         ]
         assert middle_cross_signals == []
+
+    def test_generate_signals_skips_nan_values(self):
+        """NaN EMA/channel values on the last bar are skipped."""
+        strategy = KeltnerChannelStrategy(ema_period=5, atr_period=5, multiplier=2.0)
+        data = {"AAPL": create_keltner_data("AAPL", [100.0] * 20 + [120.0])}
+        df = data["AAPL"]
+        df.iloc[-1, df.columns.get_loc("close")] = float("nan")
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_zero_ema(self):
+        """A zero EMA on the last bar is skipped to avoid division by zero."""
+        strategy = KeltnerChannelStrategy(ema_period=5, atr_period=5, multiplier=2.0)
+        data = {"AAPL": create_keltner_data("AAPL", [0.0] * 20 + [0.0])}
+        assert strategy.generate_signals(data) == []
 
 
 class TestStochasticOscillatorStrategy:
@@ -1737,6 +1812,22 @@ class TestIchimokuCloudStrategy:
         signals = strategy.generate_signals({"AAPL": create_donchian_data("AAPL", closes)})
         assert signals == []
 
+    def test_generate_signals_skips_nan_values(self):
+        """NaN Tenkan/Kijun values on the last bar are skipped."""
+        strategy = IchimokuCloudStrategy(tenkan_period=3, kijun_period=5, senkou_b_period=7)
+        closes = [100.0] * 20 + [110.0, 120.0, 130.0, 140.0, 150.0, 160.0]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        df = data["AAPL"]
+        df.iloc[-1, df.columns.get_loc("close")] = float("nan")
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_zero_kijun(self):
+        """A zero Kijun-sen on the last bar is skipped to avoid division by zero."""
+        strategy = IchimokuCloudStrategy(tenkan_period=3, kijun_period=5, senkou_b_period=7)
+        # All-zero highs/lows produce zero Kijun-sen; last bar must not divide by zero.
+        data = {"AAPL": create_donchian_data("AAPL", [0.0] * 30 + [0.0])}
+        assert strategy.generate_signals(data) == []
+
 
 def create_parabolic_data(
     symbol: str,
@@ -1979,6 +2070,32 @@ class TestParabolicSARStrategy:
             assert len(signals) == 1
             assert signals[0].action == ("buy" if trend.iloc[-1] == 1 else "sell")
 
+    def test_generate_signals_skips_nan_price(self):
+        """A NaN close on the last bar is skipped by the guard."""
+        strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
+        data = {
+            "AAPL": create_parabolic_data(
+                "AAPL",
+                high=[100.0, 99.0, 98.0, 100.0],
+                low=[90.0, 95.0, 88.0, 99.0],
+                close=[100.0, 99.0, 98.0, float("nan")],
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_zero_price(self):
+        """A zero close on the last bar is skipped by the guard."""
+        strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
+        data = {
+            "AAPL": create_parabolic_data(
+                "AAPL",
+                high=[100.0, 99.0, 98.0, 100.0],
+                low=[90.0, 95.0, 88.0, 99.0],
+                close=[100.0, 99.0, 98.0, 0.0],
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
 
 class TestEMACrossover:
     """Tests for EMACrossover (examples.py EMA crossover strategy)."""
@@ -2112,6 +2229,13 @@ class TestVWAPStrategy:
         strategy = VWAPStrategy()
         # Rising price that stays above the VWAP on the final two bars.
         data = {"AAPL": create_vwap_data("AAPL", [100.0, 105.0, 110.0, 115.0, 120.0])}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_zero_vwap(self):
+        """A zero VWAP on the last bar is skipped to avoid division by zero."""
+        strategy = VWAPStrategy()
+        # All-zero closes produce a zero VWAP; the guard must skip the bar.
+        data = {"AAPL": create_vwap_data("AAPL", [0.0, 0.0, 0.0, 0.0, 0.0])}
         assert strategy.generate_signals(data) == []
 
 

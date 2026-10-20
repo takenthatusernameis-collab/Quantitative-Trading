@@ -346,7 +346,7 @@ class BollingerBandsStrategy(Strategy):
             the lower or upper Bollinger band.
 
         """
-        signals = []
+        signals: list[Signal] = []
 
         for symbol, df in data.items():
             if len(df) < self.period:
@@ -364,6 +364,17 @@ class BollingerBandsStrategy(Strategy):
             current_lower = lower_band.iloc[-1]
             current_sma = sma.iloc[-1]
             timestamp = df.index[-1]
+
+            if (
+                pd.isna(current_price)
+                or pd.isna(current_upper)
+                or pd.isna(current_lower)
+                or pd.isna(current_sma)
+                or current_price == 0
+                or current_lower == 0
+                or current_upper == 0
+            ):
+                continue
 
             # Price at lower band - buy signal
             if current_price <= current_lower * 1.005:  # Small buffer
@@ -590,6 +601,15 @@ class SuperTrendStrategy(Strategy):
             prev_trend = trend.iloc[-2]
             timestamp = df.index[-1]
 
+            if (
+                pd.isna(current_price)
+                or pd.isna(current_supertrend)
+                or pd.isna(current_trend)
+                or pd.isna(prev_trend)
+                or current_price == 0
+            ):
+                continue
+
             # Trend change detection
             if prev_trend == -1 and current_trend == 1:
                 # Bullish reversal - buy signal
@@ -753,9 +773,20 @@ class MACDStrategy(Strategy):
             current_price = close.iloc[-1]
             timestamp = df.index[-1]
 
+            if (
+                pd.isna(macd_current)
+                or pd.isna(macd_prev)
+                or pd.isna(signal_current)
+                or pd.isna(signal_prev)
+                or pd.isna(hist_current)
+                or pd.isna(current_price)
+                or current_price == 0
+            ):
+                continue
+
             # Bullish crossover: MACD line crosses above signal line
             if macd_prev <= signal_prev and macd_current > signal_current:
-                strength = min(1.0, abs(macd_current - signal_current) / abs(signal_current) + 0.5)
+                strength = min(1.0, abs(macd_current - signal_current) / abs(signal_current) + 0.5) if signal_current != 0 else 0.5
                 metadata = {
                     "macd": macd_current,
                     "signal": signal_current,
@@ -776,7 +807,7 @@ class MACDStrategy(Strategy):
                 )
             # Bearish crossover: MACD line crosses below signal line
             elif macd_prev >= signal_prev and macd_current < signal_current:
-                strength = min(1.0, abs(signal_current - macd_current) / abs(signal_current) + 0.5)
+                strength = min(1.0, abs(signal_current - macd_current) / abs(signal_current) + 0.5) if signal_current != 0 else 0.5
                 metadata = {
                     "macd": macd_current,
                     "signal": signal_current,
@@ -956,6 +987,28 @@ class DonchianChannelStrategy(Strategy):
             prev_exit_lower = exit_lower.iloc[-2]
 
             timestamp = df.index[-1]
+
+            # Skip if any required values are NaN or zero (avoid division by zero)
+            if (
+                pd.isna(current_price)
+                or pd.isna(current_upper)
+                or pd.isna(current_lower)
+                or pd.isna(current_middle)
+                or pd.isna(current_exit_upper)
+                or pd.isna(current_exit_lower)
+                or pd.isna(prev_price)
+                or pd.isna(prev_upper)
+                or pd.isna(prev_lower)
+                or pd.isna(prev_middle)
+                or pd.isna(prev_exit_upper)
+                or pd.isna(prev_exit_lower)
+                or current_upper == 0
+                or current_lower == 0
+                or current_middle == 0
+                or current_exit_upper == 0
+                or current_exit_lower == 0
+            ):
+                continue
 
             # Check current position for this symbol
             position = self.positions.get(symbol)
@@ -1394,7 +1447,7 @@ class KeltnerChannelStrategy(Strategy):
             List of trading signals.
 
         """
-        signals = []
+        signals: list[Signal] = []
 
         for symbol, df in data.items():
             # Need enough data for EMA and ATR calculations
@@ -1423,6 +1476,22 @@ class KeltnerChannelStrategy(Strategy):
             prev_upper = upper_channel.iloc[-2]
             prev_lower = lower_channel.iloc[-2]
             timestamp = df.index[-1]
+
+            # Skip if any required values are NaN or zero (avoid division by zero)
+            if (
+                pd.isna(current_price)
+                or pd.isna(current_ema)
+                or pd.isna(current_upper)
+                or pd.isna(current_lower)
+                or pd.isna(prev_price)
+                or pd.isna(prev_ema)
+                or pd.isna(prev_upper)
+                or pd.isna(prev_lower)
+                or current_ema == 0
+                or current_upper == 0
+                or current_lower == 0
+            ):
+                continue
 
             # Channel breakout signals
             if prev_price <= prev_upper and current_price > current_upper:
@@ -1817,14 +1886,16 @@ class IchimokuCloudStrategy(Strategy):
             prev_kijun = kijun_sen.iloc[-2]
             timestamp = df.index[-1]
 
-            # Skip if any values are NaN
+            # Skip if any values are NaN or zero (avoid division by zero)
             if (
-                pd.isna(current_tenkan)
+                pd.isna(current_price)
+                or pd.isna(current_tenkan)
                 or pd.isna(current_kijun)
                 or pd.isna(current_senkou_a)
                 or pd.isna(current_senkou_b)
                 or pd.isna(prev_tenkan)
                 or pd.isna(prev_kijun)
+                or current_kijun == 0
             ):
                 continue
 
@@ -1941,8 +2012,15 @@ class VWAPStrategy(Strategy):
             prev_vwap = vwap.iloc[-2]
             timestamp = df.index[-1]
 
-            # Skip if VWAP is NaN (insufficient data)
-            if pd.isna(current_vwap) or pd.isna(prev_vwap):
+            # Skip if VWAP is NaN or zero (insufficient data / degenerate input)
+            if (
+                pd.isna(current_vwap)
+                or pd.isna(prev_vwap)
+                or pd.isna(current_price)
+                or pd.isna(prev_price)
+                or current_vwap == 0
+                or current_price == 0
+            ):
                 continue
 
             # Crossover detection
@@ -2160,8 +2238,14 @@ class ParabolicSARStrategy(Strategy):
             prev_trend = trend.iloc[-2] if len(trend) > 1 else current_trend
             timestamp = df.index[-1]
 
-            # Skip if SAR is NaN (insufficient data)
-            if pd.isna(current_sar) or pd.isna(current_trend) or pd.isna(prev_trend):
+            # Skip if SAR is NaN or price is NaN/zero (insufficient data / degenerate input)
+            if (
+                pd.isna(current_sar)
+                or pd.isna(current_trend)
+                or pd.isna(prev_trend)
+                or pd.isna(current_price)
+                or current_price == 0
+            ):
                 continue
 
             # Check for trend reversal
@@ -2297,6 +2381,7 @@ class EMACrossover(Strategy):
                 or pd.isna(current_slow)
                 or pd.isna(prev_fast)
                 or pd.isna(prev_slow)
+                or pd.isna(current_price)
             ):
                 continue
 
