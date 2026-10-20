@@ -230,13 +230,12 @@ class Portfolio:
         elif symbol in self.holdings and self.holdings[symbol].quantity > 0 and quantity < 0:
             holding = self.holdings[symbol]
             total_qty = holding.quantity + quantity
-            if total_qty != 0:
-                new_avg_cost = (holding.avg_cost * holding.quantity + cost) / total_qty
+            if total_qty <= 0:
+                del self.holdings[symbol]
             else:
-                new_avg_cost = 0.0
-            holding.quantity = total_qty
-            holding.avg_cost = new_avg_cost
-            holding.update_price(price)
+                holding.quantity = total_qty
+                holding.avg_cost = holding.avg_cost
+                holding.update_price(price)
             self.cash += abs(cost) * (1 - commission - slippage)
         else:
             entry_price = price * (1 + commission + slippage) if quantity > 0 else price

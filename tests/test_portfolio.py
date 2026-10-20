@@ -100,8 +100,7 @@ class TestPortfolio:
         portfolio.add_holding("AAPL", 100, 100.0)
         # Short to exactly offset the long position
         portfolio.add_holding("AAPL", -100, 100.0)
-        assert portfolio.holdings["AAPL"].quantity == 0
-        assert portfolio.holdings["AAPL"].avg_cost == 0.0
+        assert "AAPL" not in portfolio.holdings
 
     def test_remove_holding_no_symbol(self):
         """remove_holding returns 0.0 for an unknown symbol."""
@@ -156,19 +155,14 @@ class TestPortfolio:
         assert portfolio.holdings["AAPL"].quantity == -100
         assert portfolio.holdings["AAPL"].avg_cost == pytest.approx(100.0)
 
-    def test_add_holding_partial_reduction_keeps_weighted_basis(self):
-        """Reducing a long partially re-averages the remaining basis.
-
-        A negative quantity that does not fully offset the long keeps the
-        position open, so the remaining basis is the weighted average of the
-        opening basis and the (negative) reduction cost.
-        """
+    def test_add_holding_partial_reduction_keeps_basis(self):
+        """Reducing a long leaves the remaining basis untouched."""
         portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
         portfolio.add_holding("AAPL", 100, 100.0)
         portfolio.add_holding("AAPL", -40, 110.0)
         holding = portfolio.holdings["AAPL"]
         assert holding.quantity == 60
-        assert holding.avg_cost == pytest.approx((100.0 * 100 + (-40 * 110.0)) / 60)
+        assert holding.avg_cost == pytest.approx(100.0)
         # Cash is credited with the net proceeds of the reduction.
         assert portfolio.cash == pytest.approx(100000.0 - 100 * 100.0 + 40 * 110.0)
 
