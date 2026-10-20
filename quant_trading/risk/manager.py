@@ -19,7 +19,7 @@ from typing import Any
 
 import pandas as pd
 
-from quant_trading.risk.limits import CheckResult, PortfolioLimit, PositionLimit, gross_exposure
+from quant_trading.risk.limits import CheckResult, PortfolioLimit, PositionLimit
 from quant_trading.risk.metrics import RiskMetrics, calculate_all_metrics
 from quant_trading.strategies.base import Position, Signal
 
