@@ -77,6 +77,27 @@ class FirstDayBuyStrategy(Strategy):
         ]
 
 
+class BuyThenSellStrategy(Strategy):
+    """Buys the full position on the first date, sells it all on the second."""
+
+    def __init__(self):
+        super().__init__(name="BuyThenSell")
+        self._phase = 0
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        if self._phase == 2:
+            return []
+        symbol, df = next(iter(data.items()))
+        price = float(df["close"].iloc[-1])
+        if self._phase == 0:
+            self._phase = 1
+            return [
+                Signal(symbol=symbol, action="buy", strength=1.0, price=price)
+            ]
+        self._phase = 2
+        return [Signal(symbol=symbol, action="sell", strength=1.0, price=price)]
+
+
 def test_trade_cost_calculation():
     """Test Trade cost calculation with commission and slippage."""
     trade = Trade(
@@ -567,6 +588,84 @@ def test_run_backtest_uses_default_data_manager():
         )
     assert isinstance(result, BacktestResult)
     engine_module.reset_default_data_manager()
+
+
+def _engine_run(strategy, data, commission: float, slippage: float):
+    """Run one backtest over deterministic mock data with the given costs."""
+    symbols = list(data.keys())
+    provider = MockDataProvider(data)
+    config = BacktestConfig(initial_capital=10000.0, commission=commission, slippage=slippage)
+    engine = BacktestEngine(config=config, data_manager=DataManager([provider]))
+    engine.add_strategy(strategy)
+    start = datetime(2024, 1, 1)
+    end = datetime(2024, 1, 1) + timedelta(days=len(next(iter(data.values()))) - 1)
+    return engine.run(symbols, start, end, "1d")
+
+
+def test_costed_equity_below_zero_cost_run():
+    """Commission and slippage must push the equity curve below a zero-cost run.
+
+    Covers invariant 1: a costed run's equity is weakly below the zero-cost
+    equity at every bar and strictly below once costs have been charged.
+    """
+    idx = pd.date_range("2024-01-01", periods=6, freq="D")
+    data = {
+        "TEST": pd.DataFrame(
+            {
+                "open": [100.0, 110.0, 120.0, 130.0, 125.0, 120.0],
+                "high": [105.0, 115.0, 125.0, 135.0, 130.0, 125.0],
+                "low": [95.0, 105.0, 115.0, 125.0, 120.0, 115.0],
+                "close": [100.0, 110.0, 120.0, 130.0, 125.0, 120.0],
+            },
+            index=idx,
+        )
+    }
+
+    zero = _engine_run(FirstDayBuyStrategy(), data, 0.0, 0.0)
+    costed = _engine_run(FirstDayBuyStrategy(), data, 0.01, 0.005)
+
+    assert costed.final_value < zero.final_value
+    for zero_px, costed_px in zip(zero.equity_curve, costed.equity_curve):
+        assert costed_px <= zero_px
+    assert costed.equity_curve.iloc[-1] < zero.equity_curve.iloc[-1]
+
+
+def test_signed_trade_cost_reconciles_with_final_value():
+    """For a fully liquidated round trip, signed trade cost equals PnL.
+
+    Covers invariant 3: ``final_value - initial_capital`` equals the sum of
+    signed ``Trade.cost`` (buys reduce cash, sells increase it) once costs are
+    charged to cash. Buy-side commission/slippage is a cash drag, so it does
+    not appear in ``Trade.pnl`` (which is realized-only); it does appear in
+    ``Trade.cost``.
+    """
+    idx = pd.date_range("2024-01-01", periods=4, freq="D")
+    data = {
+        "TEST": pd.DataFrame(
+            {
+                "open": [100.0, 110.0, 120.0, 130.0],
+                "high": [105.0, 115.0, 125.0, 135.0],
+                "low": [95.0, 105.0, 115.0, 125.0],
+                "close": [100.0, 110.0, 120.0, 130.0],
+            },
+            index=idx,
+        )
+    }
+
+    zero = _engine_run(BuyThenSellStrategy(), data, 0.0, 0.0)
+    costed = _engine_run(BuyThenSellStrategy(), data, 0.01, 0.005)
+
+    # Invariant 1: costs reduce the final value.
+    assert costed.final_value < zero.final_value
+
+    # Invariant 3: signed cost reconciles with cash change (fully liquidated).
+    signed_cost = 0.0
+    for _, trade in costed.trades.iterrows():
+        signed_cost += trade["cost"] if trade["action"] == "sell" else -trade["cost"]
+    assert costed.final_value - costed.initial_capital == pytest.approx(signed_cost)
+
+    # Buy-side fees are a cash drag, not realized PnL: pnl sum excludes them.
+    assert costed.trades["pnl"].sum() != pytest.approx(costed.final_value - costed.initial_capital)
 
 
 if __name__ == "__main__":
