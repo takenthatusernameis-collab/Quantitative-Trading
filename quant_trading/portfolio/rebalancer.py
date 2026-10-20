@@ -329,7 +329,9 @@ class Rebalancer:
         plan = _RebalancePlan(
             cash=self.portfolio.cash,
             fee_rate=commission + slippage,
-            positions={symbol: holding.quantity for symbol, holding in self.portfolio.holdings.items()},
+            positions={
+                symbol: holding.quantity for symbol, holding in self.portfolio.holdings.items()
+            },
         )
 
         # Process target allocations

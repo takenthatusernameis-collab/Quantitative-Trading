@@ -155,9 +155,7 @@ class TestCalculateTargetValues:
     def test_computes_target_values(self):
         """Each target is total portfolio value times the target fraction."""
         portfolio = _portfolio_with_aapl()  # total value stays 100000
-        rebalancer = Rebalancer(
-            portfolio, target_allocation={"AAPL": 0.5, "MSFT": 0.5}
-        )
+        rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.5, "MSFT": 0.5})
         targets = rebalancer.calculate_target_values()
         assert targets == pytest.approx({"AAPL": 50000.0, "MSFT": 50000.0})
 
@@ -353,9 +351,7 @@ class TestSetTargetAllocation:
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio)
         rebalancer.set_target_allocation({"AAPL": 2, "MSFT": 3})
-        assert rebalancer.target_allocation == pytest.approx(
-            {"AAPL": 0.4, "MSFT": 0.6}
-        )
+        assert rebalancer.target_allocation == pytest.approx({"AAPL": 0.4, "MSFT": 0.6})
 
     def test_single_symbol_normalizes_to_one(self):
         """A lone target is normalized to 100%."""
@@ -371,9 +367,7 @@ class TestGetCurrentDeviation:
     def test_returns_current_minus_target(self):
         """Deviation is current allocation fraction minus target fraction."""
         portfolio = _portfolio_with_aapl()
-        rebalancer = Rebalancer(
-            portfolio, target_allocation={"AAPL": 0.5, "MSFT": 0.2}
-        )
+        rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.5, "MSFT": 0.2})
         deviations = rebalancer.get_current_deviation()
         aapl_pct = 10000.0 / portfolio.total_value
         assert deviations["AAPL"] == pytest.approx(aapl_pct - 0.5)
