@@ -445,8 +445,41 @@ class RiskManager:
         )
         return self.risk_metrics
 
+    def is_short_position(self, symbol: str) -> bool:
+        """Whether the tracked position for a symbol is a short.
+
+        The direction of a position is the sign of its quantity: a positive
+        quantity is a long, a negative quantity is a short. A symbol without
+        a position, or with a flat one, is not a short.
+
+        Args:
+            symbol: Symbol to query.
+
+        Returns:
+            True when the position is a short, False otherwise.
+
+        Examples:
+            A short position is recognised by its negative quantity::
+
+                from quant_trading.risk.manager import RiskManager
+                from quant_trading.strategies.base import Position
+
+                rm = RiskManager()
+                rm.sync_position("AAPL", Position("AAPL", -100, 150.0, 150.0))
+                assert rm.is_short_position("AAPL")
+
+        """
+        position = self.positions.get(symbol)
+        return position is not None and position.quantity < 0
+
     def get_position_stop_loss(self, symbol: str) -> float | None:
         """Get stop loss price for a position.
+
+        The level is direction aware. For a long position the stop sits
+        below the average entry price (``avg_price * (1 - stop_loss_pct)``);
+        for a short position it sits above it
+        (``avg_price * (1 + stop_loss_pct)``), because a short loses when the
+        price rises.
 
         Args:
             symbol: Symbol to query.
@@ -458,10 +491,18 @@ class RiskManager:
         position = self.positions.get(symbol)
         if position is None or position.avg_price <= 0:
             return None
+        if position.quantity < 0:
+            return position.avg_price * (1 + self.position_limit.stop_loss_pct)
         return position.avg_price * (1 - self.position_limit.stop_loss_pct)
 
     def get_position_take_profit(self, symbol: str) -> float | None:
         """Get take profit price for a position.
+
+        The level is direction aware. For a long position the target sits
+        above the average entry price (``avg_price * (1 + take_profit_pct)``);
+        for a short position it sits below it
+        (``avg_price * (1 - take_profit_pct)``), because a short profits when
+        the price falls.
 
         Args:
             symbol: Symbol to query.
@@ -473,10 +514,16 @@ class RiskManager:
         position = self.positions.get(symbol)
         if position is None or position.avg_price <= 0:
             return None
+        if position.quantity < 0:
+            return position.avg_price * (1 - self.position_limit.take_profit_pct)
         return position.avg_price * (1 + self.position_limit.take_profit_pct)
 
     def should_stop_loss(self, symbol: str, current_price: float) -> bool:
         """Check if position should trigger stop loss.
+
+        The comparison follows the direction of the position: the stop is
+        hit when the price falls to (or below) the stop level for a long,
+        and when it rises to (or above) the stop level for a short.
 
         Args:
             symbol: Symbol to query.
@@ -487,10 +534,18 @@ class RiskManager:
 
         """
         stop = self.get_position_stop_loss(symbol)
-        return stop is not None and current_price <= stop
+        if stop is None:
+            return False
+        if self.is_short_position(symbol):
+            return current_price >= stop
+        return current_price <= stop
 
     def should_take_profit(self, symbol: str, current_price: float) -> bool:
         """Check if position should trigger take profit.
+
+        The comparison follows the direction of the position: the target is
+        hit when the price rises to (or above) the target level for a long,
+        and when it falls to (or below) the target level for a short.
 
         Args:
             symbol: Symbol to query.
@@ -501,7 +556,11 @@ class RiskManager:
 
         """
         tp = self.get_position_take_profit(symbol)
-        return tp is not None and current_price >= tp
+        if tp is None:
+            return False
+        if self.is_short_position(symbol):
+            return current_price <= tp
+        return current_price >= tp
 
     def reset(self) -> None:
         """Reset risk manager state.

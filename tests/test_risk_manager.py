@@ -670,6 +670,94 @@ class TestStopLossTakeProfit:
         assert rm.should_take_profit("AAPL", 160.0) is False
         assert rm.should_take_profit("UNKNOWN", 200.0) is False
 
+    def test_is_short_position(self):
+        rm = RiskManager(initial_capital=100000.0)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160),
+            "MSFT": Position(symbol="MSFT", quantity=-100, avg_price=150, current_price=160),
+            "FLAT": Position(symbol="FLAT", quantity=0, avg_price=150, current_price=160),
+        }
+        assert rm.is_short_position("MSFT") is True
+        assert rm.is_short_position("AAPL") is False
+        assert rm.is_short_position("FLAT") is False
+        assert rm.is_short_position("UNKNOWN") is False
+
+    def test_get_position_stop_loss_short(self):
+        """A short's stop loss sits above its entry price."""
+        rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=-100, avg_price=150, current_price=160)
+        }
+        assert rm.get_position_stop_loss("AAPL") == 150 * 1.1
+
+    def test_should_stop_loss_short_triggered(self):
+        """A short stops out when the price rises to the stop level."""
+        rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=-100, avg_price=150, current_price=160)
+        }
+        assert rm.should_stop_loss("AAPL", 170.0) is True
+        assert rm.should_stop_loss("AAPL", 165.0) is True
+        assert rm.should_stop_loss("AAPL", 160.0) is False
+        assert rm.should_stop_loss("AAPL", 100.0) is False
+        assert rm.should_stop_loss("UNKNOWN", 100.0) is False
+
+    def test_get_position_take_profit_short(self):
+        """A short's take profit sits below its entry price."""
+        rm = RiskManager(initial_capital=100000.0, take_profit_pct=0.15)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=-100, avg_price=150, current_price=160)
+        }
+        assert rm.get_position_take_profit("AAPL") == 150 * 0.85
+
+    def test_should_take_profit_short_triggered(self):
+        """A short takes profit when the price falls to the target level."""
+        rm = RiskManager(initial_capital=100000.0, take_profit_pct=0.15)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=-100, avg_price=150, current_price=160)
+        }
+        assert rm.should_take_profit("AAPL", 120.0) is True
+        assert rm.should_take_profit("AAPL", 127.5) is True
+        assert rm.should_take_profit("AAPL", 130.0) is False
+        assert rm.should_take_profit("AAPL", 200.0) is False
+        assert rm.should_take_profit("UNKNOWN", 200.0) is False
+
+    def test_short_stop_loss_and_take_profit_do_not_overlap(self):
+        """A short's stop is above its target, so the two levels are distinct."""
+        rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10, take_profit_pct=0.15)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=-100, avg_price=150, current_price=150)
+        }
+        stop = rm.get_position_stop_loss("AAPL")
+        target = rm.get_position_take_profit("AAPL")
+        assert stop is not None and target is not None
+        assert stop > target
+
+    def test_short_thresholds_use_the_mirrored_direction(self):
+        """The mirrored levels are exactly the mirror image of the long ones."""
+        rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10, take_profit_pct=0.15)
+        rm.positions = {
+            "LONG": Position(symbol="LONG", quantity=100, avg_price=150, current_price=150),
+            "SHORT": Position(symbol="SHORT", quantity=-100, avg_price=150, current_price=150),
+        }
+        long_stop = rm.get_position_stop_loss("LONG")
+        short_stop = rm.get_position_stop_loss("SHORT")
+        long_target = rm.get_position_take_profit("LONG")
+        short_target = rm.get_position_take_profit("SHORT")
+        assert long_stop is not None and short_stop is not None
+        assert long_target is not None and short_target is not None
+        assert long_stop + short_stop == pytest.approx(300.0)
+        assert long_target + short_target == pytest.approx(300.0)
+
+    def test_short_thresholds_follow_a_synchronized_short_position(self):
+        """The helpers read the manager's position view, as the signal gate does."""
+        rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10, take_profit_pct=0.15)
+        rm.sync_position("AAPL", Position("AAPL", -100, 150.0, 150.0))
+        assert rm.get_position_stop_loss("AAPL") == 150 * 1.1
+        assert rm.get_position_take_profit("AAPL") == 150 * 0.85
+        assert rm.should_stop_loss("AAPL", 160.0) is False
+        assert rm.should_take_profit("AAPL", 140.0) is False
+
 
 class TestResetEnableDisable:
     """Tests for reset, enable, and disable."""

@@ -790,6 +790,24 @@ same way a long one does:
 final_value - initial_capital == sum(trades["pnl"])
 ```
 
+The stop loss and take profit helpers of the risk manager follow the
+direction of the position. A long's stop sits below its entry price and its
+target above it; a short's stop sits above the entry price and its target
+below it, and the price is compared against each level in the direction that
+triggers it.
+
+```python
+from quant_trading.risk.manager import RiskManager
+from quant_trading.strategies.base import Position
+
+rm = RiskManager(stop_loss_pct=0.10, take_profit_pct=0.15)
+rm.sync_position("AAPL", Position("AAPL", -100, 150.0, 150.0))
+rm.get_position_stop_loss("AAPL")     # 165.0, above the entry price
+rm.get_position_take_profit("AAPL")   # 127.5, below the entry price
+rm.should_stop_loss("AAPL", 165.0)    # True
+rm.should_take_profit("AAPL", 127.5)  # True
+```
+
 ## Annualization Periods
 
 The return, volatility, Sharpe, Sortino, Calmar and alpha figures are

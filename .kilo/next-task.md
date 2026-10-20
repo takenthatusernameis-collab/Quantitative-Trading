@@ -2,133 +2,87 @@
 
 ## What changed
 
-**The backtest engine can now open and close short positions.** This was the
-task assigned by the previous handoff; it is finished and verified below.
+**The stop loss and take profit helpers of the risk manager are now direction
+aware.** This was the task assigned by the previous handoff; it is finished and
+verified below.
 
-The design that was chosen, and the reasoning behind it:
+The four helpers in `quant_trading/risk/manager.py` used to compute long-only
+thresholds, which are wrong for exactly the short positions the previous
+session added. They now read the direction of the position the manager tracks:
 
-- **Signal actions** (`quant_trading/strategies/base.py:12`, documented in the
-  `Signal` docstring): `"buy"`, `"sell"`, `"short"`, `"hold"`.
-  - `"short"` opens or adds to a short position.
-  - `"buy"` opens or adds to a long position, and **against an open short it
-    covers that short** (up to the size of the short; a buy never flips a
-    position). This is the broker convention, and it is the convention the
-    shipped example strategies already use to exit a short
-    (`quant_trading/strategies/examples.py:1125` and `:1147` emit `"buy"` for
-    a short exit).
-  - `"sell"` still only reduces or closes a long position, and is still
-    rejected when no long position is held. The framework does not short a
-    symbol through a plain sell; shorting goes through the explicit, separately
-    gated `"short"` action.
-- **Trade log actions** (`quant_trading/backtest/engine.py:126`): `"buy"`,
-  `"sell"`, `"short"`, `"cover"`. The log says what each trade did to the
-  position: a buy that covers a short is recorded as a `"cover"`, not as a
-  `"buy"`, so the log stays unambiguous. `Trade.cost`
-  (`quant_trading/backtest/engine.py:153`) charges `"buy"` and `"cover"` and
-  credits `"sell"` and `"short"`, i.e. the cash sign follows the action.
-- **Realized PnL for a short.** A short keeps the raw execution price as its
-  cost basis (that is the framework's existing, tested portfolio convention —
-  `tests/test_portfolio.py:162` and `tests/test_portfolio_invariants.py:249`),
-  so the entry fee that is deducted from the sale proceeds is booked as
-  realized PnL on the `short` trade itself, and the `cover` books the price
-  move and the cover fee. The sum of the two is exactly the change in the
-  portfolio value, for a fully liquidated short round trip and for a short
-  that is still open (realized + unrealized = the value change).
-- **The risk gate** (`quant_trading/risk/manager.py:238`): a `"short"` signal
-  is gated exactly like a `"buy"` signal — position size, portfolio risk budget
-  and the leverage limit — and all of them are measured on **gross** exposure,
-  so a long and a short of the same size do not cancel each other out. The
-  shared logic moved into `RiskManager._check_exposure_increase`
-  (`quant_trading/risk/manager.py:330`) so the buy and the short cannot drift
-  apart. A `"buy"` that covers a short is allowed (covering reduces the
-  exposure, so no limit can be breached by it); a `"sell"` against an open
-  short is rejected with "Sell signal for position with an open short"; a
-  `"short"` against an open long is rejected with "Short signal for position
-  with long holdings".
-- **The engine** (`quant_trading/backtest/engine.py:537`): `_process_signal`
-  dispatches to four helpers — `_open_long` (`:589`), `_reduce_long` (`:656`),
-  `_open_short` (`:721`) and `_cover_short` (`:788`). A short is sized like a
-  long (signal strength times the position limit, less the gross exposure the
-  symbol already carries); its sale credits the proceeds to cash, so there is
-  no cash constraint on a short. A cover is trimmed to the cash on hand. All
-  four paths call `risk_manager.sync_position(symbol, portfolio.get_position(symbol))`
-  after the trade, so the risk manager's view of the portfolio stays current
-  within the bar.
-- **Docs**: a new "## Short Selling" section in `README.md:754` and the
-  reconciliation notes of `BacktestResult` (`quant_trading/backtest/engine.py:233`).
+| Helper | Long (`quantity > 0`) | Short (`quantity < 0`) |
+| --- | --- | --- |
+| `get_position_stop_loss` (`manager.py:475`) | `avg_price * (1 - stop_loss_pct)` | `avg_price * (1 + stop_loss_pct)` |
+| `get_position_take_profit` (`manager.py:498`) | `avg_price * (1 + take_profit_pct)` | `avg_price * (1 - take_profit_pct)` |
+| `should_stop_loss` (`manager.py:521`) | `current_price <= stop` | `current_price >= stop` |
+| `should_take_profit` (`manager.py:543`) | `current_price >= tp` | `current_price <= tp` |
 
-The portfolio layer was deliberately **not** touched: `Portfolio.add_holding`
-with a negative quantity already opens a short and credits the proceeds,
-`Portfolio.remove_holding` already covers a short, and the engine now uses
-both instead of re-implementing the accounting.
+- **The direction comes from the sign of `position.quantity`**, which is the
+  framework's existing convention (`quant_trading/strategies/base.py:83`:
+  "Position quantity (positive for long, negative for short)"). A short
+  produced by the engine has a negative quantity in both the result and the
+  manager's own view — verified end to end (see below).
+- **One new public method** was added: `RiskManager.is_short_position(symbol)`
+  (`manager.py:448`). It answers the direction question once, so the four
+  helpers cannot drift apart, and it is usable by a strategy that wants to
+  close a position in the right direction. A symbol with no position, or with
+  a flat one, is not a short.
+- **The long behaviour is unchanged.** The level formulas and the comparison
+  operators for a long are exactly the old ones, and the pinned tests
+  (`tests/test_risk_manager.py::TestStopLossTakeProfit`) still pass untouched.
+- **A flat position (`quantity == 0`) keeps the long behaviour** (it is not a
+  short). The old code returned a long level for it, and nothing in the
+  framework creates a flat position with a non-zero `avg_price` in the
+  manager's view.
+- **A missing position or an `avg_price <= 0` still returns `None`**, and the
+  two `should_*` helpers still return `False` for it.
+- **No backtest behaviour changed.** The engine never calls these four
+  helpers (it has no automatic stop-loss exit), so the change is confined to
+  `quant_trading/risk/manager.py` plus tests and documentation.
+- **Docs**: the four docstrings now state which direction they apply to, and
+  the README's "## Short Selling" section gained a short paragraph with a
+  worked example (`README.md:793`).
 
 ## Verified
 
 - `pytest -q` (full run, includes the `quant_trading/` doctests):
-  **1700 passed, 1 skipped, 0 failed**.
-  Baseline before this session: 1646 passed, 1 skipped. Delta = **54 new
-  tests** (15 backtest engine, 9 risk manager, 30 cost accounting invariants).
+  **1709 passed, 1 skipped, 0 failed**.
+  Baseline before this session: 1700 passed, 1 skipped. Delta = **9 new
+  tests** (8 risk manager, 1 backtest engine).
 - `ruff check .`: clean.
 - `mypy quant_trading/`: clean, 36 source files.
 - `black --check quant_trading/ tests/`: clean, 69 files.
 - A probe script was written and run against the new behaviour
-  (`/home/runner/work/_temp/kilo-tmp/kilo/probe_shorts.py`, 7 probes, all
-  green): a short round trip reconciles the cash, the booked PnL and the
-  equity curve; an open short satisfies
-  `realized + unrealized == final_value - initial_capital`; an oversized
-  short is rejected at the signal gate (the same buy is rejected the same
-  way); a long and a short of the same size are rejected by the leverage
-  limit although their net exposure is zero; a sell and a short in the same
-  bar both execute and end short; a short and its cover in the same bar end
-  flat.
+  (`/home/runner/work/_temp/kilo-tmp/kilo/probe_short_thresholds.py`): a short
+  opened by the engine has `quantity = -100.0` and `avg_price = 100.0` in
+  both `result.positions["TEST"]` and `engine.risk_manager.positions["TEST"]`;
+  the stop is `105.0` (= `100 * 1.05`, above the entry) and the target `85.0`
+  (= `100 * 0.85`, below the entry); a price at the stop triggers the stop and
+  *not* the target, a price at the target triggers the target and *not* the
+  stop.
 
 New tests:
 
-- `tests/test_backtest_engine.py` — the short is sized from the position
-  limit and the entry fee is booked; a short round trip reconciles cash, PnL
-  and equity and ends flat; a buy covers an open short; a partial cover
-  closes only that part; an oversized short and a short that would breach
-  the leverage limit are rejected; a long and a short pair is measured on
-  gross exposure; a second short in the same bar is measured against the
-  first; a sell does not add to an open short; a short is rejected while a
-  long is open; a short and its cover in the same bar end flat; the
-  `_process_signal` unit level cases for a short and for a buy-to-cover.
-- `tests/test_risk_manager.py::TestShortSignals` — the short gate: within the
-  limits, no price, position size, portfolio risk budget, leverage limit, a
-  short against a long, adding to an open short, a buy that covers a short,
-  a sell against an open short.
-- `tests/test_cost_accounting_invariants.py` — the two helpers that map a
-  trade to its effect on cash and on the position now know the `"short"` and
-  `"cover"` actions, plus two new randomized scenarios: a short covered in
-  random partial steps (20 seeds) and a short that is never covered
-  (10 seeds). Both run the full invariant battery.
+- `tests/test_risk_manager.py::TestStopLossTakeProfit` — the short's stop is
+  above the entry price and its target below it; the mirrored levels are the
+  exact mirror image of the long ones (`long + short == 2 * avg_price`); a
+  short's stop and target never overlap; a short's stop is triggered by a
+  rising price and its target by a falling price; the helpers follow a
+  position that was synced with `sync_position` (the view the signal gate
+  uses); `is_short_position` is True for a negative quantity and False for a
+  long, a flat position and an unknown symbol.
+- `tests/test_backtest_engine.py::test_engine_short_gets_mirrored_stop_loss_and_take_profit`
+  — the end-to-end wiring: a short opened by the engine produces the mirrored
+  thresholds in the manager's own position view.
 
 ## Remaining unresolved
 
-- **The stop loss and take profit helpers are long-only.**
-  `RiskManager.get_position_stop_loss` (`quant_trading/risk/manager.py:448`)
-  returns `avg_price * (1 - stop_loss_pct)` and
-  `get_position_take_profit` (`:463`) returns `avg_price * (1 + take_profit_pct)`,
-  and `should_stop_loss` (`:478`) / `should_take_profit` (`:492`) compare the
-  price against them in the long direction. For a short position the stop is
-  **above** the entry price and the target is **below** it, so all four
-  helpers are now wrong for exactly the positions this session added. The
-  engine does not call them (it has no automatic stop-loss exit), so nothing
-  in the backtest is broken by it — but a strategy that uses them to close a
-  short would close it at the wrong threshold.
-- **The trade analysis ignores short round trips.**
-  `quant_trading/backtest/trade_analysis.py:149` (`_calculate_holding_periods`)
-  matches `"buy"` entries against `"sell"` exits only, so a short round trip
-  contributes **no** holding period. Nothing is corrupted (the `"short"` and
-  `"cover"` trades are skipped, they do not pollute the long FIFO queue), but
-  the statistic is missing for short strategies. Related: the win rate counts
-  the `short` entry as a losing trade, because it books the entry fee as
-  realized PnL (the fee really is a realised cost, but it makes the trade
-  count asymmetric with a long, whose entry books 0.0).
+- **The trade analysis ignores short round trips.** This is the biggest
+  remaining gap and is the next task (see below).
 - **`RiskManager.portfolio_risk.leverage` is still net**
   (`positions_value / total_value`, `quant_trading/risk/manager.py:183`) while
   `PortfolioLimit.leverage()` is gross
-  (`quant_trading/risk/limits.py:230`). With shorts this is now actively
+  (`quant_trading/limits.py:230`). With shorts this is now actively
   misleading: a fully shorted portfolio reports a *negative* leverage. The
   risk gates themselves use the gross figure, so no limit is wrong — only the
   reported number is.
@@ -154,75 +108,100 @@ New tests:
   (`quant_trading/risk/manager.py:330`), so a position that was opened
   smaller than the target (e.g. because cash ran out) is rejected on the next
   signal even though the engine would only trade the missing part. Pre-existing
-  behaviour, unchanged by this session; it now applies to shorts as well.
+  behaviour, unchanged by the previous session; it now applies to shorts as
+  well.
 - `quant_trading/strategies/__init__.py` exposes `get_available_strategies()`
   and `available_strategies()` as two names for the same thing. They are
   exported and tested, but the duplication is still redundant API surface.
 
 ## Approaches already tried and rejected
 
-- **Changing the portfolio's short cost basis to the net proceeds**
-  (`avg_cost = price * (1 - fees)`, the mirror of a long's fee-inclusive
-  basis). Rejected: it breaks the documented and tested portfolio convention
-  (`tests/test_portfolio.py:162`,
-  `tests/test_portfolio_invariants.py:249`) and the handoff explicitly said
-  that the engine must not re-implement the portfolio accounting. The price
-  paid is the convention above — the entry fee of a short is booked as
-  realized PnL instead of being capitalised into the basis.
-- **A separate `"cover"` *signal* action.** Rejected: the shipped example
-  strategies already exit a short with a `"buy"`, so a second action would be
-  redundant API surface for the same effect. The trade *log* still uses a
-  distinct `"cover"` action, which is where the distinction is actually
-  needed.
-- **Letting a `"sell"` open a short** (the fully directional buy/sell
-  convention). Rejected: "sell without holdings" is a deliberate safety
-  control in the risk manager, and a short is a risk decision that deserves
-  its own action and its own gate.
-- **Letting a `"short"` signal flip an open long.** Rejected: a strategy can
-  emit `"sell"` and `"short"` in the same bar, and `sync_position` keeps the
-  risk view current, so the reversal already works without a new code path
-  (covered by `test_short_and_cover_in_the_same_bar_end_flat` and the probe).
-- **The gross-exposure test with a single symbol.** Rejected after the first
-  run: a `"buy"` against an open short is a *cover*, not a long, so the test
-  has to use two symbols for a long and a short.
+- **Keeping the old long-only helpers and adding direction-aware variants
+  under new names** (e.g. `get_position_stop_loss_for_short`). Rejected: it
+  leaves a public helper that silently returns the wrong threshold for a
+  short, which is exactly what the previous handoff forbade, and it doubles
+  the API surface for one formula.
+- **Adding an explicit `direction` argument to the four helpers.** Rejected:
+  the manager already knows the direction from the position it tracks, and an
+  extra argument invites a caller to pass the wrong one — the failure mode
+  being fixed in the first place.
+- **Adding an `is_short` field/property to the `Position` dataclass.**
+  Rejected as unnecessary: the sign of `quantity` is already the framework's
+  documented convention (`strategies/base.py:83`), and the portfolio layer
+  already derives the short's mirror-image behaviour from it
+  (`portfolio/portfolio.py:89-113`). A new field would have to be kept in
+  sync with the quantity for no gain.
+- **Wiring the helpers into the engine as automatic stop-loss / take-profit
+  exits.** Rejected: out of scope. The engine has no automatic exit, adding
+  one changes backtest behaviour, and the assigned task was explicitly the
+  helpers, not the engine.
+- **A separate `is_short_position` helper vs. an inline `position.quantity < 0`
+  check in each of the four helpers.** Chose the helper: it is used by both
+  `should_*` methods and by the two level methods, so a single definition
+  keeps the direction rules in one place.
 
 ## Next task (precise)
 
-**Make the stop loss and take profit helpers direction-aware.**
+**Make the trade analysis round-trip aware for shorts.**
 
-`RiskManager.get_position_stop_loss`, `get_position_take_profit`,
-`should_stop_loss` and `should_take_profit`
-(`quant_trading/risk/manager.py:448-504`) compute long-only thresholds, so
-they are wrong for the short positions this session added. A short's stop
-loss sits **above** the entry price and its take profit **below** it:
+`quant_trading/backtest/trade_analysis.py` was written for long-only round
+trips and now miscounts short round trips. Measured evidence (probe
+`/home/runner/work/_temp/kilo-tmp/kilo/probe_trade_analysis_shorts.py`, one
+round trip per run, entry at 50.0 and exit at 40.0, fees included):
 
-- `get_position_stop_loss`: `avg_price * (1 - stop_loss_pct)` for a long,
-  `avg_price * (1 + stop_loss_pct)` for a short.
-- `get_position_take_profit`: `avg_price * (1 + take_profit_pct)` for a long,
-  `avg_price * (1 - take_profit_pct)` for a short.
-- `should_stop_loss`: `current_price <= stop` for a long,
-  `current_price >= stop` for a short.
-- `should_take_profit`: `current_price >= tp` for a long,
-  `current_price <= tp` for a short.
+| | long (`buy` → `sell`) | short (`short` → `cover`) |
+| --- | --- | --- |
+| trades counted | 1 | **2** |
+| winning / losing | 0 / 1 | 1 / 1 |
+| win rate | 0.0 | **0.5** |
+| total PnL | -2027.0 | +1973.0 |
+| holding period | 2.0 days | **0.0 days** |
 
-The direction is `position.quantity`'s sign (`Position.quantity` is negative
-for a short — see `quant_trading/strategies/base.py` and the short positions
-the engine now produces, e.g. `result.positions["TEST"].quantity < 0`).
+The short round trip above was a **winner** (+1973.0), yet it is reported as
+two trades with a 50% win rate and no holding period at all.
+
+Two concrete causes:
+
+1. **`_calculate_holding_periods` (`trade_analysis.py:149`)** matches `"buy"`
+   entries against `"sell"` exits only, using a FIFO queue of open entries.
+   A `"short"` / `"cover"` pair is never matched, so a short contributes no
+   holding period. Nothing is corrupted — the short trades do not pollute the
+   long FIFO queue — but the statistic is simply missing for short
+   strategies.
+2. **`analyze_trades` (`trade_analysis.py:460-466`)** counts wins and losses
+   per trade row: `pnl_trades = trades[trades["pnl"] != 0]`, then
+   `winning = pnl_trades[pnl_trades["pnl"] > 0]`. A long's entry has
+   `pnl == 0.0` and is filtered out, so only the exit carries the round trip
+   PnL → 1 trade. A short's entry books the entry fee as realized PnL
+   (`quant_trading/backtest/engine.py:784`, `realized_pnl=-entry_fee`), so it
+   is a non-zero **negative** PnL and is counted as a **losing** trade, while
+   the cover books the price move → 2 trades for one round trip, one of which
+   is always a loss.
 
 Constraints and evidence:
 
-- The existing long behaviour is pinned by
-  `tests/test_risk_manager.py::TestStopLossTakeProfit` (lines 624-671); it
-  must not change.
-- The engine does not call these helpers, so the change is confined to
-  `quant_trading/risk/manager.py` plus tests; no backtest behaviour changes.
-- The position view the helpers read is `RiskManager.positions`, which is
-  kept current by `sync_position` — the same view the signal gate uses.
-- Add the mirrored cases to `TestStopLossTakeProfit`: a short position with a
-  negative quantity, and a short whose price crosses the mirrored thresholds.
-- Update the four docstrings to say which direction they apply to.
-- If the helpers are considered too narrow for the risk layer, the acceptable
-  alternative is to add direction-aware variants (e.g.
-  `get_position_stop_loss` returning the mirrored level) and keep the old
-  long-only behaviour under a new, explicit name — but do not leave a public
-  helper that silently returns the wrong threshold for a short.
+- **The trade log must not change.** The reconciliation invariant
+  `final_value - initial_capital == sum(trades["pnl"])` holds today for both
+  directions (verified in the probe) and must keep holding. So the fix
+  belongs in the *analysis*, not in the engine or in `Trade.pnl`.
+- The natural shape of the fix is to pair a `"short"` with the `"cover"` that
+  closes it (a FIFO queue per symbol, exactly like the long side) and to
+  count one round trip instead of two trades — i.e. the short's entry fee and
+  the cover's price move belong to the *same* round trip, the same way a
+  long's entry fee and exit PnL belong to the same round trip.
+- `_calculate_consecutive_streaks` (`trade_analysis.py:209`) and
+  `_calculate_symbol_stats` (`trade_analysis.py:318`) take the same
+  per-trade `pnl` frame and are affected in the same way; decide explicitly
+  whether they are round-trip based too, and say which choice was made.
+  Note that `_calculate_symbol_stats` counts **every** row of the symbol
+  (including the zero-PnL entries), while `analyze_trades` filters the
+  zero-PnL rows out first — that asymmetry already exists on the long side
+  and is worth deciding on explicitly rather than silently inheriting.
+- The existing long behaviour is pinned by `tests/test_trade_analysis.py`
+  (and the invariants in `tests/test_cost_accounting_invariants.py`); it must
+  not change.
+- Add the mirrored cases: a short round trip that wins, one that loses, a
+  partially covered short (several covers against one short), and a short that
+  is never covered — the last one has no round trip and must not be counted
+  as one (the long side has the same rule: an unclosed long contributes no
+  holding period).

@@ -1309,6 +1309,34 @@ def test_short_signal_is_rejected_while_a_long_position_is_open():
     assert result.positions["TEST"].quantity > 0
 
 
+def test_engine_short_gets_mirrored_stop_loss_and_take_profit():
+    """The risk manager's thresholds follow the direction of a short."""
+    data = {"TEST": _price_frame([50.0, 50.0])}
+    config = _short_config(
+        max_position_size=0.1,
+        max_leverage=1.0,
+        max_portfolio_risk=1.0,
+        stop_loss_pct=0.10,
+        take_profit_pct=0.20,
+    )
+
+    result, engine = _run_script([("short", 1.0)], data, config)
+
+    position = result.positions["TEST"]
+    assert position.quantity < 0
+    avg_price = position.avg_price
+    rm = engine.risk_manager
+    # The manager's own view of the position agrees with the result.
+    assert rm.positions["TEST"].quantity < 0
+    # A short's stop is above its entry price and its target below it.
+    assert rm.get_position_stop_loss("TEST") == pytest.approx(avg_price * 1.10)
+    assert rm.get_position_take_profit("TEST") == pytest.approx(avg_price * 0.80)
+    assert rm.should_stop_loss("TEST", avg_price * 1.10) is True
+    assert rm.should_take_profit("TEST", avg_price * 1.10) is False
+    assert rm.should_take_profit("TEST", avg_price * 0.80) is True
+    assert rm.should_stop_loss("TEST", avg_price * 0.80) is False
+
+
 def test_short_and_cover_in_the_same_bar_end_flat():
     """A short that is covered inside the same bar leaves no position behind."""
     data = {"TEST": _price_frame([50.0, 50.0])}
