@@ -98,6 +98,16 @@ class BuyThenSellStrategy(Strategy):
         return [Signal(symbol=symbol, action="sell", strength=1.0, price=price)]
 
 
+class NoTradeStrategy(Strategy):
+    """Never emits a signal."""
+
+    def __init__(self):
+        super().__init__(name="NoTrade")
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        return []
+
+
 def test_trade_cost_calculation():
     """Test Trade cost calculation with commission and slippage."""
     trade = Trade(
@@ -123,6 +133,31 @@ def test_trade_cost_calculation():
     )
     expected_cost_sell = 100 * 155.0 * (1 - 0.001 - 0.0005)
     assert abs(trade_sell.cost - expected_cost_sell) < 0.01
+
+
+def test_trade_fee_property():
+    """Trade.fee is the commission plus slippage charged on the gross value."""
+    buy = Trade(
+        symbol="AAPL",
+        action="buy",
+        quantity=100,
+        price=150.0,
+        timestamp=datetime.now(),
+        commission=0.001,
+        slippage=0.0005,
+    )
+    assert buy.fee == pytest.approx(100 * 150.0 * 0.0015)
+
+    sell = Trade(
+        symbol="AAPL",
+        action="sell",
+        quantity=100,
+        price=150.0,
+        timestamp=datetime.now(),
+        commission=0.001,
+        slippage=0.0005,
+    )
+    assert sell.fee == pytest.approx(100 * 150.0 * 0.0015)
 
 
 def test_backtest_engine_initialization():
@@ -187,6 +222,8 @@ def test_backtest_result_dataclass():
     assert result.final_value == 102000.0
     assert result.total_return == 2000.0
     assert result.total_return_pct == 2.0
+    # total_costs defaults to 0.0 so existing constructions keep working.
+    assert result.total_costs == 0.0
 
 
 def test_mock_backtest_run():
@@ -666,6 +703,88 @@ def test_signed_trade_cost_reconciles_with_final_value():
 
     # Buy-side fees are a cash drag, not realized PnL: pnl sum excludes them.
     assert costed.trades["pnl"].sum() != pytest.approx(costed.final_value - costed.initial_capital)
+
+
+def _round_trip_data() -> dict[str, pd.DataFrame]:
+    """Four-bar price series used by the cost-accounting tests."""
+    idx = pd.date_range("2024-01-01", periods=4, freq="D")
+    return {
+        "TEST": pd.DataFrame(
+            {
+                "open": [100.0, 110.0, 120.0, 130.0],
+                "high": [105.0, 115.0, 125.0, 135.0],
+                "low": [95.0, 105.0, 115.0, 125.0],
+                "close": [100.0, 110.0, 120.0, 130.0],
+            },
+            index=idx,
+        )
+    }
+
+
+def test_total_costs_equals_sum_of_per_trade_fees():
+    """total_costs is the commission + slippage paid on every executed trade."""
+    data = _round_trip_data()
+    costed = _engine_run(BuyThenSellStrategy(), data, 0.01, 0.005)
+
+    expected = 0.0
+    for _, trade in costed.trades.iterrows():
+        base = trade["quantity"] * trade["price"]
+        expected += base * (trade["commission"] + trade["slippage"])
+
+    assert costed.total_costs == pytest.approx(expected)
+    assert costed.total_costs == pytest.approx(costed.trades["fee"].sum())
+    assert costed.total_costs > 0
+
+    # A run without costs pays nothing.
+    zero = _engine_run(BuyThenSellStrategy(), data, 0.0, 0.0)
+    assert zero.total_costs == pytest.approx(0.0)
+
+
+def test_total_costs_is_zero_when_no_trades_execute():
+    """A run that never trades pays no costs."""
+    data = _round_trip_data()
+    result = _engine_run(NoTradeStrategy(), data, 0.01, 0.005)
+
+    assert result.trades.empty
+    assert result.total_costs == 0.0
+
+
+def test_total_costs_reconciles_with_pnl_and_final_value():
+    """The headline numbers reconcile against the trade log.
+
+    - ``total_costs`` splits into the buy-side and sell-side fees.
+    - ``final_value - initial_capital`` equals the sum of the signed trade
+      costs (buys reduce cash, sells increase it).
+    - ``sum(Trade.pnl)`` is realized-only: it is already net of the sell-side
+      fees but not of the buy-side fees, so the cash change is lower by the
+      buy-side fees.
+    - For a fully liquidated round trip the costed final value is exactly the
+      zero-cost final value minus ``total_costs``.
+    """
+    data = _round_trip_data()
+    zero = _engine_run(BuyThenSellStrategy(), data, 0.0, 0.0)
+    costed = _engine_run(BuyThenSellStrategy(), data, 0.01, 0.005)
+    trades = costed.trades
+
+    buy_fees = trades[trades["action"] == "buy"]["fee"].sum()
+    sell_fees = trades[trades["action"] == "sell"]["fee"].sum()
+    assert costed.total_costs == pytest.approx(buy_fees + sell_fees)
+    assert buy_fees > 0
+    assert sell_fees > 0
+
+    cash_change = costed.final_value - costed.initial_capital
+    signed_cost = 0.0
+    for _, trade in trades.iterrows():
+        signed_cost += trade["cost"] if trade["action"] == "sell" else -trade["cost"]
+    assert cash_change == pytest.approx(signed_cost)
+
+    # Realized PnL is net of the sell-side fees only, so it exceeds the cash
+    # change by the buy-side fees.
+    assert cash_change == pytest.approx(trades["pnl"].sum() - buy_fees)
+    assert trades["pnl"].sum() != pytest.approx(cash_change)
+
+    # Both runs are fully liquidated, so all fees land in the final value.
+    assert zero.final_value - costed.final_value == pytest.approx(costed.total_costs)
 
 
 if __name__ == "__main__":

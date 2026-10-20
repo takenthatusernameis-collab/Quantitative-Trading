@@ -674,6 +674,7 @@ class WalkForwardOptimizer:
         all_equity: list[float] = []
         all_trades: list[pd.DataFrame] = []
         all_dates: list[datetime] = []
+        combined_costs = 0.0
 
         initial_capital = self.initial_capital
         cumulative_final = initial_capital
@@ -690,6 +691,8 @@ class WalkForwardOptimizer:
             all_trades.append(w.test_result.trades)
             all_dates.extend(eq.index[1:].tolist())
             cumulative_final = float(scaled[-1])
+            # Costs are paid per window, so the combined total is their sum.
+            combined_costs += w.test_result.total_costs
 
         if not all_equity:
             return None
@@ -722,4 +725,5 @@ class WalkForwardOptimizer:
             final_value=combined_equity.iloc[-1],
             total_return=combined_equity.iloc[-1] - initial_capital,
             total_return_pct=(combined_equity.iloc[-1] / initial_capital - 1) * 100,
+            total_costs=combined_costs,
         )

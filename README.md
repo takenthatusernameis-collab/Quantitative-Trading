@@ -47,6 +47,7 @@ result = run_backtest(
 )
 
 print(f"Total Return: {result.total_return_pct:.2f}%")
+print(f"Trading Costs: {result.total_costs:.2f}")
 print(f"Sharpe Ratio: {result.metrics.sharpe_ratio:.2f}")
 print(f"Max Drawdown: {result.metrics.max_drawdown_pct:.2f}%")
 ```

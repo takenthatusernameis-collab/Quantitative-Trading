@@ -154,6 +154,37 @@ class Trade:
             return base * (1 - self.commission - self.slippage)
 
     @property
+    def fee(self) -> float:
+        """Total commission and slippage charged for this trade.
+
+        The fee is always paid on the gross trade value, so it is positive
+        for both buys and sells.
+
+        Returns:
+            ``quantity * price * (commission + slippage)``.
+
+        Examples:
+            Compute the fee charged on a round-trip trade::
+
+                from datetime import datetime
+
+                from quant_trading.backtest.engine import Trade
+
+                buy = Trade(
+                    symbol="AAPL",
+                    action="buy",
+                    quantity=100,
+                    price=150.0,
+                    timestamp=datetime.now(),
+                    commission=0.001,
+                    slippage=0.0005,
+                )
+                assert buy.fee == 22.5
+
+        """
+        return self.quantity * self.price * (self.commission + self.slippage)
+
+    @property
     def pnl(self) -> float:
         """Realized PnL for this trade.
 
@@ -172,7 +203,7 @@ class BacktestResult:
     Attributes:
         equity_curve: Equity curve as a pandas Series indexed by date.
         trades: DataFrame containing trade details (symbol, action, quantity,
-            price, timestamp, commission, slippage, cost, pnl).
+            price, timestamp, commission, slippage, cost, fee, pnl).
         positions: Current positions dictionary.
         metrics: Backtest performance metrics.
         start_date: Backtest start date.
@@ -182,6 +213,20 @@ class BacktestResult:
         total_return: Total dollar return.
         total_return_pct: Total return percentage.
         portfolio_violations: List of portfolio-level violation messages.
+        total_costs: Total commission and slippage paid over the run. It is
+            the sum of the per-trade fees, i.e. ``quantity * price *
+            (commission + slippage)`` for every executed trade.
+
+    The headline numbers reconcile against the trade log as follows:
+
+    - ``final_value - initial_capital`` equals the sum of the signed
+      ``Trade.cost`` values (buys reduce cash, sells increase it), because
+      commission and slippage are charged to cash on both sides.
+    - ``sum(Trade.pnl)`` is realized-only and is already net of the
+      sell-side fees, so it exceeds the cash change by the buy-side fees:
+      ``final_value - initial_capital == sum(Trade.pnl) - buy_side_fees``.
+      The buy-side share is ``trades[trades["action"] == "buy"]["fee"].sum()``
+      and the sell-side share is the remainder of ``total_costs``.
 
     Examples:
         Inspect key result fields after a backtest run::
@@ -191,6 +236,7 @@ class BacktestResult:
             assert isinstance(result.metrics.sharpe_ratio, float)
             assert result.trades is not None
             assert result.equity_curve is not None
+            assert result.total_costs >= 0
 
     """
 
@@ -205,6 +251,7 @@ class BacktestResult:
     total_return: float
     total_return_pct: float
     portfolio_violations: list[str] = field(default_factory=list)
+    total_costs: float = 0.0
 
 
 class BacktestEngine:
@@ -402,11 +449,16 @@ class BacktestEngine:
                     "commission": t.commission,
                     "slippage": t.slippage,
                     "cost": t.cost,
+                    "fee": t.fee,
                     "pnl": t.pnl,
                 }
                 for t in trades_list
             ]
         )
+
+        # Total commission and slippage paid across the run. It is derived from
+        # the executed trades so it always matches the trade log.
+        total_costs = sum(t.fee for t in trades_list)
 
         from quant_trading.backtest.metrics import calculate_backtest_metrics
 
@@ -429,6 +481,7 @@ class BacktestEngine:
             total_return=self.portfolio.total_value - self.config.initial_capital,
             total_return_pct=(self.portfolio.total_value / self.config.initial_capital - 1) * 100,
             portfolio_violations=portfolio_violations,
+            total_costs=total_costs,
         )
 
     def _process_signal(
