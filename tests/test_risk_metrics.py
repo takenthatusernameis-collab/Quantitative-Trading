@@ -191,10 +191,17 @@ class TestCalculateSharpeRatio:
 class TestCalculateSortinoRatio:
     """Tests for calculate_sortino_ratio."""
 
+    @staticmethod
+    def _downside_deviation(returns: pd.Series, mar: float) -> float:
+        """The documented downside deviation: sqrt(sum(min(0, r - MAR)^2) / N)."""
+        shortfalls = np.minimum(returns.to_numpy(dtype=float) - mar, 0.0)
+        return float(np.sqrt(np.mean(shortfalls**2)))
+
     def test_normal_case(self):
         sortino = calculate_sortino_ratio(RETURNS, risk_free_rate=0.02)
-        downside = RETURNS[RETURNS < 0]
-        expected = (RETURNS.mean() - 0.02 / 252) / downside.std() * np.sqrt(252)
+        mar = 0.02 / 252
+        downside_dev = self._downside_deviation(RETURNS, mar)
+        expected = (RETURNS.mean() - mar) / downside_dev * np.sqrt(252)
         assert sortino == pytest.approx(expected)
 
     def test_no_downside_returns_zero(self):
@@ -204,16 +211,41 @@ class TestCalculateSortinoRatio:
     def test_empty_returns_zero(self):
         assert calculate_sortino_ratio(pd.Series([], dtype=float)) == pytest.approx(0.0)
 
-    def test_single_downside_returns_zero(self):
-        """A single downside observation must not yield NaN (downside std undefined)."""
+    def test_single_downside_is_defined(self):
+        """A single losing period still yields a defined downside deviation.
+
+        The downside deviation is taken over the full sample, so one losing
+        observation contributes its squared shortfall instead of making the
+        metric undefined.
+        """
         single_down = pd.Series([0.01, 0.02, -0.01, 0.02, 0.01])
         result = calculate_sortino_ratio(single_down, risk_free_rate=0.02)
         assert not np.isnan(result)
-        assert result == pytest.approx(0.0)
+        mar = 0.02 / 252
+        expected = (
+            (single_down.mean() - mar) / self._downside_deviation(single_down, mar) * np.sqrt(252)
+        )
+        assert result == pytest.approx(expected)
+        assert result > 0.0
 
-    def test_identical_downside_returns_zero(self):
+    def test_loss_only_series_is_negative(self):
+        """A strategy that never beats the MAR must not report a zero ratio."""
+        losing = pd.Series([-0.01, -0.02, -0.01, -0.03])
+        result = calculate_sortino_ratio(losing, risk_free_rate=0.02)
+        assert not np.isnan(result)
+        assert result < 0.0
+
+    def test_identical_downside_is_not_zero(self):
+        """Identical losing periods still have a non-zero downside deviation."""
         identical = pd.Series([0.01, -0.02, -0.02, 0.01])
-        assert calculate_sortino_ratio(identical) == pytest.approx(0.0)
+        result = calculate_sortino_ratio(identical, risk_free_rate=0.02)
+        assert not np.isnan(result)
+        mar = 0.02 / 252
+        expected = (
+            (identical.mean() - mar) / self._downside_deviation(identical, mar) * np.sqrt(252)
+        )
+        assert result == pytest.approx(expected)
+        assert result < 0.0
 
     def test_non_annualized(self):
         """annualize=False skips the sqrt(252) scaling (risk/metrics.py:90->92)."""
@@ -223,8 +255,9 @@ class TestCalculateSortinoRatio:
 
     def test_periods_per_year_used_for_risk_free_and_scaling(self):
         """The annual risk-free rate and the sqrt scaling must use periods_per_year."""
-        downside = RETURNS[RETURNS < 0]
-        expected = (RETURNS.mean() - 0.02 / 52) / downside.std() * np.sqrt(52)
+        mar = 0.02 / 52
+        downside_dev = self._downside_deviation(RETURNS, mar)
+        expected = (RETURNS.mean() - mar) / downside_dev * np.sqrt(52)
         sortino = calculate_sortino_ratio(RETURNS, risk_free_rate=0.02, periods_per_year=52)
         assert sortino == pytest.approx(expected)
 

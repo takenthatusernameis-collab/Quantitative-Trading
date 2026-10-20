@@ -12,8 +12,8 @@ Examples:
     >>> equity = (1 + prices.pct_change().fillna(0)).cumprod() * 100
     >>> from quant_trading.risk.metrics import calculate_all_metrics
     >>> metrics = calculate_all_metrics(equity)
-    >>> metrics.sharpe_ratio  # doctest: +ELLIPSIS
-    ...
+    >>> round(metrics.sharpe_ratio, 2)
+    7.75
 
 """
 
@@ -90,7 +90,7 @@ def calculate_returns(prices: pd.Series) -> pd.Series:
         >>> import pandas as pd
         >>> prices = pd.Series([100, 102, 101, 104])
         >>> calculate_returns(prices).round(3).tolist()
-        [0.02, -0.0098, 0.0297]
+        [0.02, -0.01, 0.03]
 
     """
     return prices.pct_change().dropna()
@@ -185,7 +185,7 @@ def calculate_sharpe_ratio(
         >>> import pandas as pd
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, 0.01])
         >>> round(calculate_sharpe_ratio(returns, annualize=False), 2)
-        2.06
+        1.06
 
     """
     returns = returns.dropna()
@@ -209,8 +209,18 @@ def calculate_sortino_ratio(
 ) -> float:
     """Calculate Sortino ratio (uses downside deviation).
 
-    Sortino ratio = (mean(excess returns)) / downside_std, where
-    downside_std is the standard deviation of returns below zero.
+    Sortino ratio = (mean(excess returns)) / downside deviation, where
+    excess returns are returns minus the risk-free rate per period (the
+    minimum acceptable return, MAR) and the downside deviation is
+
+        sqrt(sum(min(0, r - MAR) ** 2) / N)
+
+    over the full sample: every observation counts towards the divisor,
+    but only returns below the MAR contribute their squared shortfall.
+    This is the standard downside deviation. Unlike the standard
+    deviation of the losing subset it stays defined for a single losing
+    period, and a strategy that only loses money keeps a negative ratio
+    instead of collapsing to zero.
 
     Args:
         returns: Return series.
@@ -221,26 +231,25 @@ def calculate_sortino_ratio(
 
     Returns:
         Sortino ratio, or 0.0 if insufficient data or zero downside
-        deviation.
+        deviation (no return below the minimum acceptable return).
 
     Examples:
         >>> import pandas as pd
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, 0.01])
         >>> round(calculate_sortino_ratio(returns, annualize=False), 2)
-        1.98
+        4.37
 
     """
     returns = returns.dropna()
     if len(returns) == 0:
         return 0.0
-    downside = returns[returns < 0]
-    if len(downside) < 2:
+    mar = risk_free_rate / periods_per_year
+    excess = float(returns.mean()) - mar
+    shortfalls = np.minimum(returns.to_numpy(dtype=float) - mar, 0.0)
+    downside_deviation = float(np.sqrt(np.mean(shortfalls**2)))
+    if not np.isfinite(downside_deviation) or downside_deviation == 0:
         return 0.0
-    downside_std = downside.std()
-    if not np.isfinite(downside_std) or downside_std == 0:
-        return 0.0
-    excess = returns.mean() - risk_free_rate / periods_per_year
-    sortino = excess / downside_std
+    sortino = excess / downside_deviation
     if annualize:
         sortino *= np.sqrt(periods_per_year)
     return float(sortino)
@@ -367,8 +376,10 @@ def calculate_calmar_ratio(
         >>> import pandas as pd
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015])
         >>> equity = (1 + returns).cumprod() * 100
+        >>> round(calculate_max_drawdown(equity), 4)
+        -0.005
         >>> round(calculate_calmar_ratio(returns, equity), 2)
-        1.09
+        504.0
 
     """
     returns = returns.dropna()
@@ -408,8 +419,10 @@ def calculate_all_metrics(
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015])
         >>> equity = (1 + returns).cumprod() * 100
         >>> metrics = calculate_all_metrics(equity)
-        >>> metrics.sharpe_ratio  # doctest: +ELLIPSIS
-        ...
+        >>> round(metrics.sharpe_ratio, 2)
+        11.9
+        >>> round(metrics.max_drawdown, 4)
+        -0.005
 
     """
     returns = calculate_returns(equity_curve)

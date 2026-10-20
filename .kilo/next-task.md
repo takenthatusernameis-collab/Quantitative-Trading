@@ -2,163 +2,198 @@
 
 ## What changed
 
-Fixed three defects in `quant_trading/risk/manager.py`. All three are
-behaviour-preserving for callers that do not hit the buggy state, and each one
-contradicts a contract the module already documents.
+The assigned task — "make the doctests in `quant_trading/risk/metrics.py` executable
+and correct" — is **done**. All six failing doctests now pass, and doctests are
+collected by the default test run so they cannot drift again unnoticed.
 
-1. **`check_signal` ignored an explicit `portfolio_value=0.0`**
-   (`quant_trading/risk/manager.py:225`). The line read
-   `value = portfolio_value or self.portfolio_risk.total_market_value`, and
-   `or` treats `0.0` as "not supplied", so an explicit zero fell back to the
-   manager's internal value. The `if value <= 0` guard directly below it
-   ("Portfolio value is zero or negative") was therefore unreachable for
-   exactly `0.0` while still rejecting `-1.0`. The docstring already said
-   "uses internal if None", so the fix is an explicit `is None` check.
+### 1. Doctest collection is now part of the default suite
 
-2. **`current_drawdown` was measured against the *previous* peak**
-   (`quant_trading/risk/manager.py:168-183`). `self.peak_value` was updated
-   only *after* `PortfolioRisk` was constructed, so the drawdown was computed
-   against the stale peak. Two consequences: a portfolio at a new all-time
-   high reported a **positive** drawdown (`+0.2` after rising from 100,000 to
-   120,000), even though `PortfolioRisk.current_drawdown` is documented as
-   "0.0 = at peak"; and `PortfolioRisk.peak_value`, documented as "Peak
-   portfolio value observed", was one update behind. The peak is now
-   computed first, so the drawdown is always `<= 0` and agrees with the
-   drawdown that `PortfolioLimit.check` computes from the same peak
-   (`quant_trading/risk/limits.py:144`).
+`pyproject.toml` (`[tool.pytest.ini_options]`):
 
-3. **`reset()` left the last computed metrics behind**
-   (`quant_trading/risk/manager.py:394`). `self.risk_metrics` was not
-   cleared, so a manager that had computed metrics still reported the
-   Sharpe/drawdown of the discarded equity curve after a reset. The existing
-   test `tests/test_risk_manager.py:432` already asserted `rm.risk_metrics is
-   None` after `reset()`, but it never computed metrics first, so the
-   assertion was vacuous and hid the bug.
+```toml
+testpaths = ["tests", "quant_trading"]
+addopts = "--doctest-modules"
+```
+
+This was the configuration proposed by the previous handoff and it was re-verified
+on the current tree: `pytest` with no arguments now collects **84 doctest items**
+from `quant_trading/` in addition to the unit tests. `pytest tests/` still works
+and now also runs the doctests embedded in the test files themselves
+(1512 passed, 1 skipped).
+
+`README.md` was updated: the "Running Tests" section said `pytest tests/ -v`,
+which would have skipped the new doctests. It now documents `pytest -v`.
+
+One coupling to keep in mind: `--doctest-modules` makes pytest **import** every
+module under `quant_trading/`. That is safe today (`yfinance` is imported lazily
+inside a function at `quant_trading/data/yfinance_provider.py:85`, so the
+module imports without the optional dependency installed), but a future module
+with a top-level import of an optional dependency would break collection for the
+whole suite.
+
+### 2. Five docstring-only failures were transcription fixes
+
+| Location | Was | Now | Why the old value was wrong |
+| --- | --- | --- | --- |
+| `metrics.py:15` (module docstring) | `...` | `round(metrics.sharpe_ratio, 2)` -> `7.75` | A bare `...` is doctest's "expect no output" marker, so the `+ELLIPSIS` directive on the line above it never applied. |
+| `metrics.py:411` (`calculate_all_metrics`) | `...` | `round(metrics.sharpe_ratio, 2)` -> `11.9` plus `round(metrics.max_drawdown, 4)` -> `-0.005` | Same malformed `...` pattern. |
+| `metrics.py:92` (`calculate_returns`) | `[0.02, -0.0098, 0.0297]` | `[0.02, -0.01, 0.03]` | `Series.round(3)` really does give `-0.01` and `0.03`; the old value was pre-rounding. |
+| `metrics.py:187` (`calculate_sharpe_ratio`) | `2.06` | `1.06` | The code matches the documented formula (mean(excess) / std). |
+| `metrics.py:370` (`calculate_calmar_ratio`) | `1.09` | `504.0` | The code matches the documented formula (annual return / abs(max drawdown)). The example now also prints `round(calculate_max_drawdown(equity), 4)` -> `-0.005` so the large ratio is explainable: a 252-day annualization over a 0.5% drawdown. |
+
+### 3. The Sortino conflict was resolved: standard downside deviation
+
+This was the one real decision in the assigned task, so the reasoning is recorded
+in full.
+
+`calculate_sortino_ratio` used the **sample standard deviation of the losing
+subset** (`downside.std()`, ddof=1 over `returns[returns < 0]`). The previous
+handoff listed three candidate definitions; the third one (`excess /
+abs(worst_return)`, which is what the old `1.98` corresponded to) is not a
+recognised Sortino definition and was rejected. Between the other two:
+
+* `downside.std()` is not a downside deviation in the standard sense — it
+  measures the *dispersion of the losses* and discards their mean.
+* The standard downside deviation is
+  `sqrt(sum(min(0, r - MAR) ** 2) / N)` over the full sample, where `MAR` is
+  the risk-free rate per period. This is what the `RiskMetrics.sortino_ratio`
+  attribute docstring (`metrics.py:32`) already called "downside deviation".
+
+**Decision: implement the standard downside deviation.** Evidence for why the old
+behaviour was a defect rather than a style preference:
+
+* With one losing period the old code returned `0.0` — "no downside risk" for a
+  strategy that did have a losing period.
+* With identical losing periods (`[0.01, -0.02, -0.02, 0.01]`) the old code also
+  returned `0.0`, reporting a money-losing strategy as neutral.
+* The old code returned `0.0` for a loss-only series, i.e. a strategy that never
+  beat the risk-free rate was reported as having zero risk-adjusted performance.
+  The new definition returns a negative ratio.
+
+The new implementation (`quant_trading/risk/metrics.py:236-256`):
+
+```python
+mar = risk_free_rate / periods_per_year
+excess = float(returns.mean()) - mar
+shortfalls = np.minimum(returns.to_numpy(dtype=float) - mar, 0.0)
+downside_deviation = float(np.sqrt(np.mean(shortfalls**2)))
+if not np.isfinite(downside_deviation) or downside_deviation == 0:
+    return 0.0
+```
+
+`0.0` is still returned for exactly the documented "no downside deviation" case
+(no return below the MAR), which is what `test_no_downside_returns_zero` pins.
+
+### 4. Tests updated to match the new definition
+
+`tests/test_risk_metrics.py` — `TestCalculateSortinoRatio` now computes its
+expected values from the documented formula via a `_downside_deviation` helper
+(the style already used elsewhere in this file), so the test cannot drift from
+the implementation:
+
+* `test_normal_case` — expected value recomputed from the new formula.
+* `test_single_downside_returns_zero` -> `test_single_downside_is_defined` —
+  a single losing period now yields a real value (34.937 for the old sample),
+  not `0.0`.
+* `test_identical_downside_returns_zero` -> `test_identical_downside_is_not_zero`
+  — now a negative value (-5.679 for the old sample).
+* `test_loss_only_series_is_negative` — **new**; a loss-only series must be negative.
+* `test_periods_per_year_used_for_risk_free_and_scaling` — expected recomputed.
+
+`tests/test_backtest_metrics.py:243-248` — the `sortino_ratio` assertion in
+`test_periods_per_year_applies_to_every_annualized_metric` used
+`downside.std()`; it now uses the documented formula.
 
 ## Verified
 
-- `pytest tests/ -q`: **1511 passed, 1 skipped** (was 1506 passed, 1 skipped).
-  Five new tests, no regressions.
-- `pytest --doctest-modules tests/ quant_trading/ -q`: **1589 passed, 1 skipped,
-  6 failed** — the 6 failures are pre-existing doctest failures in
-  `quant_trading/risk/metrics.py` and are the next task (see below). They are
-  unrelated to this change and were present before it.
-- `ruff check quant_trading/ tests/`: clean.
-- `mypy quant_trading/`: clean (36 source files).
-- `black --check quant_trading/risk/manager.py tests/test_risk_manager.py`:
-  clean. (`black --check` still flags `quant_trading/strategies/examples.py`
-  and `tests/test_portfolio.py`; both are pre-existing drift in files this
-  change does not touch.)
-- `python examples/cli.py --offline --symbols AAPL --days 120` runs clean.
-- `python examples/run_analysis.py` runs clean.
-- A standalone reproducer (`/home/runner/work/_temp/kilo-tmp/repro_risk_manager.py`)
-  was run before and after the change and shows the before/after values for
-  all three defects.
+- `pytest` (default, now including doctests): **1596 passed, 1 skipped, 0 failed**.
+  Baseline before this change was 1511 passed, 1 skipped; the delta is
+  84 newly-collected doctests + 1 new unit test.
+- `pytest tests/`: **1512 passed, 1 skipped**.
+- `pytest --doctest-modules quant_trading/`: **84 passed, 0 failed**
+  (was 6 failed, 78 passed).
+- `pytest --collect-only -q | grep -c "^quant_trading/"`: **84** doctest items
+  are collected by the default run.
+- `ruff check .`: clean. `mypy quant_trading/`: clean (36 source files).
+- `black --check quant_trading/ tests/`: only the two pre-existing offenders
+  remain (`quant_trading/strategies/examples.py`, `tests/test_portfolio.py`);
+  the three files changed here are clean.
+- `python examples/cli.py --offline --symbols AAPL --days 120`: runs clean and
+  now prints a negative Sortino (`-15.76`) for that losing backtest, where the
+  old definition printed `0.0`.
+- `python examples/run_analysis.py`: runs clean.
+- `python examples/run_backtest_offline.py`: runs clean.
+- Rounding margins for every float asserted in a doctest were measured: the
+  smallest distance at which a doctest output would change is `2.4e-4`
+  relative (`all_metrics` Sharpe, `11.9`). Every other one is larger. The
+  float-noise floor is ~1e-16, so none of these are close to flipping.
 
 ## Behaviour changes to be aware of
 
-- `check_signal(signal, portfolio_value=0.0)` now **fails** the risk check
-  instead of silently using the internal portfolio value. That is the point
-  of the fix; `-1.0` already behaved this way.
-- `PortfolioRisk.current_drawdown` is now `0.0` at a new peak instead of a
-  positive number, and `PortfolioRisk.peak_value` now holds the real peak
-  instead of the previous one. `history[-1]["drawdown"]` changes with it.
-  `RiskManager.peak_value` and `check_portfolio()` are unaffected — they
-  already used the updated peak.
-- `RiskManager.risk_metrics` is `None` after `reset()`.
+- `calculate_sortino_ratio` now uses the standard downside deviation. Numbers
+  change for every series with at least one return below the per-period
+  risk-free rate, and signs change for series whose mean return is below it.
+- A single losing period no longer yields `0.0`; a loss-only series no longer
+  yields `0.0`.
+- `RiskMetrics.sortino_ratio` and `BacktestMetrics.sortino_ratio` inherit the
+  change (both call `calculate_sortino_ratio`).
+- `TradeAnalysis.sortino_ratio` inherits the change (it calls the same
+  function on the per-trade return series).
+- No other metric, and no other module's behaviour, changed.
 
-One existing assertion changed:
-`tests/test_risk_manager.py:86` asserted
-`current_drawdown == approx((120000 - 100000) / 100000)` (i.e. `+0.2`) at a new
-peak. It now asserts `0.0`, which is what the attribute's own docstring
-specifies. No other existing assertion was touched, and no production caller
-depends on the old values (the only consumer, `Rebalancer._risk_adjust_buy`
-at `quant_trading/portfolio/rebalancer.py:689`, compares against a negative
-threshold and is unaffected at a peak).
+## Environment note (not a code change)
+
+The test environment had no dependencies installed. To reproduce the runs above:
+
+```bash
+python3 -m pip install -r requirements.txt black ruff mypy pandas-stubs types-requests types-PyYAML
+python3 -m pip install "scikit-optimize==0.10.2"   # optional extra; 0.10.2 is the newest release available for Python 3.12
+```
+
+Without `scikit-optimize`, 11 tests in `tests/test_optimization.py` fail with
+`ImportError: BayesianOptimizer requires scikit-optimize`. That is an optional
+dependency declared under `[project.optional-dependencies] bayesian`, not a
+regression. Note `pyproject.toml` requires `scikit-optimize>=0.10.0`; 0.10.2
+satisfies it.
 
 ## Note on the previously assigned task
 
-The task named in the previous handoff — "Fix `Rebalancer.generate_rebalance_actions`
-ignoring sell signals for short positions" — **was already implemented before
-this session started** and needed no work:
-
-- `quant_trading/portfolio/rebalancer.py:422` already reads
-  `if holding and holding.quantity != 0:` (not `> 0`).
-- The regression test already exists:
-  `tests/test_rebalancer.py:131` (`test_generate_rebalance_actions_sell_signal_short`).
-- `Portfolio.remove_holding` (`quant_trading/portfolio/portfolio.py:332-354`)
-  already covers a short position and debits cash for it.
-
-Do not re-implement it. The previous handoff's evidence was stale.
+The task named in the previous handoff was implemented in this session (see
+"What changed" above). Nothing from it was left undone.
 
 ## Next task
 
-**Make the doctests in `quant_trading/risk/metrics.py` executable and correct.**
+**Give `quant_trading/regime/detector.py` the same treatment: make its
+documented examples executable, and fix the segment-return defect that the
+previous handoff recorded.**
 
-Evidence: `pytest --doctest-modules quant_trading/` reports
-**6 failed, 78 passed** — every failing doctest lives in
-`quant_trading/risk/metrics.py`, and CI never runs them because
-`pyproject.toml` sets `testpaths = ["tests"]` with no `--doctest-modules`.
-So the module's documented examples have silently drifted away from the code.
+Evidence carried forward from the previous handoff (re-verify before changing
+anything — it was not checked in this session):
 
-The six failures, with the exact expected/actual values:
-
-| Location | Expected | Actual | Classification |
-| --- | --- | --- | --- |
-| `metrics.py:15` (module docstring) | nothing | `7.750049096947889` | malformed doctest: a bare `...` line means "expect no output" in doctest, so the `+ELLIPSIS` directive never applies |
-| `metrics.py:411` (`calculate_all_metrics`) | nothing | `11.90476190476198` | same malformed `...` pattern |
-| `metrics.py:370` (`calculate_calmar_ratio`) | `1.09` | `504.0` | docstring is wrong; the code matches the documented formula (annual return / abs(max drawdown)) |
-| `metrics.py:92` (`calculate_returns`) | `[0.02, -0.0098, 0.0297]` | `[0.02, -0.01, 0.03]` | docstring is wrong; `Series.round(3)` really does give `-0.01` and `0.03` |
-| `metrics.py:187` (`calculate_sharpe_ratio`) | `2.06` | `1.06` | docstring is wrong; the code matches the documented formula (mean(excess) / std) |
-| `metrics.py:229` (`calculate_sortino_ratio`) | `1.98` | `0.0` | **genuine conflict — needs a decision (see below)** |
-
-Constraints and suggested approach:
-
-- Add doctest collection to the pytest configuration so these examples are
-  checked in CI. A verified configuration is
-  `testpaths = ["tests", "quant_trading"]` plus
-  `addopts = "--doctest-modules"`: with it the suite is
-  **1589 passed, 1 skipped, 6 failed**, i.e. no existing test breaks and no
-  other module's doctests break. Confirm the exact configuration on the
-  current tree before committing.
-- Fix the five docstring-only failures by correcting the expected output
-  (or, for the two bare `...` cases, by asserting a concrete value such as
-  `bool(metrics.sharpe_ratio)` -> `True`).
-- The Sortino case is a real decision, not a transcription fix.
-  `calculate_sortino_ratio` returns `0.0` whenever the return series has
-  fewer than two losing observations (`quant_trading/risk/metrics.py:236-241`),
-  so a strategy with a single loss reports "no downside risk" at all. The
-  docstring's `1.98` corresponds to neither the code's `downside.std()`
-  (undefined for one observation) nor the standard downside deviation
-  `sqrt(sum(min(0, r - MAR)^2) / N)`; it corresponds to
-  `excess / abs(worst_return)`. Pick one definition, state it in the
-  docstring, implement it, and align the example.
-- `tests/test_risk_metrics.py:194-216` pins the current behaviour: the
-  `downside.std()` (ddof=1 over the losing subset only) divisor at line 197,
-  and `0.0` for a single downside observation at lines 207-212. Those
-  assertions will have to change if the definition changes; update them
-  deliberately and explain why in the handoff.
-- `tests/test_risk_metrics.py:194-198` is a good model for the style used in
-  this repository: the expected value is computed from the same definition
-  the implementation uses, so the test cannot drift from the code.
-
-Useful context for later, if time allows: other findings that were
-investigated and deliberately deferred, with their current status.
-
-- `quant_trading/risk/limits.py:106,108` — `max_portfolio_risk` and
-  `max_leverage` are configurable and documented but never enforced by
-  `PortfolioLimit.check()`. This is a missing feature, not a bug, and is
-  larger in scope.
+- `quant_trading/regime/detector.py:358` — a NaN price shifts the label-to-bar
+  mapping (the return series is compacted with `dropna()` but the segment
+  builder assumes label `i` is bar `i + 1`), producing wrong segment boundaries
+  and `NaN` segment returns. **No test pins the buggy behaviour**, so this is
+  the safest of the three.
 - `quant_trading/regime/detector.py:539-553` — a segment's `return_pct` uses
   `prices[end] / prices[start + 1] - 1`, which drops the segment's first
-  labeled return, so a one-bar segment always reports `0.0%` even when the
-  bar moved 10%. Existing tests pin the current formula, so changing it
-  changes documented semantics.
-- `quant_trading/regime/detector.py:358` — a NaN price shifts the
-  label-to-bar mapping (the return series is compacted with `dropna()` but
-  the segment builder assumes label `i` is bar `i + 1`), producing wrong
-  segment boundaries and `NaN` segment returns. No test pins the buggy
-  behaviour.
-- `quant_trading/backtest/engine.py:443` — the equity curve index is
-  `[start] + processed_dates`, which produces a duplicate timestamp when
-  `start` equals the first processed date.
+  labeled return, so a one-bar segment always reports `0.0%` even when the bar
+  moved 10%. Existing tests pin the current formula, so changing it changes
+  documented semantics — decide explicitly and update the pinned tests.
+- `quant_trading/risk/limits.py:106,108` — `max_portfolio_risk` and
+  `max_leverage` are configurable and documented but never enforced by
+  `PortfolioLimit.check()`. This is a **missing feature, not a bug**, and is
+  larger in scope; treat it as a separate task.
+
+Constraints for the next agent:
+
+- `pytest` now collects doctests from `quant_trading/`, so any docstring
+  example added or edited must actually pass. Run `pytest` (no path argument) —
+  `pytest tests/` skips the `quant_trading/` doctests.
+- Keep the same style: expected values in docstrings are computed from the same
+  definition the implementation uses, and tests derive their expected values
+  from the documented formula rather than hard-coding literals.
+- Prefer correcting a docstring over changing code **when the code already
+  matches the module's own documented contract** (that was the case for four of
+  the five transcription fixes). Change code only when the contract itself is
+  wrong, and say so in the handoff.

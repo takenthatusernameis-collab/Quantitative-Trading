@@ -39,7 +39,8 @@ where = ["."]
 include = ["quant_trading*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "quant_trading"]
+addopts = "--doctest-modules"
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

@@ -240,9 +240,10 @@ class TestBacktestMetricsPeriodsPerYear:
         assert metrics.sharpe_ratio == pytest.approx(
             (returns.mean() - 0.02 / 12) / returns.std() * np.sqrt(12)
         )
-        downside = returns[returns < 0]
+        shortfalls = np.minimum(returns.to_numpy(dtype=float) - 0.02 / 12, 0.0)
+        downside_dev = np.sqrt(np.mean(shortfalls**2))
         assert metrics.sortino_ratio == pytest.approx(
-            (returns.mean() - 0.02 / 12) / downside.std() * np.sqrt(12)
+            (returns.mean() - 0.02 / 12) / downside_dev * np.sqrt(12)
         )
         running_max = self.EQUITY.cummax()
         max_dd = ((self.EQUITY - running_max) / running_max).min()

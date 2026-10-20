@@ -148,7 +148,8 @@ strategy = Strategy.from_config({
 ## Running Tests
 
 ```bash
-pytest tests/ -v
+# Full suite: unit tests plus the doctests embedded in quant_trading/
+pytest -v
 ```
 
 ## Code Quality
