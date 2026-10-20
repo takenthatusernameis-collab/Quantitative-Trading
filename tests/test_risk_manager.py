@@ -248,6 +248,65 @@ class TestCalculateMetrics:
         assert isinstance(metrics.alpha, float)
 
 
+class TestRiskFreeRate:
+    """Tests for the risk_free_rate handling in RiskManager."""
+
+    def test_init_stores_risk_free_rate(self):
+        rm = RiskManager(risk_free_rate=0.05)
+        assert rm.risk_free_rate == 0.05
+
+    def test_default_risk_free_rate_is_002(self):
+        rm = RiskManager()
+        assert rm.risk_free_rate == 0.02
+
+    def test_calculate_metrics_uses_configured_rate(self):
+        """A non-default risk-free rate must reach the computed Sharpe/Sortino."""
+        rm_default = RiskManager(initial_capital=100000.0)
+        rm_high = RiskManager(initial_capital=100000.0, risk_free_rate=0.10)
+
+        # Build an equity curve with several up and down moves so both the
+        # Sharpe and the Sortino have non-zero denominators.
+        for value in (
+            100000.0,
+            105000.0,
+            102000.0,
+            108000.0,
+            104000.0,
+            110000.0,
+            107000.0,
+            109000.0,
+            106000.0,
+            108000.0,
+        ):
+            rm_default.update_portfolio_value({}, value)
+            rm_high.update_portfolio_value({}, value)
+
+        default_metrics = rm_default.calculate_metrics()
+        high_metrics = rm_high.calculate_metrics()
+
+        # A higher risk-free rate lowers the excess return, so the Sharpe
+        # and Sortino must differ from the default-rate computation.
+        assert default_metrics.sharpe_ratio != 0.0
+        assert default_metrics.sortino_ratio != 0.0
+        assert high_metrics.sharpe_ratio != pytest.approx(default_metrics.sharpe_ratio)
+        assert high_metrics.sortino_ratio != pytest.approx(default_metrics.sortino_ratio)
+
+    def test_calculate_metrics_explicit_argument_overrides_config(self):
+        """An explicit risk_free_rate argument overrides the configured rate."""
+        rm = RiskManager(initial_capital=100000.0, risk_free_rate=0.10)
+        rm.update_portfolio_value({}, 110000.0)
+        rm.update_portfolio_value({}, 105000.0)
+
+        from quant_trading.risk.metrics import calculate_all_metrics
+
+        equity_series = pd.Series(rm.equity_curve)
+        expected = calculate_all_metrics(equity_series, risk_free_rate=0.01, periods_per_year=252)
+
+        metrics = rm.calculate_metrics(risk_free_rate=0.01)
+        assert metrics.sharpe_ratio == pytest.approx(expected.sharpe_ratio)
+        assert metrics.sortino_ratio == pytest.approx(expected.sortino_ratio)
+
+
 class TestStopLossTakeProfit:
     """Tests for stop-loss and take-profit helpers."""
 

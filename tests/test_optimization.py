@@ -1648,6 +1648,123 @@ def test_walk_forward_with_failing_strategy_skips_test():
         assert window.test_result is None
 
 
+def test_walk_forward_risk_free_rate_reaches_combined_metrics():
+    """The configured risk-free rate must reach the combined test result's metrics.
+
+    Regression test: the combined walk-forward result previously hardcoded
+    ``risk_free_rate=0.02`` regardless of the configured value.
+    """
+    from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.metrics import calculate_backtest_metrics
+    from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+    start_dt = datetime(2024, 1, 1)
+    # Use equity curves with enough up/down moves that both Sharpe and
+    # Sortino have non-zero denominators (a single downside bar yields 0.0).
+    eq1 = pd.Series(
+        [100000.0, 105000.0, 102000.0, 108000.0, 104000.0, 110000.0, 105000.0],
+        index=pd.to_datetime(
+            [
+                "2024-02-01",
+                "2024-02-06",
+                "2024-02-11",
+                "2024-02-16",
+                "2024-02-21",
+                "2024-02-26",
+                "2024-03-01",
+            ]
+        ),
+    )
+    eq2 = pd.Series(
+        [100000.0, 95000.0, 97000.0, 93000.0, 96000.0, 92000.0, 95000.0],
+        index=pd.to_datetime(
+            [
+                "2024-03-01",
+                "2024-03-06",
+                "2024-03-11",
+                "2024-03-16",
+                "2024-03-21",
+                "2024-03-26",
+                "2024-04-01",
+            ]
+        ),
+    )
+
+    def build_optimizer(risk_free_rate: float) -> WalkForwardOptimizer:
+        return WalkForwardOptimizer(
+            strategy_cls=MovingAverageCrossover,
+            param_grid=ParameterGrid(),
+            objective=maximize_sharpe,
+            symbols=["AAPL"],
+            start=datetime(2024, 1, 1),
+            end=datetime(2024, 4, 1),
+            initial_capital=100000.0,
+            risk_free_rate=risk_free_rate,
+            data_manager=DataManager([MockDataProvider({"AAPL": create_test_data("AAPL", 200)})]),
+        )
+
+    optimizer_default = build_optimizer(0.02)
+    optimizer_high = build_optimizer(0.10)
+
+    def make_windows(optimizer: WalkForwardOptimizer) -> list[WalkForwardWindow]:
+        m1 = calculate_backtest_metrics(eq1)
+        m2 = calculate_backtest_metrics(eq2)
+        return [
+            WalkForwardWindow(
+                train_start=start_dt,
+                train_end=datetime(2024, 2, 1),
+                test_start=datetime(2024, 2, 1),
+                test_end=datetime(2024, 3, 1),
+                best_params={"fast_period": 5, "slow_period": 20},
+                test_result=BacktestResult(
+                    equity_curve=eq1,
+                    trades=pd.DataFrame(),
+                    positions={},
+                    metrics=m1,
+                    start_date=datetime(2024, 2, 1),
+                    end_date=datetime(2024, 3, 1),
+                    initial_capital=100000.0,
+                    final_value=eq1.iloc[-1],
+                    total_return=eq1.iloc[-1] - 100000.0,
+                    total_return_pct=(eq1.iloc[-1] / 100000.0 - 1) * 100,
+                ),
+            ),
+            WalkForwardWindow(
+                train_start=start_dt,
+                train_end=datetime(2024, 3, 1),
+                test_start=datetime(2024, 3, 1),
+                test_end=datetime(2024, 4, 1),
+                best_params={"fast_period": 5, "slow_period": 20},
+                test_result=BacktestResult(
+                    equity_curve=eq2,
+                    trades=pd.DataFrame(),
+                    positions={},
+                    metrics=m2,
+                    start_date=datetime(2024, 3, 1),
+                    end_date=datetime(2024, 4, 1),
+                    initial_capital=100000.0,
+                    final_value=eq2.iloc[-1],
+                    total_return=eq2.iloc[-1] - 100000.0,
+                    total_return_pct=(eq2.iloc[-1] / 100000.0 - 1) * 100,
+                ),
+            ),
+        ]
+
+    combined_default = optimizer_default._combine_test_results(make_windows(optimizer_default))
+    combined_high = optimizer_high._combine_test_results(make_windows(optimizer_high))
+
+    assert combined_default is not None
+    assert combined_high is not None
+    assert combined_default.metrics.sharpe_ratio != 0.0
+    assert combined_default.metrics.sortino_ratio != 0.0
+    assert combined_high.metrics.sharpe_ratio != pytest.approx(
+        combined_default.metrics.sharpe_ratio
+    )
+    assert combined_high.metrics.sortino_ratio != pytest.approx(
+        combined_default.metrics.sortino_ratio
+    )
+
+
 def test_bayesian_optimizer_error_handling_quiet(monkeypatch):
     """When skopt fails and verbose is False, the except branch runs without
     printing (the `if self.verbose` False branch, 206->209)."""

@@ -288,6 +288,8 @@ class WalkForwardOptimizer:
             "bayesian").
         optimizer_kwargs: Additional keyword arguments forwarded to the
             backend optimizer.
+        risk_free_rate: Annual risk-free rate used for risk-adjusted metrics
+            in the combined test result (default 0.02).
         verbose: Whether to print progress information.
 
     Examples:
@@ -330,6 +332,7 @@ class WalkForwardOptimizer:
         optimizer: str = "grid",
         optimizer_kwargs: dict[str, Any] | None = None,
         periods_per_year: int = 252,
+        risk_free_rate: float = 0.02,
         verbose: bool = False,
     ):
         """Initialize walk-forward optimizer.
@@ -357,6 +360,8 @@ class WalkForwardOptimizer:
             periods_per_year: Trading periods per year used to annualize the
                 return, volatility, Sharpe, Sortino and Calmar metrics
                 (default 252 for daily data).
+            risk_free_rate: Annual risk-free rate used for risk-adjusted
+                metrics in the combined test result (default 0.02).
             verbose: Print progress.
 
         """
@@ -378,6 +383,7 @@ class WalkForwardOptimizer:
         self.optimizer_type = optimizer
         self.optimizer_kwargs = optimizer_kwargs or {}
         self.periods_per_year = periods_per_year
+        self.risk_free_rate = risk_free_rate
         self.verbose = verbose
 
         if step_size is None:
@@ -710,7 +716,7 @@ class WalkForwardOptimizer:
         metrics = calculate_backtest_metrics(
             combined_equity,
             combined_trades,
-            risk_free_rate=0.02,
+            risk_free_rate=self.risk_free_rate,
             periods_per_year=self.periods_per_year,
         )
 

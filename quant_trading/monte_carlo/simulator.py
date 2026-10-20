@@ -261,6 +261,8 @@ class MonteCarloSimulator:
         n_simulations: Number of alternative equity curves to generate.
         confidence_level: Confidence level used for intervals (0-1).
         random_state: Seed for reproducible simulation runs.
+        risk_free_rate: Annual risk-free rate used for the simulated
+            Sharpe/Sortino metrics (default 0.02).
         _rng: Internal numpy random generator.
 
     Examples:
@@ -279,6 +281,7 @@ class MonteCarloSimulator:
         confidence_level: float = 0.95,
         random_state: int | None = None,
         periods_per_year: int = 252,
+        risk_free_rate: float = 0.02,
     ):
         """Initialize the Monte Carlo simulator.
 
@@ -289,12 +292,15 @@ class MonteCarloSimulator:
             periods_per_year: Trading periods per year of the resampled
                 returns, used to annualize the simulated metrics (default 252
                 for daily data).
+            risk_free_rate: Annual risk-free rate used for the simulated
+                Sharpe/Sortino metrics (default 0.02).
 
         """
         self.n_simulations = n_simulations
         self.confidence_level = confidence_level
         self.random_state = random_state
         self.periods_per_year = periods_per_year
+        self.risk_free_rate = risk_free_rate
         self._rng = np.random.default_rng(random_state)
 
     def run(
@@ -398,7 +404,7 @@ class MonteCarloSimulator:
 
             metrics = calculate_backtest_metrics(
                 equity_series,
-                risk_free_rate=0.02,
+                risk_free_rate=self.risk_free_rate,
                 periods_per_year=self.periods_per_year,
             )
             simulations.append(metrics)
@@ -448,7 +454,7 @@ class MonteCarloSimulator:
 
             metrics = calculate_backtest_metrics(
                 equity_series,
-                risk_free_rate=0.02,
+                risk_free_rate=self.risk_free_rate,
                 periods_per_year=self.periods_per_year,
             )
             simulations.append(metrics)
@@ -463,6 +469,7 @@ def run_monte_carlo(
     method: str = "bootstrap",
     random_state: int | None = None,
     periods_per_year: int = 252,
+    risk_free_rate: float = 0.02,
 ) -> MonteCarloResult:
     """Run Monte Carlo simulation for a backtest result.
 
@@ -475,6 +482,8 @@ def run_monte_carlo(
         periods_per_year: Trading periods per year of the resampled returns,
             used to annualize the simulated metrics (default 252 for daily
             data).
+        risk_free_rate: Annual risk-free rate used for the simulated
+            Sharpe/Sortino metrics (default 0.02).
 
     Returns:
         MonteCarloResult with simulation statistics.
@@ -490,5 +499,6 @@ def run_monte_carlo(
         confidence_level=confidence_level,
         random_state=random_state,
         periods_per_year=periods_per_year,
+        risk_free_rate=risk_free_rate,
     )
     return simulator.run(result, method=method)

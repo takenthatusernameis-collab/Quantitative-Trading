@@ -65,6 +65,7 @@ class RiskManager:
 
     Attributes:
         initial_capital: Starting capital.
+        risk_free_rate: Annual risk-free rate used for risk-adjusted metrics.
         position_limit: Position limit configuration.
         portfolio_limit: Portfolio limit configuration.
         portfolio_risk: Current portfolio risk state.
@@ -91,6 +92,7 @@ class RiskManager:
         max_positions: int = 20,
         stop_loss_pct: float = 0.05,
         take_profit_pct: float = 0.15,
+        risk_free_rate: float = 0.02,
     ):
         """Initialize risk manager.
 
@@ -102,12 +104,16 @@ class RiskManager:
             max_positions: Maximum number of positions allowed.
             stop_loss_pct: Default stop loss percentage.
             take_profit_pct: Default take profit percentage.
+            risk_free_rate: Annual risk-free rate used for risk-adjusted
+                metrics (Sharpe/Sortino/alpha). Defaults to 0.02 to match
+                the rest of the framework.
 
         Returns:
             None.
 
         """
         self.initial_capital = initial_capital
+        self.risk_free_rate = risk_free_rate
         self.position_limit = PositionLimit(
             max_size=max_position_size,
             max_value=initial_capital * max_position_size,
@@ -275,6 +281,7 @@ class RiskManager:
         self,
         market_returns: pd.Series | None = None,
         periods_per_year: int = 252,
+        risk_free_rate: float | None = None,
     ) -> RiskMetrics:
         """Calculate current risk metrics from equity curve.
 
@@ -282,6 +289,8 @@ class RiskManager:
             market_returns: Optional benchmark returns for beta/alpha.
             periods_per_year: Number of periods per year used for annualization
                 (default 252 for daily data).
+            risk_free_rate: Annual risk-free rate used for risk-adjusted
+                metrics. Defaults to the manager's configured rate.
 
         Returns:
             Computed RiskMetrics object.
@@ -291,7 +300,7 @@ class RiskManager:
         self.risk_metrics = calculate_all_metrics(
             equity_series,
             market_returns=market_returns,
-            risk_free_rate=0.02,
+            risk_free_rate=self.risk_free_rate if risk_free_rate is None else risk_free_rate,
             periods_per_year=periods_per_year,
         )
         return self.risk_metrics

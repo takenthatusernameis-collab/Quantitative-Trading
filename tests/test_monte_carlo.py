@@ -315,5 +315,53 @@ def test_monte_carlo_probability_of_beat_benchmark_extremes():
     assert sim.probability_of_beat_benchmark(low_benchmark) == 1.0
 
 
+def test_monte_carlo_simulator_stores_risk_free_rate():
+    """The simulator stores the configured risk-free rate."""
+    simulator = MonteCarloSimulator(n_simulations=5, random_state=7, risk_free_rate=0.05)
+    assert simulator.risk_free_rate == 0.05
+
+
+def test_monte_carlo_default_risk_free_rate_is_002():
+    simulator = MonteCarloSimulator(n_simulations=5, random_state=7)
+    assert simulator.risk_free_rate == 0.02
+
+
+def test_monte_carlo_risk_free_rate_reaches_simulated_metrics():
+    """A non-default risk-free rate must change the simulated Sharpe/Sortino.
+
+    Regression test: the simulator previously hardcoded ``risk_free_rate=0.02``
+    in both the bootstrap and parametric methods.
+    """
+    result = _make_result()
+
+    default = run_monte_carlo(result, n_simulations=30, random_state=7, risk_free_rate=0.02)
+    high = run_monte_carlo(result, n_simulations=30, random_state=7, risk_free_rate=0.10)
+
+    assert len(default.simulations) == 30
+    assert len(high.simulations) == 30
+
+    # Same seed => same equity curves, so the only difference is the rate.
+    for d, h in zip(default.simulations, high.simulations):
+        assert d.total_return_pct == pytest.approx(h.total_return_pct)
+        assert h.sharpe_ratio != pytest.approx(d.sharpe_ratio)
+        assert h.sortino_ratio != pytest.approx(d.sortino_ratio)
+
+
+def test_monte_carlo_risk_free_rate_parametric_method():
+    """The risk-free rate is honoured by the parametric method too."""
+    result = _make_result()
+
+    default = run_monte_carlo(
+        result, n_simulations=20, method="parametric", random_state=7, risk_free_rate=0.02
+    )
+    high = run_monte_carlo(
+        result, n_simulations=20, method="parametric", random_state=7, risk_free_rate=0.10
+    )
+
+    for d, h in zip(default.simulations, high.simulations):
+        assert d.total_return_pct == pytest.approx(h.total_return_pct)
+        assert h.sharpe_ratio != pytest.approx(d.sharpe_ratio)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
