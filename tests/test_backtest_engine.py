@@ -791,3 +791,48 @@ def test_total_costs_reconciles_with_pnl_and_final_value():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_buy_signal_with_existing_position_at_target_does_not_trade():
+    """available_value <= 0 branch: no trade when position already at target."""
+    from quant_trading.config.settings import BacktestConfig
+
+    data = create_synthetic_data(["AAPL"], days=5)
+    provider = MockDataProvider(data)
+    config = BacktestConfig(initial_capital=100000.0, commission=0.001, slippage=0.0005)
+    engine = BacktestEngine(config=config, data_manager=DataManager([provider]))
+    engine.add_strategy(NoTradeStrategy())
+    # Pre-load a holding at full position limit so a subsequent buy has no room.
+    engine.portfolio.add_holding("AAPL", 1000.0, float(data["AAPL"]["close"].iloc[0]))
+    initial_cash = engine.portfolio.cash
+    trades: list[Trade] = []
+    engine._process_signal(
+        Signal(symbol="AAPL", action="buy", strength=0.1, price=float(data["AAPL"]["close"].iloc[0])),
+        trades,
+        datetime.now(),
+    )
+    assert trades == []
+    assert engine.portfolio.cash == initial_cash
+
+
+def test_run_backtest_with_config_creates_data_manager():
+    """config is not None branch: create_data_manager_from_config path runs."""
+    from quant_trading.config.settings import Config
+
+    config = Config()
+    config.data.offline = True
+    config.data.provider = "synthetic"
+    result = run_backtest(
+        strategy=MovingAverageCrossover(fast_period=5, slow_period=20),
+        symbols=["AAPL"],
+        start=datetime.now() - timedelta(days=50),
+        end=datetime.now(),
+        initial_capital=100000.0,
+        commission=0.001,
+        slippage=0.0005,
+        data_manager=None,
+        config=config,
+    )
+    assert isinstance(result, BacktestResult)
+    assert result.initial_capital == 100000.0
+    assert result.metrics is not None
