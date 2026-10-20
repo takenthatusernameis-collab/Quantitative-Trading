@@ -55,6 +55,21 @@ class Holding:
             assert holding.unrealized_pnl == 5000.0
             assert holding.unrealized_pnl_pct == 0.5
 
+        A short with the same prices is the mirror image: its PnL and its
+        percentage are the negation of the long's::
+
+            holding = Holding(
+                symbol="AAPL", quantity=-100, avg_cost=100.0, current_price=150.0
+            )
+            assert holding.unrealized_pnl == -5000.0
+            assert holding.unrealized_pnl_pct == -0.5
+
+        A zero-quantity holding reports 0.0 for both::
+
+            holding = Holding(symbol="AAPL", quantity=0, avg_cost=100.0, current_price=150.0)
+            assert holding.unrealized_pnl == 0.0
+            assert holding.unrealized_pnl_pct == 0.0
+
     """
 
     symbol: str
@@ -77,10 +92,19 @@ class Holding:
 
     @property
     def unrealized_pnl_pct(self) -> float:
-        """Unrealized profit and loss as a percentage of average cost."""
-        if self.avg_cost == 0:
+        """Unrealized profit and loss as a percentage of cost basis.
+
+        The percentage carries the sign of the position's PnL, so a long and a
+        short with the same prices are mirror images: their ``unrealized_pnl``
+        and ``unrealized_pnl_pct`` are negations of each other. A
+        zero-quantity holding (or one with a zero cost basis) reports 0.0.
+
+        The relation ``unrealized_pnl == abs(quantity) * abs(avg_cost) *
+        unrealized_pnl_pct`` holds for every holding.
+        """
+        if self.quantity == 0 or self.avg_cost == 0:
             return 0.0
-        return (self.current_price - self.avg_cost) / self.avg_cost
+        return copysign(1.0, self.quantity) * (self.current_price - self.avg_cost) / self.avg_cost
 
     def update_price(self, price: float) -> None:
         """Update current price and recalculate market value.

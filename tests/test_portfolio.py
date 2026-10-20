@@ -33,6 +33,17 @@ class TestHolding:
         holding = Holding(symbol="AAPL", quantity=100, avg_cost=100.0, current_price=150.0)
         assert holding.unrealized_pnl_pct == pytest.approx(0.5)
 
+    def test_unrealized_pnl_pct_short(self):
+        """unrealized_pnl_pct is the negation of the long's for a short."""
+        holding = Holding(symbol="AAPL", quantity=-100, avg_cost=100.0, current_price=150.0)
+        assert holding.unrealized_pnl == pytest.approx(-5000.0)
+        assert holding.unrealized_pnl_pct == pytest.approx(-0.5)
+
+    def test_unrealized_pnl_pct_zero_quantity(self):
+        """unrealized_pnl_pct returns 0 when quantity is zero."""
+        holding = Holding(symbol="AAPL", quantity=0, avg_cost=100.0, current_price=150.0)
+        assert holding.unrealized_pnl_pct == 0.0
+
     def test_to_position(self):
         """to_position converts a Holding to a Position."""
         holding = Holding(
