@@ -18,9 +18,31 @@ from datetime import datetime
 from quant_trading.strategies.base import Position
 
 
+def gross_exposure(position: Position) -> float:
+    """Compute the gross exposure of a single position.
+
+    Gross exposure is the absolute market value of a position, so a short
+    position counts as a commitment of the same size as a long position of
+    equal size. Concentration limits are measured on this gross figure: a
+    signed market value would let a short position pass the limit simply
+    because its market value is negative.
+
+    Args:
+        position: Position to measure.
+
+    Returns:
+        Absolute market value of the position.
+
+    """
+    return abs(position.market_value)
+
+
 @dataclass
 class PositionLimit:
     """Limits for a single position.
+
+    Limits are measured on the gross exposure of the position, so a short
+    position is limited exactly like a long position of the same size.
 
     Attributes:
         max_size: Maximum position size as fraction of portfolio (e.g., 0.1 = 10%).
@@ -37,6 +59,12 @@ class PositionLimit:
             >>> pos = Position(symbol="AAPL", quantity=200, avg_price=100.0, current_price=110.0)
             >>> pl.check(pos, portfolio_value=100000.0)
             ['Position size 22.00% exceeds max 10.00%']
+
+        A short position is limited on its gross exposure too::
+
+            >>> short = Position(symbol="AAPL", quantity=-200, avg_price=100.0, current_price=100.0)
+            >>> pl.check(short, portfolio_value=100000.0)
+            ['Position size 20.00% exceeds max 10.00%']
 
     """
 
@@ -61,7 +89,7 @@ class PositionLimit:
         if position.quantity == 0:
             return violations
 
-        position_value = position.market_value
+        position_value = gross_exposure(position)
         position_pct = position_value / portfolio_value if portfolio_value > 0 else 0
 
         if position_pct > self.max_size:
@@ -78,6 +106,10 @@ class PositionLimit:
 @dataclass
 class PortfolioLimit:
     """Limits for the entire portfolio.
+
+    The per-position size limit is measured on the gross exposure of each
+    position, so a short position is limited exactly like a long position of
+    the same size.
 
     Attributes:
         max_positions: Maximum number of open positions allowed.
@@ -122,6 +154,15 @@ class PortfolioLimit:
             ... }
             >>> pl.check(positions, portfolio_value=100000.0, peak_value=100000.0)
             ['Portfolio leverage 1.20x exceeds max 1.00x']
+
+        A short position is limited on its gross exposure, like a long::
+
+            >>> pl = PortfolioLimit(max_position_size=0.1, max_portfolio_risk=1.0, max_leverage=1.0)
+            >>> positions = {
+            ...     "AAPL": Position(symbol="AAPL", quantity=-400, avg_price=150.0, current_price=150.0)
+            ... }
+            >>> pl.check(positions, portfolio_value=100000.0, peak_value=100000.0)
+            ['Position AAPL size 60.00% exceeds max 10.00%']
 
     """
 
@@ -203,8 +244,8 @@ class PortfolioLimit:
         """
         if portfolio_value <= 0:
             return 0.0
-        gross_exposure = sum(abs(pos.market_value) for pos in positions.values())
-        return gross_exposure / portfolio_value
+        gross = sum(gross_exposure(pos) for pos in positions.values())
+        return gross / portfolio_value
 
     def check(
         self,
@@ -233,7 +274,7 @@ class PortfolioLimit:
         for symbol, pos in positions.items():
             if pos.quantity == 0:
                 continue
-            pos_pct = pos.market_value / portfolio_value if portfolio_value > 0 else 0
+            pos_pct = gross_exposure(pos) / portfolio_value if portfolio_value > 0 else 0
             if pos_pct > self.max_position_size:
                 violations.append(
                     f"Position {symbol} size {pos_pct:.2%} exceeds max {self.max_position_size:.2%}"

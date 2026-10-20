@@ -728,6 +728,10 @@ Leverage is *gross* exposure: the absolute market value of every open position
 divided by the portfolio value, so an equally sized long and short do not
 cancel each other out.
 
+`max_position_size` is measured on gross exposure as well, so a short position
+is limited exactly like a long position of the same size. `PositionLimit`
+applies the same rule to its `max_size` and `max_value` limits.
+
 ```python
 from quant_trading.risk.limits import PortfolioLimit
 from quant_trading.strategies.base import Position
@@ -739,6 +743,13 @@ positions = {
 limit.check(positions, portfolio_value=100000.0, peak_value=100000.0)
 # ['Portfolio risk 3.00% exceeds max 2.00%']
 ```
+
+The risk budget is a portfolio-wide commitment, so it also bounds the gross
+exposure that may be open at once: with the default `max_portfolio_risk` of
+`0.02` and a `stop_loss_pct` of `0.05`, more than 40% of the portfolio value
+may be open before the risk limit is breached. The portfolio risk and leverage
+limits are reported when a portfolio is checked; they do not by themselves
+resize or reject an individual order.
 
 ## Annualization Periods
 

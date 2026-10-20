@@ -340,9 +340,7 @@ class TestPortfolio:
 
         # Invariants
         # Sum of absolute values for gross should equal sum of abs for all
-        assert sum(gross_alloc.values()) == pytest.approx(
-            sum(abs(v) for v in net_alloc.values())
-        )
+        assert sum(gross_alloc.values()) == pytest.approx(sum(abs(v) for v in net_alloc.values()))
         # Net and gross should have same magnitude per position
         for sym in net_alloc:
             assert abs(net_alloc[sym]) == pytest.approx(abs(gross_alloc[sym]))
@@ -422,8 +420,8 @@ class TestPortfolio:
     def test_allocation_invariants_gross_sum_exceeds_one_when_leveraged(self):
         """Gross exposure exceeds 100% when longs and shorts are both present."""
         portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
-        portfolio.add_holding("AAPL", 100, 100.0)   # +10000
-        portfolio.add_holding("GOOG", -50, 200.0)   # -10000
+        portfolio.add_holding("AAPL", 100, 100.0)  # +10000
+        portfolio.add_holding("GOOG", -50, 200.0)  # -10000
         gross = portfolio.get_gross_allocation()
         # total_value = 100000 + 10000 - 10000 = 100000; gross = (10000+10000)/100000 = 0.2
         assert sum(gross.values()) == pytest.approx(0.2)

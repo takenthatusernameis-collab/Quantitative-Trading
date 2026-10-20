@@ -2,7 +2,7 @@
 
 import pytest
 
-from quant_trading.risk.limits import CheckResult, PortfolioLimit, PositionLimit
+from quant_trading.risk.limits import CheckResult, PortfolioLimit, PositionLimit, gross_exposure
 from quant_trading.strategies.base import Position
 
 
@@ -327,6 +327,95 @@ class TestPortfolioLimitLeverage:
         }
         assert limit.leverage(positions, 0.0) == 0.0
         assert limit.check(positions, 0.0, 0.0) == []
+
+
+class TestPositionLimitGrossExposure:
+    """Tests that position limits are measured on gross exposure."""
+
+    def test_short_position_size_violation(self):
+        """A short position is limited like a long position of the same size."""
+        limit = PositionLimit(max_size=0.1, max_value=50000.0)
+        short = Position(symbol="AAPL", quantity=-200, avg_price=100.0, current_price=100.0)
+        violations = limit.check(short, 100000.0)
+        assert len(violations) == 1
+        assert "20.00%" in violations[0]
+        assert "exceeds max" in violations[0]
+
+    def test_short_position_value_violation(self):
+        """The dollar value limit applies to a short position as well."""
+        limit = PositionLimit(max_size=0.5, max_value=10000.0)
+        short = Position(symbol="AAPL", quantity=-100, avg_price=150.0, current_price=150.0)
+        violations = limit.check(short, 100000.0)
+        assert len(violations) == 1
+        assert "$15,000.00" in violations[0]
+        assert "exceeds max" in violations[0]
+
+    def test_short_position_within_limits(self):
+        """A small short position produces no violation."""
+        limit = PositionLimit(max_size=0.1, max_value=50000.0)
+        short = Position(symbol="AAPL", quantity=-50, avg_price=150.0, current_price=150.0)
+        assert limit.check(short, 100000.0) == []
+
+    def test_long_and_short_of_equal_size_are_equivalent(self):
+        """The same limits apply to a long and a short of the same size."""
+        limit = PositionLimit(max_size=0.1, max_value=50000.0)
+        long = Position(symbol="AAPL", quantity=200, avg_price=100.0, current_price=100.0)
+        short = Position(symbol="AAPL", quantity=-200, avg_price=100.0, current_price=100.0)
+        assert limit.check(long, 100000.0) == limit.check(short, 100000.0)
+
+    def test_gross_exposure_helper(self):
+        """The gross exposure of a position is its absolute market value."""
+        long = Position(symbol="AAPL", quantity=200, avg_price=100.0, current_price=100.0)
+        short = Position(symbol="AAPL", quantity=-200, avg_price=100.0, current_price=100.0)
+        assert gross_exposure(long) == pytest.approx(20000.0)
+        assert gross_exposure(short) == pytest.approx(20000.0)
+
+
+class TestPortfolioLimitGrossExposure:
+    """Tests that the portfolio position size limit uses gross exposure."""
+
+    def test_short_position_size_violation(self):
+        """An oversized short is reported like an oversized long."""
+        limit = PortfolioLimit(
+            max_position_size=0.1,
+            max_portfolio_risk=1.0,
+            max_leverage=10.0,
+        )
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=-400, avg_price=150.0, current_price=150.0),
+        }
+        violations = limit.check(positions, 100000.0, 100000.0)
+        assert len(violations) == 1
+        assert "AAPL" in violations[0]
+        assert "60.00%" in violations[0]
+
+    def test_short_position_within_limits(self):
+        """A small short position produces no violation."""
+        limit = PortfolioLimit(
+            max_position_size=0.1,
+            max_portfolio_risk=1.0,
+            max_leverage=10.0,
+        )
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=-50, avg_price=150.0, current_price=150.0),
+        }
+        assert limit.check(positions, 100000.0, 100000.0) == []
+
+    def test_offsetting_short_does_not_hide_the_long(self):
+        """A short does not offset a long for the per-position size limit."""
+        limit = PortfolioLimit(
+            max_position_size=0.1,
+            max_portfolio_risk=1.0,
+            max_leverage=10.0,
+        )
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=400, avg_price=150.0, current_price=150.0),
+            "MSFT": Position(symbol="MSFT", quantity=-400, avg_price=150.0, current_price=150.0),
+        }
+        violations = limit.check(positions, 100000.0, 100000.0)
+        assert len(violations) == 2
+        assert any("AAPL" in v for v in violations)
+        assert any("MSFT" in v for v in violations)
 
 
 class TestCheckResult:

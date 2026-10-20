@@ -786,7 +786,11 @@ class MACDStrategy(Strategy):
 
             # Bullish crossover: MACD line crosses above signal line
             if macd_prev <= signal_prev and macd_current > signal_current:
-                strength = min(1.0, abs(macd_current - signal_current) / abs(signal_current) + 0.5) if signal_current != 0 else 0.5
+                strength = (
+                    min(1.0, abs(macd_current - signal_current) / abs(signal_current) + 0.5)
+                    if signal_current != 0
+                    else 0.5
+                )
                 metadata = {
                     "macd": macd_current,
                     "signal": signal_current,
@@ -807,7 +811,11 @@ class MACDStrategy(Strategy):
                 )
             # Bearish crossover: MACD line crosses below signal line
             elif macd_prev >= signal_prev and macd_current < signal_current:
-                strength = min(1.0, abs(signal_current - macd_current) / abs(signal_current) + 0.5) if signal_current != 0 else 0.5
+                strength = (
+                    min(1.0, abs(signal_current - macd_current) / abs(signal_current) + 0.5)
+                    if signal_current != 0
+                    else 0.5
+                )
                 metadata = {
                     "macd": macd_current,
                     "signal": signal_current,
