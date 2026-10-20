@@ -222,11 +222,14 @@ class BacktestResult:
     - ``final_value - initial_capital`` equals the sum of the signed
       ``Trade.cost`` values (buys reduce cash, sells increase it), because
       commission and slippage are charged to cash on both sides.
-    - ``sum(Trade.pnl)`` is realized-only and is already net of the
-      sell-side fees, so it exceeds the cash change by the buy-side fees:
-      ``final_value - initial_capital == sum(Trade.pnl) - buy_side_fees``.
-      The buy-side share is ``trades[trades["action"] == "buy"]["fee"].sum()``
-      and the sell-side share is the remainder of ``total_costs``.
+    - Entry fees are capitalized into the position's cost basis
+      (``Holding.avg_cost``), so realized PnL is net of both buy-side and
+      sell-side fees. For a fully liquidated round trip,
+      ``final_value - initial_capital == sum(Trade.pnl)``; with open
+      positions remaining, realized PnL excludes the basis of unsold shares.
+    - The buy-side share of costs is
+      ``trades[trades["action"] == "buy"]["fee"].sum()`` and the sell-side
+      share is the remainder of ``total_costs``.
 
     Examples:
         Inspect key result fields after a backtest run::

@@ -132,6 +132,32 @@ class TestPortfolio:
         assert portfolio.holdings["AAPL"].quantity == 150
         assert portfolio.holdings["AAPL"].avg_cost == pytest.approx((10000.0 + 6000.0) / 150)
 
+    def test_add_holding_capitalizes_entry_fees(self):
+        """A new long position costs at price including commission and slippage."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 10, 100.0, commission=0.001, slippage=0.0005)
+        assert portfolio.holdings["AAPL"].quantity == 10
+        assert portfolio.holdings["AAPL"].avg_cost == pytest.approx(100.0 * (1 + 0.001 + 0.0005))
+        assert portfolio.cash == pytest.approx(
+            100000.0 - 10 * 100.0 * (1 + 0.001 + 0.0005)
+        )
+
+    def test_add_holding_averaging_includes_entry_fees(self):
+        """Lots added to a long are averaged at their fee-inclusive cost."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 100, 100.0, commission=0.001, slippage=0.0005)
+        portfolio.add_holding("AAPL", 50, 120.0, commission=0.001, slippage=0.0005)
+        assert portfolio.holdings["AAPL"].quantity == 150
+        expected = (100 * 100.0 * 1.0015 + 50 * 120.0 * 1.0015) / 150
+        assert portfolio.holdings["AAPL"].avg_cost == pytest.approx(expected)
+
+    def test_short_position_keeps_execution_price_as_basis(self):
+        """A new short position keeps the execution price as its basis."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", -100, 100.0, commission=0.001, slippage=0.0005)
+        assert portfolio.holdings["AAPL"].quantity == -100
+        assert portfolio.holdings["AAPL"].avg_cost == pytest.approx(100.0)
+
     def test_update_prices_existing(self):
         """update_prices recalculates market value for held symbols."""
         portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)

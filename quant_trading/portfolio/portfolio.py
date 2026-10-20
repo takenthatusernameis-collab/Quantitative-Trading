@@ -193,6 +193,13 @@ class Portfolio:
             commission: Commission rate applied to the trade.
             slippage: Slippage rate applied to the trade.
 
+        Entry fees (commission + slippage) are capitalized into the average
+        cost basis of long positions: a new long position is costed at
+        ``price * (1 + commission + slippage)``, and lots added to an existing
+        long are averaged at their fee-inclusive cost. Reductions of a long
+        leave the remaining basis untouched. Short positions keep the execution
+        price as their basis.
+
         Returns:
             None.
 
@@ -203,7 +210,10 @@ class Portfolio:
             holding = self.holdings[symbol]
             total_qty = holding.quantity + quantity
             if total_qty != 0:
-                new_avg_cost = (holding.avg_cost * holding.quantity + cost) / total_qty
+                new_avg_cost = (
+                    holding.avg_cost * holding.quantity
+                    + price * (1 + commission + slippage) * quantity
+                ) / total_qty
             else:
                 new_avg_cost = 0.0
             holding.quantity = total_qty
@@ -222,10 +232,11 @@ class Portfolio:
             holding.update_price(price)
             self.cash += abs(cost) * (1 - commission - slippage)
         else:
+            entry_price = price * (1 + commission + slippage) if quantity > 0 else price
             self.holdings[symbol] = Holding(
                 symbol=symbol,
                 quantity=quantity,
-                avg_cost=price,
+                avg_cost=entry_price,
                 current_price=price,
                 market_value=quantity * price,
             )

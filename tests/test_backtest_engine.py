@@ -672,9 +672,9 @@ def test_signed_trade_cost_reconciles_with_final_value():
 
     Covers invariant 3: ``final_value - initial_capital`` equals the sum of
     signed ``Trade.cost`` (buys reduce cash, sells increase it) once costs are
-    charged to cash. Buy-side commission/slippage is a cash drag, so it does
-    not appear in ``Trade.pnl`` (which is realized-only); it does appear in
-    ``Trade.cost``.
+    charged to cash. Entry fees are capitalized into the position's cost basis,
+    so realized PnL is net of both buy-side and sell-side fees and, for this
+    fully liquidated round trip, equals the cash change.
     """
     idx = pd.date_range("2024-01-01", periods=4, freq="D")
     data = {
@@ -701,8 +701,9 @@ def test_signed_trade_cost_reconciles_with_final_value():
         signed_cost += trade["cost"] if trade["action"] == "sell" else -trade["cost"]
     assert costed.final_value - costed.initial_capital == pytest.approx(signed_cost)
 
-    # Buy-side fees are a cash drag, not realized PnL: pnl sum excludes them.
-    assert costed.trades["pnl"].sum() != pytest.approx(costed.final_value - costed.initial_capital)
+    # Entry fees are capitalized into the cost basis, so realized PnL now
+    # reconciles with the cash change for a fully liquidated round trip.
+    assert costed.trades["pnl"].sum() == pytest.approx(costed.final_value - costed.initial_capital)
 
 
 def _round_trip_data() -> dict[str, pd.DataFrame]:
@@ -755,9 +756,9 @@ def test_total_costs_reconciles_with_pnl_and_final_value():
     - ``total_costs`` splits into the buy-side and sell-side fees.
     - ``final_value - initial_capital`` equals the sum of the signed trade
       costs (buys reduce cash, sells increase it).
-    - ``sum(Trade.pnl)`` is realized-only: it is already net of the sell-side
-      fees but not of the buy-side fees, so the cash change is lower by the
-      buy-side fees.
+    - Entry fees are capitalized into the cost basis, so realized PnL is net
+      of both buy-side and sell-side fees; for this fully liquidated round
+      trip ``sum(Trade.pnl)`` equals the cash change.
     - For a fully liquidated round trip the costed final value is exactly the
       zero-cost final value minus ``total_costs``.
     """
@@ -778,10 +779,11 @@ def test_total_costs_reconciles_with_pnl_and_final_value():
         signed_cost += trade["cost"] if trade["action"] == "sell" else -trade["cost"]
     assert cash_change == pytest.approx(signed_cost)
 
-    # Realized PnL is net of the sell-side fees only, so it exceeds the cash
-    # change by the buy-side fees.
-    assert cash_change == pytest.approx(trades["pnl"].sum() - buy_fees)
-    assert trades["pnl"].sum() != pytest.approx(cash_change)
+    # Realized PnL is net of both buy-side and sell-side fees because entry
+    # fees are capitalized into the cost basis, so it equals the cash change
+    # for a fully liquidated round trip.
+    assert cash_change == pytest.approx(trades["pnl"].sum())
+    assert trades["pnl"].sum() == pytest.approx(cash_change)
 
     # Both runs are fully liquidated, so all fees land in the final value.
     assert zero.final_value - costed.final_value == pytest.approx(costed.total_costs)
