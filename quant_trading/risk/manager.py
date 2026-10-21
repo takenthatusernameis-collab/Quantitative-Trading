@@ -284,6 +284,15 @@ class RiskManager:
         and kept up to date with :meth:`sync_position` as trades are
         executed.
 
+        A signal that adds exposure is measured against the exposure the
+        position would carry once the trade is done: the trade brings the
+        position to its target, so the position size limit is checked on the
+        target when the position is below it and on the exposure the position
+        already carries when it is above it. The portfolio risk budget and
+        the leverage limit are increased by the increment alone, so a
+        position that is already part of the way to its target is not
+        charged for exposure it already carries.
+
         A ``"buy"`` signal against an open short covers that short. Covering
         reduces the gross exposure of the portfolio, so it cannot breach any
         of the position limits and only the presence of a price is checked. A
@@ -337,7 +346,7 @@ class RiskManager:
             self._check_exposure_increase(
                 result,
                 label="Buy",
-                trade_value=signal.strength * value * self.position_limit.max_size,
+                target_value=signal.strength * value * self.position_limit.max_size,
                 current_gross=current_gross,
                 portfolio_value=value,
             )
@@ -361,7 +370,7 @@ class RiskManager:
             self._check_exposure_increase(
                 result,
                 label="Short",
-                trade_value=signal.strength * value * self.position_limit.max_size,
+                target_value=signal.strength * value * self.position_limit.max_size,
                 current_gross=current_gross,
                 portfolio_value=value,
             )
@@ -372,7 +381,7 @@ class RiskManager:
         self,
         result: CheckResult,
         label: str,
-        trade_value: float,
+        target_value: float,
         current_gross: float,
         portfolio_value: float,
     ) -> None:
@@ -380,14 +389,22 @@ class RiskManager:
 
         The trade is measured on its gross exposure, so a short is limited
         exactly like a long of the same size. The position size is checked on
-        the gross exposure of the symbol, the portfolio risk budget on the
-        risk the trade adds, and the leverage limit on the gross exposure the
-        trade adds to the portfolio.
+        the gross exposure the symbol would carry after the trade, the
+        portfolio risk budget on the risk the trade adds, and the leverage
+        limit on the gross exposure the trade adds to the portfolio.
+
+        A trade brings the position to its target, so the exposure the symbol
+        carries afterwards is the target itself when the position is below it,
+        and the exposure it already carries when it is above it. The risk
+        budget and the leverage limit are increased by the increment alone
+        (the target less the exposure the symbol already carries), not by the
+        whole target: the exposure the position already has is already
+        counted in the current portfolio risk and in the current leverage.
 
         Args:
             result: Check result that collects the violations.
             label: Name of the signal used in the violation messages.
-            trade_value: Dollar value of the exposure the signal would add.
+            target_value: Dollar value of the exposure the signal targets.
             current_gross: Gross exposure the symbol already carries.
             portfolio_value: Current portfolio value.
 
@@ -395,14 +412,15 @@ class RiskManager:
             None.
 
         """
-        new_size = current_gross + trade_value
+        post_trade_size = max(current_gross, target_value)
+        increment = max(0.0, target_value - current_gross)
 
-        if new_size > self.position_limit.max_value:
+        if post_trade_size > self.position_limit.max_value:
             result.add_violation(
-                f"{label} signal would exceed max position value: ${new_size:,.2f} > ${self.position_limit.max_value:,.2f}"
+                f"{label} signal would exceed max position value: ${post_trade_size:,.2f} > ${self.position_limit.max_value:,.2f}"
             )
 
-        position_pct = new_size / portfolio_value if portfolio_value > 0 else 0
+        position_pct = post_trade_size / portfolio_value if portfolio_value > 0 else 0
         if position_pct > self.position_limit.max_size:
             result.add_violation(
                 f"{label} signal would exceed max position size: {position_pct:.2%} > {self.position_limit.max_size:.2%}"
@@ -410,19 +428,17 @@ class RiskManager:
 
         # Gate the trade on the portfolio risk budget and the leverage limit,
         # so a strategy cannot keep opening positions until the post-hoc
-        # portfolio check reports a breach. The trade adds trade_value of
-        # gross exposure and trade_value * stop_loss_pct of risk.
+        # portfolio check reports a breach. The trade adds the increment of
+        # gross exposure and increment * stop_loss_pct of risk.
         current_risk = self.portfolio_limit.portfolio_risk_pct(self.positions, portfolio_value)
-        new_risk = current_risk + (
-            trade_value * self.portfolio_limit.stop_loss_pct / portfolio_value
-        )
+        new_risk = current_risk + (increment * self.portfolio_limit.stop_loss_pct / portfolio_value)
         if new_risk > self.portfolio_limit.max_portfolio_risk:
             result.add_violation(
                 f"{label} signal would exceed max portfolio risk: {new_risk:.2%} > {self.portfolio_limit.max_portfolio_risk:.2%}"
             )
 
         current_gross_exposure = self.portfolio_limit.leverage(self.positions, portfolio_value)
-        new_leverage = current_gross_exposure + (trade_value / portfolio_value)
+        new_leverage = current_gross_exposure + (increment / portfolio_value)
         if new_leverage > self.portfolio_limit.max_leverage:
             result.add_violation(
                 f"{label} signal would exceed max leverage: {new_leverage:.2f}x > {self.portfolio_limit.max_leverage:.2f}x"

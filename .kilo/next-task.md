@@ -2,179 +2,223 @@
 
 ## What changed
 
-**The broken trailing-stop commit `84063f8` was completed, and the repository
-is green again.** That commit added the trailing-stop configuration and the
-"tighter of the two stops" merge to `RiskManager.get_position_stop_loss()`, but
-it never defined `get_trailing_stop()`, so every caller of the stop helpers
-raised `AttributeError: 'RiskManager' object has no attribute
-'get_trailing_stop'`. The repository was left with **8 failing tests** at the
-start of this session. The feature is now implemented, wired to the
-configuration, documented and tested.
+**The signal gate no longer double counts the exposure a position already
+carries.** A position that was opened smaller than its target (because the
+cash on hand trimmed it, or because the signal that opened it was weaker
+than a later one) was rejected by `RiskManager.check_signal()` on every
+later signal, even though the engine would only have traded the missing part.
+The gate now measures the exposure the position carries *after* the trade.
 
 `quant_trading/risk/manager.py`:
-- `get_trailing_stop(symbol)` returns the trailing stop price currently
-  tracked for a symbol (`None` when there is none).
-- `update_trailing_stop(symbol, price)` feeds a market price into the
-  tracker. It records the best price the position has reached (the highest
-  price for a long, the lowest for a short) and places the stop
-  `trailing_stop_pct` away from it. The stop only ratchets in the favourable
-  direction: it never moves down for a long and never moves up for a short.
-- The stop only starts to trail once the position has moved
-  `trailing_stop_activation_pct` in its favour, measured from the average
-  entry price. Before that the position keeps the stop it already has.
-- `update_portfolio_value()` and `sync_position()` feed the price of every
-  position they know about, so the trailing stop follows the market on its
-  own. A caller that tracks prices elsewhere can call
-  `update_trailing_stop()` directly.
-- The trailing state of a symbol is dropped when the position is closed
-  (`sync_position(symbol, None)`), when the position disappears from a
-  portfolio update, when the position flips direction, and on `reset()`.
-- `get_position_stop_loss()` now returns the tighter of the fixed stop and the
-  trailing stop: the higher level for a long, the lower level for a short.
-  (For a long a higher stop is tighter, because it triggers first.)
-- `should_stop_loss()` and `should_take_profit()` return a real `bool`. They
-  returned `numpy.bool_` when the price came from a pandas/numpy value, which
-  broke `is True` assertions on the public API.
+- `_check_exposure_increase()` takes the **target** exposure of the signal
+  (`target_value`) instead of the trade value, and derives two numbers from
+  it and the exposure the symbol already carries (`current_gross`):
+  - `post_trade_size = max(current_gross, target_value)` — the gross
+    exposure the symbol carries once the trade is done. The position size
+    limit (`max_value`) and the position size percentage
+    (`max_size`) are checked on it.
+  - `increment = max(0.0, target_value - current_gross)` — the exposure the
+    trade actually adds. The portfolio risk budget and the leverage limit are
+    increased by the increment alone, because the exposure the position
+    already holds is already counted in the current portfolio risk and in the
+    current gross leverage.
+- The two call sites in `check_signal()` (the `"buy"` and the `"short"`
+  branch) pass the target exposure:
+  `signal.strength * value * self.position_limit.max_size`, which is exactly
+  what the engine sizes the position to
+  (`quant_trading/backtest/engine.py:617-620` and `:751-756`).
+- The gross-exposure convention is unchanged: a short is measured on the
+  absolute value of its position, so a short is limited exactly like a long
+  of the same size.
+- `PortfolioLimit`, the risk limits and the engine's sizing are untouched.
 
-`quant_trading/config/settings.py`: `RiskConfig` gained `trailing_stop_pct`
-and `trailing_stop_activation_pct` (both `0.0`, i.e. disabled).
+`tests/test_risk_manager.py`:
+- `TestCheckSignal.test_buy_with_existing_position` became
+  `test_buy_with_an_oversized_existing_position`: a position that is
+  *already* above the position limit is still reported, because the
+  post-trade exposure is at least the exposure the position already carries.
+  (The old test used a position of 8000 against a target of 5000, which is
+  not a breach under the new arithmetic: the engine would not trade it.)
+- New `TestTargetExposureGate` class with 8 cases: a buy against a position
+  at its target passes, a buy against a position below its target passes, a
+  short against a position below its target passes, the leverage limit is
+  increased by the increment only, the risk budget is increased by the
+  increment only, and the three rejections that must still fire (a target
+  above the position limit, a trade above the risk budget, a trade above the
+  leverage limit).
+- The comment in `test_short_can_add_to_an_open_short` was corrected: the
+  open short is *above* the position limit, not "filling" it.
 
-`quant_trading/backtest/engine.py`: the risk configuration is forwarded to the
-`RiskManager` the engine builds, so `trailing_stop_pct` in a config file
-reaches the manager.
+`tests/test_backtest_engine.py`:
+- `test_buy_signal_tops_up_a_position_below_its_target` and
+  `test_short_signal_tops_up_a_short_below_its_target`: an end-to-end proof
+  that a position bought at half strength is topped up to its target by the
+  next signal (2 trades, the position ends at 200 units), which is exactly
+  what the old gate blocked.
 
-`README.md`: a "Trailing Stops" section, and the new keys in the YAML
-example.
-
-`tests/test_risk_manager.py`: a new `TestTrailingStop` class with 16 cases —
-disabled by default, long and short ratchet, the stop never loosens, the
-fixed stop stays in place until the trailing stop is tighter (both
-directions), the activation threshold (both directions), the portfolio update
-feeding prices, and the three ways the trailing state is cleared.
-
-`tests/test_backtest_engine.py`: the trailing stop configuration reaches the
-risk manager, and the engine's own price feed moves the trailing stop.
-
-`tests/test_config.py`: the new `RiskConfig` fields.
+`README.md`: a paragraph in "Risk Limits" that describes the signal gate and
+the post-trade measurement, and a correction of the sentence that said the
+risk and leverage limits "do not by themselves ... reject an individual
+order" (the signal gate does).
 
 ## Verified
 
 - `pytest -q` (full run, includes the `quant_trading/` doctests):
-  **1733 passed, 1 skipped, 0 failed**.
-  The baseline at the start of this session was **8 failed, 1706 passed,
-  1 skipped** (the broken commit). Delta = **+19 tests** and **-8 failures**.
+  **1743 passed, 1 skipped, 0 failed**.
+  The baseline at the start of this session was **1733 passed, 1 skipped**
+  (green). Delta = **+10 tests**, 0 failures.
+- The 5 new "should pass" cases in `TestTargetExposureGate` and the 2 new
+  engine top-up tests **fail against the previous implementation** and pass
+  against the new one. Evidence: `git stash push quant_trading/risk/manager.py`
+  then re-running them gives
+  `5 failed, 3 passed` and `2 failed` respectively; the failures quote the
+  old arithmetic ("would exceed max position value: $15,000.00 > $10,000.00"
+  for a position of 5000 against a target of 10000, and `assert 1 == 2`
+  trades in the engine).
+- The 3 new "should still be rejected" cases pass against **both**
+  implementations, as intended: they pin that a real breach is still caught.
 - `ruff check .`: clean.
 - `black --check quant_trading/ tests/`: clean, 69 files.
 - `mypy quant_trading/`: clean, 36 source files.
-- Probe (`/home/runner/work/_temp/kilo-tmp/kilo/probe_trailing.py`): long stop
-  95.0 → 114.0 at a high of 120.0, holds at 114.0 when the price falls back to
-  110.0, rises to 123.5 at a high of 130.0; short stop 105.0 → 84.0 at a low
-  of 80.0, holds at 84.0 when the price returns to 90.0, falls to 73.5 at a
-  low of 70.0; with `trailing_stop_activation_pct=0.10` the stop is `None`
-  until the price reaches 111.0, then 105.45; a closed position reports
-  `None`; with trailing stops disabled the fixed stop is unchanged.
-- The trailing stop is inert by default: with `trailing_stop_pct=0.0` no
-  state is created and `get_position_stop_loss()` returns the fixed stop, so
-  the pre-existing behaviour of the 1714 pre-existing tests is unchanged.
+- Probe (`/home/runner/work/_temp/kilo-tmp/kilo/probe_pnl.py`): the
+  accounting invariants still hold after the change — a long round trip and a
+  short round trip both reconcile
+  (`final_value - initial_capital == sum(trades["pnl"])`, difference
+  -1.8e-12), and a run that ends with an open position reports the
+  unrealized value in `final_value` and `0.0` in the trade PnL.
 
 ## Remaining unresolved (in priority order)
 
-1. **A position that is at its target can never be topped up.** The signal
-   gate adds the *full* target size on top of the current position
-   (`quant_trading/risk/manager.py:340` for a buy, `:364` for a
-   short), so a position opened smaller than the target is rejected on the
-   next signal even though the engine would only trade the missing part
-   (`quant_trading/backtest/engine.py:617-625` computes
-   `available_value = target_value - current_value`). Applies to shorts as
-   well.
-2. **The engine has no automatic exits.** The fixed stop, the take profit and
-   the new trailing stop are all advisory: the manager reports whether a
-   level was hit, but the engine never closes a position because of it. This
-   was explicitly out of scope for the previous sessions and is a deliberate
-   design decision, not a defect.
+1. **The engine has no automatic exits.** The fixed stop, the take profit and
+   the trailing stop are all advisory: `RiskManager.should_stop_loss()` and
+   `should_take_profit()` report whether a level was hit, but the engine
+   never closes a position because of it (they are called nowhere outside
+   `quant_trading/risk/manager.py`). This is the next task below.
+2. **`max_positions` is still not enforced before a trade.** The other three
+   limits (position size, risk budget, leverage) are gated at signal time;
+   the number of positions is only detected after the bar by the report-only
+   `check_portfolio()`, and the backtest only halts when
+   `halt_on_portfolio_violation=True` (default `False`). With the default
+   limits this is latent (10% positions and 1.0x leverage cap the portfolio
+   at 10 positions, below the default `max_positions=20`), but a config with
+   a smaller position size or a higher leverage limit can open more
+   positions than allowed. Enforcing it in the gate would change
+   `test_portfolio_violations_collected_without_halt`,
+   `test_halt_on_portfolio_violation_stops_backtest` and
+   `test_config_driven_max_positions_halts_backtest`, which use
+   `max_positions=0` as a convenient way to force a violation.
 3. **The shipped example strategies still cannot open a short.** They emit
    `"sell"` for a bearish entry (`quant_trading/strategies/examples.py:1053`
    and others), which the engine rejects on purpose; their short exit
    (`"buy"`) works as a cover. Turning a shipped strategy into a short
    strategy means changing the actions it emits, which breaks its pinned
    tests and is a deliberate decision.
-4. **`max_positions` is still not enforced before a trade.** Only detected
-   after the bar by the report-only `check_portfolio()`, halting only when
-   `halt_on_portfolio_violation=True` (default `False`). Would reverse an
-   earlier recorded decision and change
-   `test_halt_on_portfolio_violation_stops_backtest` and
-   `test_config_driven_max_positions_halts_backtest`.
-5. **The portfolio risk budget and the leverage limit are only advisory
-   outside the signal gate**: `check_portfolio()` reports, and the backtest
-   only stops when `halt_on_portfolio_violation=True` (default `False`).
-6. `quant_trading/strategies/__init__.py` exposes `get_available_strategies()`
+4. **The portfolio risk budget and the leverage limit are only advisory
+   outside the signal gate**: `check_portfolio()` reports them, and the
+   backtest only stops when `halt_on_portfolio_violation=True` (default
+   `False`). The signal gate does enforce them for new exposure, so this is
+   now only about positions that drift over the limits through the market.
+5. `quant_trading/strategies/__init__.py` exposes `get_available_strategies()`
    and `available_strategies()` as two names for the same thing. Redundant API
    surface, exported and tested.
-
-Note on the previous handoff's item 1: `RiskManager.portfolio_risk.leverage`
-was **already** gross in the code (`quant_trading/risk/manager.py:190-194`
-computes `sum(abs(p.market_value)) / total_value`, pinned by
-`tests/test_risk_manager.py::TestUpdatePortfolioValue::test_short_position_reports_gross_leverage`).
-Only the docstring still described it as net; that docstring is now correct.
+6. `PortfolioConfig.rebalance_frequency` is never read by the engine: the
+   `Rebalancer` in `quant_trading/portfolio/rebalancer.py` is a complete,
+   standalone component that the backtest never drives.
 
 ## Approaches already tried and rejected
 
-- **Reverting commit `84063f8` instead of completing it.** Rejected: the
-  partial work (the configuration, the state, the "tighter stop" merge) is a
-  coherent design, and the missing part is small. Reverting would have
-  discarded it and left the feature unimplemented.
-- **Making the trailing stop the only stop.** Rejected: a trailing stop that
-  is still wider than the fixed stop loss must not loosen the risk of a
-  position, so the tighter of the two is used. This is why the merge is
-  `max(fixed, trailing)` for a long and `min(fixed, trailing)` for a short.
-- **Seeding the tracker with the entry price.** Rejected: the tracker starts
-  from the first price it observes, which keeps the activation threshold
-  meaningful.
+- **Keeping the old arithmetic and only relaxing the position size check.**
+  Rejected: the portfolio risk budget and the leverage limit were charged
+  the whole target as well, so a position at 50% of its target was still
+  charged for 100% of it. The increment has to be used in both places; the
+  exposure a position already carries is already in the current portfolio
+  risk and in the current gross leverage.
+- **Checking the position size on `current_gross + target` and skipping the
+  checks when the position is already at its target.** Rejected: the
+  post-trade exposure is `max(current_gross, target)`, which is the target
+  when the position is below it *and* the exposure the position already
+  carries when it is above it. A position that is already above the limit
+  must still be reported, so the `max()` is needed.
+- **Changing the engine to size the position from the signal strength
+  instead of from the target.** Rejected: the engine already trades only the
+  missing part (`available_value = target_value - current_value`), and the
+  handoff explicitly required the engine's sizing to stay untouched.
+- **Making the gate report a violation only when the trade really adds
+  exposure.** Rejected: a signal against a position that is already over the
+  limit is reported, exactly as before the change. The gate is a check on
+  the state the portfolio would be in after the trade, not a check on the
+  trade alone.
 
 ## Next task (precise)
 
-**Make the signal gate measure the target exposure instead of the target
-size plus the current exposure.**
+**Make the engine close a position when the risk manager reports that its
+stop loss, its take profit or its trailing stop was hit.**
 
-`quant_trading/risk/manager.py`:
-- `check_signal()` for a `"buy"` (`:327-345`) and a `"short"` (`:352-369`)
-  pass `trade_value=signal.strength * value * self.position_limit.max_size`
-  (the *full* target) and `current_gross` (the exposure the symbol already
-  carries) to `_check_exposure_increase()`.
-- `_check_exposure_increase()` (`:371-429`) then computes
-  `new_size = current_gross + trade_value` and adds the whole `trade_value`
-  to the portfolio risk and the leverage.
+The risk manager already computes the levels and the triggers
+(`get_position_stop_loss()`, `get_position_take_profit()`,
+`should_stop_loss()`, `should_take_profit()` in
+`quant_trading/risk/manager.py`), but the engine never acts on them, so a
+backtest can lose far more than the configured `stop_loss_pct` on a
+position and nothing in the trade log or the risk report says so.
 
-That double counts the exposure the position already has. The engine, on the
-other hand, only trades the *missing* part:
-`available_value = target_value - current_value`
-(`quant_trading/backtest/engine.py:617-620`). A position that was opened
-smaller than its target (because the cash on hand trimmed it) is therefore
-rejected by the gate on every later signal, even though the engine would
-have brought it up to the target.
+`quant_trading/config/settings.py`:
+- Add `enable_stop_exits: bool = False` to `BacktestConfig` (next to
+  `halt_on_portfolio_violation`, the other engine-behaviour flag). The
+  default is **off**, so every existing backtest keeps its current results
+  and the whole existing test suite keeps passing unchanged.
 
-Change the gate so that the position-size checks are made on the exposure the
-position would have *after* the trade (`max(current_gross, target)`), and so
-that the portfolio risk and the leverage are increased by the *increment*
-(`target - current_gross`, floored at zero) rather than by the whole target.
-Keep `positions_value`/`current_gross` measured on gross exposure, so a short
-is still limited like a long of the same size.
+`quant_trading/backtest/engine.py`:
+- In the bar loop of `run()` (the loop that calls `update_prices()` at
+  `engine.py:468` and `update_portfolio_value()` at `engine.py:473`), add an
+  exit step **after** `self.risk_manager.update_portfolio_value(...)`: that
+  call is what feeds the bar's close into the trailing stop tracker, so the
+  trailing stop is up to date before it is checked.
+- For every open position, when `enable_stop_exits` is on:
+  - `self.risk_manager.should_stop_loss(symbol, price)` or
+    `self.risk_manager.should_take_profit(symbol, price)` → close the
+    position at the bar's close price (`prices[symbol]`, the price the
+    engine knows on that bar — no intrabar assumption, no look-ahead).
+  - Close a long with `self._reduce_long(symbol, Signal(action="sell",
+    strength=1.0, price=price), trades_list, current_date, price)` and
+    cover a short with `self._cover_short(symbol, Signal(action="buy",
+    strength=1.0, price=price), trades_list, current_date, price, holding)`.
+    Both already cap the removal at the size of the position, refresh the
+    risk manager's position view (`sync_position`) and book the realized
+    PnL, so the trade log and the accounting stay consistent — do not write
+    a separate exit path.
+  - The trade is recorded in `trades_list` like any other trade, so
+    `final_value - initial_capital == sum(trades["pnl"])` must keep holding
+    for a run that exits.
+- The stop loss wins over the take profit when both would trigger on the
+  same bar (the stop is checked first).
+- A trailing stop can only trigger on a bar *after* the one that ratcheted
+  it, because the tracker records the best price the position reached and
+  the stop is placed below it. That is the intended close-based behaviour;
+  do not try to make a stop trigger on the bar that set it.
 
-Add tests in `tests/test_risk_manager.py` that pin:
-- a buy signal against a position that is already at its target still passes
-  (it is a no-op for the engine);
-- a buy signal against a position that is *below* its target passes and is
-  sized to the missing part, i.e. it is not rejected by the position size
-  limit;
-- a short signal behaves the same way;
-- the portfolio risk and the leverage limit are increased by the increment
-  only, not by the whole target;
-- the existing rejections (a signal that really would breach a limit) still
-  fail.
+`README.md`: document the new `enable_stop_exits` key (in the YAML example
+and in a short paragraph next to "Trailing Stops" or "Risk Limits") and say
+that the exits are off by default.
+
+Add tests in `tests/test_backtest_engine.py` that pin:
+- a long whose close falls to (or below) its stop loss is closed at the
+  bar's close, the trade is in the log, and the position is flat afterwards;
+- a long whose close rises to (or above) its take profit is closed;
+- a short whose close rises to (or above) its stop is covered, and a short
+  whose close falls to (or below) its take profit is covered;
+- a trailing stop closes a long on a later bar, after it has ratcheted;
+- the accounting invariant still holds after an exit
+  (`final_value - initial_capital == sum(trades["pnl"])`);
+- with the default (`enable_stop_exits=False`) a position that breaches its
+  stop is **not** closed, so the existing behaviour is unchanged.
 
 Constraints:
-- Do not change `PortfolioLimit`, the risk gates or the engine's sizing; only
-  the arithmetic of the signal gate changes.
-- The gross-exposure convention (a short counts like a long) must not change.
+- The default must stay off, so the 1743 existing tests keep passing
+  unchanged.
+- Do not change the levels the risk manager computes, the risk limits, the
+  signal gate or the engine's sizing. The exit is a new, additive step.
+- The risk manager needs no change: `should_stop_loss()` and
+  `should_take_profit()` already return a real `bool` and already follow
+  the direction of the position.
 - Reconcile: run `pytest -q`, `ruff check .`, `black --check quant_trading/
   tests/`, `mypy quant_trading/`.

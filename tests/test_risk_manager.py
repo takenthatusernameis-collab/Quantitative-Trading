@@ -206,12 +206,18 @@ class TestCheckSignal:
         assert any("exceed max position size" in v for v in result.violations)
         assert not any("exceed max position value" in v for v in result.violations)
 
-    def test_buy_with_existing_position(self):
+    def test_buy_with_an_oversized_existing_position(self):
+        """A position that is already over the position limit is reported.
+
+        The exposure is measured after the trade, so a position that is
+        already above the limit is reported even when the signal would not
+        add any exposure to it.
+        """
         rm = RiskManager(initial_capital=100000.0)
         rm.positions = {
-            "AAPL": Position(symbol="AAPL", quantity=50, avg_price=150, current_price=160)
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=150)
         }
-        signal = Signal(symbol="AAPL", action="buy", strength=0.5, price=160.0)
+        signal = Signal(symbol="AAPL", action="buy", strength=0.5, price=150.0)
         result = rm.check_signal(signal)
         assert result.passed is False
         assert any("exceed max position value" in v for v in result.violations)
@@ -410,14 +416,14 @@ class TestShortSignals:
         assert any("long holdings" in v for v in result.violations)
 
     def test_short_can_add_to_an_open_short(self):
-        """A short that adds to an open short is measured on the gross exposure."""
+        """A short is measured on the gross exposure, like a long."""
         rm = RiskManager(
             initial_capital=100000.0,
             max_position_size=0.1,
             max_leverage=1.0,
             max_portfolio_risk=1.0,
         )
-        # The open short already fills the position limit.
+        # The open short is already above the position limit.
         rm.positions = {
             "AAPL": Position(symbol="AAPL", quantity=-100, avg_price=150.0, current_price=150.0),
         }
@@ -452,6 +458,137 @@ class TestShortSignals:
         result = rm.check_signal(signal)
         assert result.passed is False
         assert any("open short" in v for v in result.violations)
+
+
+class TestTargetExposureGate:
+    """The signal gate measures the exposure a position carries after the trade.
+
+    A trade brings a position to its target, so the position size is checked
+    on the target instead of on the target plus the exposure the position
+    already carries, and the portfolio risk budget and the leverage limit
+    are increased by the increment alone.
+    """
+
+    def test_buy_against_a_position_at_its_target_passes(self):
+        """A position that already holds its full target does not block the signal."""
+        rm = RiskManager(initial_capital=100000.0)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=100.0, current_price=100.0),
+        }
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=100.0)
+        result = rm.check_signal(signal, portfolio_value=100000.0)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_buy_against_a_position_below_its_target_passes(self):
+        """A position that is part of the way to its target is not rejected.
+
+        The signal would bring the position to its target, which is within
+        the position limit, so the signal gate must not block it.
+        """
+        rm = RiskManager(initial_capital=100000.0)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=50, avg_price=100.0, current_price=100.0),
+        }
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=100.0)
+        result = rm.check_signal(signal, portfolio_value=100000.0)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_short_against_a_position_below_its_target_passes(self):
+        """A short is topped up to its target like a long."""
+        rm = RiskManager(initial_capital=100000.0)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=-50, avg_price=100.0, current_price=100.0),
+        }
+        signal = Signal(symbol="AAPL", action="short", strength=1.0, price=100.0)
+        result = rm.check_signal(signal, portfolio_value=100000.0)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_leverage_limit_is_increased_by_the_increment_only(self):
+        """The leverage limit counts the exposure the trade adds, not the whole target."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_position_size=0.1,
+            max_portfolio_risk=1.0,
+            max_leverage=0.12,
+            stop_loss_pct=0.05,
+        )
+        # The position carries 0.05x of the portfolio, the increment another
+        # 0.05x, so the portfolio ends at 0.10x of gross exposure.
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=50, avg_price=100.0, current_price=100.0),
+        }
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=100.0)
+        result = rm.check_signal(signal, portfolio_value=100000.0)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_risk_budget_is_increased_by_the_increment_only(self):
+        """The risk budget counts the risk the trade adds, not the whole target."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_position_size=0.1,
+            max_portfolio_risk=0.006,
+            max_leverage=10.0,
+            stop_loss_pct=0.05,
+        )
+        # The position risks 0.25% of the portfolio, the increment another
+        # 0.25%, so the portfolio ends at 0.50% of open risk.
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=50, avg_price=100.0, current_price=100.0),
+        }
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=100.0)
+        result = rm.check_signal(signal, portfolio_value=100000.0)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_a_target_above_the_position_limit_is_rejected(self):
+        """A target that is above the position limit is still rejected."""
+        rm = RiskManager(initial_capital=100000.0)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=50, avg_price=100.0, current_price=100.0),
+        }
+        signal = Signal(symbol="AAPL", action="buy", strength=2.0, price=100.0)
+        result = rm.check_signal(signal, portfolio_value=100000.0)
+        assert result.passed is False
+        assert any("exceed max position value" in v for v in result.violations)
+        assert any("exceed max position size" in v for v in result.violations)
+
+    def test_a_signal_above_the_risk_budget_is_rejected(self):
+        """A trade that would really breach the risk budget is still rejected."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_position_size=0.1,
+            max_portfolio_risk=0.004,
+            max_leverage=10.0,
+            stop_loss_pct=0.05,
+        )
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=50, avg_price=100.0, current_price=100.0),
+        }
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=100.0)
+        result = rm.check_signal(signal, portfolio_value=100000.0)
+        assert result.passed is False
+        assert any("exceed max portfolio risk" in v for v in result.violations)
+
+    def test_a_signal_above_the_leverage_limit_is_rejected(self):
+        """A trade that would really breach the leverage limit is still rejected."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_position_size=0.1,
+            max_portfolio_risk=1.0,
+            max_leverage=0.08,
+            stop_loss_pct=0.05,
+        )
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=50, avg_price=100.0, current_price=100.0),
+        }
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=100.0)
+        result = rm.check_signal(signal, portfolio_value=100000.0)
+        assert result.passed is False
+        assert any("exceed max leverage" in v for v in result.violations)
 
 
 class TestCheckPortfolio:

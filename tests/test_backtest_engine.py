@@ -1438,3 +1438,40 @@ def test_process_signal_buy_covers_an_open_short():
     # The short was covered, not flipped into a long.
     assert trades[0].quantity == pytest.approx(100.0)
     assert engine.portfolio.get_position("AAPL") is None
+
+
+def _top_up_config() -> Config:
+    """Build a config with fee-free fills and a 10% position limit."""
+    return Config(
+        backtest=BacktestConfig(initial_capital=100000.0, commission=0.0, slippage=0.0),
+        risk=RiskConfig(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0),
+    )
+
+
+def test_buy_signal_tops_up_a_position_below_its_target():
+    """A position that is part of the way to its target is topped up.
+
+    The signal gate measures the exposure the position carries after the
+    trade, so a position that is below its target does not block the signal
+    that would bring it up to the target.
+    """
+    data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
+
+    result, _engine = _run_script([("buy", 0.5), ("buy", 1.0)], data, _top_up_config())
+
+    # The first buy fills half of the position limit, the second tops the
+    # position up to the full limit.
+    assert len(result.trades) == 2
+    assert result.trades.iloc[1]["quantity"] == pytest.approx(100.0)
+    assert result.positions["TEST"].quantity == pytest.approx(200.0)
+
+
+def test_short_signal_tops_up_a_short_below_its_target():
+    """A short that is part of the way to its target is topped up."""
+    data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
+
+    result, _engine = _run_script([("short", 0.5), ("short", 1.0)], data, _top_up_config())
+
+    assert len(result.trades) == 2
+    assert result.trades.iloc[1]["quantity"] == pytest.approx(100.0)
+    assert result.positions["TEST"].quantity == pytest.approx(-200.0)
