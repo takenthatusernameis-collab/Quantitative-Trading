@@ -813,5 +813,145 @@ class TestResetEnableDisable:
         assert result.violations == []
 
 
+class TestTrailingStop:
+    """Tests for trailing stops."""
+
+    def test_trailing_stop_is_disabled_by_default(self):
+        rm = RiskManager(initial_capital=100000.0)
+        rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+        rm.update_trailing_stop("AAPL", 120.0)
+        assert rm.get_trailing_stop("AAPL") is None
+        assert rm.get_position_stop_loss("AAPL") == pytest.approx(95.0)
+
+    def test_long_trailing_stop_follows_the_highest_price(self):
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
+        rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+        rm.update_trailing_stop("AAPL", 120.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(114.0)
+        assert rm.get_position_stop_loss("AAPL") == pytest.approx(114.0)
+
+    def test_long_trailing_stop_never_loosens(self):
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
+        rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+        rm.update_trailing_stop("AAPL", 120.0)
+        rm.update_trailing_stop("AAPL", 110.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(114.0)
+        assert rm.should_stop_loss("AAPL", 113.0) is True
+        assert rm.should_stop_loss("AAPL", 115.0) is False
+
+    def test_short_trailing_stop_follows_the_lowest_price(self):
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
+        rm.sync_position("AAPL", Position("AAPL", -100, 100.0, 100.0))
+        rm.update_trailing_stop("AAPL", 80.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(84.0)
+        assert rm.get_position_stop_loss("AAPL") == pytest.approx(84.0)
+
+    def test_short_trailing_stop_never_loosens(self):
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
+        rm.sync_position("AAPL", Position("AAPL", -100, 100.0, 100.0))
+        rm.update_trailing_stop("AAPL", 80.0)
+        rm.update_trailing_stop("AAPL", 90.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(84.0)
+        assert rm.should_stop_loss("AAPL", 85.0) is True
+        assert rm.should_stop_loss("AAPL", 83.0) is False
+
+    def test_fixed_stop_is_used_until_the_trailing_stop_is_tighter(self):
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.10, stop_loss_pct=0.05)
+        rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+        rm.update_trailing_stop("AAPL", 100.0)
+        # 100 * 0.90 = 90.0 is looser than the fixed 95.0 stop.
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(90.0)
+        assert rm.get_position_stop_loss("AAPL") == pytest.approx(95.0)
+        rm.update_trailing_stop("AAPL", 110.0)
+        # 110 * 0.90 = 99.0 is tighter than the fixed 95.0 stop.
+        assert rm.get_position_stop_loss("AAPL") == pytest.approx(99.0)
+
+    def test_short_fixed_stop_is_used_until_the_trailing_stop_is_tighter(self):
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.10, stop_loss_pct=0.05)
+        rm.sync_position("AAPL", Position("AAPL", -100, 100.0, 100.0))
+        rm.update_trailing_stop("AAPL", 100.0)
+        # 100 * 1.10 = 110.0 is looser than the fixed 105.0 stop.
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(110.0)
+        assert rm.get_position_stop_loss("AAPL") == pytest.approx(105.0)
+        rm.update_trailing_stop("AAPL", 90.0)
+        # 90 * 1.10 = 99.0 is tighter than the fixed 105.0 stop.
+        assert rm.get_position_stop_loss("AAPL") == pytest.approx(99.0)
+
+    def test_trailing_stop_waits_for_the_activation_threshold(self):
+        rm = RiskManager(
+            initial_capital=100000.0,
+            trailing_stop_pct=0.05,
+            trailing_stop_activation_pct=0.10,
+        )
+        rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+        rm.update_trailing_stop("AAPL", 105.0)
+        assert rm.get_trailing_stop("AAPL") is None
+        assert rm.get_position_stop_loss("AAPL") == pytest.approx(95.0)
+        rm.update_trailing_stop("AAPL", 111.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(105.45)
+
+    def test_short_trailing_stop_waits_for_the_activation_threshold(self):
+        rm = RiskManager(
+            initial_capital=100000.0,
+            trailing_stop_pct=0.05,
+            trailing_stop_activation_pct=0.10,
+        )
+        rm.sync_position("AAPL", Position("AAPL", -100, 100.0, 100.0))
+        rm.update_trailing_stop("AAPL", 95.0)
+        assert rm.get_trailing_stop("AAPL") is None
+        rm.update_trailing_stop("AAPL", 89.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(93.45)
+
+    def test_portfolio_update_feeds_the_price_to_the_tracker(self):
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
+        positions = {"AAPL": Position("AAPL", 100, 100.0, 120.0)}
+        rm.update_portfolio_value(positions, 50000.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(114.0)
+
+    def test_closing_a_position_clears_the_trailing_stop(self):
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
+        rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+        rm.update_trailing_stop("AAPL", 120.0)
+        assert rm.get_trailing_stop("AAPL") is not None
+        rm.sync_position("AAPL", None)
+        assert rm.get_trailing_stop("AAPL") is None
+
+    def test_a_dropped_position_clears_the_trailing_stop(self):
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
+        positions = {"AAPL": Position("AAPL", 100, 100.0, 120.0)}
+        rm.update_portfolio_value(positions, 50000.0)
+        assert rm.get_trailing_stop("AAPL") is not None
+        rm.update_portfolio_value({}, 50000.0)
+        assert rm.get_trailing_stop("AAPL") is None
+
+    def test_flipping_the_direction_clears_the_trailing_stop(self):
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
+        rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+        rm.update_trailing_stop("AAPL", 120.0)
+        rm.sync_position("AAPL", Position("AAPL", -100, 120.0, 120.0))
+        # The long stop (114.0) does not carry over to the short.
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(126.0)
+
+    def test_reset_clears_the_trailing_stop(self):
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
+        rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+        rm.update_trailing_stop("AAPL", 120.0)
+        rm.reset()
+        assert rm.get_trailing_stop("AAPL") is None
+
+    def test_trailing_stop_ignores_symbols_without_a_position(self):
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
+        assert rm.update_trailing_stop("AAPL", 120.0) is None
+        assert rm.get_trailing_stop("AAPL") is None
+
+    def test_trailing_stop_ignores_non_positive_prices(self):
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
+        rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 0.0))
+        rm.update_trailing_stop("AAPL", 0.0)
+        assert rm.get_trailing_stop("AAPL") is None
+        rm.update_trailing_stop("AAPL", 120.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(114.0)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

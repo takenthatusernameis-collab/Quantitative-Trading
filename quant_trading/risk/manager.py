@@ -32,7 +32,8 @@ class PortfolioRisk:
         total_market_value: Total market value of portfolio (cash + positions).
         cash: Available cash balance.
         positions_value: Market value of all positions.
-        leverage: Portfolio leverage ratio (positions_value / total_value).
+        leverage: Gross portfolio leverage ratio (sum of the absolute market
+            values of the positions / total_value).
         current_drawdown: Current drawdown from peak (0.0 = at peak, negative
             while the portfolio is below its peak).
         peak_value: Peak portfolio value observed.
@@ -76,6 +77,10 @@ class RiskManager:
         risk_metrics: Last computed risk metrics (if any).
         risk_enabled: Whether risk checks are enabled.
         history: Historical risk snapshots.
+        trailing_stop_pct: Distance of the trailing stop from the best price
+            the position has reached, as a fraction (``0.0`` disables it).
+        trailing_stop_activation_pct: How far a position must move in its
+            favour before its trailing stop starts to trail.
 
     Examples:
         rm = RiskManager(initial_capital=50000.0, max_position_size=0.2)
@@ -114,6 +119,13 @@ class RiskManager:
                 the rest of the framework.
             max_leverage: Maximum gross exposure as a multiple of the portfolio
                 value (1.0 = fully invested with no borrowing).
+            trailing_stop_pct: Distance of the trailing stop from the best
+                price the position has reached, as a fraction. Trailing stops
+                are disabled when this is ``0.0`` (the default).
+            trailing_stop_activation_pct: How far a position must move in its
+                favour, as a fraction of the entry price, before its trailing
+                stop starts to trail. ``0.0`` (the default) activates the
+                trailing stop as soon as the position is at its entry price.
 
         Returns:
             None.
@@ -177,6 +189,15 @@ class RiskManager:
         self.positions = positions
         positions_value = sum(p.market_value for p in positions.values())
         total_value = cash + positions_value
+
+        # A position that is no longer held cannot carry a trailing stop, and
+        # the price of the positions that are still held is fed to the
+        # trailing stop tracker so its stop keeps following the market.
+        for symbol in self._tracked_trailing_symbols():
+            if symbol not in positions:
+                self._clear_trailing_state(symbol)
+        for symbol, position in positions.items():
+            self.update_trailing_stop(symbol, position.current_price)
 
         # The peak is updated first so the drawdown is measured against the
         # peak the portfolio is actually at. Measuring against the previous
@@ -243,8 +264,17 @@ class RiskManager:
         """
         if position is None:
             self.positions.pop(symbol, None)
-        else:
-            self.positions[symbol] = position
+            self._clear_trailing_state(symbol)
+            return
+
+        previous = self.positions.get(symbol)
+        if previous is not None and previous.quantity * position.quantity < 0:
+            # The position flipped direction, so the trailing stop tracked for
+            # the old direction no longer applies to the new one.
+            self._clear_trailing_state(symbol)
+
+        self.positions[symbol] = position
+        self.update_trailing_stop(symbol, position.current_price)
 
     def check_signal(self, signal: Signal, portfolio_value: float | None = None) -> CheckResult:
         """Check if a trading signal passes risk limits.
@@ -503,23 +533,146 @@ class RiskManager:
         position = self.positions.get(symbol)
         if position is None or position.avg_price <= 0:
             return None
-        fixed_stop = None
         if position.quantity < 0:
             fixed_stop = position.avg_price * (1 + self.position_limit.stop_loss_pct)
         else:
             fixed_stop = position.avg_price * (1 - self.position_limit.stop_loss_pct)
 
         trailing_stop = self.get_trailing_stop(symbol)
-        if trailing_stop is not None:
-            if position.quantity < 0:
-                # For short, stop is above entry; we want the tighter stop (lower)
-                if fixed_stop is None or trailing_stop < fixed_stop:
-                    return trailing_stop
+        if trailing_stop is None:
+            return fixed_stop
+        if position.quantity < 0:
+            # A short is stopped out above its entry price, so the lower of
+            # the two levels is the tighter one.
+            return min(fixed_stop, trailing_stop)
+        # A long is stopped out below its entry price, so the higher of the
+        # two levels is the tighter one.
+        return max(fixed_stop, trailing_stop)
+
+    def get_trailing_stop(self, symbol: str) -> float | None:
+        """Get the trailing stop price tracked for a position.
+
+        A trailing stop follows the price of a position once it has moved far
+        enough in its favour. It sits ``trailing_stop_pct`` away from the best
+        price the position has reached since it was opened: below the highest
+        price for a long, above the lowest price for a short. The stop only
+        ratchets in the favourable direction, so it never gives back ground it
+        has already locked in.
+
+        Trailing stops are only tracked when ``trailing_stop_pct`` is greater
+        than zero; they are disabled by default.
+
+        Args:
+            symbol: Symbol to query.
+
+        Returns:
+            Trailing stop price, or None when no trailing stop is active for
+            the symbol.
+
+        Examples:
+            A trailing stop follows the best price of a long position::
+
+                from quant_trading.risk.manager import RiskManager
+                from quant_trading.strategies.base import Position
+
+                rm = RiskManager(trailing_stop_pct=0.05)
+                rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+                rm.update_trailing_stop("AAPL", 120.0)
+                assert rm.get_trailing_stop("AAPL") == 114.0
+
+        """
+        return self._trailing_stops.get(symbol)
+
+    def update_trailing_stop(self, symbol: str, price: float) -> float | None:
+        """Feed a market price into the trailing stop tracker.
+
+        The tracker records the best price the position has reached and
+        moves the trailing stop accordingly. The stop only ratchets in the
+        favourable direction: for a long it never moves down, for a short it
+        never moves up.
+
+        The trailing stop only starts to trail once the position has moved
+        ``trailing_stop_activation_pct`` in its favour, measured from the
+        average entry price. Before that the position keeps the trailing stop
+        it already has.
+
+        Args:
+            symbol: Symbol whose position is tracked.
+            price: Latest market price of the symbol.
+
+        Returns:
+            The trailing stop price after the update, or None when trailing
+            stops are disabled or the symbol has no position.
+
+        Examples:
+            The trailing stop of a short follows the lowest price it reached::
+
+                from quant_trading.risk.manager import RiskManager
+                from quant_trading.strategies.base import Position
+
+                rm = RiskManager(trailing_stop_pct=0.05)
+                rm.sync_position("AAPL", Position("AAPL", -100, 100.0, 100.0))
+                rm.update_trailing_stop("AAPL", 80.0)
+                assert rm.get_trailing_stop("AAPL") == 84.0
+
+        """
+        if self.trailing_stop_pct <= 0 or price <= 0:
+            return None
+
+        position = self.positions.get(symbol)
+        if position is None or position.quantity == 0 or position.avg_price <= 0:
+            return None
+
+        if position.quantity > 0:
+            activation_price = position.avg_price * (1 + self.trailing_stop_activation_pct)
+            if price < activation_price:
+                return self._trailing_stops.get(symbol)
+            high = self._trailing_highs.get(symbol)
+            high = price if high is None else max(high, price)
+            self._trailing_highs[symbol] = high
+            stop = high * (1 - self.trailing_stop_pct)
+        else:
+            activation_price = position.avg_price * (1 - self.trailing_stop_activation_pct)
+            if price > activation_price:
+                return self._trailing_stops.get(symbol)
+            low = self._trailing_lows.get(symbol)
+            low = price if low is None else min(low, price)
+            self._trailing_lows[symbol] = low
+            stop = low * (1 + self.trailing_stop_pct)
+
+        existing = self._trailing_stops.get(symbol)
+        if existing is not None:
+            if position.quantity > 0:
+                stop = max(stop, existing)
             else:
-                # For long, stop is below entry; we want the tighter stop (higher)
-                if fixed_stop is None or trailing_stop > fixed_stop:
-                    return trailing_stop
-        return fixed_stop
+                stop = min(stop, existing)
+
+        self._trailing_stops[symbol] = stop
+        return stop
+
+    def _tracked_trailing_symbols(self) -> set[str]:
+        """Symbols that currently carry trailing stop state.
+
+        Returns:
+            Set of symbols present in any of the trailing stop state
+            dictionaries.
+
+        """
+        return set(self._trailing_stops) | set(self._trailing_highs) | set(self._trailing_lows)
+
+    def _clear_trailing_state(self, symbol: str) -> None:
+        """Drop the trailing stop state of a symbol.
+
+        Args:
+            symbol: Symbol whose trailing stop state is discarded.
+
+        Returns:
+            None.
+
+        """
+        self._trailing_stops.pop(symbol, None)
+        self._trailing_highs.pop(symbol, None)
+        self._trailing_lows.pop(symbol, None)
 
     def get_position_take_profit(self, symbol: str) -> float | None:
         """Get take profit price for a position.
@@ -563,8 +716,8 @@ class RiskManager:
         if stop is None:
             return False
         if self.is_short_position(symbol):
-            return current_price >= stop
-        return current_price <= stop
+            return bool(current_price >= stop)
+        return bool(current_price <= stop)
 
     def should_take_profit(self, symbol: str, current_price: float) -> bool:
         """Check if position should trigger take profit.
@@ -585,8 +738,8 @@ class RiskManager:
         if tp is None:
             return False
         if self.is_short_position(symbol):
-            return current_price <= tp
-        return current_price >= tp
+            return bool(current_price <= tp)
+        return bool(current_price >= tp)
 
     def reset(self) -> None:
         """Reset risk manager state.
@@ -609,6 +762,8 @@ class RiskManager:
         self.peak_value = self.initial_capital
         self.risk_metrics = None
         self.history = []
+        for symbol in self._tracked_trailing_symbols():
+            self._clear_trailing_state(symbol)
 
     def enable(self) -> None:
         """Enable risk management.

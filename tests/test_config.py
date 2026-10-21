@@ -42,6 +42,13 @@ class TestRiskConfig:
         assert config.max_position_size == 0.1
         assert config.max_drawdown == 0.20
         assert config.max_leverage == 1.0
+        assert config.trailing_stop_pct == 0.0
+        assert config.trailing_stop_activation_pct == 0.0
+
+    def test_trailing_stop_is_configurable(self):
+        config = RiskConfig(trailing_stop_pct=0.08, trailing_stop_activation_pct=0.05)
+        assert config.trailing_stop_pct == 0.08
+        assert config.trailing_stop_activation_pct == 0.05
 
 
 class TestPortfolioConfig:

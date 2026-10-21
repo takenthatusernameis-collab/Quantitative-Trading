@@ -358,6 +358,8 @@ class BacktestEngine:
             take_profit_pct=risk_cfg.take_profit_pct,
             max_drawdown=risk_cfg.max_drawdown,
             max_positions=portfolio_cfg.max_positions,
+            trailing_stop_pct=risk_cfg.trailing_stop_pct,
+            trailing_stop_activation_pct=risk_cfg.trailing_stop_activation_pct,
         )
         self.portfolio = Portfolio(cash=backtest_cfg.initial_capital)
         self.strategies: dict[str, Strategy] = {}

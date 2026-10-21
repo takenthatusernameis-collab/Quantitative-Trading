@@ -1337,6 +1337,47 @@ def test_engine_short_gets_mirrored_stop_loss_and_take_profit():
     assert rm.should_stop_loss("TEST", avg_price * 0.80) is False
 
 
+def test_trailing_stop_config_reaches_the_risk_manager():
+    """The trailing stop settings of the risk config are forwarded to the manager."""
+    data = {"TEST": _price_frame([50.0, 50.0])}
+    config = _short_config(
+        max_position_size=0.1,
+        max_leverage=1.0,
+        max_portfolio_risk=1.0,
+        trailing_stop_pct=0.05,
+        trailing_stop_activation_pct=0.02,
+    )
+
+    _, engine = _run_script([("buy", 1.0)], data, config)
+
+    rm = engine.risk_manager
+    assert rm.trailing_stop_pct == 0.05
+    assert rm.trailing_stop_activation_pct == 0.02
+
+
+def test_engine_tracks_a_trailing_stop_while_the_price_rises():
+    """The trailing stop of a long follows the price the engine observes."""
+    data = {"TEST": _price_frame([50.0, 60.0, 70.0])}
+    config = _short_config(
+        max_position_size=0.1,
+        max_leverage=1.0,
+        max_portfolio_risk=1.0,
+        stop_loss_pct=0.20,
+        trailing_stop_pct=0.10,
+    )
+
+    result, engine = _run_script([("buy", 1.0)], data, config)
+
+    rm = engine.risk_manager
+    position = result.positions["TEST"]
+    assert position.quantity > 0
+    # The stop follows the highest price the position reached (70.0).
+    assert rm.get_trailing_stop("TEST") == pytest.approx(63.0)
+    assert rm.get_position_stop_loss("TEST") == pytest.approx(63.0)
+    assert rm.should_stop_loss("TEST", 63.0) is True
+    assert rm.should_stop_loss("TEST", 64.0) is False
+
+
 def test_short_and_cover_in_the_same_bar_end_flat():
     """A short that is covered inside the same bar leaves no position behind."""
     data = {"TEST": _price_frame([50.0, 50.0])}

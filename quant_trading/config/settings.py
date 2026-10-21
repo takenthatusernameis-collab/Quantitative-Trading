@@ -148,6 +148,12 @@ class RiskConfig:
         max_drawdown: Maximum tolerated portfolio drawdown as a fraction.
         max_leverage: Maximum gross exposure as a multiple of the portfolio
             value (1.0 = fully invested with no borrowing).
+        trailing_stop_pct: Distance of the trailing stop from the best price
+            a position has reached, as a fraction (``0.0`` disables trailing
+            stops).
+        trailing_stop_activation_pct: How far a position must move in its
+            favour, as a fraction of its entry price, before its trailing stop
+            starts to trail.
 
     Examples:
         >>> from quant_trading.config.settings import RiskConfig
@@ -162,6 +168,8 @@ class RiskConfig:
     take_profit_pct: float = 0.15
     max_drawdown: float = 0.20
     max_leverage: float = 1.0
+    trailing_stop_pct: float = 0.0
+    trailing_stop_activation_pct: float = 0.0
 
 
 @dataclass

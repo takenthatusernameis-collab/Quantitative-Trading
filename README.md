@@ -684,6 +684,8 @@ risk:
   take_profit_pct: 0.15
   max_drawdown: 0.20
   max_leverage: 1.0
+  trailing_stop_pct: 0.0
+  trailing_stop_activation_pct: 0.0
 
 portfolio:
   rebalance_frequency: "monthly"
@@ -807,6 +809,40 @@ rm.get_position_take_profit("AAPL")   # 127.5, below the entry price
 rm.should_stop_loss("AAPL", 165.0)    # True
 rm.should_take_profit("AAPL", 127.5)  # True
 ```
+
+## Trailing Stops
+
+A trailing stop follows the price of a position once it has moved far enough in
+its favour. It sits `trailing_stop_pct` away from the best price the position
+has reached: below the highest price for a long, above the lowest price for a
+short. The stop only ratchets in the favourable direction, so it never gives
+back ground it has already locked in.
+
+Trailing stops are disabled by default (`trailing_stop_pct: 0.0`).
+`trailing_stop_activation_pct` is how far the position must move in its favour,
+as a fraction of its entry price, before the stop starts to trail.
+
+```python
+from quant_trading.risk.manager import RiskManager
+from quant_trading.strategies.base import Position
+
+rm = RiskManager(trailing_stop_pct=0.05)
+rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+rm.update_trailing_stop("AAPL", 120.0)
+rm.get_trailing_stop("AAPL")         # 114.0, 5% below the high of 120.0
+rm.get_position_stop_loss("AAPL")    # 114.0, the trailing stop is the tighter one
+```
+
+The tighter of the two stops is always the one that is used: the higher level
+for a long, the lower level for a short. A trailing stop that is still wider
+than the fixed stop loss therefore leaves the fixed stop in place until the
+price has moved far enough for the trailing stop to become the tighter one.
+
+The risk manager is fed the prices it observes: `update_portfolio_value()` and
+`sync_position()` both report the latest price of every position they know
+about, so the trailing stop keeps following the market on their own. A caller
+that tracks prices elsewhere can feed them in directly with
+`update_trailing_stop(symbol, price)`.
 
 ## Annualization Periods
 
