@@ -21,6 +21,7 @@ from quant_trading.config.settings import (
 )
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
 from quant_trading.data.synthetic import create_synthetic_data
+from quant_trading.portfolio.portfolio import Holding
 from quant_trading.risk.manager import RiskManager
 from quant_trading.strategies.base import Signal, Strategy
 from quant_trading.strategies.examples import MovingAverageCrossover
@@ -2074,3 +2075,126 @@ class TestDataIntervalConfig:
         config = Config(data=DataConfig(default_interval="1wk"))
         self._run(config, interval="1d")
         assert config.data.default_interval == "1wk"
+
+
+class TestStopExitAndShortCoveringEdges:
+    """Tests for the defensive branches of the engine's exit and sizing logic.
+
+    These branches are guards that only trigger in unusual states (a held
+    symbol with no price on the bar, a zero-quantity holding, a short sized
+    against an exhausted budget, a cover with zero size, or a cover trimmed to
+    zero by an empty cash balance). They are exercised by driving the engine's
+    private methods directly with a hand-built portfolio so no network or
+    full backtest run is required.
+    """
+
+    def _engine(self) -> BacktestEngine:
+        return BacktestEngine(config=BacktestConfig(initial_capital=100_000.0))
+
+    def _timestamp(self) -> datetime:
+        return datetime(2024, 1, 1)
+
+    def test_process_stop_exits_skips_symbol_without_price(self):
+        """A held symbol missing from the bar's prices is skipped (line 647)."""
+        engine = self._engine()
+        engine.portfolio.holdings["AAPL"] = Holding(
+            symbol="AAPL", quantity=100, avg_cost=100.0, current_price=100.0
+        )
+        trades: list[Trade] = []
+        engine._process_stop_exits(
+            prices={"MSFT": 100.0}, trades_list=trades, timestamp=self._timestamp()
+        )
+        assert trades == []
+        assert "AAPL" in engine.portfolio.holdings
+
+    def test_process_stop_exits_skips_zero_quantity_holding(self):
+        """A holding with zero quantity is skipped (line 651)."""
+        engine = self._engine()
+        engine.portfolio.holdings["AAPL"] = Holding(
+            symbol="AAPL", quantity=0, avg_cost=100.0, current_price=100.0
+        )
+        trades: list[Trade] = []
+        engine._process_stop_exits(
+            prices={"AAPL": 100.0}, trades_list=trades, timestamp=self._timestamp()
+        )
+        assert trades == []
+        assert engine.portfolio.holdings["AAPL"].quantity == 0
+
+    def test_open_short_returns_when_no_available_value(self):
+        """A short with no available position value is not opened (line 845)."""
+        engine = self._engine()
+        signal = Signal(symbol="AAPL", action="sell", strength=0.0, price=100.0)
+        trades: list[Trade] = []
+        engine._open_short(
+            symbol="AAPL",
+            signal=signal,
+            trades_list=trades,
+            timestamp=self._timestamp(),
+            price=100.0,
+        )
+        assert trades == []
+        assert "AAPL" not in engine.portfolio.holdings
+
+    def test_cover_short_returns_when_zero_quantity(self):
+        """A cover signal with zero strength covers nothing (line 906)."""
+        engine = self._engine()
+        engine.portfolio.holdings["AAPL"] = Holding(
+            symbol="AAPL", quantity=-100, avg_cost=100.0, current_price=100.0
+        )
+        holding = engine.portfolio.holdings["AAPL"]
+        signal = Signal(symbol="AAPL", action="buy", strength=0.0, price=100.0)
+        trades: list[Trade] = []
+        engine._cover_short(
+            symbol="AAPL",
+            signal=signal,
+            trades_list=trades,
+            timestamp=self._timestamp(),
+            price=100.0,
+            holding=holding,
+        )
+        assert trades == []
+        assert engine.portfolio.holdings["AAPL"].quantity == -100
+
+    def test_cover_short_returns_when_cash_constrained_to_zero(self):
+        """A cover trimmed to zero cash is not executed (lines 910-914)."""
+        engine = self._engine()
+        engine.portfolio.cash = 0.0
+        engine.portfolio.holdings["AAPL"] = Holding(
+            symbol="AAPL", quantity=-100, avg_cost=100.0, current_price=100.0
+        )
+        holding = engine.portfolio.holdings["AAPL"]
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=100.0)
+        trades: list[Trade] = []
+        engine._cover_short(
+            symbol="AAPL",
+            signal=signal,
+            trades_list=trades,
+            timestamp=self._timestamp(),
+            price=100.0,
+            holding=holding,
+        )
+        assert trades == []
+        assert engine.portfolio.holdings["AAPL"].quantity == -100
+
+    def test_cover_short_trims_to_affordable_positive_quantity(self):
+        """A cover trimmed by cash still executes when the trimmed size is positive (line 915 not taken)."""
+        engine = self._engine()
+        engine.portfolio.cash = 50.0
+        engine.portfolio.holdings["AAPL"] = Holding(
+            symbol="AAPL", quantity=-100, avg_cost=100.0, current_price=100.0
+        )
+        holding = engine.portfolio.holdings["AAPL"]
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=100.0)
+        trades: list[Trade] = []
+        engine._cover_short(
+            symbol="AAPL",
+            signal=signal,
+            trades_list=trades,
+            timestamp=self._timestamp(),
+            price=100.0,
+            holding=holding,
+        )
+        assert len(trades) == 1
+        assert trades[0].action == "cover"
+        assert 0 < trades[0].quantity < 100
+        assert engine.portfolio.holdings["AAPL"].quantity == -100 + trades[0].quantity
