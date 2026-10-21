@@ -186,25 +186,6 @@ def calculate_backtest_metrics(
     metrics = BacktestMetrics()
 
     if len(equity_curve) < 2:
-        # Even if we can't compute return/risk, trade PnL can still be computed
-        if trades is not None and len(trades) > 0 and "pnl" in trades.columns:
-            log = split_trade_log(trades)
-            if not log.entries.empty:
-                metrics.total_pnl = float(log.entries["pnl"].sum())
-            round_trips = log.round_trips
-            winning = round_trips[round_trips["pnl"] > 0]
-            losing = round_trips[round_trips["pnl"] < 0]
-            metrics.num_trades = len(round_trips)
-            metrics.num_winning_trades = len(winning)
-            metrics.num_losing_trades = len(losing)
-            metrics.win_rate = len(winning) / len(round_trips) if len(round_trips) > 0 else 0
-            metrics.avg_win = winning["pnl"].mean() if len(winning) > 0 else 0
-            metrics.avg_loss = losing["pnl"].mean() if len(losing) > 0 else 0
-            metrics.largest_win = winning["pnl"].max() if len(winning) > 0 else 0
-            metrics.largest_loss = losing["pnl"].min() if len(losing) > 0 else 0
-            gross_profit = winning["pnl"].sum() if len(winning) > 0 else 0
-            gross_loss = abs(losing["pnl"].sum()) if len(losing) > 0 else 0
-            metrics.profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0
         return metrics
 
     initial_value = equity_curve.iloc[0]
