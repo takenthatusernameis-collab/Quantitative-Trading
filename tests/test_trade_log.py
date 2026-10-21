@@ -284,6 +284,57 @@ class TestMetricsAndAnalysisAgree:
         assert metrics.profit_factor == pytest.approx(analysis.profit_factor), name
         assert metrics.largest_win == pytest.approx(analysis.largest_win), name
         assert metrics.largest_loss == pytest.approx(analysis.largest_loss), name
+        assert metrics.avg_win == pytest.approx(analysis.avg_win), name
+        assert metrics.avg_loss == pytest.approx(analysis.avg_loss), name
+
+    def test_the_loss_figures_are_signed_everywhere(self):
+        """A loss is a negative PnL in every place the loss is reported.
+
+        The top level figures, the per symbol figures and the metrics of the
+        other public API all report the same signed value, so a report never
+        shows an average loss with one sign and a largest loss with the
+        other.
+        """
+        trades = _log(
+            _trade(action="buy", pnl=0.0),
+            _trade(action="sell", day=2, pnl=100.0),
+            _trade(action="buy", day=3, pnl=0.0),
+            _trade(action="sell", day=4, pnl=-50.0),
+        )
+        result = _result(trades)
+
+        metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
+        analysis = analyze_trades(result)
+
+        assert analysis.avg_loss == pytest.approx(-50.0)
+        assert analysis.largest_loss == pytest.approx(-50.0)
+        assert analysis.symbol_stats["AAPL"]["avg_loss"] == pytest.approx(-50.0)
+        assert analysis.symbol_stats["AAPL"]["largest_loss"] == pytest.approx(-50.0)
+        assert metrics.avg_loss == pytest.approx(-50.0)
+        assert metrics.largest_loss == pytest.approx(-50.0)
+
+    def test_the_per_symbol_figures_agree_with_the_top_level_figures(self):
+        """A run that trades one symbol reports the same numbers twice."""
+        trades = _log(
+            _trade(action="buy", pnl=0.0),
+            _trade(action="sell", day=2, pnl=100.0),
+            _trade(action="buy", day=3, pnl=0.0),
+            _trade(action="sell", day=4, pnl=-50.0),
+        )
+
+        analysis = analyze_trades(_result(trades))
+        stats = analysis.symbol_stats["AAPL"]
+
+        assert stats["total_trades"] == analysis.total_trades
+        assert stats["winning_trades"] == analysis.winning_trades
+        assert stats["losing_trades"] == analysis.losing_trades
+        assert stats["win_rate"] == pytest.approx(analysis.win_rate)
+        assert stats["total_pnl"] == pytest.approx(analysis.total_pnl)
+        assert stats["avg_pnl"] == pytest.approx(analysis.avg_pnl)
+        assert stats["avg_win"] == pytest.approx(analysis.avg_win)
+        assert stats["avg_loss"] == pytest.approx(analysis.avg_loss)
+        assert stats["largest_win"] == pytest.approx(analysis.largest_win)
+        assert stats["largest_loss"] == pytest.approx(analysis.largest_loss)
 
     def test_a_short_round_trip_counts_as_one_trade(self):
         """The short entry is counted with the cover that closes it."""

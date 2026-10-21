@@ -178,7 +178,7 @@ def test_analyze_trades_pnl_stats():
     assert analysis.largest_win == 95.0
     assert analysis.largest_loss == -55.0
     assert abs(analysis.avg_win - 65.0) < 0.01  # (95 + 72 + 28) / 3
-    assert abs(analysis.avg_loss - 55.0) < 0.01  # abs(-55)
+    assert analysis.avg_loss == pytest.approx(-55.0)  # the mean of the losing PnL
 
 
 def test_analyze_trades_holding_periods():
@@ -760,7 +760,8 @@ def _result_with_trades(pnls, equity_values=None):
 def test_expectancy_is_positive_when_every_trade_wins():
     """Regression: expectancy must not collapse to zero when no trade lost.
 
-    The expectancy is ``win_rate * avg_win - loss_rate * avg_loss``. With no
+    The expectancy is ``win_rate * avg_win + loss_rate * avg_loss``, with
+    ``avg_loss`` the signed (negative) mean of the losing trades. With no
     losing trades the second term is zero, so the expectancy is the average
     winning trade.
     """
@@ -776,7 +777,7 @@ def test_expectancy_is_negative_when_every_trade_loses():
     analysis = analyze_trades(_result_with_trades([-50.0, -20.0]))
 
     assert analysis.winning_trades == 0
-    assert analysis.avg_loss == pytest.approx(35.0)
+    assert analysis.avg_loss == pytest.approx(-35.0)
     assert analysis.expectancy == pytest.approx(-35.0)
 
 
@@ -784,7 +785,7 @@ def test_expectancy_matches_the_weighted_average():
     """The expectancy is the win rate weighted average of wins and losses."""
     analysis = analyze_trades(_result_with_trades([50.0, -20.0]))
 
-    assert analysis.expectancy == pytest.approx(0.5 * 50.0 - 0.5 * 20.0)
+    assert analysis.expectancy == pytest.approx(0.5 * 50.0 + 0.5 * -20.0)
 
 
 def test_trade_sharpe_changes_with_the_risk_free_rate():

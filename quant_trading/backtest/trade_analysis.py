@@ -43,7 +43,8 @@ class TradeAnalysis:
         median_pnl: Median PnL per trade.
         std_pnl: Standard deviation of trade PnL.
         avg_win: Average PnL of winning trades.
-        avg_loss: Average PnL of losing trades (positive magnitude).
+        avg_loss: Average PnL of losing trades (negative, like the PnL of the
+            losing trades themselves).
         largest_win: Largest winning trade PnL.
         largest_loss: Largest losing trade PnL.
         profit_factor: Gross profit divided by gross loss.
@@ -341,7 +342,8 @@ def _calculate_symbol_stats(trades: pd.DataFrame) -> dict[str, dict[str, Any]]:
         Mapping of symbol to a dict with ``total_trades``,
         ``winning_trades``, ``losing_trades``, ``win_rate``, ``total_pnl``,
         ``avg_pnl``, ``avg_win``, ``avg_loss``, ``largest_win``, and
-        ``largest_loss``. Empty when there are no trades.
+        ``largest_loss``. The loss figures are signed, like the top level
+        figures of the same name. Empty when there are no trades.
 
     """
     if trades.empty or "pnl" not in trades.columns:
@@ -450,6 +452,11 @@ def analyze_trades(
     ``periods_per_year`` and subtracted from the per-trade returns before the
     ratio is annualized.
 
+    A trade is a completed round trip, and the loss figures (``avg_loss``
+    and ``largest_loss``) are signed, so they are negative when there are
+    losing trades. They report the same numbers as the same figures in
+    :class:`~quant_trading.backtest.metrics.BacktestMetrics`.
+
     Args:
         result: BacktestResult to analyze.
         risk_free_rate: Annual risk-free rate for Sharpe/Sortino. It is
@@ -512,8 +519,11 @@ def analyze_trades(
     # Expectancy
     win_rate = len(winning) / len(pnl_trades) if len(pnl_trades) > 0 else 0
     avg_win = float(winning["pnl"].mean()) if len(winning) > 0 else 0
-    avg_loss = float(abs(losing["pnl"].mean())) if len(losing) > 0 else 0
-    expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
+    # The loss figures are signed, like the PnL of the losing trades
+    # themselves, so the expectancy is the win rate weighted average of the
+    # wins and the losses.
+    avg_loss = float(losing["pnl"].mean()) if len(losing) > 0 else 0
+    expectancy = (win_rate * avg_win) + ((1 - win_rate) * avg_loss)
 
     # Trade-level Sharpe/Sortino, computed on the per-trade return series so
     # that the risk-free rate can be applied to it.

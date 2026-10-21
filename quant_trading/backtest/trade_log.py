@@ -49,8 +49,10 @@ class TradeLog(NamedTuple):
             against.
         round_trips: The rows that stand for completed round trips. The short
             entry rows are gone (their PnL was folded into the cover that
-            closed them) and so are the rows without a realized PnL, which are
-            the long entries. One completed round trip is one row.
+            closed them) and so are the long entry rows, which open a round
+            trip instead of closing one. One completed round trip is one row,
+            and it is a row even when the round trip closed at exactly zero
+            PnL.
 
     """
 
@@ -67,6 +69,10 @@ def split_trade_log(trades: pd.DataFrame) -> TradeLog:
     so both belong to the same round trip. The PnL of the short entry is
     therefore folded into the cover that closes it and the entry row is
     dropped, which leaves one row per completed round trip.
+
+    A round trip is recognized by the row that closes it and not by the PnL
+    that row booked: a round trip that closed at exactly zero PnL is a trade,
+    and a closing row that closes no open position is not a trade.
 
     Args:
         trades: Trade log. It needs a ``pnl`` column. The short entries are
@@ -105,7 +111,6 @@ def split_trade_log(trades: pd.DataFrame) -> TradeLog:
     # PnL is counted as a trade.
     short_queues: dict[str, list[list[float]]] = {}
     long_queues: dict[str, list[list[float]]] = {}
-    short_rows: set[int] = set()
     round_trip_rows: set[int] = set()
     for index, row in entries.iterrows():
         symbol = row["symbol"]
@@ -114,7 +119,6 @@ def split_trade_log(trades: pd.DataFrame) -> TradeLog:
             short_queues.setdefault(symbol, []).append(
                 [float(row["quantity"]), float(pnl.iloc[index])]
             )
-            short_rows.add(index)
         elif action == "cover":
             quantity = float(row["quantity"])
             folded = 0.0

@@ -61,7 +61,7 @@ class BacktestMetrics:
         num_winning_trades: Number of round trips with a positive PnL.
         num_losing_trades: Number of round trips with a negative PnL.
         avg_win: Average PnL of winning trades (0.0 if none).
-        avg_loss: Average PnL of losing trades (0.0 if none).
+        avg_loss: Average PnL of losing trades (negative, 0.0 if none).
         largest_win: Largest single-trade PnL (0.0 if none).
         largest_loss: Smallest (most negative) single-trade PnL (0.0 if none).
         var_95: Value at Risk at 95% confidence (historical method).
