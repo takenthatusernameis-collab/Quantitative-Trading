@@ -505,3 +505,41 @@ def test_explicit_thresholds_override_auto():
     assert explicit.n_segments >= 1
     # explicit high thresholds force sideways labeling
     assert all(r in (Regime.SIDEWAYS_LOW_VOL, Regime.SIDEWAYS_HIGH_VOL) for r in explicit.regimes)
+
+
+def test_single_bar_segment_at_the_first_price_bar_reports_zero_return():
+    """A one-bar segment on the very first price bar has no predecessor bar.
+
+    Its own close-to-close return is measured against the bar before it, so
+    the first bar has nothing to be measured against and reports 0.0%.
+    """
+    detector = RegimeDetector()
+    prices = _make_series(n=20)
+    # A returns series that is indexed like the prices, so label 0 is the
+    # first price bar rather than the second one.
+    returns = pd.Series(prices.pct_change().values, index=prices.index)
+    rolling_vol = returns.rolling(window=5).std()
+
+    segment = detector._make_segment(Regime.BULL_LOW_VOL, 0, 1, prices, returns, rolling_vol)
+
+    assert segment.regime == Regime.BULL_LOW_VOL
+    assert segment.start == prices.index[0]
+    assert segment.return_pct == 0.0
+
+
+def test_segment_without_labeled_bars_reports_zero_return():
+    """A segment that spans no labeled bar has no price range to report.
+
+    The start and end price bars would not even exist, so the return is 0.0%
+    rather than an error.
+    """
+    detector = RegimeDetector()
+    prices = _make_series(n=20)
+    returns = prices.pct_change().dropna()
+    rolling_vol = returns.rolling(window=5).std()
+
+    segment = detector._make_segment(Regime.BEAR_LOW_VOL, 3, 3, prices, returns, rolling_vol)
+
+    assert segment.regime == Regime.BEAR_LOW_VOL
+    assert segment.return_pct == 0.0
+    assert segment.volatility == 0.0

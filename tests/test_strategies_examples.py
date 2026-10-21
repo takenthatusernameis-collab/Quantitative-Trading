@@ -501,6 +501,78 @@ class TestMovingAverageCrossover:
         symbols = {s.symbol for s in signals}
         assert symbols.issubset({"AAPL", "MSFT"})
 
+    def test_generate_signals_skips_a_nan_last_close(self):
+        """A last close that is not a number yields no signal.
+
+        The signal is emitted at the last close, so a close that is not a
+        number is skipped before any moving average is derived from it.
+        """
+        strategy = MovingAverageCrossover(fast_period=2, slow_period=3)
+        closes = [100.0, 101.0, 102.0, float("nan")]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_skips_an_undefined_previous_ma(self):
+        """A previous moving average that is not a number yields no signal.
+
+        The crossover is measured between the last two moving averages, so a
+        previous average that could not be computed leaves nothing to compare
+        against.
+        """
+        strategy = MovingAverageCrossover(fast_period=2, slow_period=3)
+        closes = [100.0, float("nan"), 102.0, 103.0]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_with_one_bar_windows_yields_no_signals(self):
+        """A strategy with one-bar windows cannot detect a crossover.
+
+        ``validate_parameters`` requires the slow window to be longer than the
+        fast one, so this configuration is only reachable by overriding the
+        windows directly. The strategy must then skip the symbol instead of
+        reading a previous bar that does not exist.
+        """
+        strategy = MovingAverageCrossover(fast_period=2, slow_period=3)
+        strategy.fast_period = 1
+        strategy.slow_period = 1
+        data = {"AAPL": create_donchian_data("AAPL", [100.0])}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_golden_cross_with_a_zero_slow_ma_uses_the_fallback_strength(self):
+        """A golden cross on a zero slow MA falls back to a 0.5 strength.
+
+        The strength is the distance between the two moving averages relative
+        to the slow one, which cannot be scaled by a slow MA of zero.
+        """
+        strategy = MovingAverageCrossover(fast_period=1, slow_period=2)
+        closes = [0.0, 0.0, -10.0, 10.0]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "buy"
+        assert signal.strength == 0.5
+        assert signal.metadata["crossover_type"] == "golden_cross"
+        assert signal.metadata["slow_ma"] == 0.0
+
+    def test_death_cross_with_a_zero_slow_ma_uses_the_fallback_strength(self):
+        """A death cross on a zero slow MA falls back to a 0.5 strength."""
+        strategy = MovingAverageCrossover(fast_period=1, slow_period=2)
+        closes = [0.0, 0.0, 10.0, -10.0]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "sell"
+        assert signal.strength == 0.5
+        assert signal.metadata["crossover_type"] == "death_cross"
+        assert signal.metadata["slow_ma"] == 0.0
+
 
 class TestRSIStrategy:
     """Tests for RSIStrategy."""
@@ -592,6 +664,18 @@ class TestRSIStrategy:
         signals = strategy.generate_signals(data)
         symbols = {s.symbol for s in signals}
         assert symbols.issubset({"AAPL", "MSFT"})
+
+    def test_generate_signals_skips_an_undefined_rsi(self):
+        """A flat price series has no RSI, so no signal is generated.
+
+        The RSI is undefined when there are no gains and no losses at all:
+        the gain and the loss are both zero, so their ratio is not a number.
+        """
+        strategy = RSIStrategy(period=14, oversold=30, overbought=70)
+        closes = [100.0] * 15
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
 
 
 class TestBollingerBandsStrategy:

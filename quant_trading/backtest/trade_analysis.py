@@ -159,10 +159,11 @@ def _calculate_holding_periods(trades: pd.DataFrame) -> list[float]:
 
     Returns:
         List of holding periods in days (as floats). Empty when there are
-        no completed round trips.
+        no completed round trips, and empty when the trades carry no
+        ``action`` column (there are then no entries and exits to pair).
 
     """
-    if trades.empty or "pnl" not in trades.columns:
+    if trades.empty or "pnl" not in trades.columns or "action" not in trades.columns:
         return []
 
     # Group trades by symbol to find round trips

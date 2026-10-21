@@ -1022,3 +1022,134 @@ def test_short_never_covered_is_not_counted():
     assert analysis.winning_trades == 0
     assert analysis.losing_trades == 0
     assert analysis.total_pnl == 0.0
+
+
+def test_short_entry_fee_is_folded_into_the_cover():
+    """The short's entry fee belongs to the cover that closes it.
+
+    The entry fee is booked on the short row, but the short row is dropped
+    because it is not a round trip on its own. The fee therefore has to be
+    added to the cover, otherwise it is lost from the trade statistics.
+    """
+    from datetime import datetime
+
+    result = _short_result(
+        [
+            _trade("TEST", "short", 100.0, 50.0, datetime(2024, 1, 1), -5.0),
+            _trade("TEST", "cover", 100.0, 40.0, datetime(2024, 1, 3), 1000.0),
+        ]
+    )
+
+    analysis = analyze_trades(result)
+
+    assert analysis.total_trades == 1
+    assert analysis.winning_trades == 1
+    assert analysis.losing_trades == 0
+    assert analysis.total_pnl == 995.0
+    assert analysis.avg_holding_period == 2.0
+
+
+def test_calculate_consecutive_streaks_without_a_timestamp_column():
+    """Trades that carry no timestamp are counted in the order they are given.
+
+    There is no chronology to sort by, so the given order is the order the
+    trades happened in.
+    """
+    from quant_trading.backtest.trade_analysis import _calculate_consecutive_streaks
+
+    trades = pd.DataFrame(
+        [
+            {"symbol": "AAPL", "pnl": 10.0},
+            {"symbol": "AAPL", "pnl": 20.0},
+            {"symbol": "AAPL", "pnl": -5.0},
+        ]
+    )
+
+    max_wins, max_losses, current_streak, current_type = _calculate_consecutive_streaks(trades)
+
+    assert max_wins == 2
+    assert max_losses == 1
+    assert current_streak == 1
+    assert current_type == "loss"
+
+
+def test_equity_at_trade_times_returns_nan_for_an_unusable_timestamp():
+    """A trade timestamp that cannot be matched to the equity curve yields NaN.
+
+    The lookup must not raise when a trade carries a timestamp the equity
+    curve cannot be searched with; the trade simply has no known equity.
+    """
+    from quant_trading.backtest.trade_analysis import _equity_at_trade_times
+
+    equity = pd.Series([100.0, 200.0], index=pd.date_range("2024-01-01", periods=2))
+    timestamps = pd.Series([pd.Timestamp("2024-01-01"), "not-a-timestamp"])
+
+    resolved = _equity_at_trade_times(equity, timestamps)
+
+    assert resolved.iloc[0] == 100.0
+    assert pd.isna(resolved.iloc[1])
+
+
+def test_calculate_trade_returns_without_a_timestamp_column():
+    """Trades without a timestamp cannot be turned into per-trade returns."""
+    from quant_trading.backtest.trade_analysis import _calculate_trade_returns
+
+    trades = pd.DataFrame([{"symbol": "AAPL", "pnl": 10.0}])
+    equity = pd.Series([100.0, 200.0], index=pd.date_range("2024-01-01", periods=2))
+
+    returns = _calculate_trade_returns(trades, equity)
+
+    assert len(returns) == 1
+    assert returns.isna().all()
+
+
+def test_analyze_trades_without_an_action_column():
+    """A trades frame without an action column is analysed instead of raising.
+
+    Without an action column there are no entries and exits to pair, so there
+    are no round trips and no holding periods, but the trades are still
+    counted.
+    """
+    from datetime import datetime, timedelta
+
+    start = datetime(2024, 1, 1)
+    trades = pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL",
+                "quantity": 10,
+                "price": 100.0,
+                "timestamp": start,
+                "pnl": 25.0,
+            },
+            {
+                "symbol": "AAPL",
+                "quantity": 10,
+                "price": 110.0,
+                "timestamp": start + timedelta(days=5),
+                "pnl": -10.0,
+            },
+        ]
+    )
+    equity = pd.Series([10000.0, 10000.0], index=pd.date_range(start, periods=2))
+    result = BacktestResult(
+        equity_curve=equity,
+        trades=trades,
+        positions={},
+        metrics=BacktestMetrics(),
+        start_date=start,
+        end_date=start + timedelta(days=1),
+        initial_capital=10000.0,
+        final_value=10000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+    )
+
+    analysis = analyze_trades(result)
+
+    assert analysis.total_trades == 2
+    assert analysis.winning_trades == 1
+    assert analysis.losing_trades == 1
+    assert analysis.total_pnl == 15.0
+    assert analysis.avg_holding_period == 0.0
+    assert analysis.max_holding_period == 0.0

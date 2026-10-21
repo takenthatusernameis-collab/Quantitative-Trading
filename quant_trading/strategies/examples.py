@@ -82,6 +82,12 @@ class MovingAverageCrossover(Strategy):
                 continue
 
             close = df["close"]
+            current_price = close.iloc[-1]
+            # The signal is emitted at the last close, so a close that is not a
+            # number is rejected before anything is derived from it.
+            if pd.isna(current_price):
+                continue
+
             fast_ma = close.rolling(window=self.fast_period).mean()
             slow_ma = close.rolling(window=self.slow_period).mean()
 
@@ -100,10 +106,6 @@ class MovingAverageCrossover(Strategy):
                 or pd.isna(slow_current)
                 or pd.isna(slow_prev)
             ):
-                continue
-
-            current_price = close.iloc[-1]
-            if pd.isna(current_price):
                 continue
             timestamp = df.index[-1]
 
