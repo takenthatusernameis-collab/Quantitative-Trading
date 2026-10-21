@@ -94,20 +94,35 @@ def split_trade_log(trades: pd.DataFrame) -> TradeLog:
     # The PnL is carried as a float, so folding a fee into a cover cannot
     # truncate the result.
     pnl = entries["pnl"].astype(float)
-    queues: dict[str, list[list[float]]] = {}
+
+    # Short entries are paired with their covers FIFO per symbol; the entry's
+    # fee is folded into the cover that closes it and the entry row is dropped.
+    # Long entries are paired with the sells that close them FIFO per symbol,
+    # the way ``_calculate_holding_periods()`` already does: a sell that closes
+    # (part of) an open long entry is a round trip, a sell that closes nothing
+    # is not. Long entry rows are dropped by construction, so the ``pnl != 0``
+    # filter is no longer needed and a round trip that closes at exactly zero
+    # PnL is counted as a trade.
+    short_queues: dict[str, list[list[float]]] = {}
+    long_queues: dict[str, list[list[float]]] = {}
     short_rows: set[int] = set()
+    round_trip_rows: set[int] = set()
     for index, row in entries.iterrows():
         symbol = row["symbol"]
         action = row["action"]
         if action == "short":
-            queues.setdefault(symbol, []).append([float(row["quantity"]), float(pnl.iloc[index])])
+            short_queues.setdefault(symbol, []).append(
+                [float(row["quantity"]), float(pnl.iloc[index])]
+            )
             short_rows.add(index)
         elif action == "cover":
             quantity = float(row["quantity"])
             folded = 0.0
-            queue = queues.setdefault(symbol, [])
+            closed_any = False
+            queue = short_queues.setdefault(symbol, [])
             while quantity > 0 and queue:
                 entry = queue[0]
+                closed_any = True
                 if quantity >= entry[0]:
                     folded += entry[1]
                     quantity -= entry[0]
@@ -120,10 +135,29 @@ def split_trade_log(trades: pd.DataFrame) -> TradeLog:
                     quantity = 0
             if folded:
                 pnl.iloc[index] = pnl.iloc[index] + folded
-    entries["pnl"] = pnl
+            if closed_any:
+                round_trip_rows.add(index)
+        elif action == "sell":
+            quantity = float(row["quantity"])
+            closed_any = False
+            queue = long_queues.setdefault(symbol, [])
+            while quantity > 0 and queue:
+                entry = queue[0]
+                closed_any = True
+                if quantity >= entry[0]:
+                    quantity -= entry[0]
+                    queue.pop(0)
+                else:
+                    entry[0] -= quantity
+                    quantity = 0
+            if closed_any:
+                round_trip_rows.add(index)
+        elif action == "buy":
+            long_queues.setdefault(symbol, []).append([float(row["quantity"])])
 
-    round_trips = entries.drop(index=sorted(short_rows)).reset_index(drop=True)
-    return TradeLog(entries=entries, round_trips=round_trips[round_trips["pnl"] != 0].copy())
+    entries["pnl"] = pnl
+    round_trips = entries.loc[sorted(round_trip_rows)].reset_index(drop=True)
+    return TradeLog(entries=entries, round_trips=round_trips)
 
 
 __all__ = [

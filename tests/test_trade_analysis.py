@@ -695,10 +695,12 @@ def test_calculate_holding_periods_partial_sell_records_each_leg():
 
 
 def _result_with_trades(pnls, equity_values=None):
-    """Build a BacktestResult with one closing trade per PnL.
+    """Build a BacktestResult with one completed round trip per PnL.
 
-    The equity curve is indexed by day starting at 2024-01-01, so the n-th
-    trade is stamped on the n-th equity point.
+    Each PnL is a buy (opening entry, no PnL) followed by a sell that closes
+    it, so every sell is a completed round trip and the PnL of the round trip
+    is the sell's PnL. The equity curve is indexed by day starting at
+    2024-01-01, so the n-th round trip is stamped on the n-th equity point.
     """
     from datetime import datetime, timedelta
 
@@ -706,22 +708,36 @@ def _result_with_trades(pnls, equity_values=None):
     from quant_trading.backtest.metrics import BacktestMetrics
 
     start = datetime(2024, 1, 1)
-    trades = pd.DataFrame(
-        [
+    rows = []
+    for index, pnl in enumerate(pnls):
+        timestamp = start + timedelta(days=index)
+        rows.append(
+            {
+                "symbol": "AAPL",
+                "action": "buy",
+                "quantity": 10,
+                "price": 100.0,
+                "timestamp": timestamp,
+                "commission": 0.0,
+                "slippage": 0.0,
+                "cost": 1000.0,
+                "pnl": 0.0,
+            }
+        )
+        rows.append(
             {
                 "symbol": "AAPL",
                 "action": "sell",
                 "quantity": 10,
                 "price": 100.0,
-                "timestamp": start + timedelta(days=index),
+                "timestamp": timestamp,
                 "commission": 0.0,
                 "slippage": 0.0,
                 "cost": 1000.0,
                 "pnl": pnl,
             }
-            for index, pnl in enumerate(pnls)
-        ]
-    )
+        )
+    trades = pd.DataFrame(rows)
 
     if equity_values is None:
         equity_values = [10000.0] * len(pnls)
@@ -861,22 +877,36 @@ def test_analyze_trades_reports_the_chronological_current_streak():
     from datetime import datetime, timedelta
 
     start = datetime(2024, 1, 1)
-    trades = pd.DataFrame(
-        [
+    rows = []
+    for offset, pnl in ((2, -10.0), (0, 10.0), (1, 10.0)):
+        timestamp = start + timedelta(days=offset)
+        rows.append(
+            {
+                "symbol": "AAPL",
+                "action": "buy",
+                "quantity": 10,
+                "price": 100.0,
+                "timestamp": timestamp,
+                "commission": 0.0,
+                "slippage": 0.0,
+                "cost": 1000.0,
+                "pnl": 0.0,
+            }
+        )
+        rows.append(
             {
                 "symbol": "AAPL",
                 "action": "sell",
                 "quantity": 10,
                 "price": 100.0,
-                "timestamp": start + timedelta(days=offset),
+                "timestamp": timestamp,
                 "commission": 0.0,
                 "slippage": 0.0,
                 "cost": 1000.0,
                 "pnl": pnl,
             }
-            for offset, pnl in ((2, -10.0), (0, 10.0), (1, 10.0))
-        ]
-    )
+        )
+    trades = pd.DataFrame(rows)
     equity = pd.Series([10000.0, 10000.0, 10000.0], index=pd.date_range(start, periods=3))
     result = BacktestResult(
         equity_curve=equity,

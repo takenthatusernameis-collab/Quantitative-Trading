@@ -130,11 +130,49 @@ class TestSplitTradeLog:
         assert len(log.entries) == 1
         assert log.round_trips.empty
 
-    def test_cover_without_a_short_keeps_its_pnl(self):
-        """A cover that closes nothing keeps the PnL it booked."""
+    def test_cover_without_a_short_closes_nothing_is_not_a_trade(self):
+        """A cover that closes no open short is not a round trip, even though
+        it booked a PnL; it closes nothing."""
         log = split_trade_log(_log(_trade(action="cover", day=2, pnl=100.0)))
 
         assert log.entries["pnl"].tolist() == [100.0]
+        assert log.round_trips.empty
+
+    def test_sell_without_an_open_entry_closes_nothing_is_not_a_trade(self):
+        """A sell that closes no open long entry is not a round trip."""
+        log = split_trade_log(_log(_trade(action="sell", day=2, pnl=55.0)))
+
+        assert log.entries["pnl"].tolist() == [55.0]
+        assert log.round_trips.empty
+
+    def test_breakeven_long_round_trip_is_counted_as_a_trade(self):
+        """A round trip that closes at exactly zero PnL is still a trade: it
+        is neither winning nor losing, so it raises num_trades without raising
+        num_winning_trades."""
+        log = split_trade_log(
+            _log(
+                _trade(action="buy", pnl=0.0),
+                _trade(action="sell", day=2, pnl=0.0),
+            )
+        )
+
+        assert len(log.entries) == 2
+        assert len(log.round_trips) == 1
+        assert log.round_trips["pnl"].tolist() == [0.0]
+
+    def test_hold_row_closes_nothing_is_not_a_round_trip(self):
+        """A ``hold`` row closes nothing and is not a round trip; it only
+        occupies a row in the entries log."""
+        log = split_trade_log(
+            _log(
+                _trade(action="buy", pnl=0.0),
+                _trade(action="hold", day=2, pnl=0.0),
+                _trade(action="sell", day=3, pnl=100.0),
+            )
+        )
+
+        assert len(log.entries) == 3
+        assert len(log.round_trips) == 1
         assert log.round_trips["pnl"].tolist() == [100.0]
 
     def test_short_entries_are_paired_per_symbol(self):
@@ -166,7 +204,9 @@ class TestSplitTradeLog:
             datetime(2024, 1, 2),
             datetime(2024, 1, 3),
         ]
-        assert log.round_trips["pnl"].tolist() == [40.0, 60.0]
+        # The day-3 cover closes nothing (the short was already covered by the
+        # day-2 cover), so only the day-2 cover is a round trip.
+        assert log.round_trips["pnl"].tolist() == [40.0]
 
     def test_log_without_timestamp_pairs_the_shorts_in_the_given_order(self):
         """A log without a timestamp is read in the order it was given."""
