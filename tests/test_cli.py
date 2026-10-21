@@ -42,9 +42,12 @@ class TestParseArgs:
             args = parse_args()
         assert args.symbols == ["AAPL", "MSFT", "GOOGL"]
         assert args.days == 365
-        assert args.initial_capital == 100000.0
-        assert args.commission == 0.001
-        assert args.slippage == 0.0005
+        # The cost settings default to None so that the values of a config
+        # file are used when the flag is not given.
+        assert args.initial_capital is None
+        assert args.commission is None
+        assert args.slippage is None
+        assert args.risk_free_rate is None
         assert args.interval == "1d"
         assert args.strategy == "ma"
         assert args.fast_period == 10
@@ -54,6 +57,24 @@ class TestParseArgs:
         assert args.alphavantage_key is None
         assert args.combined is False
         assert args.strategy_config is None
+
+    def test_cost_flags_are_parsed(self):
+        with patch(
+            "sys.argv",
+            [
+                "cli.py",
+                "--initial-capital",
+                "50000",
+                "--commission",
+                "0.002",
+                "--slippage",
+                "0.001",
+            ],
+        ):
+            args = parse_args()
+        assert args.initial_capital == 50000.0
+        assert args.commission == 0.002
+        assert args.slippage == 0.001
 
     def test_strategy_config_flag(self):
         with patch("sys.argv", ["cli.py", "--strategy-config", "my_strat.yaml"]):
@@ -311,6 +332,160 @@ class TestInitConfig:
             )
             config = create_config(args)
             assert config is not None
+
+    def test_create_config_keeps_the_values_of_the_config_file(self):
+        """A config file supplies the settings the flags do not override."""
+        import tempfile
+        from argparse import Namespace
+
+        from examples.cli import create_config
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = f"{tmpdir}/config.yaml"
+            with open(config_path, "w") as f:
+                f.write(
+                    "backtest:\n"
+                    "  initial_capital: 25000.0\n"
+                    "  commission: 0.002\n"
+                    "  slippage: 0.001\n"
+                    "risk:\n"
+                    "  max_position_size: 0.05\n"
+                    "portfolio:\n"
+                    "  max_positions: 3\n"
+                )
+            args = Namespace(
+                config=config_path,
+                offline=False,
+                provider=None,
+                cache_dir=None,
+                synthetic_days=None,
+                synthetic_seed=None,
+                alphavantage_key=None,
+                risk_free_rate=None,
+                initial_capital=None,
+                commission=None,
+                slippage=None,
+            )
+            config = create_config(args)
+
+        assert config.backtest.initial_capital == 25000.0
+        assert config.backtest.commission == 0.002
+        assert config.backtest.slippage == 0.001
+        assert config.risk.max_position_size == 0.05
+        assert config.portfolio.max_positions == 3
+
+    def test_create_config_lets_the_flags_override_the_config_file(self):
+        """A flag that is given wins over the value of the config file."""
+        import tempfile
+        from argparse import Namespace
+
+        from examples.cli import create_config
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = f"{tmpdir}/config.yaml"
+            with open(config_path, "w") as f:
+                f.write("backtest:\n  initial_capital: 25000.0\n  commission: 0.002\n")
+            args = Namespace(
+                config=config_path,
+                offline=False,
+                provider=None,
+                cache_dir=None,
+                synthetic_days=None,
+                synthetic_seed=None,
+                alphavantage_key=None,
+                risk_free_rate=None,
+                initial_capital=75000.0,
+                commission=0.005,
+                slippage=None,
+            )
+            config = create_config(args)
+
+        assert config.backtest.initial_capital == 75000.0
+        assert config.backtest.commission == 0.005
+        # The slippage was not given, so the value of the config file is kept.
+        assert config.backtest.slippage == 0.0005
+
+
+class TestConfigFileEndToEnd:
+    """A config file configures the run of the command line."""
+
+    def test_main_with_a_config_file_uses_the_capital_of_the_file(self, capsys):
+        """The starting capital of the config file is the one the run uses."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = f"{tmpdir}/config.yaml"
+            with open(config_path, "w") as f:
+                f.write(
+                    "data:\n"
+                    "  provider: synthetic\n"
+                    "  offline: true\n"
+                    "  synthetic_days: 60\n"
+                    "backtest:\n"
+                    "  initial_capital: 25000.0\n"
+                )
+            with patch(
+                "sys.argv",
+                ["cli.py", "--config", config_path, "--symbols", "AAPL", "--days", "60"],
+            ):
+                result = main()
+
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Initial Capital: $25,000.00" in captured.out
+
+    def test_main_with_a_config_file_uses_the_limit_of_the_file(self):
+        """The config file of the CLI reaches the run with its limits."""
+        import tempfile
+        from unittest.mock import MagicMock
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = f"{tmpdir}/config.yaml"
+            with open(config_path, "w") as f:
+                f.write(
+                    "data:\n"
+                    "  provider: synthetic\n"
+                    "  offline: true\n"
+                    "  synthetic_days: 60\n"
+                    "backtest:\n"
+                    "  initial_capital: 25000.0\n"
+                    "risk:\n"
+                    "  max_position_size: 0.05\n"
+                    "portfolio:\n"
+                    "  max_positions: 1\n"
+                )
+
+            mock_result = MagicMock()
+            mock_result.initial_capital = 25000.0
+            mock_result.final_value = 25000.0
+            mock_result.total_return = 0.0
+            mock_result.total_return_pct = 0.0
+            mock_result.total_costs = 0.0
+            mock_metrics = MagicMock()
+            mock_metrics.num_trades = 1
+            mock_metrics.win_rate = 0.0
+            mock_metrics.sharpe_ratio = 0.0
+            mock_metrics.max_drawdown_pct = 0.0
+            mock_metrics.profit_factor = 0.0
+            mock_metrics.sortino_ratio = 0.0
+            mock_metrics.volatility = 0.0
+            mock_metrics.var_95 = 0.0
+            mock_metrics.calmar_ratio = 0.0
+            mock_result.metrics = mock_metrics
+
+            with (
+                patch("examples.cli.run_backtest", return_value=mock_result) as mock_run,
+                patch(
+                    "sys.argv",
+                    ["cli.py", "--config", config_path, "--symbols", "AAPL", "--days", "60"],
+                ),
+            ):
+                main()
+
+            kwargs = mock_run.call_args.kwargs
+            assert kwargs["initial_capital"] == 25000.0
+            assert kwargs["config"].risk.max_position_size == 0.05
+            assert kwargs["config"].portfolio.max_positions == 1
 
 
 class TestCreateStrategy:

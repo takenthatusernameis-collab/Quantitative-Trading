@@ -261,6 +261,21 @@ Load settings from a YAML config file:
 python examples/cli.py --config config.yaml
 ```
 
+Every section of the file configures the run: the `data` section picks the
+provider, the `backtest` section the starting capital, the costs and the
+annualization period, the `risk` section the risk limits, and the `portfolio`
+section the limit on the number of open positions.
+
+A flag that is given on the command line wins over the file, so
+`--initial-capital 50000` overrides the `initial_capital` of the
+configuration. The flags that have no value of their own (`--initial-capital`,
+`--commission`, `--slippage` and `--risk-free-rate`) default to the value of
+the configuration file, or to the built-in default when no file is given.
+
+The `periods_per_year` of the configuration is replaced by the value that
+matches the interval of the run, so the metrics are annualized for the data
+that was fetched.
+
 ### Output
 
 Save results to JSON:
@@ -704,6 +719,36 @@ from quant_trading.config.settings import Config
 
 config = Config.from_yaml("config.yaml")
 ```
+
+A configuration that is handed to `run_backtest()` configures the run: the
+`backtest` section provides the starting capital, the costs, the annualization
+period and the engine switches, the `risk` section provides the limits of the
+risk manager, and the `portfolio` section provides the limit on the number of
+open positions.
+
+```python
+from quant_trading.backtest.engine import run_backtest
+from quant_trading.config.settings import Config
+
+config = Config.from_yaml("config.yaml")
+result = run_backtest(
+    strategy=strategy,
+    symbols=["AAPL", "MSFT"],
+    start=start,
+    end=end,
+    config=config,
+)
+```
+
+The precedence is the same everywhere: a value that is passed explicitly wins
+over the configured one, and the configured one wins over the built-in
+default. `run_backtest(initial_capital=200000.0, config=config)` runs with
+200000.0 even when the configuration asks for another amount, and a
+configuration that says nothing about the starting capital runs with the
+default of 100000.0. The configuration itself is never modified by a run.
+
+A `DataConfig` only describes the data layer, so it leaves the backtest
+settings, the risk limits and the position limit at their defaults.
 
 ## Risk Limits
 

@@ -226,26 +226,38 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--initial-capital",
         type=float,
-        default=100000.0,
-        help="Initial capital",
+        default=None,
+        help=(
+            "Initial capital (default: the value in the config file, or 100000.0 when no "
+            "config file is given)"
+        ),
     )
     parser.add_argument(
         "--commission",
         type=float,
-        default=0.001,
-        help="Commission rate",
+        default=None,
+        help=(
+            "Commission rate (default: the value in the config file, or 0.001 when no config "
+            "file is given)"
+        ),
     )
     parser.add_argument(
         "--slippage",
         type=float,
-        default=0.0005,
-        help="Slippage rate",
+        default=None,
+        help=(
+            "Slippage rate (default: the value in the config file, or 0.0005 when no config "
+            "file is given)"
+        ),
     )
     parser.add_argument(
         "--risk-free-rate",
         type=float,
-        default=0.02,
-        help="Risk-free rate for Sharpe ratio calculations, e.g. 0.02 for 2%%%%",
+        default=None,
+        help=(
+            "Risk-free rate for Sharpe ratio calculations, e.g. 0.02 for 2% (default: the value "
+            "in the config file, or 0.02 when no config file is given)"
+        ),
     )
     parser.add_argument(
         "--interval",
@@ -1014,6 +1026,15 @@ def create_config(args: argparse.Namespace) -> Config:
     if args.risk_free_rate is not None:
         config.backtest.risk_free_rate = args.risk_free_rate
 
+    if getattr(args, "initial_capital", None) is not None:
+        config.backtest.initial_capital = args.initial_capital
+
+    if getattr(args, "commission", None) is not None:
+        config.backtest.commission = args.commission
+
+    if getattr(args, "slippage", None) is not None:
+        config.backtest.slippage = args.slippage
+
     # The synthetic provider always emits daily bars regardless of --interval,
     # so daily annualization is the only correct choice for offline runs.
     interval = "1d" if config.data.provider == "synthetic" else getattr(args, "interval", "1d")
@@ -1297,9 +1318,9 @@ def run_optimization(
             symbols=args.symbols,
             start=start_date,
             end=end_date,
-            initial_capital=args.initial_capital,
-            commission=args.commission,
-            slippage=args.slippage,
+            initial_capital=config.backtest.initial_capital,
+            commission=config.backtest.commission,
+            slippage=config.backtest.slippage,
             interval=args.interval,
             config=config,
             n_iter=args.n_iter,
@@ -1315,9 +1336,9 @@ def run_optimization(
             symbols=args.symbols,
             start=start_date,
             end=end_date,
-            initial_capital=args.initial_capital,
-            commission=args.commission,
-            slippage=args.slippage,
+            initial_capital=config.backtest.initial_capital,
+            commission=config.backtest.commission,
+            slippage=config.backtest.slippage,
             interval=args.interval,
             config=config,
             n_initial_points=args.bayesian_n_initial,
@@ -1335,9 +1356,9 @@ def run_optimization(
             symbols=args.symbols,
             start=start_date,
             end=end_date,
-            initial_capital=args.initial_capital,
-            commission=args.commission,
-            slippage=args.slippage,
+            initial_capital=config.backtest.initial_capital,
+            commission=config.backtest.commission,
+            slippage=config.backtest.slippage,
             interval=args.interval,
             config=config,
             n_jobs=args.n_jobs,
@@ -1462,9 +1483,9 @@ def run_walk_forward(
         symbols=args.symbols,
         start=start_date,
         end=end_date,
-        initial_capital=args.initial_capital,
-        commission=args.commission,
-        slippage=args.slippage,
+        initial_capital=config.backtest.initial_capital,
+        commission=config.backtest.commission,
+        slippage=config.backtest.slippage,
         interval=args.interval,
         data_manager=None,
         config=config,
@@ -1734,9 +1755,9 @@ def main() -> int:
             symbols=args.symbols,
             start=start_date,
             end=end_date,
-            initial_capital=args.initial_capital,
-            commission=args.commission,
-            slippage=args.slippage,
+            initial_capital=config.backtest.initial_capital,
+            commission=config.backtest.commission,
+            slippage=config.backtest.slippage,
             interval=args.interval,
             config=config,
             periods_per_year=config.backtest.periods_per_year,
@@ -1864,9 +1885,9 @@ def run_combined(
                 symbols=args.symbols,
                 start=start_date,
                 end=end_date,
-                initial_capital=args.initial_capital,
-                commission=args.commission,
-                slippage=args.slippage,
+                initial_capital=config.backtest.initial_capital,
+                commission=config.backtest.commission,
+                slippage=config.backtest.slippage,
                 interval=args.interval,
                 config=config,
                 periods_per_year=config.backtest.periods_per_year,

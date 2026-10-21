@@ -62,7 +62,7 @@ Examples:
 
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any
 
@@ -944,39 +944,96 @@ class BacktestEngine:
         )
 
 
+def _resolve_backtest_config(
+    config: Config | DataConfig | None,
+    initial_capital: float | None,
+    commission: float | None,
+    slippage: float | None,
+    periods_per_year: int | None,
+) -> BacktestConfig:
+    """Resolve the backtest settings a run is driven by.
+
+    A value that is passed explicitly wins over the one the configuration
+    carries, and the configuration wins over the built-in default. The
+    ``backtest`` section of a full :class:`~quant_trading.config.settings.Config`
+    is the only source of a configured value: a
+    :class:`~quant_trading.config.settings.DataConfig` only describes the data
+    layer, so the defaults of the backtest settings are used for it.
+
+    The configuration is never modified: the resolved settings are a copy.
+
+    Args:
+        config: The configuration of the run, or ``None``.
+        initial_capital: Explicit starting capital, or ``None``.
+        commission: Explicit commission rate, or ``None``.
+        slippage: Explicit slippage rate, or ``None``.
+        periods_per_year: Explicit number of periods per year, or ``None``.
+
+    Returns:
+        The backtest settings the run is driven by.
+
+    """
+    base = config.backtest if isinstance(config, Config) else BacktestConfig()
+    overrides: dict[str, Any] = {}
+    if initial_capital is not None:
+        overrides["initial_capital"] = initial_capital
+    if commission is not None:
+        overrides["commission"] = commission
+    if slippage is not None:
+        overrides["slippage"] = slippage
+    if periods_per_year is not None:
+        overrides["periods_per_year"] = periods_per_year
+    return replace(base, **overrides)
+
+
 def run_backtest(
     strategy: Strategy,
     symbols: list[str],
     start: datetime,
     end: datetime,
-    initial_capital: float = 100000.0,
-    commission: float = 0.001,
-    slippage: float = 0.0005,
+    initial_capital: float | None = None,
+    commission: float | None = None,
+    slippage: float | None = None,
     interval: str = "1d",
     data_manager: DataManager | None = None,
     config: Config | DataConfig | None = None,
-    periods_per_year: int = 252,
+    periods_per_year: int | None = None,
 ) -> BacktestResult:
     """Run a single strategy backtest.
+
+    When a full :class:`~quant_trading.config.settings.Config` is given, its
+    ``backtest``, ``risk`` and ``portfolio`` sections drive the run: the
+    ``backtest`` section provides the starting capital, the costs, the
+    annualization period and the engine switches, the ``risk`` section
+    provides the limits of the risk manager and the ``portfolio`` section
+    provides the limit on the number of open positions. A value that is
+    passed explicitly wins over the configured one, and the configured one
+    wins over the built-in default. The configuration itself is never
+    modified.
 
     Args:
         strategy: The strategy to backtest.
         symbols: List of symbols to trade.
         start: Start date for backtest.
         end: End date for backtest.
-        initial_capital: Initial capital (default 100000.0).
-        commission: Commission rate (default 0.001).
-        slippage: Slippage rate (default 0.0005).
+        initial_capital: Initial capital. Defaults to the configured value, or
+            to 100000.0 when nothing is configured.
+        commission: Commission rate. Defaults to the configured value, or to
+            0.001 when nothing is configured.
+        slippage: Slippage rate. Defaults to the configured value, or to 0.0005
+            when nothing is configured.
         interval: Data interval (default: "1d").
         data_manager: Optional DataManager for offline/testing. If not provided
             and no config is given, a shared default DataManager with
             YFinanceProvider will be used (requires network).
-        config: Optional Config or DataConfig. If provided, a DataManager will
-            be created from the config (supporting offline/synthetic modes).
-            Takes precedence over data_manager if both are provided.
+        config: Optional Config or DataConfig. When no data manager is given,
+            a DataManager is created from the config (supporting
+            offline/synthetic modes). A full Config also configures the
+            backtest, the risk limits and the position limit.
         periods_per_year: Trading periods per year used to annualize the
-            return, volatility, Sharpe, Sortino and Calmar metrics
-            (default 252 for daily data).
+            return, volatility, Sharpe, Sortino and Calmar metrics. Defaults to
+            the configured value, or to 252 (daily data) when nothing is
+            configured.
 
     Returns:
         BacktestResult containing equity curve, trades, metrics, and metadata.
@@ -1012,8 +1069,24 @@ def run_backtest(
             assert result.initial_capital == 100000.0
             assert result.metrics is not None
 
+        A configuration drives the risk limits of the run::
+
+            from quant_trading.config.settings import Config, RiskConfig
+
+            config = Config(risk=RiskConfig(max_position_size=0.05))
+            result = run_backtest(
+                strategy=strategy,
+                symbols=symbols,
+                start=start,
+                end=end,
+                config=config,
+                data_manager=data_manager,
+            )
+            assert result is not None
+
     """
-    backtest_config = BacktestConfig(
+    backtest_config = _resolve_backtest_config(
+        config,
         initial_capital=initial_capital,
         commission=commission,
         slippage=slippage,
@@ -1027,6 +1100,13 @@ def run_backtest(
         else:
             data_manager = get_default_data_manager()
 
-    engine = BacktestEngine(config=backtest_config, data_manager=data_manager)
+    if isinstance(config, Config):
+        # The full configuration drives the risk limits and the position limit
+        # of the run. A copy is used so the caller's configuration is untouched.
+        engine_config: BacktestConfig | Config = replace(config, backtest=backtest_config)
+    else:
+        engine_config = backtest_config
+
+    engine = BacktestEngine(config=engine_config, data_manager=data_manager)
     engine.add_strategy(strategy)
     return engine.run(symbols, start, end, interval)

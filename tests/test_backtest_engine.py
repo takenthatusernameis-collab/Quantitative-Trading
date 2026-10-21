@@ -12,7 +12,13 @@ from quant_trading.backtest.engine import (
     Trade,
     run_backtest,
 )
-from quant_trading.config.settings import BacktestConfig, Config, PortfolioConfig, RiskConfig
+from quant_trading.config.settings import (
+    BacktestConfig,
+    Config,
+    DataConfig,
+    PortfolioConfig,
+    RiskConfig,
+)
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
 from quant_trading.data.synthetic import create_synthetic_data
 from quant_trading.risk.manager import RiskManager
@@ -1709,3 +1715,206 @@ def test_a_bar_that_hits_both_levels_closes_the_position_once():
     assert len(result.trades) == 2
     assert result.trades.iloc[1]["action"] == "sell"
     assert result.positions == {}
+
+
+class TestRunBacktestAppliesConfig:
+    """``run_backtest()`` applies the sections of the configuration it is given.
+
+    A full ``Config`` carries the backtest settings, the risk limits and the
+    position limit of a run. ``run_backtest()`` used to read the data section
+    of it only, so the ``risk`` and the ``portfolio`` sections were silently
+    dropped: a configuration that allowed a single position was ignored and
+    the run opened as many positions as it could.
+
+    The precedence is the same everywhere: a value that is passed explicitly
+    wins over the configured one, and the configured one wins over the
+    built-in default.
+    """
+
+    @staticmethod
+    def _run(
+        config,
+        script: list[tuple[str, float]],
+        data: dict[str, pd.DataFrame],
+        same_bar: bool = False,
+        **kwargs,
+    ) -> BacktestResult:
+        """Run a scripted backtest through ``run_backtest()``."""
+        symbols = list(data.keys())
+        index = next(iter(data.values())).index
+        strategy = (
+            SameBarSignalStrategy(script, symbols)
+            if same_bar
+            else ScriptedSignalStrategy(script, symbols)
+        )
+        return run_backtest(
+            strategy=strategy,
+            symbols=symbols,
+            start=index[0].to_pydatetime(),
+            end=index[-1].to_pydatetime(),
+            config=config,
+            data_manager=DataManager([MockDataProvider(data)]),
+            **kwargs,
+        )
+
+    def test_the_risk_section_of_the_config_sizes_the_positions(self):
+        """The configured position limit sizes the positions of the run."""
+        data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
+        config = Config(
+            backtest=BacktestConfig(initial_capital=100000.0),
+            risk=RiskConfig(max_position_size=0.01, max_leverage=1.0, max_portfolio_risk=1.0),
+        )
+
+        result = self._run(config, [("buy", 1.0), ("hold", 0.0), ("hold", 0.0)], data)
+
+        assert len(result.trades) == 1
+        trade = result.trades.iloc[0]
+        # 1% of a portfolio of 100000.00, at a price of 50.00 a unit.
+        assert trade["quantity"] * trade["price"] == pytest.approx(1000.0)
+
+    def test_the_portfolio_section_of_the_config_limits_the_number_of_positions(self):
+        """The configured position limit caps the number of open positions."""
+        data = {
+            "A": _price_frame([50.0, 50.0, 50.0]),
+            "B": _price_frame([50.0, 50.0, 50.0]),
+        }
+        script = [("buy", 1.0), ("buy", 1.0)]
+        config = Config(
+            backtest=BacktestConfig(initial_capital=100000.0),
+            risk=RiskConfig(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0),
+            portfolio=PortfolioConfig(max_positions=1),
+        )
+
+        result = self._run(config, script, data, same_bar=True)
+
+        # The second buy is rejected by the signal gate, so only the first
+        # symbol is held.
+        assert len(result.trades) == 1
+        assert set(result.positions) == {"A"}
+
+    def test_the_portfolio_section_allows_the_positions_it_permits(self):
+        """The same run opens both positions when the limit allows them."""
+        data = {
+            "A": _price_frame([50.0, 50.0, 50.0]),
+            "B": _price_frame([50.0, 50.0, 50.0]),
+        }
+        script = [("buy", 1.0), ("buy", 1.0)]
+        config = Config(
+            backtest=BacktestConfig(initial_capital=100000.0),
+            risk=RiskConfig(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0),
+            portfolio=PortfolioConfig(max_positions=2),
+        )
+
+        result = self._run(config, script, data, same_bar=True)
+
+        assert len(result.trades) == 2
+        assert set(result.positions) == {"A", "B"}
+
+    def test_the_backtest_section_of_the_config_switches_the_stop_exits_on(self):
+        """The configured switch closes the position whose stop was hit."""
+        data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
+        config = Config(
+            backtest=BacktestConfig(initial_capital=100000.0, enable_stop_exits=True),
+            risk=RiskConfig(
+                max_position_size=0.1,
+                max_leverage=1.0,
+                max_portfolio_risk=1.0,
+                stop_loss_pct=0.05,
+                take_profit_pct=0.15,
+            ),
+        )
+
+        result = self._run(config, [("buy", 1.0), ("hold", 0.0), ("hold", 0.0)], data)
+
+        assert len(result.trades) == 2
+        exit_trade = result.trades.iloc[1]
+        assert exit_trade["action"] == "sell"
+        assert exit_trade["price"] == pytest.approx(45.0)
+        assert result.positions == {}
+
+    def test_the_configured_initial_capital_is_used(self):
+        """The configured starting capital is the one the run is driven by."""
+        data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
+        config = Config(
+            backtest=BacktestConfig(initial_capital=50000.0),
+            risk=RiskConfig(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0),
+        )
+
+        result = self._run(config, [("buy", 1.0), ("hold", 0.0), ("hold", 0.0)], data)
+
+        assert result.initial_capital == 50000.0
+        trade = result.trades.iloc[0]
+        # 10% of a portfolio of 50000.00, at a price of 50.00 a unit.
+        assert trade["quantity"] * trade["price"] == pytest.approx(5000.0)
+
+    def test_an_explicit_value_wins_over_the_configured_one(self):
+        """A value that is passed explicitly wins over the configured one."""
+        data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
+        config = Config(
+            backtest=BacktestConfig(initial_capital=50000.0, commission=0.01, slippage=0.01),
+            risk=RiskConfig(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0),
+        )
+
+        result = self._run(
+            config,
+            [("buy", 1.0), ("hold", 0.0), ("hold", 0.0)],
+            data,
+            initial_capital=100000.0,
+            commission=0.001,
+            slippage=0.0005,
+        )
+
+        assert result.initial_capital == 100000.0
+        trade = result.trades.iloc[0]
+        # 10% of a portfolio of 100000.00, at a price of 50.00 a unit.
+        assert trade["quantity"] * trade["price"] == pytest.approx(10000.0)
+        assert trade["fee"] == pytest.approx(200.0 * 50.0 * 0.0015)
+
+    def test_the_configured_periods_per_year_is_used(self):
+        """The configured annualization period reaches the metrics."""
+        data = {"TEST": _price_frame([50.0, 51.0, 52.0])}
+        config = Config(
+            backtest=BacktestConfig(initial_capital=100000.0, periods_per_year=12),
+            risk=RiskConfig(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0),
+        )
+
+        result = self._run(config, [("buy", 1.0), ("hold", 0.0), ("hold", 0.0)], data)
+
+        returns = result.equity_curve.pct_change().dropna()
+        assert result.metrics.annual_return == pytest.approx(returns.mean() * 12)
+        assert result.metrics.volatility == pytest.approx(returns.std() * (12**0.5))
+
+    def test_the_config_is_not_modified_by_the_run(self):
+        """The configuration of the caller is left untouched by the run."""
+        data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
+        config = Config(
+            backtest=BacktestConfig(initial_capital=100000.0, periods_per_year=252),
+            risk=RiskConfig(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0),
+        )
+
+        self._run(
+            config,
+            [("buy", 1.0), ("hold", 0.0), ("hold", 0.0)],
+            data,
+            initial_capital=250000.0,
+            periods_per_year=12,
+        )
+
+        assert config.backtest.initial_capital == 100000.0
+        assert config.backtest.periods_per_year == 252
+
+    def test_a_data_config_leaves_the_backtest_settings_at_their_defaults(self):
+        """A data configuration does not change the backtest settings."""
+        data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
+        data_config = DataConfig(provider="synthetic", offline=True)
+
+        result = self._run(
+            data_config,
+            [("buy", 1.0), ("hold", 0.0), ("hold", 0.0)],
+            data,
+        )
+
+        assert result.initial_capital == 100000.0
+        trade = result.trades.iloc[0]
+        # 10% of the default portfolio of 100000.00.
+        assert trade["quantity"] * trade["price"] == pytest.approx(10000.0)
