@@ -283,6 +283,8 @@ class WalkForwardOptimizer:
         n_windows: Number of walk-forward windows to generate.
         train_size: Fraction of each window allocated to training (0-1).
         step_size: Step size between windows as a fraction of a window's span.
+            It defaults to 1.0, so consecutive windows advance by one window
+            and the windows tile the requested period exactly.
         anchored: Whether anchored (expanding) walk-forward is used.
         optimizer_type: Backend optimizer identifier ("grid", "random", or
             "bayesian").
@@ -352,7 +354,8 @@ class WalkForwardOptimizer:
             config: Config instance.
             n_windows: Number of walk-forward windows.
             train_size: Fraction of each window for training (0-1).
-            step_size: Step size between windows as fraction (default: 1 - train_size for non-anchored).
+            step_size: Step size between windows as a fraction of a window's
+                span (default: 1.0, so the windows tile the requested period).
             anchored: If True, training window expands (anchored walk-forward).
                       If False, training window slides (rolling walk-forward).
             optimizer: Optimizer type ("grid" or "random").
@@ -387,7 +390,9 @@ class WalkForwardOptimizer:
         self.verbose = verbose
 
         if step_size is None:
-            self.step_size = 1.0 - train_size if not anchored else train_size / n_windows
+            # One step per window: the windows tile the requested period, so
+            # every sub-interval is used exactly once.
+            self.step_size = 1.0
         else:
             self.step_size = step_size
 
@@ -476,11 +481,22 @@ class WalkForwardOptimizer:
         """Generate the walk-forward windows for the configured period.
 
         The full span from ``start`` to ``end`` is divided into ``n_windows``
-        sub-intervals. For anchored walk-forward, the training start is fixed
-        at ``start`` and the training end expands forward; for rolling
-        walk-forward, both training start and end slide forward by ``step_size``
-        each iteration. The test period immediately follows the training period
-        within each window.
+        sub-intervals of ``window_days`` days each. Every sub-interval is split
+        into a training span and an out-of-sample (test) span, and the test
+        span is the part that follows the training span inside the
+        sub-interval.
+
+        For anchored walk-forward, the training start is fixed at ``start`` and
+        the training end expands forward by one step per window; for rolling
+        walk-forward, the training span keeps its length and slides forward by
+        one step per window. One step is ``step_size`` sub-intervals, and it
+        defaults to one sub-interval, so the sub-intervals tile the requested
+        period and no part of it is left untested.
+
+        The test span of a window stops where the next window's training span
+        begins, so the out-of-sample periods of two consecutive windows never
+        overlap. A period is therefore evaluated out-of-sample at most once,
+        and it is counted at most once in the combined out-of-sample result.
 
         Returns:
             List of :class:`WalkForwardWindow` objects, one per valid window.
@@ -503,8 +519,8 @@ class WalkForwardOptimizer:
             ...     train_size=0.5,
             ...     anchored=True,
             ... )
-            >>> [w.train_end.date() for w in optimizer._generate_windows()]  # doctest: +SKIP
-            [datetime.date(2024, 1, 3), datetime.date(2024, 1, 5)]
+            >>> [(w.train_start, w.train_end, w.test_start, w.test_end) for w in optimizer._generate_windows()]  # doctest: +SKIP
+            [(datetime.datetime(2024, 1, 1, 0, 0), datetime.datetime(2024, 1, 3, 0, 0), datetime.datetime(2024, 1, 3, 0, 0), datetime.datetime(2024, 1, 6, 0, 0)), (datetime.datetime(2024, 1, 1, 0, 0), datetime.datetime(2024, 1, 6, 0, 0), datetime.datetime(2024, 1, 6, 0, 0), datetime.datetime(2024, 1, 11, 0, 0))]
 
         """
         if self.start is None or self.end is None:
@@ -513,23 +529,32 @@ class WalkForwardOptimizer:
         total_days = (self.end - self.start).days
         window_days = total_days // self.n_windows
         train_days = int(window_days * self.train_size)
+        test_days = window_days - train_days
         step_days = int(window_days * self.step_size)
 
-        windows = []
-        current_start = self.start
-
+        # The training span of every window, in chronological order.
+        spans: list[tuple[datetime, datetime]] = []
         for i in range(self.n_windows):
             if self.anchored:
-                # Anchored: training start is fixed, training end expands
+                # Anchored: the training start is fixed and the training end
+                # expands forward by one step per window.
                 train_start = self.start
                 train_end = self.start + timedelta(days=train_days + i * step_days)
             else:
-                # Rolling: both training start and end move forward
-                train_start = current_start
-                train_end = current_start + timedelta(days=train_days)
+                # Rolling: the training span slides forward by one step and
+                # keeps its length.
+                train_start = self.start + timedelta(days=i * step_days)
+                train_end = train_start + timedelta(days=train_days)
+            spans.append((train_start, train_end))
 
+        windows: list[WalkForwardWindow] = []
+        for i, (train_start, train_end) in enumerate(spans):
             test_start = train_end
-            test_end = min(train_end + timedelta(days=window_days - train_days), self.end)
+            # The test period follows the training period inside the window,
+            # but it never reaches into the next window's training period, so
+            # two consecutive out-of-sample periods never overlap.
+            next_train_end = spans[i + 1][1] if i + 1 < len(spans) else self.end
+            test_end = min(train_end + timedelta(days=test_days), next_train_end, self.end)
 
             if test_start >= test_end:
                 break
@@ -542,9 +567,6 @@ class WalkForwardOptimizer:
                     test_end=test_end,
                 )
             )
-
-            if not self.anchored:
-                current_start += timedelta(days=step_days)
 
         return windows
 
@@ -643,6 +665,18 @@ class WalkForwardOptimizer:
         the first window, is the initial capital itself). The resulting
         combined equity curve is re-evaluated into a fresh :class:`BacktestResult`.
 
+        The combined curve is a time series, so its index is strictly
+        increasing: a point that is not later than the last emitted one is
+        skipped, which keeps the curve valid even when the caller supplies
+        windows whose out-of-sample periods overlap.
+
+        The combined trade log is the concatenation of the windows' trade logs.
+        Its ``pnl`` column is expressed in the combined account's dollars (each
+        window's PnL is scaled by the same factor as its equity curve), so the
+        realized PnL of the combined result agrees with the combined equity
+        curve. The remaining columns describe the trade as it was executed in
+        its own window.
+
         Args:
             windows: Walk-forward windows, some of which may have a ``None``
                 ``test_result`` (skipped during combination).
@@ -684,6 +718,7 @@ class WalkForwardOptimizer:
 
         initial_capital = self.initial_capital
         cumulative_final = initial_capital
+        last_timestamp: datetime | None = None
         for w in valid_windows:
             assert w.test_result is not None
             eq = w.test_result.equity_curve
@@ -691,12 +726,27 @@ class WalkForwardOptimizer:
                 continue
             # Scale this window's curve so its start aligns with the previous
             # windows' cumulative final equity, then drop the duplicated first bar.
-            scale = cumulative_final / initial_capital
+            scale = (cumulative_final / initial_capital) if initial_capital else 1.0
             scaled = eq.to_numpy(dtype=float) * scale
-            all_equity.extend(scaled[1:].tolist())
-            all_trades.append(w.test_result.trades)
-            all_dates.extend(eq.index[1:].tolist())
-            cumulative_final = float(scaled[-1])
+            for timestamp, value in zip(eq.index[1:], scaled[1:]):
+                if last_timestamp is not None and timestamp <= last_timestamp:
+                    # The point is not later than the last emitted one, so it
+                    # belongs to a period that is already in the curve.
+                    continue
+                all_dates.append(timestamp)
+                all_equity.append(float(value))
+                last_timestamp = timestamp
+            if all_equity:
+                # The next window starts where the combined curve ends.
+                cumulative_final = all_equity[-1]
+            trades = w.test_result.trades
+            if not trades.empty and "pnl" in trades.columns:
+                # The window's PnL is booked in the window's own capital base,
+                # so it is scaled into the combined account's dollars with the
+                # same factor as the window's equity curve.
+                trades = trades.copy()
+                trades["pnl"] = trades["pnl"].astype(float) * scale
+            all_trades.append(trades)
             # Costs are paid per window, so the combined total is their sum.
             combined_costs += w.test_result.total_costs
 

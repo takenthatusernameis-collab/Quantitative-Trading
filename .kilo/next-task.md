@@ -2,43 +2,120 @@
 
 ## What changed
 
-Executed the handed-off task: added `BacktestMetrics.total_pnl` so the two public APIs report the same realized PnL of the run.
+Fixed the walk-forward optimizer: the out-of-sample (test) periods of two windows
+overlapped, so the combined out-of-sample result double-counted periods and was
+not a valid time series.
 
-1. **`quant_trading/backtest/metrics.py`** — `BacktestMetrics` now has `total_pnl` (default `0.0`), included in `to_dict()`, with docstring clarifying it is the realized PnL (sum of trade log PnL) and not the same as `total_return` (which includes unrealized PnL of open positions). `calculate_backtest_metrics()` uses `split_trade_log(trades)` and sets `metrics.total_pnl = float(log.entries["pnl"].sum())` when trades are present.
-2. **`tests/test_trade_log.py`** — `TestMetricsAndAnalysisAgree` now asserts `metrics.total_pnl == pytest.approx(analysis.total_pnl)` for all parametrized cases; `TestMetricsAndAnalysisAgreeExtra` asserts agreement and that `metrics.total_pnl` equals the booked trade log sum and matches per-symbol aggregates.
-3. **`tests/test_cost_accounting_invariants.py`** — `_assert_analysis_reconciles()` asserts metrics/analysis agree on `total_pnl`.
+1. **`quant_trading/optimization/walk_forward.py`**
+   - `_generate_windows()` now divides `[start, end]` into `n_windows`
+     sub-intervals of `window_days` days. Each sub-interval is split into a
+     training span and a test span; the test span stops where the next
+     window's training span begins, so **two consecutive out-of-sample
+     periods never overlap**. Anchored mode keeps the training start fixed and
+     expands the training end; rolling mode slides the training span forward.
+   - `step_size` now defaults to `1.0` (was `train_size / n_windows` for
+     anchored and `1 - train_size` for rolling). With one step per window the
+     sub-intervals tile the requested period, so the walk-forward no longer
+     leaves most of `[start, end]` untested. An explicit `step_size` is still
+     honoured and is clamped by the same non-overlap rule.
+   - `_combine_test_results()` now emits a **strictly increasing, duplicate-free**
+     equity curve (a point that is not later than the last emitted one is
+     skipped), and scales each window's trade-log `pnl` into the combined
+     account's dollars with the same factor used for that window's equity
+     curve, so `combined.metrics.total_pnl` is the chained realized PnL of the
+     windows and agrees with `combined.final_value`.
+2. **`tests/test_optimization.py`** — 7 new regression tests (6 test functions,
+   two of them parametrized over anchored/rolling): out-of-sample periods do not
+   overlap, the combined equity curve is a valid time series with every window
+   bar present exactly once, the combined PnL is the chained realized PnL, the
+   combined result can be analyzed by `analyze_trades`, and overlapping windows
+   handed to `_combine_test_results` still produce a valid curve.
+   `create_test_data()` gained an optional `end` argument so the new tests use
+   fixed dates (default behaviour unchanged).
 
 ## What was actually verified
 
-- `python3 -m pytest tests/test_trade_log.py tests/test_cost_accounting_invariants.py tests/test_backtest_engine.py tests/test_backtest_analysis.py -v` -> all passed (e.g. 122 + related tests pass).
-- `python3 -m pytest -q` (full suite) passes in the environment context used here (all tests passing as before).
+- Reproduction before the fix (`quant_trading/optimization/walk_forward.py`,
+  5 windows, `train_size=0.7`, anchored): the out-of-sample periods of
+  consecutive windows overlapped by 5 days, the walk-forward covered only
+  2024-01-25..2024-02-21 of a 2024-01-01..2024-06-28 request, and the combined
+  equity curve had a non-monotonic index with 4 backwards time steps and 32
+  duplicate timestamps.
+- After the fix: out-of-sample periods are disjoint and chronological, the
+  combined equity curve is monotonic and unique, and the combined PnL equals
+  the independently recomputed chained realized PnL.
+- All 6 new test functions fail against the pre-fix implementation
+  (`git checkout -- quant_trading/optimization/walk_forward.py`, 5 failed /
+  1 failed) and pass with the fix.
+- `python3 -m pytest -q` (full suite) -> **1893 passed, 1 skipped** (was 1886
+  passed, 1 skipped before this change).
 - `python3 -m ruff check quant_trading tests examples` -> All checks passed.
-- `python3 -m black --check quant_trading tests examples` -> unchanged.
-- `python3 -m mypy quant_trading` -> no issues in 37 source files.
-- Verified reconciliation: for short round trips and open shorts, `metrics.total_pnl == analysis.total_pnl == float(result.trades["pnl"].sum())` and per-symbol totals add up.
+- `python3 -m black --check quant_trading tests examples` -> 91 files unchanged.
+- `python3 -m mypy quant_trading` -> no issues found in 37 source files.
+- End-to-end CLI run: `PYTHONPATH=. python3 examples/cli.py --walk-forward
+  --offline --strategy ma --symbols AAPL --start 2023-01-01 --end 2024-01-01
+  --wf-windows 3` now produces train/test spans that tile the requested year
+  (test 2023-03-26..2023-05-02, 2023-07-25..2023-08-31, 2023-11-23..2023-12-30).
 
 ## What remains unresolved
 
-- **Long side entry fee folding**: if a log ever books a fee on the long entry row, trade log splitting does not fold it into the closing row (only short entries are folded). Engine currently books long fees differently, but the splitting logic remains asymmetric.
-- **BacktestMetrics vs unrealized PnL**: `total_pnl` is realized (from trade log). Engine invariant `final_value - initial_capital == sum(trades["pnl"]) + unrealized_pnl` still holds; `metrics.total_pnl` is the realized part (equals `total_return` only for fully liquidated runs).
-- Coverage/branches for network-gated providers remain hard to exercise offline.
+- **Long side entry fee folding** (carried over): `split_trade_log()` folds a
+  short entry fee into the covering row but not a long entry fee. The engine
+  capitalizes long entry fees into `Holding.avg_cost` and books `0.0` realized
+  PnL on a long entry, so the asymmetry is unreachable through the engine; it
+  only shows up for hand-built trade logs. Not changed (no evidence of a real
+  engine case).
+- **`total_pnl` is realized, `total_return` includes unrealized PnL**: the
+  engine invariant `final_value - initial_capital == sum(trades["pnl"]) +
+  unrealized_pnl` still holds. `BacktestResult` exposes no explicit
+  realized/unrealized split field; it is reachable through
+  `result.metrics.total_pnl` and `result.positions`.
+- **Network-gated providers** remain hard to cover offline.
+- **The combined walk-forward trade log mixes units by design**: its `pnl`
+  column is in the combined account's dollars, while `fee`/`cost` columns and
+  `BacktestResult.total_costs` stay in each window's own capital base. This is
+  documented in `_combine_test_results()`; scaling the cost columns as well
+  would break the existing `test_walk_forward_combine_sums_window_costs`
+  expectation (19.75) and was left alone deliberately.
 
 ## Approaches that already failed
 
-- Narrow `--cov` targets on submodules can fail under coverage import hooks in some environments — measure with package-wide `--cov=quant_trading`.
-- Missing deps in fresh envs (pandas/numpy/pytest/scikit-optimize/yfinance) cause import failures; need full dev deps.
-- mypy version pinning: use installed mypy compatible with environment (pyproject targets 3.10 but numpy stubs may behave differently).
+- Narrow `--cov` targets on submodules can fail under coverage import hooks in
+  some environments — measure with package-wide `--cov=quant_trading`.
+- Missing deps in fresh envs (pandas/numpy/pytest/scikit-optimize/yfinance)
+  cause import failures; the full dev deps are needed.
+- `examples/cli.py` cannot be run as `python3 examples/cli.py`; it needs
+  `PYTHONPATH=.` from the repository root.
+- An earlier attempt asserted that consecutive out-of-sample periods are
+  *contiguous* (`test_start == previous test_end`). That is wrong for a
+  walk-forward: the in-sample span of a later fold sits between two
+  out-of-sample spans. The correct invariant is "disjoint and chronological".
 
 ## Next task
 
-Status: COMPLETE — the cross-API reconciliation assertion is already in place and verified.
+**Thread `periods_per_year` through the regime entry points.**
 
-`tests/test_backtest_engine.py::TestMetricsAndAnalysisReconciliationOnEngineResults` (lines 2182-2217) asserts, for engine-generated results,
-`calculate_backtest_metrics(result.equity_curve, result.trades).total_pnl == analyze_trades(result).total_pnl == float(result.trades["pnl"].sum())`,
-and it covers the fully liquidated run, the open-short case, and the partially covered short case. All 3 tests pass.
+Evidence: `RegimeDetector.__init__` accepts `periods_per_year`
+(`quant_trading/regime/detector.py:304`) and uses it to annualize the rolling
+volatility and rolling mean return
+(`quant_trading/regime/detector.py:366-367`), but the module-level wrapper
+`detect_regimes()` (`quant_trading/regime/detector.py:579`) does not expose
+the parameter, and neither do `analyze_regimes()`
+(`quant_trading/backtest/analysis.py:324`) nor `regime_for_backtest()`
+(`quant_trading/backtest/analysis.py:386`). Every regime label is therefore
+annualized at 252 periods, while the rest of the framework
+(`BacktestConfig.periods_per_year` in `quant_trading/config/settings.py:139`,
+backtest metrics, Monte Carlo, optimization) honours the configured frequency.
+On weekly or hourly data the regime thresholds and the reported regime
+volatility are wrong by the square root of the frequency ratio.
 
-No new bounded task is pending from this assignment. On the next session:
-- Confirm the green baseline is preserved: `python -m pytest -q` (full suite), `python -m ruff check quant_trading tests examples`, `python -m black --check quant_trading tests examples`, `python -m mypy quant_trading`.
-- Do NOT change `split_trade_log()` asymmetry without evidence of a real engine case that requires it (tests do not require it).
-- Do NOT add `total_pnl` to serialized/CLI outputs unless a test requires it (none does).
-- The only flagged follow-ups are the unresolved items above (long-side fee folding, total_pnl vs unrealized PnL documentation, network-provider coverage), none of which is safe to act on without further evidence.
+Bounded scope: add an optional `periods_per_year: int = 252` argument to
+`detect_regimes()`, `analyze_regimes()` and `regime_for_backtest()`, pass it
+through to `RegimeDetector`, keep the current defaults so existing callers and
+tests are unaffected, and add tests that assert a non-daily `periods_per_year`
+changes the annualized regime volatility/return thresholds (and that the
+detector's labels follow).
+
+Constraints: keep the existing public defaults; do not change the regime
+labelling rules; run `python3 -m pytest -q`, `ruff`, `black --check` and
+`mypy quant_trading` before handing off.

@@ -1,5 +1,6 @@
 """Tests for the optimization module."""
 
+import itertools
 from concurrent.futures import _base
 from concurrent.futures.process import BrokenProcessPool, ProcessPoolExecutor
 from datetime import datetime, timedelta
@@ -91,10 +92,10 @@ class MockDataProvider:
         return f"{symbols_str}|{start_str}|{end_str}|{interval}"
 
 
-def create_test_data(symbol: str, days: int = 100) -> pd.DataFrame:
+def create_test_data(symbol: str, days: int = 100, end: datetime | None = None) -> pd.DataFrame:
     """Create deterministic test price data."""
     np.random.seed(42)
-    dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
+    dates = pd.date_range(end=end or datetime.now(), periods=days, freq="D")
     returns = np.random.normal(0.0005, 0.02, days)
     prices = 100 * np.exp(np.cumsum(returns))
 
@@ -1296,6 +1297,210 @@ def test_walk_forward_combine_sums_window_costs():
     combined = optimizer._combine_test_results(windows)
     assert combined is not None
     assert combined.total_costs == pytest.approx(19.75)
+
+
+WALK_FORWARD_START = datetime(2024, 1, 1)
+WALK_FORWARD_END = datetime(2024, 6, 28)
+
+
+def _walk_forward_optimizer(**overrides):
+    """Build a walk-forward optimizer over deterministic mock data."""
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=200, end=WALK_FORWARD_END)}
+    data_manager = DataManager([MockDataProvider(mock_data)])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[2], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[5], param_type=int))
+
+    settings = {
+        "strategy_cls": MovingAverageCrossover,
+        "param_grid": param_grid,
+        "objective": maximize_sharpe,
+        "symbols": symbols,
+        "start": WALK_FORWARD_START,
+        "end": WALK_FORWARD_END,
+        "initial_capital": 100000.0,
+        "data_manager": data_manager,
+        "n_windows": 4,
+        "train_size": 0.6,
+    }
+    settings.update(overrides)
+    return WalkForwardOptimizer(**settings)
+
+
+@pytest.mark.parametrize("anchored", [True, False])
+def test_walk_forward_test_periods_do_not_overlap(anchored):
+    """The out-of-sample periods of two windows never overlap.
+
+    A period that is evaluated out-of-sample by two windows would be counted
+    twice in the combined out-of-sample result, so the test period of a window
+    stops where the next window's training period begins.
+    """
+    optimizer = _walk_forward_optimizer(anchored=anchored)
+    windows = optimizer._generate_windows()
+
+    assert len(windows) == optimizer.n_windows
+    for previous, current in itertools.pairwise(windows):
+        # The out-of-sample periods are chronological and never overlap.
+        assert current.test_start >= previous.test_end
+        # The test period follows the training period of its own window, so the
+        # training data never reaches into the period it is scored on.
+        assert current.test_start == current.train_end
+        # The training period of a window never starts before the training
+        # period of the previous window.
+        assert current.train_start >= previous.train_start
+
+    # The out-of-sample periods reach the end of the requested period, up to
+    # the remainder of the last window.
+    window_days = (optimizer.end - optimizer.start).days // optimizer.n_windows
+    assert windows[-1].test_end <= optimizer.end
+    assert (optimizer.end - windows[-1].test_end).days <= window_days
+
+
+@pytest.mark.parametrize("anchored", [True, False])
+def test_walk_forward_combined_equity_is_strictly_increasing(anchored):
+    """The combined out-of-sample equity curve is a valid time series.
+
+    The combined curve is the chain of the windows' equity curves, so its
+    index has to increase strictly: a period that appears twice would put the
+    index out of order and break every time-series operation on it.
+    """
+    optimizer = _walk_forward_optimizer(anchored=anchored)
+    result = optimizer.run()
+
+    combined = result.combined_test_result
+    assert combined is not None
+
+    index = combined.equity_curve.index
+    assert index.is_monotonic_increasing
+    assert index.is_unique
+
+    # Every bar of every window is in the combined curve exactly once.
+    expected_bars = sum(
+        len(w.test_result.equity_curve) - 1
+        for w in result.windows
+        if w.test_result is not None and len(w.test_result.equity_curve) >= 2
+    )
+    assert len(combined.equity_curve) == expected_bars + 1
+
+
+def test_walk_forward_combined_pnl_is_the_chained_realized_pnl():
+    """The combined result's realized PnL is the chained PnL of the windows.
+
+    Every window's backtest starts fresh at the initial capital, so its PnL is
+    booked in its own capital base. The combined account is the chain of those
+    windows, so the combined PnL is the sum of the windows' PnL, each scaled by
+    the factor that scales the window's equity curve.
+    """
+    optimizer = _walk_forward_optimizer()
+    result = optimizer.run()
+
+    combined = result.combined_test_result
+    assert combined is not None
+
+    cumulative = optimizer.initial_capital
+    expected_pnl = 0.0
+    for window in result.windows:
+        test_result = window.test_result
+        if test_result is None or len(test_result.equity_curve) < 2:
+            continue
+        scale = cumulative / optimizer.initial_capital
+        trades = test_result.trades
+        if not trades.empty and "pnl" in trades.columns:
+            expected_pnl += scale * float(trades["pnl"].sum())
+        cumulative = float(test_result.equity_curve.iloc[-1]) * scale
+
+    assert combined.metrics.total_pnl == pytest.approx(expected_pnl)
+    assert combined.final_value == pytest.approx(cumulative)
+
+
+def test_walk_forward_combined_result_can_be_analyzed():
+    """The combined out-of-sample result can be analyzed like any other result.
+
+    The trade analysis looks equity values up by timestamp, which needs an
+    index that increases strictly.
+    """
+    from quant_trading.backtest.trade_analysis import analyze_trades
+
+    optimizer = _walk_forward_optimizer()
+    result = optimizer.run()
+
+    combined = result.combined_test_result
+    assert combined is not None
+
+    analysis = analyze_trades(combined)
+    assert analysis.total_trades >= 0
+    assert analysis.total_pnl == pytest.approx(combined.metrics.total_pnl)
+
+
+def test_walk_forward_combine_drops_overlapping_points():
+    """Overlapping out-of-sample periods are combined into one time series.
+
+    The combined curve is a time series, so a point that is not later than the
+    last emitted one is dropped instead of putting the index out of order.
+    """
+    from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.metrics import calculate_backtest_metrics
+    from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+    optimizer = _walk_forward_optimizer()
+
+    # The two windows share the 2024-03-15 bar, so their test periods overlap.
+    eq1 = pd.Series(
+        [100000.0, 110000.0, 105000.0],
+        index=pd.to_datetime(["2024-02-01", "2024-02-15", "2024-03-15"]),
+    )
+    eq2 = pd.Series(
+        [100000.0, 95000.0, 100000.0],
+        index=pd.to_datetime(["2024-03-01", "2024-03-15", "2024-04-01"]),
+    )
+    windows = [
+        WalkForwardWindow(
+            train_start=WALK_FORWARD_START,
+            train_end=datetime(2024, 2, 1),
+            test_start=datetime(2024, 2, 1),
+            test_end=datetime(2024, 3, 1),
+            best_params={"fast_period": 5, "slow_period": 20},
+            test_result=BacktestResult(
+                equity_curve=eq1,
+                trades=pd.DataFrame(),
+                positions={},
+                metrics=calculate_backtest_metrics(eq1),
+                start_date=datetime(2024, 2, 1),
+                end_date=datetime(2024, 3, 1),
+                initial_capital=100000.0,
+                final_value=eq1.iloc[-1],
+                total_return=eq1.iloc[-1] - 100000.0,
+                total_return_pct=(eq1.iloc[-1] / 100000.0 - 1) * 100,
+            ),
+        ),
+        WalkForwardWindow(
+            train_start=WALK_FORWARD_START,
+            train_end=datetime(2024, 3, 1),
+            test_start=datetime(2024, 3, 1),
+            test_end=datetime(2024, 4, 1),
+            best_params={"fast_period": 5, "slow_period": 20},
+            test_result=BacktestResult(
+                equity_curve=eq2,
+                trades=pd.DataFrame(),
+                positions={},
+                metrics=calculate_backtest_metrics(eq2),
+                start_date=datetime(2024, 3, 1),
+                end_date=datetime(2024, 4, 1),
+                initial_capital=100000.0,
+                final_value=eq2.iloc[-1],
+                total_return=eq2.iloc[-1] - 100000.0,
+                total_return_pct=(eq2.iloc[-1] / 100000.0 - 1) * 100,
+            ),
+        ),
+    ]
+
+    combined = optimizer._combine_test_results(windows)
+    assert combined is not None
+    index = combined.equity_curve.index
+    assert index.is_monotonic_increasing
+    assert index.is_unique
 
 
 def test_walk_forward_verbose(capsys):
