@@ -46,6 +46,10 @@ class BacktestMetrics:
 
     Attributes:
         total_return: Absolute net profit/loss (final value - initial value).
+        total_pnl: The realized PnL of the run (sum of the trade log PnL).
+            This is the PnL the run booked from trades, so it is not the same
+            as ``total_return`` (which includes unrealized PnL of positions
+            still open).
         total_return_pct: Total return as a percentage of initial value.
         annual_return: Annualized mean return (decimal).
         annual_return_pct: Annualized mean return as a percentage.
@@ -77,6 +81,7 @@ class BacktestMetrics:
 
     # Returns
     total_return: float = 0.0
+    total_pnl: float = 0.0
     total_return_pct: float = 0.0
     annual_return: float = 0.0
     annual_return_pct: float = 0.0
@@ -113,6 +118,7 @@ class BacktestMetrics:
         """
         return {
             "total_return": self.total_return,
+            "total_pnl": self.total_pnl,
             "total_return_pct": self.total_return_pct,
             "annual_return": self.annual_return,
             "annual_return_pct": self.annual_return_pct,
@@ -180,6 +186,25 @@ def calculate_backtest_metrics(
     metrics = BacktestMetrics()
 
     if len(equity_curve) < 2:
+        # Even if we can't compute return/risk, trade PnL can still be computed
+        if trades is not None and len(trades) > 0 and "pnl" in trades.columns:
+            log = split_trade_log(trades)
+            if not log.entries.empty:
+                metrics.total_pnl = float(log.entries["pnl"].sum())
+            round_trips = log.round_trips
+            winning = round_trips[round_trips["pnl"] > 0]
+            losing = round_trips[round_trips["pnl"] < 0]
+            metrics.num_trades = len(round_trips)
+            metrics.num_winning_trades = len(winning)
+            metrics.num_losing_trades = len(losing)
+            metrics.win_rate = len(winning) / len(round_trips) if len(round_trips) > 0 else 0
+            metrics.avg_win = winning["pnl"].mean() if len(winning) > 0 else 0
+            metrics.avg_loss = losing["pnl"].mean() if len(losing) > 0 else 0
+            metrics.largest_win = winning["pnl"].max() if len(winning) > 0 else 0
+            metrics.largest_loss = losing["pnl"].min() if len(losing) > 0 else 0
+            gross_profit = winning["pnl"].sum() if len(winning) > 0 else 0
+            gross_loss = abs(losing["pnl"].sum()) if len(losing) > 0 else 0
+            metrics.profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0
         return metrics
 
     initial_value = equity_curve.iloc[0]
@@ -215,7 +240,12 @@ def calculate_backtest_metrics(
         # the PnL of a short entry is counted with the cover that closes it.
         # The same split drives TradeAnalysis, so the two APIs count the same
         # trades for the same result.
-        round_trips = split_trade_log(trades).round_trips
+        log = split_trade_log(trades)
+        round_trips = log.round_trips
+
+        # The realized PnL of the run is the sum of the trade log
+        if not log.entries.empty:
+            metrics.total_pnl = float(log.entries["pnl"].sum())
 
         winning = round_trips[round_trips["pnl"] > 0]
         losing = round_trips[round_trips["pnl"] < 0]

@@ -410,7 +410,102 @@ class TestMetricsAndAnalysisAgree:
         assert result.metrics.win_rate == pytest.approx(analysis.win_rate)
 
 
-class TestAnalysisReconcilesWithTheRun:
+class TestMetricsAndAnalysisAgreeExtra:
+    """Metrics and analysis must agree on the PnL the run booked."""
+
+    @pytest.mark.parametrize(
+        ("name", "trades"),
+        [
+            (
+                "a long round trip",
+                _log(
+                    _trade(action="buy", pnl=0.0),
+                    _trade(action="sell", day=2, pnl=100.0),
+                ),
+            ),
+            (
+                "a short round trip",
+                _log(
+                    _trade(action="short", pnl=-15.0),
+                    _trade(action="cover", day=2, pnl=100.0),
+                ),
+            ),
+            (
+                "a short that is still open",
+                _log(_trade(action="short", pnl=-15.0)),
+            ),
+            (
+                "a short that is covered in part",
+                _log(
+                    _trade(action="short", quantity=10.0, pnl=-15.0),
+                    _trade(action="cover", quantity=4.0, day=2, pnl=100.0),
+                ),
+            ),
+            (
+                "a long and a short, one of them open",
+                _log(
+                    _trade(action="buy", pnl=0.0),
+                    _trade(action="sell", day=2, pnl=100.0),
+                    _trade(symbol="MSFT", action="short", day=3, pnl=-15.0),
+                ),
+            ),
+        ],
+    )
+    def test_the_total_pnl_agrees(self, name, trades):
+        result = _result(trades)
+        metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
+        analysis = analyze_trades(result)
+        assert metrics.total_pnl == pytest.approx(analysis.total_pnl), name
+        assert metrics.total_pnl == pytest.approx(float(trades["pnl"].sum())), name
+
+    @pytest.mark.parametrize(
+        ("name", "trades"),
+        [
+            (
+                "a long and a short round trip",
+                _log(
+                    _trade(symbol="AAPL", action="buy", pnl=0.0),
+                    _trade(symbol="AAPL", action="sell", day=2, pnl=100.0),
+                    _trade(symbol="MSFT", action="short", day=3, pnl=-15.0),
+                    _trade(symbol="MSFT", action="cover", day=4, pnl=-50.0),
+                ),
+            ),
+            (
+                "a short that is still open",
+                _log(
+                    _trade(symbol="AAPL", action="short", pnl=-15.0),
+                    _trade(symbol="MSFT", action="buy", day=2, pnl=0.0),
+                    _trade(symbol="MSFT", action="sell", day=3, pnl=20.0),
+                ),
+            ),
+        ],
+    )
+    def test_per_symbol_pnl_adds_up(self, name, trades):
+        result = _result(trades)
+        metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
+        analysis = analyze_trades(result)
+        symbol_total = sum(stats["total_pnl"] for stats in analysis.symbol_stats.values())
+        assert symbol_total == pytest.approx(analysis.total_pnl)
+        assert metrics.total_pnl == pytest.approx(analysis.total_pnl)
+
+    def test_liquidated_run_metrics_total_pnl_equals_total_return(self):
+        trades = _log(
+            _trade(action="short", pnl=-15.0),
+            _trade(action="cover", day=2, pnl=100.0),
+            _trade(action="buy", day=3, pnl=0.0),
+            _trade(action="sell", day=4, pnl=-40.0),
+        )
+        result = _result(trades)
+        # Make equity consistent with fully liquidated run
+        result.total_return = float(trades["pnl"].sum())
+        result.equity_curve = pd.Series(
+            [100000.0, 100000.0 + result.total_return], index=pd.date_range("2024-01-01", periods=2)
+        )
+        metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
+        analysis = analyze_trades(result)
+        assert metrics.total_pnl == pytest.approx(analysis.total_pnl)
+        assert metrics.total_pnl == pytest.approx(metrics.total_return)
+
     """The analysis reports the PnL the run actually booked."""
 
     @pytest.mark.parametrize(

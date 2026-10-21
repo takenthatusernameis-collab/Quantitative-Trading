@@ -27,6 +27,7 @@ import pandas as pd
 import pytest
 
 from quant_trading.backtest.engine import BacktestEngine, BacktestResult
+from quant_trading.backtest.metrics import calculate_backtest_metrics
 from quant_trading.backtest.trade_analysis import analyze_trades
 from quant_trading.config.settings import BacktestConfig
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
@@ -172,6 +173,10 @@ def _assert_analysis_reconciles(result: BacktestResult) -> None:
 
     symbol_total = sum(stats["total_pnl"] for stats in (analysis.symbol_stats or {}).values())
     assert symbol_total == pytest.approx(analysis.total_pnl, rel=1e-9, abs=1e-6)
+
+    # Metrics and analysis must agree on the PnL of the run
+    metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
+    assert metrics.total_pnl == pytest.approx(analysis.total_pnl, rel=1e-9, abs=1e-6)
 
 
 def _assert_cost_accounting_invariants(result: BacktestResult, portfolio: Portfolio) -> None:
