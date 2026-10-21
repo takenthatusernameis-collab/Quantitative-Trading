@@ -23,6 +23,7 @@ from typing import Any
 
 import pandas as pd
 
+from quant_trading.backtest.trade_log import split_trade_log
 from quant_trading.risk.metrics import (
     calculate_calmar_ratio,
     calculate_max_drawdown,
@@ -54,11 +55,11 @@ class BacktestMetrics:
         sharpe_ratio: Annualized Sharpe ratio.
         sortino_ratio: Annualized Sortino ratio.
         calmar_ratio: Calmar ratio (annual return / |max drawdown|).
-        win_rate: Fraction of trades that were profitable (0.0 - 1.0).
+        win_rate: Fraction of the round trips that were profitable (0.0 - 1.0).
         profit_factor: Gross profit / gross loss (0.0 if no losers).
-        num_trades: Total number of trades with non-zero PnL (opening rows excluded).
-        num_winning_trades: Number of trades with positive PnL.
-        num_losing_trades: Number of trades with negative PnL.
+        num_trades: Number of completed round trips (opening rows excluded).
+        num_winning_trades: Number of round trips with a positive PnL.
+        num_losing_trades: Number of round trips with a negative PnL.
         avg_win: Average PnL of winning trades (0.0 if none).
         avg_loss: Average PnL of losing trades (0.0 if none).
         largest_win: Largest single-trade PnL (0.0 if none).
@@ -147,6 +148,12 @@ def calculate_backtest_metrics(
     default zero values. Trade statistics are only populated when ``trades``
     is provided, contains at least one row, and includes a ``pnl`` column.
 
+    A trade is a completed round trip: the opening rows are excluded and the
+    PnL of a short entry is counted with the cover that closes it. The trade
+    statistics therefore agree with
+    :func:`~quant_trading.backtest.trade_analysis.analyze_trades` for the
+    same trades.
+
     Args:
         equity_curve: Cumulative portfolio value series indexed by time.
         trades: Optional DataFrame of trades; must contain a ``pnl`` column
@@ -204,17 +211,19 @@ def calculate_backtest_metrics(
 
     # Trade statistics
     if trades is not None and len(trades) > 0 and "pnl" in trades.columns:
-        # Count only trades with a non-zero PnL, matching TradeAnalysis: a round
-        # trip contributes an opening row with pnl == 0, which is not a trade.
-        pnl_trades = trades[trades["pnl"] != 0]
+        # A trade is a completed round trip: the opening rows are excluded and
+        # the PnL of a short entry is counted with the cover that closes it.
+        # The same split drives TradeAnalysis, so the two APIs count the same
+        # trades for the same result.
+        round_trips = split_trade_log(trades).round_trips
 
-        winning = pnl_trades[pnl_trades["pnl"] > 0]
-        losing = pnl_trades[pnl_trades["pnl"] < 0]
+        winning = round_trips[round_trips["pnl"] > 0]
+        losing = round_trips[round_trips["pnl"] < 0]
 
-        metrics.num_trades = len(pnl_trades)
+        metrics.num_trades = len(round_trips)
         metrics.num_winning_trades = len(winning)
         metrics.num_losing_trades = len(losing)
-        metrics.win_rate = len(winning) / len(pnl_trades) if len(pnl_trades) > 0 else 0
+        metrics.win_rate = len(winning) / len(round_trips) if len(round_trips) > 0 else 0
 
         metrics.avg_win = winning["pnl"].mean() if len(winning) > 0 else 0
         metrics.avg_loss = losing["pnl"].mean() if len(losing) > 0 else 0

@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 
 from quant_trading.backtest.engine import BacktestResult
+from quant_trading.backtest.trade_log import split_trade_log
 from quant_trading.risk.metrics import calculate_sharpe_ratio, calculate_sortino_ratio
 
 
@@ -471,52 +472,20 @@ def analyze_trades(
     if trades.empty or "pnl" not in trades.columns:
         return TradeAnalysis()
 
-    # Pair short entries with their covers so a short round trip counts as one
-    # trade (entry fee + price move belong to the same round trip), mirroring
-    # the long side. The short entry's realized PnL (negative entry fee) is
-    # folded into the cover that closes it.
-    holding_periods: list[float] = []
-    if "action" in trades.columns:
-        trades = trades.sort_values("timestamp", kind="stable").reset_index(drop=True)
-        queues: dict[str, list[list[float]]] = {}
-        drop_idx = set()
-        for i, row in trades.iterrows():
-            sym = row["symbol"]
-            action = row["action"]
-            if action == "short":
-                queues.setdefault(sym, []).append([float(row["quantity"]), float(row["pnl"])])
-                drop_idx.add(i)
-            elif action == "cover":
-                q = float(row["quantity"])
-                added = 0.0
-                queue = queues.setdefault(sym, [])
-                while q > 0 and queue:
-                    entry = queue[0]
-                    if q >= entry[0]:
-                        added += entry[1]
-                        q -= entry[0]
-                        queue.pop(0)
-                    else:
-                        portion = q / entry[0]
-                        added += entry[1] * portion
-                        entry[0] -= q
-                        entry[1] *= 1 - portion
-                        q = 0
-                if added:
-                    trades.at[i, "pnl"] = float(trades.at[i, "pnl"]) + added
+    # The short entries are paired with the covers that close them, so a short
+    # round trip counts as one trade (entry fee + price move belong to the
+    # same round trip), mirroring the long side. The metrics use the same
+    # split, so both APIs count the same trades.
+    log = split_trade_log(trades)
 
-        # Holding periods are computed before the short entry rows are dropped:
-        # a short's entry row carries the entry timestamp its cover must be
-        # matched against. Dropping it first would leave every short with no
-        # holding period (long entries are never dropped).
-        holding_periods = _calculate_holding_periods(trades)
+    # Holding periods are computed before the short entry rows are dropped:
+    # a short's entry row carries the entry timestamp its cover must be
+    # matched against. Dropping it first would leave every short with no
+    # holding period (long entries are never dropped).
+    holding_periods = _calculate_holding_periods(log.entries)
 
-        trades = trades.drop(index=sorted(drop_idx)).reset_index(drop=True)
-    else:
-        holding_periods = _calculate_holding_periods(trades)
-
-    # Filter trades with PnL (exclude opening trades)
-    pnl_trades = trades[trades["pnl"] != 0].copy()
+    # The round trips are the trades with a PnL (opening trades excluded).
+    pnl_trades = log.round_trips
 
     if pnl_trades.empty:
         return TradeAnalysis()

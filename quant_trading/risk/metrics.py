@@ -98,7 +98,8 @@ def calculate_returns(prices: pd.Series) -> pd.Series:
         returns = (prices - previous) / previous
     # A previous price of zero makes the return undefined (inf); drop those
     # observations so downstream metrics stay finite instead of NaN/inf.
-    return returns.replace([np.inf, -np.inf], np.nan).dropna()
+    cleaned: pd.Series = returns.replace([np.inf, -np.inf], np.nan)
+    return cleaned.dropna()
 
 
 def calculate_volatility(
@@ -309,7 +310,7 @@ def _align_series(returns: pd.Series, market_returns: pd.Series) -> pd.DataFrame
         NaN rows dropped.
 
     """
-    aligned = pd.concat([returns, market_returns], axis=1).dropna()
+    aligned: pd.DataFrame = pd.concat([returns, market_returns], axis=1).dropna()
     if len(aligned) < 2 and len(returns) >= 2 and len(market_returns) >= 2:
         aligned = pd.concat(
             [returns.reset_index(drop=True), market_returns.reset_index(drop=True)],
