@@ -676,6 +676,7 @@ backtest:
   slippage: 0.0005
   risk_free_rate: 0.02
   periods_per_year: 252
+  enable_stop_exits: false
 
 risk:
   max_position_size: 0.1
@@ -762,6 +763,11 @@ are increased by the increment alone — the target less the exposure the
 symbol already carries — so a position that is already part of the way to its
 target is not charged twice for the exposure it holds. A position that is
 below its target can therefore be topped up by a later signal.
+
+The stop loss, the take profit and the trailing stop of a position are advisory
+by default: the risk manager computes the levels, but nothing closes the
+position because of them. See [Stop Exits](#stop-exits) for the switch that
+turns them into real exits.
 
 ## Short Selling
 
@@ -853,6 +859,47 @@ The risk manager is fed the prices it observes: `update_portfolio_value()` and
 about, so the trailing stop keeps following the market on their own. A caller
 that tracks prices elsewhere can feed them in directly with
 `update_trailing_stop(symbol, price)`.
+
+## Stop Exits
+
+The stop loss, the take profit and the trailing stop of a position are
+computed by the risk manager, but they are advisory by default: the backtest
+engine does not close a position because of them. `enable_stop_exits` turns
+them into real exits.
+
+```yaml
+backtest:
+  enable_stop_exits: true
+```
+
+With the exits on, every open position is measured against the levels the risk
+manager computes for it after each bar, and the position is closed at that
+bar's close when a level was reached:
+
+- a long is closed when the close falls to (or below) its stop loss or rises
+  to (or above) its take profit;
+- a short is covered when the close rises to (or above) its stop loss or falls
+  to (or below) its take profit.
+
+The exit is an ordinary trade, so it is recorded in the trade log and the
+accounting is unchanged: a run that is liquidated this way reconciles the same
+way a run closed by a strategy signal does.
+
+```python
+final_value - initial_capital == sum(trades["pnl"])
+```
+
+The close is the price the engine knows on the bar, so no intrabar path is
+assumed: a level that was crossed inside the bar is only acted on when the
+close is on the other side of it. A trailing stop can therefore only be hit on
+a bar *after* the one that ratcheted it, because the stop always sits below
+the best price a long has reached (above it, for a short). The stop loss is
+evaluated before the take profit, and a bar that reaches both closes the
+position once, at that bar's close.
+
+The exits are off by default, so a backtest that does not ask for them behaves
+exactly as before. Note that a `stop_loss_pct` of `0.0` puts the stop of a
+long at its entry price, so every close below the entry closes the position.
 
 ## Annualization Periods
 

@@ -391,6 +391,12 @@ class BacktestEngine:
     ) -> BacktestResult:
         """Run backtest for given symbols and date range.
 
+        The bar loop generates the signals of the registered strategies,
+        executes them, marks the portfolio to the bar's close and then
+        refreshes the risk manager. When ``enable_stop_exits`` is set, a
+        position whose bar close hit its stop loss, its take profit or its
+        trailing stop is closed at that close before the bar is closed out.
+
         Args:
             symbols: List of symbols to trade.
             start: Backtest start date.
@@ -466,14 +472,22 @@ class BacktestEngine:
                 if current_date in df.index
             }
             self.portfolio.update_prices(prices)
-            equity_curve.append(self.portfolio.total_value)
-            processed_dates.append(current_date)
 
             # Update risk manager
             self.risk_manager.update_portfolio_value(
                 self.portfolio.get_positions(),
                 self.portfolio.cash,
             )
+
+            # Close the positions whose stop loss, take profit or trailing
+            # stop was hit. This runs after the risk manager has seen the
+            # bar's close, so the trailing stop is up to date before it is
+            # checked.
+            if self.config.enable_stop_exits:
+                self._process_stop_exits(prices, trades_list, current_date)
+
+            equity_curve.append(self.portfolio.total_value)
+            processed_dates.append(current_date)
 
             # Enforce portfolio-level limits (max drawdown, max positions, etc.)
             portfolio_check = self.risk_manager.check_portfolio()
@@ -587,6 +601,77 @@ class BacktestEngine:
 
         elif signal.action == "short":
             self._open_short(symbol, signal, trades_list, timestamp, price)
+
+    def _process_stop_exits(
+        self,
+        prices: dict[str, float],
+        trades_list: list[Trade],
+        timestamp: datetime,
+    ) -> None:
+        """Close the positions whose stop or target was hit on this bar.
+
+        Every open position is measured against the levels the risk manager
+        computes for it: the stop loss (the fixed stop, or the trailing stop
+        when it is the tighter one) and the take profit. A position whose bar
+        close reached one of them is closed at that close, which is the price
+        the engine knows on the bar: no intrabar path and no look-ahead are
+        assumed.
+
+        The stop loss is evaluated before the take profit, and the position is
+        closed once, at the bar's close, whichever level was reached. A
+        trailing stop can only be hit on a bar after the one that ratcheted
+        it, because the stop is always placed below (above, for a short) the
+        best price the position has reached.
+
+        The exit is recorded like any other trade, so the trade log and the
+        accounting stay consistent: a run that is liquidated this way still
+        reconciles ``final_value - initial_capital == sum(trades["pnl"])``.
+
+        Args:
+            prices: Close price of every symbol that has a bar on this date.
+            trades_list: List that executed trades are appended to.
+            timestamp: Timestamp assigned to any trade created.
+
+        Returns:
+            None.
+
+        """
+        # The holdings are closed while the loop runs, so the symbols are
+        # snapshotted first.
+        for symbol in list(self.portfolio.holdings):
+            price = prices.get(symbol)
+            if price is None or price <= 0:
+                # The symbol has no price on this bar, so no level can be
+                # measured against it.
+                continue
+
+            holding = self.portfolio.holdings.get(symbol)
+            if holding is None or holding.quantity == 0:
+                continue
+
+            stopped = self.risk_manager.should_stop_loss(symbol, price)
+            targeted = self.risk_manager.should_take_profit(symbol, price)
+            if not stopped and not targeted:
+                continue
+
+            if holding.quantity < 0:
+                # A short is closed by buying it back.
+                self._cover_short(
+                    symbol,
+                    Signal(symbol=symbol, action="buy", strength=1.0, price=price),
+                    trades_list,
+                    timestamp,
+                    price,
+                    holding,
+                )
+            else:
+                self._reduce_long(
+                    symbol,
+                    Signal(symbol=symbol, action="sell", strength=1.0, price=price),
+                    trades_list,
+                    timestamp,
+                    price,
+                )
 
     def _open_long(
         self,

@@ -1100,11 +1100,16 @@ def _run_script(
     data: dict[str, pd.DataFrame],
     config: Config | None = None,
     same_bar: bool = False,
+    risk_manager: RiskManager | None = None,
 ) -> tuple[BacktestResult, BacktestEngine]:
     """Run a scripted backtest and return its result and the engine."""
     symbols = list(data.keys())
     provider = MockDataProvider(data)
-    engine = BacktestEngine(config=config, data_manager=DataManager([provider]))
+    engine = BacktestEngine(
+        config=config,
+        data_manager=DataManager([provider]),
+        risk_manager=risk_manager,
+    )
     strategy = (
         SameBarSignalStrategy(script, symbols)
         if same_bar
@@ -1475,3 +1480,178 @@ def test_short_signal_tops_up_a_short_below_its_target():
     assert len(result.trades) == 2
     assert result.trades.iloc[1]["quantity"] == pytest.approx(100.0)
     assert result.positions["TEST"].quantity == pytest.approx(-200.0)
+
+
+# ---------------------------------------------------------------------------
+# Stop exits
+# ---------------------------------------------------------------------------
+
+
+def _stop_exit_config(
+    commission: float = 0.0,
+    slippage: float = 0.0,
+    **risk: float,
+) -> Config:
+    """Build a config whose stop exits are enabled."""
+    limits: dict[str, float] = {
+        "max_position_size": 0.1,
+        "max_leverage": 1.0,
+        "max_portfolio_risk": 1.0,
+    }
+    limits.update(risk)
+    return Config(
+        backtest=BacktestConfig(
+            initial_capital=100000.0,
+            commission=commission,
+            slippage=slippage,
+            enable_stop_exits=True,
+        ),
+        risk=RiskConfig(**limits),
+    )
+
+
+def test_stop_loss_closes_a_long_at_the_bar_close():
+    """A long whose close falls to its stop loss is closed at that close."""
+    data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
+    config = _stop_exit_config(stop_loss_pct=0.05, take_profit_pct=0.15)
+
+    result, _engine = _run_script([("buy", 1.0), ("hold", 0.0), ("hold", 0.0)], data, config)
+
+    assert len(result.trades) == 2
+    entry = result.trades.iloc[0]
+    exit_trade = result.trades.iloc[1]
+    assert entry["action"] == "buy"
+    assert exit_trade["action"] == "sell"
+    # The stop is 5% below the entry price of 50.00, so the close of 45.00
+    # is below it and the position is closed there.
+    assert exit_trade["price"] == pytest.approx(45.0)
+    assert exit_trade["quantity"] == pytest.approx(entry["quantity"])
+    # The position is flat afterwards.
+    assert result.positions == {}
+
+
+def test_take_profit_closes_a_long_at_the_bar_close():
+    """A long whose close rises to its take profit is closed at that close."""
+    data = {"TEST": _price_frame([50.0, 50.0, 60.0])}
+    config = _stop_exit_config(stop_loss_pct=0.05, take_profit_pct=0.15)
+
+    result, _engine = _run_script([("buy", 1.0), ("hold", 0.0), ("hold", 0.0)], data, config)
+
+    assert len(result.trades) == 2
+    exit_trade = result.trades.iloc[1]
+    assert exit_trade["action"] == "sell"
+    # The target is 15% above the entry price of 50.00.
+    assert exit_trade["price"] == pytest.approx(60.0)
+    assert result.positions == {}
+
+
+def test_stop_loss_covers_a_short_at_the_bar_close():
+    """A short whose close rises to its stop loss is covered at that close."""
+    data = {"TEST": _price_frame([50.0, 50.0, 55.0])}
+    config = _stop_exit_config(stop_loss_pct=0.05, take_profit_pct=0.15)
+
+    result, _engine = _run_script([("short", 1.0), ("hold", 0.0), ("hold", 0.0)], data, config)
+
+    assert len(result.trades) == 2
+    entry = result.trades.iloc[0]
+    exit_trade = result.trades.iloc[1]
+    assert entry["action"] == "short"
+    assert exit_trade["action"] == "cover"
+    # The stop of a short is 5% above its entry price of 50.00.
+    assert exit_trade["price"] == pytest.approx(55.0)
+    assert exit_trade["quantity"] == pytest.approx(entry["quantity"])
+    assert result.positions == {}
+
+
+def test_take_profit_covers_a_short_at_the_bar_close():
+    """A short whose close falls to its take profit is covered at that close."""
+    data = {"TEST": _price_frame([50.0, 50.0, 40.0])}
+    config = _stop_exit_config(stop_loss_pct=0.05, take_profit_pct=0.15)
+
+    result, _engine = _run_script([("short", 1.0), ("hold", 0.0), ("hold", 0.0)], data, config)
+
+    assert len(result.trades) == 2
+    exit_trade = result.trades.iloc[1]
+    assert exit_trade["action"] == "cover"
+    # The target of a short is 15% below its entry price of 50.00.
+    assert exit_trade["price"] == pytest.approx(40.0)
+    assert result.positions == {}
+
+
+def test_trailing_stop_closes_a_long_on_a_later_bar():
+    """A trailing stop closes a long on a bar after the one that ratcheted it."""
+    data = {"TEST": _price_frame([50.0, 60.0, 55.0])}
+    config = _stop_exit_config(
+        stop_loss_pct=0.5,
+        take_profit_pct=1.0,
+        trailing_stop_pct=0.05,
+    )
+
+    result, _engine = _run_script([("buy", 1.0), ("hold", 0.0), ("hold", 0.0)], data, config)
+
+    assert len(result.trades) == 2
+    exit_trade = result.trades.iloc[1]
+    assert exit_trade["action"] == "sell"
+    # The stop trailed the high of 60.00 down to 57.00, so the close of
+    # 55.00 on the next bar is below it.
+    assert exit_trade["price"] == pytest.approx(55.0)
+    assert exit_trade["timestamp"] == data["TEST"].index[2].to_pydatetime()
+    assert result.positions == {}
+
+
+def test_stop_exit_keeps_the_accounting_invariant():
+    """A run that is closed by a stop still reconciles cash, PnL and equity."""
+    data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
+    config = _stop_exit_config(commission=0.001, slippage=0.0005)
+
+    result, engine = _run_script([("buy", 1.0), ("hold", 0.0), ("hold", 0.0)], data, config)
+
+    assert len(result.trades) == 2
+    assert result.positions == {}
+    assert result.final_value - result.initial_capital == pytest.approx(result.trades["pnl"].sum())
+    assert engine.portfolio.cash - result.initial_capital == pytest.approx(
+        result.trades["cost"].iloc[1] - result.trades["cost"].iloc[0]
+    )
+    assert result.equity_curve.iloc[-1] == pytest.approx(result.final_value)
+
+
+def test_stop_exits_are_off_by_default():
+    """Without the flag the stop levels stay advisory and the position stays open."""
+    data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
+    config = Config(
+        backtest=BacktestConfig(initial_capital=100000.0),
+        risk=RiskConfig(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0),
+    )
+
+    result, _engine = _run_script([("buy", 1.0), ("hold", 0.0), ("hold", 0.0)], data, config)
+
+    # Only the entry was traded, the position was not stopped out.
+    assert len(result.trades) == 1
+    assert result.trades.iloc[0]["action"] == "buy"
+    assert result.positions["TEST"].quantity == pytest.approx(200.0)
+
+
+def test_a_bar_that_hits_both_levels_closes_the_position_once():
+    """A close that hits the stop and the target closes the position once."""
+    data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
+    # The target is placed below the entry price, so the close of 45.00 hits
+    # both the stop at 47.50 and the target at 42.50.
+    risk_manager = RiskManager(
+        initial_capital=100000.0,
+        max_position_size=0.1,
+        max_leverage=1.0,
+        max_portfolio_risk=1.0,
+        stop_loss_pct=0.05,
+        take_profit_pct=-0.15,
+    )
+
+    result, _engine = _run_script(
+        [("buy", 1.0), ("hold", 0.0), ("hold", 0.0)],
+        data,
+        _stop_exit_config(),
+        risk_manager=risk_manager,
+    )
+
+    assert len(result.trades) == 2
+    assert result.trades.iloc[1]["action"] == "sell"
+    assert result.positions == {}

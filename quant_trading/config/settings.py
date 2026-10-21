@@ -115,6 +115,10 @@ class BacktestConfig:
             (252 for daily data, 52 for weekly, 12 for monthly).
         halt_on_portfolio_violation: When True, stop the backtest if the
             portfolio breaches a configured risk limit.
+        enable_stop_exits: When True, the engine closes a position on the bar
+            whose close hits its stop loss, its take profit or its trailing
+            stop. The exits are off by default, so the levels the risk manager
+            computes stay advisory until they are switched on.
 
     Examples:
         >>> from quant_trading.config.settings import BacktestConfig
@@ -123,6 +127,8 @@ class BacktestConfig:
         50000.0
         >>> cfg.slippage
         0.0005
+        >>> cfg.enable_stop_exits
+        False
 
     """
 
@@ -132,6 +138,7 @@ class BacktestConfig:
     risk_free_rate: float = 0.02
     periods_per_year: int = 252
     halt_on_portfolio_violation: bool = False
+    enable_stop_exits: bool = False
 
 
 @dataclass
