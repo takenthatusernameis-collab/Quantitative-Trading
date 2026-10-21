@@ -284,6 +284,102 @@ class TestCheckSignal:
         assert any("exceed max leverage" in v for v in result.violations)
 
 
+class TestMaxPositionsGate:
+    """The signal gate enforces the number of open positions before a trade.
+
+    ``max_positions`` is the only one of the four portfolio limits that was
+    not checked before a trade: the position size, the risk budget and the
+    leverage limit are all gated in :meth:`RiskManager.check_signal`, but the
+    number of open positions was only detected after the bar by the
+    report-only :meth:`RiskManager.check_portfolio`. A ``"buy"`` or a
+    ``"short"`` that would open a **new** position is now rejected when the
+    portfolio already holds ``max_positions`` positions.
+
+    A signal that tops up a position that is already open does not add a
+    position and stays allowed, and a ``"buy"`` that covers an open short
+    reduces the gross exposure instead of adding a position, so both stay
+    allowed too.
+    """
+
+    def test_buy_that_would_open_a_position_beyond_the_limit_is_rejected(self):
+        rm = RiskManager(initial_capital=100000.0, max_positions=1)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0),
+        }
+        signal = Signal(symbol="MSFT", action="buy", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("exceed max positions" in v for v in result.violations)
+
+    def test_short_that_would_open_a_position_beyond_the_limit_is_rejected(self):
+        rm = RiskManager(initial_capital=100000.0, max_positions=1)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0),
+        }
+        signal = Signal(symbol="MSFT", action="short", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("exceed max positions" in v for v in result.violations)
+
+    def test_buy_that_tops_up_an_open_position_is_allowed_at_the_limit(self):
+        """Topping up a position that is already open does not add a position."""
+        rm = RiskManager(initial_capital=100000.0, max_positions=1)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=50, avg_price=100.0, current_price=100.0),
+        }
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=100.0)
+        result = rm.check_signal(signal, portfolio_value=100000.0)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_buy_that_covers_an_open_short_is_allowed_at_the_limit(self):
+        """Covering a short reduces gross exposure, so it is not gated."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            max_positions=1,
+            max_position_size=0.1,
+            max_leverage=1.0,
+            max_portfolio_risk=0.001,
+        )
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=-100, avg_price=150.0, current_price=150.0),
+        }
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_buy_that_opens_a_position_below_the_limit_is_allowed(self):
+        rm = RiskManager(initial_capital=100000.0, max_positions=2)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0),
+        }
+        signal = Signal(symbol="MSFT", action="buy", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_short_that_tops_up_an_open_short_is_allowed_at_the_limit(self):
+        """A short is topped up to its target like a long, without adding a position."""
+        rm = RiskManager(initial_capital=100000.0, max_positions=1, max_position_size=0.1)
+        rm.positions = {
+            "AAPL": Position(symbol="AAPL", quantity=-50, avg_price=100.0, current_price=100.0),
+        }
+        signal = Signal(symbol="AAPL", action="short", strength=1.0, price=100.0)
+        result = rm.check_signal(signal, portfolio_value=100000.0)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_gate_uses_the_positions_the_manager_currently_knows_about(self):
+        """The gate counts ``self.positions``, refreshed by ``sync_position``."""
+        rm = RiskManager(initial_capital=100000.0, max_positions=1)
+        rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
+        signal = Signal(symbol="MSFT", action="buy", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("exceed max positions" in v for v in result.violations)
+
+
 class TestSyncPosition:
     """Tests for sync_position."""
 

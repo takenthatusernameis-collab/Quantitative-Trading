@@ -276,6 +276,58 @@ class RiskManager:
         self.positions[symbol] = position
         self.update_trailing_stop(symbol, position.current_price)
 
+    def _open_position_count(self) -> int:
+        """Number of symbols currently carrying a non-flat position.
+
+        The gate counts the positions the risk manager currently knows about
+        (``self.positions``), which is refreshed by
+        :meth:`update_portfolio_value` and kept current by
+        :meth:`sync_position` as trades are executed. A flat position (a
+        symbol present in the view with a zero quantity) is not a position, so
+        it does not count towards the limit.
+
+        Returns:
+            Number of open positions.
+
+        """
+        return sum(1 for position in self.positions.values() if position.quantity != 0)
+
+    def _reject_new_position_if_at_the_limit(
+        self,
+        result: CheckResult,
+        label: str,
+        symbol: str,
+    ) -> bool:
+        """Reject a signal that would open a new position beyond the limit.
+
+        A ``"buy"`` or a ``"short"`` signal that would open a **new** position
+        (the symbol has no position, or a flat one) is rejected when the
+        portfolio already holds ``portfolio_limit.max_positions`` positions.
+        A signal that tops up a position that is already open does not add a
+        position and must stay allowed, so it is not gated here.
+
+        Args:
+            result: Check result that collects the violations.
+            label: Name of the signal used in the violation messages.
+            symbol: Symbol the signal would open a position for.
+
+        Returns:
+            True when the signal was rejected, False when it may proceed.
+
+        """
+        position = self.positions.get(symbol)
+        if position is not None and position.quantity != 0:
+            # The symbol already holds an open position, so the signal tops it
+            # up instead of opening a new one. It does not add a position.
+            return False
+
+        count = self._open_position_count()
+        limit = self.portfolio_limit.max_positions
+        if count >= limit:
+            result.add_violation(f"{label} signal would exceed max positions: {count} >= {limit}")
+            return True
+        return False
+
     def check_signal(self, signal: Signal, portfolio_value: float | None = None) -> CheckResult:
         """Check if a trading signal passes risk limits.
 
@@ -298,6 +350,12 @@ class RiskManager:
         of the position limits and only the presence of a price is checked. A
         ``"short"`` signal is gated exactly like a ``"buy"`` signal, because
         both add gross exposure.
+
+        The number of open positions is gated before a trade as well: a
+        ``"buy"`` or a ``"short"`` that would open a new position is rejected
+        when the portfolio already holds ``max_positions`` positions. A signal
+        that tops up a position that is already open, or that covers an open
+        short, does not add a position and stays allowed.
 
         Args:
             signal: Trading signal to evaluate.
@@ -342,6 +400,8 @@ class RiskManager:
                 # The buy covers an open short. Covering reduces the gross
                 # exposure, so no position limit can be breached by it.
                 return result
+            if self._reject_new_position_if_at_the_limit(result, "Buy", signal.symbol):
+                return result
             current_gross = abs(position.quantity) * signal.price if position else 0.0
             self._check_exposure_increase(
                 result,
@@ -365,6 +425,8 @@ class RiskManager:
                 return result
             if signal.price is None:
                 result.add_violation("Short signal has no price")
+                return result
+            if self._reject_new_position_if_at_the_limit(result, "Short", signal.symbol):
                 return result
             current_gross = abs(position.quantity) * signal.price if position else 0.0
             self._check_exposure_increase(

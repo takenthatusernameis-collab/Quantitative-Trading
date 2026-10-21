@@ -421,7 +421,15 @@ def test_backtest_traces_realized_pnl():
 
 
 def test_portfolio_violations_collected_without_halt():
-    """Portfolio violations are recorded but the backtest runs to completion."""
+    """Portfolio violations are recorded but the backtest runs to completion.
+
+    The violation is forced with a ``max_drawdown`` that the fee paid on the
+    first bar breaches: the portfolio marks below its initial capital on the
+    bar the position is opened, so the drawdown limit is exceeded. The
+    position-size limit is breached too, because the fee shrinks the portfolio
+    value just below the size of the position. ``max_positions`` is left at
+    its default so the signal gate does not reject the entry.
+    """
     symbols = ["AAPL"]
     mock_data = create_synthetic_data(symbols, days=60)
 
@@ -432,7 +440,7 @@ def test_portfolio_violations_collected_without_halt():
     engine = BacktestEngine(
         config=config,
         data_manager=data_manager,
-        risk_manager=RiskManager(initial_capital=100000.0, max_positions=0),
+        risk_manager=RiskManager(initial_capital=100000.0, max_drawdown=0.0001),
     )
     engine.add_strategy(FirstDayBuyStrategy())
 
@@ -450,7 +458,15 @@ def test_portfolio_violations_collected_without_halt():
 
 
 def test_halt_on_portfolio_violation_stops_backtest():
-    """halt_on_portfolio_violation=True stops the backtest on the first violation."""
+    """halt_on_portfolio_violation=True stops the backtest on the first violation.
+
+    The violation is forced with a ``max_drawdown`` that the fee paid on the
+    first bar breaches: the portfolio marks below its initial capital on the
+    bar the position is opened, so the drawdown limit is exceeded. The
+    position-size limit is breached too, because the fee shrinks the portfolio
+    value just below the size of the position. ``max_positions`` is left at
+    its default so the signal gate does not reject the entry.
+    """
     symbols = ["AAPL"]
     mock_data = create_synthetic_data(symbols, days=60)
 
@@ -464,7 +480,7 @@ def test_halt_on_portfolio_violation_stops_backtest():
     engine = BacktestEngine(
         config=config,
         data_manager=data_manager,
-        risk_manager=RiskManager(initial_capital=100000.0, max_positions=0),
+        risk_manager=RiskManager(initial_capital=100000.0, max_drawdown=0.0001),
     )
     engine.add_strategy(FirstDayBuyStrategy())
 
@@ -482,8 +498,16 @@ def test_halt_on_portfolio_violation_stops_backtest():
     assert len(result.equity_curve.index) == len(result.equity_curve)
 
 
-def test_config_driven_max_positions_halts_backtest():
-    """A YAML/config-driven max_positions=1 halts a multi-symbol backtest."""
+def test_config_driven_max_drawdown_halts_backtest():
+    """A config-driven ``max_drawdown`` halts a multi-symbol backtest.
+
+    The violation is forced with a ``max_drawdown`` that the fee paid on the
+    first bar breaches: the portfolio marks below its initial capital on the
+    bar the position is opened, so the drawdown limit is exceeded. The
+    position-size limit is breached too, because the fee shrinks the portfolio
+    value just below the size of the position. ``max_positions`` is left at
+    its default so the signal gate does not reject the entry.
+    """
     symbols = ["AAPL", "MSFT"]
     mock_data = create_synthetic_data(symbols, days=60)
 
@@ -495,7 +519,7 @@ def test_config_driven_max_positions_halts_backtest():
             initial_capital=100000.0,
             halt_on_portfolio_violation=True,
         ),
-        portfolio=PortfolioConfig(max_positions=1),
+        risk=RiskConfig(max_drawdown=0.0001),
     )
     engine = BacktestEngine(config=config, data_manager=data_manager)
     engine.add_strategy(FirstDayBuyStrategy())
@@ -508,6 +532,36 @@ def test_config_driven_max_positions_halts_backtest():
     assert isinstance(result, BacktestResult)
     assert len(result.portfolio_violations) > 0
     assert len(result.equity_curve) < len(mock_data["AAPL"]) + 1
+
+
+def test_portfolio_at_its_position_limit_does_not_open_a_new_position():
+    """A portfolio at ``max_positions`` does not open a new position.
+
+    With ``max_positions=1`` the first bar opens AAPL and the MSFT buy is
+    rejected by the signal gate, so the backtest ends with one position and
+    one trade instead of two.
+    """
+    symbols = ["AAPL", "MSFT"]
+    mock_data = create_synthetic_data(symbols, days=60)
+
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    config = Config(
+        backtest=BacktestConfig(initial_capital=100000.0),
+        portfolio=PortfolioConfig(max_positions=1),
+    )
+    engine = BacktestEngine(config=config, data_manager=data_manager)
+    engine.add_strategy(BuyAllSymbolsStrategy())
+
+    start_date = datetime.now() - timedelta(days=50)
+    end_date = datetime.now()
+
+    result = engine.run(symbols, start_date, end_date, "1d")
+
+    assert isinstance(result, BacktestResult)
+    assert len(result.trades) == 1
+    assert set(result.positions) == {"AAPL"}
 
 
 def test_same_bar_buys_are_measured_against_the_exposure_they_add():

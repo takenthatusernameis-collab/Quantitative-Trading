@@ -750,9 +750,9 @@ limit.check(positions, portfolio_value=100000.0, peak_value=100000.0)
 The risk budget is a portfolio-wide commitment, so it also bounds the gross
 exposure that may be open at once: with the default `max_portfolio_risk` of
 `0.02` and a `stop_loss_pct` of `0.05`, more than 40% of the portfolio value
-may be open before the risk limit is breached. The portfolio risk and leverage
-limits are reported when a portfolio is checked; the signal gate below is what
-rejects an individual order that would breach them.
+may be open before the risk limit is breached. The portfolio risk, leverage
+and position-count limits are reported when a portfolio is checked; the signal
+gate below is what rejects an individual order that would breach them.
 
 `RiskManager.check_signal()` gates a signal before it is traded. The gate
 measures the exposure the position would carry *after* the trade: a trade
@@ -763,6 +763,15 @@ are increased by the increment alone — the target less the exposure the
 symbol already carries — so a position that is already part of the way to its
 target is not charged twice for the exposure it holds. A position that is
 below its target can therefore be topped up by a later signal.
+
+The gate also enforces `max_positions`: a `"buy"` or a `"short"` signal that
+would open a **new** position is rejected when the portfolio already holds
+`max_positions` positions. A signal that tops up a position that is already
+open does not add a position and stays allowed, and a `"buy"` that covers an
+open short reduces the gross exposure instead of adding a position, so both
+stay allowed too. The number of positions is counted on the risk manager's
+current position view, which is refreshed by `update_portfolio_value()` and
+kept current by `sync_position()` as trades are executed.
 
 The stop loss, the take profit and the trailing stop of a position are advisory
 by default: the risk manager computes the levels, but nothing closes the
