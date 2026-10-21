@@ -268,6 +268,46 @@ def test_regime_for_backtest_periods_per_year_affects_volatility():
     assert a.total_volatility != b.total_volatility
 
 
+def test_analyze_regimes_periods_per_year_affects_volatility():
+    metrics = BacktestMetrics()
+    eq = pd.Series([100000 * (1 + 0.001 * i) for i in range(60)], index=pd.date_range("2024-01-01", periods=60))
+    res = BacktestResult(
+        equity_curve=eq,
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=eq.index[0],
+        end_date=eq.index[-1],
+        initial_capital=100000,
+        final_value=float(eq.iloc[-1]),
+        total_return=float(eq.iloc[-1]) - 100000,
+        total_return_pct=float((eq.iloc[-1] / 100000 - 1) * 100),
+    )
+    a = analyze_regimes(res, window=20, periods_per_year=252)
+    b = analyze_regimes(res, window=20, periods_per_year=52)
+    assert a.result.total_volatility != b.result.total_volatility
+
+
+def test_regime_for_backtest_periods_per_year_affects_volatility():
+    metrics = BacktestMetrics()
+    eq = pd.Series([100000 * (1 + 0.001 * i) for i in range(60)], index=pd.date_range("2024-01-01", periods=60))
+    res = BacktestResult(
+        equity_curve=eq,
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=eq.index[0],
+        end_date=eq.index[-1],
+        initial_capital=100000,
+        final_value=float(eq.iloc[-1]),
+        total_return=float(eq.iloc[-1]) - 100000,
+        total_return_pct=float((eq.iloc[-1] / 100000 - 1) * 100),
+    )
+    a = regime_for_backtest(res, window=20, periods_per_year=252)
+    b = regime_for_backtest(res, window=20, periods_per_year=52)
+    assert a.total_volatility != b.total_volatility
+
+
 if __name__ == "__main__":
     import pytest
 
