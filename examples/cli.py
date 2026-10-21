@@ -261,8 +261,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--interval",
-        default="1d",
-        help="Data interval",
+        default=None,
+        help=(
+            'Data interval (e.g. "1d", "1wk", "5m"). Defaults to the value '
+            'of the config file\'s data.default_interval, or to "1d" when no '
+            "config file is given."
+        ),
     )
     parser.add_argument(
         "--periods-per-year",
@@ -1035,9 +1039,16 @@ def create_config(args: argparse.Namespace) -> Config:
     if getattr(args, "slippage", None) is not None:
         config.backtest.slippage = args.slippage
 
+    # The --interval flag configures the data layer: it is applied to the
+    # configured default_interval so the rule stays in one place. When the
+    # flag is not given, the value of the config file (or the built-in
+    # default) is kept.
+    if getattr(args, "interval", None) is not None:
+        config.data.default_interval = args.interval
+
     # The synthetic provider always emits daily bars regardless of --interval,
     # so daily annualization is the only correct choice for offline runs.
-    interval = "1d" if config.data.provider == "synthetic" else getattr(args, "interval", "1d")
+    interval = "1d" if config.data.provider == "synthetic" else config.data.default_interval
     config.backtest.periods_per_year = resolve_periods_per_year(
         interval, getattr(args, "periods_per_year", None)
     )
@@ -1758,7 +1769,7 @@ def main() -> int:
             initial_capital=config.backtest.initial_capital,
             commission=config.backtest.commission,
             slippage=config.backtest.slippage,
-            interval=args.interval,
+            interval=config.data.default_interval,
             config=config,
             periods_per_year=config.backtest.periods_per_year,
         )

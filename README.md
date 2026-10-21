@@ -262,15 +262,19 @@ python examples/cli.py --config config.yaml
 ```
 
 Every section of the file configures the run: the `data` section picks the
-provider, the `backtest` section the starting capital, the costs and the
-annualization period, the `risk` section the risk limits, and the `portfolio`
-section the limit on the number of open positions.
+provider, the cache directory, the bar interval and the history span, the
+`backtest` section the starting capital, the costs and the annualization
+period, the `risk` section the risk limits, and the `portfolio` section the
+limit on the number of open positions.
 
 A flag that is given on the command line wins over the file, so
 `--initial-capital 50000` overrides the `initial_capital` of the
 configuration. The flags that have no value of their own (`--initial-capital`,
 `--commission`, `--slippage` and `--risk-free-rate`) default to the value of
 the configuration file, or to the built-in default when no file is given.
+`--interval` works the same way: it overrides the `data.default_interval` of
+the file, and defaults to the configured value, or to `"1d"` when no file is
+given.
 
 The `periods_per_year` of the configuration is replaced by the value that
 matches the interval of the run, so the metrics are annualized for the data
@@ -712,6 +716,12 @@ portfolio:
 logging_level: "INFO"
 output_dir: "./output"
 ```
+
+The `data` section configures the data layer of a run: the provider, the
+cache directory, the bar interval and the history span. The `default_interval`
+is the interval the run fetches with when no `--interval` flag is given, and
+the `periods_per_year` follows the interval the data was actually fetched
+with, so the metrics are annualized for the bars that were used.
 
 Load in code:
 

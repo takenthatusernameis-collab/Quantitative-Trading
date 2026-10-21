@@ -1982,3 +1982,95 @@ class TestDrawdownGateEndToEnd:
 
         assert list(result.trades["symbol"]) == ["A", "B", "C", "A"]
         assert list(result.trades["action"]) == ["buy", "buy", "buy", "sell"]
+
+
+class RecordingMockDataProvider(DataProvider):
+    """Mock data provider that records the intervals it was fetched with."""
+
+    def __init__(self, data: dict):
+        self._data = data
+        self._name = "mock"
+        self.fetched_intervals: list[str] = []
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def fetch(
+        self,
+        symbols: list,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        interval: str = "1d",
+    ) -> FetchResult:
+        self.fetched_intervals.append(interval)
+        result = FetchResult()
+        for symbol in symbols:
+            if symbol in self._data:
+                result.data[symbol] = MarketData(
+                    symbol=symbol,
+                    data=self._data[symbol],
+                    source=self.name,
+                    fetched_at=datetime.now(),
+                )
+            else:
+                result.missing.append(symbol)
+        return result
+
+    def fetch_latest(self, symbols: list) -> FetchResult:
+        return self.fetch(symbols)
+
+
+class TestDataIntervalConfig:
+    """``run_backtest()`` fetches with the interval the configuration carries.
+
+    ``default_interval`` of the data section was defined, documented and
+    exported, but nothing read it: the interval a run actually used came from
+    a hard-coded default, so a configuration that asked for weekly bars was
+    silently ignored. The precedence is the same everywhere: a value that is
+    passed explicitly wins over the configured one, and the configured one
+    wins over the built-in default.
+    """
+
+    @staticmethod
+    def _run(config, interval=None) -> list[str]:
+        data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
+        provider = RecordingMockDataProvider(data)
+        manager = DataManager([provider])
+        strategy = FirstDayBuyStrategy()
+        index = next(iter(data.values())).index
+        run_backtest(
+            strategy=strategy,
+            symbols=["TEST"],
+            start=index[0].to_pydatetime(),
+            end=index[-1].to_pydatetime(),
+            config=config,
+            data_manager=manager,
+            interval=interval,
+        )
+        return provider.fetched_intervals
+
+    def test_the_configured_default_interval_is_used(self):
+        """The configured interval is the one the run fetches with."""
+        config = Config(data=DataConfig(default_interval="1wk"))
+        assert self._run(config) == ["1wk"]
+
+    def test_an_explicit_interval_wins_over_the_configured_one(self):
+        """An explicit interval overrides the configured one."""
+        config = Config(data=DataConfig(default_interval="1wk"))
+        assert self._run(config, interval="1d") == ["1d"]
+
+    def test_a_data_config_configures_the_interval(self):
+        """A DataConfig alone carries the interval for the run."""
+        config = DataConfig(default_interval="1h")
+        assert self._run(config) == ["1h"]
+
+    def test_the_built_in_default_is_used_when_nothing_is_configured(self):
+        """No configuration falls back to the built-in default of "1d"."""
+        assert self._run(None) == ["1d"]
+
+    def test_the_configuration_of_the_caller_is_not_modified(self):
+        """The resolved interval does not touch the caller's configuration."""
+        config = Config(data=DataConfig(default_interval="1wk"))
+        self._run(config, interval="1d")
+        assert config.data.default_interval == "1wk"

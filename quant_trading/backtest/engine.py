@@ -391,24 +391,25 @@ class BacktestEngine:
     ) -> BacktestResult:
         """Run backtest for given symbols and date range.
 
-        The bar loop generates the signals of the registered strategies,
-        executes them, marks the portfolio to the bar's close and then
-        refreshes the risk manager. When ``enable_stop_exits`` is set, a
-        position whose bar close hit its stop loss, its take profit or its
-        trailing stop is closed at that close before the bar is closed out.
+                The bar loop generates the signals of the registered strategies,
+                executes them, marks the portfolio to the bar's close and then
+                refreshes the risk manager. When ``enable_stop_exits`` is set, a
+                position whose bar close hit its stop loss, its take profit or its
+                trailing stop is closed at that close before the bar is closed out.
 
-        Args:
-            symbols: List of symbols to trade.
-            start: Backtest start date.
-            end: Backtest end date.
-            interval: Data interval (default: "1d").
+                Args:
+                    symbols: List of symbols to trade.
+                    start: Backtest start date.
+                    end: Backtest end date.
+        interval: Data interval. Defaults to the configured value, or to "1d"
+                    when nothing is configured.
 
-        Returns:
-            BacktestResult containing equity curve, trades, metrics, and metadata.
+                Returns:
+                    BacktestResult containing equity curve, trades, metrics, and metadata.
 
-        Raises:
-            ValueError: If no data_manager is configured or no data retrieved.
-            RuntimeError: If data fetch errors occur.
+                Raises:
+                    ValueError: If no data_manager is configured or no data retrieved.
+                    RuntimeError: If data fetch errors occur.
 
         """
         if self.data_manager is None:
@@ -986,6 +987,39 @@ def _resolve_backtest_config(
     return replace(base, **overrides)
 
 
+def _resolve_data_interval(
+    config: Config | DataConfig | None,
+    interval: str | None,
+) -> str:
+    """Resolve the bar interval a run fetches with.
+
+    A value that is passed explicitly wins over the one the configuration
+    carries, and the configuration wins over the built-in default. The
+    ``default_interval`` of the ``data`` section is the configured value: a
+    :class:`~quant_trading.config.settings.DataConfig` describes the data
+    layer, so it is the section that carries the interval, and a full
+    :class:`~quant_trading.config.settings.Config` carries it as well.
+
+    The configuration is never modified.
+
+    Args:
+        config: The configuration of the run, or ``None``.
+        interval: Explicit interval, or ``None``.
+
+    Returns:
+        The interval the run is driven by (``"1d"`` when nothing is
+        configured).
+
+    """
+    if interval is not None:
+        return interval
+    if isinstance(config, Config):
+        return config.data.default_interval
+    if isinstance(config, DataConfig):
+        return config.default_interval
+    return "1d"
+
+
 def run_backtest(
     strategy: Strategy,
     symbols: list[str],
@@ -994,7 +1028,7 @@ def run_backtest(
     initial_capital: float | None = None,
     commission: float | None = None,
     slippage: float | None = None,
-    interval: str = "1d",
+    interval: str | None = None,
     data_manager: DataManager | None = None,
     config: Config | DataConfig | None = None,
     periods_per_year: int | None = None,
@@ -1099,6 +1133,11 @@ def run_backtest(
             data_manager = create_data_manager_from_config(data_config)
         else:
             data_manager = get_default_data_manager()
+
+    # The interval is resolved the same way as the backtest settings: an
+    # explicit value wins over the configured one, and the configured one
+    # wins over the built-in default. The data section carries it.
+    interval = _resolve_data_interval(config, interval)
 
     if isinstance(config, Config):
         # The full configuration drives the risk limits and the position limit

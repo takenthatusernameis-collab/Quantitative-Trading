@@ -48,7 +48,7 @@ class TestParseArgs:
         assert args.commission is None
         assert args.slippage is None
         assert args.risk_free_rate is None
-        assert args.interval == "1d"
+        assert args.interval is None
         assert args.strategy == "ma"
         assert args.fast_period == 10
         assert args.slow_period == 30
@@ -2386,6 +2386,171 @@ class TestPeriodsPerYearFlag:
         )
         config = create_config(args)
         assert config.backtest.periods_per_year == 52
+
+
+class TestCreateConfigInterval:
+    """The ``--interval`` flag configures the data layer of the run.
+
+    ``default_interval`` was defined, documented and exported, but nothing
+    read it: the interval a run actually used came from a hard-coded default,
+    so a configuration that asked for weekly bars was silently ignored. The
+    precedence is the same everywhere: a value that is passed explicitly wins
+    over the configured one, and the configured one wins over the built-in
+    default.
+    """
+
+    def _args(self, **overrides):
+        base = {
+            "config": None,
+            "offline": False,
+            "provider": None,
+            "cache_dir": None,
+            "synthetic_days": None,
+            "synthetic_seed": None,
+            "alphavantage_key": None,
+            "risk_free_rate": None,
+            "interval": None,
+            "periods_per_year": None,
+        }
+        base.update(overrides)
+        return argparse.Namespace(**base)
+
+    def test_create_config_keeps_the_interval_of_the_file(self):
+        """The interval of the config file is kept when the flag is not given."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = f"{tmpdir}/config.yaml"
+            with open(config_path, "w") as f:
+                f.write('data:\n  default_interval: "1wk"\n')
+            args = self._args(config=config_path)
+            config = create_config(args)
+
+        assert config.data.default_interval == "1wk"
+        assert config.backtest.periods_per_year == 52
+
+    def test_create_config_lets_the_flag_override_the_interval(self):
+        """The ``--interval`` flag wins over the value of the config file."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = f"{tmpdir}/config.yaml"
+            with open(config_path, "w") as f:
+                f.write('data:\n  default_interval: "1wk"\n')
+            args = self._args(config=config_path, interval="1d")
+            config = create_config(args)
+
+        assert config.data.default_interval == "1d"
+        assert config.backtest.periods_per_year == 252
+
+    def test_create_config_applies_the_flag_when_no_file_is_given(self):
+        """The flag configures the interval when there is no config file."""
+        args = self._args(interval="1wk")
+        config = create_config(args)
+
+        assert config.data.default_interval == "1wk"
+        assert config.backtest.periods_per_year == 52
+
+
+class TestIntervalEndToEnd:
+    """A config file that asks for a different interval reaches the run."""
+
+    def test_main_uses_the_interval_of_the_config_file(self, capsys):
+        """The interval of the config file is the one the run fetches with."""
+        import tempfile
+        from unittest.mock import MagicMock, patch
+
+        from examples.cli import main
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = f"{tmpdir}/config.yaml"
+            with open(config_path, "w") as f:
+                f.write('data:\n  default_interval: "1wk"\n')
+
+            mock_result = MagicMock()
+            mock_result.initial_capital = 100000.0
+            mock_result.final_value = 100000.0
+            mock_result.total_return = 0.0
+            mock_result.total_return_pct = 0.0
+            mock_result.total_costs = 0.0
+            mock_metrics = MagicMock()
+            mock_metrics.num_trades = 0
+            mock_metrics.win_rate = 0.0
+            mock_metrics.sharpe_ratio = 0.0
+            mock_metrics.max_drawdown_pct = 0.0
+            mock_metrics.profit_factor = 0.0
+            mock_metrics.sortino_ratio = 0.0
+            mock_metrics.volatility = 0.0
+            mock_metrics.var_95 = 0.0
+            mock_metrics.calmar_ratio = 0.0
+            mock_result.metrics = mock_metrics
+
+            with (
+                patch("examples.cli.run_backtest", return_value=mock_result) as mock_run,
+                patch(
+                    "sys.argv",
+                    ["cli.py", "--config", config_path, "--symbols", "AAPL", "--days", "60"],
+                ),
+            ):
+                main()
+
+            kwargs = mock_run.call_args.kwargs
+            assert kwargs["interval"] == "1wk"
+            assert kwargs["config"].data.default_interval == "1wk"
+            assert kwargs["periods_per_year"] == 52
+
+    def test_main_lets_the_flag_override_the_interval(self, capsys):
+        """The ``--interval`` flag wins over the value of the config file."""
+        import tempfile
+        from unittest.mock import MagicMock, patch
+
+        from examples.cli import main
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = f"{tmpdir}/config.yaml"
+            with open(config_path, "w") as f:
+                f.write('data:\n  default_interval: "1wk"\n')
+
+            mock_result = MagicMock()
+            mock_result.initial_capital = 100000.0
+            mock_result.final_value = 100000.0
+            mock_result.total_return = 0.0
+            mock_result.total_return_pct = 0.0
+            mock_result.total_costs = 0.0
+            mock_metrics = MagicMock()
+            mock_metrics.num_trades = 0
+            mock_metrics.win_rate = 0.0
+            mock_metrics.sharpe_ratio = 0.0
+            mock_metrics.max_drawdown_pct = 0.0
+            mock_metrics.profit_factor = 0.0
+            mock_metrics.sortino_ratio = 0.0
+            mock_metrics.volatility = 0.0
+            mock_metrics.var_95 = 0.0
+            mock_metrics.calmar_ratio = 0.0
+            mock_result.metrics = mock_metrics
+
+            with (
+                patch("examples.cli.run_backtest", return_value=mock_result) as mock_run,
+                patch(
+                    "sys.argv",
+                    [
+                        "cli.py",
+                        "--config",
+                        config_path,
+                        "--symbols",
+                        "AAPL",
+                        "--days",
+                        "60",
+                        "--interval",
+                        "1d",
+                    ],
+                ),
+            ):
+                main()
+
+            kwargs = mock_run.call_args.kwargs
+            assert kwargs["interval"] == "1d"
+            assert kwargs["periods_per_year"] == 252
 
 
 if __name__ == "__main__":
