@@ -671,7 +671,7 @@ python examples/cli.py --offline --trade-analysis --symbols AAPL --days 120
 
 This provides:
 - **Overview**: Total trades, win rate, winning/losing trade counts
-- **PnL Statistics**: Total/avg/median PnL, avg win/loss, largest win/loss, profit factor, expectancy
+- **PnL Statistics**: Total/avg/median PnL, PnL of the positions that are still open, avg win/loss, largest win/loss, profit factor, expectancy
 - **Holding Periods**: Average, median, min, max holding periods in days
 - **Streaks**: Maximum consecutive wins/losses, current streak
 - **Trade-Level Risk**: Annualized Sharpe and Sortino ratios of the per-trade return series, adjusted for the risk-free rate

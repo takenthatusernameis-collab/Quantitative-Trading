@@ -2,72 +2,92 @@
 
 ## What changed
 
-The previous session's assignment (identify the round trips by pairing the entries with the
-closes that end them) was already implemented in `ef83eaa` and is verified here. This session
-finished the work that was still open on that change and closed the sign inconsistency that the
-two public APIs had been carrying since the trade log moved into its own module.
+The assignment from the previous session was to make `TradeAnalysis.total_pnl` the PnL the run
+actually booked, so that it reconciles with the engine and with the equity curve. Both halves of
+it are done, and the invariant is now executable and checked against real engine runs.
 
-1. **`quant_trading/backtest/trade_analysis.py`** — one sign convention for the loss figures.
-   `TradeAnalysis.avg_loss` is now the **signed** mean PnL of the losing trades (negative), like
-   `TradeAnalysis.largest_loss` and like `BacktestMetrics.avg_loss`. It used to be the same
-   number as a positive magnitude, so the same quantity was reported with two signs in three
-   places: `BacktestMetrics.avg_loss` was negative, `TradeAnalysis.avg_loss` was positive, and
-   `TradeAnalysis.symbol_stats[<symbol>]["avg_loss"]` was negative again. The printed report
-   showed "Avg Loss: $50.00" at the top and "Avg Loss $-50.00" in the per-symbol table of the
-   same run. The expectancy formula follows the sign: it is now
-   `win_rate * avg_win + (1 - win_rate) * avg_loss` instead of
-   `win_rate * avg_win - (1 - win_rate) * avg_loss`, which leaves the expectancy value unchanged
-   (25.0 in the example below) and makes it the plain win-rate weighted average of the trade
-   PnLs. The docstrings of `TradeAnalysis.avg_loss`, `analyze_trades()` and
-   `_calculate_symbol_stats()` state the convention.
+1. **`quant_trading/backtest/trade_log.py`** — the entries are the raw log again.
+   `TradeLog.entries` used to carry the PnL of a short entry folded into the cover that closed it
+   *and* the fee on the short row itself, so the fee was counted twice inside the entries
+   (`entries["pnl"].sum()` was 70.0 where the log booked 85.0). The fold now happens in the round
+   trips only: `entries` is the log the run wrote, `round_trips` carries the PnL of the whole
+   round trip, and `log.entries["pnl"].sum() == float(trades["pnl"].sum())` holds.
 
-2. **`quant_trading/backtest/metrics.py`** — docstring only: `avg_loss` now says that it is
-   negative. The value was already signed; it was the analysis that disagreed with it.
+   `TradeLog` grew a third field, `open_pnl` (default `0.0`): the PnL the positions that are
+   still open at the end of the run booked. It is the entry fee of the shorts that were never
+   (fully) covered — a long entry books no PnL, so a long contributes 0.0. A partially covered
+   short contributes the share of its fee that was never covered (6 of 10 shares of a -15.0 fee
+   is -9.0).
 
-3. **`quant_trading/backtest/trade_log.py`** — the `short_rows` set that the pairing change
-   left behind is gone (it was written but never read, the short rows are dropped by
-   construction now), and the docstrings of `TradeLog.round_trips` and `split_trade_log()` say
-   that a round trip is recognized by the row that closes it and not by the PnL that row booked.
+2. **`quant_trading/backtest/trade_analysis.py`** — `total_pnl` is the PnL of the whole log.
+   It used to be the sum of the PnL of the completed round trips, so a run that ended with an
+   open short reported "Total PnL: $0.00" for a run that lost money. It is now
+   `float(log.entries["pnl"].sum())`, which is exactly `sum(result.trades["pnl"])` and therefore
+   the PnL the engine booked. The trade level statistics (the counts, the win rate, the averages,
+   the streaks) are unchanged: they are still computed over the completed round trips only.
 
-4. **`tests/test_trade_log.py`** — two new tests: the two public APIs must report the same
-   `avg_win` and `avg_loss` (they did not before), and the loss figures must be signed in the
-   top level, the per-symbol stats and the metrics at the same time. A third test asserts that
-   the per-symbol figures of a one-symbol run agree with the top level figures.
+   The new field `TradeAnalysis.open_position_pnl` (default `0.0`, also in `to_dict()`) makes the
+   difference visible instead of hiding it: `total_pnl` is the PnL of the run, `open_position_pnl`
+   is the part of it that belongs to a position that is still open. `print_trade_analysis()` prints
+   it as "Open Position PnL".
+
+   `analyze_trades()` no longer returns an all-zero analysis when the log books PnL but has no
+   completed round trip; it reports the PnL of the run, the PnL of the open positions and the per
+   symbol figures. `_calculate_symbol_stats()` takes the round trips *and* the entries now: the
+   trade level figures of a symbol come from its round trips, its PnL comes from the whole log, so
+   the per symbol PnL adds up to the PnL of the run. A log without a `symbol` column no longer
+   raises a `KeyError` there; it reports no per symbol figures.
+
+3. **Tests** — `tests/test_trade_log.py` asserts the new trade log behaviour (the entries are the
+   raw log, the open PnL of a short that was never covered, the open share of a partially covered
+   short) and adds a `TestAnalysisReconcilesWithTheRun` class with the invariant
+   `analysis.total_pnl == float(result.trades["pnl"].sum())` and the per symbol sum.
+   `tests/test_trade_analysis.py` updates the expectations that the change makes wrong
+   (`test_short_never_covered_is_not_counted` now expects `total_pnl == -5.0` and
+   `open_position_pnl == -5.0`) and the changed signature of `_calculate_symbol_stats()`.
+   `tests/test_cost_accounting_invariants.py` runs the reconciliation against **real engine runs**:
+   every seeded scenario (full round trips, partial exits, added positions, several symbols, a
+   short that is never covered) now asserts that the analysis reports the PnL the run booked and
+   that the PnL of the symbols adds up to it.
 
 ## What was actually verified
 
 - Full suite: `python3 -m pytest --cov=quant_trading --cov-report=json:/tmp/cov.json -q`
-  -> **1865 passed, 1 skipped** (was 1863 passed, 1 skipped; 2 new tests).
-- Coverage from the same run: **100.0%** (5060/5060 statements, 1702/1702 branches, no module
+  -> **1876 passed, 1 skipped** (was 1865 passed, 1 skipped; 11 new test cases).
+- Coverage from the same run: **100.0%** (5066/5066 statements, 1700/1700 branches, no module
   below 100%).
 - `python3 -m ruff check quant_trading tests examples` -> All checks passed.
 - `python3 -m black --check quant_trading tests examples` -> 91 files unchanged.
 - `python3 -m mypy quant_trading` -> Success: no issues found in 37 source files.
-- The agreement itself was reproduced with the real code (one winning and one losing long round
-  trip):
+- The reconciliation reproduced with the real engine (a scripted run of the mock provider in
+  `tests/test_cost_accounting_invariants.py`):
 
-      metrics.avg_loss  = -50.0 | analysis.avg_loss = -50.0 | symbol avg_loss = -50.0
-      largest_loss: -50.0 -50.0 -50.0
-      expectancy: 25.0 (win_rate*avg_win + (1-win_rate)*avg_loss = 25.0)
+      open short run:   sum(trades["pnl"]) = -1.5   analysis.total_pnl = -1.5
+                        open_position_pnl  = -1.5   per symbol       = -1.5
+                        final - initial    = -849.52 = -1.5 realized + -848.02 unrealized
+      liquidated run:   sum(trades["pnl"]) = -301.77 = analysis.total_pnl = final - initial
+                        open_position_pnl  = 0.0
 
-  and the report now shows "Avg Loss: $-50.00" next to "Largest Loss: $-50.00" and the
-  per-symbol "Avg Loss $-50.00".
+  and the trade log itself now adds up: for a short of 10 shares with a -15.0 fee that is covered
+  for 4 shares, `entries` = [-15.0, 100.0] (sum 85.0), `round_trips` = [94.0] and `open_pnl` =
+  -9.0, so 94.0 - 9.0 = 85.0.
 
 ## What remains unresolved
 
-- **`TradeAnalysis.total_pnl` does not reconcile with the PnL the engine booked.** This is the
-  next task below.
-- **`split_trade_log()` counts the fee of a short entry twice inside `entries`.** The fold of
-  the entry fee into the cover is applied to the `entries` frame, and the short row keeps its
-  own fee, so `log.entries["pnl"].sum()` is not the sum of the log. This is part of the next
-  task as well, because the fix for `total_pnl` needs the raw sum.
+- **The long side does not fold the entry PnL into the closing row.** The engine books the fee of
+  a long in the cash balance and not on the buy row, so every log the engine writes is fine, and
+  the top level `total_pnl` is now right in any case (it is the raw log sum). But a log that
+  books a fee on the buy row would report a round trip PnL that misses that fee, so the trade
+  level figures (avg win/loss, profit factor) would be off. The short side folds its entry PnL
+  into the cover; the long side does not.
+- **`BacktestMetrics` still carries no `total_pnl`**, so the two public APIs cannot be compared on
+  the PnL of the run (they can be compared on the trade figures, which the previous session fixed).
 - `quant_trading/data/providers.py` and `quant_trading/data/synthetic.py` are at 100% only
   because the offline provider tests are in the suite. The network-gated branches are untestable
   offline.
-- The trade log still assumes that a long entry books no PnL. The engine books the fee of a
-  long in the cash balance and not on the buy row, so this holds for every log the engine
-  writes, but a log that books a fee on the buy row would lose it: the long side does not fold
-  the entry PnL into the closing row the way the short side does.
+- `analyze_trades()` reports the realized PnL of the run. The unrealized PnL of the positions that
+  are still open is not part of it (the engine books it in the portfolio value, not in the trade
+  log), and the analysis has no access to the positions, so it cannot report it.
 
 ## Approaches that already failed
 
@@ -84,82 +104,47 @@ two public APIs had been carrying since the trade log moved into its own module.
 
 ## Next task
 
-Make `TradeAnalysis.total_pnl` the PnL the run actually booked, so that it reconciles with the
-engine and with the equity curve.
+Give `BacktestMetrics` the PnL of the run, so that the two public APIs report the same realized
+PnL and the reconciliation can be checked from either side.
 
-Evidence (reproduce with the snippet below):
+Evidence (the two APIs disagree today because only one of them has the figure at all):
 
-    a run that ends with an open short
-    sum(result.trades["pnl"])  = -15.0     <- the fee the engine booked
-    analysis.total_pnl          =   0.0     <- what the analysis reports
-    analysis.total_trades       =   0      <- and the whole analysis is empty
-
-    from datetime import datetime
-    import pandas as pd
-    from quant_trading.backtest.engine import BacktestResult
-    from quant_trading.backtest.metrics import BacktestMetrics
+    from quant_trading.backtest.metrics import calculate_backtest_metrics
     from quant_trading.backtest.trade_analysis import analyze_trades
 
-    trades = pd.DataFrame({
-        "symbol": ["AAPL"], "action": ["short"], "quantity": [10.0], "price": [100.0],
-        "timestamp": pd.to_datetime(["2024-01-01"]), "pnl": [-15.0]})
-    dates = pd.date_range("2024-01-01", periods=10, freq="D")
-    equity = pd.Series([100000.0 + step * 10.0 for step in range(10)], index=dates)
-    result = BacktestResult(
-        equity_curve=equity, trades=trades, positions={}, metrics=BacktestMetrics(),
-        start_date=datetime(2024, 1, 1), end_date=datetime(2024, 1, 10),
-        initial_capital=100000.0, final_value=100090.0, total_return=90.0, total_return_pct=0.09)
-    print(float(result.trades["pnl"].sum()), analyze_trades(result).total_pnl)
+    metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
+    analysis = analyze_trades(result)
 
-The engine books the entry fee of a short on the short row itself
-(`quant_trading/backtest/engine.py`, `_open_short`), and its own accounting invariant is
-`final_value - initial_capital == sum(trades["pnl"]) + unrealized_pnl`
-(`tests/test_cost_accounting_invariants.py`). `analyze_trades()` sums the PnL of the completed
-round trips only, so the PnL that is booked on a position that is still open at the end of the
-run is dropped: the analysis reports "Total PnL: $0.00" for a run that lost $15. The docstring
-of `total_pnl` ("Sum of all trade PnL") is not true today either.
+    float(result.trades["pnl"].sum())  = -15.0   <- the PnL the engine booked
+    analysis.total_pnl                 = -15.0   <- the analysis knows it
+    metrics.total_pnl                  = ???     <- the metrics have no such field
 
-The fix has two halves, and the second one is what the PnL of an open position needs:
+The shape to use, following the pattern the previous session established for `avg_win` and
+`avg_loss` (the two APIs have to report the same number):
 
-1. **The fold of the short fee must leave the `entries` frame alone.** `split_trade_log()` folds
-   the entry fee into the cover row *in `entries`*, while the short row keeps its own fee, so
-   the fee is counted twice in the entries sum:
-
-       raw log pnl sum = 85.0
-       entries pnl      = [-15.0, 85.0]  sum = 70.0
-       round_trips pnl  = [85.0]          sum = 85.0
-
-   Fold the fee into the round trips only, so that `entries` stays the raw log and
-   `log.entries["pnl"].sum() == result.trades["pnl"].sum()`. `tests/test_trade_log.py` asserts
-   the folded PnL in `entries` in two places (`test_short_entry_is_folded_into_the_cover_that_closes_it`
-   and `test_partial_cover_folds_the_matching_share_of_the_entry_fee`); update them deliberately.
-
-2. **`analyze_trades()` must report the PnL of the positions that are still open.** The PnL of
-   an open position is the entry fee of a short that was never covered (a long entry books no
-   PnL). It has to be attributed somewhere, so that the per-symbol figures keep summing up to
-   the top level figure. The recommended shape: `total_pnl` becomes the PnL of the whole log
-   (the run's realized PnL, equal to `sum(result.trades["pnl"])`), the per-symbol
-   `total_pnl` values sum up to it, and the per-trade statistics (counts, win rate, averages,
-   streaks, per-symbol trade counts) stay over the completed round trips. A separate field for
-   the PnL of the positions that are still open (a new `TradeAnalysis` field with the default
-   `0.0`, and an entry in `to_dict()`) makes the difference visible instead of hiding it.
-   `analyze_trades()` must also stop returning an all-zero analysis when the log books PnL but
-   has no completed round trip.
+1. **`BacktestMetrics` gets a `total_pnl` field** (default `0.0`, plus an entry in
+   `to_dict()`), holding the realized PnL of the run: the sum of the PnL of the trade log, which
+   is `split_trade_log(trades).entries["pnl"].sum()`. It is the PnL of the run, so it is
+   *not* the same as `total_return` (which is the change in portfolio value and therefore
+   includes the unrealized PnL of the positions that are still open). The docstring has to say
+   that.
+2. **The two APIs have to agree.** `metrics.total_pnl == analysis.total_pnl` for every log, and
+   the per symbol PnL has to add up to it. Assert that in the `TestMetricsAndAnalysisAgree`
+   class in `tests/test_trade_log.py` (the same place the previous session asserted the
+   agreement on `avg_win`/`avg_loss`), and in the seeded engine scenarios of
+   `tests/test_cost_accounting_invariants.py`.
+3. The trade level figures of `BacktestMetrics` stay as they are (the number of round trips, the
+   win rate, the averages); only the PnL of the run is added.
 
 Constraints:
 
-- Keep the change inside `quant_trading/backtest/trade_log.py` and
-  `quant_trading/backtest/trade_analysis.py` plus their tests. `BacktestMetrics` does not
-  carry a `total_pnl`, so it is not affected.
-- The target invariant is executable and should be tested: for every backtest result,
-  `analysis.total_pnl == float(result.trades["pnl"].sum())`, and the per-symbol `total_pnl`
-  values sum up to `analysis.total_pnl`. The trade level statistics must not change: the number
-  of trades, the win rate and the per-trade averages stay over the completed round trips.
-- Check the existing expectations in `tests/test_trade_analysis.py` (the `total_pnl`
-  assertions at the top of the file and around lines 988-1078) before changing anything, and
-  update them deliberately.
-- A run that is fully liquidated must keep reporting exactly the PnL it reports today, and the
-  engine invariant `final_value - initial_capital == sum(trades["pnl"])` must keep holding for
-  those runs.
+- Keep the change inside `quant_trading/backtest/metrics.py` plus its tests. `TradeAnalysis` and
+  `split_trade_log()` are already in the state this task needs, so they should not have to change
+  (except for a docstring that mentions the new field).
+- The engine invariant `final_value - initial_capital == sum(trades["pnl"]) + unrealized_pnl`
+  (`tests/test_cost_accounting_invariants.py`) must keep holding, and
+  `metrics.total_pnl` must be the realized part of it.
+- A run that is fully liquidated must keep reporting the PnL it reports today, and
+  `metrics.total_pnl` must then equal `metrics.total_return`.
 - Keep the package at 100% statement and branch coverage, and re-run `pytest --cov=quant_trading`
   (package-wide target only), ruff, black and mypy.

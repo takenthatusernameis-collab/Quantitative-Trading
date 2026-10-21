@@ -105,11 +105,14 @@ class TestSplitTradeLog:
             )
         )
 
+        # The entries keep the PnL the log booked.
+        assert log.entries["pnl"].tolist() == [-15.0, 100.0]
         # The cover carries the PnL of the whole round trip.
-        assert log.entries["pnl"].tolist() == [-15.0, 85.0]
+        assert log.round_trips["pnl"].tolist() == [85.0]
         # The short entry is no trade of its own.
         assert len(log.round_trips) == 1
-        assert log.round_trips["pnl"].tolist() == [85.0]
+        # Nothing is left open, so no PnL belongs to an open position.
+        assert log.open_pnl == 0.0
 
     def test_partial_cover_folds_the_matching_share_of_the_entry_fee(self):
         """A cover that closes part of a short folds the matching share only."""
@@ -120,8 +123,42 @@ class TestSplitTradeLog:
             )
         )
 
-        assert log.entries["pnl"].tolist() == [-15.0, 94.0]
+        assert log.entries["pnl"].tolist() == [-15.0, 100.0]
         assert log.round_trips["pnl"].tolist() == [94.0]
+        # The fee of the share that was never covered belongs to the position
+        # that is still open: 6 of the 10 shares, so 6/10 of the fee.
+        assert log.open_pnl == pytest.approx(-9.0)
+
+    def test_the_entries_are_the_log_the_run_booked(self):
+        """The entries keep the PnL of the log, so the fee is not counted twice.
+
+        The fee of a short entry is folded into the round trips only. The
+        entries stay the raw log, so their sum is the PnL the run booked.
+        """
+        trades = _log(
+            _trade(action="short", pnl=-15.0),
+            _trade(action="cover", day=2, pnl=100.0),
+            _trade(action="buy", day=3, pnl=0.0),
+            _trade(action="sell", day=4, pnl=55.0),
+        )
+
+        log = split_trade_log(trades)
+
+        assert float(log.entries["pnl"].sum()) == pytest.approx(float(trades["pnl"].sum()))
+        assert float(log.entries["pnl"].sum()) == pytest.approx(140.0)
+        # The round trips and the open positions add up to the same PnL.
+        assert float(log.round_trips["pnl"].sum()) + log.open_pnl == pytest.approx(140.0)
+
+    def test_an_open_short_reports_its_fee_as_open_pnl(self):
+        """A short that is never covered booked a fee that is not a trade.
+
+        The fee is the PnL of a position that is still open at the end of the
+        run, so it is reported apart from the round trips.
+        """
+        log = split_trade_log(_log(_trade(action="short", pnl=-15.0)))
+
+        assert log.open_pnl == pytest.approx(-15.0)
+        assert log.round_trips.empty
 
     def test_short_entry_without_a_cover_is_no_trade(self):
         """A short that is still open at the end of the run is no trade."""
@@ -186,7 +223,7 @@ class TestSplitTradeLog:
             )
         )
 
-        assert log.entries["pnl"].tolist() == [-10.0, -20.0, 30.0, 50.0]
+        assert log.entries["pnl"].tolist() == [-10.0, -20.0, 50.0, 60.0]
         assert log.round_trips["pnl"].tolist() == [30.0, 50.0]
 
     def test_round_trips_are_ordered_by_timestamp(self):
@@ -221,7 +258,7 @@ class TestSplitTradeLog:
 
         log = split_trade_log(trades)
 
-        assert log.entries["pnl"].tolist() == [-15.0, 85.0]
+        assert log.entries["pnl"].tolist() == [-15.0, 100.0]
         assert log.round_trips["pnl"].tolist() == [85.0]
 
     def test_the_caller_frame_is_left_untouched(self):
@@ -371,3 +408,126 @@ class TestMetricsAndAnalysisAgree:
         assert isinstance(analysis, TradeAnalysis)
         assert result.metrics.num_trades == analysis.total_trades
         assert result.metrics.win_rate == pytest.approx(analysis.win_rate)
+
+
+class TestAnalysisReconcilesWithTheRun:
+    """The analysis reports the PnL the run actually booked."""
+
+    @pytest.mark.parametrize(
+        ("name", "trades"),
+        [
+            (
+                "a long round trip",
+                _log(
+                    _trade(action="buy", pnl=0.0),
+                    _trade(action="sell", day=2, pnl=100.0),
+                ),
+            ),
+            (
+                "a short round trip",
+                _log(
+                    _trade(action="short", pnl=-15.0),
+                    _trade(action="cover", day=2, pnl=100.0),
+                ),
+            ),
+            (
+                "a short that is still open",
+                _log(_trade(action="short", pnl=-15.0)),
+            ),
+            (
+                "a short that is covered in part",
+                _log(
+                    _trade(action="short", quantity=10.0, pnl=-15.0),
+                    _trade(action="cover", quantity=4.0, day=2, pnl=100.0),
+                ),
+            ),
+            (
+                "a long and a short, one of them open",
+                _log(
+                    _trade(action="buy", pnl=0.0),
+                    _trade(action="sell", day=2, pnl=100.0),
+                    _trade(symbol="MSFT", action="short", day=3, pnl=-15.0),
+                ),
+            ),
+        ],
+    )
+    def test_the_total_pnl_is_the_pnl_the_log_booked(self, name, trades):
+        """The total PnL is the sum of the PnL of the trade log.
+
+        The engine books the fee of a short on the short row itself, so a run
+        that ends with an open short booked a PnL that the round trips alone
+        do not carry. The analysis has to report the PnL of the run.
+        """
+        result = _result(trades)
+
+        analysis = analyze_trades(result)
+
+        assert analysis.total_pnl == pytest.approx(float(result.trades["pnl"].sum())), name
+
+    @pytest.mark.parametrize(
+        ("name", "trades"),
+        [
+            (
+                "a long and a short round trip",
+                _log(
+                    _trade(symbol="AAPL", action="buy", pnl=0.0),
+                    _trade(symbol="AAPL", action="sell", day=2, pnl=100.0),
+                    _trade(symbol="MSFT", action="short", day=3, pnl=-15.0),
+                    _trade(symbol="MSFT", action="cover", day=4, pnl=-50.0),
+                ),
+            ),
+            (
+                "a short that is still open",
+                _log(
+                    _trade(symbol="AAPL", action="short", pnl=-15.0),
+                    _trade(symbol="MSFT", action="buy", day=2, pnl=0.0),
+                    _trade(symbol="MSFT", action="sell", day=3, pnl=20.0),
+                ),
+            ),
+        ],
+    )
+    def test_the_per_symbol_pnl_adds_up_to_the_total_pnl(self, name, trades):
+        """The PnL of the symbols adds up to the PnL of the run."""
+        analysis = analyze_trades(_result(trades))
+
+        symbol_total = sum(stats["total_pnl"] for stats in analysis.symbol_stats.values())
+        assert symbol_total == pytest.approx(analysis.total_pnl), name
+
+    def test_the_open_position_pnl_is_reported_apart(self):
+        """The PnL of the open positions is visible, not hidden.
+
+        The PnL of the run is the PnL of the round trips plus the PnL of the
+        positions that are still open, and the two are reported apart.
+        """
+        trades = _log(
+            _trade(action="short", pnl=-15.0),
+            _trade(action="cover", day=2, pnl=100.0),
+            _trade(action="short", day=3, pnl=-20.0),
+        )
+
+        analysis = analyze_trades(_result(trades))
+
+        assert analysis.open_position_pnl == pytest.approx(-20.0)
+        assert analysis.total_pnl == pytest.approx(65.0)
+        assert analysis.to_dict()["open_position_pnl"] == pytest.approx(-20.0)
+
+    def test_a_liquidated_run_reports_the_pnl_of_its_round_trips(self):
+        """A run that closed every position reports the PnL it made.
+
+        The PnL of a fully liquidated run is the PnL of its round trips, so
+        the reconciliation does not change the figure such a run reports.
+        """
+        trades = _log(
+            _trade(action="short", pnl=-15.0),
+            _trade(action="cover", day=2, pnl=100.0),
+            _trade(action="buy", day=3, pnl=0.0),
+            _trade(action="sell", day=4, pnl=-40.0),
+        )
+
+        analysis = analyze_trades(_result(trades))
+
+        assert analysis.open_position_pnl == 0.0
+        assert analysis.total_pnl == pytest.approx(45.0)
+        assert analysis.total_pnl == pytest.approx(
+            float(analysis.symbol_stats["AAPL"]["total_pnl"])
+        )

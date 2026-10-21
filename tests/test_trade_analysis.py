@@ -551,9 +551,11 @@ def test_calculate_symbol_stats_empty_cases():
     from quant_trading.backtest.trade_analysis import _calculate_symbol_stats
 
     # Empty trades
-    assert _calculate_symbol_stats(pd.DataFrame()) == {}
+    assert _calculate_symbol_stats(pd.DataFrame(), pd.DataFrame()) == {}
     # No pnl column
-    assert _calculate_symbol_stats(pd.DataFrame({"symbol": ["AAPL"]})) == {}
+    assert _calculate_symbol_stats(pd.DataFrame(), pd.DataFrame({"symbol": ["AAPL"]})) == {}
+    # No symbol column
+    assert _calculate_symbol_stats(pd.DataFrame(), pd.DataFrame({"pnl": [10.0]})) == {}
 
 
 def test_calculate_holding_periods_sell_without_entry():
@@ -1043,7 +1045,11 @@ def test_partially_covered_short_records_one_holding_period_per_cover():
 
 def test_short_never_covered_is_not_counted():
     """A short with no cover is not a round trip: it contributes no trade even
-    though its entry booked a (fee) PnL."""
+    though its entry booked a (fee) PnL.
+
+    The fee is not lost: it is the PnL of a position that is still open at
+    the end of the run, so it is reported apart from the round trips.
+    """
     from datetime import datetime
 
     result = _short_result([_trade("TEST", "short", 100.0, 50.0, datetime(2024, 1, 1), -5.0)])
@@ -1052,7 +1058,9 @@ def test_short_never_covered_is_not_counted():
     assert analysis.total_trades == 0
     assert analysis.winning_trades == 0
     assert analysis.losing_trades == 0
-    assert analysis.total_pnl == 0.0
+    assert analysis.total_pnl == -5.0
+    assert analysis.open_position_pnl == -5.0
+    assert analysis.symbol_stats["TEST"]["total_pnl"] == -5.0
 
 
 def test_short_entry_fee_is_folded_into_the_cover():

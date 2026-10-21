@@ -26,6 +26,10 @@ Examples:
     2
     >>> len(log.round_trips)
     1
+    >>> float(log.entries["pnl"].sum())
+    100.0
+    >>> float(log.round_trips["pnl"].sum())
+    100.0
 
 """
 
@@ -43,21 +47,26 @@ class TradeLog(NamedTuple):
     """A trade log split into its entries and its completed round trips.
 
     Attributes:
-        entries: Every row of the log, with the PnL of a short entry folded
-            into the cover that closes it. The short rows are kept, because a
-            short entry carries the timestamp its cover has to be matched
-            against.
-        round_trips: The rows that stand for completed round trips. The short
-            entry rows are gone (their PnL was folded into the cover that
-            closed them) and so are the long entry rows, which open a round
-            trip instead of closing one. One completed round trip is one row,
-            and it is a row even when the round trip closed at exactly zero
-            PnL.
+        entries: Every row of the log, with the PnL the run booked on that
+            row. The short rows are kept, because a short entry carries the
+            timestamp its cover has to be matched against.
+        round_trips: The rows that stand for completed round trips. The PnL
+            of a short entry is folded into the cover that closed it, so one
+            completed round trip is one row and it carries the PnL of the
+            whole round trip. The long entry rows are gone (they open a round
+            trip instead of closing one). One completed round trip is one
+            row, and it is a row even when the round trip closed at exactly
+            zero PnL.
+        open_pnl: The PnL that the positions which are still open at the end
+            of the run booked. A long entry books no PnL, so this is the
+            entry fee of the shorts that were never (fully) covered. It is
+            0.0 when every position was closed.
 
     """
 
     entries: pd.DataFrame
     round_trips: pd.DataFrame
+    open_pnl: float = 0.0
 
 
 def split_trade_log(trades: pd.DataFrame) -> TradeLog:
@@ -69,6 +78,12 @@ def split_trade_log(trades: pd.DataFrame) -> TradeLog:
     so both belong to the same round trip. The PnL of the short entry is
     therefore folded into the cover that closes it and the entry row is
     dropped, which leaves one row per completed round trip.
+
+    The entries keep the PnL the log booked: the fee of a short is folded
+    into the round trips only, so the fee is not counted twice and the sum of
+    the entries is the PnL of the run. The fee of a short that was never
+    covered belongs to a position that is still open at the end of the run,
+    and it is reported as ``open_pnl``.
 
     A round trip is recognized by the row that closes it and not by the PnL
     that row booked: a round trip that closed at exactly zero PnL is a trade,
@@ -159,9 +174,19 @@ def split_trade_log(trades: pd.DataFrame) -> TradeLog:
         elif action == "buy":
             long_queues.setdefault(symbol, []).append([float(row["quantity"])])
 
-    entries["pnl"] = pnl
-    round_trips = entries.loc[sorted(round_trip_rows)].reset_index(drop=True)
-    return TradeLog(entries=entries, round_trips=round_trips)
+    # The entries keep the PnL the log booked; the fee of a short is folded
+    # into the round trips only, so it is not counted twice.
+    selected = sorted(round_trip_rows)
+    round_trips = entries.loc[selected].copy()
+    round_trips["pnl"] = pnl.loc[selected]
+    round_trips = round_trips.reset_index(drop=True)
+
+    # The shorts that were never covered are still open at the end of the
+    # run. They booked their entry fee, and that fee is part of the PnL of
+    # the run, so it is reported apart from the round trips.
+    open_pnl = sum(entry[1] for queue in short_queues.values() for entry in queue)
+
+    return TradeLog(entries=entries, round_trips=round_trips, open_pnl=open_pnl)
 
 
 __all__ = [

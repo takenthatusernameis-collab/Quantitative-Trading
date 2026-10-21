@@ -13,6 +13,7 @@ network) and assert the accounting identities that must hold for *every* run:
 4. Realized plus unrealized PnL explains the change in portfolio value.
 5. A fully liquidated run books all of its PnL as realized.
 6. The trade log agrees with the portfolio on the quantity left in each symbol.
+7. The trade analysis reports the PnL the run booked.
 
 The scenarios cover full round trips, partial exits, adding to an existing
 long position (weighted-average cost basis), multiple symbols, and runs where
@@ -26,6 +27,7 @@ import pandas as pd
 import pytest
 
 from quant_trading.backtest.engine import BacktestEngine, BacktestResult
+from quant_trading.backtest.trade_analysis import analyze_trades
 from quant_trading.config.settings import BacktestConfig
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
 from quant_trading.portfolio.portfolio import Portfolio
@@ -155,9 +157,29 @@ def _signed_cost(trades: pd.DataFrame) -> float:
     return total
 
 
+def _assert_analysis_reconciles(result: BacktestResult) -> None:
+    """Assert that the trade analysis reports the PnL the run booked.
+
+    The engine books the fee of a short on the short row itself, so a run
+    that ends with an open short booked a PnL that the completed round trips
+    do not carry. The analysis has to report the PnL of the whole log, and
+    the PnL of the symbols has to add up to it.
+    """
+    analysis = analyze_trades(result)
+    booked = float(result.trades["pnl"].sum()) if not result.trades.empty else 0.0
+
+    assert analysis.total_pnl == pytest.approx(booked, rel=1e-9, abs=1e-6)
+
+    symbol_total = sum(stats["total_pnl"] for stats in (analysis.symbol_stats or {}).values())
+    assert symbol_total == pytest.approx(analysis.total_pnl, rel=1e-9, abs=1e-6)
+
+
 def _assert_cost_accounting_invariants(result: BacktestResult, portfolio: Portfolio) -> None:
     """Assert the cost and cash identities that hold for every backtest run."""
     trades = result.trades
+
+    # 7. The trade analysis reports the PnL the run booked.
+    _assert_analysis_reconciles(result)
 
     if trades.empty:
         # Nothing was traded, so nothing was charged and the value is unchanged.

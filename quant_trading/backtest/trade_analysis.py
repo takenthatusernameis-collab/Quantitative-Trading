@@ -34,32 +34,37 @@ class TradeAnalysis:
     """Detailed trade analysis results.
 
     Attributes:
-        total_trades: Total number of completed trades with PnL.
-        winning_trades: Number of winning trades.
-        losing_trades: Number of losing trades.
+        total_trades: Total number of completed round trips.
+        winning_trades: Number of winning round trips.
+        losing_trades: Number of losing round trips.
         win_rate: Fraction of trades that were winners (0-1).
-        total_pnl: Sum of all trade PnL.
-        avg_pnl: Average PnL per trade.
-        median_pnl: Median PnL per trade.
-        std_pnl: Standard deviation of trade PnL.
-        avg_win: Average PnL of winning trades.
-        avg_loss: Average PnL of losing trades (negative, like the PnL of the
-            losing trades themselves).
-        largest_win: Largest winning trade PnL.
-        largest_loss: Largest losing trade PnL.
+        total_pnl: The PnL the run booked: the sum of the PnL of every row
+            of the trade log, which is the PnL of the completed round trips
+            plus the PnL of the positions that are still open.
+        open_position_pnl: The PnL the positions that are still open at the
+            end of the run booked (the entry fee of the shorts that were
+            never covered). It is 0.0 when every position was closed.
+        avg_pnl: Average PnL per completed round trip.
+        median_pnl: Median PnL per completed round trip.
+        std_pnl: Standard deviation of the PnL of the round trips.
+        avg_win: Average PnL of winning round trips.
+        avg_loss: Average PnL of losing round trips (negative, like the PnL
+            of the losing trades themselves).
+        largest_win: Largest winning round trip PnL.
+        largest_loss: Largest losing round trip PnL.
         profit_factor: Gross profit divided by gross loss.
         avg_holding_period: Average holding period in days.
         median_holding_period: Median holding period in days.
         min_holding_period: Minimum holding period in days.
         max_holding_period: Maximum holding period in days.
-        max_consecutive_wins: Longest streak of winning trades.
-        max_consecutive_losses: Longest streak of losing trades.
+        max_consecutive_wins: Longest streak of winning round trips.
+        max_consecutive_losses: Longest streak of losing round trips.
         current_streak: Length of the current streak.
         current_streak_type: Type of the current streak ("win" or "loss").
         monthly_returns: Monthly return percentages keyed by date.
         weekly_returns: Weekly return percentages keyed by date.
         symbol_stats: Per-symbol trade statistics.
-        expectancy: Expected PnL per trade.
+        expectancy: Expected PnL per round trip.
         sharpe_ratio: Annualized Sharpe ratio of the per-trade return series.
         sortino_ratio: Annualized Sortino ratio of the per-trade return series.
 
@@ -77,6 +82,7 @@ class TradeAnalysis:
 
     # PnL statistics
     total_pnl: float = 0.0
+    open_position_pnl: float = 0.0
     avg_pnl: float = 0.0
     median_pnl: float = 0.0
     std_pnl: float = 0.0
@@ -123,6 +129,7 @@ class TradeAnalysis:
             "losing_trades": self.losing_trades,
             "win_rate": self.win_rate,
             "total_pnl": self.total_pnl,
+            "open_position_pnl": self.open_position_pnl,
             "avg_pnl": self.avg_pnl,
             "median_pnl": self.median_pnl,
             "std_pnl": self.std_pnl,
@@ -332,26 +339,37 @@ def _calculate_weekly_returns(equity_curve: pd.Series) -> dict[str, float]:
     return {str(k.date()): float(v) for k, v in weekly_returns.items()}
 
 
-def _calculate_symbol_stats(trades: pd.DataFrame) -> dict[str, dict[str, Any]]:
+def _calculate_symbol_stats(
+    round_trips: pd.DataFrame, entries: pd.DataFrame
+) -> dict[str, dict[str, Any]]:
     """Calculate per-symbol trade statistics.
 
+    The trade level figures (the counts, the win rate and the averages) are
+    computed over the completed round trips of the symbol. The PnL of the
+    symbol is the PnL it booked in the whole log, so the per symbol PnL adds
+    up to the PnL of the run even when a position is still open at the end.
+
     Args:
-        trades: Trade DataFrame with at least ``symbol`` and ``pnl`` columns.
+        round_trips: The completed round trips. They need at least a
+            ``symbol`` and a ``pnl`` column.
+        entries: The whole trade log. It needs at least a ``symbol`` and a
+            ``pnl`` column.
 
     Returns:
         Mapping of symbol to a dict with ``total_trades``,
         ``winning_trades``, ``losing_trades``, ``win_rate``, ``total_pnl``,
         ``avg_pnl``, ``avg_win``, ``avg_loss``, ``largest_win``, and
         ``largest_loss``. The loss figures are signed, like the top level
-        figures of the same name. Empty when there are no trades.
+        figures of the same name. Empty when the log carries no trades.
 
     """
-    if trades.empty or "pnl" not in trades.columns:
+    if entries.empty or "pnl" not in entries.columns or "symbol" not in entries.columns:
         return {}
 
     stats = {}
-    for symbol in trades["symbol"].unique():
-        symbol_trades = trades[trades["symbol"] == symbol]
+    for symbol in entries["symbol"].unique():
+        symbol_trades = round_trips[round_trips["symbol"] == symbol]
+        symbol_entries = entries[entries["symbol"] == symbol]
         winning = symbol_trades[symbol_trades["pnl"] > 0]
         losing = symbol_trades[symbol_trades["pnl"] < 0]
 
@@ -360,7 +378,7 @@ def _calculate_symbol_stats(trades: pd.DataFrame) -> dict[str, dict[str, Any]]:
             "winning_trades": len(winning),
             "losing_trades": len(losing),
             "win_rate": len(winning) / len(symbol_trades) if len(symbol_trades) > 0 else 0,
-            "total_pnl": float(symbol_trades["pnl"].sum()),
+            "total_pnl": float(symbol_entries["pnl"].sum()),
             "avg_pnl": float(symbol_trades["pnl"].mean()) if len(symbol_trades) > 0 else 0,
             "avg_win": float(winning["pnl"].mean()) if len(winning) > 0 else 0,
             "avg_loss": float(losing["pnl"].mean()) if len(losing) > 0 else 0,
@@ -457,6 +475,13 @@ def analyze_trades(
     losing trades. They report the same numbers as the same figures in
     :class:`~quant_trading.backtest.metrics.BacktestMetrics`.
 
+    The PnL of the run (``total_pnl``) is the PnL the whole trade log
+    booked, which is the PnL of the completed round trips plus the PnL of
+    the positions that are still open at the end of the run. The trade level
+    statistics (the counts, the win rate and the averages) are computed over
+    the completed round trips only, and the PnL of the open positions is
+    reported apart from them (``open_position_pnl``).
+
     Args:
         result: BacktestResult to analyze.
         risk_free_rate: Annual risk-free rate for Sharpe/Sortino. It is
@@ -494,13 +519,16 @@ def analyze_trades(
     # The round trips are the trades with a PnL (opening trades excluded).
     pnl_trades = log.round_trips
 
-    if pnl_trades.empty:
-        return TradeAnalysis()
-
     winning = pnl_trades[pnl_trades["pnl"] > 0]
     losing = pnl_trades[pnl_trades["pnl"] < 0]
 
-    total_pnl = float(pnl_trades["pnl"].sum())
+    # The PnL of the run is the PnL the whole log booked: the PnL of the
+    # completed round trips and the PnL of the positions that are still open.
+    # A run that ends with an open short booked the fee of that short, so
+    # the PnL of the run is not the PnL of the round trips alone.
+    total_pnl = float(log.entries["pnl"].sum())
+    open_position_pnl = log.open_pnl
+
     gross_profit = float(winning["pnl"].sum()) if len(winning) > 0 else 0.0
     gross_loss = float(abs(losing["pnl"].sum())) if len(losing) > 0 else 0.0
 
@@ -514,7 +542,7 @@ def analyze_trades(
     weekly_returns = _calculate_weekly_returns(result.equity_curve)
 
     # Symbol stats
-    symbol_stats = _calculate_symbol_stats(pnl_trades)
+    symbol_stats = _calculate_symbol_stats(pnl_trades, log.entries)
 
     # Expectancy
     win_rate = len(winning) / len(pnl_trades) if len(pnl_trades) > 0 else 0
@@ -545,8 +573,9 @@ def analyze_trades(
         losing_trades=len(losing),
         win_rate=win_rate,
         total_pnl=total_pnl,
-        avg_pnl=float(pnl_trades["pnl"].mean()),
-        median_pnl=float(pnl_trades["pnl"].median()),
+        open_position_pnl=open_position_pnl,
+        avg_pnl=float(pnl_trades["pnl"].mean()) if len(pnl_trades) > 0 else 0.0,
+        median_pnl=float(pnl_trades["pnl"].median()) if len(pnl_trades) > 0 else 0.0,
         std_pnl=float(pnl_trades["pnl"].std()) if len(pnl_trades) > 1 else 0.0,
         avg_win=avg_win,
         avg_loss=avg_loss,
@@ -593,6 +622,7 @@ def print_trade_analysis(analysis: TradeAnalysis) -> None:
 
     print(f"\n{'PnL Statistics':-^60}")
     print(f"Total PnL:         ${analysis.total_pnl:,.2f}")
+    print(f"Open Position PnL: ${analysis.open_position_pnl:,.2f}")
     print(f"Avg PnL/Trade:     ${analysis.avg_pnl:,.2f}")
     print(f"Median PnL/Trade:  ${analysis.median_pnl:,.2f}")
     print(f"Std Dev PnL:       ${analysis.std_pnl:,.2f}")
