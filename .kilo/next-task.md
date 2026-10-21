@@ -31,4 +31,14 @@ Executed the handed-off task: added `BacktestMetrics.total_pnl` so the two publi
 
 ## Next task
 
-Keep the reconciliation strict and prevent drift. Suggested next step: add an explicit cross-API assertion in `tests/test_backtest_engine.py` (or a new invariant test) that for engine-generated results, `calculate_backtest_metrics(result.equity_curve, result.trades).total_pnl == analyze_trades(result).total_pnl == float(result.trades["pnl"].sum())`, and ensure it covers open-short cases. Also consider adding `total_pnl` to any serialized/CLI outputs if needed, but only if tests require it. Constraints: do not change `split_trade_log()` asymmetry without evidence of a real engine case that requires it; keep coverage at 100%; run ruff/black/mypy and full pytest.
+Status: COMPLETE — the cross-API reconciliation assertion is already in place and verified.
+
+`tests/test_backtest_engine.py::TestMetricsAndAnalysisReconciliationOnEngineResults` (lines 2182-2217) asserts, for engine-generated results,
+`calculate_backtest_metrics(result.equity_curve, result.trades).total_pnl == analyze_trades(result).total_pnl == float(result.trades["pnl"].sum())`,
+and it covers the fully liquidated run, the open-short case, and the partially covered short case. All 3 tests pass.
+
+No new bounded task is pending from this assignment. On the next session:
+- Confirm the green baseline is preserved: `python -m pytest -q` (full suite), `python -m ruff check quant_trading tests examples`, `python -m black --check quant_trading tests examples`, `python -m mypy quant_trading`.
+- Do NOT change `split_trade_log()` asymmetry without evidence of a real engine case that requires it (tests do not require it).
+- Do NOT add `total_pnl` to serialized/CLI outputs unless a test requires it (none does).
+- The only flagged follow-ups are the unresolved items above (long-side fee folding, total_pnl vs unrealized PnL documentation, network-provider coverage), none of which is safe to act on without further evidence.
