@@ -118,7 +118,9 @@ class PortfolioLimit:
             be at risk at any time. The risk of a position is the loss that
             would be realised if its planned stop loss were hit; the portfolio
             risk is the sum of that risk over all open positions.
-        max_drawdown: Maximum drawdown before halt (fraction, e.g., 0.20 = 20%).
+        max_drawdown: Maximum drawdown before new positions are stopped (fraction,
+            e.g., 0.20 = 20%). A signal that adds exposure is rejected while the
+            portfolio is in a breach of it.
         max_leverage: Maximum gross exposure as a multiple of the portfolio
             value (1.0 = fully invested with no borrowing).
         stop_loss_pct: Stop loss distance used to size the risk of each open
@@ -169,7 +171,7 @@ class PortfolioLimit:
     max_positions: int = 20
     max_position_size: float = 0.1  # Max single position as fraction
     max_portfolio_risk: float = 0.02  # Max open risk as fraction of portfolio
-    max_drawdown: float = 0.20  # Max drawdown before halt
+    max_drawdown: float = 0.20  # Max drawdown before new positions are stopped
     max_leverage: float = 1.0  # Max gross exposure as multiple of portfolio value
     stop_loss_pct: float = 0.05  # Stop loss distance used to size position risk
 

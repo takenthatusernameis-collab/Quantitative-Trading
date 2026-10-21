@@ -380,6 +380,116 @@ class TestMaxPositionsGate:
         assert any("exceed max positions" in v for v in result.violations)
 
 
+class TestDrawdownGate:
+    """The signal gate enforces the drawdown limit before a trade.
+
+    ``max_drawdown`` is the last of the portfolio limits that was not checked
+    before a trade: the position size, the risk budget, the leverage limit and
+    the number of open positions are all gated in
+    :meth:`RiskManager.check_signal`, but a portfolio that had fallen below
+    its peak could still open new positions. A ``"buy"`` or a ``"short"`` that
+    adds exposure is now rejected while the portfolio is in a breach of the
+    limit, which is the rule the rebalancer already applied to its buys.
+
+    A ``"buy"`` that covers an open short reduces the gross exposure instead
+    of adding it, and a ``"sell"`` reduces a long, so both stay allowed while
+    the breach lasts.
+    """
+
+    def test_a_buy_that_would_add_exposure_is_rejected_in_a_drawdown_breach(self):
+        rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
+        rm.update_portfolio_value({}, 75000.0)
+        assert rm.portfolio_risk.current_drawdown == pytest.approx(-0.25)
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("portfolio drawdown" in v for v in result.violations)
+
+    def test_a_short_that_would_add_exposure_is_rejected_in_a_drawdown_breach(self):
+        rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
+        rm.update_portfolio_value({}, 75000.0)
+        signal = Signal(symbol="AAPL", action="short", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("portfolio drawdown" in v for v in result.violations)
+
+    def test_a_buy_that_tops_up_an_open_long_is_rejected_in_a_drawdown_breach(self):
+        """Topping up a long adds exposure, so it is gated like a new position."""
+        rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
+        rm.update_portfolio_value(
+            {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0)},
+            50000.0,
+        )
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("portfolio drawdown" in v for v in result.violations)
+
+    def test_a_buy_that_covers_an_open_short_is_allowed_in_a_drawdown_breach(self):
+        """Covering a short reduces the gross exposure, so it is not gated."""
+        rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
+        rm.update_portfolio_value(
+            {"AAPL": Position(symbol="AAPL", quantity=-100, avg_price=150.0, current_price=150.0)},
+            85000.0,
+        )
+        assert rm.portfolio_risk.current_drawdown < -0.20
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_a_sell_is_not_gated_by_a_drawdown_breach(self):
+        """A sell reduces a long, so it stays allowed while the breach lasts."""
+        rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
+        rm.update_portfolio_value(
+            {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0)},
+            50000.0,
+        )
+        signal = Signal(symbol="AAPL", action="sell", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_a_buy_is_allowed_inside_the_drawdown_limit(self):
+        rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
+        rm.update_portfolio_value({}, 85000.0)
+        assert rm.portfolio_risk.current_drawdown == pytest.approx(-0.15)
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_a_max_drawdown_of_zero_disables_the_check(self):
+        rm = RiskManager(initial_capital=100000.0, max_drawdown=0.0)
+        rm.update_portfolio_value({}, 10000.0)
+        assert rm.portfolio_risk.current_drawdown == pytest.approx(-0.9)
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_the_gate_reads_the_drawdown_of_the_current_view(self):
+        """A refresh that moves the portfolio decides the next signal."""
+        rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=150.0)
+        assert rm.check_signal(signal).passed is True
+
+        rm.update_portfolio_value({}, 75000.0)
+        assert rm.check_signal(signal).passed is False
+
+        rm.update_portfolio_value({}, 100000.0)
+        assert rm.check_signal(signal).passed is True
+
+    def test_the_violation_reports_the_drawdown_and_the_limit(self):
+        rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
+        rm.update_portfolio_value({}, 75000.0)
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.violations == [
+            "Buy signal rejected: portfolio drawdown -25.00% exceeds max 20.00%"
+        ]
+
+
 class TestSyncPosition:
     """Tests for sync_position."""
 

@@ -1918,3 +1918,67 @@ class TestRunBacktestAppliesConfig:
         trade = result.trades.iloc[0]
         # 10% of the default portfolio of 100000.00.
         assert trade["quantity"] * trade["price"] == pytest.approx(10000.0)
+
+
+class TestDrawdownGateEndToEnd:
+    """A backtest in a drawdown breach stops opening new positions.
+
+    The signal gate refuses a signal that adds exposure while the portfolio is
+    in a breach of its drawdown limit. A run that falls into such a breach
+    therefore keeps the positions it already holds and opens no new one, while
+    the positions that are already open are still closed by their own exit
+    signals.
+
+    The run below buys ``A`` on the first bar and ``B`` on the second one.
+    ``A`` then loses 60% of its value, which puts the portfolio 24% below its
+    peak, so the third bar is not allowed to open ``C``. The fourth bar sells
+    ``A``, which reduces the exposure and is therefore still allowed.
+    """
+
+    def _data(self) -> dict[str, pd.DataFrame]:
+        return {
+            "A": _price_frame([50.0, 20.0, 20.0, 20.0, 20.0]),
+            "B": _price_frame([50.0, 50.0, 50.0, 50.0, 50.0]),
+            "C": _price_frame([50.0, 50.0, 50.0, 50.0, 50.0]),
+        }
+
+    def _config(self, max_drawdown: float) -> Config:
+        return Config(
+            backtest=BacktestConfig(initial_capital=100000.0, commission=0.0, slippage=0.0),
+            risk=RiskConfig(
+                max_position_size=0.4,
+                max_portfolio_risk=0.5,
+                max_leverage=5.0,
+                max_drawdown=max_drawdown,
+            ),
+        )
+
+    def test_a_run_in_a_drawdown_breach_opens_no_new_position(self):
+        script = [("buy", 1.0), ("buy", 1.0), ("buy", 1.0), ("sell", 1.0)]
+
+        result, _ = _run_script(script, self._data(), self._config(0.20))
+
+        # The third bar would have bought "C", but the portfolio is 24% below
+        # its peak, so the gate rejected that signal.
+        assert list(result.trades["symbol"]) == ["A", "B", "A"]
+        assert list(result.trades["action"]) == ["buy", "buy", "sell"]
+        assert "C" not in set(result.trades["symbol"])
+        # The position that was open is still closed by its own exit signal.
+        assert "A" not in result.positions
+        assert result.positions["B"].quantity > 0
+
+    def test_the_drawdown_breach_is_reported_by_the_portfolio_check(self):
+        script = [("buy", 1.0), ("buy", 1.0), ("buy", 1.0), ("sell", 1.0)]
+
+        result, _ = _run_script(script, self._data(), self._config(0.20))
+
+        assert any("Drawdown" in violation for violation in result.portfolio_violations)
+
+    def test_a_run_without_a_drawdown_limit_opens_the_position(self):
+        """The control: the same run opens "C" when the limit is disabled."""
+        script = [("buy", 1.0), ("buy", 1.0), ("buy", 1.0), ("sell", 1.0)]
+
+        result, _ = _run_script(script, self._data(), self._config(0.0))
+
+        assert list(result.trades["symbol"]) == ["A", "B", "C", "A"]
+        assert list(result.trades["action"]) == ["buy", "buy", "buy", "sell"]

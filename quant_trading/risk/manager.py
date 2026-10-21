@@ -110,7 +110,8 @@ class RiskManager:
             max_position_size: Maximum position size as fraction of portfolio.
             max_portfolio_risk: Maximum fraction of the portfolio value that may
                 be at risk at any time.
-            max_drawdown: Maximum drawdown before halt (fraction).
+            max_drawdown: Maximum drawdown before new positions are stopped
+                (fraction).
             max_positions: Maximum number of positions allowed.
             stop_loss_pct: Default stop loss percentage.
             take_profit_pct: Default take profit percentage.
@@ -328,6 +329,51 @@ class RiskManager:
             return True
         return False
 
+    def _reject_signal_if_in_drawdown_breach(
+        self,
+        result: CheckResult,
+        label: str,
+    ) -> bool:
+        """Reject a signal that would add exposure during a drawdown breach.
+
+        A portfolio that has fallen ``max_drawdown`` below its peak is in a
+        breach of its drawdown limit. A signal that adds exposure is rejected
+        while that breach lasts, which is the same rule the rebalancer
+        applies when it refuses to buy
+        (``quant_trading/portfolio/rebalancer.py``).
+
+        A ``"buy"`` that covers an open short reduces the gross exposure, so
+        it is not gated: the caller returns before it reaches this check. A
+        ``"sell"`` reduces a long and is not gated either.
+
+        A ``max_drawdown`` of ``0.0`` disables the limit, exactly as it
+        disables it in the rebalancer.
+
+        The drawdown is the one of the manager's current view
+        (``portfolio_risk.current_drawdown``), which is refreshed by
+        :meth:`update_portfolio_value`. A breach that happens on a bar is
+        therefore seen by the gate on the next bar.
+
+        Args:
+            result: Check result that collects the violations.
+            label: Name of the signal used in the violation message.
+
+        Returns:
+            True when the signal was rejected, False when it may proceed.
+
+        """
+        limit = self.portfolio_limit.max_drawdown
+        if limit <= 0:
+            return False
+
+        drawdown = self.portfolio_risk.current_drawdown
+        if drawdown <= -limit:
+            result.add_violation(
+                f"{label} signal rejected: portfolio drawdown {drawdown:.2%} exceeds max {limit:.2%}"
+            )
+            return True
+        return False
+
     def check_signal(self, signal: Signal, portfolio_value: float | None = None) -> CheckResult:
         """Check if a trading signal passes risk limits.
 
@@ -356,6 +402,16 @@ class RiskManager:
         when the portfolio already holds ``max_positions`` positions. A signal
         that tops up a position that is already open, or that covers an open
         short, does not add a position and stays allowed.
+
+        The drawdown limit is gated before a trade too: a signal that adds
+        exposure is rejected while the portfolio is in a breach of
+        ``portfolio_limit.max_drawdown``, exactly as the rebalancer refuses to
+        buy while that breach lasts. A ``"buy"`` that covers an open short
+        reduces the exposure and stays allowed, and a ``"sell"`` reduces a long
+        and is not gated. The drawdown the gate reads is the one of the
+        manager's current view, which is refreshed by
+        :meth:`update_portfolio_value`, so a breach that happens on a bar is
+        seen by the gate on the next bar.
 
         Args:
             signal: Trading signal to evaluate.
@@ -400,6 +456,8 @@ class RiskManager:
                 # The buy covers an open short. Covering reduces the gross
                 # exposure, so no position limit can be breached by it.
                 return result
+            if self._reject_signal_if_in_drawdown_breach(result, "Buy"):
+                return result
             if self._reject_new_position_if_at_the_limit(result, "Buy", signal.symbol):
                 return result
             current_gross = abs(position.quantity) * signal.price if position else 0.0
@@ -425,6 +483,8 @@ class RiskManager:
                 return result
             if signal.price is None:
                 result.add_violation("Short signal has no price")
+                return result
+            if self._reject_signal_if_in_drawdown_breach(result, "Short"):
                 return result
             if self._reject_new_position_if_at_the_limit(result, "Short", signal.symbol):
                 return result

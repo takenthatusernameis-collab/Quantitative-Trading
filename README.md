@@ -692,6 +692,7 @@ backtest:
   risk_free_rate: 0.02
   periods_per_year: 252
   enable_stop_exits: false
+  halt_on_portfolio_violation: false
 
 risk:
   max_position_size: 0.1
@@ -762,7 +763,7 @@ check. Each breach is reported as a violation message, and
 | `max_positions` | Maximum number of open positions | `20` |
 | `max_position_size` | Largest single position, as a fraction of the portfolio | `0.1` |
 | `max_portfolio_risk` | Largest fraction of the portfolio value that may be at risk at once | `0.02` |
-| `max_drawdown` | Drawdown from the peak that halts trading | `0.20` |
+| `max_drawdown` | Drawdown from the peak that stops new positions | `0.20` |
 | `max_leverage` | Largest gross exposure, as a multiple of the portfolio value | `1.0` |
 | `stop_loss_pct` | Stop loss distance used to size the risk of each open position | `0.05` |
 
@@ -795,9 +796,10 @@ limit.check(positions, portfolio_value=100000.0, peak_value=100000.0)
 The risk budget is a portfolio-wide commitment, so it also bounds the gross
 exposure that may be open at once: with the default `max_portfolio_risk` of
 `0.02` and a `stop_loss_pct` of `0.05`, more than 40% of the portfolio value
-may be open before the risk limit is breached. The portfolio risk, leverage
-and position-count limits are reported when a portfolio is checked; the signal
-gate below is what rejects an individual order that would breach them.
+may be open before the risk limit is breached. The portfolio risk, leverage,
+position-count and drawdown limits are reported when a portfolio is checked;
+the signal gate below is what rejects an individual order that would breach
+them.
 
 `RiskManager.check_signal()` gates a signal before it is traded. The gate
 measures the exposure the position would carry *after* the trade: a trade
@@ -817,6 +819,26 @@ open short reduces the gross exposure instead of adding a position, so both
 stay allowed too. The number of positions is counted on the risk manager's
 current position view, which is refreshed by `update_portfolio_value()` and
 kept current by `sync_position()` as trades are executed.
+
+The gate enforces the drawdown limit as well: a signal that adds exposure is
+rejected while the portfolio is in a breach of `max_drawdown`, which is the
+rule the rebalancer already applied to its buys. A `"buy"` that covers an open
+short and a `"sell"` reduce the exposure, so they stay allowed while the
+breach lasts, and the positions that are already open are still closed by
+their own exit signals. A `max_drawdown` of `0.0` disables the limit. The
+drawdown the gate reads is the one of the risk manager's current view, which
+is refreshed by `update_portfolio_value()` at the end of every bar, so a
+breach that happens on a bar is seen by the gate on the next bar.
+
+A breach of the drawdown limit stops the run only when
+`halt_on_portfolio_violation` is set. The default is `false`, so a run that
+falls into a breach keeps trading on the positions it already holds and
+reports the breach in `portfolio_violations`:
+
+```yaml
+backtest:
+  halt_on_portfolio_violation: true
+```
 
 The stop loss, the take profit and the trailing stop of a position are advisory
 by default: the risk manager computes the levels, but nothing closes the
