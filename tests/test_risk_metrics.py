@@ -66,6 +66,18 @@ class TestCalculateReturns:
         result = calculate_returns(prices)
         assert len(result) == 2
 
+    def test_returns_zero_previous_price_no_inf(self):
+        """A zero previous price must not produce inf/NaN returns.
+
+        The move out of a zero price is undefined and dropped, so downstream
+        metrics stay finite instead of NaN/inf (quant_trading/risk/metrics.py:calculate_returns).
+        """
+        prices = pd.Series([1.0, 0.0, 2.0])
+        res = calculate_returns(prices)
+        assert np.isfinite(res).all()
+        assert len(res) == 1
+        assert res.iloc[0] == pytest.approx(-1.0)
+
 
 class TestCalculateVolatility:
     """Tests for calculate_volatility."""
@@ -298,12 +310,30 @@ class TestCalculateBeta:
         constant = pd.Series([1.0, 1.0, 1.0, 1.0, 1.0])
         assert calculate_beta(RETURNS, constant) == pytest.approx(0.0)
 
-    def test_beta_non_overlapping_indices(self):
-        """Aligned overlap fewer than 2 points yields 0.0 beta."""
+    def test_beta_non_overlapping_indices_aligns_positionally(self):
+        """When index alignment leaves no overlap, series fall back to positional alignment.
+
+        Two same-length series with disjoint date indices can no longer be
+        matched by label, so they are paired by position instead of silently
+        returning 0.0 beta.
+        """
         idx1 = pd.date_range("2020-01-01", periods=5)
         idx2 = pd.date_range("2021-01-01", periods=5)
         returns = pd.Series([0.01, 0.02, 0.03, 0.04, 0.05], index=idx1)
         market = pd.Series([-0.01, 0.0, 0.02, 0.03, 0.04], index=idx2)
+        # Positional alignment pairs the two same-length series by position.
+        expected = calculate_beta(returns.reset_index(drop=True), market.reset_index(drop=True))
+        assert calculate_beta(returns, market) == pytest.approx(expected)
+
+    def test_beta_insufficient_aligned_points_after_fallback(self):
+        """Both series have >= 2 points but NaNs leave < 2 aligned -> 0.0 beta.
+
+        Index alignment and the positional fallback both drop the NaN rows,
+        leaving too few observations, so beta is 0.0
+        (quant_trading/risk/metrics.py:calculate_beta).
+        """
+        returns = pd.Series([0.01, float("nan")])
+        market = pd.Series([0.01, 0.02])
         assert calculate_beta(returns, market) == pytest.approx(0.0)
 
 

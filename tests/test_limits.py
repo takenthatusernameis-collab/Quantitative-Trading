@@ -147,6 +147,13 @@ class TestPortfolioLimit:
         violations = limit.check(positions, 90000.0, 100000.0)
         assert violations == []
 
+    def test_check_drawdown_limit_of_zero_is_disabled(self):
+        """A max_drawdown of 0.0 disables the drawdown limit (README)."""
+        limit = PortfolioLimit(max_drawdown=0.0)
+        # A 90% drawdown must not be reported when the limit is disabled.
+        violations = limit.check({}, 10000.0, 100000.0)
+        assert violations == []
+
     def test_check_skips_drawdown_when_peak_zero(self):
         """The drawdown check is skipped when peak_value <= 0 (72->77)."""
         limit = PortfolioLimit(max_drawdown=0.10)
@@ -262,6 +269,12 @@ class TestPortfolioLimitPortfolioRisk:
         limit = PortfolioLimit(max_portfolio_risk=1.0, max_position_size=1.0)
         position = Position(symbol="AAPL", quantity=100, avg_price=0.0, current_price=200.0)
         assert limit.position_risk(position) == pytest.approx(1000.0)
+
+    def test_position_risk_zero_basis_returns_zero(self):
+        """A position with no usable entry or current price commits no risk."""
+        limit = PortfolioLimit(max_portfolio_risk=1.0, max_position_size=1.0)
+        position = Position(symbol="AAPL", quantity=100, avg_price=0.0, current_price=0.0)
+        assert limit.position_risk(position) == pytest.approx(0.0)
 
     def test_risk_with_zero_portfolio_value(self):
         """A non-positive portfolio value is handled without dividing by zero."""

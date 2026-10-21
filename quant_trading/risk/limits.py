@@ -282,7 +282,7 @@ class PortfolioLimit:
                     f"Position {symbol} size {pos_pct:.2%} exceeds max {self.max_position_size:.2%}"
                 )
 
-        if peak_value > 0:
+        if peak_value > 0 and self.max_drawdown > 0:
             drawdown = (portfolio_value - peak_value) / peak_value
             if drawdown < -self.max_drawdown:
                 violations.append(f"Drawdown {drawdown:.2%} exceeds max {self.max_drawdown:.2%}")

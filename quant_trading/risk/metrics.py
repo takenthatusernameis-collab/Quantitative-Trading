@@ -93,7 +93,12 @@ def calculate_returns(prices: pd.Series) -> pd.Series:
         [0.02, -0.01, 0.03]
 
     """
-    return prices.pct_change().dropna()
+    previous = prices.shift(1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        returns = (prices - previous) / previous
+    # A previous price of zero makes the return undefined (inf); drop those
+    # observations so downstream metrics stay finite instead of NaN/inf.
+    return returns.replace([np.inf, -np.inf], np.nan).dropna()
 
 
 def calculate_volatility(
@@ -282,6 +287,37 @@ def calculate_var(returns: pd.Series, confidence: float = 0.95) -> float:
     return float(np.percentile(returns, (1 - confidence) * 100))
 
 
+def _align_series(returns: pd.Series, market_returns: pd.Series) -> pd.DataFrame:
+    """Align two return series on their shared index.
+
+    Index alignment is preferred so observations are matched by their labels
+    (for example dates). When the two series carry incompatible indices and
+    index alignment leaves fewer than two overlapping points, the series fall
+    back to positional alignment: each observation is paired with the
+    observation at the same position in the other series.
+
+    This keeps ``beta``/``alpha`` defined when one side is a RangeIndex (the
+    equity curve built inside :meth:`RiskManager.calculate_metrics` carries no
+    dates) and the other is date-indexed, instead of silently returning 0.0.
+
+    Args:
+        returns: Portfolio return series.
+        market_returns: Benchmark return series.
+
+    Returns:
+        The two series aligned on a common index (or positionally), with any
+        NaN rows dropped.
+
+    """
+    aligned = pd.concat([returns, market_returns], axis=1).dropna()
+    if len(aligned) < 2 and len(returns) >= 2 and len(market_returns) >= 2:
+        aligned = pd.concat(
+            [returns.reset_index(drop=True), market_returns.reset_index(drop=True)],
+            axis=1,
+        ).dropna()
+    return aligned
+
+
 def calculate_beta(returns: pd.Series, market_returns: pd.Series) -> float:
     """Calculate portfolio beta relative to market.
 
@@ -305,7 +341,7 @@ def calculate_beta(returns: pd.Series, market_returns: pd.Series) -> float:
     """
     if len(returns) < 2 or len(market_returns) < 2:
         return 0.0
-    aligned = pd.concat([returns, market_returns], axis=1).dropna()
+    aligned = _align_series(returns, market_returns)
     if len(aligned) < 2:
         return 0.0
     cov = aligned.iloc[:, 0].cov(aligned.iloc[:, 1])
@@ -344,7 +380,7 @@ def calculate_alpha(
 
     # Align on overlapping indices, mirroring calculate_beta, so the means
     # used for alpha come from the same observations used for beta.
-    aligned = pd.concat([returns, market_returns], axis=1).dropna()
+    aligned = _align_series(returns, market_returns)
     if len(aligned) < 2:  # pragma: no cover  (beta != 0 implies >= 2 aligned points)
         return 0.0
 

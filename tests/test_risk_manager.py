@@ -5,7 +5,7 @@ import pytest
 
 from quant_trading.risk.limits import CheckResult
 from quant_trading.risk.manager import PortfolioRisk, RiskManager
-from quant_trading.risk.metrics import RiskMetrics
+from quant_trading.risk.metrics import RiskMetrics, calculate_returns
 from quant_trading.strategies.base import Position, Signal
 
 
@@ -841,6 +841,22 @@ class TestCheckPortfolio:
         result = rm.check_portfolio()
         assert result.passed is True
 
+    def test_check_portfolio_drawdown_limit_of_zero_is_disabled(self):
+        """check_portfolio agrees with the signal gate: max_drawdown=0.0 disables it.
+
+        A deep drawdown must not be reported when the drawdown limit is
+        disabled (quant_trading/risk/limits.py:PortfolioLimit.check).
+        """
+        rm = RiskManager(initial_capital=100000.0, max_drawdown=0.0)
+        rm.positions = {}
+        rm.portfolio_risk = PortfolioRisk(
+            total_market_value=10000.0, cash=10000.0, peak_value=100000.0
+        )
+        rm.peak_value = 100000.0
+        result = rm.check_portfolio()
+        assert result.passed is True
+        assert not any("Drawdown" in v for v in result.violations)
+
     def test_leverage_violation(self):
         """Gross exposure above the leverage limit fails the portfolio check."""
         rm = RiskManager(
@@ -909,6 +925,22 @@ class TestCalculateMetrics:
         assert isinstance(metrics, RiskMetrics)
         assert isinstance(metrics.beta, float)
         assert isinstance(metrics.alpha, float)
+
+    def test_calculate_metrics_nonzero_beta_for_moving_benchmark(self):
+        """A benchmark that moves with the strategy yields a non-zero beta.
+
+        The equity curve carries a RangeIndex (no dates) while the benchmark
+        is date-indexed; the two must still align so beta/alpha are not
+        silently 0.0 (quant_trading/risk/manager.py:calculate_metrics).
+        """
+        rm = RiskManager(initial_capital=100000.0)
+        for value in (110000.0, 121000.0, 110000.0, 121000.0):
+            rm.update_portfolio_value({}, value)
+        market_returns = calculate_returns(pd.Series([100.0, 110.0, 121.0, 110.0, 121.0]))
+        market_returns.index = pd.date_range("2020-01-01", periods=4)
+        metrics = rm.calculate_metrics(market_returns=market_returns)
+        assert metrics.beta == pytest.approx(1.0)
+        assert metrics.alpha == pytest.approx(0.0, abs=1e-9)
 
 
 class TestRiskFreeRate:
