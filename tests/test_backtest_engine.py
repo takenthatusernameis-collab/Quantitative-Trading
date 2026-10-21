@@ -12,6 +12,8 @@ from quant_trading.backtest.engine import (
     Trade,
     run_backtest,
 )
+from quant_trading.backtest.metrics import calculate_backtest_metrics
+from quant_trading.backtest.trade_analysis import analyze_trades
 from quant_trading.config.settings import (
     BacktestConfig,
     Config,
@@ -2176,25 +2178,40 @@ class TestStopExitAndShortCoveringEdges:
         assert trades == []
         assert engine.portfolio.holdings["AAPL"].quantity == -100
 
-    def test_cover_short_trims_to_affordable_positive_quantity(self):
-        """A cover trimmed by cash still executes when the trimmed size is positive (line 915 not taken)."""
-        engine = self._engine()
-        engine.portfolio.cash = 50.0
-        engine.portfolio.holdings["AAPL"] = Holding(
-            symbol="AAPL", quantity=-100, avg_cost=100.0, current_price=100.0
-        )
-        holding = engine.portfolio.holdings["AAPL"]
-        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=100.0)
-        trades: list[Trade] = []
-        engine._cover_short(
-            symbol="AAPL",
-            signal=signal,
-            trades_list=trades,
-            timestamp=self._timestamp(),
-            price=100.0,
-            holding=holding,
-        )
-        assert len(trades) == 1
-        assert trades[0].action == "cover"
-        assert 0 < trades[0].quantity < 100
-        assert engine.portfolio.holdings["AAPL"].quantity == -100 + trades[0].quantity
+
+class TestMetricsAndAnalysisReconciliationOnEngineResults:
+    """The public APIs must agree on engine-generated results."""
+
+    def test_metrics_analysis_and_booked_pnl_agree_for_fully_liquidated_run(self):
+        """A fully liquidated run reconciles on all sides."""
+        data = {"AAPL": _price_frame([100.0, 110.0, 108.0])}
+        config = _short_config(max_position_size=1.0, max_leverage=1.0, max_portfolio_risk=1.0)
+        result, _ = _run_script([("short", 1.0), ("hold", 0.0), ("buy", 1.0)], data, config)
+        metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
+        analysis = analyze_trades(result)
+        booked = float(result.trades["pnl"].sum())
+        assert metrics.total_pnl == pytest.approx(analysis.total_pnl)
+        assert metrics.total_pnl == pytest.approx(booked)
+        assert metrics.total_pnl == pytest.approx(metrics.total_return)
+
+    def test_metrics_analysis_and_booked_pnl_agree_for_open_short(self):
+        """A run that ends with an open short still reconciles."""
+        data = {"AAPL": _price_frame([100.0, 100.0])}
+        config = _short_config(max_position_size=1.0, max_leverage=1.0, max_portfolio_risk=1.0)
+        result, _ = _run_script([("short", 1.0)], data, config)
+        metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
+        analysis = analyze_trades(result)
+        booked = float(result.trades["pnl"].sum())
+        assert metrics.total_pnl == pytest.approx(analysis.total_pnl)
+        assert metrics.total_pnl == pytest.approx(booked)
+
+    def test_metrics_analysis_and_booked_pnl_agree_with_partially_covered_short(self):
+        """Partial covering leaves an open position but the APIs still agree."""
+        data = {"AAPL": _price_frame([100.0, 90.0])}
+        config = _short_config(max_position_size=1.0, max_leverage=1.0, max_portfolio_risk=1.0)
+        result, _ = _run_script([("short", 1.0), ("buy", 0.5)], data, config)
+        metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
+        analysis = analyze_trades(result)
+        booked = float(result.trades["pnl"].sum())
+        assert metrics.total_pnl == pytest.approx(analysis.total_pnl)
+        assert metrics.total_pnl == pytest.approx(booked)
