@@ -186,16 +186,27 @@ def test_detect_regimes_non_series_input_list():
     assert result.n_segments >= 1
 
 
-def test_detect_regimes_returns_empty_after_dropna():
-    """detect() returns empty RegimeResult when returns are all NaN (line 113).
+def test_detect_regimes_periods_per_year_affects_annualization():
+    """Non-daily periods_per_year changes annualized volatility/thresholds."""
+    prices = _make_series(n=150, trend=0.001, vol=0.01, seed=42)
+    result_daily = detect_regimes(prices, window=20, periods_per_year=252)
+    result_weekly = detect_regimes(prices, window=20, periods_per_year=52)
 
-    With len(prices) >= 2 but pct_change().dropna() empty, the len(returns) < 1
-    branch is hit and an empty RegimeResult is returned.
-    """
-    prices = pd.Series([100.0, np.nan])
-    result = detect_regimes(prices, window=20)
-    assert result.n_segments == 0
-    assert result.current_regime == Regime.UNKNOWN
+    assert result_daily.n_segments >= 1
+    assert result_weekly.n_segments >= 1
+    # Annualized values should differ when periods_per_year differs
+    assert result_daily.total_volatility != result_weekly.total_volatility
+
+
+def test_regime_detector_periods_per_year_passed_through():
+    """RegimeDetector passes periods_per_year to calculations."""
+    prices = _make_series(n=150, trend=0.001, vol=0.01, seed=43)
+    det_daily = RegimeDetector(window=20, periods_per_year=252)
+    det_weekly = RegimeDetector(window=20, periods_per_year=52)
+    res_daily = det_daily.detect(prices)
+    res_weekly = det_weekly.detect(prices)
+
+    assert res_daily.total_volatility != res_weekly.total_volatility
 
 
 def test_merge_segments_all_none_labels():

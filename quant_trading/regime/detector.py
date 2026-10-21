@@ -581,6 +581,7 @@ def detect_regimes(
     window: int = 20,
     vol_threshold: float = 0.0,
     return_threshold: float = 0.0,
+    periods_per_year: int = 252,
 ) -> RegimeResult:
     """Detect market regimes over a price series using default thresholds.
 
@@ -598,6 +599,8 @@ def detect_regimes(
         return_threshold: Annualized return threshold separating sideways
             from trending markets. A non-positive value triggers automatic
             derivation from the mean rolling return.
+        periods_per_year: Trading periods per year used to annualize
+            volatility and return (default 252 for daily data).
 
     Returns:
         A :class:`RegimeResult` containing the labeled segments and summary
@@ -618,6 +621,9 @@ def detect_regimes(
 
     """
     detector = RegimeDetector(
-        window=window, vol_threshold=vol_threshold, return_threshold=return_threshold
+        window=window,
+        vol_threshold=vol_threshold,
+        return_threshold=return_threshold,
+        periods_per_year=periods_per_year,
     )
     return detector.detect(prices)

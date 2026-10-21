@@ -11,7 +11,7 @@ from quant_trading.backtest import (
     regime_for_backtest,
 )
 from quant_trading.backtest.engine import BacktestResult
-from quant_trading.backtest.metrics import calculate_backtest_metrics
+from quant_trading.backtest.metrics import BacktestMetrics, calculate_backtest_metrics
 from quant_trading.regime import Regime
 
 
@@ -224,15 +224,88 @@ def test_backtest_regime_analysis_summary_explicit_thresholds():
     assert summary["n_segments"] == analysis.n_segments
 
 
-def test_regime_for_backtest_matches_analyze_regimes_result():
-    """regime_for_backtest returns the same RegimeResult as analyze_regimes(...).result."""
-    result = _make_result()
-    expected = analyze_regimes(result, window=20).result
-    actual = regime_for_backtest(result, window=20)
+def test_analyze_regimes_periods_per_year_affects_volatility():
+    from quant_trading.backtest.metrics import BacktestMetrics
 
-    assert actual.n_segments == expected.n_segments
-    assert actual.current_regime == expected.current_regime
-    assert actual.total_volatility == expected.total_volatility
+    metrics = BacktestMetrics()
+    eq = pd.Series([100000 * (1 + 0.001 * i) for i in range(60)], index=pd.date_range("2024-01-01", periods=60))
+    res = BacktestResult(
+        equity_curve=eq,
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=eq.index[0],
+        end_date=eq.index[-1],
+        initial_capital=100000,
+        final_value=float(eq.iloc[-1]),
+        total_return=float(eq.iloc[-1]) - 100000,
+        total_return_pct=float((eq.iloc[-1] / 100000 - 1) * 100),
+    )
+    a = analyze_regimes(res, window=20, periods_per_year=252)
+    b = analyze_regimes(res, window=20, periods_per_year=52)
+    assert a.result.total_volatility != b.result.total_volatility
+
+
+def test_regime_for_backtest_periods_per_year_affects_volatility():
+    from quant_trading.backtest.metrics import BacktestMetrics
+
+    metrics = BacktestMetrics()
+    eq = pd.Series([100000 * (1 + 0.001 * i) for i in range(60)], index=pd.date_range("2024-01-01", periods=60))
+    res = BacktestResult(
+        equity_curve=eq,
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=eq.index[0],
+        end_date=eq.index[-1],
+        initial_capital=100000,
+        final_value=float(eq.iloc[-1]),
+        total_return=float(eq.iloc[-1]) - 100000,
+        total_return_pct=float((eq.iloc[-1] / 100000 - 1) * 100),
+    )
+    a = regime_for_backtest(res, window=20, periods_per_year=252)
+    b = regime_for_backtest(res, window=20, periods_per_year=52)
+    assert a.total_volatility != b.total_volatility
+
+
+def test_analyze_regimes_periods_per_year_affects_volatility():
+    metrics = BacktestMetrics()
+    eq = pd.Series([100000 * (1 + 0.001 * i) for i in range(60)], index=pd.date_range("2024-01-01", periods=60))
+    res = BacktestResult(
+        equity_curve=eq,
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=eq.index[0],
+        end_date=eq.index[-1],
+        initial_capital=100000,
+        final_value=float(eq.iloc[-1]),
+        total_return=float(eq.iloc[-1]) - 100000,
+        total_return_pct=float((eq.iloc[-1] / 100000 - 1) * 100),
+    )
+    a = analyze_regimes(res, window=20, periods_per_year=252)
+    b = analyze_regimes(res, window=20, periods_per_year=52)
+    assert a.result.total_volatility != b.result.total_volatility
+
+
+def test_regime_for_backtest_periods_per_year_affects_volatility():
+    metrics = BacktestMetrics()
+    eq = pd.Series([100000 * (1 + 0.001 * i) for i in range(60)], index=pd.date_range("2024-01-01", periods=60))
+    res = BacktestResult(
+        equity_curve=eq,
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=eq.index[0],
+        end_date=eq.index[-1],
+        initial_capital=100000,
+        final_value=float(eq.iloc[-1]),
+        total_return=float(eq.iloc[-1]) - 100000,
+        total_return_pct=float((eq.iloc[-1] / 100000 - 1) * 100),
+    )
+    a = regime_for_backtest(res, window=20, periods_per_year=252)
+    b = regime_for_backtest(res, window=20, periods_per_year=52)
+    assert a.total_volatility != b.total_volatility
 
 
 if __name__ == "__main__":

@@ -326,6 +326,7 @@ def analyze_regimes(
     window: int = 20,
     vol_threshold: float = 0.0,
     return_threshold: float = 0.0,
+    periods_per_year: int = 252,
 ) -> BacktestRegimeAnalysis:
     """Run regime detection on a backtest's equity curve.
 
@@ -334,6 +335,8 @@ def analyze_regimes(
         window: Rolling-window size used by the regime detector.
         vol_threshold: Optional explicit volatility threshold (<= 0 auto).
         return_threshold: Optional explicit return threshold (<= 0 auto).
+        periods_per_year: Trading periods per year used to annualize
+            volatility and return (default 252 for daily data).
 
     Returns:
         A :class:`BacktestRegimeAnalysis` wrapping the detection result.
@@ -373,6 +376,7 @@ def analyze_regimes(
         window=window,
         vol_threshold=vol_threshold,
         return_threshold=return_threshold,
+        periods_per_year=periods_per_year,
     )
     return BacktestRegimeAnalysis(
         result=regime_result,
@@ -388,6 +392,7 @@ def regime_for_backtest(
     window: int = 20,
     vol_threshold: float = 0.0,
     return_threshold: float = 0.0,
+    periods_per_year: int = 252,
 ) -> RegimeResult:
     """Return just the :class:`RegimeResult` from a backtest.
 
@@ -399,6 +404,8 @@ def regime_for_backtest(
         window: Rolling-window size used by the regime detector.
         vol_threshold: Optional explicit volatility threshold (<= 0 auto).
         return_threshold: Optional explicit return threshold (<= 0 auto).
+        periods_per_year: Trading periods per year used to annualize
+            volatility and return (default 252 for daily data).
 
     Returns:
         The raw :class:`RegimeResult` from detection.
@@ -431,11 +438,13 @@ def regime_for_backtest(
         'unknown'
 
     """
+    equity = result.equity_curve
     return detect_regimes(
-        result.equity_curve,
+        equity,
         window=window,
         vol_threshold=vol_threshold,
         return_threshold=return_threshold,
+        periods_per_year=periods_per_year,
     )
 
 
