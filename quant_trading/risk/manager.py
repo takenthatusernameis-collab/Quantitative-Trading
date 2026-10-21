@@ -95,6 +95,8 @@ class RiskManager:
         take_profit_pct: float = 0.15,
         risk_free_rate: float = 0.02,
         max_leverage: float = 1.0,
+        trailing_stop_pct: float = 0.0,
+        trailing_stop_activation_pct: float = 0.0,
     ):
         """Initialize risk manager.
 
@@ -145,6 +147,11 @@ class RiskManager:
         self.risk_metrics: RiskMetrics | None = None
         self.risk_enabled = True
         self.history: list[dict[str, Any]] = []
+        self.trailing_stop_pct = trailing_stop_pct
+        self.trailing_stop_activation_pct = trailing_stop_activation_pct
+        self._trailing_stops: dict[str, float] = {}
+        self._trailing_highs: dict[str, float] = {}
+        self._trailing_lows: dict[str, float] = {}
 
     def update_portfolio_value(self, positions: dict[str, Position], cash: float) -> None:
         """Update portfolio value and track equity curve.
@@ -483,7 +490,8 @@ class RiskManager:
         below the average entry price (``avg_price * (1 - stop_loss_pct)``);
         for a short position it sits above it
         (``avg_price * (1 + stop_loss_pct)``), because a short loses when the
-        price rises.
+        price rises. If a trailing stop is active and is tighter (better) than
+        the fixed stop, it will be used.
 
         Args:
             symbol: Symbol to query.
@@ -495,9 +503,23 @@ class RiskManager:
         position = self.positions.get(symbol)
         if position is None or position.avg_price <= 0:
             return None
+        fixed_stop = None
         if position.quantity < 0:
-            return position.avg_price * (1 + self.position_limit.stop_loss_pct)
-        return position.avg_price * (1 - self.position_limit.stop_loss_pct)
+            fixed_stop = position.avg_price * (1 + self.position_limit.stop_loss_pct)
+        else:
+            fixed_stop = position.avg_price * (1 - self.position_limit.stop_loss_pct)
+
+        trailing_stop = self.get_trailing_stop(symbol)
+        if trailing_stop is not None:
+            if position.quantity < 0:
+                # For short, stop is above entry; we want the tighter stop (lower)
+                if fixed_stop is None or trailing_stop < fixed_stop:
+                    return trailing_stop
+            else:
+                # For long, stop is below entry; we want the tighter stop (higher)
+                if fixed_stop is None or trailing_stop > fixed_stop:
+                    return trailing_stop
+        return fixed_stop
 
     def get_position_take_profit(self, symbol: str) -> float | None:
         """Get take profit price for a position.
