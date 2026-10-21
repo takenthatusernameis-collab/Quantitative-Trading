@@ -306,7 +306,9 @@ class TestRebalancer:
         self.portfolio.add_holding("AAPL", 266, 150.0)  # $39,900
         self.portfolio.add_holding("MSFT", 200, 300.0)  # $60,000
         self.portfolio.holdings["AAPL"].update_price(40000.0 / 266)  # market_value -> 40k
-        self.portfolio.total_value = 100000.0
+        # The positions are worth exactly $100,000, so the portfolio is fully
+        # invested and its total value is $100,000.
+        self.portfolio.cash = 0.0
 
         actions = self.rebalancer.generate_rebalance_actions()
         assert actions == []
@@ -381,7 +383,9 @@ class TestRebalancer:
         self.portfolio.add_holding("AAPL", 266, 150.0)  # $39,900
         self.portfolio.add_holding("MSFT", 200, 300.0)  # $60,000
         self.portfolio.holdings["AAPL"].update_price(40000.0 / 266)  # -> $40,000
-        self.portfolio.total_value = 100000.0
+        # The positions are worth exactly $100,000, so the portfolio is fully
+        # invested and its total value is $100,000.
+        self.portfolio.cash = 0.0
 
         actions = rebalancer.generate_rebalance_actions()
         assert actions == []

@@ -264,18 +264,45 @@ class Rebalancer:
         else:
             return False
 
-    def calculate_target_values(self) -> dict[str, float]:
+    def _portfolio_value_at_prices(self, prices: dict[str, float]) -> float:
+        """Total value of the portfolio with every position marked at a price.
+
+        The cash is added to the market value of every open position, with
+        each position valued at the price it is traded at. The result is the
+        value of the portfolio in the price space the trades are planned in,
+        so the targets, the deviations and the trades that close them are all
+        measured against the same value.
+
+        Args:
+            prices: Symbol-keyed price map used to mark the positions.
+
+        Returns:
+            The total value of the portfolio at the given prices.
+
+        """
+        total = self.portfolio.cash
+        for symbol, holding in self.portfolio.holdings.items():
+            total += holding.quantity * self._resolve_execution_price(symbol, prices)
+        return total
+
+    def calculate_target_values(self, prices: dict[str, float] | None = None) -> dict[str, float]:
         """Calculate target market values for every symbol in the allocation.
 
         Each target is the product of the portfolio's current total value and
         the symbol's target allocation fraction.
+
+        Args:
+            prices: Optional symbol-keyed price map. When given, the total
+                value of the portfolio is computed with every position marked
+                at that price, so the targets live in the same price space as
+                the trades that are planned from them.
 
         Returns:
             Symbol-keyed target market values. Empty when no target
             allocation is configured.
 
         """
-        total_value = self.portfolio.total_value
+        total_value = self._portfolio_value_at_prices(prices or {})
         targets = {}
         for symbol, pct in self.target_allocation.items():
             targets[symbol] = total_value * pct
@@ -298,6 +325,11 @@ class Rebalancer:
         2. **Trading signals** - buy signals for symbols outside the target
            allocation are sized to 5% of portfolio value times signal strength;
            sell signals liquidate the full holdings of the signaled symbol.
+
+        Every trade is sized at the price it is planned at, and the deviation
+        it closes is measured at that same price, so the trade releases
+        exactly the dollars the deviation measured and the position lands on
+        its target.
 
         The actions are **affordable**: a buy is sized against the cash the
         portfolio actually has, net of the fees, and against the cash that the
@@ -333,9 +365,9 @@ class Rebalancer:
 
         """
         actions = []
-        targets = self.calculate_target_values()
         prices = prices or {}
-        total_value = self.portfolio.total_value
+        total_value = self._portfolio_value_at_prices(prices)
+        targets = self.calculate_target_values(prices)
         plan = _RebalancePlan(
             cash=self.portfolio.cash,
             fee_rate=commission + slippage,
@@ -346,34 +378,38 @@ class Rebalancer:
 
         # Process target allocations
         for symbol in self.target_allocation:
-            current_value = self.portfolio.get_position_value(symbol)
+            if total_value <= 0:
+                continue
+            # The price the trade is planned at is the price the deviation is
+            # measured at, so the trade closes exactly the dollars the
+            # deviation measured and the position lands on its target.
+            price = self._resolve_plan_price(symbol, prices, signals)
+            if price <= 0:
+                # Without a price neither the deviation nor the quantity of a
+                # trade can be determined, so the symbol is left alone.
+                continue
+            current_value = self._planned_position_value(plan, symbol, price)
             target_value = targets[symbol]
             diff = target_value - current_value
 
-            if total_value <= 0:
-                continue
             if abs(diff) / total_value > self.rebalance_threshold:
                 if diff > 0:
-                    price = self._resolve_plan_price(symbol, prices, signals)
-                    quantity = self._resolve_buy_quantity(symbol, diff, signals, prices)
+                    quantity = self._resolve_buy_quantity(symbol, diff, signals, prices, price)
+                    quantity = self._risk_adjust_buy(plan, symbol, quantity, price, total_value)
                     if quantity > 0:
-                        quantity = self._risk_adjust_buy(plan, symbol, quantity, price, total_value)
+                        quantity = self._plan_buy(plan, symbol, quantity, price)
                         if quantity > 0:
-                            if price > 0:  # pragma: no cover - implied by quantity > 0
-                                quantity = self._plan_buy(plan, symbol, quantity, price)
-                            if quantity > 0:
-                                actions.append(
-                                    RebalanceAction(
-                                        symbol=symbol,
-                                        action="buy",
-                                        quantity=quantity,
-                                        reason="target_allocation",
-                                    )
+                            actions.append(
+                                RebalanceAction(
+                                    symbol=symbol,
+                                    action="buy",
+                                    quantity=quantity,
+                                    reason="target_allocation",
                                 )
+                            )
                 elif diff < 0:
-                    quantity = self._resolve_sell_quantity(symbol, abs(diff))
+                    quantity = self._resolve_sell_quantity(symbol, abs(diff), price)
                     if quantity > 0:
-                        price = self._resolve_execution_price(symbol, prices)
                         self._plan_sell(plan, symbol, quantity, price)
                         actions.append(
                             RebalanceAction(
@@ -388,35 +424,42 @@ class Rebalancer:
         if signals:
             for signal in signals:
                 if signal.action == "buy" and signal.symbol not in self.target_allocation:
-                    # Buy based on signal strength
-                    target_value = (
-                        self.portfolio.total_value * 0.05 * signal.strength
-                    )  # 5% max per signal
-                    current_value = self.portfolio.get_position_value(signal.symbol)
+                    # Buy based on signal strength: the position is topped up
+                    # to 5% of the portfolio value times the strength of the
+                    # signal.
+                    price = self._resolve_plan_price(signal.symbol, prices, signals)
+                    if price <= 0:
+                        # Without a price the position cannot be sized.
+                        continue
+                    target_value = total_value * 0.05 * signal.strength  # 5% max per signal
+                    # The value the batch has already committed to the symbol
+                    # counts towards the current value, so a second signal for
+                    # the same symbol tops the position up to its target
+                    # instead of buying another slice on top of it.
+                    current_value = self._planned_position_value(plan, signal.symbol, price)
                     diff = target_value - current_value
                     if diff > 0 and signal.price:
-                        price = self._resolve_plan_price(signal.symbol, prices, signals)
-                        quantity = self._resolve_buy_quantity(signal.symbol, diff, signals, prices)
+                        quantity = self._resolve_buy_quantity(
+                            signal.symbol, diff, signals, prices, price
+                        )
+                        quantity = self._risk_adjust_buy(
+                            plan,
+                            signal.symbol,
+                            quantity,
+                            price,
+                            total_value,
+                        )
                         if quantity > 0:
-                            quantity = self._risk_adjust_buy(
-                                plan,
-                                signal.symbol,
-                                quantity,
-                                price,
-                                total_value,
-                            )
+                            quantity = self._plan_buy(plan, signal.symbol, quantity, price)
                             if quantity > 0:
-                                if price > 0:  # pragma: no cover - implied by quantity > 0
-                                    quantity = self._plan_buy(plan, signal.symbol, quantity, price)
-                                if quantity > 0:
-                                    actions.append(
-                                        RebalanceAction(
-                                            symbol=signal.symbol,
-                                            action="buy",
-                                            quantity=quantity,
-                                            reason=f"signal_{signal.metadata.get('signal_type', 'unknown')}",
-                                        )
+                                actions.append(
+                                    RebalanceAction(
+                                        symbol=signal.symbol,
+                                        action="buy",
+                                        quantity=quantity,
+                                        reason=f"signal_{signal.metadata.get('signal_type', 'unknown')}",
                                     )
+                                )
                 elif signal.action == "sell":
                     holding = self.portfolio.holdings.get(signal.symbol)
                     if holding and holding.quantity != 0:
@@ -736,12 +779,34 @@ class Rebalancer:
             plan.cash -= size * price * (1.0 + plan.fee_rate)
         plan.positions[symbol] = position - copysign(size, position)
 
+    def _planned_position_value(self, plan: _RebalancePlan, symbol: str, price: float) -> float:
+        """Value of the position the batch expects to hold, at the given price.
+
+        The batch's own trades are part of the position, so a symbol the batch
+        has already bought is valued with the quantity the plan expects to
+        hold, not with the quantity the portfolio holds. The position is
+        valued at the price the batch trades it at, so the deviation that is
+        measured and the trade that closes it live in the same price space.
+
+        Args:
+            plan: Cash and position state of the batch being planned.
+            symbol: Symbol to value.
+            price: Price the position is valued at.
+
+        Returns:
+            The market value of the position (negative for a short position),
+            or 0.0 when the batch holds nothing in the symbol.
+
+        """
+        return plan.positions.get(symbol, 0.0) * price
+
     def _resolve_buy_quantity(
         self,
         symbol: str,
         diff: float,
         signals: list[Signal] | None,
         prices: dict[str, float],
+        price: float | None = None,
     ) -> float:
         """Resolve a buy quantity for a symbol, guarding against zero prices.
 
@@ -756,33 +821,45 @@ class Rebalancer:
             diff: Dollar amount to buy (target value minus current value).
             signals: Optional signals for the symbol, used as a price source.
             prices: Optional symbol-keyed price map.
+            price: Price the buy is planned at. When given it is used as is,
+                so the quantity is derived from the same price the deviation
+                was measured at.
 
         Returns:
             Quantity to buy, or 0.0 when no positive price could be resolved.
 
         """
-        price = self._resolve_plan_price(symbol, prices, signals)
+        if price is None:
+            price = self._resolve_plan_price(symbol, prices, signals)
         if price > 0:
             return diff / price
         return 0.0
 
-    def _resolve_sell_quantity(self, symbol: str, diff: float) -> float:
+    def _resolve_sell_quantity(self, symbol: str, diff: float, price: float | None = None) -> float:
         """Resolve a sell quantity for a symbol, guarding against zero prices.
+
+        The quantity is derived from the price the sell is planned at, so the
+        trade releases exactly the dollar amount the deviation measured. When
+        no price is given the current price of the holding is used.
 
         Args:
             symbol: Symbol being sold.
             diff: Dollar amount to sell (absolute value of the deviation).
+            price: Price the sell is planned at, or ``None`` to fall back to
+                the current price of the holding.
 
         Returns:
-            Quantity to sell (``diff`` divided by the holding's current
-            price), or 0.0 when the symbol is not held or the price is
-            non-positive.
+            Quantity to sell, or 0.0 when the symbol is not held or the price
+            is non-positive.
 
         """
-        if symbol in self.portfolio.holdings:
-            price = self.portfolio.holdings[symbol].current_price
-            if price and price > 0:
-                return diff / price
+        if symbol not in self.portfolio.holdings:
+            return 0.0
+        if price is not None and price > 0:
+            return diff / price
+        mark = self.portfolio.holdings[symbol].current_price
+        if mark and mark > 0:
+            return diff / mark
         return 0.0
 
     def set_target_allocation(self, allocation: dict[str, float]) -> None:
@@ -791,14 +868,21 @@ class Rebalancer:
         Args:
             allocation: Symbol-keyed target fractions of total portfolio value.
                 When the fractions do not sum to 1.0 (within a 0.01 tolerance)
-                they are rescaled so they do.
+                they are rescaled so they do. An empty allocation clears the
+                targets.
 
         Returns:
             None.
 
+        Raises:
+            ValueError: If the fractions sum to zero, because they cannot be
+                rescaled to sum to 1.0.
+
         """
         total = sum(allocation.values())
-        if abs(total - 1.0) > 0.01:
+        if allocation and abs(total - 1.0) > 0.01:
+            if total == 0:
+                raise ValueError("Target allocation fractions must not sum to zero")
             # Normalize
             allocation = {k: v / total for k, v in allocation.items()}
         self.target_allocation = allocation
