@@ -423,8 +423,8 @@ def test_backtest_traces_realized_pnl():
         assert (sells["pnl"].abs() >= 0).all()
     if len(buys) > 0:
         assert (buys["pnl"] == 0).all()
-    # Metrics pipeline picks up trades because the pnl column is present.
-    assert result.metrics.num_trades == len(result.trades)
+    # Metrics count only closing (non-zero PnL) trades, matching TradeAnalysis.
+    assert result.metrics.num_trades == len(sells)
 
 
 def test_portfolio_violations_collected_without_halt():
