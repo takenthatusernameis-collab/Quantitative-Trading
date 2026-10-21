@@ -106,10 +106,10 @@ def test_calculate_metrics_zero_pnl_trades():
     )
 
     metrics = calculate_backtest_metrics(equity_curve, trades=trades)
-    assert metrics.num_trades == 3
+    assert metrics.num_trades == 2
     assert metrics.num_winning_trades == 1  # Only > 0
     assert metrics.num_losing_trades == 1  # Only < 0
-    assert metrics.win_rate == 1 / 3  # 1 winning out of 3
+    assert metrics.win_rate == 1 / 2  # 1 winning out of 2
     assert metrics.profit_factor == 1000 / 500  # gross_profit / gross_loss
 
 
@@ -162,7 +162,7 @@ class TestBacktestMetricsNanHandling:
         equity_curve = pd.Series([100000, 100000, 100000])
         trades = pd.DataFrame({"pnl": [0, 0, 0]})
         metrics = calculate_backtest_metrics(equity_curve, trades=trades)
-        assert metrics.num_trades == 3
+        assert metrics.num_trades == 0
         assert metrics.num_winning_trades == 0
         assert metrics.num_losing_trades == 0
         assert metrics.win_rate == 0

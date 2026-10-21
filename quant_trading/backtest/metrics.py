@@ -56,7 +56,7 @@ class BacktestMetrics:
         calmar_ratio: Calmar ratio (annual return / |max drawdown|).
         win_rate: Fraction of trades that were profitable (0.0 - 1.0).
         profit_factor: Gross profit / gross loss (0.0 if no losers).
-        num_trades: Total number of trades recorded.
+        num_trades: Total number of trades with non-zero PnL (opening rows excluded).
         num_winning_trades: Number of trades with positive PnL.
         num_losing_trades: Number of trades with negative PnL.
         avg_win: Average PnL of winning trades (0.0 if none).
@@ -204,13 +204,17 @@ def calculate_backtest_metrics(
 
     # Trade statistics
     if trades is not None and len(trades) > 0 and "pnl" in trades.columns:
-        winning = trades[trades["pnl"] > 0]
-        losing = trades[trades["pnl"] < 0]
+        # Count only trades with a non-zero PnL, matching TradeAnalysis: a round
+        # trip contributes an opening row with pnl == 0, which is not a trade.
+        pnl_trades = trades[trades["pnl"] != 0]
 
-        metrics.num_trades = len(trades)
+        winning = pnl_trades[pnl_trades["pnl"] > 0]
+        losing = pnl_trades[pnl_trades["pnl"] < 0]
+
+        metrics.num_trades = len(pnl_trades)
         metrics.num_winning_trades = len(winning)
         metrics.num_losing_trades = len(losing)
-        metrics.win_rate = len(winning) / len(trades) if len(trades) > 0 else 0
+        metrics.win_rate = len(winning) / len(pnl_trades) if len(pnl_trades) > 0 else 0
 
         metrics.avg_win = winning["pnl"].mean() if len(winning) > 0 else 0
         metrics.avg_loss = losing["pnl"].mean() if len(losing) > 0 else 0
