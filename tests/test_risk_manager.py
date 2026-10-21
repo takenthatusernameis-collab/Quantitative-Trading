@@ -813,5 +813,107 @@ class TestResetEnableDisable:
         assert result.violations == []
 
 
+class TestTrailingStop:
+    """Tests for the trailing stop machinery."""
+
+    def test_get_trailing_stop_returns_none_when_disabled(self):
+        """With the default (zero) trailing stop nothing is armed."""
+        rm = RiskManager()
+        rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
+        assert rm.get_trailing_stop("AAPL") is None
+
+    def test_get_trailing_stop_returns_none_without_position(self):
+        rm = RiskManager(trailing_stop_pct=0.05, trailing_stop_activation_pct=0.02)
+        assert rm.get_trailing_stop("AAPL") is None
+
+    def test_get_trailing_stop_returns_none_for_flat_position(self):
+        rm = RiskManager(trailing_stop_pct=0.05, trailing_stop_activation_pct=0.02)
+        rm.sync_position("AAPL", Position("AAPL", 0, 150.0, 150.0))
+        assert rm.get_trailing_stop("AAPL") is None
+
+    def test_trailing_stop_not_armed_before_activation_threshold(self):
+        """The trailing stop is None until the price has moved far enough."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            stop_loss_pct=0.10,
+            trailing_stop_pct=0.05,
+            trailing_stop_activation_pct=0.05,
+        )
+        rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
+        # 152 is only a 1.33% move, below the 5% activation threshold.
+        rm.update_trailing_stop("AAPL", 152.0)
+        assert rm.get_trailing_stop("AAPL") is None
+
+    def test_trailing_stop_arms_after_activation_and_rises_with_price(self):
+        """Once armed the long trailing stop tracks the running high."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            stop_loss_pct=0.10,
+            trailing_stop_pct=0.05,
+            trailing_stop_activation_pct=0.05,
+        )
+        rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
+        rm.update_trailing_stop("AAPL", 160.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(160.0 * 0.95)
+        # A higher price raises the stop; a lower price leaves it untouched.
+        rm.update_trailing_stop("AAPL", 165.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(165.0 * 0.95)
+        rm.update_trailing_stop("AAPL", 162.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(165.0 * 0.95)
+
+    def test_trailing_stop_is_tighter_than_the_fixed_stop(self):
+        """A trailing stop closer to the price replaces the fixed stop."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            stop_loss_pct=0.10,
+            trailing_stop_pct=0.01,
+            trailing_stop_activation_pct=0.01,
+        )
+        rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
+        # Fixed stop is 135.0; trailing stop at 152.94 is tighter.
+        rm.update_trailing_stop("AAPL", 161.0)
+        assert rm.get_position_stop_loss("AAPL") == pytest.approx(161.0 * 0.99)
+
+    def test_trailing_stop_falls_for_shorts(self):
+        """A short's trailing stop tracks the running low and falls."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            stop_loss_pct=0.10,
+            trailing_stop_pct=0.05,
+            trailing_stop_activation_pct=0.05,
+        )
+        rm.sync_position("AAPL", Position("AAPL", -100, 150.0, 150.0))
+        rm.update_trailing_stop("AAPL", 140.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(140.0 * 1.05)
+        rm.update_trailing_stop("AAPL", 136.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(136.0 * 1.05)
+        # A higher price leaves the short's trailing stop untouched.
+        rm.update_trailing_stop("AAPL", 142.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(136.0 * 1.05)
+
+    def test_trailing_stop_dropped_when_position_closed(self):
+        rm = RiskManager(trailing_stop_pct=0.05, trailing_stop_activation_pct=0.02)
+        rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
+        rm.update_trailing_stop("AAPL", 160.0)
+        assert rm.get_trailing_stop("AAPL") is not None
+        rm.sync_position("AAPL", None)
+        assert rm.get_trailing_stop("AAPL") is None
+
+    def test_reset_clears_trailing_stops(self):
+        """Reset drops the trailing stop state so a new run starts clean."""
+        rm = RiskManager(
+            initial_capital=100000.0,
+            trailing_stop_pct=0.05,
+            trailing_stop_activation_pct=0.02,
+        )
+        rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
+        rm.update_trailing_stop("AAPL", 160.0)
+        assert rm.get_trailing_stop("AAPL") is not None
+        rm.reset()
+        assert rm._trailing_stops == {}
+        assert rm._trailing_highs == {}
+        assert rm._trailing_lows == {}
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

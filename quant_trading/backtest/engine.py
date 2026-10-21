@@ -473,6 +473,17 @@ class BacktestEngine:
                 self.portfolio.cash,
             )
 
+            # Refresh trailing stops from this bar's prices. Trailing stops are
+            # armed only when a configured percentage is set, so this is a no-op
+            # for the default manager and leaves the fixed stop as the effective
+            # one.
+            for symbol, position in self.portfolio.get_positions().items():
+                if position.quantity == 0:
+                    continue
+                price = prices.get(symbol)
+                if price is not None:
+                    self.risk_manager.update_trailing_stop(symbol, price)
+
             # Enforce portfolio-level limits (max drawdown, max positions, etc.)
             portfolio_check = self.risk_manager.check_portfolio()
             portfolio_violations.extend(portfolio_check.violations)

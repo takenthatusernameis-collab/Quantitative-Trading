@@ -32,7 +32,7 @@ class PortfolioRisk:
         total_market_value: Total market value of portfolio (cash + positions).
         cash: Available cash balance.
         positions_value: Market value of all positions.
-        leverage: Portfolio leverage ratio (positions_value / total_value).
+        leverage: Portfolio leverage ratio (gross exposure / total_value).
         current_drawdown: Current drawdown from peak (0.0 = at peak, negative
             while the portfolio is below its peak).
         peak_value: Peak portfolio value observed.
@@ -243,8 +243,78 @@ class RiskManager:
         """
         if position is None:
             self.positions.pop(symbol, None)
+            self._trailing_stops.pop(symbol, None)
+            self._trailing_highs.pop(symbol, None)
+            self._trailing_lows.pop(symbol, None)
         else:
             self.positions[symbol] = position
+
+    def update_trailing_stop(self, symbol: str, current_price: float) -> None:
+        """Refresh the trailing stop for a position from a new price bar.
+
+        A trailing stop follows the price in the position's direction, so it
+        only ever moves in the position's favour: a long's stop rises as the
+        price makes new highs, a short's stop falls as the price makes new
+        lows. The stop is only armed once the price has moved far enough from
+        the entry for the activation threshold to be met; before that the
+        stored stop is ``None`` and the fixed stop is used.
+
+        The trailing stop is stored per symbol and read by
+        :meth:`get_position_stop_loss`, which picks whichever of the fixed and
+        trailing stops is the tighter (better) one for the position's
+        direction.
+
+        Args:
+            symbol: Symbol whose trailing stop to update.
+            current_price: The latest price for the symbol.
+
+        Returns:
+            None.
+
+        """
+        position = self.positions.get(symbol)
+        if position is None or position.quantity == 0 or self.trailing_stop_pct <= 0:
+            self._trailing_stops.pop(symbol, None)
+            self._trailing_highs.pop(symbol, None)
+            self._trailing_lows.pop(symbol, None)
+            return
+
+        if position.quantity > 0:
+            high = self._trailing_highs.get(symbol)
+            if high is None or current_price > high:
+                high = current_price
+                self._trailing_highs[symbol] = high
+            if position.avg_price <= 0 or high < position.avg_price * (
+                1 + self.trailing_stop_activation_pct
+            ):
+                self._trailing_stops.pop(symbol, None)
+                return
+            self._trailing_stops[symbol] = high * (1 - self.trailing_stop_pct)
+        else:
+            low = self._trailing_lows.get(symbol)
+            if low is None or current_price < low:
+                low = current_price
+                self._trailing_lows[symbol] = low
+            if position.avg_price <= 0 or low > position.avg_price * (
+                1 - self.trailing_stop_activation_pct
+            ):
+                self._trailing_stops.pop(symbol, None)
+                return
+            self._trailing_stops[symbol] = low * (1 + self.trailing_stop_pct)
+
+    def get_trailing_stop(self, symbol: str) -> float | None:
+        """Return the stored trailing stop for a position, if one is armed.
+
+        Args:
+            symbol: Symbol to query.
+
+        Returns:
+            The trailing stop price, or ``None`` when no trailing stop is
+            armed for the symbol (no position, flat position, trailing stops
+            disabled, or the activation threshold not yet reached).
+
+        """
+        return self._trailing_stops.get(symbol)
 
     def check_signal(self, signal: Signal, portfolio_value: float | None = None) -> CheckResult:
         """Check if a trading signal passes risk limits.
@@ -609,6 +679,9 @@ class RiskManager:
         self.peak_value = self.initial_capital
         self.risk_metrics = None
         self.history = []
+        self._trailing_stops = {}
+        self._trailing_highs = {}
+        self._trailing_lows = {}
 
     def enable(self) -> None:
         """Enable risk management.
