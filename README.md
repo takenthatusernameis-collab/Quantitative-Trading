@@ -317,6 +317,23 @@ Error: could not read config file 'missing.yaml': No such file or directory
 The same holds for a missing `--strategy-config` file, a `--output` path whose
 directory does not exist and a configuration file that is not valid YAML.
 
+A `--strategy-config` file whose *content* is wrong is reported the same way,
+instead of failing inside the strategy constructor:
+
+```bash
+$ python examples/cli.py --strategy-config broken.yaml --offline --symbols AAPL --days 30
+Error: invalid strategy config 'broken.yaml': 'parameters' must be a mapping, got int
+```
+
+The `--*-range` arguments of the optimization mode are checked before the run
+starts. A range is `min,max,step` and the step has to be greater than zero,
+because a step of zero would make the grid search loop forever:
+
+```bash
+$ python examples/cli.py --optimize --ma-fast-range 5,20,0 --offline --symbols AAPL --days 30
+Error: invalid --ma-fast-range: Invalid range 5,20,0: the step must be greater than 0
+```
+
 ### Market Regime Analysis
 
 Annotate a backtest's equity curve with market-regime labels

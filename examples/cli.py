@@ -835,7 +835,32 @@ def parse_args() -> argparse.Namespace:
         help="Path to YAML file to save the strategy configuration used",
     )
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    _validate_range_arguments(args)
+    return args
+
+
+def _validate_range_arguments(args: argparse.Namespace) -> None:
+    """Reject malformed ``--*-range`` arguments before the run starts.
+
+    A range argument is 'min,max,step'. A step of zero would make the grid
+    search loop forever, so it is reported here instead of hanging later.
+
+    Args:
+        args: The parsed command line arguments.
+
+    Raises:
+        ValueError: If a range argument is malformed or has a step that is
+            not greater than zero.
+
+    """
+    for name, value in sorted(vars(args).items()):
+        if not name.endswith("_range") or not isinstance(value, str):
+            continue
+        try:
+            parse_range(value)
+        except ValueError as e:
+            raise ValueError(f"invalid --{name.replace('_', '-')}: {e}") from e
 
 
 def create_strategy(args: argparse.Namespace):
@@ -856,9 +881,27 @@ def create_strategy(args: argparse.Namespace):
             raise ValueError(
                 f"invalid YAML in strategy config '{strategy_config_path}': {e}"
             ) from e
+
+        if not isinstance(strategy_config, dict):
+            raise ValueError(
+                f"invalid strategy config '{strategy_config_path}': expected a mapping, "
+                f"got {type(strategy_config).__name__}"
+            )
+        parameters = strategy_config.get("parameters")
+        if parameters is not None and not isinstance(parameters, dict):
+            raise ValueError(
+                f"invalid strategy config '{strategy_config_path}': 'parameters' must be "
+                f"a mapping, got {type(parameters).__name__}"
+            )
+
         from quant_trading.strategies.base import Strategy
 
-        return Strategy.from_config(strategy_config)
+        try:
+            return Strategy.from_config(strategy_config)
+        except (TypeError, AttributeError) as e:
+            # A malformed file reaches the strategy constructor as a bad
+            # argument, which is a user error and not a defect in the library.
+            raise ValueError(f"invalid strategy config '{strategy_config_path}': {e}") from e
 
     # Map strategy keys to lists of (cli_arg, param_name) tuples for built-in strategies
     strategy_param_map = {
@@ -1099,11 +1142,32 @@ def create_config(args: argparse.Namespace) -> Config:
 
 
 def parse_range(range_str: str) -> tuple[float, float, float]:
-    """Parse a range string 'min,max,step' into a tuple."""
+    """Parse a range string 'min,max,step' into a tuple.
+
+    Args:
+        range_str: The range in the 'min,max,step' form.
+
+    Returns:
+        The minimum, the maximum and the step of the range.
+
+    Raises:
+        ValueError: If the string is not in the 'min,max,step' form, if a part
+            is not a number, or if the step is not greater than zero. A step of
+            zero would make the grid search loop forever.
+
+    """
     parts = range_str.split(",")
     if len(parts) != 3:
         raise ValueError(f"Invalid range format: {range_str}. Expected 'min,max,step'")
-    return float(parts[0]), float(parts[1]), float(parts[2])
+    try:
+        minimum, maximum, step = (float(part) for part in parts)
+    except ValueError as e:
+        raise ValueError(
+            f"Invalid range format: {range_str}. Expected three numbers 'min,max,step'"
+        ) from e
+    if step <= 0:
+        raise ValueError(f"Invalid range {range_str}: the step must be greater than 0")
+    return minimum, maximum, step
 
 
 def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":

@@ -10,6 +10,10 @@ Every ``examples/*.py`` script is checked at two levels.
 * **Execution check** — the scripts that can run without network access are
   executed end to end. They use deterministic synthetic data (seed=42), so
   this suite is safe, fast and deterministic and requires no network access.
+* **User error check** — the command line interface is run with inputs a user
+  can get wrong (an unknown strategy, a missing file, a malformed config) and
+  has to report them as a one-line message with the exit code 1, never as a
+  traceback.
 
 Scripts that require network access (importing ``YFinanceProvider`` or
 ``AlphaVantageProvider``) are only import-checked, never executed.
@@ -42,6 +46,27 @@ CLI_USER_ERRORS: list[tuple[str, str, str]] = [
         "could not read strategy config",
     ),
     ("--output", "{tmp}/missing/output.json", "could not write output file"),
+]
+
+# A strategy config whose *content* is wrong. The file exists, so the path is
+# no longer the problem and the content has to be.
+CLI_STRATEGY_CONFIG_CONTENTS: list[tuple[str, str, str]] = [
+    ("not-a-mapping.yaml", "- a\n- b\n", "expected a mapping"),
+    (
+        "parameters-not-a-mapping.yaml",
+        "type: rsi\nparameters: 5\n",
+        "'parameters' must be a mapping",
+    ),
+    (
+        "unknown-parameter.yaml",
+        "type: rsi\nparameters:\n  nosuchparam: 5\n",
+        "invalid strategy config",
+    ),
+    (
+        "bad-parameter-value.yaml",
+        "type: rsi\nparameters:\n  period: abc\n",
+        "invalid strategy config",
+    ),
 ]
 
 
@@ -108,6 +133,17 @@ def test_example_script_runs_offline(script: Path) -> None:
     )
 
 
+def _run_cli(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+    """Run ``examples/cli.py`` with ``arguments`` in a subprocess."""
+    return subprocess.run(
+        [sys.executable, str(EXAMPLES_DIR / "cli.py"), *arguments],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+
 @pytest.mark.parametrize(
     ("flag", "value", "message"),
     CLI_USER_ERRORS,
@@ -121,10 +157,8 @@ def test_cli_reports_user_errors_without_a_traceback(
     The library raises for these inputs on purpose; the command line
     interface has to turn them into a message the user can act on.
     """
-    completed = subprocess.run(
+    completed = _run_cli(
         [
-            sys.executable,
-            str(EXAMPLES_DIR / "cli.py"),
             flag,
             value.format(tmp=tmp_path),
             "--offline",
@@ -132,11 +166,72 @@ def test_cli_reports_user_errors_without_a_traceback(
             "AAPL",
             "--days",
             "30",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=300,
+        ]
+    )
+    output = completed.stdout + completed.stderr
+    assert (
+        completed.returncode == 1
+    ), f"expected the exit code 1\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+    assert message in output, f"expected {message!r} in the output\n{output}"
+    assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"
+
+
+def test_cli_reports_an_invalid_optimization_range_without_a_traceback() -> None:
+    """A range with a step of zero is a message, not a hang.
+
+    A step of zero makes the grid search loop forever, so the argument has
+    to be rejected before the run starts.
+    """
+    completed = _run_cli(
+        [
+            "--optimize",
+            "--ma-fast-range",
+            "5,20,0",
+            "--offline",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "30",
+        ]
+    )
+    output = completed.stdout + completed.stderr
+    assert (
+        completed.returncode == 1
+    ), f"expected the exit code 1\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+    assert "step must be greater than 0" in output, output
+    assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"
+
+
+@pytest.mark.parametrize(
+    ("filename", "content", "message"),
+    CLI_STRATEGY_CONFIG_CONTENTS,
+    ids=[
+        "not-a-mapping",
+        "parameters-not-a-mapping",
+        "unknown-parameter",
+        "bad-parameter-value",
+    ],
+)
+def test_cli_reports_a_malformed_strategy_config_without_a_traceback(
+    filename: str, content: str, message: str, tmp_path: Path
+) -> None:
+    """A strategy config with the wrong content is a message, not a traceback.
+
+    The file exists and is valid YAML, so the error is only visible when the
+    content is handed to the strategy factory.
+    """
+    config = tmp_path / filename
+    config.write_text(content)
+    completed = _run_cli(
+        [
+            "--strategy-config",
+            str(config),
+            "--offline",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "30",
+        ]
     )
     output = completed.stdout + completed.stderr
     assert (

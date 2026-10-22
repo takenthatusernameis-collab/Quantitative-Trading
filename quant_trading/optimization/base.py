@@ -82,10 +82,19 @@ class ParameterSpace:
             List of candidate values for this parameter space. Empty list if
             neither ``values`` nor bounds/step are configured.
 
+        Raises:
+            ValueError: If the grid is generated from bounds and ``step`` is
+                not greater than zero. The loop would never reach ``max_val``
+                and would not terminate.
+
         """
         if self.values is not None:
             return [self.param_type(v) for v in self.values]
         if self.min_val is not None and self.max_val is not None and self.step is not None:
+            if self.step <= 0:
+                raise ValueError(
+                    f"step must be greater than 0 to generate a grid (got {self.step})"
+                )
             vals = []
             v = self.min_val
             while v <= self.max_val + 1e-10:

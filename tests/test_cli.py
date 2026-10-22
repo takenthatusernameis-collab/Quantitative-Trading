@@ -298,6 +298,20 @@ class TestInitConfig:
         except ValueError:
             assert True
 
+    def test_parse_range_rejects_a_non_positive_step(self):
+        """A step of zero would make the grid search loop forever."""
+        from examples.cli import parse_range
+
+        with pytest.raises(ValueError, match="step must be greater than 0"):
+            parse_range("5,20,0")
+
+    def test_parse_range_rejects_a_part_that_is_not_a_number(self):
+        """A range with a non-numeric part is a user error."""
+        from examples.cli import parse_range
+
+        with pytest.raises(ValueError, match="Invalid range format"):
+            parse_range("5,20,x")
+
     def test_main_optimize_calls_run_optimization(self):
         with patch("examples.cli.run_optimization") as mock_opt:
             mock_opt.return_value = 0
@@ -3039,6 +3053,67 @@ class TestUserErrorReporting:
         )
         assert result == 1
         assert "invalid YAML in strategy config" in output
+        assert "Traceback" not in output
+
+    @pytest.mark.parametrize(
+        ("content", "message"),
+        [
+            ("- a\n- b\n", "expected a mapping"),
+            ("type: rsi\nparameters: 5\n", "'parameters' must be a mapping"),
+            ("type: rsi\nparameters:\n  nosuchparam: 5\n", "invalid strategy config"),
+            ("type: rsi\nparameters:\n  period: abc\n", "invalid strategy config"),
+        ],
+        ids=[
+            "not-a-mapping",
+            "parameters-not-a-mapping",
+            "unknown-parameter",
+            "bad-parameter-value",
+        ],
+    )
+    def test_a_malformed_strategy_config_content_is_reported(
+        self, capsys, tmp_path, content, message
+    ):
+        """A strategy config with the wrong content is a message."""
+        config = tmp_path / "strategy.yaml"
+        config.write_text(content)
+        result, output = self._run(
+            [
+                "--strategy-config",
+                str(config),
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ],
+            capsys,
+        )
+        assert result == 1
+        assert message in output
+        assert "Traceback" not in output
+
+    def test_an_invalid_optimization_range_is_reported(self, capsys):
+        """A range with a step of zero is a message, not a hang.
+
+        A step of zero would make the grid search loop forever, so the
+        argument is rejected before the run starts.
+        """
+        result, output = self._run(
+            [
+                "--optimize",
+                "--ma-fast-range",
+                "5,20,0",
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ],
+            capsys,
+        )
+        assert result == 1
+        assert "--ma-fast-range" in output
+        assert "step must be greater than 0" in output
         assert "Traceback" not in output
 
 

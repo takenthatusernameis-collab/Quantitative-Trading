@@ -766,6 +766,20 @@ def test_parameter_space_generate_grid_fallback():
     assert space.generate_grid() == []
 
 
+@pytest.mark.parametrize("step", [0, 0.0, -1, -0.5])
+def test_parameter_space_generate_grid_rejects_a_non_positive_step(step):
+    """A step of zero would make the grid loop forever, so it is rejected."""
+    space = ParameterSpace("test", min_val=1.0, max_val=5.0, step=step)
+    with pytest.raises(ValueError, match="step must be greater than 0"):
+        space.generate_grid()
+
+
+def test_parameter_space_generate_grid_with_values_ignores_the_step():
+    """An explicit list of values is used as it is, whatever the step is."""
+    space = ParameterSpace("test", values=[1, 2, 3], step=0)
+    assert space.generate_grid() == [1, 2, 3]
+
+
 def test_parameter_space_sample_random_fallback():
     """Test sample_random returns empty list when min_val set but max_val not."""
     space = ParameterSpace("test", min_val=1.0)
