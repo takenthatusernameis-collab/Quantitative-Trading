@@ -6,6 +6,7 @@ from pathlib import Path
 from quant_trading.strategies import list_strategies
 
 README_PATH = Path(__file__).resolve().parent.parent / "README.md"
+EXAMPLES_DIR = README_PATH.parent / "examples"
 
 # Matches a registry bullet such as:
 #   - `ma` (aliases: `moving_average`, `ma_crossover`) → `MovingAverageCrossover`
@@ -57,3 +58,30 @@ class TestReadmeStrategyRegistry:
             if key in registry and documented[key] != registry[key].__name__
         ]
         assert mismatched == []
+
+
+def _documented_example_scripts() -> set[str]:
+    """Return the set of example script basenames referenced in the README."""
+    text = README_PATH.read_text(encoding="utf-8")
+    documented: set[str] = set()
+    for m in re.finditer(r"`(?P<path>examples/run_[a-z_]+\.py)`", text):
+        documented.add(Path(m.group("path")).name)
+    return documented
+
+
+class TestReadmeExampleScripts:
+    """Every example script must be referenced in the README's Example Scripts section."""
+
+    def test_every_example_script_is_documented(self):
+        """Each ``examples/run_*.py`` script must appear in the README."""
+        documented = _documented_example_scripts()
+        actual = {path.name for path in sorted(EXAMPLES_DIR.glob("run_*.py"))}
+        missing = sorted(actual - documented)
+        assert missing == [], f"example scripts missing from README: {missing}"
+
+    def test_no_undocumented_example_scripts_are_advertised(self):
+        """The README must not reference example scripts that do not exist."""
+        documented = _documented_example_scripts()
+        actual = {path.name for path in sorted(EXAMPLES_DIR.glob("run_*.py"))}
+        unknown = sorted(documented - actual)
+        assert unknown == [], f"README advertises missing example scripts: {unknown}"

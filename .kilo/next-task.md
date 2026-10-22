@@ -4,13 +4,21 @@
 
 Checks: `python -m pytest -q`, `python -m ruff check .`, `python -m black --check .`, `python -m mypy quant_trading examples`.
 
-Baseline: 1992 passed, 0 failed; ruff clean, black clean, mypy clean (56 files).
+Baseline: 1994 passed, 0 failed; ruff clean, black clean, mypy clean (56 files).
 
 ## Completed this session
 
-- Added `test_cli_reports_an_unsupported_interval_without_a_traceback` to `tests/test_examples_smoke.py`: runs `cli.py --interval 3x --offline --symbols AAPL --days 30` and asserts exit 1, `invalid --interval` in output, no traceback.
-- Fixed the prior session's `_is_supported_interval` in `examples/cli.py` (lines 186-201) so it stores each `re.fullmatch` result once and reads `.group(1)` from the non-None match. This removes the two `union-attr` mypy errors and drops the redundant double-`fullmatch` calls. Behavior is unchanged: `3x` still rejects, valid intervals still accept.
+- Added `test_every_example_script_is_documented` and
+  `test_no_undocumented_example_scripts_are_advertised` to
+  `tests/test_readme.py`: every `examples/run_*.py` script must be referenced
+  in the README and no README reference may point at a missing script.
+- Documented `examples/run_optimization.py` in the README "Example Scripts"
+  section, describing the grid search over MA fast/slow periods (maximizing
+  Sharpe) and the walk-forward re-optimization over sliding windows.
 
 ## Next task (one precise item)
 
-None outstanding. The `--interval` validation feature and its subprocess smoke test are complete and verified.
+None outstanding. The example-script / README sync guard and the missing
+`run_optimization.py` entry are complete and verified.
+
+(End of file - total 16 lines)

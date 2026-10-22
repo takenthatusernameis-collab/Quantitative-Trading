@@ -432,6 +432,16 @@ synthetic data and prints all three analysis modules:
 python examples/run_analysis.py
 ```
 
+For a parameter optimization and walk-forward optimization demonstration, see
+`examples/run_optimization.py`. It runs a grid search over the fast/slow MA
+periods of the `MovingAverageCrossover` strategy against seeded synthetic
+data, maximizing the Sharpe ratio, and then re-optimizes the same grid inside
+sliding walk-forward windows to measure out-of-sample parameter stability:
+
+```bash
+python examples/run_optimization.py
+```
+
 For a trend-following demonstration using the Parabolic SAR indicator, see
 `examples/run_parabolic_sar.py`. It runs the `ParabolicSARStrategy` against
 seeded synthetic data, generating buy signals when price crosses above the
