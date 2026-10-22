@@ -837,6 +837,10 @@ def parse_args() -> argparse.Namespace:
 
     args = parser.parse_args()
     _validate_range_arguments(args)
+    if args.mc_simulations < 1:
+        raise ValueError(
+            f"invalid --mc-simulations: the value must be at least 1 (got {args.mc_simulations})"
+        )
     return args
 
 
