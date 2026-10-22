@@ -188,16 +188,12 @@ def _is_supported_interval(interval: str) -> bool:
     key = (interval or "").strip().lower()
     if key in INTERVAL_PERIODS_PER_YEAR:
         return True
-    if re.fullmatch(r"(\d+)\s*(m|min|mins|minute|minutes)", key):
-        try:
-            return int(re.fullmatch(r"(\d+)\s*(m|min|mins|minute|minutes)", key).group(1)) > 0
-        except (ValueError, AttributeError):
-            return False
-    if re.fullmatch(r"(\d+)\s*(h|hr|hrs|hour|hours)", key):
-        try:
-            return int(re.fullmatch(r"(\d+)\s*(h|hr|hrs|hour|hours)", key).group(1)) > 0
-        except (ValueError, AttributeError):
-            return False
+    minutes_match = re.fullmatch(r"(\d+)\s*(m|min|mins|minute|minutes)", key)
+    if minutes_match:
+        return int(minutes_match.group(1)) > 0
+    hours_match = re.fullmatch(r"(\d+)\s*(h|hr|hrs|hour|hours)", key)
+    if hours_match:
+        return int(hours_match.group(1)) > 0
     return False
 
 
