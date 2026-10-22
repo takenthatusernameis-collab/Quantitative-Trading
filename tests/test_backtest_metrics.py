@@ -302,3 +302,29 @@ class TestBacktestMetricsUnrealizedPnl:
 
         assert metrics.to_dict()["unrealized_pnl"] == -25.0
         assert metrics.to_dict()["total_pnl"] == 100.0
+
+    def test_function_accepts_unrealized_pnl_parameter(self):
+        """Passing ``unrealized_pnl`` to the function populates the field.
+
+        Covers the branch where ``unrealized_pnl is not None``.
+        """
+        trades = pd.DataFrame({"pnl": [100.0, -50.0]})
+        metrics = calculate_backtest_metrics(self.EQUITY, trades=trades, unrealized_pnl=42.5)
+
+        assert metrics.unrealized_pnl == pytest.approx(42.5)
+
+    def test_function_falls_back_to_zero_when_positions_raise(self):
+        """When summing position unrealized PnL raises, the field stays 0.0.
+
+        Covers the defensive ``except Exception`` branch.
+        """
+
+        class BadPosition:
+            @property
+            def unrealized_pnl(self):
+                raise RuntimeError("boom")
+
+        positions = {"AAPL": BadPosition()}
+        metrics = calculate_backtest_metrics(self.EQUITY, positions=positions)
+
+        assert metrics.unrealized_pnl == 0.0
