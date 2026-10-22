@@ -567,8 +567,12 @@ class BacktestEngine:
         signals the holding is sold in proportion to the signal strength,
         capped at the size of the position, and the realized PnL is recorded.
         A short signal opens a short position of the same size a buy would
-        open; the sale credits its proceeds to cash. Signals with an
-        unrecognized action or insufficient price information are ignored.
+        open; the sale credits its proceeds to the cash balance. A short
+        against an open long is rejected, because a short never flips a
+        position either: the long stays as it is and no trade is recorded.
+        The risk manager rejects the same signal, so the rule holds whether
+        the risk checks are enabled or not. Signals with an unrecognized
+        action or insufficient price information are ignored.
 
         Args:
             signal: The trading signal to process.
@@ -601,6 +605,13 @@ class BacktestEngine:
             self._reduce_long(symbol, signal, trades_list, timestamp, price)
 
         elif signal.action == "short":
+            if holding is not None and holding.quantity > 0:
+                # A short never flips a position, so a short signal against an
+                # open long is rejected and the long is left alone. The risk
+                # manager rejects the same signal; the engine enforces the
+                # rule on its own as well, so the trade log can never record a
+                # short that the portfolio turned into a sale.
+                return
             self._open_short(symbol, signal, trades_list, timestamp, price)
 
     def _process_stop_exits(
@@ -822,6 +833,10 @@ class BacktestEngine:
         is no cash constraint on the size of a short; the position size, the
         risk budget and the leverage limit of the risk manager are what bound
         it.
+
+        The symbol must not be held long here: a short never flips a
+        position, so the caller rejects a short signal against an open long
+        instead of opening one.
 
         Args:
             symbol: Symbol that is traded.

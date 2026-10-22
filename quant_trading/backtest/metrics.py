@@ -224,9 +224,10 @@ def calculate_backtest_metrics(
         log = split_trade_log(trades)
         round_trips = log.round_trips
 
-        # The realized PnL of the run is the sum of the trade log
-        if not log.entries.empty:
-            metrics.total_pnl = float(log.entries["pnl"].sum())
+        # The realized PnL of the run is the sum of the trade log. The log
+        # carries at least one row here, because an empty log is not a run
+        # that traded.
+        metrics.total_pnl = float(log.entries["pnl"].sum())
 
         winning = round_trips[round_trips["pnl"] > 0]
         losing = round_trips[round_trips["pnl"] < 0]

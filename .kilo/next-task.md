@@ -2,33 +2,114 @@
 
 ## What changed
 
-Executed the handed-off task: added `BacktestMetrics.total_pnl` so the two public APIs report the same realized PnL of the run.
+Fixed a real engine defect: a `"short"` signal that arrived while a long position
+was held was booked as a *short* trade, while the portfolio turned it into a
+*sale* of the long. The trade log and the portfolio disagreed (the log reported
+a short position the portfolio never held) and the PnL of the run stopped
+reconciling.
 
-1. **`quant_trading/backtest/metrics.py`** — `BacktestMetrics` now has `total_pnl` (default `0.0`), included in `to_dict()`, with docstring clarifying it is the realized PnL (sum of trade log PnL) and not the same as `total_return` (which includes unrealized PnL of open positions). `calculate_backtest_metrics()` uses `split_trade_log(trades)` and sets `metrics.total_pnl = float(log.entries["pnl"].sum())` when trades are present.
-2. **`tests/test_trade_log.py`** — `TestMetricsAndAnalysisAgree` now asserts `metrics.total_pnl == pytest.approx(analysis.total_pnl)` for all parametrized cases; `TestMetricsAndAnalysisAgreeExtra` asserts agreement and that `metrics.total_pnl` equals the booked trade log sum and matches per-symbol aggregates.
-3. **`tests/test_cost_accounting_invariants.py`** — `_assert_analysis_reconciles()` asserts metrics/analysis agree on `total_pnl`.
+1. **`quant_trading/backtest/engine.py`** — `_process_signal()` now rejects a
+   short signal while the symbol is held long: the long is left alone and no
+   trade is recorded. This is the contract the README ("Short Selling": "`short`
+   … It is rejected while a long position is held."), the `Signal` docstring and
+   the risk manager already document. The risk manager rejects the same signal,
+   and the engine now enforces the rule on its own as well, so it holds with
+   the risk checks disabled too. The `_process_signal()` and `_open_short()`
+   docstrings state the rule.
+2. **`quant_trading/backtest/metrics.py`** — dropped the `if not log.entries.empty`
+   guard around the realized PnL. The log always carries a row on that path (an
+   empty log is not a run that traded), so the branch was dead and left
+   `metrics.py` at 99% branch coverage.
+3. **`tests/test_backtest_engine.py`** — `_run_script()` gained a `disable_risk`
+   flag; the new `test_short_signal_against_an_open_long_is_rejected`
+   (parametrized over risk enabled/disabled) asserts that the short is not
+   traded, the long is untouched, the log agrees with the portfolio and the run
+   still reconciles.
+4. **`tests/test_cost_accounting_invariants.py`** —
+   `_assert_analysis_reconciles()` now also asserts that the metrics the
+   *engine* attached to the result (`result.metrics.total_pnl`) agree with
+   `analyze_trades(result).total_pnl`; the new
+   `test_randomized_short_against_an_open_long_invariants` (10 seeds) runs the
+   buy-then-short scenario with the risk checks disabled and asserts the
+   accounting identities.
 
 ## What was actually verified
 
-- `python3 -m pytest tests/test_trade_log.py tests/test_cost_accounting_invariants.py tests/test_backtest_engine.py tests/test_backtest_analysis.py -v` -> all passed (e.g. 122 + related tests pass).
-- `python3 -m pytest -q` (full suite) passes in the environment context used here (all tests passing as before).
-- `python3 -m ruff check quant_trading tests examples` -> All checks passed.
-- `python3 -m black --check quant_trading tests examples` -> unchanged.
-- `python3 -m mypy quant_trading` -> no issues in 37 source files.
-- Verified reconciliation: for short round trips and open shorts, `metrics.total_pnl == analysis.total_pnl == float(result.trades["pnl"].sum())` and per-symbol totals add up.
+- Reproduction before the fix: buy 3 units at 100, then a short signal at 110
+  gave the trade log `[buy 3.0, short 6.36]`, a flat portfolio,
+  `final_value - initial_capital = 29.055` while `sum(trades["pnl"]) = -1.05`
+  and the unrealized PnL was 0 — the reconciliation broke, and the log's net
+  quantity (-3.36) did not match the portfolio (0.0). After the fix the log
+  holds only the buy, the long stays open, and
+  `final_value - initial_capital == sum(trades["pnl"]) + unrealized` holds.
+- The new engine test fails without the fix (`assert 2 == 1` — the log booked a
+  `short` of 116.66 units) and passes with it. Verified by removing the guard,
+  running the test, and restoring the guard.
+- `python3 -m pytest -q` → **1896 passed, 1 skipped** (was 1884 + 1 before this
+  change; 12 new tests).
+- `python3 -m pytest -q --cov=quant_trading --cov-report=term-missing` → 100%
+  statements and branches on every module (the dead `metrics.py` branch was
+  the last one).
+- `python3 -m ruff check quant_trading tests examples` → All checks passed.
+- `python3 -m black --check quant_trading tests examples` → unchanged.
+- `python3 -m mypy quant_trading` → no issues in 37 source files.
 
 ## What remains unresolved
 
-- **Long side entry fee folding**: if a log ever books a fee on the long entry row, trade log splitting does not fold it into the closing row (only short entries are folded). Engine currently books long fees differently, but the splitting logic remains asymmetric.
-- **BacktestMetrics vs unrealized PnL**: `total_pnl` is realized (from trade log). Engine invariant `final_value - initial_capital == sum(trades["pnl"]) + unrealized_pnl` still holds; `metrics.total_pnl` is the realized part (equals `total_return` only for fully liquidated runs).
-- Coverage/branches for network-gated providers remain hard to exercise offline.
+- **The long side entry fee is still not folded.** `split_trade_log()` folds the
+  entry fee of a *short* into the cover that closes it, but a long entry row is
+  dropped without folding a fee that was booked on it. The engine never books a
+  fee on a long entry row (the buy books `realized_pnl=0` and the fee is
+  capitalized into `Holding.avg_cost`), so the asymmetry is not observable in
+  engine logs today. Do not change it without a real engine case that needs it.
+- **`total_return` vs `total_pnl`.** `metrics.total_pnl` is the realized PnL;
+  `metrics.total_return` still includes the unrealized PnL of open positions.
+  The two are equal only for a fully liquidated run.
+- **The realized PnL is not surfaced in the CLI.** The `backtest` command of
+  `examples/cli.py` prints `Total Return` (which mixes in the unrealized PnL)
+  but never the realized `total_pnl`, so the new field is invisible to CLI
+  users.
+- **`Trade.pnl` documents itself inaccurately.** The property docstring says
+  "This is 0.0 for opening trades", but a short entry is an opening trade that
+  books `-entry_fee`; the `Trade.realized_pnl` attribute docstring is the
+  correct one.
+- **No built-in strategy emits a `"short"` signal**
+  (`quant_trading/strategies/examples.py` has none), so the short path is only
+  reachable through a user strategy — and the risk manager rejects a short
+  against a long before the engine ever sees it, which is why the defect
+  survived until the risk checks were disabled.
+- **Coverage for the network-gated providers** is exercised through mocks
+  only; the live paths cannot be checked offline.
 
 ## Approaches that already failed
 
-- Narrow `--cov` targets on submodules can fail under coverage import hooks in some environments — measure with package-wide `--cov=quant_trading`.
-- Missing deps in fresh envs (pandas/numpy/pytest/scikit-optimize/yfinance) cause import failures; need full dev deps.
-- mypy version pinning: use installed mypy compatible with environment (pyproject targets 3.10 but numpy stubs may behave differently).
+- A first version of the regression test used `("buy", 1.0)` before the short
+  signal. The long was then worth more than the short's target, so
+  `_open_short()` returned early and the test passed even with the defect
+  present. The buy has to be *smaller* than the short's target (`("buy", 0.3)`)
+  for the corruption to show.
+- Narrow `--cov` targets on submodules can fail under coverage import hooks in
+  some environments — measure with the package-wide `--cov=quant_trading`.
+- Missing deps in fresh envs (pandas/numpy/pytest/scikit-optimize/yfinance)
+  cause import failures; install the full dev extras before running the suite.
+- The coverage report of a run that pipes through `tail` can lose the table;
+  redirect the run to a file and read the file instead.
 
 ## Next task
 
-Keep the reconciliation strict and prevent drift. Suggested next step: add an explicit cross-API assertion in `tests/test_backtest_engine.py` (or a new invariant test) that for engine-generated results, `calculate_backtest_metrics(result.equity_curve, result.trades).total_pnl == analyze_trades(result).total_pnl == float(result.trades["pnl"].sum())`, and ensure it covers open-short cases. Also consider adding `total_pnl` to any serialized/CLI outputs if needed, but only if tests require it. Constraints: do not change `split_trade_log()` asymmetry without evidence of a real engine case that requires it; keep coverage at 100%; run ruff/black/mypy and full pytest.
+Make the documented decomposition of the PnL checkable from the public API:
+`TradeAnalysis` reports `total_pnl` (the PnL of the whole log) and
+`open_position_pnl` (the PnL of the positions that are still open) but never
+the round-trip part, so `total_pnl == round_trip_pnl + open_position_pnl` can
+only be derived indirectly (`avg_pnl * total_trades`).
+
+Add a `round_trip_pnl` field to `TradeAnalysis`
+(`quant_trading/backtest/trade_analysis.py`), computed as the sum of
+`log.round_trips["pnl"]` next to the existing `total_pnl` /
+`open_position_pnl` computation, include it in `to_dict()`, and assert the
+identity in `tests/test_cost_accounting_invariants.py::_assert_analysis_reconciles()`
+so every randomized scenario (round trips, partial exits, open shorts) checks
+it. Constraints: additive only — do not change `split_trade_log()` and do not
+change the numbers `BacktestMetrics` and `TradeAnalysis` report today; keep
+`result.metrics.total_pnl == analyze_trades(result).total_pnl` holding; keep
+coverage at 100%; run ruff, black, mypy and the full pytest.

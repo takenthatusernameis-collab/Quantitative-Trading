@@ -1162,8 +1162,13 @@ def _run_script(
     config: Config | None = None,
     same_bar: bool = False,
     risk_manager: RiskManager | None = None,
+    disable_risk: bool = False,
 ) -> tuple[BacktestResult, BacktestEngine]:
-    """Run a scripted backtest and return its result and the engine."""
+    """Run a scripted backtest and return its result and the engine.
+
+    The risk checks are disabled when ``disable_risk`` is set, so a script can
+    exercise the paths the risk manager would otherwise gate.
+    """
     symbols = list(data.keys())
     provider = MockDataProvider(data)
     engine = BacktestEngine(
@@ -1171,6 +1176,8 @@ def _run_script(
         data_manager=DataManager([provider]),
         risk_manager=risk_manager,
     )
+    if disable_risk:
+        engine.risk_manager.disable()
     strategy = (
         SameBarSignalStrategy(script, symbols)
         if same_bar
@@ -1290,6 +1297,45 @@ def test_cover_can_be_smaller_than_the_open_short():
     assert cover["quantity"] == pytest.approx(short["quantity"] / 2)
     # The rest of the short is still open.
     assert result.positions["TEST"].quantity == pytest.approx(-short["quantity"] / 2)
+
+
+@pytest.mark.parametrize("disable_risk", [False, True], ids=["risk_enabled", "risk_disabled"])
+def test_short_signal_against_an_open_long_is_rejected(disable_risk: bool):
+    """A short never flips a position, so it is rejected while a long is held.
+
+    A short booked against an open long would be a sale the trade log never
+    made: the portfolio would have closed the long while the log recorded a
+    short, and the PnL of the run would no longer reconcile. The rule holds
+    with the risk checks enabled and with them disabled, because the risk
+    manager and the engine enforce it alike.
+    """
+    data = {"TEST": _price_frame([50.0, 50.0, 60.0])}
+    config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
+
+    # The long is opened well below the size the short signal asks for, so
+    # the short would have been given a size of its own without the rule.
+    result, engine = _run_script(
+        [("buy", 0.3), ("hold", 0.0), ("short", 1.0)],
+        data,
+        config,
+        disable_risk=disable_risk,
+    )
+
+    # Only the buy was executed: the short was rejected.
+    assert len(result.trades) == 1
+    buy = result.trades.iloc[0]
+    assert buy["action"] == "buy"
+
+    # The long is untouched and the trade log agrees with the portfolio.
+    assert result.positions["TEST"].quantity == pytest.approx(buy["quantity"])
+    assert engine.portfolio.holdings["TEST"].quantity == pytest.approx(buy["quantity"])
+
+    # The run still reconciles: the trade log booked no PnL, and the change
+    # in value is the unrealized PnL of the open long.
+    booked = float(result.trades["pnl"].sum())
+    unrealized = engine.portfolio.holdings["TEST"].unrealized_pnl
+    assert result.metrics.total_pnl == pytest.approx(booked)
+    assert result.final_value - result.initial_capital == pytest.approx(booked + unrealized)
 
 
 def test_oversized_short_is_rejected_by_the_signal_gate():

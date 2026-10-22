@@ -178,6 +178,9 @@ def _assert_analysis_reconciles(result: BacktestResult) -> None:
     metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
     assert metrics.total_pnl == pytest.approx(analysis.total_pnl, rel=1e-9, abs=1e-6)
 
+    # The metrics the engine attached to the result are the same numbers.
+    assert result.metrics.total_pnl == pytest.approx(analysis.total_pnl, rel=1e-9, abs=1e-6)
+
 
 def _assert_cost_accounting_invariants(result: BacktestResult, portfolio: Portfolio) -> None:
     """Assert the cost and cash identities that hold for every backtest run."""
@@ -384,5 +387,32 @@ def test_randomized_open_short_invariants(seed: int):
 
     assert len(result.trades) == 1
     assert portfolio.holdings["TEST"].quantity < 0
+
+    _assert_cost_accounting_invariants(result, portfolio)
+
+
+@pytest.mark.parametrize("seed", range(10))
+def test_randomized_short_against_an_open_long_invariants(seed: int):
+    """A short signal against an open long is rejected, and the log reconciles.
+
+    A short never flips a position, so the signal is rejected: the long stays
+    open and the trade log keeps agreeing with the portfolio. Without that
+    rule the engine books a short that the portfolio turned into a sale of
+    the long, so the log would report a position and a PnL the portfolio
+    never had.
+    """
+    rng = np.random.default_rng(seed)
+    script = [("buy", 0.3), ("short", 1.0)]
+
+    data = _make_data(["TEST"], len(script) + 2, rng)
+    commission = float(rng.uniform(0.0, 0.02))
+    slippage = float(rng.uniform(0.0, 0.01))
+
+    result, portfolio = _run_scenario(script, data, commission, slippage, disable_risk=True)
+
+    # The short was rejected, so only the buy is in the log.
+    assert len(result.trades) == 1
+    assert result.trades.iloc[0]["action"] == "buy"
+    assert portfolio.holdings["TEST"].quantity > 0
 
     _assert_cost_accounting_invariants(result, portfolio)
