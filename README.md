@@ -301,6 +301,22 @@ python examples/cli.py --output results.json
 python examples/cli.py --combined --output comparison.json
 ```
 
+### Error Reporting
+
+A mistake in the invocation is reported as a one-line message and the exit
+code `1`, not as a traceback:
+
+```bash
+$ python examples/cli.py --strategy nosuchstrategy --offline --symbols AAPL --days 30
+Error: Unknown strategy: nosuchstrategy. Available: ['ema', 'ma', 'rsi', ...]
+
+$ python examples/cli.py --config missing.yaml --offline --symbols AAPL --days 30
+Error: could not read config file 'missing.yaml': No such file or directory
+```
+
+The same holds for a missing `--strategy-config` file, a `--output` path whose
+directory does not exist and a configuration file that is not valid YAML.
+
 ### Market Regime Analysis
 
 Annotate a backtest's equity curve with market-regime labels

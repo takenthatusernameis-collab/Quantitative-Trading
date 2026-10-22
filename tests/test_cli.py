@@ -2940,6 +2940,108 @@ class TestUnrealizedPnlReporting:
         )
 
 
+class TestUserErrorReporting:
+    """A user error is a one-line message, not a traceback.
+
+    The library raises for a missing file or an unknown strategy on purpose.
+    The command line interface turns those into a message and the exit code 1.
+    """
+
+    def _run(self, arguments, capsys):
+        """Run the CLI with ``arguments`` and return its exit code and output."""
+        with patch("sys.argv", ["cli.py", *arguments]):
+            result = main()
+        captured = capsys.readouterr()
+        return result, captured.out + captured.err
+
+    def test_unknown_strategy_is_reported(self, capsys):
+        """An unknown strategy name is a message and the exit code 1."""
+        result, output = self._run(
+            ["--strategy", "nosuchstrategy", "--offline", "--symbols", "AAPL", "--days", "30"],
+            capsys,
+        )
+        assert result == 1
+        assert "Unknown strategy" in output
+        assert "Traceback" not in output
+
+    def test_missing_config_file_is_reported(self, capsys, tmp_path):
+        """A config file that does not exist is a message and the exit code 1."""
+        missing = tmp_path / "missing" / "config.yaml"
+        result, output = self._run(
+            [
+                "--config",
+                str(missing),
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ],
+            capsys,
+        )
+        assert result == 1
+        assert "could not read config file" in output
+        assert "Traceback" not in output
+
+    def test_missing_strategy_config_file_is_reported(self, capsys, tmp_path):
+        """A strategy config that does not exist is a message and the exit code 1."""
+        missing = tmp_path / "missing" / "strategy.yaml"
+        result, output = self._run(
+            [
+                "--strategy-config",
+                str(missing),
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ],
+            capsys,
+        )
+        assert result == 1
+        assert "could not read strategy config" in output
+        assert "Traceback" not in output
+
+    def test_unwritable_output_file_is_reported(self, capsys, tmp_path):
+        """An output file in a directory that does not exist is a message."""
+        missing = tmp_path / "missing" / "output.json"
+        result, output = self._run(
+            [
+                "--output",
+                str(missing),
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ],
+            capsys,
+        )
+        assert result == 1
+        assert "could not write output file" in output
+        assert "Traceback" not in output
+
+    def test_a_malformed_strategy_config_is_reported(self, capsys, tmp_path):
+        """A strategy config that is not valid YAML is a message."""
+        broken = tmp_path / "broken.yaml"
+        broken.write_text("type: [unclosed\n  bad: : :\n")
+        result, output = self._run(
+            [
+                "--strategy-config",
+                str(broken),
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ],
+            capsys,
+        )
+        assert result == 1
+        assert "invalid YAML in strategy config" in output
+        assert "Traceback" not in output
+
+
 if __name__ == "__main__":
     import pytest
 

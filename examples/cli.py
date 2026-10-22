@@ -845,8 +845,17 @@ def create_strategy(args: argparse.Namespace):
     if strategy_config_path:
         import yaml
 
-        with open(strategy_config_path, "r") as f:
-            strategy_config = yaml.safe_load(f)
+        try:
+            with open(strategy_config_path, "r") as f:
+                strategy_config = yaml.safe_load(f)
+        except OSError as e:
+            raise ValueError(
+                f"could not read strategy config '{strategy_config_path}': {e.strerror or e}"
+            ) from e
+        except yaml.YAMLError as e:
+            raise ValueError(
+                f"invalid YAML in strategy config '{strategy_config_path}': {e}"
+            ) from e
         from quant_trading.strategies.base import Strategy
 
         return Strategy.from_config(strategy_config)
@@ -972,6 +981,29 @@ def _save_strategy_config(path: str, strategy_cls: type, parameters: dict) -> No
     print(f"Strategy configuration saved to {path}")
 
 
+def _save_json_output(path: str, output_data: dict) -> bool:
+    """Write ``output_data`` as JSON to ``path``.
+
+    Args:
+        path: Destination path of the JSON file.
+        output_data: The data to serialize.
+
+    Returns:
+        True when the file was written. False when it could not be written,
+        in which case a one-line error message has been printed.
+    """
+    import json
+
+    try:
+        with open(path, "w") as f:
+            json.dump(output_data, f, indent=2, default=str)
+    except OSError as e:
+        print(f"Error: could not write output file '{path}': {e.strerror or e}")
+        return False
+    print(f"\nResults saved to {path}")
+    return True
+
+
 def list_strategies() -> int:
     """Print available strategies and exit."""
     strategies = factory_list_strategies()
@@ -1011,7 +1043,12 @@ def create_config(args: argparse.Namespace) -> Config:
     config = Config()
 
     if args.config:
-        config = Config.from_yaml(args.config)
+        try:
+            config = Config.from_yaml(args.config)
+        except OSError as e:
+            raise ValueError(
+                f"could not read config file '{args.config}': {e.strerror or e}"
+            ) from e
 
     # Override with CLI args (only when explicitly provided)
     if args.offline:
@@ -1410,8 +1447,6 @@ def run_optimization(
         )
 
     if args.output:
-        import json
-
         output_data = {
             "strategy": strategy_cls.__name__,
             "symbols": args.symbols,
@@ -1446,9 +1481,8 @@ def run_optimization(
             ),
             "all_results": result.all_results,
         }
-        with open(args.output, "w") as f:
-            json.dump(output_data, f, indent=2, default=str)
-        print(f"\nResults saved to {args.output}")
+        if not _save_json_output(args.output, output_data):
+            return 1
 
     # Persist the winning strategy configuration when requested
     if args.output_strategy_config:
@@ -1548,8 +1582,6 @@ def run_walk_forward(
         print(f"  Combined Test Sharpe: {summary['combined_test_sharpe']:.4f}")
 
     if args.output:
-        import json
-
         output_data = {
             "strategy": strategy_cls.__name__,
             "symbols": args.symbols,
@@ -1565,9 +1597,8 @@ def run_walk_forward(
             "window_results": result.to_dataframe().to_dict(orient="records"),
             "summary": summary,
         }
-        with open(args.output, "w") as f:
-            json.dump(output_data, f, indent=2, default=str)
-        print(f"\nResults saved to {args.output}")
+        if not _save_json_output(args.output, output_data):
+            return 1
 
     # Persist the most recent window's winning strategy configuration when
     # requested. The last window's params are the most current calibration and
@@ -1716,6 +1747,28 @@ def _print_trade_analysis(analysis) -> None:
 
 
 def main() -> int:
+    """Run the command line interface.
+
+    A user error -- an unknown strategy, a missing file, malformed input --
+    is reported as a one-line message with exit code 1 instead of a
+    traceback.
+
+    Returns:
+        The exit code of the run: 0 on success, 1 on a user error.
+    """
+    try:
+        return _run_cli()
+    except (OSError, ValueError) as e:
+        print(f"Error: {e}")
+        return 1
+
+
+def _run_cli() -> int:
+    """Parse the arguments and run the requested mode.
+
+    Returns:
+        The exit code of the run: 0 on success, 1 on a failed run.
+    """
     args = parse_args()
 
     # Handle info commands that exit early
@@ -1835,8 +1888,6 @@ def main() -> int:
             _print_trade_analysis(trade_analysis)
 
         if args.output:
-            import json
-
             output_data = {
                 "strategy": strategy.name,
                 "symbols": args.symbols,
@@ -1865,9 +1916,8 @@ def main() -> int:
                 output_data["monte_carlo"] = mc_analysis.summary()
             if args.trade_analysis:
                 output_data["trade_analysis"] = trade_analysis.to_dict()
-            with open(args.output, "w") as f:
-                json.dump(output_data, f, indent=2, default=str)
-            print(f"\nResults saved to {args.output}")
+            if not _save_json_output(args.output, output_data):
+                return 1
 
     except (ValueError, RuntimeError, KeyError) as e:
         print(f"Error running backtest: {e}")
@@ -1998,8 +2048,6 @@ def run_combined(
             _print_trade_analysis(trade_analysis)
 
     if args.output:
-        import json
-
         output_data = {
             "comparison": [
                 {
@@ -2024,9 +2072,8 @@ def run_combined(
             output_data["monte_carlo"] = mc_analysis.summary()
         if trade_analysis is not None:
             output_data["trade_analysis"] = trade_analysis.to_dict()
-        with open(args.output, "w") as f:
-            json.dump(output_data, f, indent=2, default=str)
-        print(f"\nResults saved to {args.output}")
+        if not _save_json_output(args.output, output_data):
+            return 1
 
     return 0
 

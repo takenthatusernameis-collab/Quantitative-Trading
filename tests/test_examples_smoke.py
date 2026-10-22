@@ -30,6 +30,20 @@ OFFLINE_ARGUMENTS: dict[str, list[str]] = {
     "cli.py": ["--offline", "--symbols", "AAPL", "--days", "60"],
 }
 
+# User errors the CLI has to report as a one-line message instead of a
+# traceback. The value of each case is a path that does not exist, except for
+# the unknown strategy, which is a key that is not in the registry.
+CLI_USER_ERRORS: list[tuple[str, str, str]] = [
+    ("--strategy", "nosuchstrategy", "Unknown strategy"),
+    ("--config", "{tmp}/missing/config.yaml", "could not read config file"),
+    (
+        "--strategy-config",
+        "{tmp}/missing/strategy.yaml",
+        "could not read strategy config",
+    ),
+    ("--output", "{tmp}/missing/output.json", "could not write output file"),
+]
+
 
 def _example_scripts() -> list[Path]:
     return sorted(EXAMPLES_DIR.glob("*.py"))
@@ -92,3 +106,41 @@ def test_example_script_runs_offline(script: Path) -> None:
         f"STDOUT:\n{completed.stdout}\n"
         f"STDERR:\n{completed.stderr}"
     )
+
+
+@pytest.mark.parametrize(
+    ("flag", "value", "message"),
+    CLI_USER_ERRORS,
+    ids=["unknown-strategy", "missing-config", "missing-strategy-config", "unwritable-output"],
+)
+def test_cli_reports_user_errors_without_a_traceback(
+    flag: str, value: str, message: str, tmp_path: Path
+) -> None:
+    """A user error is a one-line message and a non-zero exit code.
+
+    The library raises for these inputs on purpose; the command line
+    interface has to turn them into a message the user can act on.
+    """
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(EXAMPLES_DIR / "cli.py"),
+            flag,
+            value.format(tmp=tmp_path),
+            "--offline",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "30",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    output = completed.stdout + completed.stderr
+    assert (
+        completed.returncode == 1
+    ), f"expected the exit code 1\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+    assert message in output, f"expected {message!r} in the output\n{output}"
+    assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"
