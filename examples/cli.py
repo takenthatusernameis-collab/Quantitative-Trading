@@ -183,6 +183,24 @@ CLI_ARG_DEFAULTS = {
 }
 
 
+def _is_supported_interval(interval: str) -> bool:
+    """Return whether ``interval`` is a recognized annualization interval."""
+    key = (interval or "").strip().lower()
+    if key in INTERVAL_PERIODS_PER_YEAR:
+        return True
+    if re.fullmatch(r"(\d+)\s*(m|min|mins|minute|minutes)", key):
+        try:
+            return int(re.fullmatch(r"(\d+)\s*(m|min|mins|minute|minutes)", key).group(1)) > 0
+        except (ValueError, AttributeError):
+            return False
+    if re.fullmatch(r"(\d+)\s*(h|hr|hrs|hour|hours)", key):
+        try:
+            return int(re.fullmatch(r"(\d+)\s*(h|hr|hrs|hour|hours)", key).group(1)) > 0
+        except (ValueError, AttributeError):
+            return False
+    return False
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run backtests with the Quantitative Trading framework",
@@ -840,6 +858,13 @@ def parse_args() -> argparse.Namespace:
     if args.mc_simulations < 1:
         raise ValueError(
             f"invalid --mc-simulations: the value must be at least 1 (got {args.mc_simulations})"
+        )
+    interval = getattr(args, "interval", None)
+    if interval is not None and not _is_supported_interval(interval):
+        raise ValueError(
+            f"invalid --interval: unrecognized interval {interval!r} "
+            f"(expected one of {sorted(INTERVAL_PERIODS_PER_YEAR)} or an "
+            f"intraday form like '5m'/'1h')"
         )
     return args
 
