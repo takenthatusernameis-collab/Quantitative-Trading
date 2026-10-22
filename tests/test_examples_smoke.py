@@ -69,6 +69,36 @@ CLI_STRATEGY_CONFIG_CONTENTS: list[tuple[str, str, str]] = [
     ),
 ]
 
+# A config file whose *values* have the wrong type. The file exists and is
+# valid YAML, so the error is only visible when the values reach the library.
+CLI_CONFIG_CONTENTS: list[tuple[str, str, str]] = [
+    (
+        "wrong-typed-capital.yaml",
+        "backtest:\n  initial_capital: abc\n",
+        "invalid config field",
+    ),
+    (
+        "bool-for-int.yaml",
+        "backtest:\n  periods_per_year: true\n",
+        "invalid config field",
+    ),
+    (
+        "int-for-bool.yaml",
+        "data:\n  offline: 1\n",
+        "invalid config field",
+    ),
+    (
+        "float-for-int.yaml",
+        "portfolio:\n  max_positions: 20.5\n",
+        "invalid config field",
+    ),
+    (
+        "none-for-str.yaml",
+        "data:\n  provider: null\n",
+        "invalid config field",
+    ),
+]
+
 
 def _example_scripts() -> list[Path]:
     return sorted(EXAMPLES_DIR.glob("*.py"))
@@ -199,6 +229,46 @@ def test_cli_reports_an_invalid_optimization_range_without_a_traceback() -> None
         completed.returncode == 1
     ), f"expected the exit code 1\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
     assert "step must be greater than 0" in output, output
+    assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"
+
+
+@pytest.mark.parametrize(
+    ("filename", "content", "message"),
+    CLI_CONFIG_CONTENTS,
+    ids=[
+        "wrong-typed-capital",
+        "bool-for-int",
+        "int-for-bool",
+        "float-for-int",
+        "none-for-str",
+    ],
+)
+def test_cli_reports_a_wrongly_typed_config_without_a_traceback(
+    filename: str, content: str, message: str, tmp_path: Path
+) -> None:
+    """A config file with wrongly-typed values is a message, not a traceback.
+
+    The file exists and is valid YAML, so the error is only visible when the
+    values are handed to the library through ``Config.from_yaml``.
+    """
+    config = tmp_path / filename
+    config.write_text(content)
+    completed = _run_cli(
+        [
+            "--config",
+            str(config),
+            "--offline",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "30",
+        ]
+    )
+    output = completed.stdout + completed.stderr
+    assert (
+        completed.returncode == 1
+    ), f"expected the exit code 1\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+    assert message in output, f"expected {message!r} in the output\n{output}"
     assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"
 
 

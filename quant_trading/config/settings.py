@@ -28,7 +28,8 @@ Examples:
 """
 
 import os
-from dataclasses import dataclass, field
+import typing
+from dataclasses import dataclass, field, fields
 from typing import Any
 
 import yaml
@@ -97,6 +98,67 @@ def _filter_fields(dataclass_type: Any, values: dict[str, Any]) -> dict[str, Any
         return {}
     valid = {f.name for f in dataclass_type.__dataclass_fields__.values()}
     return {k: v for k, v in values.items() if k in valid}
+
+
+def _type_matches(expected_type: Any, value: Any) -> bool:
+    """Return True when ``value`` is an acceptable value for ``expected_type``.
+
+    Rules:
+    * ``None`` accepts only ``None``.
+    * A union (e.g. ``str | None``) accepts a value matching any member.
+    * ``bool`` accepts only a boolean; an ``int`` is not a boolean.
+    * ``int`` accepts an ``int`` but not a ``bool`` and not a ``float``.
+    * ``float`` accepts an ``int`` or a ``float`` but not a ``bool``.
+    * ``str`` accepts only a string.
+    * Unrecognized annotations accept anything.
+
+    Args:
+        expected_type: The annotation of the field (a type or a union).
+        value: The value parsed from YAML.
+
+    Returns:
+        True when ``value`` is acceptable for a field of type
+        ``expected_type``.
+
+    """
+    if expected_type is None or expected_type is type(None):
+        return value is None
+    origin = typing.get_origin(expected_type)
+    if origin is not None:
+        return any(_type_matches(arg, value) for arg in typing.get_args(expected_type))
+    if expected_type is bool:
+        return isinstance(value, bool)
+    if expected_type is int:
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected_type is float:
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if expected_type is str:
+        return isinstance(value, str)
+    return True
+
+
+def _check_field_types(dataclass_type: type, values: dict[str, Any]) -> None:
+    """Validate each value in ``values`` against the dataclass annotations.
+
+    Args:
+        dataclass_type: The dataclass whose fields declare the expected types.
+        values: The values parsed from YAML for that sub-config.
+
+    Raises:
+        ValueError: If a value does not match the declared type of its field.
+
+    """
+    for field_obj in fields(dataclass_type):
+        name = field_obj.name
+        if name not in values:
+            continue
+        expected = field_obj.type
+        value = values[name]
+        if not _type_matches(expected, value):
+            raise ValueError(
+                f"invalid config field {dataclass_type.__name__}.{name}: "
+                f"expected {expected}, got {type(value).__name__} ({value!r})"
+            )
 
 
 @dataclass
@@ -267,13 +329,26 @@ class Config:
             raise ValueError(f"Invalid YAML in {path}: {exc}") from exc
         if not isinstance(data, dict):
             raise ValueError(f"Configuration in {path} is not a mapping")  # noqa: TRY004
+        data_values = _filter_fields(DataConfig, data.get("data", {}))
+        backtest_values = _filter_fields(BacktestConfig, data.get("backtest", {}))
+        risk_values = _filter_fields(RiskConfig, data.get("risk", {}))
+        portfolio_values = _filter_fields(PortfolioConfig, data.get("portfolio", {}))
+        _check_field_types(DataConfig, data_values)
+        _check_field_types(BacktestConfig, backtest_values)
+        _check_field_types(RiskConfig, risk_values)
+        _check_field_types(PortfolioConfig, portfolio_values)
+        top_level_values = {
+            "logging_level": data.get("logging_level", "INFO"),
+            "output_dir": data.get("output_dir", "./output"),
+        }
+        _check_field_types(Config, top_level_values)
         return cls(
-            data=DataConfig(**_filter_fields(DataConfig, data.get("data", {}))),
-            backtest=BacktestConfig(**_filter_fields(BacktestConfig, data.get("backtest", {}))),
-            risk=RiskConfig(**_filter_fields(RiskConfig, data.get("risk", {}))),
-            portfolio=PortfolioConfig(**_filter_fields(PortfolioConfig, data.get("portfolio", {}))),
-            logging_level=data.get("logging_level", "INFO"),
-            output_dir=data.get("output_dir", "./output"),
+            data=DataConfig(**data_values),
+            backtest=BacktestConfig(**backtest_values),
+            risk=RiskConfig(**risk_values),
+            portfolio=PortfolioConfig(**portfolio_values),
+            logging_level=top_level_values["logging_level"],
+            output_dir=top_level_values["output_dir"],
         )
 
     def to_yaml(self, path: str) -> None:

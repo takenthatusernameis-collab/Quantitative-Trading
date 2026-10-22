@@ -105,8 +105,10 @@ the residual paths of the same defect class.
 
 ### What remains unresolved
 
-- **A `--config` file with a wrong-typed value still produces a traceback.**
-  This is the next task (see below).
+- **A `--config` file with a wrong-typed value — RESOLVED this session.**
+  `Config.from_yaml` now validates field types against the dataclass annotations
+  and raises `ValueError`, which the CLI turns into a one-line
+  `Error: ...` message with exit code 1 (no traceback).
 - **`--interval 3x` is accepted silently.** `resolve_periods_per_year`
   (examples/cli.py:94) falls back to 252 for an unknown interval, which is a
   documented and tested behaviour
@@ -185,54 +187,134 @@ the residual paths of the same defect class.
 - **Adding CLI print lines broke three existing CLI tests** that build
   `MagicMock()` metrics and set only the attributes the CLI prints.
 
-### Next task (one precise item)
+### This session (2026-10-22) — wrongly-typed `--config` values
 
-**Make a `--config` file with a wrong-typed value a clean error instead of a
-traceback from deep inside the library.**
+### What changed
 
-Reproduced (the traceback comes from the risk manager, not from the config
-loader):
+**`quant_trading/config/settings.py`** — `Config.from_yaml` now validates every
+deserialized value against the dataclass field annotations and raises
+`ValueError` on a mismatch, before the dataclasses are constructed:
+
+- New helpers `_type_matches(expected_type, value)` and
+  `_check_field_types(dataclass_type, values)`.
+- `int` is accepted for a `float` field; `float` is rejected for an `int`
+  field; `bool` is accepted only for a `bool` field and never for an `int`
+  field (`bool` is a subclass of `int`); `str | None` fields accept `None`.
+- Unknown keys are still filtered out per sub-config (`_filter_fields`).
+- Top-level fields (`logging_level`, `output_dir`) are checked too.
+- No CLI changes were needed: `create_config` lets `ValueError` propagate and
+  `main()` prints `Error: {e}` with exit code 1.
+
+Now prints one line and exits 1 instead of a traceback:
 
 ```bash
 $ cat /tmp/cfg.yaml
 backtest:
   initial_capital: abc
 $ python examples/cli.py --config /tmp/cfg.yaml --offline --symbols AAPL --days 10
-  File ".../quant_trading/risk/manager.py", line ..., in ...
-    max_value=initial_capital * max_position_size,
-TypeError: can't multiply sequence by non-int of type 'float'
+Error: invalid config field BacktestConfig.initial_capital: expected <class 'float'>, got str ('abc')
 ```
 
-Why it happens: `Config.from_yaml`
-(`quant_trading/config/settings.py:243-277`) fills the dataclasses from the
-YAML mapping without checking the types. The annotations
-(`initial_capital: float = 100000.0`) are not enforced at runtime, so a
-string travels into the risk manager and explodes there.
+### Tests
+
+- `tests/test_config.py`: new `TestConfigFromYamlTypeChecking` with 10 unit
+  tests (string for float, int for float, float for int, bool for int, int for
+  bool, bool for bool, None for `str | None`, int for `str | None`, top-level
+  field, unknown keys still ignored).
+- `tests/test_examples_smoke.py`: new `CLI_CONFIG_CONTENTS` table (5 cases) and
+  `test_cli_reports_a_wrongly_typed_config_without_a_traceback` subprocess
+  test (exit code 1, message present, no traceback).
+- `README.md` — "Error Reporting" section documents the wrongly-typed config.
+
+### What was actually verified
+
+- `python -m pytest -q` -> **1982 passed, 0 failed** (baseline 1967 + 15 new).
+- `python -m ruff check .` -> All checks passed.
+- `python -m black --check .` -> 91 files unchanged.
+- `python -m mypy quant_trading examples` -> no issues found in 56 source
+  files.
+- End-to-end reproduction: the `initial_capital: abc` traceback is now the
+  one-line `Error: ...` message above, exit code 1.
+- Edge cases verified: int-for-float OK, bool-for-int rejected, int-for-bool
+  rejected, float-for-int rejected, None for `str | None` OK.
+
+### What remains unresolved
+
+- **`--interval 3x` is accepted silently.** `resolve_periods_per_year`
+  (examples/cli.py:94) falls back to 252 for an unknown interval, which is a
+  documented and tested behaviour
+  (`tests/test_cli.py::TestResolvePeriodsPerYear::test_unknown_interval_falls_back_to_daily`).
+  With a live provider the interval would fail later, in the provider. Where
+  the check belongs is open: the two providers do not share one vocabulary
+  (Yahoo Finance and Alpha Vantage use different interval strings), so the
+  validation may belong in the provider and not in the CLI.
+- **`--mc-simulations 0` is accepted and produces a confusing message.** The
+  Monte Carlo summary comes back empty and the CLI prints
+  `Error running backtest: 'probability_of_profit'`. A `--mc-simulations >= 1`
+  check in the CLI would turn it into an actionable one-liner.
+- **`--optimize --ma-fast-range 20,5,5` (minimum above maximum) still
+  produces an empty result table and the exit code 0.** The step is validated
+  now, the ordering is not.
+- **`analyze_trades(periods_per_year=...)` is still not wired to the run, and
+  the semantics are genuinely ambiguous — unchanged, deliberately.** ...
+- **`TradeAnalysis.open_position_pnl` and the new
+  `BacktestMetrics.unrealized_pnl` are different numbers ...**
+- **`calculate_backtest_metrics()` called with only an equity curve and a
+  trade log reports `0.0` for the unrealized PnL ...**
+- **Network-gated providers** (Yahoo Finance, Alpha Vantage) remain hard to
+  cover offline.
+- **No CI workflow runs the project's test suite.** ... must be added by a
+  human, outside the agent loop.
+
+### Approaches that already failed
+
+- **The system Python has no dependencies.** `python3 -m pytest` fails with
+  `ModuleNotFoundError: No module named 'pandas'`. Use the venv at
+  `/home/runner/work/_temp/kilo-tmp/venv`; recreating it costs several
+  minutes.
+- **Installing `requirements.txt` alone left 11 failures** in
+  `tests/test_optimization.py` (`ImportError: BayesianOptimizer requires
+  scikit-optimize`). `scikit-optimize` is in the `dev` extra of
+  `pyproject.toml`; this is **not** a repository defect — do not "fix" it.
+- **Catching the strategy-config errors in `main()` was not enough.** The
+  failures are `AttributeError` and `TypeError`, which are neither `OSError`
+  nor `ValueError`, so the conversion has to happen where the file is read
+  (`create_strategy`), not in the top-level handler.
+- **Rejecting a zero step in `parse_range` alone was not enough.** The error
+  message did not say which of the 27 `--*-range` flags was wrong, so the
+  validation was moved up into `parse_args` where the flag name is known.
+- **`parser._expand_help(action)` does not exist in Python 3.12** (it lives on
+  `HelpFormatter`, not on the parser).
+- **Ruff SIM117 rejects nested `with` statements** — combine them.
+- **`MagicMock(spec=BacktestMetrics)` returns a child MagicMock, not the
+  class default** — a spec restricts which attributes exist, it does not copy
+  their values, so the mock cannot be formatted or serialized. Set the
+  attributes explicitly.
+- **Adding CLI print lines broke three existing CLI tests** that build
+  `MagicMock()` metrics and set only the attributes the CLI prints.
+
+### Next task (one precise item)
+
+**Make `--mc-simulations 0` a clean CLI error instead of the confusing
+`Error running backtest: 'probability_of_profit'` message.**
+
+Reproduced:
+```bash
+$ python examples/cli.py --monte-carlo --mc-simulations 0 --offline --symbols AAPL --days 10
+Error running backtest: 'probability_of_profit'
+```
 
 Scope and constraints:
-- Decide where the check belongs. The **library** is the better place: the
-  schema is declared there (`DataConfig`, `BacktestConfig`, `RiskConfig`,
-  `PortfolioConfig`) and every consumer of `Config.from_yaml` benefits. The
-  CLI then needs no new code: `create_config` already re-raises `OSError` as a
-  `ValueError` and `main()` already prints `Error: {e}` and returns 1.
-- The exception must be a **ValueError** — `Config.from_yaml` already
-  documents ValueError for an invalid file, and the CLI's
-  `except (OSError, ValueError)` handler turns it into the one-line message.
-- **An int is a valid value for a float field.** `initial_capital: 100000` in
-  YAML is an `int` and must keep working; a naive `isinstance(value, float)`
-  check would reject it. Accept `int` for a `float` field, but not the other
-  way round.
-- **`bool` is a subclass of `int`** (`isinstance(True, int)` is True), so a
-  bool must not silently satisfy an `int` field, and an int must not silently
-  satisfy a `bool` field (`offline: 1` is a user error).
-- `str | None` fields (`alphavantage_api_key`) accept `None`.
-- **Unknown keys must stay filtered out** per sub-config (`_filter_fields`);
-  that behaviour is documented and tested.
-- Cover the case with a subprocess test in the style of
-  `tests/test_examples_smoke.py` (the `CLI_USER_ERRORS` table holds paths;
-  the content cases use the `CLI_STRATEGY_CONFIG_CONTENTS` pattern added in
-  this session — add a `CLI_CONFIG_CONTENTS` table) and with unit tests in
-  `tests/test_config.py`.
-- Verify with `python -m pytest -q` (baseline **1967 passed, 0 failed**),
+- Add the check in the CLI (`examples/cli.py`), not in the library: the Monte
+  Carlo module is generic and a simulation count of 0 is a CLI usage error.
+- The exception must be a `ValueError` so `main()` prints `Error: {e}` and
+  returns 1 with no traceback.
+- Accept `--mc-simulations >= 1` (the default is 1000); reject anything below
+  1 with a message naming the flag, e.g.
+  `Error: invalid --mc-simulations: the value must be at least 1 (got 0)`.
+- Keep `--mc-simulations` unset/default behavior unchanged.
+- Add a subprocess test in the style of `CLI_USER_ERRORS` /
+  `CLI_CONFIG_CONTENTS` in `tests/test_examples_smoke.py`.
+- Verify with `python -m pytest -q` (baseline **1982 passed, 0 failed**),
   `ruff check .`, `black --check .` and `mypy quant_trading examples`.
 - Use the venv at `/home/runner/work/_temp/kilo-tmp/venv`.

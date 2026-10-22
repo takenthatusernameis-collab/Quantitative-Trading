@@ -3,6 +3,8 @@
 import os
 import tempfile
 
+import pytest
+
 from quant_trading.config.settings import (
     BacktestConfig,
     Config,
@@ -204,6 +206,68 @@ class TestConfig:
         monkeypatch.chdir(tmp_path)
         config.to_yaml("bare_config.yaml")
         assert os.path.exists("bare_config.yaml")
+
+
+class TestConfigFromYamlTypeChecking:
+    """Tests that from_yaml rejects wrongly-typed values as ValueError."""
+
+    def _write(self, tmp_path, content):
+        path = os.path.join(str(tmp_path), "config.yaml")
+        with open(path, "w") as f:
+            f.write(content)
+        return path
+
+    def test_float_field_rejects_string(self, tmp_path):
+        path = self._write(tmp_path, "backtest:\n  initial_capital: abc\n")
+        with pytest.raises(ValueError, match="invalid config field"):
+            Config.from_yaml(path)
+
+    def test_int_is_valid_for_float_field(self, tmp_path):
+        path = self._write(tmp_path, "backtest:\n  initial_capital: 50000\n")
+        config = Config.from_yaml(path)
+        assert config.backtest.initial_capital == 50000.0
+
+    def test_float_is_not_valid_for_int_field(self, tmp_path):
+        path = self._write(tmp_path, "portfolio:\n  max_positions: 20.5\n")
+        with pytest.raises(ValueError, match="invalid config field"):
+            Config.from_yaml(path)
+
+    def test_bool_is_not_valid_for_int_field(self, tmp_path):
+        path = self._write(tmp_path, "backtest:\n  periods_per_year: true\n")
+        with pytest.raises(ValueError, match="invalid config field"):
+            Config.from_yaml(path)
+
+    def test_int_is_not_valid_for_bool_field(self, tmp_path):
+        path = self._write(tmp_path, "data:\n  offline: 1\n")
+        with pytest.raises(ValueError, match="invalid config field"):
+            Config.from_yaml(path)
+
+    def test_bool_is_valid_for_bool_field(self, tmp_path):
+        path = self._write(tmp_path, "data:\n  offline: true\n")
+        config = Config.from_yaml(path)
+        assert config.data.offline is True
+
+    def test_none_is_valid_for_optional_str_field(self, tmp_path):
+        path = self._write(tmp_path, "data:\n  alphavantage_api_key: null\n")
+        config = Config.from_yaml(path)
+        assert config.data.alphavantage_api_key is None
+
+    def test_string_is_not_valid_for_optional_str_field(self, tmp_path):
+        path = self._write(tmp_path, "data:\n  alphavantage_api_key: 123\n")
+        with pytest.raises(ValueError, match="invalid config field"):
+            Config.from_yaml(path)
+
+    def test_top_level_field_is_checked(self, tmp_path):
+        path = self._write(tmp_path, "logging_level: 123\n")
+        with pytest.raises(ValueError, match="invalid config field"):
+            Config.from_yaml(path)
+
+    def test_unknown_keys_still_ignored_when_types_valid(self, tmp_path):
+        path = self._write(
+            tmp_path, "backtest:\n  initial_capital: 100000.0\n  bogus_key: ignored\n"
+        )
+        config = Config.from_yaml(path)
+        assert config.backtest.initial_capital == 100000.0
 
 
 if __name__ == "__main__":

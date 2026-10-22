@@ -312,10 +312,20 @@ Error: Unknown strategy: nosuchstrategy. Available: ['ema', 'ma', 'rsi', ...]
 
 $ python examples/cli.py --config missing.yaml --offline --symbols AAPL --days 30
 Error: could not read config file 'missing.yaml': No such file or directory
+
+$ cat /tmp/cfg.yaml
+backtest:
+  initial_capital: abc
+$ python examples/cli.py --config /tmp/cfg.yaml --offline --symbols AAPL --days 30
+Error: invalid config field BacktestConfig.initial_capital: expected <class 'float'>, got str ('abc')
 ```
 
 The same holds for a missing `--strategy-config` file, a `--output` path whose
 directory does not exist and a configuration file that is not valid YAML.
+
+A config file whose *values* have the wrong type (for example a string where a
+number is expected, or an integer where a boolean is expected) is reported the
+same way, instead of failing deep inside the library:
 
 A `--strategy-config` file whose *content* is wrong is reported the same way,
 instead of failing inside the strategy constructor:
