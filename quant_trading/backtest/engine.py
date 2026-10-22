@@ -596,7 +596,9 @@ class BacktestEngine:
         signals the holding is sold in proportion to the signal strength,
         capped at the size of the position, and the realized PnL is recorded.
         A short signal opens a short position of the same size a buy would
-        open; the sale credits its proceeds to cash. Signals with an
+        open; the sale credits its proceeds to cash. A short against an open
+        long reduces that long instead, the mirror image of a buy against an
+        open short, so a signal never flips a position. Signals with an
         unrecognized action or insufficient price information are ignored.
 
         Args:
@@ -630,7 +632,14 @@ class BacktestEngine:
             self._reduce_long(symbol, signal, trades_list, timestamp, price)
 
         elif signal.action == "short":
-            self._open_short(symbol, signal, trades_list, timestamp, price)
+            if holding is not None and holding.quantity > 0:
+                # A short against an open long reduces that long, the mirror
+                # image of a buy against an open short. A signal never flips a
+                # position, so the long is sold in proportion to the signal
+                # strength and the trade is recorded as the sale it is.
+                self._reduce_long(symbol, signal, trades_list, timestamp, price)
+            else:
+                self._open_short(symbol, signal, trades_list, timestamp, price)
 
     def _process_stop_exits(
         self,
@@ -852,6 +861,12 @@ class BacktestEngine:
         risk budget and the leverage limit of the risk manager are what bound
         it.
 
+        The symbol must not carry an open long: a short against a long
+        reduces that long, and the reduction belongs to the caller. Opening
+        the short here would sell the long while the trade log recorded a
+        short that was never opened, and the trade log would no longer
+        reconcile with the portfolio.
+
         Args:
             symbol: Symbol that is traded.
             signal: The trading signal that triggered the trade.
@@ -863,6 +878,11 @@ class BacktestEngine:
             None.
 
         """
+        holding = self.portfolio.holdings.get(symbol)
+        if holding is not None and holding.quantity > 0:
+            # The signal reduces the open long instead of opening a short.
+            return
+
         max_position_value = self.portfolio.total_value * self.risk_manager.position_limit.max_size
         target_value = max_position_value * signal.strength
         # The exposure of an open short is its gross value, so a short is

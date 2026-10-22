@@ -221,7 +221,9 @@ def calculate_backtest_metrics(
             metrics.unrealized_pnl = float(
                 sum(getattr(position, "unrealized_pnl", 0.0) for position in positions.values())
             )
-        except Exception:
+        except (TypeError, ValueError):
+            # A position that does not carry a usable unrealized PnL leaves the
+            # figure at zero. Any other error is a bug and is not swallowed.
             metrics.unrealized_pnl = 0.0
     else:
         metrics.unrealized_pnl = 0.0

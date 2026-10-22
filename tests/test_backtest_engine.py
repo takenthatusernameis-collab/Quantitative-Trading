@@ -1377,6 +1377,91 @@ def test_short_signal_is_rejected_while_a_long_position_is_open():
     assert result.positions["TEST"].quantity > 0
 
 
+def _risk_free_manager(**risk: float) -> RiskManager:
+    """Build a risk manager whose checks are switched off."""
+    manager = RiskManager(initial_capital=100000.0, **risk)
+    manager.disable()
+    return manager
+
+
+def test_short_signal_against_an_open_long_reduces_the_long():
+    """A short signal against an open long sells the long instead of flipping it.
+
+    The risk manager rejects such a signal while its checks are on, so the
+    engine has to cope with it on its own: the long is reduced by the share
+    of the position the signal asks for, and the trade log records the sale
+    it actually is. A short that was never opened would leave the trade log
+    and the portfolio value irreconcilable.
+    """
+    data = {"TEST": _price_frame([50.0, 60.0, 60.0])}
+    config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
+
+    result, _ = _run_script(
+        [("buy", 1.0), ("short", 1.0)],
+        data,
+        config,
+        risk_manager=_risk_free_manager(
+            max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0
+        ),
+    )
+
+    # The long was bought and then sold; no short was ever opened.
+    assert list(result.trades["action"]) == ["buy", "sell"]
+    assert result.trades.iloc[1]["quantity"] == pytest.approx(result.trades.iloc[0]["quantity"])
+
+    # The position is flat again and the trade log explains the change of
+    # the portfolio value.
+    assert "TEST" not in result.positions
+    assert result.final_value - result.initial_capital == pytest.approx(
+        float(result.trades["pnl"].sum()) + result.metrics.unrealized_pnl, rel=1e-9, abs=1e-6
+    )
+
+
+def test_short_signal_against_an_open_long_reduces_only_its_share():
+    """A short signal below full strength reduces only that share of the long."""
+    data = {"TEST": _price_frame([50.0, 60.0, 60.0])}
+    config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
+
+    result, _ = _run_script(
+        [("buy", 1.0), ("short", 0.5)],
+        data,
+        config,
+        risk_manager=_risk_free_manager(
+            max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0
+        ),
+    )
+
+    buy = result.trades[result.trades["action"] == "buy"].iloc[0]
+    sell = result.trades[result.trades["action"] == "sell"].iloc[0]
+
+    # Half of the long was sold and the other half is still open.
+    assert sell["quantity"] == pytest.approx(buy["quantity"] / 2)
+    assert result.positions["TEST"].quantity == pytest.approx(buy["quantity"] / 2)
+    assert result.positions["TEST"].quantity > 0
+
+
+def test_a_short_after_the_long_was_reduced_opens_a_real_short():
+    """Once the long is gone, the next short signal opens a short position."""
+    data = {"TEST": _price_frame([50.0, 60.0, 60.0, 60.0])}
+    config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
+
+    result, _ = _run_script(
+        [("buy", 1.0), ("short", 1.0), ("short", 1.0)],
+        data,
+        config,
+        risk_manager=_risk_free_manager(
+            max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0
+        ),
+    )
+
+    # The first short sold the long, the second one opened a short.
+    assert list(result.trades["action"]) == ["buy", "sell", "short"]
+    assert result.positions["TEST"].quantity < 0
+    assert result.final_value - result.initial_capital == pytest.approx(
+        float(result.trades["pnl"].sum()) + result.metrics.unrealized_pnl, rel=1e-9, abs=1e-6
+    )
+
+
 def test_engine_short_gets_mirrored_stop_loss_and_take_profit():
     """The risk manager's thresholds follow the direction of a short."""
     data = {"TEST": _price_frame([50.0, 50.0])}

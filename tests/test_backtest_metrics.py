@@ -1,6 +1,7 @@
 """Tests for backtest metrics calculation."""
 
 import warnings
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -302,3 +303,22 @@ class TestBacktestMetricsUnrealizedPnl:
 
         assert metrics.to_dict()["unrealized_pnl"] == -25.0
         assert metrics.to_dict()["total_pnl"] == 100.0
+
+    def test_the_positions_supply_the_unrealized_pnl(self):
+        """The open positions are summed when they are handed to the function."""
+        positions = {
+            "AAA": SimpleNamespace(unrealized_pnl=120.0),
+            "BBB": SimpleNamespace(unrealized_pnl=-45.5),
+        }
+
+        metrics = calculate_backtest_metrics(self.EQUITY, positions=positions)
+
+        assert metrics.unrealized_pnl == pytest.approx(74.5)
+
+    def test_a_position_without_a_usable_value_leaves_the_field_at_zero(self):
+        """A position that carries no usable PnL leaves the figure at zero."""
+        positions = {"AAA": SimpleNamespace(unrealized_pnl=None)}
+
+        metrics = calculate_backtest_metrics(self.EQUITY, positions=positions)
+
+        assert metrics.unrealized_pnl == 0.0

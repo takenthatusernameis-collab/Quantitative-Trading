@@ -16,10 +16,13 @@ network) and assert the accounting identities that must hold for *every* run:
 7. The trade analysis reports the PnL the run booked.
 8. The metrics report the unrealized PnL of the positions that are still open,
    and it completes the reconciliation of the portfolio value.
+9. A short in the trade log only ever opens a short: a signal never flips a
+   position, so a short is never executed against an open long.
 
 The scenarios cover full round trips, partial exits, adding to an existing
-long position (weighted-average cost basis), multiple symbols, and runs where
-the risk manager rejects a signal.
+long position (weighted-average cost basis), multiple symbols, runs where the
+risk manager rejects a signal, and runs that move back and forth between a
+long and a short position.
 """
 
 from datetime import datetime
@@ -181,9 +184,35 @@ def _assert_analysis_reconciles(result: BacktestResult) -> None:
     assert metrics.total_pnl == pytest.approx(analysis.total_pnl, rel=1e-9, abs=1e-6)
 
 
+def _assert_a_short_only_ever_opens_a_short(result: BacktestResult) -> None:
+    """Assert that a short in the log only ever opens a short position.
+
+    A signal never flips a position: a short against an open long reduces
+    that long, the mirror image of a buy against an open short. A short that
+    was executed against an open long would have sold the long while the log
+    said it opened a short, so the realized PnL of the run would no longer
+    explain the change of the portfolio value.
+    """
+    quantity: dict[str, float] = {}
+    for _, trade in result.trades.iterrows():
+        symbol = str(trade["symbol"])
+        held = quantity.get(symbol, 0.0)
+        action = str(trade["action"])
+        if action == "short":
+            assert held <= 0, f"a short was opened while {symbol} was long ({held})"
+            quantity[symbol] = held - float(trade["quantity"])
+        elif action in ("buy", "cover"):
+            quantity[symbol] = held + float(trade["quantity"])
+        else:
+            quantity[symbol] = held - float(trade["quantity"])
+
+
 def _assert_cost_accounting_invariants(result: BacktestResult, portfolio: Portfolio) -> None:
     """Assert the cost and cash identities that hold for every backtest run."""
     trades = result.trades
+
+    # 9. A short in the log only ever opens a short.
+    _assert_a_short_only_ever_opens_a_short(result)
 
     # 7. The trade analysis reports the PnL the run booked.
     _assert_analysis_reconciles(result)
@@ -452,5 +481,57 @@ def test_a_fully_liquidated_run_reports_no_unrealized_pnl():
     assert result.final_value - result.initial_capital == pytest.approx(
         result.metrics.total_pnl, rel=1e-9, abs=1e-6
     )
+
+    _assert_cost_accounting_invariants(result, portfolio)
+
+
+@pytest.mark.parametrize("seed", range(20))
+def test_randomized_long_short_transition_invariants(seed: int):
+    """A run that moves between a long and a short position reconciles.
+
+    A signal never flips a position: a buy against an open short covers the
+    short and a short against an open long reduces the long. The trade log
+    has to describe the trades that were really made, so that the realized
+    PnL of the run explains the change of the portfolio value at every step
+    of the transition.
+    """
+    rng = np.random.default_rng(seed)
+    actions = ["buy", "sell", "short"]
+    script = [
+        (str(rng.choice(actions)), float(rng.uniform(0.2, 1.0)))
+        for _ in range(int(rng.integers(4, 10)))
+    ]
+
+    data = _make_data(["TEST"], len(script) + 2, rng)
+    commission = float(rng.uniform(0.0, 0.02))
+    slippage = float(rng.uniform(0.0, 0.01))
+
+    # The risk checks are switched off so that every signal reaches the
+    # engine, including the ones the risk manager would reject.
+    result, portfolio = _run_scenario(script, data, commission, slippage, disable_risk=True)
+
+    _assert_cost_accounting_invariants(result, portfolio)
+
+
+def test_a_short_against_an_open_long_sells_the_long():
+    """A short against an open long sells the long and never opens a short.
+
+    The risk manager rejects such a signal while its checks are on, so the
+    engine has to cope with it on its own. Selling the long keeps the trade
+    log and the portfolio value reconcilable; opening a short that was never
+    opened would not.
+    """
+    rng = np.random.default_rng(31)
+    script = [("buy", 1.0), ("short", 1.0)]
+    data = _make_data(["TEST"], len(script) + 2, rng)
+
+    result, portfolio = _run_scenario(
+        script, data, commission=0.001, slippage=0.0005, disable_risk=True
+    )
+
+    # The long was bought and then sold; no short was ever opened.
+    assert list(result.trades["action"]) == ["buy", "sell"]
+    assert portfolio.holdings == {}
+    assert result.metrics.unrealized_pnl == 0.0
 
     _assert_cost_accounting_invariants(result, portfolio)

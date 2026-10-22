@@ -21,7 +21,9 @@ class Signal:
       rejected when no long position is held, so the framework never shorts a
       symbol through a plain sell.
     - ``"short"``: a short sale. It opens or adds to a short position. It is
-      rejected while a long position is held; close the long first.
+      rejected while a long position is held; close the long first. When the
+      risk checks are switched off, the engine reduces the open long instead
+      of flipping it, the mirror image of a buy against an open short.
     - ``"hold"``: no order at all.
 
     Attributes:

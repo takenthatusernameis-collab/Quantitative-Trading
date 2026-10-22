@@ -924,7 +924,7 @@ back, so a short is closed the same way a long is.
 | --- | --- |
 | `buy` | Opens or adds to a long position. Against an open short it covers that short instead. |
 | `sell` | Reduces or closes a long position. It is rejected when no long position is held. |
-| `short` | Opens or adds to a short position. It is rejected while a long position is held. |
+| `short` | Opens or adds to a short position. Against an open long it reduces that long instead. |
 | `hold` | No order. |
 
 ```python
@@ -932,6 +932,19 @@ from quant_trading.strategies.base import Signal
 
 short = Signal(symbol="AAPL", action="short", price=150.0, strength=1.0)
 cover = Signal(symbol="AAPL", action="buy", price=140.0, strength=1.0)
+```
+
+A signal never flips a position. The risk gate rejects a `"short"` while a
+long position is held ("Short signal for position with long holdings"), so the
+two do not meet in a normal run. With the risk checks switched off
+(`risk_manager.disable()`) the engine reduces the long instead of flipping it —
+the mirror image of a `"buy"` against an open short — and the trade log records
+the sale it actually is, so the run still reconciles:
+
+```python
+result.final_value - result.initial_capital == (
+    result.metrics.total_pnl + result.metrics.unrealized_pnl
+)
 ```
 
 A short is sized exactly like a long: the signal strength times the
