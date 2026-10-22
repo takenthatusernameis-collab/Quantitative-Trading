@@ -1472,6 +1472,8 @@ class TestRunCombined:
         mock_metrics.sharpe_ratio = 1.5
         mock_metrics.max_drawdown_pct = 5.0
         mock_metrics.profit_factor = 2.0
+        mock_metrics.total_pnl = 0.0
+        mock_metrics.unrealized_pnl = 0.0
 
         mock_results = []
         for name, ret in [
@@ -1586,6 +1588,8 @@ class TestRunCombined:
         mock_metrics.sharpe_ratio = 1.5
         mock_metrics.max_drawdown_pct = 5.0
         mock_metrics.profit_factor = 2.0
+        mock_metrics.total_pnl = 0.0
+        mock_metrics.unrealized_pnl = 0.0
 
         mock_result = MagicMock(
             spec=[
@@ -1701,6 +1705,12 @@ class TestRunCombined:
             assert "best_strategy" in data
             assert len(data["comparison"]) > 0
             assert all("strategy" in entry for entry in data["comparison"])
+            # The combined-mode JSON carries the realized/unrealized PnL split,
+            # so the reconciliation identity can be read from the file too.
+            for entry in data["comparison"]:
+                assert "total_pnl" in entry
+                assert "unrealized_pnl" in entry
+                assert "total_return" in entry
 
 
 class TestMain:
@@ -2054,6 +2064,8 @@ class TestFactoryIntegration:
                 mock_metrics.sharpe_ratio = 1.0
                 mock_metrics.max_drawdown_pct = 1.0
                 mock_metrics.profit_factor = 1.0
+                mock_metrics.total_pnl = 0.0
+                mock_metrics.unrealized_pnl = 0.0
 
                 mock_result = MagicMock()
                 mock_result.name = "CustomStrategy"

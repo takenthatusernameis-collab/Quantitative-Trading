@@ -989,6 +989,9 @@ result.final_value - result.initial_capital == (
 `result.unrealized_pnl` is the same figure, and it is `0.0` when the run ended
 with every position closed. The CLI reports both halves next to the total
 return, and the JSON output carries them as `total_pnl` and `unrealized_pnl`.
+The same keys are present in every strategy entry of a **combined** run
+(`--combined --output comparison.json`), so the identity can be read from
+either output format.
 
 The engine fills the unrealized PnL in because it is the only place that knows
 the open positions. `calculate_backtest_metrics` sees an equity curve and a

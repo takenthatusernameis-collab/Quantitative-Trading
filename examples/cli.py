@@ -2000,7 +2000,10 @@ def run_combined(
                 {
                     "strategy": name,
                     "total_return_pct": result.total_return_pct,
+                    "total_return": result.total_return,
                     "total_costs": result.total_costs,
+                    "total_pnl": result.metrics.total_pnl,
+                    "unrealized_pnl": result.metrics.unrealized_pnl,
                     "sharpe_ratio": result.metrics.sharpe_ratio,
                     "max_drawdown_pct": result.metrics.max_drawdown_pct,
                     "win_rate": result.metrics.win_rate,
@@ -2017,7 +2020,7 @@ def run_combined(
         if trade_analysis is not None:
             output_data["trade_analysis"] = trade_analysis.to_dict()
         with open(args.output, "w") as f:
-            json.dump(output_data, f, indent=2)
+            json.dump(output_data, f, indent=2, default=str)
         print(f"\nResults saved to {args.output}")
 
     return 0

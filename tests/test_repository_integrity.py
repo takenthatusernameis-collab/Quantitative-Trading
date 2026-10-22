@@ -22,7 +22,7 @@ import pytest
 import quant_trading
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIRS = ("quant_trading", "tests")
+SOURCE_DIRS = ("quant_trading", "examples", "tests")
 
 
 def _python_files() -> list[Path]:
