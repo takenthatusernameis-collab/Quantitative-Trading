@@ -13,6 +13,7 @@ def test_run_optimization_runs():
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
     assert "Example script completed." in result.stdout
