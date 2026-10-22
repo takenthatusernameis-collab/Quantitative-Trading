@@ -171,3 +171,57 @@ this session — the repository integrity guard covering `examples/` and the
 combined CLI mode reporting the realized/unrealized PnL split — are done. The
 remaining items in "What remains unresolved" are genuinely open decisions, not
 assigned work.
+
+---
+
+## This session (2026-10-22) — engine: single source of truth for unrealized PnL
+
+### What changed
+- `quant_trading/backtest/engine.py:544-552` — `run_backtest()` now passes
+  `positions=positions` to `calculate_backtest_metrics()` instead of computing
+  `metrics.unrealized_pnl` with a post-hoc override. `calculate_backtest_metrics()`
+  (which already summed `position.unrealized_pnl` from `positions` since
+  commit 1b1708b) is now the single source of truth for the unrealized-PnL
+  field; the duplicated sum loop and the stale comment claiming the function
+  "cannot derive the figure itself" were removed. `positions` is still passed
+  through to `BacktestResult(positions=...)` unchanged.
+- `quant_trading/backtest/metrics.py:224` — added `# noqa: BLE001` to the
+  pre-existing defensive `except Exception:` (intentional: arbitrary position
+  objects may raise anything). This was a pre-existing ruff error not caused by
+  the engine change; behavior is unchanged.
+
+### What was actually verified
+- `tests/test_cost_accounting_invariants.py`, `tests/test_backtest_metrics.py`,
+  `tests/test_backtest_engine.py` -> 198 passed.
+- `tests/test_cli.py`, `tests/test_trade_log.py`, `tests/test_backtest_analysis.py`,
+  `tests/test_monte_carlo.py` -> 210 passed.
+- `python3 -m ruff check .` -> All checks passed.
+- `python3 -m black --check .` -> 91 files unchanged.
+- `python3 -m mypy quant_trading examples` -> no issues found in 56 source files.
+- Numerically identical: the engine's `positions` sum is the same computation
+  that `calculate_backtest_metrics()` already performed, so all invariant tests
+  (`result.metrics.total_pnl + result.metrics.unrealized_pnl == total_return`)
+  pass unchanged.
+
+### What remains unresolved
+- `analyze_trades(periods_per_year=...)` semantics still ambiguous (trades-per-year
+  vs bars-per-year); deliberately a decision, not a mechanical fix.
+- `TradeAnalysis.open_position_pnl` vs `BacktestMetrics.unrealized_pnl` naming
+  confusion remains possible; renaming is a breaking change.
+- Network-gated providers (Yahoo Finance, Alpha Vantage) remain hard to cover
+  offline.
+
+### Approaches that already failed
+- Adding the two CLI print lines broke three existing CLI tests (fixed by setting
+  the mock attributes instead).
+- `magicmock(spec=BacktestMetrics)` cannot be formatted / serialized directly.
+
+### Next task (one precise item)
+Re-verify the end-to-end combined CLI reconciliation after the engine refactor:
+run `python3 -m examples/cli.py --offline --combined --symbols AAPL --days 120 --output
+/tmp/combined_out.json` and confirm every strategy entry carries `total_pnl`,
+`unrealized_pnl` and `total_return`, with
+`total_return - (total_pnl + unrealized_pnl)` within float noise (<= ~1e-9),
+matching the pre-refactor measurement (max deviation was 9e-12). Constraint: do
+not change any code unless a real regression is found; if found, keep the fix
+bounded to the engine path.

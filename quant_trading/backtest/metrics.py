@@ -221,7 +221,7 @@ def calculate_backtest_metrics(
             metrics.unrealized_pnl = float(
                 sum(getattr(position, "unrealized_pnl", 0.0) for position in positions.values())
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             metrics.unrealized_pnl = 0.0
     else:
         metrics.unrealized_pnl = 0.0

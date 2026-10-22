@@ -541,21 +541,14 @@ class BacktestEngine:
 
         from quant_trading.backtest.metrics import calculate_backtest_metrics
 
+        positions = self.portfolio.get_positions()
+
         metrics = calculate_backtest_metrics(
             equity_series,
             trades_df,
             risk_free_rate=self.config.risk_free_rate,
             periods_per_year=self.config.periods_per_year,
-        )
-
-        # The mark-to-market PnL of the positions that are still open is only
-        # known here: the engine is the only place that has the open
-        # positions. The metrics function sees an equity curve and a trade
-        # log, and neither of them carries the market value of an open
-        # position, so it cannot derive the figure itself.
-        positions = self.portfolio.get_positions()
-        metrics.unrealized_pnl = float(
-            sum(position.unrealized_pnl for position in positions.values())
+            positions=positions,
         )
 
         initial_capital = self.config.initial_capital
