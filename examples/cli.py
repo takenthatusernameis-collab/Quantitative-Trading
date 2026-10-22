@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from quant_trading.backtest.engine import run_backtest
 from quant_trading.config.settings import Config
+from quant_trading.data.yfinance_provider import AlphaVantageProvider
 from quant_trading.monte_carlo import run_monte_carlo
 from quant_trading.optimization import (
     BayesianOptimizer,
@@ -84,11 +85,39 @@ INTERVAL_PERIODS_PER_YEAR = {
     "mo": 12,
     "month": 12,
     "monthly": 12,
+    "monthly_adjusted": 12,
 }
 
 # Minutes in a standard US equity trading session (6.5 hours), used to
 # annualize intraday intervals.
 MINUTES_PER_TRADING_DAY = 390
+
+# Every interval alias the Alpha Vantage provider accepts, so the CLI does not
+# reject values the README documents as valid (e.g. ``monthly_adjusted``,
+# ``quote``, ``fx_daily``, ``crypto_daily``, ``sector``, ``sma``). Non-bar
+# intervals (quotes, market status, technical indicators, sector performance)
+# have no annualization meaning and fall back to the default 252 periods per
+# year. The set is derived from ``AlphaVantageProvider`` so it stays in sync
+# with the provider instead of drifting out of date.
+ALPHAVANTAGE_INTERVALS: frozenset[str] = frozenset(
+    {
+        *AlphaVantageProvider.INTRADAY_INTERVALS,
+        *AlphaVantageProvider.WEEKLY_INTERVALS,
+        *AlphaVantageProvider.MONTHLY_INTERVALS,
+        *AlphaVantageProvider.QUOTE_INTERVALS,
+        *AlphaVantageProvider.MARKET_STATUS_INTERVALS,
+        *AlphaVantageProvider.FX_DAILY_INTERVALS,
+        *AlphaVantageProvider.FX_INTRADAY_INTERVALS,
+        *AlphaVantageProvider.CRYPTO_INTERVALS,
+        *AlphaVantageProvider.DIGITAL_CURRENCY_INTERVALS,
+        *AlphaVantageProvider.CURRENCY_EXCHANGE_RATE_INTERVALS,
+        *AlphaVantageProvider.SYMBOL_SEARCH_INTERVALS,
+        *AlphaVantageProvider.TECHNICAL_INDICATORS,
+        *AlphaVantageProvider.SECTOR_INTERVALS,
+        *AlphaVantageProvider.COMMODITIES_INTERVALS,
+        *AlphaVantageProvider.GOLD_INTERVALS,
+    }
+)
 
 
 def resolve_periods_per_year(interval: str, override: int | None = None) -> int:
@@ -187,6 +216,8 @@ def _is_supported_interval(interval: str) -> bool:
     """Return whether ``interval`` is a recognized annualization interval."""
     key = (interval or "").strip().lower()
     if key in INTERVAL_PERIODS_PER_YEAR:
+        return True
+    if key in ALPHAVANTAGE_INTERVALS:
         return True
     minutes_match = re.fullmatch(r"(\d+)\s*(m|min|mins|minute|minutes)", key)
     if minutes_match:

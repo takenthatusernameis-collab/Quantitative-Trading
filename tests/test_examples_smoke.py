@@ -394,6 +394,32 @@ def test_cli_reports_an_unsupported_interval_without_a_traceback() -> None:
     assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"
 
 
+def test_cli_accepts_a_documented_alphavantage_interval_without_a_traceback() -> None:
+    """Intervals the README documents for Alpha Vantage must not be rejected.
+
+    The README documents ``--interval monthly_adjusted`` (and several others)
+    as valid CLI values, so the CLI has to accept them instead of failing with
+    ``invalid --interval`` before the run starts.
+    """
+    completed = _run_cli(
+        [
+            "--interval",
+            "monthly_adjusted",
+            "--offline",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "30",
+        ]
+    )
+    output = completed.stdout + completed.stderr
+    assert (
+        completed.returncode == 0
+    ), f"expected the exit code 0\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+    assert "invalid --interval" not in output, output
+    assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"
+
+
 def test_cli_reports_an_invalid_mc_confidence_without_a_traceback() -> None:
     """A ``--mc-confidence`` outside ``(0, 1]`` is a message naming the flag.
 

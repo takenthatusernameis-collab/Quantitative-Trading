@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from examples.cli import (
+    _is_supported_interval,
     create_config,
     create_strategy,
     init_config,
@@ -250,6 +251,39 @@ class TestParseArgs:
             pytest.raises(ValueError, match="invalid --ma-fast-range"),
         ):
             parse_args()
+
+
+class TestIsSupportedInterval:
+    """Tests for ``_is_supported_interval``."""
+
+    @pytest.mark.parametrize(
+        "interval",
+        [
+            "1d",
+            "1wk",
+            "1mo",
+            "monthly_adjusted",
+            "weekly",
+            "quote",
+            "market_status",
+            "fx_daily",
+            "fx_5m",
+            "crypto_daily",
+            "sector",
+            "sma",
+            "5m",
+            "1h",
+            "gold",
+        ],
+    )
+    def test_documented_intervals_are_supported(self, interval):
+        # Intervals the README documents as valid CLI values must be accepted.
+        assert _is_supported_interval(interval) is True
+
+    def test_unknown_interval_is_not_supported(self):
+        assert _is_supported_interval("3x") is False
+        assert _is_supported_interval("") is False
+        assert _is_supported_interval(None) is False
 
 
 class TestListStrategies:
@@ -2379,6 +2413,12 @@ class TestResolvePeriodsPerYear:
 
     def test_monthly_interval(self):
         assert resolve_periods_per_year("1mo") == 12
+
+    def test_monthly_adjusted_annualizes_as_monthly(self):
+        # The README documents ``--interval monthly_adjusted`` as a valid CLI
+        # value for the Alpha Vantage provider. It must annualize as monthly
+        # (12 periods per year), not fall back to the daily default of 252.
+        assert resolve_periods_per_year("monthly_adjusted") == 12
 
     def test_intraday_interval(self):
         """Intraday intervals scale the daily count by the bar duration."""
