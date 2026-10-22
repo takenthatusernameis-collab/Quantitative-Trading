@@ -198,6 +198,50 @@ def test_detect_regimes_periods_per_year_affects_annualization():
     assert result_daily.total_volatility != result_weekly.total_volatility
 
 
+def test_detect_regimes_periods_per_year_scales_volatility_by_sqrt():
+    """The annualized volatility is scaled by the square root of the period count."""
+    prices = _make_series(n=150, trend=0.001, vol=0.01, seed=42)
+    result_daily = detect_regimes(prices, window=20, periods_per_year=252)
+    result_weekly = detect_regimes(prices, window=20, periods_per_year=52)
+
+    assert result_daily.total_volatility > 0.0
+    assert result_daily.total_volatility == pytest.approx(
+        result_weekly.total_volatility * (252 / 52) ** 0.5, rel=1e-9
+    )
+
+
+def test_detect_regimes_auto_thresholds_keep_labels_across_periods_per_year():
+    """Auto-derived thresholds scale with the statistics, so labels do not move.
+
+    The auto-derived thresholds are the means of the very statistics they are
+    compared against and both are scaled by the same annualization factor, so
+    the labelling is independent of the period count.
+    """
+    prices = _make_series(n=150, trend=0.001, vol=0.01, seed=42)
+    result_daily = detect_regimes(prices, window=20, periods_per_year=252)
+    result_weekly = detect_regimes(prices, window=20, periods_per_year=52)
+
+    assert result_daily.regimes == result_weekly.regimes
+    assert result_daily.n_segments == result_weekly.n_segments
+
+
+def test_detect_regimes_explicit_thresholds_follow_periods_per_year():
+    """An explicit annualized threshold is a fixed number, so labels follow it.
+
+    The threshold stays put while the statistics it is compared against are
+    rescaled, so a different period count produces a different labelling.
+    """
+    prices = _make_series(n=150, trend=0.001, vol=0.01, seed=42)
+    result_daily = detect_regimes(
+        prices, window=20, vol_threshold=0.20, return_threshold=0.05, periods_per_year=252
+    )
+    result_weekly = detect_regimes(
+        prices, window=20, vol_threshold=0.20, return_threshold=0.05, periods_per_year=52
+    )
+
+    assert result_daily.n_segments != result_weekly.n_segments
+
+
 def test_regime_detector_periods_per_year_passed_through():
     """RegimeDetector passes periods_per_year to calculations."""
     prices = _make_series(n=150, trend=0.001, vol=0.01, seed=43)

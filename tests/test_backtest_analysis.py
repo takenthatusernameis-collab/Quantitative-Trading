@@ -11,7 +11,7 @@ from quant_trading.backtest import (
     regime_for_backtest,
 )
 from quant_trading.backtest.engine import BacktestResult
-from quant_trading.backtest.metrics import BacktestMetrics, calculate_backtest_metrics
+from quant_trading.backtest.metrics import calculate_backtest_metrics
 from quant_trading.regime import Regime
 
 
@@ -224,88 +224,78 @@ def test_backtest_regime_analysis_summary_explicit_thresholds():
     assert summary["n_segments"] == analysis.n_segments
 
 
-def test_analyze_regimes_periods_per_year_affects_volatility():
-    from quant_trading.backtest.metrics import BacktestMetrics
+def test_analyze_regimes_periods_per_year_scales_annualized_volatility():
+    """A non-daily annualization rescales the reported regime volatility."""
+    res = _make_result()
 
-    metrics = BacktestMetrics()
-    eq = pd.Series([100000 * (1 + 0.001 * i) for i in range(60)], index=pd.date_range("2024-01-01", periods=60))
-    res = BacktestResult(
-        equity_curve=eq,
-        trades=pd.DataFrame(),
-        positions={},
-        metrics=metrics,
-        start_date=eq.index[0],
-        end_date=eq.index[-1],
-        initial_capital=100000,
-        final_value=float(eq.iloc[-1]),
-        total_return=float(eq.iloc[-1]) - 100000,
-        total_return_pct=float((eq.iloc[-1] / 100000 - 1) * 100),
+    daily = analyze_regimes(res, window=20, periods_per_year=252)
+    weekly = analyze_regimes(res, window=20, periods_per_year=52)
+
+    assert daily.result.total_volatility > 0.0
+    assert daily.result.total_volatility != weekly.result.total_volatility
+    # Rolling volatility is annualized by the square root of the period count.
+    assert daily.result.total_volatility == pytest.approx(
+        weekly.result.total_volatility * (252 / 52) ** 0.5, rel=1e-9
     )
-    a = analyze_regimes(res, window=20, periods_per_year=252)
-    b = analyze_regimes(res, window=20, periods_per_year=52)
-    assert a.result.total_volatility != b.result.total_volatility
 
 
-def test_regime_for_backtest_periods_per_year_affects_volatility():
-    from quant_trading.backtest.metrics import BacktestMetrics
+def test_regime_for_backtest_periods_per_year_scales_annualized_volatility():
+    """regime_for_backtest annualizes with the requested period count."""
+    res = _make_result()
 
-    metrics = BacktestMetrics()
-    eq = pd.Series([100000 * (1 + 0.001 * i) for i in range(60)], index=pd.date_range("2024-01-01", periods=60))
-    res = BacktestResult(
-        equity_curve=eq,
-        trades=pd.DataFrame(),
-        positions={},
-        metrics=metrics,
-        start_date=eq.index[0],
-        end_date=eq.index[-1],
-        initial_capital=100000,
-        final_value=float(eq.iloc[-1]),
-        total_return=float(eq.iloc[-1]) - 100000,
-        total_return_pct=float((eq.iloc[-1] / 100000 - 1) * 100),
+    daily = regime_for_backtest(res, window=20, periods_per_year=252)
+    weekly = regime_for_backtest(res, window=20, periods_per_year=52)
+
+    assert daily.total_volatility > 0.0
+    assert daily.total_volatility != weekly.total_volatility
+    assert daily.total_volatility == pytest.approx(
+        weekly.total_volatility * (252 / 52) ** 0.5, rel=1e-9
     )
-    a = regime_for_backtest(res, window=20, periods_per_year=252)
-    b = regime_for_backtest(res, window=20, periods_per_year=52)
-    assert a.total_volatility != b.total_volatility
 
 
-def test_analyze_regimes_periods_per_year_affects_volatility():
-    metrics = BacktestMetrics()
-    eq = pd.Series([100000 * (1 + 0.001 * i) for i in range(60)], index=pd.date_range("2024-01-01", periods=60))
-    res = BacktestResult(
-        equity_curve=eq,
-        trades=pd.DataFrame(),
-        positions={},
-        metrics=metrics,
-        start_date=eq.index[0],
-        end_date=eq.index[-1],
-        initial_capital=100000,
-        final_value=float(eq.iloc[-1]),
-        total_return=float(eq.iloc[-1]) - 100000,
-        total_return_pct=float((eq.iloc[-1] / 100000 - 1) * 100),
+def test_analyze_regimes_auto_thresholds_keep_labels_across_periods_per_year():
+    """Auto-derived thresholds scale with the statistics, so the labels hold.
+
+    The auto-derived thresholds are the means of the very statistics they
+    compare against, and both are scaled by the same annualization factor, so
+    the labelling itself does not depend on the period count.
+    """
+    res = _make_result()
+
+    daily = analyze_regimes(res, window=20, periods_per_year=252)
+    weekly = analyze_regimes(res, window=20, periods_per_year=52)
+
+    assert daily.result.n_segments == weekly.result.n_segments
+    assert daily.result.regimes == weekly.result.regimes
+
+
+def test_analyze_regimes_explicit_thresholds_follow_periods_per_year():
+    """An explicit annualized threshold is a fixed number, so labels follow.
+
+    The threshold is given in annualized units and therefore does not move with
+    the period count, while the statistics it is compared against do.
+    """
+    res = _make_result()
+
+    daily = analyze_regimes(
+        res, window=20, vol_threshold=0.20, return_threshold=0.05, periods_per_year=252
     )
-    a = analyze_regimes(res, window=20, periods_per_year=252)
-    b = analyze_regimes(res, window=20, periods_per_year=52)
-    assert a.result.total_volatility != b.result.total_volatility
-
-
-def test_regime_for_backtest_periods_per_year_affects_volatility():
-    metrics = BacktestMetrics()
-    eq = pd.Series([100000 * (1 + 0.001 * i) for i in range(60)], index=pd.date_range("2024-01-01", periods=60))
-    res = BacktestResult(
-        equity_curve=eq,
-        trades=pd.DataFrame(),
-        positions={},
-        metrics=metrics,
-        start_date=eq.index[0],
-        end_date=eq.index[-1],
-        initial_capital=100000,
-        final_value=float(eq.iloc[-1]),
-        total_return=float(eq.iloc[-1]) - 100000,
-        total_return_pct=float((eq.iloc[-1] / 100000 - 1) * 100),
+    weekly = analyze_regimes(
+        res, window=20, vol_threshold=0.20, return_threshold=0.05, periods_per_year=52
     )
-    a = regime_for_backtest(res, window=20, periods_per_year=252)
-    b = regime_for_backtest(res, window=20, periods_per_year=52)
-    assert a.total_volatility != b.total_volatility
+
+    assert daily.result.n_segments != weekly.result.n_segments
+
+
+def test_backtest_regime_analysis_records_periods_per_year():
+    """The analysis reports the annualization factor it used."""
+    res = _make_result()
+
+    analysis = analyze_regimes(res, window=20, periods_per_year=52)
+
+    assert analysis.periods_per_year == 52
+    assert analysis.summary()["periods_per_year"] == 52
+    assert analysis.to_dict()["periods_per_year"] == 52
 
 
 if __name__ == "__main__":

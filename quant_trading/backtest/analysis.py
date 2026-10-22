@@ -65,6 +65,8 @@ class BacktestRegimeAnalysis:
         window: Rolling-window size used by the regime detector.
         vol_threshold: Optional explicit volatility threshold (<= 0 auto).
         return_threshold: Optional explicit return threshold (<= 0 auto).
+        periods_per_year: Trading periods per year the rolling volatility and
+            rolling mean return were annualized with.
 
     Examples:
         >>> from quant_trading.backtest.engine import BacktestResult
@@ -101,6 +103,7 @@ class BacktestRegimeAnalysis:
     window: int = 20
     vol_threshold: float = 0.0
     return_threshold: float = 0.0
+    periods_per_year: int = 252
 
     @property
     def n_segments(self) -> int:
@@ -203,7 +206,8 @@ class BacktestRegimeAnalysis:
 
         Returns:
             Dictionary with window thresholds, current regime, volatility,
-            return percentage, and serialized segments.
+            return percentage, the annualization factor, and serialized
+            segments.
 
         Examples:
             >>> from quant_trading.backtest.engine import BacktestResult
@@ -232,12 +236,15 @@ class BacktestRegimeAnalysis:
             20
             >>> analysis.to_dict()["current_regime"]
             'unknown'
+            >>> analysis.to_dict()["periods_per_year"]
+            252
 
         """
         return {
             "window": self.window,
             "vol_threshold": self.vol_threshold,
             "return_threshold": self.return_threshold,
+            "periods_per_year": self.periods_per_year,
             "current_regime": self.result.current_regime.value,
             "total_volatility": self.result.total_volatility,
             "total_return_pct": self.result.total_return_pct,
@@ -283,7 +290,8 @@ class BacktestRegimeAnalysis:
         """Return a summary of the regime analysis.
 
         Returns:
-            Summary dictionary augmented with window and threshold settings.
+            Summary dictionary augmented with window, threshold and
+            annualization settings.
 
         Examples:
             >>> from quant_trading.backtest.engine import BacktestResult
@@ -318,6 +326,7 @@ class BacktestRegimeAnalysis:
         summary["window"] = self.window
         summary["vol_threshold"] = self.vol_threshold
         summary["return_threshold"] = self.return_threshold
+        summary["periods_per_year"] = self.periods_per_year
         return summary
 
 
@@ -384,6 +393,7 @@ def analyze_regimes(
         window=window,
         vol_threshold=vol_threshold,
         return_threshold=return_threshold,
+        periods_per_year=periods_per_year,
     )
 
 

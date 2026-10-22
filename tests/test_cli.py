@@ -2553,6 +2553,313 @@ class TestIntervalEndToEnd:
             assert kwargs["periods_per_year"] == 252
 
 
+class TestRegimePeriodsPerYear:
+    """The regime analysis is annualized with the period count of the run.
+
+    The backtest metrics, the Monte Carlo simulation and the regime analysis
+    all have to agree on how many periods make up a year, otherwise a run on
+    weekly data reports a regime volatility that is off by the square root of
+    the frequency ratio.
+    """
+
+    @staticmethod
+    def _make_result():
+        import pandas as pd
+
+        from quant_trading.backtest.engine import BacktestResult
+        from quant_trading.backtest.metrics import calculate_backtest_metrics
+
+        equity = pd.Series(
+            [100000.0 * (1.0 + 0.001 * i) for i in range(80)],
+            index=pd.date_range("2024-01-01", periods=80, freq="D"),
+        )
+        return BacktestResult(
+            equity_curve=equity,
+            trades=pd.DataFrame(),
+            positions={},
+            metrics=calculate_backtest_metrics(equity),
+            start_date=equity.index[0],
+            end_date=equity.index[-1],
+            initial_capital=100000.0,
+            final_value=float(equity.iloc[-1]),
+            total_return=float(equity.iloc[-1] - equity.iloc[0]),
+            total_return_pct=float((equity.iloc[-1] / equity.iloc[0] - 1) * 100),
+        )
+
+    @staticmethod
+    def _regime_args():
+        return argparse.Namespace(
+            regime_window=20,
+            regime_vol_threshold=0.0,
+            regime_return_threshold=0.0,
+        )
+
+    def test_get_regime_analysis_uses_the_given_periods_per_year(self):
+        """The helper annualizes the regime with the period count it is given."""
+        from examples.cli import _get_regime_analysis
+
+        result = self._make_result()
+        args = self._regime_args()
+
+        daily = _get_regime_analysis(result, args, periods_per_year=252)
+        weekly = _get_regime_analysis(result, args, periods_per_year=52)
+
+        assert daily.result.total_volatility > 0.0
+        assert daily.result.total_volatility != weekly.result.total_volatility
+        assert daily.result.total_volatility == pytest.approx(
+            weekly.result.total_volatility * (252 / 52) ** 0.5, rel=1e-9
+        )
+
+    def test_get_regime_analysis_defaults_to_daily(self):
+        """The helper keeps the daily default when no period count is given."""
+        from examples.cli import _get_regime_analysis
+
+        result = self._make_result()
+        args = self._regime_args()
+
+        default = _get_regime_analysis(result, args)
+        explicit = _get_regime_analysis(result, args, periods_per_year=252)
+
+        assert default.periods_per_year == 252
+        assert default.result.total_volatility == explicit.result.total_volatility
+
+    def test_main_regime_uses_the_periods_per_year_of_the_run(self, capsys):
+        """The printed regime block reports the annualization of the run."""
+        args = [
+            "--offline",
+            "--regime",
+            "--periods-per-year",
+            "52",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "120",
+        ]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Periods per Year:  52" in captured.out
+
+    def test_main_regime_output_records_the_periods_per_year(self):
+        """The JSON output records the annualization the regime used."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = f"{tmpdir}/results.json"
+            args = [
+                "--offline",
+                "--regime",
+                "--periods-per-year",
+                "52",
+                "--output",
+                output_path,
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+            ]
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 0
+            with open(output_path) as f:
+                data = json.load(f)
+
+        assert data["regime_analysis"]["periods_per_year"] == 52
+
+    def test_main_regime_defaults_to_daily(self, capsys):
+        """Without an override the regime is annualized with 252 periods."""
+        args = ["--offline", "--regime", "--symbols", "AAPL", "--days", "120"]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Periods per Year:  252" in captured.out
+
+
+class TestTradeAnalysisRiskFreeRate:
+    """The trade analysis is computed with the risk-free rate of the run.
+
+    The engine annualizes the backtest Sharpe with the configured risk-free
+    rate, so the trade-level Sharpe and Sortino of the same run have to use
+    the same rate, otherwise one run reports two different Sharpes.
+    """
+
+    @staticmethod
+    def _make_result():
+        import pandas as pd
+
+        from quant_trading.backtest.engine import BacktestResult
+        from quant_trading.backtest.metrics import calculate_backtest_metrics
+
+        equity = pd.Series(
+            [100000.0 * (1.0 + 0.002 * i) for i in range(40)],
+            index=pd.date_range("2024-01-01", periods=40, freq="D"),
+        )
+        trades = pd.DataFrame(
+            {
+                "symbol": ["AAPL", "AAPL", "AAPL", "AAPL"],
+                "action": ["buy", "sell", "buy", "sell"],
+                "quantity": [10.0, 10.0, 10.0, 10.0],
+                "price": [100.0, 110.0, 105.0, 95.0],
+                "timestamp": pd.to_datetime(
+                    ["2024-01-02", "2024-01-05", "2024-01-10", "2024-01-15"]
+                ),
+                "pnl": [0.0, 100.0, 0.0, -100.0],
+            }
+        )
+        return BacktestResult(
+            equity_curve=equity,
+            trades=trades,
+            positions={},
+            metrics=calculate_backtest_metrics(equity),
+            start_date=equity.index[0],
+            end_date=equity.index[-1],
+            initial_capital=100000.0,
+            final_value=float(equity.iloc[-1]),
+            total_return=float(equity.iloc[-1] - equity.iloc[0]),
+            total_return_pct=float((equity.iloc[-1] / equity.iloc[0] - 1) * 100),
+        )
+
+    def test_get_trade_analysis_uses_the_given_risk_free_rate(self):
+        """The helper annualizes the trade metrics with the rate it is given."""
+        from examples.cli import _get_trade_analysis
+
+        result = self._make_result()
+        args = argparse.Namespace()
+
+        no_rate = _get_trade_analysis(result, args, risk_free_rate=0.0)
+        with_rate = _get_trade_analysis(result, args, risk_free_rate=0.05)
+
+        assert no_rate.total_trades == 2
+        assert no_rate.sharpe_ratio != with_rate.sharpe_ratio
+
+    def test_get_trade_analysis_defaults_to_the_library_default(self):
+        """Without a rate the helper keeps the default of the library."""
+        from examples.cli import _get_trade_analysis
+
+        result = self._make_result()
+        args = argparse.Namespace()
+
+        default = _get_trade_analysis(result, args)
+        explicit = _get_trade_analysis(result, args, risk_free_rate=0.02)
+
+        assert default.sharpe_ratio == explicit.sharpe_ratio
+        assert default.sortino_ratio == explicit.sortino_ratio
+
+    def test_main_trade_analysis_uses_the_configured_risk_free_rate(self, capsys):
+        """The printed trade Sharpe follows the risk-free rate of the run."""
+        outputs = []
+        for rate in ("0.0", "0.05"):
+            args = [
+                "--offline",
+                "--trade-analysis",
+                "--risk-free-rate",
+                rate,
+                "--symbols",
+                "AAPL",
+                "MSFT",
+                "GOOGL",
+                "--days",
+                "200",
+            ]
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 0
+            outputs.append(capsys.readouterr().out)
+
+        def _trade_sharpe(output: str) -> float:
+            for line in output.splitlines():
+                if line.startswith("Trade Sharpe:"):
+                    return float(line.split(":", 1)[1].strip())
+            raise AssertionError("no trade Sharpe in the output")
+
+        # The synthetic data is seeded, so both runs trade the same round trips
+        # and only the risk-free rate differs.
+        assert _trade_sharpe(outputs[0]) != _trade_sharpe(outputs[1])
+
+
+class TestCombinedAnalysis:
+    """The analysis flags work in combined mode too.
+
+    Combined mode runs one backtest per strategy, so there is no combined
+    equity curve to analyse. The analysis is reported for the best strategy,
+    which is the one the comparison table announces.
+    """
+
+    def test_main_combined_regime_prints_the_analysis(self, capsys):
+        """--combined --regime prints the regime block instead of ignoring it."""
+        args = ["--combined", "--offline", "--regime", "--symbols", "AAPL", "--days", "120"]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Market Regime Analysis" in captured.out
+        assert "Analysis of the best strategy:" in captured.out
+        assert "Periods per Year:  252" in captured.out
+
+    def test_main_combined_monte_carlo_and_trade_analysis(self, capsys):
+        """--combined honours the Monte Carlo and trade analysis flags too."""
+        args = [
+            "--combined",
+            "--offline",
+            "--monte-carlo",
+            "--trade-analysis",
+            "--mc-simulations",
+            "30",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "120",
+        ]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Monte Carlo Simulation" in captured.out
+        assert "Trade Analysis" in captured.out
+
+    def test_main_combined_without_analysis_flags_prints_no_analysis(self, capsys):
+        """Without the flags the combined run stays a comparison."""
+        args = ["--combined", "--offline", "--symbols", "AAPL", "--days", "120"]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Market Regime Analysis" not in captured.out
+        assert "Monte Carlo Simulation" not in captured.out
+        assert "Trade Analysis" not in captured.out
+
+    def test_main_combined_output_records_the_analysis(self):
+        """The JSON output of a combined run carries the analysis."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = f"{tmpdir}/comparison.json"
+            args = [
+                "--combined",
+                "--offline",
+                "--regime",
+                "--output",
+                output_path,
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+            ]
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 0
+            with open(output_path) as f:
+                data = json.load(f)
+
+        assert "comparison" in data
+        assert "regime_analysis" in data
+        assert data["regime_analysis"]["periods_per_year"] == 252
+        assert data["regime_analysis"]["segments"] is not None
+
+
 if __name__ == "__main__":
     import pytest
 

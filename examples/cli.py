@@ -1580,8 +1580,16 @@ def run_walk_forward(
     return 0
 
 
-def _get_regime_analysis(result, args: argparse.Namespace):
-    """Get regime detection results for a backtest's equity curve."""
+def _get_regime_analysis(result, args: argparse.Namespace, periods_per_year: int = 252):
+    """Get regime detection results for a backtest's equity curve.
+
+    Args:
+        result: Backtest result whose equity curve is labelled.
+        args: Parsed CLI arguments.
+        periods_per_year: Trading periods per year the regime volatility and
+            return were annualized with.
+
+    """
     from quant_trading.backtest import analyze_regimes
 
     analysis = analyze_regimes(
@@ -1589,6 +1597,7 @@ def _get_regime_analysis(result, args: argparse.Namespace):
         window=args.regime_window,
         vol_threshold=args.regime_vol_threshold,
         return_threshold=args.regime_return_threshold,
+        periods_per_year=periods_per_year,
     )
     return analysis
 
@@ -1604,6 +1613,7 @@ def _print_regime_analysis(analysis) -> None:
     print(f"Total Volatility: {summary['total_volatility']:.4f}")
     print(f"Total Return:      {summary['total_return_pct']:.2f}%")
     print(f"Regime Segments:   {summary['n_segments']}")
+    print(f"Periods per Year:  {summary['periods_per_year']}")
 
     if summary["n_segments"] > 0:
         print(f"\n{'Regime':<22} {'Start':<12} {'End':<12} {'Vol':>8} {'Ret %':>8}")
@@ -1677,11 +1687,19 @@ def _print_monte_carlo_analysis(mc) -> None:
     print(f"\nExpected Shortfall (95%): {summary['total_return_pct_ci_lower']:.4f}")
 
 
-def _get_trade_analysis(result, args: argparse.Namespace):
-    """Get detailed trade analysis for a backtest result."""
+def _get_trade_analysis(result, args: argparse.Namespace, risk_free_rate: float = 0.02):
+    """Get detailed trade analysis for a backtest result.
+
+    Args:
+        result: Backtest result whose trade log is analysed.
+        args: Parsed CLI arguments.
+        risk_free_rate: Annual risk-free rate of the run, used for the
+            trade-level Sharpe and Sortino ratios.
+
+    """
     from quant_trading.backtest import analyze_trades
 
-    analysis = analyze_trades(result)
+    analysis = analyze_trades(result, risk_free_rate=risk_free_rate)
     return analysis
 
 
@@ -1792,7 +1810,9 @@ def main() -> int:
         print(f"Calmar Ratio:    {result.metrics.calmar_ratio:.2f}")
 
         if args.regime:
-            regime_analysis = _get_regime_analysis(result, args)
+            regime_analysis = _get_regime_analysis(
+                result, args, periods_per_year=config.backtest.periods_per_year
+            )
             _print_regime_analysis(regime_analysis)
 
         if args.monte_carlo:
@@ -1802,7 +1822,9 @@ def main() -> int:
             _print_monte_carlo_analysis(mc_analysis)
 
         if args.trade_analysis:
-            trade_analysis = _get_trade_analysis(result, args)
+            trade_analysis = _get_trade_analysis(
+                result, args, risk_free_rate=config.backtest.risk_free_rate
+            )
             _print_trade_analysis(trade_analysis)
 
         if args.output:
@@ -1937,6 +1959,35 @@ def run_combined(
     best = max(results, key=lambda x: x[1].metrics.sharpe_ratio)
     print(f"\nBest strategy (by Sharpe): {best[0]} (Sharpe: {best[1].metrics.sharpe_ratio:.2f})")
 
+    # The analysis modules work on a single equity curve, so in combined mode
+    # they are reported for the best strategy. Without them the flags would be
+    # silently ignored, because combined mode runs one backtest per strategy
+    # and there is no combined curve to analyse.
+    regime_analysis = None
+    mc_analysis = None
+    trade_analysis = None
+    wants_regime = getattr(args, "regime", False)
+    wants_monte_carlo = getattr(args, "monte_carlo", False)
+    wants_trade_analysis = getattr(args, "trade_analysis", False)
+    if wants_regime or wants_monte_carlo or wants_trade_analysis:
+        best_result = best[1]
+        print(f"\nAnalysis of the best strategy: {best[0]}")
+        if wants_regime:
+            regime_analysis = _get_regime_analysis(
+                best_result, args, periods_per_year=config.backtest.periods_per_year
+            )
+            _print_regime_analysis(regime_analysis)
+        if wants_monte_carlo:
+            mc_analysis = _get_monte_carlo_analysis(
+                best_result, args, periods_per_year=config.backtest.periods_per_year
+            )
+            _print_monte_carlo_analysis(mc_analysis)
+        if wants_trade_analysis:
+            trade_analysis = _get_trade_analysis(
+                best_result, args, risk_free_rate=config.backtest.risk_free_rate
+            )
+            _print_trade_analysis(trade_analysis)
+
     if args.output:
         import json
 
@@ -1955,6 +2006,12 @@ def run_combined(
             ],
             "best_strategy": best[0],
         }
+        if regime_analysis is not None:
+            output_data["regime_analysis"] = regime_analysis.to_dict()
+        if mc_analysis is not None:
+            output_data["monte_carlo"] = mc_analysis.summary()
+        if trade_analysis is not None:
+            output_data["trade_analysis"] = trade_analysis.to_dict()
         with open(args.output, "w") as f:
             json.dump(output_data, f, indent=2)
         print(f"\nResults saved to {args.output}")

@@ -44,6 +44,7 @@ def _print_regime_analysis(analysis) -> None:
     print(f"Total Volatility:  {summary['total_volatility']:.4f}")
     print(f"Total Return:      {summary['total_return_pct']:.2f}%")
     print(f"Number of Segments: {summary['n_segments']}")
+    print(f"Periods per Year:  {summary['periods_per_year']}")
     if analysis.segments:
         print(f"\n{'Regime':<22} {'Start':<12} {'End':<12} {'Vol':>8} {'Ret%':>8}")
         print("-" * 60)
@@ -98,6 +99,7 @@ def main() -> None:
         slippage=config.slippage,
         interval="1d",
         data_manager=data_manager,
+        periods_per_year=config.periods_per_year,
     )
     print(f"Initial Capital: ${result.initial_capital:,.2f}")
     print(f"Final Value:     ${result.final_value:,.2f}")
@@ -109,7 +111,7 @@ def main() -> None:
     print(f"Profit Factor:   {result.metrics.profit_factor:.2f}")
 
     _print_section("Market Regime Analysis")
-    regime_analysis = analyze_regimes(result, window=20)
+    regime_analysis = analyze_regimes(result, window=20, periods_per_year=config.periods_per_year)
     _print_regime_analysis(regime_analysis)
 
     _print_section("Monte Carlo Simulation")
@@ -118,6 +120,7 @@ def main() -> None:
         n_simulations=200,
         method="bootstrap",
         random_state=42,
+        periods_per_year=config.periods_per_year,
     )
     _print_monte_carlo_analysis(mc)
 

@@ -253,6 +253,17 @@ Run all strategies together and compare results:
 python examples/cli.py --combined --symbols AAPL MSFT GOOGL --days 365
 ```
 
+The analysis flags work in combined mode as well. Combined mode runs one
+backtest per strategy, so there is no combined equity curve to analyse, and
+the analysis is reported for the best strategy of the comparison:
+
+```bash
+python examples/cli.py --combined --offline --regime --symbols AAPL --days 120
+```
+
+The JSON output of a combined run carries the analysis under the same keys as
+a single run, next to the `best_strategy` it belongs to.
+
 ### Configuration
 
 Load settings from a YAML config file:
@@ -300,7 +311,14 @@ python examples/cli.py --offline --regime --symbols AAPL --days 120
 
 # Override the auto-derived volatility/return thresholds
 python examples/cli.py --offline --regime --regime-window 30 --regime-vol-threshold 0.15 --regime-return-threshold 0.05
+
+# Annualize the regime statistics with the frequency of the run
+python examples/cli.py --offline --regime --interval 1wk --symbols AAPL --days 120
 ```
+
+The regime volatility and the regime return are annualized with the same
+`periods_per_year` as the rest of the run, and the block reports the value it
+used.
 
 ### Trade Analysis
 
@@ -623,6 +641,35 @@ analysis = analyze_regimes(
 )
 ```
 
+### Regime Annualization
+
+The rolling volatility and the rolling mean return the detector compares
+against the thresholds are annualized, so they have to be scaled with the
+frequency of the data. `periods_per_year` is the number of periods that make
+up a year (252 for daily bars, 52 for weekly, 12 for monthly):
+
+```python
+analysis = analyze_regimes(result, window=20, periods_per_year=52)
+print(analysis.periods_per_year)   # 52
+print(analysis.summary()["periods_per_year"])
+```
+
+The default is `252`, so a daily run behaves as before. The CLI derives the
+value from the interval of the run in the same way it does for the backtest
+metrics and the Monte Carlo simulation, so a weekly run reports a regime
+volatility that is consistent with the rest of its output:
+
+```bash
+python examples/cli.py --offline --regime --periods-per-year 52 --symbols AAPL --days 120
+```
+
+A threshold that is left at its default is derived from the series itself (the
+mean of the rolling statistics), and it is derived in the same annualized
+units, so the labels of the segments do not change with the period count —
+only the reported volatility does. A threshold that is given explicitly is a
+fixed number in annualized units, so it does *not* follow the period count:
+an explicit threshold has to be re-stated for the frequency it is used with.
+
 ## Monte Carlo Simulation
 
 Run many simulated backtests by resampling the equity curve's daily
@@ -677,6 +724,17 @@ This provides:
 - **Trade-Level Risk**: Annualized Sharpe and Sortino ratios of the per-trade return series, adjusted for the risk-free rate
 - **Monthly/Weekly Returns**: Periodic return breakdowns
 - **Per-Symbol Statistics**: Detailed breakdown by symbol
+
+The trade-level Sharpe and Sortino are computed with the risk-free rate of the
+run, so they are consistent with the Sharpe of the backtest itself. Pass the
+rate explicitly to compute them with a different one:
+
+```python
+analysis = analyze_trades(result, risk_free_rate=0.05)
+```
+
+The CLI takes the rate from the run, so `--risk-free-rate` moves the backtest
+Sharpe and the trade-level Sharpe together.
 
 ## Configuration
 
@@ -1017,6 +1075,10 @@ BacktestEngine(config=BacktestConfig(periods_per_year=52)).run(symbols, start, e
 GridSearch(..., periods_per_year=52)
 WalkForwardOptimizer(..., periods_per_year=52)
 run_monte_carlo(result, periods_per_year=52)
+
+# Market regime analysis
+analyze_regimes(result, periods_per_year=52)
+regime_for_backtest(result, periods_per_year=52)
 ```
 
 The CLI derives the value from `--interval` (252 for daily, 52 for weekly,
