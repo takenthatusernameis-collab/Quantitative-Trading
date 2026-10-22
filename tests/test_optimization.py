@@ -780,6 +780,20 @@ def test_parameter_space_generate_grid_with_values_ignores_the_step():
     assert space.generate_grid() == [1, 2, 3]
 
 
+def test_parameter_space_generate_grid_rejects_an_inverted_range():
+    """A minimum above the maximum cannot generate a grid."""
+    space = ParameterSpace("test", min_val=5.0, max_val=2.0, step=1.0)
+    with pytest.raises(ValueError, match="minimum.*greater than the maximum"):
+        space.generate_grid()
+
+
+def test_parameter_space_generate_grid_rejects_an_inverted_range_with_float_step():
+    """An inverted range is rejected whatever the step size is."""
+    space = ParameterSpace("test", min_val=10.0, max_val=1.0, step=0.5)
+    with pytest.raises(ValueError, match="minimum.*greater than the maximum"):
+        space.generate_grid()
+
+
 def test_parameter_space_sample_random_fallback():
     """Test sample_random returns empty list when min_val set but max_val not."""
     space = ParameterSpace("test", min_val=1.0)

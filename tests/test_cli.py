@@ -240,6 +240,17 @@ class TestParseArgs:
             args = parse_args()
         assert args.mc_simulations == 1
 
+    def test_optimization_range_with_a_minimum_above_the_maximum_is_rejected(self):
+        """An inverted range is rejected before the run starts and names the flag."""
+        with (
+            patch(
+                "sys.argv",
+                ["cli.py", "--optimize", "--ma-fast-range", "20,5,5", "--offline"],
+            ),
+            pytest.raises(ValueError, match="invalid --ma-fast-range"),
+        ):
+            parse_args()
+
 
 class TestListStrategies:
     """Tests for list_strategies function."""
@@ -338,6 +349,13 @@ class TestInitConfig:
 
         with pytest.raises(ValueError, match="Invalid range format"):
             parse_range("5,20,x")
+
+    def test_parse_range_rejects_a_minimum_greater_than_the_maximum(self):
+        """A range whose minimum is above its maximum is a user error."""
+        from examples.cli import parse_range
+
+        with pytest.raises(ValueError, match="minimum.*greater than the maximum"):
+            parse_range("20,5,5")
 
     def test_main_optimize_calls_run_optimization(self):
         with patch("examples.cli.run_optimization") as mock_opt:

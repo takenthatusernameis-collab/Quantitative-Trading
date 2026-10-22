@@ -95,6 +95,11 @@ class ParameterSpace:
                 raise ValueError(
                     f"step must be greater than 0 to generate a grid (got {self.step})"
                 )
+            if self.min_val > self.max_val:
+                raise ValueError(
+                    f"minimum ({self.min_val}) is greater than the maximum "
+                    f"({self.max_val}) to generate a grid"
+                )
             vals = []
             v = self.min_val
             while v <= self.max_val + 1e-10:

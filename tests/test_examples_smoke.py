@@ -232,6 +232,34 @@ def test_cli_reports_an_invalid_optimization_range_without_a_traceback() -> None
     assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"
 
 
+def test_cli_reports_an_inverted_optimization_range_without_a_traceback() -> None:
+    """A range whose minimum is above its maximum is a message, not an empty table.
+
+    A minimum greater than the maximum yields no grid combinations, so the
+    argument has to be rejected before the run starts and name the offending
+    flag.
+    """
+    completed = _run_cli(
+        [
+            "--optimize",
+            "--ma-fast-range",
+            "20,5,5",
+            "--offline",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "30",
+        ]
+    )
+    output = completed.stdout + completed.stderr
+    assert (
+        completed.returncode == 1
+    ), f"expected the exit code 1\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+    assert "invalid --ma-fast-range" in output, output
+    assert "greater than the maximum" in output, output
+    assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"
+
+
 @pytest.mark.parametrize(
     ("filename", "content", "message"),
     CLI_CONFIG_CONTENTS,

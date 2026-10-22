@@ -1171,6 +1171,11 @@ def parse_range(range_str: str) -> tuple[float, float, float]:
         ) from e
     if step <= 0:
         raise ValueError(f"Invalid range {range_str}: the step must be greater than 0")
+    if minimum > maximum:
+        raise ValueError(
+            f"Invalid range {range_str}: the minimum ({minimum}) is greater "
+            f"than the maximum ({maximum})"
+        )
     return minimum, maximum, step
 
 
