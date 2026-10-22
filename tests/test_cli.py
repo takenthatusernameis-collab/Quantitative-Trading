@@ -195,6 +195,24 @@ class TestParseArgs:
         assert args.mc_method == "parametric"
         assert args.mc_seed == 7
 
+    def test_the_help_text_renders(self, capsys):
+        """``--help`` must render the help of every option.
+
+        ``argparse`` runs the help string of each option through the
+        percent-formatting operator, so a literal ``%`` in a help string
+        has to be escaped as ``%%``. An unescaped one makes the whole help
+        output fail with a ``ValueError``.
+        """
+        with patch("sys.argv", ["cli.py", "--help"]), pytest.raises(SystemExit) as excinfo:
+            parse_args()
+        assert excinfo.value.code == 0
+        out = capsys.readouterr().out
+        assert "--risk-free-rate" in out
+        assert "0.02 for 2%" in out
+        # The escaped percent signs of the Stochastic options render once.
+        assert "Stochastic %K period" in out
+        assert "Stochastic %D period" in out
+
 
 class TestListStrategies:
     """Tests for list_strategies function."""

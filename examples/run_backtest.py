@@ -1,6 +1,11 @@
 """Example backtest script demonstrating the quantitative trading framework."""
 
+import sys
 from datetime import datetime, timedelta
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 
 from quant_trading.backtest.engine import BacktestEngine, run_backtest
 from quant_trading.config.settings import BacktestConfig

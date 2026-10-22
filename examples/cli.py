@@ -9,7 +9,12 @@ Additional feature:
 
 import argparse
 import re
+import sys
 from datetime import datetime, timedelta
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 
 from quant_trading.backtest.engine import run_backtest
 from quant_trading.config.settings import Config
@@ -255,7 +260,7 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=None,
         help=(
-            "Risk-free rate for Sharpe ratio calculations, e.g. 0.02 for 2% (default: the value "
+            "Risk-free rate for Sharpe ratio calculations, e.g. 0.02 for 2%% (default: the value "
             "in the config file, or 0.02 when no config file is given)"
         ),
     )

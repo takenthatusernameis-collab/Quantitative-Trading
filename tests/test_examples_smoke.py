@@ -1,12 +1,18 @@
 """Smoke tests for the example scripts.
 
-Executes every ``examples/run_*.py`` script as a subprocess and asserts it
-exits with code 0. Scripts run offline against deterministic synthetic data
-(seed=42), so this suite is safe, fast, and deterministic and requires no
-network access.
+Every ``examples/*.py`` script is checked at two levels.
+
+* **Import check** — the module-level code of the script is executed in a
+  subprocess whose ``__name__`` is not ``"__main__"``. This proves that every
+  import of the script resolves, which is what makes the script runnable from
+  a plain checkout. The check is safe for the network-backed scripts because
+  none of them touches the network at import time.
+* **Execution check** — the scripts that can run without network access are
+  executed end to end. They use deterministic synthetic data (seed=42), so
+  this suite is safe, fast and deterministic and requires no network access.
 
 Scripts that require network access (importing ``YFinanceProvider`` or
-``AlphaVantageProvider``) are skipped.
+``AlphaVantageProvider``) are only import-checked, never executed.
 """
 
 import subprocess
@@ -18,21 +24,64 @@ import pytest
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 NETWORK_PROVIDERS = ("YFinanceProvider", "AlphaVantageProvider")
 
+# The CLI names the network providers only in the display names of the
+# provider registry, so it still runs without network access.
+OFFLINE_ARGUMENTS: dict[str, list[str]] = {
+    "cli.py": ["--offline", "--symbols", "AAPL", "--days", "60"],
+}
+
 
 def _example_scripts() -> list[Path]:
-    return sorted(EXAMPLES_DIR.glob("run_*.py"))
+    return sorted(EXAMPLES_DIR.glob("*.py"))
 
 
 def _requires_network(script: Path) -> bool:
+    if script.name in OFFLINE_ARGUMENTS:
+        return False
     return any(provider in script.read_text() for provider in NETWORK_PROVIDERS)
 
 
+def _offline_scripts() -> list[Path]:
+    return [script for script in _example_scripts() if not _requires_network(script)]
+
+
+def _import_check(script: Path) -> subprocess.CompletedProcess[str]:
+    """Execute the module-level code of a script the way ``python <script>`` would.
+
+    ``sys.path[0]`` is the directory of the script, exactly like a direct
+    invocation, so a script that cannot import ``quant_trading`` from a
+    plain checkout fails here.
+    """
+    code = (
+        "import runpy, sys\n"
+        f"sys.path[0] = {str(script.parent)!r}\n"
+        f"runpy.run_path({str(script)!r}, run_name='__example_import_check__')\n"
+    )
+    return subprocess.run(
+        [sys.executable, "-c", code],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+
 @pytest.mark.parametrize("script", _example_scripts(), ids=lambda p: p.name)
+def test_example_script_imports_cleanly(script: Path) -> None:
+    """Every example script must resolve its imports from a plain checkout."""
+    completed = _import_check(script)
+    assert completed.returncode == 0, (
+        f"{script.name} could not be imported\n"
+        f"STDOUT:\n{completed.stdout}\n"
+        f"STDERR:\n{completed.stderr}"
+    )
+
+
+@pytest.mark.parametrize("script", _offline_scripts(), ids=lambda p: p.name)
 def test_example_script_runs_offline(script: Path) -> None:
-    if _requires_network(script):
-        pytest.skip(f"{script.name} requires network access; skipping offline smoke test")
+    """The offline example scripts must run end to end."""
     completed = subprocess.run(
-        [sys.executable, str(script)],
+        [sys.executable, str(script), *OFFLINE_ARGUMENTS.get(script.name, [])],
         check=False,
         capture_output=True,
         text=True,
