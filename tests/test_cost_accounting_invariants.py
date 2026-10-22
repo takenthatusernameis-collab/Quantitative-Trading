@@ -14,6 +14,8 @@ network) and assert the accounting identities that must hold for *every* run:
 5. A fully liquidated run books all of its PnL as realized.
 6. The trade log agrees with the portfolio on the quantity left in each symbol.
 7. The trade analysis reports the PnL the run booked.
+8. The metrics report the unrealized PnL of the positions that are still open,
+   and it completes the reconciliation of the portfolio value.
 
 The scenarios cover full round trips, partial exits, adding to an existing
 long position (weighted-average cost basis), multiple symbols, and runs where
@@ -212,11 +214,20 @@ def _assert_cost_accounting_invariants(result: BacktestResult, portfolio: Portfo
         realized + unrealized, rel=1e-9, abs=1e-6
     )
 
+    # 8. The metrics report the unrealized PnL of the open positions, so the
+    # reconciliation can be checked from the metrics alone.
+    assert result.metrics.unrealized_pnl == pytest.approx(unrealized, rel=1e-9, abs=1e-6)
+    assert result.unrealized_pnl == pytest.approx(unrealized, rel=1e-9, abs=1e-6)
+    assert result.final_value - result.initial_capital == pytest.approx(
+        result.metrics.total_pnl + result.metrics.unrealized_pnl, rel=1e-9, abs=1e-6
+    )
+
     # 5. A fully liquidated run books all of its PnL as realized.
     if not portfolio.holdings:
         assert realized == pytest.approx(
             result.final_value - result.initial_capital, rel=1e-9, abs=1e-6
         )
+        assert result.metrics.unrealized_pnl == pytest.approx(0.0, abs=1e-9)
 
     # 6. The trade log agrees with the portfolio on the quantity left per symbol.
     for symbol in {trade["symbol"] for _, trade in trades.iterrows()}:
@@ -384,5 +395,62 @@ def test_randomized_open_short_invariants(seed: int):
 
     assert len(result.trades) == 1
     assert portfolio.holdings["TEST"].quantity < 0
+
+    _assert_cost_accounting_invariants(result, portfolio)
+
+
+def test_the_metrics_report_the_unrealized_pnl_of_the_open_positions():
+    """A run that ends with an open long and an open short reports both.
+
+    The realized PnL of the run and the mark-to-market PnL of the positions
+    that are still open add up to the change of the portfolio value. The
+    metrics report the unrealized half, so the reconciliation can be checked
+    from the metrics alone.
+    """
+    rng = np.random.default_rng(2024)
+    script = [("buy", 1.0), ("short", 1.0), ("hold", 0.0)]
+
+    data = _make_data(["AAA", "BBB"], len(script) + 2, rng)
+
+    result, portfolio = _run_scenario(
+        script, data, commission=0.001, slippage=0.0005, disable_risk=True
+    )
+
+    # One position is long and the other one is short, and neither was closed.
+    assert portfolio.holdings["AAA"].quantity > 0
+    assert portfolio.holdings["BBB"].quantity < 0
+
+    unrealized = sum(holding.unrealized_pnl for holding in portfolio.holdings.values())
+    assert result.metrics.unrealized_pnl == pytest.approx(unrealized, rel=1e-9, abs=1e-6)
+    assert result.unrealized_pnl == pytest.approx(unrealized, rel=1e-9, abs=1e-6)
+
+    # The two halves explain the change of the portfolio value.
+    assert result.final_value - result.initial_capital == pytest.approx(
+        result.metrics.total_pnl + result.metrics.unrealized_pnl, rel=1e-9, abs=1e-6
+    )
+
+    _assert_cost_accounting_invariants(result, portfolio)
+
+
+def test_a_fully_liquidated_run_reports_no_unrealized_pnl():
+    """A run that ends with every position closed reports no unrealized PnL."""
+    rng = np.random.default_rng(11)
+    script = [("buy", 1.0), ("sell", 1.0)]
+
+    data = _make_data(["AAA"], len(script) + 2, rng)
+
+    result, portfolio = _run_scenario(
+        script, data, commission=0.001, slippage=0.0005, disable_risk=True
+    )
+
+    assert portfolio.holdings == {}
+    assert result.metrics.unrealized_pnl == 0.0
+    assert result.unrealized_pnl == 0.0
+
+    # Everything the run earned was realized, so the two halves add up to the
+    # whole change of the portfolio value.
+    assert result.final_value - result.initial_capital == pytest.approx(
+        result.metrics.total_pnl, rel=1e-9, abs=1e-6
+    )
 
     _assert_cost_accounting_invariants(result, portfolio)

@@ -269,3 +269,36 @@ class TestBacktestMetricsPeriodsPerYear:
             assert metrics.sharpe_ratio == pytest.approx(
                 (returns.mean() - 0.02 / periods) / returns.std() * np.sqrt(periods)
             )
+
+
+class TestBacktestMetricsUnrealizedPnl:
+    """Test the ``unrealized_pnl`` field of the backtest metrics."""
+
+    EQUITY = pd.Series([100.0, 102.0, 101.0, 104.0])
+
+    def test_the_field_defaults_to_zero(self):
+        """A metrics object that nobody filled in reports no unrealized PnL."""
+        metrics = BacktestMetrics()
+
+        assert metrics.unrealized_pnl == 0.0
+        assert metrics.to_dict()["unrealized_pnl"] == 0.0
+
+    def test_the_function_cannot_derive_the_unrealized_pnl(self):
+        """The metrics function only sees an equity curve and a trade log.
+
+        Neither of them carries the market value of a position that is still
+        open, so the field stays at zero when the function is called
+        directly. Only the engine, which knows the open positions, fills it
+        in.
+        """
+        trades = pd.DataFrame({"pnl": [100.0, -50.0]})
+        metrics = calculate_backtest_metrics(self.EQUITY, trades=trades)
+
+        assert metrics.unrealized_pnl == 0.0
+
+    def test_the_field_is_reported_in_the_dictionary(self):
+        """The unrealized PnL is part of the reported metrics."""
+        metrics = BacktestMetrics(total_pnl=100.0, unrealized_pnl=-25.0)
+
+        assert metrics.to_dict()["unrealized_pnl"] == -25.0
+        assert metrics.to_dict()["total_pnl"] == 100.0

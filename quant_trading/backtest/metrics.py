@@ -50,6 +50,19 @@ class BacktestMetrics:
             This is the PnL the run booked from trades, so it is not the same
             as ``total_return`` (which includes unrealized PnL of positions
             still open).
+        unrealized_pnl: The mark-to-market PnL of the positions that were
+            still open when the run ended. Together with ``total_pnl`` it
+            explains the change of the portfolio value:
+            ``final_value - initial_capital == total_pnl + unrealized_pnl``.
+            The engine populates this field because it is the only place that
+            knows the open positions;
+            :func:`~quant_trading.backtest.metrics.calculate_backtest_metrics`
+            sees an equity curve and a trade log, neither of which carries the
+            market value of an open position, so the field stays ``0.0`` when
+            the function is called directly. A run that ended with every
+            position closed also reports ``0.0``. This is not the same figure
+            as ``TradeAnalysis.open_position_pnl``, which is the part of
+            ``total_pnl`` that the positions that are still open booked.
         total_return_pct: Total return as a percentage of initial value.
         annual_return: Annualized mean return (decimal).
         annual_return_pct: Annualized mean return as a percentage.
@@ -108,6 +121,11 @@ class BacktestMetrics:
     largest_loss: float = 0.0
     var_95: float = 0.0
 
+    # Unrealized PnL of the positions that are still open. It is declared last
+    # so that the positional order of the fields above stays the same for
+    # callers that build a metrics object positionally.
+    unrealized_pnl: float = 0.0
+
     def to_dict(self) -> dict[str, Any]:
         """Convert metrics to a dictionary.
 
@@ -138,6 +156,7 @@ class BacktestMetrics:
             "largest_win": self.largest_win,
             "largest_loss": self.largest_loss,
             "var_95": self.var_95,
+            "unrealized_pnl": self.unrealized_pnl,
         }
 
 

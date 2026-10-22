@@ -241,6 +241,10 @@ class BacktestResult:
       sell-side fees. For a fully liquidated round trip,
       ``final_value - initial_capital == sum(Trade.pnl)``; with open
       positions remaining, realized PnL excludes the basis of unsold shares.
+    - The mark-to-market PnL of the positions that are still open is reported
+      as ``unrealized_pnl``, and it completes the reconciliation:
+      ``final_value - initial_capital == metrics.total_pnl +
+      unrealized_pnl``.
     - A short keeps the raw execution price as its cost basis, so the entry
       fee it pays is booked as realized PnL on the short trade itself and the
       cover books the price move and the cover fee. A fully liquidated short
@@ -273,6 +277,21 @@ class BacktestResult:
     total_return_pct: float
     portfolio_violations: list[str] = field(default_factory=list)
     total_costs: float = 0.0
+
+    @property
+    def unrealized_pnl(self) -> float:
+        """Mark-to-market PnL of the positions that are still open.
+
+        This is the same figure as ``metrics.unrealized_pnl``: the engine
+        populates the metrics with the unrealized PnL of the open positions,
+        because it is the only place that knows them. It is ``0.0`` when the
+        run ended with every position closed.
+
+        Returns:
+            The unrealized PnL of the open positions.
+
+        """
+        return self.metrics.unrealized_pnl
 
 
 class BacktestEngine:
@@ -529,6 +548,16 @@ class BacktestEngine:
             periods_per_year=self.config.periods_per_year,
         )
 
+        # The mark-to-market PnL of the positions that are still open is only
+        # known here: the engine is the only place that has the open
+        # positions. The metrics function sees an equity curve and a trade
+        # log, and neither of them carries the market value of an open
+        # position, so it cannot derive the figure itself.
+        positions = self.portfolio.get_positions()
+        metrics.unrealized_pnl = float(
+            sum(position.unrealized_pnl for position in positions.values())
+        )
+
         initial_capital = self.config.initial_capital
         total_return_pct = (
             (self.portfolio.total_value / initial_capital - 1) * 100
@@ -539,7 +568,7 @@ class BacktestEngine:
         return BacktestResult(
             equity_curve=equity_series,
             trades=trades_df,
-            positions=self.portfolio.get_positions(),
+            positions=positions,
             metrics=metrics,
             start_date=start,
             end_date=end,

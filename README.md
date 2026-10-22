@@ -50,6 +50,7 @@ print(f"Total Return: {result.total_return_pct:.2f}%")
 print(f"Trading Costs: {result.total_costs:.2f}")
 print(f"Sharpe Ratio: {result.metrics.sharpe_ratio:.2f}")
 print(f"Max Drawdown: {result.metrics.max_drawdown_pct:.2f}%")
+print(f"Unrealized PnL: {result.metrics.unrealized_pnl:.2f}")
 ```
 
 ## Project Structure
@@ -969,6 +970,41 @@ rm.get_position_take_profit("AAPL")   # 127.5, below the entry price
 rm.should_stop_loss("AAPL", 165.0)    # True
 rm.should_take_profit("AAPL", 127.5)  # True
 ```
+
+## Realized and Unrealized PnL
+
+A run that ends with open positions has two kinds of PnL. The **realized** PnL
+(`result.metrics.total_pnl`) is what the trade log booked: the PnL of the
+completed round trips plus the entry fee of the shorts that are still open.
+The **unrealized** PnL (`result.metrics.unrealized_pnl`) is the mark-to-market
+PnL of the positions that are still open. The two halves explain the change of
+the portfolio value:
+
+```python
+result.final_value - result.initial_capital == (
+    result.metrics.total_pnl + result.metrics.unrealized_pnl
+)
+```
+
+`result.unrealized_pnl` is the same figure, and it is `0.0` when the run ended
+with every position closed. The CLI reports both halves next to the total
+return, and the JSON output carries them as `total_pnl` and `unrealized_pnl`.
+
+The engine fills the unrealized PnL in because it is the only place that knows
+the open positions. `calculate_backtest_metrics` sees an equity curve and a
+trade log, and neither of them carries the market value of an open position,
+so the field stays `0.0` when the function is called directly:
+
+```python
+from quant_trading.backtest.metrics import calculate_backtest_metrics
+
+metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
+metrics.unrealized_pnl  # 0.0 - the function cannot know the open positions
+```
+
+This is not the same figure as `analysis.open_position_pnl` of the
+[trade analysis](#trade-analysis), which is the part of the realized PnL that
+the positions that are still open booked.
 
 ## Trailing Stops
 

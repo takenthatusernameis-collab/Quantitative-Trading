@@ -471,6 +471,8 @@ class TestConfigFileEndToEnd:
             mock_metrics.volatility = 0.0
             mock_metrics.var_95 = 0.0
             mock_metrics.calmar_ratio = 0.0
+            mock_metrics.total_pnl = 0.0
+            mock_metrics.unrealized_pnl = 0.0
             mock_result.metrics = mock_metrics
 
             with (
@@ -2483,6 +2485,8 @@ class TestIntervalEndToEnd:
             mock_metrics.volatility = 0.0
             mock_metrics.var_95 = 0.0
             mock_metrics.calmar_ratio = 0.0
+            mock_metrics.total_pnl = 0.0
+            mock_metrics.unrealized_pnl = 0.0
             mock_result.metrics = mock_metrics
 
             with (
@@ -2527,6 +2531,8 @@ class TestIntervalEndToEnd:
             mock_metrics.volatility = 0.0
             mock_metrics.var_95 = 0.0
             mock_metrics.calmar_ratio = 0.0
+            mock_metrics.total_pnl = 0.0
+            mock_metrics.unrealized_pnl = 0.0
             mock_result.metrics = mock_metrics
 
             with (
@@ -2858,6 +2864,50 @@ class TestCombinedAnalysis:
         assert "regime_analysis" in data
         assert data["regime_analysis"]["periods_per_year"] == 252
         assert data["regime_analysis"]["segments"] is not None
+
+
+class TestUnrealizedPnlReporting:
+    """The CLI reports the realized and the unrealized PnL of the run.
+
+    The total return of a run includes the PnL of the positions that are
+    still open, so the two halves have to be visible next to it.
+    """
+
+    def test_the_output_splits_the_total_return(self, capsys):
+        """The printed block reports the realized and the unrealized PnL."""
+        args = ["--offline", "--symbols", "AAPL", "--days", "120"]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Realized PnL:" in captured.out
+        assert "Unrealized PnL:" in captured.out
+
+    def test_the_json_output_reconciles_the_total_return(self):
+        """The JSON output adds up to the total return it reports."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = f"{tmpdir}/results.json"
+            args = [
+                "--offline",
+                "--output",
+                output_path,
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+            ]
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 0
+            with open(output_path) as f:
+                data = json.load(f)
+
+        assert "total_pnl" in data
+        assert "unrealized_pnl" in data
+        assert data["total_return"] == pytest.approx(
+            data["total_pnl"] + data["unrealized_pnl"], rel=1e-9, abs=1e-6
+        )
 
 
 if __name__ == "__main__":

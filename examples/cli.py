@@ -1798,6 +1798,8 @@ def main() -> int:
         print(f"Initial Capital: ${result.initial_capital:,.2f}")
         print(f"Final Value:     ${result.final_value:,.2f}")
         print(f"Total Return:    ${result.total_return:,.2f} " f"({result.total_return_pct:.2f}%)")
+        print(f"Realized PnL:    ${result.metrics.total_pnl:,.2f}")
+        print(f"Unrealized PnL:  ${result.metrics.unrealized_pnl:,.2f}")
         print(f"Total Costs:     ${result.total_costs:,.2f}")
         print(f"Total Trades:    {result.metrics.num_trades}")
         print(f"Win Rate:        {result.metrics.win_rate:.2%}")
@@ -1839,6 +1841,8 @@ def main() -> int:
                 "final_value": result.final_value,
                 "total_return": result.total_return,
                 "total_return_pct": result.total_return_pct,
+                "total_pnl": result.metrics.total_pnl,
+                "unrealized_pnl": result.metrics.unrealized_pnl,
                 "total_costs": result.total_costs,
                 "num_trades": result.metrics.num_trades,
                 "win_rate": result.metrics.win_rate,

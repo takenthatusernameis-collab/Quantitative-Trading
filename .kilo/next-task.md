@@ -2,123 +2,119 @@
 
 ## What changed
 
-The assigned task was to thread `periods_per_year` through the regime entry
-points. The **library** part of that task was already done in the repository
-when this session started (`detect_regimes()`, `analyze_regimes()` and
-`regime_for_backtest()` all accepted `periods_per_year` and passed it to
-`RegimeDetector`). What was still missing was the last mile, and the session
-found a **failing test** on the way in. Four things were changed.
+The assigned task was to expose the unrealized PnL of the positions that are
+still open explicitly, and to assert the reconciliation identity. The library
+part of the task was already done in the repository when this session started
+(`BacktestMetrics` had no `unrealized_pnl` field, and `BacktestResult` carried
+the open positions but no way to read their mark-to-market PnL). The work of
+this session:
 
-1. **Fixed the failing repository-integrity test** (this was the concrete
-   blocker in the tree).
-   - `tests/test_backtest_analysis.py` defined
-     `test_analyze_regimes_periods_per_year_affects_volatility` **twice**
-     (lines 227 and 271) and
-     `test_regime_for_backtest_periods_per_year_affects_volatility` **twice**
-     (lines 249 and 291). The second definition shadows the first, so half of
-     the regime annualization tests were never collected or executed.
-     `tests/test_repository_integrity.py::test_no_duplicate_module_level_definitions`
-     caught this and **failed**: the baseline suite was
-     `1 failed, 1894 passed, 1 skipped`.
-   - The duplicated pair was replaced by a single, stronger pair that uses the
-     file's existing `_make_result()` fixture and asserts the exact
-     `sqrt(periods_per_year)` scaling instead of a mere inequality. Four new
-     tests were added: the two scaling tests, an auto-threshold label
-     invariance test, an explicit-threshold test, and a test that the analysis
-     records the annualization it used. The now-unused `BacktestMetrics`
-     import was removed.
-2. **`examples/cli.py` — the regime analysis now uses the period count of the
-   run.** `_get_regime_analysis()` gained a `periods_per_year: int = 252`
-   argument and the caller passes `config.backtest.periods_per_year`. Before
-   this, the CLI annualized every regime label at 252 while the backtest
-   metrics, the Monte Carlo simulation and the optimizers all honoured the
-   configured frequency, so a weekly run reported a regime volatility that was
-   off by the square root of the frequency ratio. The printed block and the
-   JSON output now report the annualization factor (`Periods per Year:` and
-   `regime_analysis["periods_per_year"]`).
-3. **`quant_trading/backtest/analysis.py` — `BacktestRegimeAnalysis` records
-   the annualization.** The dataclass gained a `periods_per_year: int = 252`
-   field, which `analyze_regimes()` fills in, and the field is reported in
-   `summary()` and `to_dict()`. The public defaults are unchanged.
-4. **Two adjacent gaps of exactly the same class were found and fixed**
-   (see "What remains unresolved" for the one that was deliberately *not*
-   fixed):
-   - `examples/cli.py::_get_trade_analysis()` now forwards
-     `config.backtest.risk_free_rate` to `analyze_trades()`. Before this the
-     CLI's trade-level Sharpe and Sortino were always computed with the
-     library default of `0.02`, so `--risk-free-rate 0.05` moved the backtest
-     Sharpe but left the trade Sharpe untouched.
-   - `examples/cli.py::run_combined()` silently ignored `--regime`,
-     `--monte-carlo` and `--trade-analysis`. Combined mode runs one backtest
-     per strategy and has no combined equity curve, so the analyses are now
-     reported for the **best strategy** of the comparison (the one the table
-     already announces) and are written to the JSON output under the same
-     keys a single run uses. The flags are read with `getattr(args, ..., False)`
-     because `run_combined()` is also called directly with hand-built
-     `argparse.Namespace` objects in the existing tests.
-
-Also updated: `examples/run_analysis.py` (threads `config.periods_per_year`
-into the backtest, the regime analysis and the Monte Carlo simulation) and
-`README.md` (a new "Regime Annualization" subsection, the combined-mode
-analysis behaviour, the trade-analysis risk-free rate, and
-`analyze_regimes`/`regime_for_backtest` in the list of layers that accept
-`periods_per_year`).
+1. **`quant_trading/backtest/metrics.py` — `BacktestMetrics` gained an
+   explicit `unrealized_pnl` field.**
+   - The field is the mark-to-market PnL of the positions that were still open
+     when the run ended. Together with `total_pnl` it explains the change of
+     the portfolio value:
+     `final_value - initial_capital == total_pnl + unrealized_pnl`.
+   - It is declared **last** in the dataclass, so the positional order of the
+     fields above it is unchanged for callers that build a metrics object
+     positionally. Every in-repo construction is keyword based, but the field
+     order is public API and was not touched.
+   - `to_dict()` reports it under the key `"unrealized_pnl"`.
+   - The docstring spells out that the field is **engine-populated**:
+     `calculate_backtest_metrics()` sees an equity curve and a trade log, and
+     neither of them carries the market value of an open position, so the
+     field stays `0.0` when the function is called directly. A run that ended
+     with every position closed also reports `0.0`.
+2. **`quant_trading/backtest/engine.py` — the engine populates the field.**
+   - `BacktestEngine.run()` computes the open positions once
+     (`self.portfolio.get_positions()`), sums their `Position.unrealized_pnl`
+     and writes it into `metrics.unrealized_pnl`. The engine is the only place
+     that knows the open positions, so this is where the number has to come
+     from; `calculate_backtest_metrics()` was deliberately left alone.
+   - `BacktestResult` gained an `unrealized_pnl` **property** that returns
+     `self.metrics.unrealized_pnl`, so the figure is reachable from the result
+     as well (`result.unrealized_pnl`). There is a single source of truth (the
+     metrics field), and the randomized invariant tests assert that the two
+     agree.
+   - The class docstring of `BacktestResult` now states the reconciliation
+     identity in its bullet list of reconciling facts.
+3. **`examples/cli.py` — the single-run output shows the split.**
+   - The printed block gained `Realized PnL:` and `Unrealized PnL:` lines
+     right below `Total Return:`, so the total return can be read as the sum
+     of the two.
+   - The JSON output gained the keys `"total_pnl"` and `"unrealized_pnl"`.
+4. **`README.md` — a new "Realized and Unrealized PnL" section** right after
+   the "Short Selling" section (which is where the reconciliation prose for a
+   fully liquidated round trip already lived). It states the identity, points
+   at the CLI output and the JSON keys, and warns that
+   `calculate_backtest_metrics()` cannot derive the figure on its own. The
+   Quick Start snippet also prints the new field.
+5. **Tests** (7 new tests, plus the shared invariant helper):
+   - `tests/test_cost_accounting_invariants.py`: the shared helper
+     `_assert_cost_accounting_invariants()` gained invariant 8 — the metrics
+     report the unrealized PnL of the open positions and the two halves
+     reconcile — so it now runs over all ~70 randomized scenarios
+     (round trips, partial exits, add-to-position, multiple symbols, rejected
+     signals, short round trips, open shorts).
+   - `tests/test_cost_accounting_invariants.py::test_the_metrics_report_the_unrealized_pnl_of_the_open_positions`
+     — a run that ends with **an open long and an open short**.
+   - `tests/test_cost_accounting_invariants.py::test_a_fully_liquidated_run_reports_no_unrealized_pnl`
+     — a fully closed run reports `0.0`.
+   - `tests/test_backtest_metrics.py::TestBacktestMetricsUnrealizedPnl` — the
+     default is `0.0`, the field is in `to_dict()`, and a direct call of
+     `calculate_backtest_metrics()` leaves it at `0.0`.
+   - `tests/test_cli.py::TestUnrealizedPnlReporting` — the printed block
+     reports both halves, and the JSON output reconciles to the total return.
+   - `tests/test_cli.py`: the three CLI tests that mock the metrics
+     (`MagicMock()` with only the printed attributes set) now also set
+     `total_pnl` and `unrealized_pnl` to `0.0`. This is a mechanical
+     consequence of the two new printed lines, not a weakening of an
+     assertion.
 
 ## What was actually verified
 
 - **Baseline before any change**: `python3 -m pytest -q` ->
-  `1 failed, 1894 passed, 1 skipped`. The failure was
-  `tests/test_repository_integrity.py::test_no_duplicate_module_level_definitions`
-  reporting the two duplicated test names.
-- **After the change**: `python3 -m pytest -q` -> **`1913 passed, 1 skipped,
-  0 failed`** (19 new tests, 1 previously failing test fixed).
+  `1913 passed, 1 skipped`. The tree was green.
+- **After the change**: `python3 -m pytest -q` -> **`1920 passed, 1 skipped,
+  0 failed`** (7 new tests).
 - `python3 -m ruff check .` -> All checks passed.
 - `python3 -m black --check .` -> 91 files unchanged.
-- `python3 -m mypy quant_trading` -> no issues found in 37 source files.
-- **Every new test was confirmed to fail against the pre-change source** by
-  stashing only `quant_trading/backtest/analysis.py` and `examples/cli.py`
-  and re-running:
-  - the 5 new `TestRegimePeriodsPerYear` tests (2 x `TypeError:
-    _get_regime_analysis() got an unexpected keyword argument`, 2 x missing
-    `Periods per Year:` in the output, 1 x `KeyError: 'periods_per_year'` in
-    the JSON);
-  - `test_backtest_regime_analysis_records_periods_per_year` (`AttributeError:
-    'BacktestRegimeAnalysis' object has no attribute 'periods_per_year'`);
-  - the 3 new `TestTradeAnalysisRiskFreeRate` tests (2 x `TypeError` on the
-    new keyword, 1 x `assert -34.61 != -34.61` — the pre-change CLI produced
-    the **same** trade Sharpe for two different risk-free rates);
-  - 3 of the 4 new `TestCombinedAnalysis` tests (the fourth is the control
-    that asserts the analysis blocks are *absent* without the flags, so it
-    passes both before and after).
-- **Behavioural facts were measured, not assumed** (script over a 300-bar
-  seeded random walk and over the test fixtures):
-  - the annualized regime volatility scales by exactly `sqrt(ppy)`
-    (0.181868 / 0.082615 = 2.201398 = `sqrt(252/52)`);
-  - with **auto-derived** thresholds the labels are **invariant** to
-    `periods_per_year` (the threshold is the mean of the very statistic it is
-    compared against, and both are scaled by the same factor) — 68 identical
-    segments for ppy 252, 52 and 12;
-  - with an **explicit** threshold the labels **do** follow the period count
-    (68 -> 60 -> 56 -> 9 segments for ppy 252, 52, 12, 12), because an
-    explicit threshold is a fixed number in annualized units.
-- **End-to-end CLI**: `PYTHONPATH=. python3 examples/cli.py --offline --regime
-  --periods-per-year {252,52} --symbols AAPL --days 120 --output ...` ->
-  the JSON reports `total_volatility` 0.00020570703 (252) vs
-  0.0000934438 (52); the ratio is 2.201398157116029 = `sqrt(252/52)`.
-- **End-to-end CLI**: `--combined --offline --regime --monte-carlo
-  --trade-analysis` now prints all three analysis blocks and
-  `Analysis of the best strategy: Aroon_25`; the JSON carries
-  `regime_analysis`, `monte_carlo` and `trade_analysis` next to
-  `best_strategy`.
-- `PYTHONPATH=. python3 examples/run_analysis.py` runs and prints
-  `Periods per Year:  252`.
-- The `examples/` tree was scanned with the same AST rule the integrity test
-  uses: **no duplicate module-level definitions** in `examples/` either.
+- `python3 -m mypy quant_trading examples` -> no issues found in 56 source
+  files.
+- **The new tests fail against the pre-change source.** The two source files
+  were restored from `HEAD` (the test files were kept) and the new tests were
+  re-run: all 5 library tests failed with
+  `AttributeError: 'BacktestMetrics' object has no attribute 'unrealized_pnl'`
+  (4x) and
+  `TypeError: BacktestMetrics.__init__() got an unexpected keyword argument
+  'unrealized_pnl'` (1x). The two CLI tests fail on the pre-change source
+  because the printed lines and the JSON keys do not exist there.
+- **The identity was measured, not assumed.** A scratch script drove the
+  engine through six scenarios and compared
+  `final_value - initial_capital` with
+  `metrics.total_pnl + metrics.unrealized_pnl`:
+  open long only, open short only, open long + open short, partial long +
+  open short, fully liquidated long, fully liquidated short. The residual was
+  at most `2.3e-13` in every case (float noise).
+- `metrics.total_pnl` was measured to be **exactly** the sum of the raw trade
+  log `pnl` column in every scenario (the `split_trade_log()` "entries" sum),
+  so the metrics field and the trade log agree.
+- `metrics.unrealized_pnl` was measured to be exactly the sum of
+  `Position.unrealized_pnl` of the open positions, which is the sum of
+  `Holding.unrealized_pnl` of the same positions (`Holding.to_position()`
+  copies the figure).
+- **End-to-end CLI**: `PYTHONPATH=. python3 examples/cli.py --offline
+  --symbols AAPL --days 120 --output /tmp/cli_out.json` prints
+  `Total Return:    $12.08 (0.01%)`, `Realized PnL:    $0.45` and
+  `Unrealized PnL:  $11.63`; the JSON carries `total_return =
+  12.077983863971895`, `total_pnl = 0.4493655360112796` and
+  `unrealized_pnl = 11.628618327961107`, which add up to the total return
+  exactly.
 
 ## What remains unresolved
 
 - **`analyze_trades(periods_per_year=...)` is still not wired to the run, and
-  the semantics are genuinely ambiguous — deliberately not changed.** The
+  the semantics are genuinely ambiguous — unchanged, deliberately.** The
   trade-level Sharpe and Sortino are computed on the **per-trade** return
   series, so the value of `periods_per_year` there means "how many *trades*
   per year" (see the docstring at
@@ -126,101 +122,110 @@ analysis behaviour, the trade-analysis risk-free rate, and
   per year". Forwarding the bar frequency from the config would be an
   approximation that conflates the two. A decision is needed on what the
   framework means by the parameter here; it is not a mechanical fix.
-- **The long-side entry fee "asymmetry" in `split_trade_log()` is NOT a bug —
-  closed after two sessions of carry-over.** The previous handoff listed it as
-  an open item. Evidence: the engine capitalizes a long entry fee into
-  `Holding.avg_cost` and books `0.0` realized PnL on the long entry row, so
-  there is nothing to fold. Measured on a real run: **0** `buy` rows with a
-  nonzero `pnl`, and the `sell` rows' PnL already equals the whole trade log's
-  PnL (4.726498 = 4.726498). The short side *must* fold its entry fee into
-  the cover because a short keeps its raw execution price as its cost basis.
-  The two sides are mirror images, and `split_trade_log()` is correct. No
-  change is needed; this item is now closed.
-- **`total_pnl` is realized, `total_return` includes unrealized PnL.** The
-  engine invariant `final_value - initial_capital == sum(trades["pnl"]) +
-  unrealized_pnl` holds (measured: 39.17651702 == 4.72649812 + 34.45001890,
-  and the per-position unrealized PnL sums to the same 34.45001890:
-  -44.84929466 + 79.29931356). But `BacktestResult` exposes no explicit
-  realized/unrealized split field, so the split is only reachable by manual
-  subtraction. This is the next task.
+- **`TradeAnalysis.open_position_pnl` and the new
+  `BacktestMetrics.unrealized_pnl` are different numbers and the names are
+  close.** `open_position_pnl` is the part of the *realized* PnL that the
+  positions which are still open booked (the entry fee of the shorts that were
+  never covered) — it is already inside `total_pnl`. `unrealized_pnl` is the
+  mark-to-market value of the open positions. Both are documented in the
+  metrics docstring and in the README, but the confusion is still possible.
+  Renaming either is a breaking change and was not attempted.
+- **`calculate_backtest_metrics()` called directly reports `0.0` for the
+  unrealized PnL even when the run had open positions.** This is documented
+  in the field docstring, in the README and in a dedicated test, but a caller
+  that rebuilds the metrics from `result.equity_curve` and `result.trades`
+  still gets a `0.0` that is not the truth. The alternatives (an optional
+  `unrealized_pnl=` argument, or `None` for "unknown") were considered and
+  rejected to keep the field a plain float with a documented default; the
+  decision can be revisited.
+- **The combined mode of the CLI does not report the split.** It prints a
+  comparison table and writes per-strategy JSON entries; neither was changed
+  (see "approaches that already failed" for the concrete blocker). The
+  library values are available to a caller of `run_combined()`.
 - **Network-gated providers** (Yahoo Finance, Alpha Vantage) remain hard to
   cover offline.
-- **The repository integrity guard does not cover `examples/`.**
-  `tests/test_repository_integrity.py` scans `SOURCE_DIRS = ("quant_trading",
-  "tests")` only, while `examples/cli.py` is ~2000 lines and is exactly the
-  kind of file this guard was written for (the repo has repeatedly been bitten
-  by double-applied patches). The tree is currently clean, so this is a
-  hardening opportunity rather than a live bug.
+- **The repository integrity guard still does not cover `examples/`** — this
+  is the next task.
 
 ## Approaches that already failed
 
-- **Assuming the assigned task was undone.** The handoff said
-  `detect_regimes()` did not expose `periods_per_year`; the repository already
-  had it at `quant_trading/regime/detector.py:584`. The next agent should
-  **verify the current state of a file before trusting a handoff claim about
-  it** — the handoff described the intended change, not necessarily the
-  state of the tree.
-- **Narrow `--cov` targets on submodules** can fail under coverage import
-  hooks in some environments — measure with package-wide `--cov=quant_trading`.
-- **Missing deps in a fresh env** (pandas/numpy/pytest/scikit-optimize/
-  yfinance) cause import failures; `pip install -e ".[dev]"` is needed first.
-  The scripts land in `~/.local/bin`, which is not on `PATH`, so the tools have
-  to be invoked as `python3 -m ruff` / `python3 -m black` / `python3 -m mypy`.
-- **`examples/cli.py` cannot be run as `python3 examples/cli.py`**; it needs
-  `PYTHONPATH=.` from the repository root.
-- **Reading `args.regime` directly inside `run_combined()` broke three
-  existing tests** that build `argparse.Namespace` objects by hand
-  (`TestRunCombined`, `TestFactoryIntegration`). Use
-  `getattr(args, "regime", False)` there, the way the function already reads
-  the strategy-specific arguments.
-- **An earlier attempt asserted that consecutive out-of-sample periods are
-  *contiguous*** in the walk-forward optimizer. That is wrong for a
-  walk-forward: the in-sample span of a later fold sits between two
-  out-of-sample spans. The correct invariant is "disjoint and chronological".
+- **Adding the two CLI print lines broke three existing CLI tests**
+  (`TestConfigFileEndToEnd::test_main_with_a_config_file_uses_the_limit_of_the_file`,
+  `TestIntervalEndToEnd::test_main_uses_the_interval_of_the_config_file`,
+  `TestIntervalEndToEnd::test_main_lets_the_flag_override_the_interval`).
+  They build `MagicMock()` metrics and set only the attributes the CLI
+  prints, so the two new attributes were MagicMocks and
+  `f"{mock:.2f}"` raised
+  `TypeError: unsupported format string passed to MagicMock.__format__`.
+  Fixed by setting `total_pnl` and `unrealized_pnl` on those three mocks —
+  the alternative (not printing the new fields) would have thrown the feature
+  away.
+- **`MagicMock(spec=BacktestMetrics).unrealized_pnl` returns a child
+  MagicMock, not the class default `0.0`.** A `spec` only restricts *which*
+  attributes exist; it does not copy their values. So a spec'd metrics mock
+  cannot be formatted either.
+- **The combined mode was deliberately left alone because of that mock.** Its
+  JSON is written with `json.dump(output_data, f, indent=2)` — **without**
+  `default=str` — while the single-run path uses
+  `json.dump(output_data, f, indent=2, default=str)`. The two existing
+  combined-mode tests use `MagicMock(spec=BacktestMetrics)` metrics, so
+  adding `result.metrics.total_pnl` to the comparison entries would raise
+  `TypeError: Object of type MagicMock is not JSON serializable` unless the
+  mocks are changed. That is a separate, small change; it was left out to
+  keep this change bounded.
+- **A `BacktestResult.unrealized_pnl` property derived from `self.positions`
+  was rejected** in favour of delegating to `self.metrics.unrealized_pnl`:
+  two independently computed copies of the same number can drift apart for a
+  hand-built result. The metrics field is the single source of truth, and the
+  randomized invariant tests assert that the result property and the metrics
+  field agree.
+- **Inserting the new dataclass field next to `total_pnl` was rejected** even
+  though that reads better: the dataclass fields are the positional
+  arguments of `BacktestMetrics.__init__`, and inserting a field in the
+  middle would silently change the meaning of `BacktestMetrics(1000.0,
+  500.0, 1.5)`. The field is declared last instead.
 
 ## Next task
 
-**Expose the unrealized PnL of the open positions explicitly, and assert the
-reconciliation identity.**
+**Extend the repository integrity guard to the `examples/` tree.**
 
 Evidence:
 
-- The engine already knows both halves: `BacktestResult` is built at
-  `quant_trading/backtest/engine.py:539-552` and carries
-  `positions=self.portfolio.get_positions()`; every `Position` exposes
-  `unrealized_pnl` (`quant_trading/strategies/base.py:117`).
-- The identity holds on a real run: `final_value - initial_capital ==
-  sum(trades["pnl"]) + unrealized_pnl` (39.17651702 == 4.72649812 +
-  34.45001890, with the per-position unrealized PnL summing to the same
-  34.45001890: -44.84929466 + 79.29931356).
-- `BacktestMetrics.total_pnl` is the **realized** PnL (sum of the trade log)
-  while `BacktestMetrics.total_return` **includes** the unrealized PnL of the
-  positions that are still open
-  (`quant_trading/backtest/metrics.py:47-53`). The two are documented as
-  different numbers, but the difference is only reachable by manual
-  subtraction, and the README has to explain the distinction in prose.
+- `tests/test_repository_integrity.py:25` scans
+  `SOURCE_DIRS = ("quant_trading", "tests")` only. The guard exists because
+  this repository has repeatedly been broken by a patch that was applied
+  twice (a duplicated keyword argument made the package unimportable, a
+  duplicated dataclass field silently overrode the earlier default, and a
+  duplicated test function was never collected — that last one was the
+  failing test the previous session found in this repository).
+- `examples/cli.py` is **2027 lines** and is exactly the kind of file that
+  guard was written for; the previous session's handoff already flagged the
+  missing `examples/` coverage as "a hardening opportunity rather than a
+  live bug".
+- The `examples/` tree is **currently clean**: a scan with the same AST rules
+  the guard uses over `examples/**/*.py` (19 files) found **0** duplicate
+  module-level definitions and **0** duplicate class members or annotated
+  fields, and every file compiles. So this task is a guard, not a bug fix.
 
 Bounded scope:
 
-1. Add an explicit `unrealized_pnl` to `BacktestMetrics` (or a property on
-   `BacktestResult`) and populate it **in the engine**, which is the only
-   place that knows both the open positions and the initial capital.
-   Do **not** compute it inside `calculate_backtest_metrics()`: that function
-   receives only an equity curve and a trade log, and its `total_return` is
-   the change of the *curve*, which only coincides with
-   `final_value - initial_capital` when the curve starts at the initial
-   capital.
-2. Add a test that asserts
-   `result.final_value - result.initial_capital == result.metrics.total_pnl +
-   result.metrics.unrealized_pnl` for a run that ends with open positions
-   (long and short), and that the field is `0.0` for a fully liquidated run.
-3. Keep every existing public default and the existing
-   `total_return`/`total_pnl` semantics unchanged — this is an addition, not
-   a redefinition.
-4. Document the field in the README next to the risk-limit / reconciliation
-   prose.
+1. Cover `examples/` in `tests/test_repository_integrity.py`. The cheapest
+   form is to add `"examples"` to `SOURCE_DIRS`; the alternative is a second
+   list so that the package-specific checks keep their current meaning. The
+   checks must stay **AST based** — the example modules have import-time side
+   effects and must not be imported by the guard.
+2. Keep the guard cheap: it already parses every file, and 19 more files add
+   no measurable time.
+3. **Prove the new coverage works**: temporarily duplicate a function
+   definition inside an `examples/` file, confirm the guard fails, and revert
+   the temporary change. A guard that has never been shown to fail is not
+   evidence. Record the observed failure in the handoff.
+4. If the scan over `examples/` turns out to have real offenders (it did not
+   in this session), fix them instead of just guarding them.
 
-Constraints: keep the existing public defaults; do not change the regime or
-trade labelling rules; run `python3 -m pytest -q`, `python3 -m ruff check .`,
-`python3 -m black --check .` and `python3 -m mypy quant_trading` before
-handing off, and confirm the new test fails against the pre-change code.
+Constraints: do not change the semantics of the existing checks; do not
+import the example modules; keep the public API of the guard unchanged
+(it is a test module, so only its own helpers are at stake); run
+`python3 -m pytest -q`, `python3 -m ruff check .`, `python3 -m black --check .`
+and `python3 -m mypy quant_trading examples` before handing off, and confirm
+the new check fails against a deliberately broken tree.
