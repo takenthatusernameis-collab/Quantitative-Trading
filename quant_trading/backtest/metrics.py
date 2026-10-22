@@ -165,7 +165,8 @@ def calculate_backtest_metrics(
     trades: pd.DataFrame | None = None,
     risk_free_rate: float = 0.02,
     periods_per_year: int = 252,
-    unrealized_pnl: float = 0.0,
+    unrealized_pnl: float | None = None,
+    positions: dict[str, Any] | None = None,
 ) -> BacktestMetrics:
     """Calculate comprehensive backtest metrics from an equity curve.
 
@@ -190,8 +191,14 @@ def calculate_backtest_metrics(
             annualized return, volatility, Sharpe, Sortino and Calmar
             figures so the metrics stay mutually consistent.
         unrealized_pnl: Optional mark-to-market PnL of positions still
-            open at the end of the run. Defaults to 0.0; the engine passes
-            the value it computes from open positions.
+            open at the end of the run. If ``None`` (default), the value
+            is taken from ``positions`` if provided, otherwise remains
+            ``0.0``. The engine passes the value it computes from open
+            positions.
+        positions: Optional mapping of symbol to position objects/holdings
+            with an ``unrealized_pnl`` attribute. When ``unrealized_pnl``
+            is ``None`` and positions are provided, the unrealized PnL is
+            summed from them.
 
     Returns:
         BacktestMetrics object populated with the computed values.
@@ -207,7 +214,17 @@ def calculate_backtest_metrics(
 
     """
     metrics = BacktestMetrics()
-    metrics.unrealized_pnl = float(unrealized_pnl)
+    if unrealized_pnl is not None:
+        metrics.unrealized_pnl = float(unrealized_pnl)
+    elif positions is not None:
+        try:
+            metrics.unrealized_pnl = float(
+                sum(getattr(position, "unrealized_pnl", 0.0) for position in positions.values())
+            )
+        except Exception:
+            metrics.unrealized_pnl = 0.0
+    else:
+        metrics.unrealized_pnl = 0.0
 
     if len(equity_curve) < 2:
         return metrics
