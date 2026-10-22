@@ -2,6 +2,7 @@
 
 from .base import Position, Signal, Strategy, StrategyManager
 from .examples import (
+    ADXStrategy,
     AroonStrategy,
     BollingerBandsStrategy,
     DonchianChannelStrategy,
@@ -42,9 +43,11 @@ register_strategy("ichimoku", IchimokuCloudStrategy, aliases=["ichimoku_cloud", 
 register_strategy("sar", ParabolicSARStrategy, aliases=["parabolic_sar", "psar"])
 register_strategy("vwap", VWAPStrategy)
 register_strategy("momentum", MomentumStrategy, aliases=["mom"])
+register_strategy("adx", ADXStrategy, aliases=["average_directional_index"])
 
 
 __all__ = [
+    "ADXStrategy",
     "AroonStrategy",
     "BollingerBandsStrategy",
     "DonchianChannelStrategy",

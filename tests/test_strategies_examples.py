@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from quant_trading.strategies.examples import (
+    ADXStrategy,
     BollingerBandsStrategy,
     DonchianChannelStrategy,
     EMACrossover,
@@ -2600,6 +2601,127 @@ class TestMomentumStrategy:
         """A zero reference price is skipped instead of dividing by zero."""
         strategy = MomentumStrategy(period=2, threshold=0.01)
         data = {"AAPL": create_momentum_data([0.0, 100.0, 100.0])}
+        assert strategy.generate_signals(data) == []
+
+
+def create_adx_data(symbol: str, closes: list[float]) -> pd.DataFrame:
+    """Create deterministic OHLC data for ADX tests.
+
+    High and low carry a fixed one-point range so the true range exceeds the
+    directional movement and the directional indices stay bounded.
+    """
+    close = np.asarray(closes, dtype=float)
+    dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
+    return pd.DataFrame(
+        {
+            "high": close + 1.0,
+            "low": close - 1.0,
+            "close": close,
+            "volume": np.full(len(close), 1_000_000),
+        },
+        index=dates,
+    )
+
+
+class TestADXStrategy:
+    """Tests for ADXStrategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = ADXStrategy(period=14, threshold=25.0, name="Test_ADX")
+        assert strategy.name == "Test_ADX"
+        assert strategy.period == 14
+        assert strategy.threshold == 25.0
+
+    def test_defaults(self):
+        """Test default parameters."""
+        strategy = ADXStrategy()
+        assert strategy.name == "ADX"
+        assert strategy.period == 14
+        assert strategy.threshold == 25.0
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid bounds."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            ADXStrategy(period=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            ADXStrategy(period=-14)
+        with pytest.raises(ValueError, match="threshold must be between 0 and 100"):
+            ADXStrategy(threshold=0)
+        with pytest.raises(ValueError, match="threshold must be between 0 and 100"):
+            ADXStrategy(threshold=100)
+        with pytest.raises(ValueError, match="threshold must be between 0 and 100"):
+            ADXStrategy(threshold=-10)
+
+    def test_generate_signals_bullish_trend(self):
+        """Test a strong uptrend emits a buy signal."""
+        strategy = ADXStrategy(period=14, threshold=25.0)
+        closes = [100.0 + 2.0 * i for i in range(40)]
+        data = {"AAPL": create_adx_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(178.0)
+        assert signal.metadata["signal_type"] == "bullish_trend"
+        assert signal.metadata["adx"] == pytest.approx(100.0)
+        assert signal.metadata["minus_di"] == pytest.approx(0.0)
+        assert signal.metadata["plus_di"] > 50.0
+
+    def test_generate_signals_bearish_trend(self):
+        """Test a strong downtrend emits a sell signal."""
+        strategy = ADXStrategy(period=14, threshold=25.0)
+        closes = [100.0 - 2.0 * i for i in range(40)]
+        data = {"AAPL": create_adx_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(22.0)
+        assert signal.metadata["signal_type"] == "bearish_trend"
+        assert signal.metadata["adx"] == pytest.approx(100.0)
+        assert signal.metadata["plus_di"] == pytest.approx(0.0)
+        assert signal.metadata["minus_di"] > 50.0
+
+    def test_generate_signals_no_signal_without_trend(self):
+        """A flat price series has no trend, so no signal is emitted."""
+        strategy = ADXStrategy(period=14, threshold=25.0)
+        closes = [100.0] * 40
+        data = {"AAPL": create_adx_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with insufficient data."""
+        strategy = ADXStrategy(period=14)
+        data = {"AAPL": create_adx_data("AAPL", [100.0 + i for i in range(20)])}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals evaluates each symbol independently."""
+        strategy = ADXStrategy(period=14, threshold=25.0)
+        data = {
+            "AAPL": create_adx_data("AAPL", [100.0 + 2.0 * i for i in range(40)]),
+            "MSFT": create_adx_data("MSFT", [100.0 - 2.0 * i for i in range(40)]),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+
+    def test_generate_signals_skips_nan_close(self):
+        """A NaN last close is skipped before any signal is derived."""
+        strategy = ADXStrategy(period=14, threshold=25.0)
+        closes = [100.0 + 2.0 * i for i in range(39)] + [float("nan")]
+        data = {"AAPL": create_adx_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
 
 

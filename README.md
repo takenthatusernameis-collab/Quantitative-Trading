@@ -113,6 +113,7 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `sar` (aliases: `parabolic_sar`, `psar`) → `ParabolicSARStrategy`
 - `vwap` → `VWAPStrategy`
 - `momentum` (alias: `mom`) → `MomentumStrategy`
+- `adx` (alias: `average_directional_index`) → `ADXStrategy`
 
 ```python
 from quant_trading.strategies import (

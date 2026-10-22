@@ -2557,3 +2557,210 @@ class MomentumStrategy(Strategy):
                 )
 
         return signals
+
+
+class ADXStrategy(Strategy):
+    """Average Directional Index Strategy.
+
+    Measures trend strength with the Average Directional Index (ADX) using
+    Wilder's smoothing. The strategy buys when ADX is above the trend
+    threshold and the positive directional index exceeds the negative one
+    (bullish trend), and sells when ADX is above the threshold and the
+    negative directional index exceeds the positive one (bearish trend).
+    While ADX is at or below the threshold the market lacks a strong trend
+    and no signal is emitted.
+
+    The directional indicators are:
+
+    * ``+DI``: smoothed upward directional movement over ``period`` bars.
+    * ``-DI``: smoothed downward directional movement over ``period`` bars.
+    * ``ADX``: smoothed average of the directional index ``DX = 100 * |
+      +DI - -DI | / (+DI + -DI)``.
+    """
+
+    def __init__(
+        self,
+        period: int = 14,
+        threshold: float = 25.0,
+        name: str = "ADX",
+    ):
+        """Initialize the ADX strategy.
+
+        Args:
+            period: Lookback period for the directional indicators.
+            threshold: ADX level above which a trend is considered strong.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If ``period`` is non-positive or ``threshold`` is not
+                strictly between 0 and 100.
+
+        """
+        super().__init__(
+            name,
+            {
+                "period": period,
+                "threshold": threshold,
+            },
+        )
+        self.period = period
+        self.threshold = threshold
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is non-positive or ``threshold`` is not
+                strictly between 0 and 100.
+
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+        if not (0 < self.threshold < 100):
+            raise ValueError("threshold must be between 0 and 100")
+
+    def _calculate_adx(
+        self,
+        high: pd.Series,
+        low: pd.Series,
+        close: pd.Series,
+    ) -> tuple[pd.Series, pd.Series, pd.Series]:
+        """Calculate ADX, +DI, and -DI using Wilder's smoothing.
+
+        Args:
+            high: Series of high prices.
+            low: Series of low prices.
+            close: Series of close prices.
+
+        Returns:
+            Tuple of ``(adx, plus_di, minus_di)`` series aligned with the
+            inputs. Values are undefined before enough history is available
+            for the first ADX value.
+        """
+        period = self.period
+
+        up_move = high.diff()
+        down_move = low.shift(1) - low
+        plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+        minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+
+        previous_close = close.shift(1)
+        true_range = pd.concat(
+            [high - low, (high - previous_close).abs(), (low - previous_close).abs()],
+            axis=1,
+        ).max(axis=1)
+
+        def wilder_smooth(values: pd.Series) -> pd.Series:
+            smoothed: pd.Series = values.copy()
+            smoothed.iloc[: period - 1] = np.nan
+            smoothed.iloc[period - 1] = values.iloc[:period].sum()
+            for index in range(period, len(values)):
+                smoothed.iloc[index] = (
+                    smoothed.iloc[index - 1]
+                    - smoothed.iloc[index - 1] / period
+                    + values.iloc[index]
+                )
+            return smoothed
+
+        smoothed_tr = wilder_smooth(true_range)
+        smoothed_plus_dm = wilder_smooth(plus_dm)
+        smoothed_minus_dm = wilder_smooth(minus_dm)
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            plus_di = 100.0 * smoothed_plus_dm / smoothed_tr
+            minus_di = 100.0 * smoothed_minus_dm / smoothed_tr
+            dx = 100.0 * (plus_di - minus_di).abs() / (plus_di + minus_di)
+
+        plus_di = plus_di.fillna(0.0)
+        minus_di = minus_di.fillna(0.0)
+        dx = dx.fillna(0.0)
+
+        adx = dx.copy()
+        first_adx = 2 * period - 1
+        if len(adx) > first_adx:
+            adx.iloc[:first_adx] = np.nan
+            adx.iloc[first_adx] = dx.iloc[period - 1 : 2 * period - 1].mean()
+            for index in range(first_adx + 1, len(adx)):
+                adx.iloc[index] = (adx.iloc[index - 1] * (period - 1) + dx.iloc[index]) / period
+
+        return adx, plus_di, minus_di
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate trend-following signals from the ADX.
+
+        Args:
+            data: Mapping of symbol to an OHLCV DataFrame containing at
+                least ``"high"``, ``"low"``, and ``"close"`` columns.
+
+        Returns:
+            List of :class:`Signal` objects. A buy signal is emitted when
+            ADX exceeds the threshold with +DI above -DI; a sell signal when
+            ADX exceeds the threshold with -DI above +DI. No signal is
+            emitted while ADX is at or below the threshold.
+        """
+        signals: list[Signal] = []
+        min_bars = 2 * self.period
+
+        for symbol, df in data.items():
+            if len(df) < min_bars:
+                continue
+
+            high = df["high"]
+            low = df["low"]
+            close = df["close"]
+            adx, plus_di, minus_di = self._calculate_adx(high, low, close)
+
+            current_adx = adx.iloc[-1]
+            current_price = close.iloc[-1]
+            if pd.isna(current_adx) or pd.isna(current_price):
+                continue
+
+            current_plus = plus_di.iloc[-1]
+            current_minus = minus_di.iloc[-1]
+            if pd.isna(current_plus) or pd.isna(current_minus):
+                continue
+
+            timestamp = df.index[-1]
+
+            if current_adx <= self.threshold:
+                continue
+
+            strength = min(
+                1.0,
+                max(0.0, (current_adx - self.threshold) / (100.0 - self.threshold)),
+            )
+            metadata = {
+                "adx": current_adx,
+                "plus_di": current_plus,
+                "minus_di": current_minus,
+                "period": self.period,
+                "threshold": self.threshold,
+            }
+
+            if current_plus > current_minus:
+                metadata["signal_type"] = "bullish_trend"
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata=metadata,
+                    )
+                )
+            elif current_minus > current_plus:
+                metadata["signal_type"] = "bearish_trend"
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata=metadata,
+                    )
+                )
+
+        return signals

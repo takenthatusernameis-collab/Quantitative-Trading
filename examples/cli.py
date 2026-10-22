@@ -60,6 +60,7 @@ BUILTIN_STRATEGY_KEYS = [
     "vwap",
     "ema",
     "momentum",
+    "adx",
 ]
 
 PROVIDERS = {
