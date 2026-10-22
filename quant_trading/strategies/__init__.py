@@ -3,9 +3,9 @@
 from .base import Position, Signal, Strategy, StrategyManager
 from .examples import (
     ADXStrategy,
-    CCIStrategy,
     AroonStrategy,
     BollingerBandsStrategy,
+    CCIStrategy,
     DonchianChannelStrategy,
     EMACrossover,
     IchimokuCloudStrategy,
@@ -18,6 +18,7 @@ from .examples import (
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
     VWAPStrategy,
+    WilliamsRStrategy,
 )
 from .factory import (
     StrategyRegistry,
@@ -46,13 +47,14 @@ register_strategy("vwap", VWAPStrategy)
 register_strategy("momentum", MomentumStrategy, aliases=["mom"])
 register_strategy("adx", ADXStrategy, aliases=["average_directional_index"])
 register_strategy("cci", CCIStrategy, aliases=["commodity_channel_index"])
+register_strategy("williamsr", WilliamsRStrategy, aliases=["williams_pct_r"])
 
 
 __all__ = [
     "ADXStrategy",
-    "CCIStrategy",
     "AroonStrategy",
     "BollingerBandsStrategy",
+    "CCIStrategy",
     "DonchianChannelStrategy",
     "EMACrossover",
     "IchimokuCloudStrategy",
@@ -68,6 +70,7 @@ __all__ = [
     "StrategyManager",
     "StrategyRegistry",
     "SuperTrendStrategy",
+    "WilliamsRStrategy",
     "available_strategies",
     "create_strategy",
     "get_available_strategies",

@@ -1604,6 +1604,7 @@ class TestRunCombined:
             ("Momentum", 9.5),
             ("ADX", 11.0),
             ("CCI", 10.0),
+            ("Williams %R", 12.0),
         ]:
             m = MagicMock(
                 spec=[
@@ -1691,6 +1692,7 @@ class TestRunCombined:
         assert "Parabolic_SAR" in captured.out
         assert "ADX" in captured.out
         assert "CCI" in captured.out
+        assert "Williams %R" in captured.out
         assert "Best strategy (by Sharpe)" in captured.out
 
     @patch("examples.cli.run_backtest")

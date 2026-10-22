@@ -21,6 +21,7 @@ from quant_trading.strategies.examples import (
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
     VWAPStrategy,
+    WilliamsRStrategy,
 )
 
 
@@ -2722,6 +2723,134 @@ class TestADXStrategy:
         strategy = ADXStrategy(period=14, threshold=25.0)
         closes = [100.0 + 2.0 * i for i in range(39)] + [float("nan")]
         data = {"AAPL": create_adx_data("AAPL", closes)}
+        assert strategy.generate_signals(data) == []
+
+
+def create_williams_r_data(symbol: str, closes: list[float]) -> pd.DataFrame:
+    """Create deterministic OHLC data for Williams %R tests.
+
+    High and low carry a fixed two-point range around the close.
+    """
+    close = np.asarray(closes, dtype=float)
+    dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
+    return pd.DataFrame(
+        {
+            "high": close + 2.0,
+            "low": close - 2.0,
+            "close": close,
+            "volume": np.full(len(close), 1_000_000),
+        },
+        index=dates,
+    )
+
+
+class TestWilliamsRStrategy:
+    """Tests for WilliamsRStrategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = WilliamsRStrategy(
+            period=14, overbought=-20.0, oversold=-80.0, name="Test_WilliamsR"
+        )
+        assert strategy.name == "Test_WilliamsR"
+        assert strategy.period == 14
+        assert strategy.overbought == -20.0
+        assert strategy.oversold == -80.0
+
+    def test_defaults(self):
+        """Test default parameters."""
+        strategy = WilliamsRStrategy()
+        assert strategy.name == "Williams %R"
+        assert strategy.period == 14
+        assert strategy.overbought == -20.0
+        assert strategy.oversold == -80.0
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid bounds."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            WilliamsRStrategy(period=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            WilliamsRStrategy(period=-14)
+        with pytest.raises(ValueError, match="overbought must be between -100 and 0"):
+            WilliamsRStrategy(overbought=0.0)
+        with pytest.raises(ValueError, match="overbought must be between -100 and 0"):
+            WilliamsRStrategy(overbought=-100.0)
+        with pytest.raises(ValueError, match="overbought must be between -100 and 0"):
+            WilliamsRStrategy(overbought=-150.0)
+        with pytest.raises(ValueError, match="oversold must be between -100 and 0"):
+            WilliamsRStrategy(oversold=0.0)
+        with pytest.raises(ValueError, match="oversold must be between -100 and 0"):
+            WilliamsRStrategy(oversold=-100.0)
+        with pytest.raises(ValueError, match="oversold must be below overbought"):
+            WilliamsRStrategy(overbought=-50.0, oversold=-20.0)
+        with pytest.raises(ValueError, match="oversold must be below overbought"):
+            WilliamsRStrategy(overbought=-20.0, oversold=-20.0)
+
+    def test_generate_signals_oversold_buy(self):
+        """An oversold reading emits a buy signal."""
+        strategy = WilliamsRStrategy(period=14, overbought=-20.0, oversold=-80.0)
+        closes = [100.0] * 12 + [108.0, 92.0]
+        data = {"AAPL": create_williams_r_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(0.1)
+        assert signal.price == pytest.approx(92.0)
+        assert signal.metadata["signal_type"] == "oversold"
+        assert signal.metadata["williams_r"] == pytest.approx(-90.0)
+
+    def test_generate_signals_overbought_sell(self):
+        """An overbought reading emits a sell signal."""
+        strategy = WilliamsRStrategy(period=14, overbought=-20.0, oversold=-80.0)
+        closes = [100.0] * 12 + [92.0, 108.0]
+        data = {"AAPL": create_williams_r_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(0.1)
+        assert signal.price == pytest.approx(108.0)
+        assert signal.metadata["signal_type"] == "overbought"
+        assert signal.metadata["williams_r"] == pytest.approx(-10.0)
+
+    def test_generate_signals_no_signal_in_middle(self):
+        """A reading between the bounds emits no signal."""
+        strategy = WilliamsRStrategy(period=14, overbought=-20.0, oversold=-80.0)
+        closes = [100.0] * 14
+        data = {"AAPL": create_williams_r_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with insufficient data."""
+        strategy = WilliamsRStrategy(period=14)
+        data = {"AAPL": create_williams_r_data("AAPL", [100.0] * 13)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals evaluates each symbol independently."""
+        strategy = WilliamsRStrategy(period=14, overbought=-20.0, oversold=-80.0)
+        data = {
+            "AAPL": create_williams_r_data("AAPL", [100.0] * 12 + [108.0, 92.0]),
+            "MSFT": create_williams_r_data("MSFT", [100.0] * 12 + [92.0, 108.0]),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+
+    def test_generate_signals_skips_nan_close(self):
+        """A NaN last close is skipped before any signal is derived."""
+        strategy = WilliamsRStrategy(period=14, overbought=-20.0, oversold=-80.0)
+        closes = [100.0] * 13 + [float("nan")]
+        data = {"AAPL": create_williams_r_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
 
 

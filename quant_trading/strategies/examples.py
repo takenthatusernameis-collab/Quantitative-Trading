@@ -2863,3 +2863,110 @@ class CCIStrategy(Strategy):
                 )
 
         return signals
+
+
+class WilliamsRStrategy(Strategy):
+    """Williams %R strategy.
+
+    Williams %R is a momentum oscillator that measures where the close lies
+    between the highest high and lowest low over a lookback period. Values
+    range from -100 to 0: readings below ``oversold`` indicate an oversold
+    market (buy), readings above ``overbought`` indicate an overbought
+    market (sell).
+    """
+
+    def __init__(
+        self,
+        period: int = 14,
+        overbought: float = -20.0,
+        oversold: float = -80.0,
+        name: str = "Williams %R",
+    ):
+        super().__init__(
+            name,
+            {
+                "period": period,
+                "overbought": overbought,
+                "oversold": oversold,
+            },
+        )
+        self.period = period
+        self.overbought = overbought
+        self.oversold = oversold
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+        if not -100.0 < self.overbought < 0.0:
+            raise ValueError("overbought must be between -100 and 0")
+        if not -100.0 < self.oversold < 0.0:
+            raise ValueError("oversold must be between -100 and 0")
+        if self.oversold >= self.overbought:
+            raise ValueError("oversold must be below overbought")
+
+    def _calculate_williams_r(self, high, low, close):
+        highest = high.rolling(window=self.period).max()
+        lowest = low.rolling(window=self.period).min()
+        denominator = highest - lowest
+        williams_r = (highest - close) / denominator.replace(0, np.nan) * -100.0
+        return williams_r
+
+    def generate_signals(self, data):
+        signals = []
+        min_bars = self.period
+
+        for symbol, df in data.items():
+            if len(df) < min_bars:
+                continue
+
+            high = df["high"]
+            low = df["low"]
+            close = df["close"]
+            williams_r = self._calculate_williams_r(high, low, close)
+
+            current_williams_r = williams_r.iloc[-1]
+            current_price = close.iloc[-1]
+            if pd.isna(current_williams_r) or pd.isna(current_price):
+                continue
+
+            timestamp = df.index[-1]
+
+            if current_williams_r < self.oversold:
+                strength = min(1.0, (self.oversold - current_williams_r) / 100.0)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=max(0.0, strength),
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "williams_r": current_williams_r,
+                            "period": self.period,
+                            "overbought": self.overbought,
+                            "oversold": self.oversold,
+                            "signal_type": "oversold",
+                        },
+                    )
+                )
+            elif current_williams_r > self.overbought:
+                strength = min(1.0, (current_williams_r - self.overbought) / 100.0)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=max(0.0, strength),
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "williams_r": current_williams_r,
+                            "period": self.period,
+                            "overbought": self.overbought,
+                            "oversold": self.oversold,
+                            "signal_type": "overbought",
+                        },
+                    )
+                )
+
+        return signals
