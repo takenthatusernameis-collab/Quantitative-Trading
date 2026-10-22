@@ -862,6 +862,16 @@ def parse_args() -> argparse.Namespace:
             f"(expected one of {sorted(INTERVAL_PERIODS_PER_YEAR)} or an "
             f"intraday form like '5m'/'1h')"
         )
+    if not (0.0 < args.mc_confidence <= 1.0):
+        raise ValueError(
+            f"invalid --mc-confidence: the value must be in the range (0, 1] "
+            f"(got {args.mc_confidence})"
+        )
+    if not (0.0 < args.wf_train_size < 1.0):
+        raise ValueError(
+            f"invalid --wf-train-size: the value must be in the range (0, 1) "
+            f"(got {args.wf_train_size})"
+        )
     return args
 
 

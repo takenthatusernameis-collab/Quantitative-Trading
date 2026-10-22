@@ -392,3 +392,59 @@ def test_cli_reports_an_unsupported_interval_without_a_traceback() -> None:
     ), f"expected the exit code 1\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
     assert "invalid --interval" in output, output
     assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"
+
+
+def test_cli_reports_an_invalid_mc_confidence_without_a_traceback() -> None:
+    """A ``--mc-confidence`` outside ``(0, 1]`` is a message naming the flag.
+
+    The Monte Carlo module derives percentile ranks from the confidence level,
+    so an out-of-range value surfaces deep in NumPy as ``Percentiles must be in
+    the range [0, 100]``. The check belongs in the CLI and has to name the
+    offending flag instead.
+    """
+    completed = _run_cli(
+        [
+            "--monte-carlo",
+            "--mc-confidence",
+            "1.5",
+            "--offline",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "30",
+        ]
+    )
+    output = completed.stdout + completed.stderr
+    assert (
+        completed.returncode == 1
+    ), f"expected the exit code 1\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+    assert "invalid --mc-confidence" in output, output
+    assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"
+
+
+def test_cli_reports_an_invalid_walk_forward_train_size_without_a_traceback() -> None:
+    """A ``--wf-train-size`` outside ``(0, 1)`` is a message naming the flag.
+
+    Walk-forward computes ``train_days = int(window_days * train_size)``, so a
+    train size of zero or above one yields degenerate windows and wrong results
+    instead of an error. The check belongs in the CLI and has to name the
+    offending flag before the run starts.
+    """
+    completed = _run_cli(
+        [
+            "--walk-forward",
+            "--wf-train-size",
+            "1.5",
+            "--offline",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "30",
+        ]
+    )
+    output = completed.stdout + completed.stderr
+    assert (
+        completed.returncode == 1
+    ), f"expected the exit code 1\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+    assert "invalid --wf-train-size" in output, output
+    assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"
