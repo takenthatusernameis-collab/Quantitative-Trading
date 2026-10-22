@@ -165,6 +165,7 @@ def calculate_backtest_metrics(
     trades: pd.DataFrame | None = None,
     risk_free_rate: float = 0.02,
     periods_per_year: int = 252,
+    unrealized_pnl: float = 0.0,
 ) -> BacktestMetrics:
     """Calculate comprehensive backtest metrics from an equity curve.
 
@@ -188,6 +189,9 @@ def calculate_backtest_metrics(
             (default 252 for daily data). The same value is applied to the
             annualized return, volatility, Sharpe, Sortino and Calmar
             figures so the metrics stay mutually consistent.
+        unrealized_pnl: Optional mark-to-market PnL of positions still
+            open at the end of the run. Defaults to 0.0; the engine passes
+            the value it computes from open positions.
 
     Returns:
         BacktestMetrics object populated with the computed values.
@@ -203,6 +207,7 @@ def calculate_backtest_metrics(
 
     """
     metrics = BacktestMetrics()
+    metrics.unrealized_pnl = float(unrealized_pnl)
 
     if len(equity_curve) < 2:
         return metrics
