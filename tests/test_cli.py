@@ -213,6 +213,33 @@ class TestParseArgs:
         assert "Stochastic %K period" in out
         assert "Stochastic %D period" in out
 
+    def test_mc_simulations_below_one_is_rejected(self):
+        """A ``--mc-simulations`` below 1 is a usage error, not a library failure.
+
+        The Monte Carlo module is generic and treats a count of zero as an
+        empty result; the CLI has to reject it before the run starts and name
+        the offending flag so the user gets an actionable one-liner.
+        """
+        with (
+            patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-simulations", "0"]),
+            pytest.raises(ValueError, match="invalid --mc-simulations"),
+        ):
+            parse_args()
+
+    def test_mc_simulations_negative_is_rejected(self):
+        """A negative simulation count is rejected the same way as zero."""
+        with (
+            patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-simulations", "-5"]),
+            pytest.raises(ValueError, match="invalid --mc-simulations"),
+        ):
+            parse_args()
+
+    def test_mc_simulations_one_is_accepted(self):
+        """The minimum accepted count is 1."""
+        with patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-simulations", "1"]):
+            args = parse_args()
+        assert args.mc_simulations == 1
+
 
 class TestListStrategies:
     """Tests for list_strategies function."""

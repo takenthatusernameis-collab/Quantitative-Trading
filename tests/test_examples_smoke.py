@@ -309,3 +309,32 @@ def test_cli_reports_a_malformed_strategy_config_without_a_traceback(
     ), f"expected the exit code 1\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
     assert message in output, f"expected {message!r} in the output\n{output}"
     assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"
+
+
+def test_cli_reports_an_invalid_mc_simulations_count_without_a_traceback() -> None:
+    """A ``--mc-simulations`` below 1 is a message, not a confusing failure.
+
+    A simulation count of zero is a CLI usage error, not a library defect, so
+    the check belongs in the CLI. The Monte Carlo module is generic and treats
+    a count of zero as an empty result; the CLI has to reject it before the run
+    starts and name the offending flag.
+    """
+    completed = _run_cli(
+        [
+            "--monte-carlo",
+            "--mc-simulations",
+            "0",
+            "--offline",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "30",
+        ]
+    )
+    output = completed.stdout + completed.stderr
+    assert (
+        completed.returncode == 1
+    ), f"expected the exit code 1\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+    assert "invalid --mc-simulations" in output, output
+    assert "the value must be at least 1" in output, output
+    assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"

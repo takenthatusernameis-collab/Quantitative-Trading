@@ -344,6 +344,15 @@ $ python examples/cli.py --optimize --ma-fast-range 5,20,0 --offline --symbols A
 Error: invalid --ma-fast-range: Invalid range 5,20,0: the step must be greater than 0
 ```
 
+The `--mc-simulations` argument of the Monte Carlo mode is checked before the
+run starts. It has to be at least 1, because a count of zero produces an empty
+simulation set and a confusing downstream failure:
+
+```bash
+$ python examples/cli.py --monte-carlo --mc-simulations 0 --offline --symbols AAPL --days 30
+Error: invalid --mc-simulations: the value must be at least 1 (got 0)
+```
+
 ### Market Regime Analysis
 
 Annotate a backtest's equity curve with market-regime labels
