@@ -3,6 +3,7 @@
 from .base import Position, Signal, Strategy, StrategyManager
 from .examples import (
     ADXStrategy,
+    CCIStrategy,
     AroonStrategy,
     BollingerBandsStrategy,
     DonchianChannelStrategy,
@@ -44,10 +45,12 @@ register_strategy("sar", ParabolicSARStrategy, aliases=["parabolic_sar", "psar"]
 register_strategy("vwap", VWAPStrategy)
 register_strategy("momentum", MomentumStrategy, aliases=["mom"])
 register_strategy("adx", ADXStrategy, aliases=["average_directional_index"])
+register_strategy("cci", CCIStrategy, aliases=["commodity_channel_index"])
 
 
 __all__ = [
     "ADXStrategy",
+    "CCIStrategy",
     "AroonStrategy",
     "BollingerBandsStrategy",
     "DonchianChannelStrategy",

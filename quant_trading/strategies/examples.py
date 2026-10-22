@@ -2764,3 +2764,102 @@ class ADXStrategy(Strategy):
                 )
 
         return signals
+
+
+class CCIStrategy(Strategy):
+    """Commodity Channel Index strategy.
+
+    The Commodity Channel Index (CCI) measures the deviation of the typical
+    price from its simple moving average relative to the mean deviation.
+    Values above ``+threshold`` indicate a strong bullish trend and values
+    below ``-threshold`` indicate a strong bearish trend.
+    """
+
+    def __init__(
+        self,
+        period: int = 20,
+        threshold: float = 100.0,
+        name: str = "CCI",
+    ):
+        super().__init__(
+            name,
+            {
+                "period": period,
+                "threshold": threshold,
+            },
+        )
+        self.period = period
+        self.threshold = threshold
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+        if self.threshold <= 0:
+            raise ValueError("threshold must be positive")
+
+    def _calculate_cci(self, high, low, close):
+        typical = (high + low + close) / 3.0
+        sma = typical.rolling(window=self.period).mean()
+        mean_dev = typical.rolling(window=self.period).apply(
+            lambda x: (np.abs(x - x.mean())).mean(), raw=True
+        )
+        cci = (typical - sma) / (0.015 * mean_dev)
+        return cci
+
+    def generate_signals(self, data):
+        signals = []
+        min_bars = self.period
+
+        for symbol, df in data.items():
+            if len(df) < min_bars:
+                continue
+
+            high = df["high"]
+            low = df["low"]
+            close = df["close"]
+            cci = self._calculate_cci(high, low, close)
+
+            current_cci = cci.iloc[-1]
+            current_price = close.iloc[-1]
+            if pd.isna(current_cci) or pd.isna(current_price):
+                continue
+
+            timestamp = df.index[-1]
+
+            if current_cci > self.threshold:
+                strength = min(1.0, (current_cci - self.threshold) / 100.0)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=max(0.0, strength),
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "cci": current_cci,
+                            "period": self.period,
+                            "threshold": self.threshold,
+                            "signal_type": "bullish",
+                        },
+                    )
+                )
+            elif current_cci < -self.threshold:
+                strength = min(1.0, (-current_cci - self.threshold) / 100.0)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=max(0.0, strength),
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "cci": current_cci,
+                            "period": self.period,
+                            "threshold": self.threshold,
+                            "signal_type": "bearish",
+                        },
+                    )
+                )
+
+        return signals

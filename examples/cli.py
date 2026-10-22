@@ -61,6 +61,7 @@ BUILTIN_STRATEGY_KEYS = [
     "ema",
     "momentum",
     "adx",
+    "cci",
 ]
 
 PROVIDERS = {

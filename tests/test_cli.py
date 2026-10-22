@@ -1603,6 +1603,7 @@ class TestRunCombined:
             ("EMA_Crossover_10_30", 6.5),
             ("Momentum", 9.5),
             ("ADX", 11.0),
+            ("CCI", 10.0),
         ]:
             m = MagicMock(
                 spec=[
@@ -1689,6 +1690,7 @@ class TestRunCombined:
         assert "Ichimoku_Cloud" in captured.out
         assert "Parabolic_SAR" in captured.out
         assert "ADX" in captured.out
+        assert "CCI" in captured.out
         assert "Best strategy (by Sharpe)" in captured.out
 
     @patch("examples.cli.run_backtest")

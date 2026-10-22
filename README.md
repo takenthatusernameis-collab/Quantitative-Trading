@@ -114,6 +114,7 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `vwap` → `VWAPStrategy`
 - `momentum` (alias: `mom`) → `MomentumStrategy`
 - `adx` (alias: `average_directional_index`) → `ADXStrategy`
+- `cci` (alias: `commodity_channel_index`) → `CCIStrategy`
 
 ```python
 from quant_trading.strategies import (
