@@ -66,6 +66,7 @@ BUILTIN_STRATEGY_KEYS = [
     "obv",
     "cmf",
     "elder_ray",
+    "roc",
     "force_index",
     "mfi",
 ]

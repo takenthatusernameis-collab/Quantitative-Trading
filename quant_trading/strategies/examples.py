@@ -3624,3 +3624,54 @@ class ElderRayStrategy(Strategy):
                 signals.append(Signal(symbol=symbol, action="sell", strength=strength, price=current_price, timestamp=timestamp,
                     metadata={"bear_power": float(curr_bear), "period": self.period, "signal_type": "elder_ray_bear_cross"}))
         return signals
+
+
+class RateOfChangeStrategy(Strategy):
+    """Rate of Change (ROC) Strategy.
+
+    ROC measures the percentage change in price over a period:
+
+    - ROC = (close - close[n]) / close[n] * 100
+
+    Trading signals:
+    - Buy when ROC crosses above zero (momentum turns positive).
+    - Sell when ROC crosses below zero (momentum turns negative).
+    """
+
+    def __init__(self, period: int = 12, name: str = "Rate_Of_Change"):
+        super().__init__(name, {"period": period})
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate(self, df: pd.DataFrame) -> pd.Series:
+        close = df["close"]
+        return (close - close.shift(self.period)) / close.shift(self.period) * 100.0
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals: list[Signal] = []
+        for symbol, df in data.items():
+            if len(df) < self.period + 2:
+                continue
+            close = df["close"]
+            current_price = close.iloc[-1]
+            if pd.isna(current_price) or current_price == 0:
+                continue
+            roc = self._calculate(df)
+            curr_roc = roc.iloc[-1]
+            prev_roc = roc.iloc[-2]
+            timestamp = df.index[-1]
+            if pd.isna(curr_roc) or pd.isna(prev_roc):
+                continue
+            if prev_roc <= 0 and curr_roc > 0:
+                strength = min(1.0, abs(float(curr_roc)) / (abs(float(curr_roc)) + 100.0))
+                signals.append(Signal(symbol=symbol, action="buy", strength=strength, price=current_price, timestamp=timestamp,
+                    metadata={"roc": float(curr_roc), "period": self.period, "signal_type": "roc_cross_above_zero"}))
+            elif prev_roc >= 0 and curr_roc < 0:
+                strength = min(1.0, abs(float(curr_roc)) / (abs(float(curr_roc)) + 100.0))
+                signals.append(Signal(symbol=symbol, action="sell", strength=strength, price=current_price, timestamp=timestamp,
+                    metadata={"roc": float(curr_roc), "period": self.period, "signal_type": "roc_cross_below_zero"}))
+        return signals

@@ -5,7 +5,7 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 ## Features
 
 - **Strategy Framework**: Abstract base class for creating custom trading strategies
-- **Built-in Strategies**: 22 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR, VWAP, Momentum, ADX, Commodity Channel Index, Williams %R, On-Balance Volume, Chaikin Money Flow, Force Index, Money Flow Index and Elder Ray
+- **Built-in Strategies**: 23 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR, VWAP, Momentum, ADX, Commodity Channel Index, Williams %R, On-Balance Volume, Chaikin Money Flow, Force Index, Money Flow Index, Elder Ray and Rate of Change
 - **Backtesting Engine**: Event-driven backtest with realistic costs (commission, slippage), long and short positions
 - **Data Providers**: Yahoo Finance integration with caching support
 - **Portfolio Management**: Position tracking, rebalancing, and allocation
@@ -120,6 +120,8 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `cmf` (alias: `chaikin_money_flow`) → `ChaikinMoneyFlowStrategy`
 - `force_index` (aliases: `forceindex`, `fi`) → `ForceIndexStrategy`
 - `mfi` (alias: `money_flow_index`) → `MoneyFlowIndexStrategy`
+- `roc` (alias: `rate_of_change`) → `RateOfChangeStrategy`
+- `elder_ray` (aliases: `elder_ray_index`, `erp`) → `ElderRayStrategy`
 
 ```python
 from quant_trading.strategies import (
