@@ -3410,3 +3410,157 @@ class ForceIndexStrategy(Strategy):
                 )
 
         return signals
+
+
+class MoneyFlowIndexStrategy(Strategy):
+    """Money Flow Index (MFI) Strategy.
+
+    The Money Flow Index is a volume-weighted momentum oscillator that
+    combines typical price, money flow, and volume over a lookback period:
+
+    - Typical Price = (high + low + close) / 3
+    - Money Flow Multiplier = ((close - low) - (high - close)) / (high - low)
+    - Money Flow Volume = Typical Price * Money Flow Multiplier * volume
+    - Positive Money Flow = sum of Money Flow Volume on bars where close
+      rose vs. the prior close
+    - Negative Money Flow = sum of Money Flow Volume on bars where close
+      fell vs. the prior close
+    - MFI = 100 - (100 / (1 + Positive Money Flow / Negative Money Flow))
+
+    MFI oscillates between 0 and 100. Values above 50 indicate buying
+    pressure; values below 50 indicate selling pressure.
+
+    Trading signals:
+    - Buy when MFI crosses above 50 (selling pressure turns to buying).
+    - Sell when MFI crosses below 50 (buying pressure turns to selling).
+    """
+
+    def __init__(self, period: int = 14, name: str = "Money_Flow_Index"):
+        """Initialize the Money Flow Index strategy.
+
+        Args:
+            period: Lookback window for the MFI calculation. Defaults to 14.
+            name: Strategy name. Defaults to "Money_Flow_Index".
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+        """
+        super().__init__(
+            name,
+            {
+                "period": period,
+            },
+        )
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate_mfi(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate the Money Flow Index series.
+
+        Args:
+            df: DataFrame containing at least ``"high"``, ``"low"``,
+                ``"close"``, and ``"volume"`` columns.
+
+        Returns:
+            Series of MFI values aligned with ``df`` index, bounded in [0, 100].
+        """
+        high = df["high"]
+        low = df["low"]
+        close = df["close"]
+        volume = df["volume"]
+
+        typical_price = (high + low + close) / 3.0
+        high_minus_low = high - low
+        money_flow_multiplier = ((close - low) - (high - close)) / high_minus_low.replace(0, np.nan)
+        money_flow_volume = typical_price * money_flow_multiplier * volume
+
+        prior_close = close.shift(1)
+        positive_money_flow = (
+            money_flow_volume.where(close > prior_close, 0.0).rolling(window=self.period).sum()
+        )
+        negative_money_flow = (
+            money_flow_volume.where(close < prior_close, 0.0).rolling(window=self.period).sum()
+        )
+
+        money_flow_ratio = positive_money_flow / negative_money_flow
+        mfi: pd.Series = 100.0 - (100.0 / (1.0 + money_flow_ratio))
+        return mfi
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from MFI 50-line crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least
+                ``"high"``, ``"low"``, ``"close"``, and ``"volume"`` columns
+                indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose MFI crosses the
+            50 line between the last two bars.
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 1:
+                continue
+
+            close = df["close"]
+            current_price = close.iloc[-1]
+            # The signal is emitted at the last close, so a close that is not a
+            # number is rejected before anything is derived from it.
+            if pd.isna(current_price) or current_price == 0:
+                continue
+
+            mfi = self._calculate_mfi(df)
+            current_mfi = mfi.iloc[-1]
+            prev_mfi = mfi.iloc[-2]
+            timestamp = df.index[-1]
+
+            if pd.isna(current_mfi) or pd.isna(prev_mfi):
+                continue
+
+            # MFI crosses above 50 - buying pressure takes over
+            if prev_mfi <= 50 and current_mfi > 50:
+                strength = min(1.0, abs(float(current_mfi) - 50.0) / 50.0)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "mfi": float(current_mfi),
+                            "period": self.period,
+                            "signal_type": "mfi_cross_above_50",
+                        },
+                    )
+                )
+            # MFI crosses below 50 - selling pressure takes over
+            elif prev_mfi >= 50 and current_mfi < 50:
+                strength = min(1.0, abs(float(current_mfi) - 50.0) / 50.0)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "mfi": float(current_mfi),
+                            "period": self.period,
+                            "signal_type": "mfi_cross_below_50",
+                        },
+                    )
+                )
+
+        return signals

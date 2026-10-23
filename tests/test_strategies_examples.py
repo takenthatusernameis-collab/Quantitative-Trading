@@ -17,6 +17,7 @@ from quant_trading.strategies.examples import (
     KeltnerChannelStrategy,
     MACDStrategy,
     MomentumStrategy,
+    MoneyFlowIndexStrategy,
     MovingAverageCrossover,
     OBVStrategy,
     ParabolicSARStrategy,
@@ -2985,6 +2986,26 @@ def create_cmf_data(symbol: str, bars: list[tuple[float, float, float]]) -> pd.D
     )
 
 
+def create_mfi_data(symbol: str, bars: list[tuple[float, float, float]]) -> pd.DataFrame:
+    """Create deterministic OHLCV data for MFI tests.
+
+    Each bar is a ``(close, high, low)`` tuple; volume is constant so MFI is
+    driven purely by the close's position within the high/low range and the
+    direction of the close relative to the prior close.
+    """
+    dates = pd.date_range(end=datetime.now(), periods=len(bars), freq="D")
+    return pd.DataFrame(
+        {
+            "open": [bar[0] for bar in bars],
+            "high": [bar[1] for bar in bars],
+            "low": [bar[2] for bar in bars],
+            "close": [bar[0] for bar in bars],
+            "volume": np.full(len(bars), 1_000_000),
+        },
+        index=dates,
+    )
+
+
 class TestChaikinMoneyFlowStrategy:
     """Tests for ChaikinMoneyFlowStrategy."""
 
@@ -3118,6 +3139,116 @@ class TestForceIndexStrategy:
         closes = [100, 99, 98, 97, 96, 95, 94, 93, 95, float("nan")]
         volumes = [1000] * 10
         data = {"AAPL": pd.DataFrame({"close": closes, "volume": volumes}, index=dates)}
+        assert strategy.generate_signals(data) == []
+
+
+class TestMoneyFlowIndexStrategy:
+    """Tests for the Money Flow Index (MFI) strategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = MoneyFlowIndexStrategy(period=14, name="Test_MFI")
+        assert strategy.name == "Test_MFI"
+        assert strategy.period == 14
+        assert strategy.parameters["period"] == 14
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid periods."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            MoneyFlowIndexStrategy(period=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            MoneyFlowIndexStrategy(period=-5)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with fewer bars than period + 1."""
+        strategy = MoneyFlowIndexStrategy(period=5)
+        data = {"AAPL": create_mfi_data("AAPL", [(100.0, 101.0, 100.0)] * 5)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_mfi_crosses_above_50(self):
+        """A final buying-pressure bar flips MFI from below 50 to above 50."""
+        strategy = MoneyFlowIndexStrategy(period=5)
+        # 4 down-sell bars (close at low extreme, mfm -1) then 3 up-buy bars
+        # (close at high extreme, mfm +1): the last 5-bar window sums to a
+        # positive money flow ratio, pushing MFI from -197.95 to +290.07.
+        down = lambda c: (c, c + 2.0, c)
+        up = lambda c: (c, c, c - 2.0)
+        bars = [down(100), down(98), down(96), down(94), up(96), up(98), up(100)]
+        data = {"AAPL": create_mfi_data("AAPL", bars)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(100.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "mfi_cross_above_50"
+        assert signal.metadata["mfi"] == pytest.approx(290.06622516556286)
+        assert signal.metadata["period"] == 5
+
+    def test_generate_signals_mfi_crosses_below_50(self):
+        """A final selling-pressure bar flips MFI from above 50 to below 50."""
+        strategy = MoneyFlowIndexStrategy(period=5)
+        down = lambda c: (c, c + 2.0, c)
+        up = lambda c: (c, c, c - 2.0)
+        bars = [up(100), up(102), up(104), up(106), down(104), down(102), down(100)]
+        data = {"AAPL": create_mfi_data("AAPL", bars)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(100.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "mfi_cross_below_50"
+        assert signal.metadata["mfi"] == pytest.approx(-210.06711409395984)
+        assert signal.metadata["period"] == 5
+
+    def test_generate_signals_flat_range_no_signals(self):
+        """Close always at the range midpoint -> zero money flow, no signals."""
+        strategy = MoneyFlowIndexStrategy(period=5)
+        bars = [(100.0, 101.0, 99.0)] * 15
+        data = {"AAPL": create_mfi_data("AAPL", bars)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals evaluates each symbol independently."""
+        strategy = MoneyFlowIndexStrategy(period=5)
+        down = lambda c: (c, c + 2.0, c)
+        up = lambda c: (c, c, c - 2.0)
+        buy_bars = [down(100), down(98), down(96), down(94), up(96), up(98), up(100)]
+        sell_bars = [up(100), up(102), up(104), up(106), down(104), down(102), down(100)]
+        data = {
+            "AAPL": create_mfi_data("AAPL", buy_bars),
+            "MSFT": create_mfi_data("MSFT", sell_bars),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+
+    def test_generate_signals_skips_nan_close(self):
+        """A NaN last close is rejected before any signal is derived."""
+        strategy = MoneyFlowIndexStrategy(period=5)
+        down = lambda c: (c, c + 2.0, c)
+        up = lambda c: (c, c, c - 2.0)
+        bars = [
+            down(100),
+            down(98),
+            down(96),
+            down(94),
+            up(96),
+            up(98),
+            (float("nan"), 100.0, 98.0),
+        ]
+        data = {"AAPL": create_mfi_data("AAPL", bars)}
         assert strategy.generate_signals(data) == []
 
 
