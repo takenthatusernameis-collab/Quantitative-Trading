@@ -18,7 +18,8 @@ Examples:
 
 """
 
-from concurrent.futures import Future, ProcessPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+ProcessPoolExecutor = ThreadPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from datetime import datetime
 from typing import Any
@@ -45,7 +46,7 @@ def _evaluate_params_worker(
     """Evaluate a single parameter combination in a worker process.
 
     This function must remain at module level so it can be pickled and sent to
-    a :class:`concurrent.futures.ProcessPoolExecutor` worker.
+    a :class:`concurrent.futures.ThreadPoolExecutor` worker.
 
     Args:
         strategy_cls: Strategy class to instantiate with ``params``.
@@ -339,7 +340,7 @@ class GridSearch(BaseOptimizer):
         start: datetime,
         end: datetime,
     ) -> tuple[list[dict[str, Any]], float, dict[str, Any], BacktestResult | None]:
-        """Evaluate combinations in parallel using a ``ProcessPoolExecutor``.
+        """Evaluate combinations in parallel using a ``ThreadPoolExecutor``.
 
         Each combination is submitted to a worker process via the module-level
         :func:`_evaluate_params_worker`. Results are collected as they
@@ -406,7 +407,7 @@ class GridSearch(BaseOptimizer):
         pool_broken = False
 
         try:
-            with ProcessPoolExecutor(max_workers=self.n_jobs) as executor:
+            with ThreadPoolExecutor(max_workers=self.n_jobs) as executor:
                 # Submit all tasks and remember each future's combination index
                 submitted: list[Future[Any]] = []
                 for params in self._combinations:
