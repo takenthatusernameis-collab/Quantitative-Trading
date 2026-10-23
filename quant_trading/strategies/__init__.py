@@ -9,6 +9,7 @@ from .examples import (
     ChaikinMoneyFlowStrategy,
     DonchianChannelStrategy,
     EMACrossover,
+    ForceIndexStrategy,
     IchimokuCloudStrategy,
     KeltnerChannelStrategy,
     MACDStrategy,
@@ -52,6 +53,7 @@ register_strategy("cci", CCIStrategy, aliases=["commodity_channel_index"])
 register_strategy("williamsr", WilliamsRStrategy, aliases=["williams_pct_r"])
 register_strategy("obv", OBVStrategy, aliases=["on_balance_volume"])
 register_strategy("cmf", ChaikinMoneyFlowStrategy, aliases=["chaikin_money_flow"])
+register_strategy("force_index", ForceIndexStrategy, aliases=["forceindex", "fi"])
 
 
 __all__ = [
@@ -62,6 +64,7 @@ __all__ = [
     "ChaikinMoneyFlowStrategy",
     "DonchianChannelStrategy",
     "EMACrossover",
+    "ForceIndexStrategy",
     "IchimokuCloudStrategy",
     "KeltnerChannelStrategy",
     "MACDStrategy",

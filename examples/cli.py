@@ -65,6 +65,7 @@ BUILTIN_STRATEGY_KEYS = [
     "williamsr",
     "obv",
     "cmf",
+    "force_index",
 ]
 
 PROVIDERS = {

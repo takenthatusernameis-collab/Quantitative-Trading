@@ -3282,3 +3282,131 @@ class ChaikinMoneyFlowStrategy(Strategy):
                 )
 
         return signals
+
+
+class ForceIndexStrategy(Strategy):
+    """Force Index Strategy.
+
+    The Force Index (FI) combines price change and volume to measure buying
+    and selling pressure:
+
+    - Force Index = (Close - Close_prev) * Volume
+    - Often smoothed with an EMA over ``period`` days.
+
+    Trading signals (common approach):
+    - Buy when the smoothed Force Index crosses above zero (bullish pressure).
+    - Sell when the smoothed Force Index crosses below zero (bearish pressure).
+    """
+
+    def __init__(self, period: int = 13, name: str = "Force_Index"):
+        """Initialize the Force Index strategy.
+
+        Args:
+            period: Lookback window for EMA smoothing of Force Index.
+                Defaults to 13.
+            name: Strategy name. Defaults to "Force_Index".
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+        """
+        super().__init__(
+            name,
+            {
+                "period": period,
+            },
+        )
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate_force_index(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate the smoothed Force Index series.
+
+        Args:
+            df: DataFrame containing at least ``"close"`` and ``"volume"``
+                columns.
+
+        Returns:
+            Series of smoothed Force Index values aligned with ``df`` index.
+        """
+        close = df["close"]
+        volume = df["volume"]
+        force_index = (close - close.shift(1)) * volume
+        # Use EMA smoothing (span = period)
+        smoothed_force_index = force_index.ewm(span=self.period, adjust=False).mean()
+        return smoothed_force_index
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from Force Index zero-line crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least
+                ``"close"`` and ``"volume"`` columns indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose smoothed Force
+            Index crosses the zero line between the last two bars.
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 2:
+                continue
+
+            close = df["close"]
+            current_price = close.iloc[-1]
+            if pd.isna(current_price) or current_price == 0:
+                continue
+
+            force_index = self._calculate_force_index(df)
+            current_fi = force_index.iloc[-1]
+            prev_fi = force_index.iloc[-2]
+            timestamp = df.index[-1]
+
+            if pd.isna(current_fi) or pd.isna(prev_fi):
+                continue
+
+            # Cross above zero - bullish pressure
+            if prev_fi <= 0 and current_fi > 0:
+                strength = min(1.0, abs(float(current_fi)) / (abs(float(current_fi)) + 1.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "force_index": float(current_fi),
+                            "period": self.period,
+                            "signal_type": "force_index_cross_above_zero",
+                        },
+                    )
+                )
+            # Cross below zero - bearish pressure
+            elif prev_fi >= 0 and current_fi < 0:
+                strength = min(1.0, abs(float(current_fi)) / (abs(float(current_fi)) + 1.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "force_index": float(current_fi),
+                            "period": self.period,
+                            "signal_type": "force_index_cross_below_zero",
+                        },
+                    )
+                )
+
+        return signals
