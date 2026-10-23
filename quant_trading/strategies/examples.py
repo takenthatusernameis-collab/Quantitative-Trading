@@ -2970,3 +2970,132 @@ class WilliamsRStrategy(Strategy):
                 )
 
         return signals
+
+
+class OBVStrategy(Strategy):
+    """On-Balance Volume (OBV) strategy.
+
+    On-Balance Volume is a momentum indicator that uses volume flow to predict
+    changes in stock price. The cumulative OBV line adds volume on up days and
+    subtracts volume on down days. This strategy generates buy signals when
+    OBV is above its moving average (bullish volume confirmation), and sell
+    signals when OBV is below its moving average (bearish volume confirmation).
+    """
+
+    def __init__(
+        self,
+        ma_period: int = 20,
+        name: str = "OBV",
+    ):
+        """Initialize the OBV strategy.
+
+        Args:
+            ma_period: Period for OBV moving average. Defaults to 20.
+            name: Strategy name. Defaults to "OBV".
+
+        Raises:
+            ValueError: If parameters are invalid.
+
+        """
+        super().__init__(
+            name,
+            {
+                "ma_period": ma_period,
+            },
+        )
+        self.ma_period = ma_period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ma_period is non-positive.
+
+        """
+        if self.ma_period <= 0:
+            raise ValueError("ma_period must be positive")
+
+    def _calculate_obv(self, close, volume):
+        """Calculate On-Balance Volume."""
+        obv = [0]
+        for i in range(1, len(close)):
+            if close.iloc[i] > close.iloc[i - 1]:
+                obv.append(obv[-1] + volume.iloc[i])
+            elif close.iloc[i] < close.iloc[i - 1]:
+                obv.append(obv[-1] - volume.iloc[i])
+            else:
+                obv.append(obv[-1])
+        return pd.Series(obv, index=close.index)
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate trading signals based on OBV vs its moving average.
+
+        Args:
+            data: Dictionary mapping symbols to OHLCV DataFrames.
+
+        Returns:
+            List of trading signals.
+
+        """
+        signals: list[Signal] = []
+        min_bars = self.ma_period + 1
+
+        for symbol, df in data.items():
+            if len(df) < min_bars:
+                continue
+
+            close = df["close"]
+            volume = df.get("volume")
+            if volume is None:
+                continue
+
+            current_price = close.iloc[-1]
+            timestamp = df.index[-1]
+            if pd.isna(current_price):
+                continue
+
+            obv = self._calculate_obv(close, volume)
+            obv_ma = obv.rolling(window=self.ma_period).mean()
+
+            current_obv = obv.iloc[-1]
+            current_obv_ma = obv_ma.iloc[-1]
+            if pd.isna(current_obv) or pd.isna(current_obv_ma):
+                continue
+
+            if current_obv > current_obv_ma:
+                strength = min(1.0, abs(current_obv - current_obv_ma) / abs(current_obv_ma) if current_obv_ma != 0 else 1.0)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=max(0.0, strength),
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "obv": float(current_obv),
+                            "obv_ma": float(current_obv_ma),
+                            "ma_period": self.ma_period,
+                            "signal_type": "bullish_obv",
+                        },
+                    )
+                )
+            elif current_obv < current_obv_ma:
+                strength = min(1.0, abs(current_obv_ma - current_obv) / abs(current_obv_ma) if current_obv_ma != 0 else 1.0)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=max(0.0, strength),
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "obv": float(current_obv),
+                            "obv_ma": float(current_obv_ma),
+                            "ma_period": self.ma_period,
+                            "signal_type": "bearish_obv",
+                        },
+                    )
+                )
+
+        return signals

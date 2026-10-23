@@ -13,6 +13,7 @@ from .examples import (
     MACDStrategy,
     MomentumStrategy,
     MovingAverageCrossover,
+    OBVStrategy,
     ParabolicSARStrategy,
     RSIStrategy,
     StochasticOscillatorStrategy,
