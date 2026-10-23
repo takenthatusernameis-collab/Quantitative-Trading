@@ -5,7 +5,7 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 ## Features
 
 - **Strategy Framework**: Abstract base class for creating custom trading strategies
-- **Built-in Strategies**: 23 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR, VWAP, Momentum, ADX, Commodity Channel Index, Williams %R, On-Balance Volume, Chaikin Money Flow, Force Index, Money Flow Index, Elder Ray and Rate of Change
+- **Built-in Strategies**: 24 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR, VWAP, Momentum, ADX, Commodity Channel Index, Williams %R, On-Balance Volume, Chaikin Money Flow, Force Index, Money Flow Index, Elder Ray, Rate of Change and Volume Rate of Change
 - **Backtesting Engine**: Event-driven backtest with realistic costs (commission, slippage), long and short positions
 - **Data Providers**: Yahoo Finance integration with caching support
 - **Portfolio Management**: Position tracking, rebalancing, and allocation
@@ -112,6 +112,7 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `ichimoku` (aliases: `ichimoku_cloud`, `ichimoku`) → `IchimokuCloudStrategy`
 - `sar` (aliases: `parabolic_sar`, `psar`) → `ParabolicSARStrategy`
 - `vwap` → `VWAPStrategy`
+- `vroc` (alias: `volume_rate_of_change`) → `VolumeRateOfChangeStrategy`
 - `momentum` (alias: `mom`) → `MomentumStrategy`
 - `adx` (alias: `average_directional_index`) → `ADXStrategy`
 - `cci` (alias: `commodity_channel_index`) → `CCIStrategy`

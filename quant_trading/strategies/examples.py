@@ -3723,3 +3723,134 @@ class RateOfChangeStrategy(Strategy):
                     )
                 )
         return signals
+
+
+class VolumeRateOfChangeStrategy(Strategy):
+    """Volume Rate of Change (VROC) Strategy.
+
+    The Volume Rate of Change measures the percent change in volume over a
+    lookback period, so it flags unusual volume surges or drying up without
+    reference to price:
+
+    - VROC = (volume - volume[n]) / volume[n] * 100, where n = ``period``
+
+    VROC oscillates around zero. A positive value means volume is expanding
+    relative to ``period`` bars ago; a negative value means volume is
+    contracting.
+
+    Trading signals:
+    - Buy when VROC crosses above zero (volume expansion begins).
+    - Sell when VROC crosses below zero (volume contraction begins).
+    """
+
+    def __init__(self, period: int = 14, name: str = "Volume_Rate_Of_Change"):
+        """Initialize the Volume Rate of Change strategy.
+
+        Args:
+            period: Lookback window for the VROC calculation. Defaults to 14.
+            name: Strategy name. Defaults to "Volume_Rate_Of_Change".
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+        """
+        super().__init__(
+            name,
+            {
+                "period": period,
+            },
+        )
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate_vroc(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate the Volume Rate of Change series.
+
+        Args:
+            df: DataFrame containing at least a ``"volume"`` column.
+
+        Returns:
+            Series of VROC values aligned with ``df`` index, expressed as a
+            percentage.
+        """
+        volume = df["volume"]
+        prior_volume = volume.shift(self.period)
+        vroc: pd.Series = (volume - prior_volume) / prior_volume.replace(0, np.nan) * 100.0
+        return vroc
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from VROC zero-line crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least a
+                ``"volume"`` and ``"close"`` column indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose VROC crosses the
+            zero line between the last two bars.
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 2:
+                continue
+
+            close = df["close"]
+            current_price = close.iloc[-1]
+            # The signal is emitted at the last close, so a close that is not a
+            # number is rejected before anything is derived from it.
+            if pd.isna(current_price) or current_price == 0:
+                continue
+
+            vroc = self._calculate_vroc(df)
+            current_vroc = vroc.iloc[-1]
+            prev_vroc = vroc.iloc[-2]
+            timestamp = df.index[-1]
+
+            if pd.isna(current_vroc) or pd.isna(prev_vroc):
+                continue
+
+            # VROC crosses above zero - volume expansion begins
+            if prev_vroc <= 0 and current_vroc > 0:
+                strength = min(1.0, abs(float(current_vroc)) / (abs(float(current_vroc)) + 100.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "vroc": float(current_vroc),
+                            "period": self.period,
+                            "signal_type": "vroc_cross_above_zero",
+                        },
+                    )
+                )
+            # VROC crosses below zero - volume contraction begins
+            elif prev_vroc >= 0 and current_vroc < 0:
+                strength = min(1.0, abs(float(current_vroc)) / (abs(float(current_vroc)) + 100.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "vroc": float(current_vroc),
+                            "period": self.period,
+                            "signal_type": "vroc_cross_below_zero",
+                        },
+                    )
+                )
+
+        return signals

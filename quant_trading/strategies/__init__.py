@@ -23,6 +23,7 @@ from .examples import (
     RSIStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
+    VolumeRateOfChangeStrategy,
     VWAPStrategy,
     WilliamsRStrategy,
 )
@@ -50,6 +51,7 @@ register_strategy("stoch", StochasticOscillatorStrategy, aliases=["stochastic", 
 register_strategy("ichimoku", IchimokuCloudStrategy, aliases=["ichimoku_cloud", "ichimoku"])
 register_strategy("sar", ParabolicSARStrategy, aliases=["parabolic_sar", "psar"])
 register_strategy("vwap", VWAPStrategy)
+register_strategy("vroc", VolumeRateOfChangeStrategy, aliases=["volume_rate_of_change"])
 register_strategy("momentum", MomentumStrategy, aliases=["mom"])
 register_strategy("adx", ADXStrategy, aliases=["average_directional_index"])
 register_strategy("cci", CCIStrategy, aliases=["commodity_channel_index"])
@@ -88,6 +90,7 @@ __all__ = [
     "StrategyManager",
     "StrategyRegistry",
     "SuperTrendStrategy",
+    "VolumeRateOfChangeStrategy",
     "WilliamsRStrategy",
     "available_strategies",
     "create_strategy",

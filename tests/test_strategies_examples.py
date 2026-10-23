@@ -11,7 +11,6 @@ from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
     ChaikinMoneyFlowStrategy,
     DonchianChannelStrategy,
-    ElderRayStrategy,
     EMACrossover,
     ForceIndexStrategy,
     IchimokuCloudStrategy,
@@ -22,10 +21,10 @@ from quant_trading.strategies.examples import (
     MovingAverageCrossover,
     OBVStrategy,
     ParabolicSARStrategy,
-    RateOfChangeStrategy,
     RSIStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
+    VolumeRateOfChangeStrategy,
     VWAPStrategy,
     WilliamsRStrategy,
 )
@@ -3251,6 +3250,111 @@ class TestMoneyFlowIndexStrategy:
             (float("nan"), 100.0, 98.0),
         ]
         data = {"AAPL": create_mfi_data("AAPL", bars)}
+        assert strategy.generate_signals(data) == []
+
+
+def create_vroc_data(symbol: str, volumes: list[float], close: float = 100.0) -> pd.DataFrame:
+    """Create deterministic close/volume data for VROC tests.
+
+    The close is constant so VROC is driven purely by the volume change.
+    """
+    dates = pd.date_range(end=datetime.now(), periods=len(volumes), freq="D")
+    return pd.DataFrame(
+        {
+            "open": [close] * len(volumes),
+            "high": [close] * len(volumes),
+            "low": [close] * len(volumes),
+            "close": [close] * len(volumes),
+            "volume": np.asarray(volumes, dtype=float),
+        },
+        index=dates,
+    )
+
+
+class TestVolumeRateOfChangeStrategy:
+    """Tests for the Volume Rate of Change (VROC) strategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = VolumeRateOfChangeStrategy(period=14, name="Test_VROC")
+        assert strategy.name == "Test_VROC"
+        assert strategy.period == 14
+        assert strategy.parameters["period"] == 14
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid periods."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            VolumeRateOfChangeStrategy(period=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            VolumeRateOfChangeStrategy(period=-5)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with fewer bars than period + 2."""
+        strategy = VolumeRateOfChangeStrategy(period=5)
+        data = {"AAPL": create_vroc_data("AAPL", [1_000_000] * 6)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_vroc_crosses_above_zero(self):
+        """A final volume surge flips VROC from zero to +100 (buy)."""
+        strategy = VolumeRateOfChangeStrategy(period=5)
+        # 25 flat bars keep VROC at zero; the final bar doubles volume,
+        # pushing VROC from 0 to +100 on the last bar only.
+        data = {"AAPL": create_vroc_data("AAPL", [1_000_000] * 25 + [2_000_000])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(0.5)
+        assert signal.price == pytest.approx(100.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "vroc_cross_above_zero"
+        assert signal.metadata["vroc"] == pytest.approx(100.0)
+        assert signal.metadata["period"] == 5
+
+    def test_generate_signals_vroc_crosses_below_zero(self):
+        """A final volume drop halves volume, flipping VROC to -50 (sell)."""
+        strategy = VolumeRateOfChangeStrategy(period=5)
+        data = {"AAPL": create_vroc_data("AAPL", [1_000_000] * 25 + [500_000])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(1 / 3)
+        assert signal.price == pytest.approx(100.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "vroc_cross_below_zero"
+        assert signal.metadata["vroc"] == pytest.approx(-50.0)
+        assert signal.metadata["period"] == 5
+
+    def test_generate_signals_flat_volume_no_signals(self):
+        """Constant volume keeps VROC at zero, so no crossover fires."""
+        strategy = VolumeRateOfChangeStrategy(period=5)
+        data = {"AAPL": create_vroc_data("AAPL", [1_000_000] * 30)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals evaluates each symbol independently."""
+        strategy = VolumeRateOfChangeStrategy(period=5)
+        data = {
+            "AAPL": create_vroc_data("AAPL", [1_000_000] * 25 + [2_000_000]),
+            "MSFT": create_vroc_data("MSFT", [1_000_000] * 25 + [500_000]),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+
+    def test_generate_signals_skips_nan_volume(self):
+        """A NaN last volume is rejected before any signal is derived."""
+        strategy = VolumeRateOfChangeStrategy(period=5)
+        data = {"AAPL": create_vroc_data("AAPL", [1_000_000] * 25 + [float("nan")])}
         assert strategy.generate_signals(data) == []
 
 

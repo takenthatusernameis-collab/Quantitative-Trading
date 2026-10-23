@@ -1611,6 +1611,7 @@ class TestRunCombined:
             ("Money_Flow_Index", 13.5),
             ("Elder_Ray", 14.0),
             ("Rate_Of_Change", 14.5),
+            ("Volume_Rate_Of_Change", 15.0),
         ]:
             m = MagicMock(
                 spec=[
@@ -1703,6 +1704,7 @@ class TestRunCombined:
         assert "Chaikin_Money_Flow" in captured.out
         assert "Force_Index" in captured.out
         assert "Money_Flow_Index" in captured.out
+        assert "Volume_Rate_Of_Change" in captured.out
         assert "Best strategy (by Sharpe)" in captured.out
 
     @patch("examples.cli.run_backtest")
