@@ -64,6 +64,7 @@ BUILTIN_STRATEGY_KEYS = [
     "cci",
     "williamsr",
     "obv",
+    "cmf",
 ]
 
 PROVIDERS = {

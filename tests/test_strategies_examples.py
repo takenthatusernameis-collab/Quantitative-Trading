@@ -9,6 +9,7 @@ import pytest
 from quant_trading.strategies.examples import (
     ADXStrategy,
     BollingerBandsStrategy,
+    ChaikinMoneyFlowStrategy,
     DonchianChannelStrategy,
     EMACrossover,
     IchimokuCloudStrategy,
@@ -2961,6 +2962,126 @@ class TestOBVStrategy:
         strategy = OBVStrategy(signal_period=20)
         closes = [100.0] * 25 + [float("nan")]
         data = {"AAPL": create_obv_data("AAPL", closes)}
+        assert strategy.generate_signals(data) == []
+
+
+def create_cmf_data(symbol: str, bars: list[tuple[float, float, float]]) -> pd.DataFrame:
+    """Create deterministic OHLCV data for CMF tests.
+
+    Each bar is a ``(close, high, low)`` tuple; volume is constant so CMF is
+    driven purely by the close's position within the high/low range.
+    """
+    dates = pd.date_range(end=datetime.now(), periods=len(bars), freq="D")
+    return pd.DataFrame(
+        {
+            "open": [bar[0] for bar in bars],
+            "high": [bar[1] for bar in bars],
+            "low": [bar[2] for bar in bars],
+            "close": [bar[0] for bar in bars],
+            "volume": np.full(len(bars), 1_000_000),
+        },
+        index=dates,
+    )
+
+
+class TestChaikinMoneyFlowStrategy:
+    """Tests for ChaikinMoneyFlowStrategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = ChaikinMoneyFlowStrategy(period=20, name="Test_CMF")
+        assert strategy.name == "Test_CMF"
+        assert strategy.period == 20
+        assert strategy.parameters["period"] == 20
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid periods."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            ChaikinMoneyFlowStrategy(period=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            ChaikinMoneyFlowStrategy(period=-5)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with fewer bars than period + 1."""
+        strategy = ChaikinMoneyFlowStrategy(period=5)
+        data = {"AAPL": create_cmf_data("AAPL", [(100.0, 101.0, 100.0)] * 5)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_cmf_crosses_above_zero(self):
+        """A final buying-pressure bar flips CMF from negative to positive."""
+        strategy = ChaikinMoneyFlowStrategy(period=5)
+        # 5 selling bars, 4 neutral bars, 1 buying bar -> the last 5-bar
+        # window sums to +1 while the previous sums to -1: cross above zero.
+        bars = [(100.0, 101.0, 100.0)] * 5 + [(100.0, 101.0, 99.0)] * 4 + [(105.0, 105.0, 104.0)]
+        data = {"AAPL": create_cmf_data("AAPL", bars)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(0.7)
+        assert signal.price == pytest.approx(105.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "cmf_cross_above_zero"
+        assert signal.metadata["cmf"] == pytest.approx(0.2)
+        assert signal.metadata["period"] == 5
+
+    def test_generate_signals_cmf_crosses_below_zero(self):
+        """A final selling-pressure bar flips CMF from positive to negative."""
+        strategy = ChaikinMoneyFlowStrategy(period=5)
+        bars = [(105.0, 105.0, 104.0)] * 5 + [(100.0, 101.0, 99.0)] * 4 + [(100.0, 101.0, 100.0)]
+        data = {"AAPL": create_cmf_data("AAPL", bars)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(0.7)
+        assert signal.price == pytest.approx(100.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "cmf_cross_below_zero"
+        assert signal.metadata["cmf"] == pytest.approx(-0.2)
+        assert signal.metadata["period"] == 5
+
+    def test_generate_signals_flat_range_no_signals(self):
+        """Close always at the range midpoint -> zero pressure, no signals."""
+        strategy = ChaikinMoneyFlowStrategy(period=5)
+        bars = [(100.0, 101.0, 99.0)] * 15
+        data = {"AAPL": create_cmf_data("AAPL", bars)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals evaluates each symbol independently."""
+        strategy = ChaikinMoneyFlowStrategy(period=5)
+        buy_bars = (
+            [(100.0, 101.0, 100.0)] * 5 + [(100.0, 101.0, 99.0)] * 4 + [(105.0, 105.0, 104.0)]
+        )
+        sell_bars = (
+            [(105.0, 105.0, 104.0)] * 5 + [(100.0, 101.0, 99.0)] * 4 + [(100.0, 101.0, 100.0)]
+        )
+        data = {
+            "AAPL": create_cmf_data("AAPL", buy_bars),
+            "MSFT": create_cmf_data("MSFT", sell_bars),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+
+    def test_generate_signals_skips_nan_close(self):
+        """A NaN last close is skipped before any signal is derived."""
+        strategy = ChaikinMoneyFlowStrategy(period=5)
+        bars = (
+            [(100.0, 101.0, 100.0)] * 5
+            + [(100.0, 101.0, 99.0)] * 4
+            + [(float("nan"), 105.0, 104.0)]
+        )
+        data = {"AAPL": create_cmf_data("AAPL", bars)}
         assert strategy.generate_signals(data) == []
 
 

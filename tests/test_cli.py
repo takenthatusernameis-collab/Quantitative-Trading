@@ -1606,6 +1606,7 @@ class TestRunCombined:
             ("CCI", 10.0),
             ("Williams %R", 12.0),
             ("OBV", 13.0),
+            ("Chaikin_Money_Flow", 11.5),
         ]:
             m = MagicMock(
                 spec=[
@@ -1695,6 +1696,7 @@ class TestRunCombined:
         assert "CCI" in captured.out
         assert "Williams %R" in captured.out
         assert "OBV" in captured.out
+        assert "Chaikin_Money_Flow" in captured.out
         assert "Best strategy (by Sharpe)" in captured.out
 
     @patch("examples.cli.run_backtest")

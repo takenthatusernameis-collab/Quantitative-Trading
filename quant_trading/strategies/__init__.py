@@ -6,6 +6,7 @@ from .examples import (
     AroonStrategy,
     BollingerBandsStrategy,
     CCIStrategy,
+    ChaikinMoneyFlowStrategy,
     DonchianChannelStrategy,
     EMACrossover,
     IchimokuCloudStrategy,
@@ -50,6 +51,7 @@ register_strategy("adx", ADXStrategy, aliases=["average_directional_index"])
 register_strategy("cci", CCIStrategy, aliases=["commodity_channel_index"])
 register_strategy("williamsr", WilliamsRStrategy, aliases=["williams_pct_r"])
 register_strategy("obv", OBVStrategy, aliases=["on_balance_volume"])
+register_strategy("cmf", ChaikinMoneyFlowStrategy, aliases=["chaikin_money_flow"])
 
 
 __all__ = [
@@ -57,6 +59,7 @@ __all__ = [
     "AroonStrategy",
     "BollingerBandsStrategy",
     "CCIStrategy",
+    "ChaikinMoneyFlowStrategy",
     "DonchianChannelStrategy",
     "EMACrossover",
     "IchimokuCloudStrategy",

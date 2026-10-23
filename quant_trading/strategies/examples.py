@@ -3135,3 +3135,150 @@ class OBVStrategy(Strategy):
                 )
 
         return signals
+
+
+class ChaikinMoneyFlowStrategy(Strategy):
+    """Chaikin Money Flow Strategy.
+
+    Chaikin Money Flow (CMF) is a volume-weighted momentum oscillator that
+    measures buying and selling pressure over a lookback period:
+
+    - Money Flow Multiplier = ((close - low) - (high - close)) / (high - low)
+    - Money Flow Volume = Money Flow Multiplier * volume
+    - CMF = sum(Money Flow Volume, period) / sum(volume, period)
+
+    CMF oscillates between -1 and +1. Positive values indicate buying
+    pressure (close in the upper part of the range on volume), negative values
+    indicate selling pressure.
+
+    Trading signals:
+    - Buy when CMF crosses above zero (selling pressure turns to buying pressure).
+    - Sell when CMF crosses below zero (buying pressure turns to selling pressure).
+    """
+
+    def __init__(self, period: int = 20, name: str = "Chaikin_Money_Flow"):
+        """Initialize the Chaikin Money Flow strategy.
+
+        Args:
+            period: Lookback window for the CMF calculation. Defaults to 20.
+            name: Strategy name. Defaults to "Chaikin_Money_Flow".
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+
+        """
+        super().__init__(
+            name,
+            {
+                "period": period,
+            },
+        )
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate_cmf(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate the Chaikin Money Flow series.
+
+        Args:
+            df: DataFrame containing at least ``"high"``, ``"low"``,
+                ``"close"``, and ``"volume"`` columns.
+
+        Returns:
+            Series of CMF values aligned with ``df`` index, bounded in [-1, 1].
+
+        """
+        high = df["high"]
+        low = df["low"]
+        close = df["close"]
+        volume = df["volume"]
+
+        high_minus_low = high - low
+        money_flow_multiplier = ((close - low) - (high - close)) / high_minus_low.replace(0, np.nan)
+        money_flow_volume = money_flow_multiplier * volume
+
+        cmf: pd.Series = (
+            money_flow_volume.rolling(window=self.period).sum()
+            / volume.rolling(window=self.period).sum()
+        )
+        return cmf
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from CMF zero-line crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least
+                ``"high"``, ``"low"``, ``"close"``, and ``"volume"`` columns
+                indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose CMF crosses the
+            zero line between the last two bars.
+
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 1:
+                continue
+
+            close = df["close"]
+            current_price = close.iloc[-1]
+            # The signal is emitted at the last close, so a close that is not a
+            # number is rejected before anything is derived from it.
+            if pd.isna(current_price) or current_price == 0:
+                continue
+
+            cmf = self._calculate_cmf(df)
+            current_cmf = cmf.iloc[-1]
+            prev_cmf = cmf.iloc[-2]
+            timestamp = df.index[-1]
+
+            if pd.isna(current_cmf) or pd.isna(prev_cmf):
+                continue
+
+            # CMF crosses above zero - buying pressure takes over
+            if prev_cmf <= 0 and current_cmf > 0:
+                strength = min(1.0, abs(current_cmf) + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "cmf": current_cmf,
+                            "period": self.period,
+                            "signal_type": "cmf_cross_above_zero",
+                        },
+                    )
+                )
+            # CMF crosses below zero - selling pressure takes over
+            elif prev_cmf >= 0 and current_cmf < 0:
+                strength = min(1.0, abs(current_cmf) + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "cmf": current_cmf,
+                            "period": self.period,
+                            "signal_type": "cmf_cross_below_zero",
+                        },
+                    )
+                )
+
+        return signals
