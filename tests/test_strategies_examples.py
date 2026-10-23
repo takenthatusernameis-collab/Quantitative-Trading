@@ -16,6 +16,7 @@ from quant_trading.strategies.examples import (
     MACDStrategy,
     MomentumStrategy,
     MovingAverageCrossover,
+    OBVStrategy,
     ParabolicSARStrategy,
     RSIStrategy,
     StochasticOscillatorStrategy,
@@ -2851,6 +2852,115 @@ class TestWilliamsRStrategy:
         strategy = WilliamsRStrategy(period=14, overbought=-20.0, oversold=-80.0)
         closes = [100.0] * 13 + [float("nan")]
         data = {"AAPL": create_williams_r_data("AAPL", closes)}
+        assert strategy.generate_signals(data) == []
+
+
+def create_obv_data(symbol: str, closes: list[float]) -> pd.DataFrame:
+    """Create deterministic OHLCV data for OBV tests.
+
+    Volume is constant at 1,000,000 per bar so OBV moves are driven purely by
+    the direction of the close. High and low carry a small 0.1% wick around
+    the close.
+    """
+    close = np.asarray(closes, dtype=float)
+    dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
+    return pd.DataFrame(
+        {
+            "open": close,
+            "high": close * 1.001,
+            "low": close * 0.999,
+            "close": close,
+            "volume": np.full(len(close), 1_000_000),
+        },
+        index=dates,
+    )
+
+
+class TestOBVStrategy:
+    """Tests for OBVStrategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = OBVStrategy(signal_period=20, name="Test_OBV")
+        assert strategy.name == "Test_OBV"
+        assert strategy.signal_period == 20
+        assert strategy.parameters["signal_period"] == 20
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid periods."""
+        with pytest.raises(ValueError, match="signal_period must be positive"):
+            OBVStrategy(signal_period=0)
+        with pytest.raises(ValueError, match="signal_period must be positive"):
+            OBVStrategy(signal_period=-5)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with fewer bars than signal_period + 1."""
+        strategy = OBVStrategy(signal_period=20)
+        data = {"AAPL": create_obv_data("AAPL", [100.0] * 20)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_obv_crosses_above_signal_line(self):
+        """An up-day on flat data pushes OBV above its signal line (buy)."""
+        strategy = OBVStrategy(signal_period=20)
+        # 25 flat bars keep OBV at zero; the final up-bar lifts OBV above
+        # its 20-bar signal line on the last bar only -- exactly one buy.
+        data = {"AAPL": create_obv_data("AAPL", [100.0] * 25 + [105.0])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(105.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "obv_cross_above"
+        assert signal.metadata["obv"] == pytest.approx(1_000_000.0)
+        assert signal.metadata["signal_line"] == pytest.approx(1_000_000.0 / 20.0)
+
+    def test_generate_signals_obv_crosses_below_signal_line(self):
+        """A down-day on flat data pushes OBV below its signal line (sell)."""
+        strategy = OBVStrategy(signal_period=20)
+        data = {"AAPL": create_obv_data("AAPL", [100.0] * 25 + [95.0])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(95.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "obv_cross_below"
+        assert signal.metadata["obv"] == pytest.approx(-1_000_000.0)
+        assert signal.metadata["signal_line"] == pytest.approx(-1_000_000.0 / 20.0)
+
+    def test_generate_signals_flat_data_no_signals(self):
+        """Flat closes keep OBV flat, so it never crosses its signal line."""
+        strategy = OBVStrategy(signal_period=20)
+        data = {"AAPL": create_obv_data("AAPL", [100.0] * 30)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals evaluates each symbol independently."""
+        strategy = OBVStrategy(signal_period=20)
+        data = {
+            "AAPL": create_obv_data("AAPL", [100.0] * 25 + [105.0]),
+            "MSFT": create_obv_data("MSFT", [100.0] * 25 + [95.0]),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+
+    def test_generate_signals_skips_nan_close(self):
+        """A NaN last close is skipped before any signal is derived."""
+        strategy = OBVStrategy(signal_period=20)
+        closes = [100.0] * 25 + [float("nan")]
+        data = {"AAPL": create_obv_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
 
 

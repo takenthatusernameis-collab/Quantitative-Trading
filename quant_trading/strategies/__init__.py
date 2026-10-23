@@ -13,6 +13,7 @@ from .examples import (
     MACDStrategy,
     MomentumStrategy,
     MovingAverageCrossover,
+    OBVStrategy,
     ParabolicSARStrategy,
     RSIStrategy,
     StochasticOscillatorStrategy,
@@ -48,6 +49,7 @@ register_strategy("momentum", MomentumStrategy, aliases=["mom"])
 register_strategy("adx", ADXStrategy, aliases=["average_directional_index"])
 register_strategy("cci", CCIStrategy, aliases=["commodity_channel_index"])
 register_strategy("williamsr", WilliamsRStrategy, aliases=["williams_pct_r"])
+register_strategy("obv", OBVStrategy, aliases=["on_balance_volume"])
 
 
 __all__ = [
@@ -61,6 +63,7 @@ __all__ = [
     "KeltnerChannelStrategy",
     "MACDStrategy",
     "MovingAverageCrossover",
+    "OBVStrategy",
     "ParabolicSARStrategy",
     "Position",
     "RSIStrategy",

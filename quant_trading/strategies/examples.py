@@ -2970,3 +2970,168 @@ class WilliamsRStrategy(Strategy):
                 )
 
         return signals
+
+
+class OBVStrategy(Strategy):
+    """On-Balance Volume (OBV) Strategy.
+
+    On-Balance Volume is a volume-based momentum indicator that cumulatively
+    adds volume on up days and subtracts volume on down days:
+
+    - OBV_t = OBV_{t-1} + volume_t when close_t > close_{t-1}
+    - OBV_t = OBV_{t-1} - volume_t when close_t < close_{t-1}
+    - OBV_t = OBV_{t-1} when close_t == close_{t-1}
+
+    The strategy compares OBV to its signal line (a simple moving average of
+    OBV over ``signal_period`` bars) and emits:
+
+    - A buy signal when OBV crosses above its signal line (increasing buying
+      pressure).
+    - A sell signal when OBV crosses below its signal line (increasing selling
+      pressure).
+    """
+
+    def __init__(self, signal_period: int = 20, name: str = "OBV"):
+        """Initialize the On-Balance Volume strategy.
+
+        Args:
+            signal_period: Lookback window for the OBV signal line (SMA of
+                OBV). Defaults to 20.
+            name: Strategy name. Defaults to "OBV".
+
+        Raises:
+            ValueError: If ``signal_period`` is non-positive.
+
+        """
+        super().__init__(
+            name,
+            {
+                "signal_period": signal_period,
+            },
+        )
+        self.signal_period = signal_period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``signal_period`` is non-positive.
+
+        """
+        if self.signal_period <= 0:
+            raise ValueError("signal_period must be positive")
+
+    def _calculate_obv(self, close: pd.Series, volume: pd.Series) -> pd.Series:
+        """Calculate the On-Balance Volume series.
+
+        Args:
+            close: Series of close prices.
+            volume: Series of volumes aligned with ``close``.
+
+        Returns:
+            Series of OBV values aligned with the inputs, starting at 0.
+
+        """
+        obv: pd.Series = pd.Series(index=close.index, dtype=float)
+        obv.iloc[0] = 0.0
+        for i in range(1, len(close)):
+            if close.iloc[i] > close.iloc[i - 1]:
+                obv.iloc[i] = obv.iloc[i - 1] + volume.iloc[i]
+            elif close.iloc[i] < close.iloc[i - 1]:
+                obv.iloc[i] = obv.iloc[i - 1] - volume.iloc[i]
+            else:
+                obv.iloc[i] = obv.iloc[i - 1]
+        return obv
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from OBV crossovers of its signal line.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least
+                ``"close"`` and ``"volume"`` columns indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose OBV crosses its
+            signal line between the last two bars.
+
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.signal_period + 1:
+                continue
+
+            close = df["close"]
+            volume = df["volume"]
+
+            obv = self._calculate_obv(close, volume)
+            signal_line = obv.rolling(window=self.signal_period).mean()
+
+            current_obv = obv.iloc[-1]
+            current_signal = signal_line.iloc[-1]
+            prev_obv = obv.iloc[-2]
+            prev_signal = signal_line.iloc[-2]
+            current_price = close.iloc[-1]
+            timestamp = df.index[-1]
+
+            if (
+                pd.isna(current_obv)
+                or pd.isna(current_signal)
+                or pd.isna(prev_obv)
+                or pd.isna(prev_signal)
+                or pd.isna(current_price)
+                or current_price == 0
+            ):
+                continue
+
+            # OBV crosses above its signal line - rising buying pressure
+            if prev_obv <= prev_signal and current_obv > current_signal:
+                if current_signal != 0:
+                    strength = min(
+                        1.0,
+                        abs(current_obv - current_signal) / abs(current_signal) + 0.5,
+                    )
+                else:
+                    strength = 0.5
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "obv": current_obv,
+                            "signal_line": current_signal,
+                            "signal_period": self.signal_period,
+                            "signal_type": "obv_cross_above",
+                        },
+                    )
+                )
+            # OBV crosses below its signal line - rising selling pressure
+            elif prev_obv >= prev_signal and current_obv < current_signal:
+                if current_signal != 0:
+                    strength = min(
+                        1.0,
+                        abs(current_signal - current_obv) / abs(current_signal) + 0.5,
+                    )
+                else:
+                    strength = 0.5
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "obv": current_obv,
+                            "signal_line": current_signal,
+                            "signal_period": self.signal_period,
+                            "signal_type": "obv_cross_below",
+                        },
+                    )
+                )
+
+        return signals
