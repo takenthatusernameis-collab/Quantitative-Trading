@@ -27,6 +27,7 @@ from quant_trading.strategies.examples import (
     SuperTrendStrategy,
     VolumeOscillatorStrategy,
     VolumeRateOfChangeStrategy,
+    VortexStrategy,
     VWAPStrategy,
     WilliamsRStrategy,
 )
@@ -3581,6 +3582,141 @@ class TestVolumeOscillatorStrategy:
         """A NaN last volume is rejected before any signal is derived."""
         strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": create_volume_oscillator_data("AAPL", [1_000_000.0] * 25 + [float("nan")])}
+        assert strategy.generate_signals(data) == []
+
+
+def create_vortex_data(symbol: str, rows: list[tuple[float, float, float]]) -> pd.DataFrame:
+    """Create deterministic OHLC data for Vortex strategy tests.
+
+    Each row is a ``(high, low, close)`` triple. The volume column is a
+    constant so the Vortex indicator is driven purely by the price series.
+    """
+    dates = pd.date_range(end=datetime.now(), periods=len(rows), freq="D")
+    high = [r[0] for r in rows]
+    low = [r[1] for r in rows]
+    close = [r[2] for r in rows]
+    return pd.DataFrame(
+        {
+            "open": close,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": [1_000_000] * len(rows),
+        },
+        index=dates,
+    )
+
+
+class TestVortexStrategy:
+    """Tests for the Vortex strategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = VortexStrategy(period=14, name="Test_Vortex")
+        assert strategy.name == "Test_Vortex"
+        assert strategy.period == 14
+        assert strategy.parameters["period"] == 14
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for non-positive periods."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            VortexStrategy(period=0)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with fewer bars than period + 2."""
+        strategy = VortexStrategy(period=14)
+        data = {"AAPL": create_vortex_data("AAPL", [(10, 8, 9)] * 15)}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_vip_plus_crosses_above_vip_minus(self):
+        """A final upward surge flips VIP+ above VIP- (buy)."""
+        strategy = VortexStrategy(period=2)
+        # 4 quiet bars keep VIP- above VIP+; the final bar surges high
+        # while low stays put, pushing VIP+ to 1.0 and crossing above VIP-.
+        data = {
+            "AAPL": create_vortex_data(
+                "AAPL",
+                [(10, 8, 9), (9, 7, 8), (8, 6, 7), (7, 5, 6), (20, 18, 19)],
+            )
+        }
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(0.625)
+        assert signal.price == pytest.approx(19.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "vortex_up_cross_above_down"
+        assert signal.metadata["vip_plus"] == pytest.approx(1.0)
+        assert signal.metadata["vip_minus"] == pytest.approx(0.875)
+        assert signal.metadata["period"] == 2
+
+    def test_generate_signals_vip_minus_crosses_above_vip_plus(self):
+        """A final downward plunge flips VIP- above VIP+ (sell)."""
+        strategy = VortexStrategy(period=2)
+        # 4 quiet bars keep VIP+ above VIP-; the final bar plunges low
+        # while high stays put, pushing VIP- to 0.733 and crossing above VIP+.
+        data = {
+            "AAPL": create_vortex_data(
+                "AAPL",
+                [(10, 8, 9), (12, 10, 11), (14, 12, 13), (16, 14, 15), (17, 5, 11)],
+            )
+        }
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(0.7666666666666666)
+        assert signal.price == pytest.approx(11.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "vortex_down_cross_above_up"
+        assert signal.metadata["vip_plus"] == pytest.approx(0.4666666666666667)
+        assert signal.metadata["vip_minus"] == pytest.approx(0.7333333333333333)
+        assert signal.metadata["period"] == 2
+
+    def test_generate_signals_no_crossover(self):
+        """Constant price keeps both Vortex lines flat, so no signal fires."""
+        strategy = VortexStrategy(period=2)
+        data = {
+            "AAPL": create_vortex_data(
+                "AAPL",
+                [(10, 8, 9), (9, 7, 8), (8, 6, 7), (7, 5, 6), (6, 4, 5)],
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals evaluates each symbol independently."""
+        strategy = VortexStrategy(period=2)
+        data = {
+            "AAPL": create_vortex_data(
+                "AAPL",
+                [(10, 8, 9), (9, 7, 8), (8, 6, 7), (7, 5, 6), (20, 18, 19)],
+            ),
+            "MSFT": create_vortex_data(
+                "MSFT",
+                [(10, 8, 9), (12, 10, 11), (14, 12, 13), (16, 14, 15), (17, 5, 11)],
+            ),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+
+    def test_generate_signals_skips_nan_price(self):
+        """A NaN close is rejected before any signal is derived."""
+        strategy = VortexStrategy(period=2)
+        data = {
+            "AAPL": create_vortex_data(
+                "AAPL",
+                [(10, 8, 9), (9, 7, 8), (8, 6, 7), (7, 5, 6), (float("nan"), 18, 19)],
+            )
+        }
         assert strategy.generate_signals(data) == []
 
 

@@ -58,6 +58,7 @@ BUILTIN_STRATEGY_KEYS = [
     "ichimoku",
     "sar",
     "vwap",
+    "vortex",
     "vroc",
     "vol",
     "cho",

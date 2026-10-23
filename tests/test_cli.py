@@ -1600,6 +1600,7 @@ class TestRunCombined:
             ("Ichimoku_Cloud", 9.0),
             ("Parabolic_SAR_0.02_0.2", 7.5),
             ("VWAP", 5.0),
+            ("Vortex", 17.0),
             ("EMA_Crossover_10_30", 6.5),
             ("Momentum", 9.5),
             ("ADX", 11.0),

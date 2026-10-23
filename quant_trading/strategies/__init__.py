@@ -27,6 +27,7 @@ from .examples import (
     SuperTrendStrategy,
     VolumeOscillatorStrategy,
     VolumeRateOfChangeStrategy,
+    VortexStrategy,
     VWAPStrategy,
     WilliamsRStrategy,
 )
@@ -56,6 +57,7 @@ register_strategy("sar", ParabolicSARStrategy, aliases=["parabolic_sar", "psar"]
 register_strategy("vwap", VWAPStrategy)
 register_strategy("vroc", VolumeRateOfChangeStrategy, aliases=["volume_rate_of_change"])
 register_strategy("vol", VolumeOscillatorStrategy, aliases=["volume_oscillator"])
+register_strategy("vortex", VortexStrategy, aliases=["vortex_indicator"])
 register_strategy("momentum", MomentumStrategy, aliases=["mom"])
 register_strategy("adx", ADXStrategy, aliases=["average_directional_index"])
 register_strategy("cci", CCIStrategy, aliases=["commodity_channel_index"])
@@ -100,6 +102,7 @@ __all__ = [
     "SuperTrendStrategy",
     "VolumeOscillatorStrategy",
     "VolumeRateOfChangeStrategy",
+    "VortexStrategy",
     "WilliamsRStrategy",
     "available_strategies",
     "create_strategy",

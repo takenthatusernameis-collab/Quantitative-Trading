@@ -4246,3 +4246,170 @@ class ChaikinOscillatorStrategy(Strategy):
                     )
                 )
         return signals
+
+
+class VortexStrategy(Strategy):
+    """Vortex Strategy.
+
+    The Vortex Indicator compares upward and downward movement over a lookback
+    period, normalized by the True Range so the two lines are directly
+    comparable. It consists of two lines:
+
+    - ``VIP+`` (Vortex Up): sum of |current high - previous low| over the
+      period, divided by the sum of True Range over the period.
+    - ``VIP-`` (Vortex Down): sum of |current low - previous high| over the
+      period, divided by the sum of True Range over the period.
+
+    Both lines are bounded in ``[0, 1]`` and their sum is at most 1 when the
+    ranges are disjoint. Trading signals:
+
+    - Buy when VIP+ crosses above VIP- (upward trend emerging).
+    - Sell when VIP- crosses above VIP+ (downward trend emerging).
+    """
+
+    def __init__(
+        self,
+        period: int = 14,
+        name: str = "Vortex",
+    ):
+        """Initialize the Vortex strategy.
+
+        Args:
+            period: Lookback window for the Vortex calculation.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+
+        """
+        super().__init__(name, {"period": period})
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate_vortex(self, df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+        """Calculate the Vortex Up (VIP+) and Vortex Down (VIP-) lines.
+
+        Args:
+            df: DataFrame containing at least ``"high"``, ``"low"``, and
+                ``"close"`` columns.
+
+        Returns:
+            Tuple of ``(vip_plus, vip_minus)`` series aligned with ``df``
+            index. Values are NaN until ``period`` bars of history are
+            available.
+
+        """
+        high = df["high"]
+        low = df["low"]
+        close = df["close"]
+
+        prev_high = high.shift(1)
+        prev_low = low.shift(1)
+        prev_close = close.shift(1)
+
+        # Positive and negative vortex movement
+        vm_plus = (high - prev_low).abs()
+        vm_minus = (low - prev_high).abs()
+
+        # True Range = max(high - low, |high - prev_close|, |low - prev_close|)
+        true_range = pd.concat(
+            [high - low, (high - prev_close).abs(), (low - prev_close).abs()],
+            axis=1,
+        ).max(axis=1)
+
+        sum_vm_plus = vm_plus.rolling(window=self.period).sum()
+        sum_vm_minus = vm_minus.rolling(window=self.period).sum()
+        sum_tr = true_range.rolling(window=self.period).sum()
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            vip_plus = sum_vm_plus / sum_tr.replace(0, np.nan)
+            vip_minus = sum_vm_minus / sum_tr.replace(0, np.nan)
+
+        return vip_plus, vip_minus
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from Vortex line crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least
+                ``"high"``, ``"low"``, and ``"close"`` columns indexed by
+                timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose Vortex Up and
+            Down lines cross between the last two bars.
+
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 2:
+                continue
+
+            vip_plus, vip_minus = self._calculate_vortex(df)
+
+            current_plus = vip_plus.iloc[-1]
+            current_minus = vip_minus.iloc[-1]
+            prev_plus = vip_plus.iloc[-2]
+            prev_minus = vip_minus.iloc[-2]
+            current_price = df["close"].iloc[-1]
+            timestamp = df.index[-1]
+
+            if (
+                pd.isna(current_plus)
+                or pd.isna(current_minus)
+                or pd.isna(prev_plus)
+                or pd.isna(prev_minus)
+                or pd.isna(current_price)
+                or current_price == 0
+            ):
+                continue
+
+            # Vortex Up crosses above Vortex Down - bullish signal
+            if prev_plus <= prev_minus and current_plus > current_minus:
+                strength = min(1.0, (current_plus - current_minus) + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "vip_plus": float(current_plus),
+                            "vip_minus": float(current_minus),
+                            "period": self.period,
+                            "signal_type": "vortex_up_cross_above_down",
+                        },
+                    )
+                )
+            # Vortex Down crosses above Vortex Up - bearish signal
+            elif prev_minus <= prev_plus and current_minus > current_plus:
+                strength = min(1.0, (current_minus - current_plus) + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "vip_plus": float(current_plus),
+                            "vip_minus": float(current_minus),
+                            "period": self.period,
+                            "signal_type": "vortex_down_cross_above_up",
+                        },
+                    )
+                )
+
+        return signals
