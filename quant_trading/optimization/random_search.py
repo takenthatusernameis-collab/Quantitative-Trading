@@ -18,8 +18,7 @@ Examples:
 
 """
 
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
-ProcessPoolExecutor = ThreadPoolExecutor
+from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 from datetime import datetime
 from typing import Any
