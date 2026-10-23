@@ -3845,12 +3845,12 @@ class VolumeRateOfChangeStrategy(Strategy):
                         strength=strength,
                         price=current_price,
                         timestamp=timestamp,
-            metadata={
-                "vroc": float(current_vroc),
-                "period": self.period,
-                "signal_type": "vroc_cross_below_zero",
-            },
-            )
+                        metadata={
+                            "vroc": float(current_vroc),
+                            "period": self.period,
+                            "signal_type": "vroc_cross_below_zero",
+                        },
+                    )
                 )
 
         return signals
@@ -3983,6 +3983,160 @@ class ChandeMomentumOscillatorStrategy(Strategy):
                             "cmo": float(current_cmo),
                             "period": self.period,
                             "signal_type": "cmo_cross_below_zero",
+                        },
+                    )
+                )
+
+        return signals
+
+
+class VolumeOscillatorStrategy(Strategy):
+    """Volume Oscillator Strategy.
+
+    The Volume Oscillator is the difference between a fast and a slow
+    exponential moving average of volume, expressed as a percentage of the
+    slow volume EMA:
+
+    - VOL = (fast_vol_ema - slow_vol_ema) / slow_vol_ema * 100
+
+    where ``fast_vol_ema`` and ``slow_vol_ema`` are EMAs of the ``volume``
+    column over ``fast_period`` and ``slow_period`` bars respectively. It
+    oscillates around zero: a positive value means recent volume is expanding
+    relative to the longer-term volume trend, a negative value means volume is
+    contracting.
+
+    Trading signals:
+    - Buy when VOL crosses above zero (volume expansion accelerating).
+    - Sell when VOL crosses below zero (volume contraction accelerating).
+    """
+
+    def __init__(
+        self,
+        fast_period: int = 5,
+        slow_period: int = 13,
+        name: str = "Volume_Oscillator",
+    ):
+        """Initialize the Volume Oscillator strategy.
+
+        Args:
+            fast_period: Lookback window for the fast volume EMA.
+            slow_period: Lookback window for the slow volume EMA; must
+                exceed ``fast_period``.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+
+        """
+        super().__init__(
+            name,
+            {
+                "fast_period": fast_period,
+                "slow_period": slow_period,
+            },
+        )
+        self.fast_period = fast_period
+        self.slow_period = slow_period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``fast_period`` or ``slow_period`` is non-positive,
+                or if ``fast_period`` is not less than ``slow_period``.
+
+        """
+        if self.fast_period <= 0:
+            raise ValueError("fast_period must be positive")
+        if self.slow_period <= 0:
+            raise ValueError("slow_period must be positive")
+        if self.fast_period >= self.slow_period:
+            raise ValueError("fast_period must be less than slow_period")
+
+    def _calculate_vol(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate the Volume Oscillator series.
+
+        Args:
+            df: DataFrame containing at least a ``"volume"`` column.
+
+        Returns:
+            Series of VOL values aligned with ``df`` index, expressed as a
+            percentage.
+
+        """
+        volume = df["volume"]
+        fast_ema = volume.ewm(span=self.fast_period, adjust=False).mean()
+        slow_ema = volume.ewm(span=self.slow_period, adjust=False).mean()
+        vol: pd.Series = (fast_ema - slow_ema) / slow_ema.replace(0, np.nan) * 100.0
+        return vol
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from Volume Oscillator zero-line crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least a
+                ``"volume"`` and ``"close"`` column indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose Volume
+            Oscillator crosses the zero line between the last two bars.
+
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.slow_period + 2:
+                continue
+
+            close = df["close"]
+            current_price = close.iloc[-1]
+            # The signal is emitted at the last close, so a close that is not a
+            # number is rejected before anything is derived from it.
+            if pd.isna(current_price) or current_price == 0:
+                continue
+
+            vol = self._calculate_vol(df)
+            current_vol = vol.iloc[-1]
+            prev_vol = vol.iloc[-2]
+            timestamp = df.index[-1]
+
+            if pd.isna(current_vol) or pd.isna(prev_vol):
+                continue
+
+            # VOL crosses above zero - volume expansion begins
+            if prev_vol <= 0 and current_vol > 0:
+                strength = min(1.0, abs(float(current_vol)) / (abs(float(current_vol)) + 100.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "vol": float(current_vol),
+                            "fast_period": self.fast_period,
+                            "slow_period": self.slow_period,
+                            "signal_type": "vol_cross_above_zero",
+                        },
+                    )
+                )
+            # VOL crosses below zero - volume contraction begins
+            elif prev_vol >= 0 and current_vol < 0:
+                strength = min(1.0, abs(float(current_vol)) / (abs(float(current_vol)) + 100.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "vol": float(current_vol),
+                            "fast_period": self.fast_period,
+                            "slow_period": self.slow_period,
+                            "signal_type": "vol_cross_below_zero",
                         },
                     )
                 )

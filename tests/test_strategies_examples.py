@@ -25,6 +25,7 @@ from quant_trading.strategies.examples import (
     RSIStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
+    VolumeOscillatorStrategy,
     VolumeRateOfChangeStrategy,
     VWAPStrategy,
     WilliamsRStrategy,
@@ -3450,9 +3451,7 @@ class TestChandeMomentumOscillatorStrategy:
         """Test generate_signals evaluates each symbol independently."""
         strategy = ChandeMomentumOscillatorStrategy(period=5)
         data = {
-            "AAPL": create_cmo_data(
-                "AAPL", [100.0] * 25 + [90.0, 85.0, 80.0, 75.0, 100.0, 105.0]
-            ),
+            "AAPL": create_cmo_data("AAPL", [100.0] * 25 + [90.0, 85.0, 80.0, 75.0, 100.0, 105.0]),
             "MSFT": create_cmo_data(
                 "MSFT", [100.0] * 25 + [110.0, 115.0, 120.0, 125.0, 100.0, 95.0]
             ),
@@ -3468,6 +3467,120 @@ class TestChandeMomentumOscillatorStrategy:
         strategy = ChandeMomentumOscillatorStrategy(period=5)
         closes = [100.0] * 25 + [90.0, 85.0, 80.0, 75.0, 100.0, float("nan")]
         data = {"AAPL": create_cmo_data("AAPL", closes)}
+        assert strategy.generate_signals(data) == []
+
+
+def create_volume_oscillator_data(
+    symbol: str, volumes: list[float], close: float = 100.0
+) -> pd.DataFrame:
+    """Create deterministic close/volume data for Volume Oscillator tests.
+
+    The close is constant so the Volume Oscillator is driven purely by the
+    volume series.
+    """
+    dates = pd.date_range(end=datetime.now(), periods=len(volumes), freq="D")
+    return pd.DataFrame(
+        {
+            "open": [close] * len(volumes),
+            "high": [close] * len(volumes),
+            "low": [close] * len(volumes),
+            "close": [close] * len(volumes),
+            "volume": np.asarray(volumes, dtype=float),
+        },
+        index=dates,
+    )
+
+
+class TestVolumeOscillatorStrategy:
+    """Tests for the Volume Oscillator strategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13, name="Test_VOL")
+        assert strategy.name == "Test_VOL"
+        assert strategy.fast_period == 5
+        assert strategy.slow_period == 13
+        assert strategy.parameters["fast_period"] == 5
+        assert strategy.parameters["slow_period"] == 13
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid periods."""
+        with pytest.raises(ValueError, match="fast_period must be positive"):
+            VolumeOscillatorStrategy(fast_period=0, slow_period=13)
+        with pytest.raises(ValueError, match="slow_period must be positive"):
+            VolumeOscillatorStrategy(fast_period=5, slow_period=0)
+        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+            VolumeOscillatorStrategy(fast_period=13, slow_period=13)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with fewer bars than slow_period + 2."""
+        strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
+        data = {"AAPL": create_volume_oscillator_data("AAPL", [1_000_000.0] * 15)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_vol_crosses_above_zero(self):
+        """A final volume surge flips VOL from zero to +16.67 (buy)."""
+        strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
+        # 25 flat bars keep VOL at zero; the final bar doubles volume,
+        # pushing VOL from 0 to +16.67 on the last bar only.
+        data = {"AAPL": create_volume_oscillator_data("AAPL", [1_000_000.0] * 25 + [2_000_000.0])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(1 / 7)
+        assert signal.price == pytest.approx(100.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "vol_cross_above_zero"
+        assert signal.metadata["vol"] == pytest.approx(100.0 / 6.0)
+        assert signal.metadata["fast_period"] == 5
+        assert signal.metadata["slow_period"] == 13
+
+    def test_generate_signals_vol_crosses_below_zero(self):
+        """A final volume drop halves volume, flipping VOL to -10.26 (sell)."""
+        strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
+        data = {"AAPL": create_volume_oscillator_data("AAPL", [1_000_000.0] * 25 + [500_000.0])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(0.09302325581395351)
+        assert signal.price == pytest.approx(100.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "vol_cross_below_zero"
+        assert signal.metadata["vol"] == pytest.approx(-40.0 / 3.9)
+        assert signal.metadata["fast_period"] == 5
+        assert signal.metadata["slow_period"] == 13
+
+    def test_generate_signals_flat_volume_no_signals(self):
+        """Constant volume keeps VOL at zero, so no crossover fires."""
+        strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
+        data = {"AAPL": create_volume_oscillator_data("AAPL", [1_000_000.0] * 30)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals evaluates each symbol independently."""
+        strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
+        data = {
+            "AAPL": create_volume_oscillator_data("AAPL", [1_000_000.0] * 25 + [2_000_000.0]),
+            "MSFT": create_volume_oscillator_data("MSFT", [1_000_000.0] * 25 + [500_000.0]),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+
+    def test_generate_signals_skips_nan_volume(self):
+        """A NaN last volume is rejected before any signal is derived."""
+        strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
+        data = {"AAPL": create_volume_oscillator_data("AAPL", [1_000_000.0] * 25 + [float("nan")])}
         assert strategy.generate_signals(data) == []
 
 

@@ -1612,6 +1612,7 @@ class TestRunCombined:
             ("Elder_Ray", 14.0),
             ("Rate_Of_Change", 14.5),
             ("Volume_Rate_Of_Change", 15.0),
+            ("Volume_Oscillator", 16.0),
             ("Chande_Momentum_Oscillator", 15.5),
         ]:
             m = MagicMock(
