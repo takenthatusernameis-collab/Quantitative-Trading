@@ -3845,10 +3845,144 @@ class VolumeRateOfChangeStrategy(Strategy):
                         strength=strength,
                         price=current_price,
                         timestamp=timestamp,
+            metadata={
+                "vroc": float(current_vroc),
+                "period": self.period,
+                "signal_type": "vroc_cross_below_zero",
+            },
+            )
+                )
+
+        return signals
+
+
+class ChandeMomentumOscillatorStrategy(Strategy):
+    """Chande Momentum Oscillator (CMO) Strategy.
+
+    The Chande Momentum Oscillator measures momentum as the ratio of net
+    upward price movement to total price movement over a lookback period:
+
+    - CMO = (sum_up - sum_down) / (sum_up + sum_down) * 100
+
+    where ``sum_up`` is the sum of positive close-to-close changes and
+    ``sum_down`` is the sum of the magnitudes of negative changes over
+    ``period`` bars. CMO oscillates between +100 (pure upside) and -100
+    (pure downside), crossing zero when momentum changes direction.
+
+    Trading signals:
+    - Buy when CMO crosses above zero (momentum turns positive).
+    - Sell when CMO crosses below zero (momentum turns negative).
+    """
+
+    def __init__(self, period: int = 14, name: str = "Chande_Momentum_Oscillator"):
+        """Initialize the Chande Momentum Oscillator strategy.
+
+        Args:
+            period: Lookback window for the CMO calculation. Defaults to 14.
+            name: Strategy name. Defaults to "Chande_Momentum_Oscillator".
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+        """
+        super().__init__(
+            name,
+            {
+                "period": period,
+            },
+        )
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate_cmo(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate the Chande Momentum Oscillator series.
+
+        Args:
+            df: DataFrame containing at least a ``"close"`` column.
+
+        Returns:
+            Series of CMO values aligned with ``df`` index, expressed as a
+            percentage between +100 and -100.
+        """
+        close = df["close"]
+        delta = close.diff()
+        up = delta.clip(lower=0.0)
+        down = (-delta).clip(lower=0.0)
+        sum_up = up.rolling(self.period).sum()
+        sum_down = down.rolling(self.period).sum()
+        denominator = sum_up + sum_down
+        cmo: pd.Series = (sum_up - sum_down) / denominator.replace(0, np.nan) * 100.0
+        return cmo
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from CMO zero-line crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least a
+                ``"close"`` column indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose CMO crosses the
+            zero line between the last two bars.
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 2:
+                continue
+
+            close = df["close"]
+            current_price = close.iloc[-1]
+            if pd.isna(current_price) or current_price == 0:
+                continue
+
+            cmo = self._calculate_cmo(df)
+            current_cmo = cmo.iloc[-1]
+            prev_cmo = cmo.iloc[-2]
+            timestamp = df.index[-1]
+
+            if pd.isna(current_cmo) or pd.isna(prev_cmo):
+                continue
+
+            # CMO crosses above zero - momentum turns positive
+            if prev_cmo <= 0 and current_cmo > 0:
+                strength = min(1.0, abs(float(current_cmo)) / (abs(float(current_cmo)) + 100.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
                         metadata={
-                            "vroc": float(current_vroc),
+                            "cmo": float(current_cmo),
                             "period": self.period,
-                            "signal_type": "vroc_cross_below_zero",
+                            "signal_type": "cmo_cross_above_zero",
+                        },
+                    )
+                )
+            # CMO crosses below zero - momentum turns negative
+            elif prev_cmo >= 0 and current_cmo < 0:
+                strength = min(1.0, abs(float(current_cmo)) / (abs(float(current_cmo)) + 100.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "cmo": float(current_cmo),
+                            "period": self.period,
+                            "signal_type": "cmo_cross_below_zero",
                         },
                     )
                 )

@@ -10,6 +10,7 @@ from quant_trading.strategies.examples import (
     ADXStrategy,
     BollingerBandsStrategy,
     ChaikinMoneyFlowStrategy,
+    ChandeMomentumOscillatorStrategy,
     DonchianChannelStrategy,
     EMACrossover,
     ForceIndexStrategy,
@@ -3355,6 +3356,118 @@ class TestVolumeRateOfChangeStrategy:
         """A NaN last volume is rejected before any signal is derived."""
         strategy = VolumeRateOfChangeStrategy(period=5)
         data = {"AAPL": create_vroc_data("AAPL", [1_000_000] * 25 + [float("nan")])}
+        assert strategy.generate_signals(data) == []
+
+
+def create_cmo_data(symbol: str, closes: list[float]) -> pd.DataFrame:
+    """Create deterministic close data for CMO tests.
+
+    The close series drives the CMO calculation directly.
+    """
+    dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
+    return pd.DataFrame(
+        {
+            "open": closes,
+            "high": closes,
+            "low": closes,
+            "close": closes,
+            "volume": [1_000_000.0] * len(closes),
+        },
+        index=dates,
+    )
+
+
+class TestChandeMomentumOscillatorStrategy:
+    """Tests for the Chande Momentum Oscillator (CMO) strategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = ChandeMomentumOscillatorStrategy(period=14, name="Test_CMO")
+        assert strategy.name == "Test_CMO"
+        assert strategy.period == 14
+        assert strategy.parameters["period"] == 14
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid periods."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            ChandeMomentumOscillatorStrategy(period=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            ChandeMomentumOscillatorStrategy(period=-5)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with fewer bars than period + 2."""
+        strategy = ChandeMomentumOscillatorStrategy(period=5)
+        data = {"AAPL": create_cmo_data("AAPL", [100.0] * 6)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_cmo_crosses_above_zero(self):
+        """A momentum upturn flips CMO from zero to positive (buy)."""
+        strategy = ChandeMomentumOscillatorStrategy(period=5)
+        # 25 flat bars keep CMO at zero, then a decline followed by a rally
+        # pushes CMO from 0 to +33.3 on the last bar.
+        closes = [100.0] * 25 + [90.0, 85.0, 80.0, 75.0, 100.0, 105.0]
+        data = {"AAPL": create_cmo_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(0.25)
+        assert signal.price == pytest.approx(105.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "cmo_cross_above_zero"
+        assert signal.metadata["cmo"] == pytest.approx(100.0 / 3.0)
+        assert signal.metadata["period"] == 5
+
+    def test_generate_signals_cmo_crosses_below_zero(self):
+        """A momentum downturn flips CMO from zero to negative (sell)."""
+        strategy = ChandeMomentumOscillatorStrategy(period=5)
+        closes = [100.0] * 25 + [110.0, 115.0, 120.0, 125.0, 100.0, 95.0]
+        data = {"AAPL": create_cmo_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(0.25)
+        assert signal.price == pytest.approx(95.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "cmo_cross_below_zero"
+        assert signal.metadata["cmo"] == pytest.approx(-100.0 / 3.0)
+        assert signal.metadata["period"] == 5
+
+    def test_generate_signals_flat_close_no_signals(self):
+        """Constant close keeps CMO undefined, so no crossover fires."""
+        strategy = ChandeMomentumOscillatorStrategy(period=5)
+        data = {"AAPL": create_cmo_data("AAPL", [100.0] * 30)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals evaluates each symbol independently."""
+        strategy = ChandeMomentumOscillatorStrategy(period=5)
+        data = {
+            "AAPL": create_cmo_data(
+                "AAPL", [100.0] * 25 + [90.0, 85.0, 80.0, 75.0, 100.0, 105.0]
+            ),
+            "MSFT": create_cmo_data(
+                "MSFT", [100.0] * 25 + [110.0, 115.0, 120.0, 125.0, 100.0, 95.0]
+            ),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+
+    def test_generate_signals_skips_nan_close(self):
+        """A NaN last close is rejected before any signal is derived."""
+        strategy = ChandeMomentumOscillatorStrategy(period=5)
+        closes = [100.0] * 25 + [90.0, 85.0, 80.0, 75.0, 100.0, float("nan")]
+        data = {"AAPL": create_cmo_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
 
 
