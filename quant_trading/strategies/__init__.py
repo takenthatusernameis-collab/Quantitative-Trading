@@ -7,6 +7,7 @@ from .examples import (
     BollingerBandsStrategy,
     CCIStrategy,
     ChaikinMoneyFlowStrategy,
+    ChaikinOscillatorStrategy,
     ChandeMomentumOscillatorStrategy,
     DonchianChannelStrategy,
     ElderRayStrategy,
@@ -61,6 +62,7 @@ register_strategy("cci", CCIStrategy, aliases=["commodity_channel_index"])
 register_strategy("williamsr", WilliamsRStrategy, aliases=["williams_pct_r"])
 register_strategy("obv", OBVStrategy, aliases=["on_balance_volume"])
 register_strategy("cmf", ChaikinMoneyFlowStrategy, aliases=["chaikin_money_flow"])
+register_strategy("cho", ChaikinOscillatorStrategy, aliases=["chaikin_oscillator"])
 register_strategy("cmo", ChandeMomentumOscillatorStrategy, aliases=["chande_momentum_oscillator"])
 register_strategy("elder_ray", ElderRayStrategy, aliases=["elder_ray_index", "erp"])
 register_strategy("roc", RateOfChangeStrategy, aliases=["rate_of_change"])
@@ -74,6 +76,7 @@ __all__ = [
     "BollingerBandsStrategy",
     "CCIStrategy",
     "ChaikinMoneyFlowStrategy",
+    "ChaikinOscillatorStrategy",
     "ChandeMomentumOscillatorStrategy",
     "DonchianChannelStrategy",
     "EMACrossover",

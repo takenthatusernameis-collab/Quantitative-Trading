@@ -4142,3 +4142,107 @@ class VolumeOscillatorStrategy(Strategy):
                 )
 
         return signals
+
+
+class ChaikinOscillatorStrategy(Strategy):
+    """Chaikin Oscillator Strategy.
+
+    The Chaikin Oscillator is the difference between a fast and a slow
+    exponential moving average of the Accumulation/Distribution Line (ADL):
+
+    - CHO = EMA(ADL, fast_period) - EMA(ADL, slow_period)
+
+    It measures the momentum of the ADL. Trading signals:
+    - Buy when CHO crosses above zero (accumulation momentum).
+    - Sell when CHO crosses below zero (distribution momentum).
+    """
+
+    def __init__(
+        self,
+        fast_period: int = 3,
+        slow_period: int = 10,
+        name: str = "Chaikin_Oscillator",
+    ):
+        super().__init__(
+            name,
+            {"fast_period": fast_period, "slow_period": slow_period},
+        )
+        self.fast_period = fast_period
+        self.slow_period = slow_period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        if self.fast_period <= 0:
+            raise ValueError("fast_period must be positive")
+        if self.slow_period <= 0:
+            raise ValueError("slow_period must be positive")
+        if self.fast_period >= self.slow_period:
+            raise ValueError("fast_period must be less than slow_period")
+
+    def _calculate_adl(self, df: pd.DataFrame) -> pd.Series:
+        high = df["high"]
+        low = df["low"]
+        close = df["close"]
+        volume = df["volume"]
+        hl_range = (high - low).replace(0, np.nan)
+        mfv = ((close - low) - (high - close)) / hl_range * volume
+        mfv = mfv.fillna(0.0)
+        adl: pd.Series = mfv.cumsum()
+        return adl
+
+    def _calculate_cho(self, df: pd.DataFrame) -> pd.Series:
+        adl = self._calculate_adl(df)
+        fast_ema = adl.ewm(span=self.fast_period, adjust=False).mean()
+        slow_ema = adl.ewm(span=self.slow_period, adjust=False).mean()
+        return fast_ema - slow_ema
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals: list[Signal] = []
+        for symbol, df in data.items():
+            if len(df) < self.slow_period + 2:
+                continue
+            close = df["close"]
+            current_price = close.iloc[-1]
+            if pd.isna(current_price) or current_price == 0:
+                continue
+            cho = self._calculate_cho(df)
+            current_cho = cho.iloc[-1]
+            prev_cho = cho.iloc[-2]
+            timestamp = df.index[-1]
+            if pd.isna(current_cho) or pd.isna(prev_cho):
+                continue
+            if prev_cho <= 0 and current_cho > 0:
+                strength = min(1.0, abs(float(current_cho)) / (abs(float(current_cho)) + 1.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "cho": float(current_cho),
+                            "fast_period": self.fast_period,
+                            "slow_period": self.slow_period,
+                            "signal_type": "cho_cross_above_zero",
+                        },
+                    )
+                )
+            elif prev_cho >= 0 and current_cho < 0:
+                strength = min(1.0, abs(float(current_cho)) / (abs(float(current_cho)) + 1.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "cho": float(current_cho),
+                            "fast_period": self.fast_period,
+                            "slow_period": self.slow_period,
+                            "signal_type": "cho_cross_below_zero",
+                        },
+                    )
+                )
+        return signals

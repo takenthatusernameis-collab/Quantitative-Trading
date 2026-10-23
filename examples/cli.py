@@ -60,6 +60,7 @@ BUILTIN_STRATEGY_KEYS = [
     "vwap",
     "vroc",
     "vol",
+    "cho",
     "cmo",
     "ema",
     "momentum",

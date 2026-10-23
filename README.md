@@ -5,7 +5,7 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 ## Features
 
 - **Strategy Framework**: Abstract base class for creating custom trading strategies
-- **Built-in Strategies**: 26 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR, VWAP, Momentum, ADX, Commodity Channel Index, Williams %R, On-Balance Volume, Chaikin Money Flow, Force Index, Money Flow Index, Elder Ray, Rate of Change, Volume Rate of Change, Volume Oscillator and Chande Momentum Oscillator
+- **Built-in Strategies**: 27 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR, VWAP, Momentum, ADX, Commodity Channel Index, Williams %R, On-Balance Volume, Chaikin Money Flow, Force Index, Money Flow Index, Elder Ray, Rate of Change, Volume Rate of Change, Volume Oscillator, Chande Momentum Oscillator and Chaikin Oscillator
 - **Backtesting Engine**: Event-driven backtest with realistic costs (commission, slippage), long and short positions
 - **Data Providers**: Yahoo Finance integration with caching support
 - **Portfolio Management**: Position tracking, rebalancing, and allocation
@@ -114,6 +114,7 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `vwap` → `VWAPStrategy`
 - `vroc` (alias: `volume_rate_of_change`) → `VolumeRateOfChangeStrategy`
 - `vol` (alias: `volume_oscillator`) → `VolumeOscillatorStrategy`
+- `cho` (alias: `chaikin_oscillator`) → `ChaikinOscillatorStrategy`
 - `cmo` (alias: `chande_momentum_oscillator`) → `ChandeMomentumOscillatorStrategy`
 - `momentum` (alias: `mom`) → `MomentumStrategy`
 - `adx` (alias: `average_directional_index`) → `ADXStrategy`
