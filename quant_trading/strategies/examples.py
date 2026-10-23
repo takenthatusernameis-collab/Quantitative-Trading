@@ -3617,12 +3617,36 @@ class ElderRayStrategy(Strategy):
                 continue
             if prev_bull <= 0 and curr_bull > 0:
                 strength = min(1.0, abs(float(curr_bull)) / (abs(float(curr_bull)) + 1.0))
-                signals.append(Signal(symbol=symbol, action="buy", strength=strength, price=current_price, timestamp=timestamp,
-                    metadata={"bull_power": float(curr_bull), "period": self.period, "signal_type": "elder_ray_bull_cross"}))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "bull_power": float(curr_bull),
+                            "period": self.period,
+                            "signal_type": "elder_ray_bull_cross",
+                        },
+                    )
+                )
             elif prev_bear >= 0 and curr_bear < 0:
                 strength = min(1.0, abs(float(curr_bear)) / (abs(float(curr_bear)) + 1.0))
-                signals.append(Signal(symbol=symbol, action="sell", strength=strength, price=current_price, timestamp=timestamp,
-                    metadata={"bear_power": float(curr_bear), "period": self.period, "signal_type": "elder_ray_bear_cross"}))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "bear_power": float(curr_bear),
+                            "period": self.period,
+                            "signal_type": "elder_ray_bear_cross",
+                        },
+                    )
+                )
         return signals
 
 
@@ -3668,10 +3692,34 @@ class RateOfChangeStrategy(Strategy):
                 continue
             if prev_roc <= 0 and curr_roc > 0:
                 strength = min(1.0, abs(float(curr_roc)) / (abs(float(curr_roc)) + 100.0))
-                signals.append(Signal(symbol=symbol, action="buy", strength=strength, price=current_price, timestamp=timestamp,
-                    metadata={"roc": float(curr_roc), "period": self.period, "signal_type": "roc_cross_above_zero"}))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "roc": float(curr_roc),
+                            "period": self.period,
+                            "signal_type": "roc_cross_above_zero",
+                        },
+                    )
+                )
             elif prev_roc >= 0 and curr_roc < 0:
                 strength = min(1.0, abs(float(curr_roc)) / (abs(float(curr_roc)) + 100.0))
-                signals.append(Signal(symbol=symbol, action="sell", strength=strength, price=current_price, timestamp=timestamp,
-                    metadata={"roc": float(curr_roc), "period": self.period, "signal_type": "roc_cross_below_zero"}))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "roc": float(curr_roc),
+                            "period": self.period,
+                            "signal_type": "roc_cross_below_zero",
+                        },
+                    )
+                )
         return signals
