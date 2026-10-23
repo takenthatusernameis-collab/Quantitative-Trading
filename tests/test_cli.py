@@ -1609,6 +1609,7 @@ class TestRunCombined:
             ("Chaikin_Money_Flow", 11.5),
             ("Force_Index", 12.5),
             ("Money_Flow_Index", 13.5),
+            ("Elder_Ray", 14.0),
         ]:
             m = MagicMock(
                 spec=[

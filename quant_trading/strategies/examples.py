@@ -3564,3 +3564,63 @@ class MoneyFlowIndexStrategy(Strategy):
                 )
 
         return signals
+
+
+class ElderRayStrategy(Strategy):
+    """Elder Ray Index Strategy.
+
+    Elder Ray Index (Bull/Bear Power) measures buying and selling pressure:
+
+    - EMA = EMA(close, period)
+    - Bull Power = high - EMA
+    - Bear Power = low - EMA
+
+    Trading signals:
+    - Buy when Bull Power crosses above zero (bulls take control).
+    - Sell when Bear Power crosses below zero (bears take control).
+    """
+
+    def __init__(self, period: int = 13, name: str = "Elder_Ray"):
+        super().__init__(name, {"period": period})
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate(self, df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+        close = df["close"]
+        high = df["high"]
+        low = df["low"]
+        ema = close.ewm(span=self.period, adjust=False).mean()
+        bull_power = high - ema
+        bear_power = low - ema
+        return bull_power, bear_power
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals: list[Signal] = []
+        for symbol, df in data.items():
+            if len(df) < self.period + 2:
+                continue
+            close = df["close"]
+            current_price = close.iloc[-1]
+            if pd.isna(current_price) or current_price == 0:
+                continue
+            bull_power, bear_power = self._calculate(df)
+            curr_bull = bull_power.iloc[-1]
+            prev_bull = bull_power.iloc[-2]
+            curr_bear = bear_power.iloc[-1]
+            prev_bear = bear_power.iloc[-2]
+            timestamp = df.index[-1]
+            if pd.isna(curr_bull) or pd.isna(prev_bull) or pd.isna(curr_bear) or pd.isna(prev_bear):
+                continue
+            if prev_bull <= 0 and curr_bull > 0:
+                strength = min(1.0, abs(float(curr_bull)) / (abs(float(curr_bull)) + 1.0))
+                signals.append(Signal(symbol=symbol, action="buy", strength=strength, price=current_price, timestamp=timestamp,
+                    metadata={"bull_power": float(curr_bull), "period": self.period, "signal_type": "elder_ray_bull_cross"}))
+            elif prev_bear >= 0 and curr_bear < 0:
+                strength = min(1.0, abs(float(curr_bear)) / (abs(float(curr_bear)) + 1.0))
+                signals.append(Signal(symbol=symbol, action="sell", strength=strength, price=current_price, timestamp=timestamp,
+                    metadata={"bear_power": float(curr_bear), "period": self.period, "signal_type": "elder_ray_bear_cross"}))
+        return signals
