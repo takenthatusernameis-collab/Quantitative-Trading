@@ -407,7 +407,7 @@ class GridSearch(BaseOptimizer):
         pool_broken = False
 
         try:
-            with ThreadPoolExecutor(max_workers=self.n_jobs) as executor:
+            with ProcessPoolExecutor(max_workers=self.n_jobs) as executor:
                 # Submit all tasks and remember each future's combination index
                 submitted: list[Future[Any]] = []
                 for params in self._combinations:
