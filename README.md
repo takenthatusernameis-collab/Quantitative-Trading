@@ -127,6 +127,7 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `cci` (alias: `commodity_channel_index`) → `CCIStrategy`
 - `williamsr` (alias: `williams_pct_r`) → `WilliamsRStrategy`
 - `obv` (alias: `on_balance_volume`) → `OBVStrategy`
+- `nvi` (alias: `negative_volume_index`) → `NegativeVolumeIndexStrategy`
 - `cmf` (alias: `chaikin_money_flow`) → `ChaikinMoneyFlowStrategy`
 - `force_index` (aliases: `forceindex`, `fi`) → `ForceIndexStrategy`
 - `mfi` (alias: `money_flow_index`) → `MoneyFlowIndexStrategy`

@@ -4594,6 +4594,17 @@ class EaseOfMovementStrategy(Strategy):
 
 
 class AwesomeOscillatorStrategy(Strategy):
+    """Awesome Oscillator Strategy.
+
+    The Awesome Oscillator (AO) is a momentum indicator that shows the
+    relationship between two moving averages of a security's price over a
+    given period. It is calculated as the difference between a short-term
+    simple moving average (SMA) and a long-term SMA of the median price
+    ((high + low) / 2). The strategy emits a buy when the AO crosses above
+    the zero line and a sell when it crosses below it.
+
+    """
+
     def __init__(self, short_period=5, long_period=34, name="Awesome_Oscillator"):
         super().__init__(name, {"short_period": short_period, "long_period": long_period})
         self.short_period = short_period
