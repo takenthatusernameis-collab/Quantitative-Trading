@@ -132,6 +132,7 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `roc` (alias: `rate_of_change`) → `RateOfChangeStrategy`
 - `trix` → `TrixStrategy`
 - `ultimate_oscillator` (aliases: `uo`, `ultimate`) → `UltimateOscillatorStrategy`
+- `dpo` (aliases: `detrended_price_oscillator`) → `DetrendedPriceOscillatorStrategy`
 - `elder_ray` (aliases: `elder_ray_index`, `erp`) → `ElderRayStrategy`
 
 ```python
