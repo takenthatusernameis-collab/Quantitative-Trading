@@ -3614,9 +3614,7 @@ class TestVolumePriceTrendStrategy:
 
     def test_initialization(self):
         """Test strategy initialization."""
-        strategy = VolumePriceTrendStrategy(
-            fast_period=5, slow_period=13, name="Test_VPT"
-        )
+        strategy = VolumePriceTrendStrategy(fast_period=5, slow_period=13, name="Test_VPT")
         assert strategy.name == "Test_VPT"
         assert strategy.fast_period == 5
         assert strategy.slow_period == 13
@@ -3985,8 +3983,6 @@ if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
 
-
-
 class TestStochasticMomentumIndexStrategy:
     """Tests for StochasticMomentumIndexStrategy."""
 
@@ -4074,7 +4070,13 @@ class TestStochasticMomentumIndexStrategy:
                 index=dates,
             ),
             "MSFT": pd.DataFrame(
-                {"open": [13, 11.5, 10, 8.5, 7, 7, 7, 7, 7, 7], "high": [14, 13, 12, 11, 10, 10, 10, 10, 10, 10], "low": [9, 8, 7, 6, 5, 5, 5, 5, 5, 5], "close": [13, 11.5, 10, 8.5, 7, 7, 7, 7, 7, 7], "volume": [1000] * 10},
+                {
+                    "open": [13, 11.5, 10, 8.5, 7, 7, 7, 7, 7, 7],
+                    "high": [14, 13, 12, 11, 10, 10, 10, 10, 10, 10],
+                    "low": [9, 8, 7, 6, 5, 5, 5, 5, 5, 5],
+                    "close": [13, 11.5, 10, 8.5, 7, 7, 7, 7, 7, 7],
+                    "volume": [1000] * 10,
+                },
                 index=dates,
             ),
         }
@@ -4140,8 +4142,9 @@ class TestUltimateOscillatorStrategy:
         assert strategy.generate_signals(data) == []
 
     def test_generate_signals_buy_when_oversold_rising(self):
-        from quant_trading.strategies.examples import UltimateOscillatorStrategy
         import pandas as pd
+
+        from quant_trading.strategies.examples import UltimateOscillatorStrategy
 
         strategy = UltimateOscillatorStrategy(short_period=2, medium_period=3, long_period=4)
         dates = pd.date_range(start="2023-01-01", periods=10, freq="D")
@@ -4159,8 +4162,9 @@ class TestUltimateOscillatorStrategy:
         assert len(signals) >= 0  # Allow for calculation specifics
 
     def test_generate_signals_sell_when_overbought_falling(self):
-        from quant_trading.strategies.examples import UltimateOscillatorStrategy
         import pandas as pd
+
+        from quant_trading.strategies.examples import UltimateOscillatorStrategy
 
         strategy = UltimateOscillatorStrategy(short_period=2, medium_period=3, long_period=4)
         dates = pd.date_range(start="2023-01-01", periods=10, freq="D")

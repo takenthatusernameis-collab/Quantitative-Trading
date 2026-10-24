@@ -4631,11 +4631,40 @@ class AwesomeOscillatorStrategy(Strategy):
                 continue
             if prev_ao <= 0 and current_ao > 0:
                 strength = min(1.0, abs(float(current_ao)) / (abs(float(current_ao)) + 1.0))
-                signals.append(Signal(symbol=symbol, action="buy", strength=strength, price=current_price, timestamp=timestamp, metadata={"ao": float(current_ao), "short_period": self.short_period, "long_period": self.long_period, "signal_type": "ao_cross_above_zero"}))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "ao": float(current_ao),
+                            "short_period": self.short_period,
+                            "long_period": self.long_period,
+                            "signal_type": "ao_cross_above_zero",
+                        },
+                    )
+                )
             elif prev_ao >= 0 and current_ao < 0:
                 strength = min(1.0, abs(float(current_ao)) / (abs(float(current_ao)) + 1.0))
-                signals.append(Signal(symbol=symbol, action="sell", strength=strength, price=current_price, timestamp=timestamp, metadata={"ao": float(current_ao), "short_period": self.short_period, "long_period": self.long_period, "signal_type": "ao_cross_below_zero"}))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "ao": float(current_ao),
+                            "short_period": self.short_period,
+                            "long_period": self.long_period,
+                            "signal_type": "ao_cross_below_zero",
+                        },
+                    )
+                )
         return signals
+
 
 class VortexStrategy(Strategy):
     """Vortex Strategy.
@@ -4803,6 +4832,7 @@ class VortexStrategy(Strategy):
 
         return signals
 
+
 class TrixStrategy(Strategy):
     """TRIX (Triple Exponential Average) Strategy.
 
@@ -4895,7 +4925,9 @@ class UltimateOscillatorStrategy(Strategy):
     zero and crossover conditions.
     """
 
-    def __init__(self, short_period=7, medium_period=14, long_period=28, name="Ultimate_Oscillator"):
+    def __init__(
+        self, short_period=7, medium_period=14, long_period=28, name="Ultimate_Oscillator"
+    ):
         super().__init__(
             name,
             {
@@ -4921,11 +4953,15 @@ class UltimateOscillatorStrategy(Strategy):
         close = df["close"]
         prev_close = close.shift(1)
         bp = close - pd.concat([low, prev_close], axis=1).min(axis=1)
-        tr = pd.concat([high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1).max(axis=1)
+        tr = pd.concat(
+            [high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1
+        ).max(axis=1)
+
         def avg_bp_tr(p):
             bp_sum = bp.rolling(window=p).sum()
             tr_sum = tr.rolling(window=p).sum()
             return bp_sum / tr_sum
+
         avg1 = avg_bp_tr(self.short_period)
         avg2 = avg_bp_tr(self.medium_period)
         avg3 = avg_bp_tr(self.long_period)
@@ -5058,7 +5094,12 @@ class PercentagePriceOscillatorStrategy(Strategy):
             current_signal = signal_line.iloc[-1]
             prev_signal = signal_line.iloc[-2]
             timestamp = df.index[-1]
-            if pd.isna(current_ppo) or pd.isna(prev_ppo) or pd.isna(current_signal) or pd.isna(prev_signal):
+            if (
+                pd.isna(current_ppo)
+                or pd.isna(prev_ppo)
+                or pd.isna(current_signal)
+                or pd.isna(prev_signal)
+            ):
                 continue
             # Signal line crossover
             if prev_ppo <= prev_signal and current_ppo > current_signal:
@@ -5226,7 +5267,12 @@ class PercentageVolumeOscillatorStrategy(Strategy):
             current_signal = signal_line.iloc[-1]
             prev_signal = signal_line.iloc[-2]
             timestamp = df.index[-1]
-            if pd.isna(current_pvo) or pd.isna(prev_pvo) or pd.isna(current_signal) or pd.isna(prev_signal):
+            if (
+                pd.isna(current_pvo)
+                or pd.isna(prev_pvo)
+                or pd.isna(current_signal)
+                or pd.isna(prev_signal)
+            ):
                 continue
             if prev_pvo <= prev_signal and current_pvo > current_signal:
                 strength = min(1.0, abs(float(histogram.iloc[-1])) / 2.0 + 0.5)
