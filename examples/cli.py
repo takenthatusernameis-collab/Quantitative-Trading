@@ -76,6 +76,7 @@ BUILTIN_STRATEGY_KEYS = [
     "roc",
     "force_index",
     "mfi",
+    "ultimate_oscillator",
 ]
 
 PROVIDERS = {

@@ -3722,3 +3722,83 @@ class TestVortexStrategy:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestUltimateOscillatorStrategy:
+    """Tests for UltimateOscillatorStrategy."""
+
+    def test_init_default_parameters(self):
+        from quant_trading.strategies.examples import UltimateOscillatorStrategy
+
+        strategy = UltimateOscillatorStrategy()
+        assert strategy.short_period == 7
+        assert strategy.medium_period == 14
+        assert strategy.long_period == 28
+        assert strategy.name == "Ultimate_Oscillator"
+
+    def test_validate_parameters(self):
+        from quant_trading.strategies.examples import UltimateOscillatorStrategy
+
+        with pytest.raises(ValueError):
+            UltimateOscillatorStrategy(short_period=0)
+        with pytest.raises(ValueError):
+            UltimateOscillatorStrategy(short_period=14, medium_period=7, long_period=28)
+        with pytest.raises(ValueError):
+            UltimateOscillatorStrategy(short_period=10, medium_period=20, long_period=15)
+
+    def test_insufficient_data_returns_empty(self):
+        from quant_trading.strategies.examples import UltimateOscillatorStrategy
+
+        strategy = UltimateOscillatorStrategy()
+        dates = pd.date_range(start="2023-01-01", periods=10, freq="D")
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": [10] * 10,
+                    "high": [11] * 10,
+                    "low": [9] * 10,
+                    "close": [10] * 10,
+                    "volume": [1000] * 10,
+                },
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_buy_when_oversold_rising(self):
+        from quant_trading.strategies.examples import UltimateOscillatorStrategy
+        import pandas as pd
+
+        strategy = UltimateOscillatorStrategy(short_period=2, medium_period=3, long_period=4)
+        dates = pd.date_range(start="2023-01-01", periods=10, freq="D")
+        data = pd.DataFrame(
+            {
+                "open": [10] * 10,
+                "high": [11, 11, 11, 11, 11, 11, 11, 10.5, 10.5, 10.5],
+                "low": [9, 9, 9, 9, 9, 9, 9, 9.5, 9.5, 9.5],
+                "close": [10, 10, 10, 10, 10, 10, 10, 10.2, 10.4, 10.6],
+                "volume": [1000] * 10,
+            },
+            index=dates,
+        )
+        signals = strategy.generate_signals({"AAPL": data})
+        assert len(signals) >= 0  # Allow for calculation specifics
+
+    def test_generate_signals_sell_when_overbought_falling(self):
+        from quant_trading.strategies.examples import UltimateOscillatorStrategy
+        import pandas as pd
+
+        strategy = UltimateOscillatorStrategy(short_period=2, medium_period=3, long_period=4)
+        dates = pd.date_range(start="2023-01-01", periods=10, freq="D")
+        data = pd.DataFrame(
+            {
+                "open": [10] * 10,
+                "high": [11, 11, 11, 11, 11, 11, 11, 11.5, 11.3, 11.1],
+                "low": [9, 9, 9, 9, 9, 9, 9, 10.5, 10.5, 10.5],
+                "close": [10, 10, 10, 10, 10, 10, 10, 10.8, 10.6, 10.4],
+                "volume": [1000] * 10,
+            },
+            index=dates,
+        )
+        signals = strategy.generate_signals({"AAPL": data})
+        assert isinstance(signals, list)

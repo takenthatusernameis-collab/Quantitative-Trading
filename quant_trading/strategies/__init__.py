@@ -26,6 +26,7 @@ from .examples import (
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
     TrixStrategy,
+    UltimateOscillatorStrategy,
     AwesomeOscillatorStrategy,
     VolumeOscillatorStrategy,
     VolumeRateOfChangeStrategy,
@@ -74,6 +75,7 @@ register_strategy("roc", RateOfChangeStrategy, aliases=["rate_of_change"])
 register_strategy("force_index", ForceIndexStrategy, aliases=["forceindex", "fi"])
 register_strategy("mfi", MoneyFlowIndexStrategy, aliases=["money_flow_index"])
 register_strategy("trix", TrixStrategy)
+register_strategy("ultimate_oscillator", UltimateOscillatorStrategy, aliases=["uo", "ultimate"])
 
 
 __all__ = [
@@ -105,6 +107,7 @@ __all__ = [
     "StrategyRegistry",
     "SuperTrendStrategy",
     "TrixStrategy",
+    "UltimateOscillatorStrategy",
     "AwesomeOscillatorStrategy",
     "VolumeOscillatorStrategy",
     "VolumeRateOfChangeStrategy",

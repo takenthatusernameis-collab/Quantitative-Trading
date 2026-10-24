@@ -4540,3 +4540,103 @@ class TrixStrategy(Strategy):
                     )
                 )
         return signals
+
+
+class UltimateOscillatorStrategy(Strategy):
+    """Ultimate Oscillator Strategy.
+
+    The Ultimate Oscillator uses three timeframes (short, medium, long) to
+    reduce false signals. It measures buying pressure relative to true range
+    across all three periods and generates signals based on divergence from
+    zero and crossover conditions.
+    """
+
+    def __init__(self, short_period=7, medium_period=14, long_period=28, name="Ultimate_Oscillator"):
+        super().__init__(
+            name,
+            {
+                "short_period": short_period,
+                "medium_period": medium_period,
+                "long_period": long_period,
+            },
+        )
+        self.short_period = short_period
+        self.medium_period = medium_period
+        self.long_period = long_period
+        self.validate_parameters()
+
+    def validate_parameters(self):
+        if self.short_period <= 0 or self.medium_period <= 0 or self.long_period <= 0:
+            raise ValueError("periods must be positive")
+        if not (self.short_period < self.medium_period < self.long_period):
+            raise ValueError("periods must be in increasing order: short < medium < long")
+
+    def _calculate_ultimate(self, df):
+        high = df["high"]
+        low = df["low"]
+        close = df["close"]
+        prev_close = close.shift(1)
+        bp = close - pd.concat([low, prev_close], axis=1).min(axis=1)
+        tr = pd.concat([high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1).max(axis=1)
+        def avg_bp_tr(p):
+            bp_sum = bp.rolling(window=p).sum()
+            tr_sum = tr.rolling(window=p).sum()
+            return bp_sum / tr_sum
+        avg1 = avg_bp_tr(self.short_period)
+        avg2 = avg_bp_tr(self.medium_period)
+        avg3 = avg_bp_tr(self.long_period)
+        uo = 100.0 * (4.0 * avg1 + 2.0 * avg2 + avg3) / 7.0
+        return uo
+
+    def generate_signals(self, data):
+        signals: list[Signal] = []
+        for symbol, df in data.items():
+            if len(df) < self.long_period + 2:
+                continue
+            close = df["close"]
+            current_price = close.iloc[-1]
+            if pd.isna(current_price) or current_price == 0:
+                continue
+            uo = self._calculate_ultimate(df)
+            current_uo = uo.iloc[-1]
+            prev_uo = uo.iloc[-2]
+            timestamp = df.index[-1]
+            if pd.isna(current_uo) or pd.isna(prev_uo):
+                continue
+            if current_uo < 30 and prev_uo < 30 and current_uo > prev_uo:
+                strength = min(1.0, (30 - float(current_uo)) / 30.0)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "uo": float(current_uo),
+                            "short_period": self.short_period,
+                            "medium_period": self.medium_period,
+                            "long_period": self.long_period,
+                            "signal_type": "ultimate_oversold_rising",
+                        },
+                    )
+                )
+            elif current_uo > 70 and prev_uo > 70 and current_uo < prev_uo:
+                strength = min(1.0, (float(current_uo) - 70) / 30.0)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "uo": float(current_uo),
+                            "short_period": self.short_period,
+                            "medium_period": self.medium_period,
+                            "long_period": self.long_period,
+                            "signal_type": "ultimate_overbought_falling",
+                        },
+                    )
+                )
+        return signals
