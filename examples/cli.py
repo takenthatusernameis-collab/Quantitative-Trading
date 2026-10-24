@@ -71,6 +71,7 @@ BUILTIN_STRATEGY_KEYS = [
     "dpo",
     "eom",
     "momentum",
+    "adl",
     "adx",
     "cci",
     "williamsr",
