@@ -5190,3 +5190,162 @@ class DetrendedPriceOscillatorStrategy(Strategy):
                     )
                 )
         return signals
+
+
+class StochasticMomentumIndexStrategy(Strategy):
+    """Stochastic Momentum Index (SMI) Strategy.
+
+    The Stochastic Momentum Index is a scaled version of the Stochastic
+    Oscillator that oscillates around a center line instead of the 0-100
+    range, so it is easier to read momentum direction:
+
+    - %K = 100 * (close - lowest_low) / (highest_high - lowest_low), over ``k_period``
+    - %D = EMA of %K over ``signal_period`` (the signal line)
+    - SMI = (%K - %D) / %D * 100
+
+    SMI is positive when %K is above its signal line (bullish momentum) and
+    negative when %K is below it (bearish momentum). A crossover of the SMI
+    through the zero line marks a momentum regime change.
+
+    Trading signals:
+    - Buy when SMI crosses above zero (%K rising above its signal line).
+    - Sell when SMI crosses below zero (%K falling below its signal line).
+    """
+
+    def __init__(
+        self,
+        k_period: int = 5,
+        signal_period: int = 3,
+        name: str = "Stochastic_Momentum_Index",
+    ):
+        """Initialize the Stochastic Momentum Index strategy.
+
+        Args:
+            k_period: Lookback window for the %K calculation. Defaults to 5.
+            signal_period: Span of the EMA signal line over %K.
+                Defaults to 3.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+
+        """
+        super().__init__(
+            name,
+            {
+                "k_period": k_period,
+                "signal_period": signal_period,
+            },
+        )
+        self.k_period = k_period
+        self.signal_period = signal_period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``k_period`` or ``signal_period`` is non-positive.
+
+        """
+        if self.k_period <= 0:
+            raise ValueError("k_period must be positive")
+        if self.signal_period <= 0:
+            raise ValueError("signal_period must be positive")
+
+    def _calculate_smi(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate the Stochastic Momentum Index series.
+
+        Args:
+            df: DataFrame containing at least ``"high"``, ``"low"`` and
+                ``"close"`` columns.
+
+        Returns:
+            Series of SMI values aligned with ``df`` index, expressed as a
+            percentage around zero.
+
+        """
+        high = df["high"]
+        low = df["low"]
+        close = df["close"]
+
+        lowest_low = low.rolling(window=self.k_period).min()
+        highest_high = high.rolling(window=self.k_period).max()
+
+        k_percent = 100 * (close - lowest_low) / (highest_high - lowest_low).replace(0, np.nan)
+        d_percent = k_percent.ewm(span=self.signal_period, adjust=False).mean()
+        smi: pd.Series = (k_percent - d_percent) / d_percent.replace(0, np.nan) * 100.0
+        return smi
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from SMI zero-line crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least a
+                ``"high"``, ``"low"``, ``"close"`` and ``"volume"`` column
+                indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose SMI crosses the
+            zero line between the last two bars.
+
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.k_period + self.signal_period + 2:
+                continue
+
+            close = df["close"]
+            current_price = close.iloc[-1]
+            # The signal is emitted at the last close, so a close that is not a
+            # number is rejected before anything is derived from it.
+            if pd.isna(current_price) or current_price == 0:
+                continue
+
+            smi = self._calculate_smi(df)
+            current_smi = smi.iloc[-1]
+            prev_smi = smi.iloc[-2]
+            timestamp = df.index[-1]
+
+            if pd.isna(current_smi) or pd.isna(prev_smi):
+                continue
+
+            # SMI crosses above zero - bullish momentum begins
+            if prev_smi <= 0 and current_smi > 0:
+                strength = min(1.0, abs(float(current_smi)) / (abs(float(current_smi)) + 100.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "smi": float(current_smi),
+                            "k_period": self.k_period,
+                            "signal_period": self.signal_period,
+                            "signal_type": "smi_cross_above_zero",
+                        },
+                    )
+                )
+            # SMI crosses below zero - bearish momentum begins
+            elif prev_smi >= 0 and current_smi < 0:
+                strength = min(1.0, abs(float(current_smi)) / (abs(float(current_smi)) + 100.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "smi": float(current_smi),
+                            "k_period": self.k_period,
+                            "signal_period": self.signal_period,
+                            "signal_type": "smi_cross_below_zero",
+                        },
+                    )
+                )
+
+        return signals
