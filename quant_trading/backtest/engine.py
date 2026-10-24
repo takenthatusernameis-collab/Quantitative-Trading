@@ -293,6 +293,39 @@ class BacktestResult:
         """
         return self.metrics.unrealized_pnl
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """Convert key results to a DataFrame.
+
+        Returns:
+            DataFrame with one row containing summary metrics and totals.
+        """
+
+        metrics = self.metrics
+        return pd.DataFrame(
+            [
+                {
+                    "start_date": self.start_date,
+                    "end_date": self.end_date,
+                    "initial_capital": self.initial_capital,
+                    "final_value": self.final_value,
+                    "total_return": self.total_return,
+                    "total_return_pct": self.total_return_pct,
+                    "total_costs": self.total_costs,
+                    "total_trades": getattr(metrics, "num_trades", None),
+                    "win_rate": getattr(metrics, "win_rate", None),
+                    "profit_factor": getattr(metrics, "profit_factor", None),
+                    "sharpe_ratio": getattr(metrics, "sharpe_ratio", None),
+                    "sortino_ratio": getattr(metrics, "sortino_ratio", None),
+                    "calmar_ratio": getattr(metrics, "calmar_ratio", None),
+                    "max_drawdown": getattr(metrics, "max_drawdown", None),
+                    "max_drawdown_pct": getattr(metrics, "max_drawdown_pct", None),
+                    "volatility": getattr(metrics, "volatility", None),
+                    "annual_return": getattr(metrics, "annual_return", None),
+                    "unrealized_pnl": self.unrealized_pnl,
+                }
+            ]
+        )
+
 
 class BacktestEngine:
     """Engine for running backtests on trading strategies.
