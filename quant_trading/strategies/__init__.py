@@ -26,6 +26,7 @@ from .examples import (
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
     TrixStrategy,
+    AwesomeOscillatorStrategy,
     VolumeOscillatorStrategy,
     VolumeRateOfChangeStrategy,
     VortexStrategy,
@@ -57,6 +58,7 @@ register_strategy("ichimoku", IchimokuCloudStrategy, aliases=["ichimoku_cloud", 
 register_strategy("sar", ParabolicSARStrategy, aliases=["parabolic_sar", "psar"])
 register_strategy("vwap", VWAPStrategy)
 register_strategy("vroc", VolumeRateOfChangeStrategy, aliases=["volume_rate_of_change"])
+register_strategy("ao", AwesomeOscillatorStrategy, aliases=["awesome_oscillator"])
 register_strategy("vol", VolumeOscillatorStrategy, aliases=["volume_oscillator"])
 register_strategy("vortex", VortexStrategy, aliases=["vortex_indicator"])
 register_strategy("momentum", MomentumStrategy, aliases=["mom"])
@@ -103,6 +105,7 @@ __all__ = [
     "StrategyRegistry",
     "SuperTrendStrategy",
     "TrixStrategy",
+    "AwesomeOscillatorStrategy",
     "VolumeOscillatorStrategy",
     "VolumeRateOfChangeStrategy",
     "VortexStrategy",

@@ -4248,6 +4248,51 @@ class ChaikinOscillatorStrategy(Strategy):
         return signals
 
 
+
+class AwesomeOscillatorStrategy(Strategy):
+    def __init__(self, short_period=5, long_period=34, name="Awesome_Oscillator"):
+        super().__init__(name, {"short_period": short_period, "long_period": long_period})
+        self.short_period = short_period
+        self.long_period = long_period
+        self.validate_parameters()
+
+    def validate_parameters(self):
+        if self.short_period <= 0:
+            raise ValueError("short_period must be positive")
+        if self.long_period <= 0:
+            raise ValueError("long_period must be positive")
+        if self.short_period >= self.long_period:
+            raise ValueError("short_period must be less than long_period")
+
+    def _calculate_ao(self, df):
+        median_price = (df["high"] + df["low"]) / 2.0
+        short_sma = median_price.rolling(window=self.short_period).mean()
+        long_sma = median_price.rolling(window=self.long_period).mean()
+        return short_sma - long_sma
+
+    def generate_signals(self, data):
+        signals = []
+        for symbol, df in data.items():
+            if len(df) < self.long_period + 2:
+                continue
+            close = df["close"]
+            current_price = close.iloc[-1]
+            if pd.isna(current_price) or current_price == 0:
+                continue
+            ao = self._calculate_ao(df)
+            current_ao = ao.iloc[-1]
+            prev_ao = ao.iloc[-2]
+            timestamp = df.index[-1]
+            if pd.isna(current_ao) or pd.isna(prev_ao):
+                continue
+            if prev_ao <= 0 and current_ao > 0:
+                strength = min(1.0, abs(float(current_ao)) / (abs(float(current_ao)) + 1.0))
+                signals.append(Signal(symbol=symbol, action="buy", strength=strength, price=current_price, timestamp=timestamp, metadata={"ao": float(current_ao), "short_period": self.short_period, "long_period": self.long_period, "signal_type": "ao_cross_above_zero"}))
+            elif prev_ao >= 0 and current_ao < 0:
+                strength = min(1.0, abs(float(current_ao)) / (abs(float(current_ao)) + 1.0))
+                signals.append(Signal(symbol=symbol, action="sell", strength=strength, price=current_price, timestamp=timestamp, metadata={"ao": float(current_ao), "short_period": self.short_period, "long_period": self.long_period, "signal_type": "ao_cross_below_zero"}))
+        return signals
+
 class VortexStrategy(Strategy):
     """Vortex Strategy.
 
