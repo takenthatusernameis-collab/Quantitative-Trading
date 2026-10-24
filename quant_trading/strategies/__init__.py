@@ -3,6 +3,7 @@
 from .base import Position, Signal, Strategy, StrategyManager
 from .examples import (
     ADXStrategy,
+    AccumulationDistributionStrategy,
     AroonStrategy,
     AwesomeOscillatorStrategy,
     BollingerBandsStrategy,
@@ -75,6 +76,7 @@ register_strategy("ppo", PercentagePriceOscillatorStrategy, aliases=["percentage
 register_strategy("pvo", PercentageVolumeOscillatorStrategy, aliases=["percentage_volume_oscillator", "pvo_strategy"])
 register_strategy("momentum", MomentumStrategy, aliases=["mom"])
 register_strategy("adx", ADXStrategy, aliases=["average_directional_index"])
+register_strategy("adl", AccumulationDistributionStrategy, aliases=["accumulation_distribution", "ad_line"])
 register_strategy("cci", CCIStrategy, aliases=["commodity_channel_index"])
 register_strategy("williamsr", WilliamsRStrategy, aliases=["williams_pct_r"])
 register_strategy("obv", OBVStrategy, aliases=["on_balance_volume"])
@@ -92,6 +94,7 @@ register_strategy("dpo", DetrendedPriceOscillatorStrategy, aliases=["detrended_p
 
 __all__ = [
     "ADXStrategy",
+    "AccumulationDistributionStrategy",
     "AroonStrategy",
     "AwesomeOscillatorStrategy",
     "BollingerBandsStrategy",

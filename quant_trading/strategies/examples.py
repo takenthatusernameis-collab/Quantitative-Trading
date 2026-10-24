@@ -5349,3 +5349,146 @@ class StochasticMomentumIndexStrategy(Strategy):
                 )
 
         return signals
+
+
+class AccumulationDistributionStrategy(Strategy):
+    """Accumulation/Distribution Line Strategy.
+
+    The Accumulation/Distribution Line (ADL) is a volume-based indicator that
+    measures cumulative money flow volume. The signal is generated when ADL
+    crosses its moving average.
+
+    - Money Flow Multiplier = ((close - low) - (high - close)) / (high - low)
+    - Money Flow Volume = Money Flow Multiplier * volume
+    - ADL = cumulative sum of Money Flow Volume
+
+    Trading signals:
+    - Buy when ADL crosses above its signal line (accumulation).
+    - Sell when ADL crosses below its signal line (distribution).
+    """
+
+    def __init__(self, signal_period: int = 21, name: str = "Accumulation_Distribution"):
+        """Initialize the Accumulation/Distribution Line strategy.
+
+        Args:
+            signal_period: Lookback window for the ADL signal line (MA).
+            name: Strategy name. Defaults to "Accumulation_Distribution".
+
+        Raises:
+            ValueError: If ``signal_period`` is non-positive.
+
+        """
+        super().__init__(
+            name,
+            {
+                "signal_period": signal_period,
+            },
+        )
+        self.signal_period = signal_period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``signal_period`` is non-positive.
+
+        """
+        if self.signal_period <= 0:
+            raise ValueError("signal_period must be positive")
+
+    def _calculate_adl(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate the Accumulation/Distribution Line series."""
+        high = df["high"]
+        low = df["low"]
+        close = df["close"]
+        volume = df["volume"]
+
+        hl_range = (high - low).replace(0, np.nan)
+        money_flow_multiplier = ((close - low) - (high - close)) / hl_range
+        money_flow_volume = money_flow_multiplier * volume
+        money_flow_volume = money_flow_volume.fillna(0.0)
+        adl: pd.Series = money_flow_volume.cumsum()
+        return adl
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from ADL/signal-line crossovers."""
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.signal_period + 1:
+                continue
+
+            close = df["close"]
+            volume = df["volume"] if "volume" in df.columns else None
+            if volume is None:
+                continue
+
+            adl = self._calculate_adl(df)
+            signal_line = adl.rolling(window=self.signal_period).mean()
+
+            current_adl = adl.iloc[-1]
+            current_signal = signal_line.iloc[-1]
+            prev_adl = adl.iloc[-2]
+            prev_signal = signal_line.iloc[-2]
+            current_price = close.iloc[-1]
+            timestamp = df.index[-1]
+
+            if (
+                pd.isna(current_adl)
+                or pd.isna(current_signal)
+                or pd.isna(prev_adl)
+                or pd.isna(prev_signal)
+                or pd.isna(current_price)
+                or current_price == 0
+            ):
+                continue
+
+            if prev_adl <= prev_signal and current_adl > current_signal:
+                if current_signal != 0:
+                    strength = min(
+                        1.0,
+                        abs(current_adl - current_signal) / abs(current_signal) + 0.5,
+                    )
+                else:
+                    strength = 0.5
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "adl": float(current_adl),
+                            "signal_line": float(current_signal),
+                            "signal_period": self.signal_period,
+                            "signal_type": "adl_cross_above",
+                        },
+                    )
+                )
+            elif prev_adl >= prev_signal and current_adl < current_signal:
+                if current_signal != 0:
+                    strength = min(
+                        1.0,
+                        abs(current_signal - current_adl) / abs(current_signal) + 0.5,
+                    )
+                else:
+                    strength = 0.5
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "adl": float(current_adl),
+                            "signal_line": float(current_signal),
+                            "signal_period": self.signal_period,
+                            "signal_type": "adl_cross_below",
+                        },
+                    )
+                )
+
+        return signals
