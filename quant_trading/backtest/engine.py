@@ -326,6 +326,44 @@ class BacktestResult:
             ]
         )
 
+    def to_csv(self, path: str | None = None) -> str:
+        """Export the summary metrics to CSV.
+
+        Args:
+            path: Optional destination file path. When provided the CSV is
+                written to that file.
+
+        Returns:
+            The CSV-formatted summary string.
+        """
+
+        csv = self.to_dataframe().to_csv(index=False)
+        if path is not None:
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(csv)
+        return csv
+
+    def to_json(self, path: str | None = None, indent: int = 2) -> str:
+        """Export the summary metrics to JSON.
+
+        Args:
+            path: Optional destination file path. When provided the JSON is
+                written to that file.
+            indent: Indentation level for the JSON output.
+
+        Returns:
+            The JSON-formatted summary string.
+        """
+
+        import json
+
+        records = self.to_dataframe().to_dict(orient="records")
+        content = json.dumps(records, indent=indent, default=str)
+        if path is not None:
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(content)
+        return content
+
 
 class BacktestEngine:
     """Engine for running backtests on trading strategies.
