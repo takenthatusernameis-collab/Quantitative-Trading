@@ -4947,3 +4947,170 @@ class PercentagePriceOscillatorStrategy(Strategy):
 # Alias
 PPO = PercentagePriceOscillatorStrategy
 PPOStrategy = PercentagePriceOscillatorStrategy
+
+
+class PercentageVolumeOscillatorStrategy(Strategy):
+    """Percentage Volume Oscillator (PVO) Strategy.
+
+    The Percentage Volume Oscillator is analogous to PPO but applied to volume:
+    - PVO line = ((EMA(volume, fast) - EMA(volume, slow)) / EMA(volume, slow)) * 100
+    - Signal line = EMA(PVO line, signal_period)
+    - Histogram = PVO line - Signal line
+
+    Generates buy signals when the PVO line crosses above the signal line
+    (bullish crossover), and sell signals when it crosses below the signal line
+    (bearish crossover). Optionally also reacts to PVO crossing the zero axis.
+    """
+
+    def __init__(
+        self,
+        fast_period: int = 12,
+        slow_period: int = 26,
+        signal_period: int = 9,
+        use_zero_line: bool = False,
+        name: str = "Percentage_Volume_Oscillator",
+    ):
+        super().__init__(
+            name,
+            {
+                "fast_period": fast_period,
+                "slow_period": slow_period,
+                "signal_period": signal_period,
+                "use_zero_line": use_zero_line,
+            },
+        )
+        self.fast_period = fast_period
+        self.slow_period = slow_period
+        self.signal_period = signal_period
+        self.use_zero_line = use_zero_line
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        if self.fast_period <= 0:
+            raise ValueError("fast_period must be positive")
+        if self.slow_period <= 0:
+            raise ValueError("slow_period must be positive")
+        if self.signal_period <= 0:
+            raise ValueError("signal_period must be positive")
+        if self.fast_period >= self.slow_period:
+            raise ValueError("fast_period must be less than slow_period")
+
+    def _ema(self, series: pd.Series, period: int) -> pd.Series:
+        return series.ewm(span=period, adjust=False).mean()
+
+    def _calculate_pvo(self, df: pd.DataFrame) -> tuple[pd.Series, pd.Series, pd.Series]:
+        volume = df["volume"]
+        fast_ema = self._ema(volume, self.fast_period)
+        slow_ema = self._ema(volume, self.slow_period)
+        slow_ema = slow_ema.replace(0, np.nan)
+        pvo_line = (fast_ema - slow_ema) / slow_ema * 100.0
+        signal_line = self._ema(pvo_line, self.signal_period)
+        histogram = pvo_line - signal_line
+        return pvo_line, signal_line, histogram
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals: list[Signal] = []
+        for symbol, df in data.items():
+            if len(df) < self.slow_period + self.signal_period + 1:
+                continue
+            if "volume" not in df.columns:
+                continue
+            close = df["close"]
+            current_price = close.iloc[-1]
+            if pd.isna(current_price) or current_price == 0:
+                continue
+            pvo_line, signal_line, histogram = self._calculate_pvo(df)
+            current_pvo = pvo_line.iloc[-1]
+            prev_pvo = pvo_line.iloc[-2]
+            current_signal = signal_line.iloc[-1]
+            prev_signal = signal_line.iloc[-2]
+            timestamp = df.index[-1]
+            if pd.isna(current_pvo) or pd.isna(prev_pvo) or pd.isna(current_signal) or pd.isna(prev_signal):
+                continue
+            if prev_pvo <= prev_signal and current_pvo > current_signal:
+                strength = min(1.0, abs(float(histogram.iloc[-1])) / 2.0 + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "pvo": float(current_pvo),
+                            "signal": float(current_signal),
+                            "histogram": float(histogram.iloc[-1]),
+                            "fast_period": self.fast_period,
+                            "slow_period": self.slow_period,
+                            "signal_period": self.signal_period,
+                            "signal_type": "pvo_signal_cross_above",
+                        },
+                    )
+                )
+            elif prev_pvo >= prev_signal and current_pvo < current_signal:
+                strength = min(1.0, abs(float(histogram.iloc[-1])) / 2.0 + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "pvo": float(current_pvo),
+                            "signal": float(current_signal),
+                            "histogram": float(histogram.iloc[-1]),
+                            "fast_period": self.fast_period,
+                            "slow_period": self.slow_period,
+                            "signal_period": self.signal_period,
+                            "signal_type": "pvo_signal_cross_below",
+                        },
+                    )
+                )
+            elif self.use_zero_line:
+                if prev_pvo <= 0 and current_pvo > 0:
+                    strength = min(1.0, abs(float(current_pvo)) / 5.0)
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="buy",
+                            strength=strength,
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "pvo": float(current_pvo),
+                                "signal": float(current_signal),
+                                "histogram": float(histogram.iloc[-1]),
+                                "fast_period": self.fast_period,
+                                "slow_period": self.slow_period,
+                                "signal_period": self.signal_period,
+                                "signal_type": "pvo_zero_cross_above",
+                            },
+                        ),
+                    )
+                elif prev_pvo >= 0 and current_pvo < 0:
+                    strength = min(1.0, abs(float(current_pvo)) / 5.0)
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="sell",
+                            strength=strength,
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "pvo": float(current_pvo),
+                                "signal": float(current_signal),
+                                "histogram": float(histogram.iloc[-1]),
+                                "fast_period": self.fast_period,
+                                "slow_period": self.slow_period,
+                                "signal_period": self.signal_period,
+                                "signal_type": "pvo_zero_cross_below",
+                            },
+                        ),
+                    )
+        return signals
+
+
+# Aliases
+PVO = PercentageVolumeOscillatorStrategy
+PVOStrategy = PercentageVolumeOscillatorStrategy

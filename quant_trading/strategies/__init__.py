@@ -24,17 +24,17 @@ from .examples import (
     OBVStrategy,
     PPO,
     PPOStrategy,
+    PVOStrategy,
+    PVO,
     ParabolicSARStrategy,
     PercentagePriceOscillatorStrategy,
+    PercentageVolumeOscillatorStrategy,
     RateOfChangeStrategy,
     RSIStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
     TrixStrategy,
     UltimateOscillatorStrategy,
-    PercentagePriceOscillatorStrategy,
-    PPO,
-    PPOStrategy,
     VolumeOscillatorStrategy,
     VolumeRateOfChangeStrategy,
     VortexStrategy,
@@ -71,6 +71,7 @@ register_strategy("ao", AwesomeOscillatorStrategy, aliases=["awesome_oscillator"
 register_strategy("vol", VolumeOscillatorStrategy, aliases=["volume_oscillator"])
 register_strategy("vortex", VortexStrategy, aliases=["vortex_indicator"])
 register_strategy("ppo", PercentagePriceOscillatorStrategy, aliases=["percentage_price_oscillator", "ppo_strategy"])
+register_strategy("pvo", PercentageVolumeOscillatorStrategy, aliases=["percentage_volume_oscillator", "pvo_strategy"])
 register_strategy("momentum", MomentumStrategy, aliases=["mom"])
 register_strategy("adx", ADXStrategy, aliases=["average_directional_index"])
 register_strategy("cci", CCIStrategy, aliases=["commodity_channel_index"])
@@ -90,23 +91,31 @@ register_strategy("ultimate_oscillator", UltimateOscillatorStrategy, aliases=["u
 __all__ = [
     "ADXStrategy",
     "AroonStrategy",
+    "AwesomeOscillatorStrategy",
     "BollingerBandsStrategy",
     "CCIStrategy",
     "ChaikinMoneyFlowStrategy",
     "ChaikinOscillatorStrategy",
     "ChandeMomentumOscillatorStrategy",
     "DonchianChannelStrategy",
-    "EaseOfMovementStrategy",
     "EMACrossover",
+    "EaseOfMovementStrategy",
     "ElderRayStrategy",
     "ForceIndexStrategy",
     "IchimokuCloudStrategy",
     "KeltnerChannelStrategy",
     "MACDStrategy",
     "MoneyFlowIndexStrategy",
+    "MomentumStrategy",
     "MovingAverageCrossover",
     "OBVStrategy",
+    "PPO",
+    "PPOStrategy",
+    "PVO",
+    "PVOStrategy",
     "ParabolicSARStrategy",
+    "PercentagePriceOscillatorStrategy",
+    "PercentageVolumeOscillatorStrategy",
     "Position",
     "RSIStrategy",
     "RateOfChangeStrategy",
@@ -118,12 +127,10 @@ __all__ = [
     "SuperTrendStrategy",
     "TrixStrategy",
     "UltimateOscillatorStrategy",
-    "PercentagePriceOscillatorStrategy",
-    "PPO",
-    "PPOStrategy",
     "VolumeOscillatorStrategy",
     "VolumeRateOfChangeStrategy",
     "VortexStrategy",
+    "VWAPStrategy",
     "WilliamsRStrategy",
     "available_strategies",
     "create_strategy",
@@ -135,7 +142,6 @@ __all__ = [
     "register_strategy",
     "strategy_keys",
 ]
-
 
 # Convenience functions
 def get_available_strategies() -> dict[str, type[Strategy]]:
