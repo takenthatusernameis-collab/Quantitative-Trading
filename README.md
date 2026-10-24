@@ -5,7 +5,7 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 ## Features
 
 - **Strategy Framework**: Abstract base class for creating custom trading strategies
-- **Built-in Strategies**: 37 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Ease of Movement, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR, VWAP, Vortex, Awesome Oscillator, Momentum, ADX, Commodity Channel Index, Williams %R, On-Balance Volume, Chaikin Money Flow, Force Index, Money Flow Index, Elder Ray, Rate of Change, Volume Rate of Change, Volume Oscillator, Volume Price Trend, Percentage Price Oscillator, Percentage Volume Oscillator, Chande Momentum Oscillator, Chaikin Oscillator, TRIX, Accumulation Distribution, Ultimate Oscillator and Detrended Price Oscillator
+- **Built-in Strategies**: 39 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Ease of Movement, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR, VWAP, Vortex, Awesome Oscillator, Momentum, ADX, Commodity Channel Index, Williams %R, On-Balance Volume, Chaikin Money Flow, Force Index, Money Flow Index, Elder Ray, Rate of Change, Volume Rate of Change, Volume Oscillator, Volume Price Trend, Percentage Price Oscillator, Percentage Volume Oscillator, Chande Momentum Oscillator, Chaikin Oscillator, TRIX, Accumulation Distribution, Ultimate Oscillator, Detrended Price Oscillator, Stochastic Momentum Index and Volume Weighted Average Price (VWAP) variations/others present as implemented
 - **Backtesting Engine**: Event-driven backtest with realistic costs (commission, slippage), long and short positions
 - **Data Providers**: Yahoo Finance integration with caching support
 - **Portfolio Management**: Position tracking, rebalancing, and allocation
@@ -134,6 +134,7 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `trix` → `TrixStrategy`
 - `ultimate_oscillator` (aliases: `uo`, `ultimate`) → `UltimateOscillatorStrategy`
 - `dpo` (aliases: `detrended_price_oscillator`) → `DetrendedPriceOscillatorStrategy`
+- `smi` (aliases: `stochastic_momentum_index`) → `StochasticMomentumIndexStrategy`
 - `elder_ray` (aliases: `elder_ray_index`, `erp`) → `ElderRayStrategy`
 - `adl` (aliases: `accumulation_distribution`, `ad_line`) → `AccumulationDistributionStrategy`
 

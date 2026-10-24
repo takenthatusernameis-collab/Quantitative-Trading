@@ -3985,6 +3985,119 @@ if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
 
+
+
+class TestStochasticMomentumIndexStrategy:
+    """Tests for StochasticMomentumIndexStrategy."""
+
+    def test_initialization(self):
+        from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
+
+        strategy = StochasticMomentumIndexStrategy()
+        assert strategy.k_period == 5
+        assert strategy.signal_period == 3
+        assert strategy.name == "Stochastic_Momentum_Index"
+
+    def test_validate_parameters(self):
+        from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
+
+        with pytest.raises(ValueError):
+            StochasticMomentumIndexStrategy(k_period=0)
+        with pytest.raises(ValueError):
+            StochasticMomentumIndexStrategy(signal_period=0)
+
+    def test_insufficient_data_returns_empty(self):
+        from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
+
+        strategy = StochasticMomentumIndexStrategy()
+        dates = pd.date_range(start="2023-01-01", periods=5, freq="D")
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": [10] * 5,
+                    "high": [11] * 5,
+                    "low": [9] * 5,
+                    "close": [10] * 5,
+                    "volume": [1000] * 5,
+                },
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_buy_on_cross_above_zero(self):
+        from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
+
+        strategy = StochasticMomentumIndexStrategy(k_period=2, signal_period=2)
+        dates = pd.date_range(start="2023-01-01", periods=10, freq="D")
+        # Create pattern that should cross above zero
+        high = [10, 10, 10, 10, 10, 10, 11, 12, 13, 14]
+        low = [5, 5, 5, 5, 5, 5, 6, 7, 8, 9]
+        close = [7, 7, 7, 7, 7, 7, 8.5, 10, 11.5, 13]
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": [1000] * 10},
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
+    def test_generate_signals_sell_on_cross_below_zero(self):
+        from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
+
+        strategy = StochasticMomentumIndexStrategy(k_period=2, signal_period=2)
+        dates = pd.date_range(start="2023-01-01", periods=10, freq="D")
+        high = [14, 13, 12, 11, 10, 10, 10, 10, 10, 10]
+        low = [9, 8, 7, 6, 5, 5, 5, 5, 5, 5]
+        close = [13, 11.5, 10, 8.5, 7, 7, 7, 7, 7, 7]
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": [1000] * 10},
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
+    def test_generate_signals_multiple_symbols(self):
+        from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
+
+        strategy = StochasticMomentumIndexStrategy(k_period=2, signal_period=2)
+        dates = pd.date_range(start="2023-01-01", periods=10, freq="D")
+        close = [7, 7, 7, 7, 7, 7, 8.5, 10, 11.5, 13]
+        high = [10, 10, 10, 10, 10, 10, 11, 12, 13, 14]
+        low = [5, 5, 5, 5, 5, 5, 6, 7, 8, 9]
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": [1000] * 10},
+                index=dates,
+            ),
+            "MSFT": pd.DataFrame(
+                {"open": [13, 11.5, 10, 8.5, 7, 7, 7, 7, 7, 7], "high": [14, 13, 12, 11, 10, 10, 10, 10, 10, 10], "low": [9, 8, 7, 6, 5, 5, 5, 5, 5, 5], "close": [13, 11.5, 10, 8.5, 7, 7, 7, 7, 7, 7], "volume": [1000] * 10},
+                index=dates,
+            ),
+        }
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
+    def test_generate_signals_skips_nan_price(self):
+        from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
+
+        strategy = StochasticMomentumIndexStrategy(k_period=2, signal_period=2)
+        dates = pd.date_range(start="2023-01-01", periods=10, freq="D")
+        close = [7, 7, 7, 7, 7, 7, 8.5, 10, 11.5, float("nan")]
+        high = [10, 10, 10, 10, 10, 10, 11, 12, 13, 14]
+        low = [5, 5, 5, 5, 5, 5, 6, 7, 8, 9]
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": [1000] * 10},
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
+
 class TestUltimateOscillatorStrategy:
     """Tests for UltimateOscillatorStrategy."""
 

@@ -33,6 +33,7 @@ from .examples import (
     PercentageVolumeOscillatorStrategy,
     RateOfChangeStrategy,
     RSIStrategy,
+    StochasticMomentumIndexStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
     TrixStrategy,
@@ -92,6 +93,7 @@ register_strategy("mfi", MoneyFlowIndexStrategy, aliases=["money_flow_index"])
 register_strategy("trix", TrixStrategy)
 register_strategy("ultimate_oscillator", UltimateOscillatorStrategy, aliases=["ultimate"])
 register_strategy("dpo", DetrendedPriceOscillatorStrategy, aliases=["detrended_price_oscillator"])
+register_strategy("smi", StochasticMomentumIndexStrategy, aliases=["stochastic_momentum_index"])
 
 
 __all__ = [
@@ -128,6 +130,7 @@ __all__ = [
     "RSIStrategy",
     "RateOfChangeStrategy",
     "Signal",
+    "StochasticMomentumIndexStrategy",
     "StochasticOscillatorStrategy",
     "Strategy",
     "StrategyManager",
