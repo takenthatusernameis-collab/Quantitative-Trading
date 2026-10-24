@@ -61,6 +61,7 @@ BUILTIN_STRATEGY_KEYS = [
     "vwap",
     "vortex",
     "vroc",
+    "vpt",
     "ao",
     "vol",
     "ppo",

@@ -38,6 +38,7 @@ from .examples import (
     TrixStrategy,
     UltimateOscillatorStrategy,
     VolumeOscillatorStrategy,
+    VolumePriceTrendStrategy,
     VolumeRateOfChangeStrategy,
     VortexStrategy,
     VWAPStrategy,
@@ -72,6 +73,7 @@ register_strategy("vroc", VolumeRateOfChangeStrategy, aliases=["volume_rate_of_c
 register_strategy("ao", AwesomeOscillatorStrategy, aliases=["awesome_oscillator"])
 register_strategy("vol", VolumeOscillatorStrategy, aliases=["volume_oscillator"])
 register_strategy("vortex", VortexStrategy, aliases=["vortex_indicator"])
+register_strategy("vpt", VolumePriceTrendStrategy, aliases=["volume_price_trend"])
 register_strategy("ppo", PercentagePriceOscillatorStrategy, aliases=["percentage_price_oscillator", "ppo_strategy"])
 register_strategy("pvo", PercentageVolumeOscillatorStrategy, aliases=["percentage_volume_oscillator", "pvo_strategy"])
 register_strategy("momentum", MomentumStrategy, aliases=["mom"])
@@ -134,6 +136,7 @@ __all__ = [
     "TrixStrategy",
     "UltimateOscillatorStrategy",
     "VolumeOscillatorStrategy",
+    "VolumePriceTrendStrategy",
     "VolumeRateOfChangeStrategy",
     "VortexStrategy",
     "VWAPStrategy",

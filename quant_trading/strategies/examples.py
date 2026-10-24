@@ -4144,6 +4144,207 @@ class VolumeOscillatorStrategy(Strategy):
         return signals
 
 
+class VolumePriceTrendStrategy(Strategy):
+    """Volume Price Trend (VPT) Strategy.
+
+    The Volume Price Trend is a momentum indicator that combines price change
+    with volume to gauge the strength behind a price move. It is the
+    cumulative sum of the per-period volume-weighted price change:
+
+    - VPT_t = VPT_{t-1} + volume_t * (close_t - close_{t-1}) / close_{t-1}
+
+    The strategy computes EMAs of the VPT series over a fast and a slow
+    window and fires signals on their crossovers:
+
+    - Buy when the fast VPT EMA crosses above the slow VPT EMA
+      (volume-backed momentum is accelerating upward).
+    - Sell when the fast VPT EMA crosses below the slow VPT EMA
+      (volume-backed momentum is decelerating).
+
+    Requires ``"close"`` and ``"volume"`` columns.
+    """
+
+    def __init__(
+        self,
+        fast_period: int = 5,
+        slow_period: int = 13,
+        name: str = "Volume_Price_Trend",
+    ):
+        """Initialize the Volume Price Trend strategy.
+
+        Args:
+            fast_period: Lookback window for the fast VPT EMA.
+            slow_period: Lookback window for the slow VPT EMA; must
+                exceed ``fast_period``.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+
+        """
+        super().__init__(
+            name,
+            {
+                "fast_period": fast_period,
+                "slow_period": slow_period,
+            },
+        )
+        self.fast_period = fast_period
+        self.slow_period = slow_period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``fast_period`` or ``slow_period`` is non-positive,
+                or if ``fast_period`` is not less than ``slow_period``.
+
+        """
+        if self.fast_period <= 0:
+            raise ValueError("fast_period must be positive")
+        if self.slow_period <= 0:
+            raise ValueError("slow_period must be positive")
+        if self.fast_period >= self.slow_period:
+            raise ValueError("fast_period must be less than slow_period")
+
+    def _calculate_vpt(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate the Volume Price Trend series.
+
+        Args:
+            df: DataFrame containing at least ``"close"`` and ``"volume"``
+                columns.
+
+        Returns:
+            Series of VPT values aligned with ``df`` index.
+
+        """
+        close = df["close"]
+        volume = df["volume"]
+        prev_close = close.shift(1)
+        # Per-period volume-weighted price change; the first bar has no
+        # previous close, so its contribution is zero.
+        increment = volume * (close - prev_close) / prev_close.replace(0, np.nan)
+        increment = increment.fillna(0.0)
+        vpt: pd.Series = increment.cumsum()
+        return vpt
+
+    def _ema(self, series: pd.Series, period: int) -> pd.Series:
+        """Calculate an Exponential Moving Average.
+
+        Args:
+            series: Series of values to smooth.
+            period: Lookback window for the EMA.
+
+        Returns:
+            Series of EMA values aligned with ``series``.
+
+        """
+        return series.ewm(span=period, adjust=False).mean()
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from VPT EMA crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least a
+                ``"close"`` and ``"volume"`` column indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose fast VPT EMA
+            crosses the slow VPT EMA between the last two bars.
+
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.slow_period + 2:
+                continue
+
+            close = df["close"]
+            current_price = close.iloc[-1]
+            # The signal is emitted at the last close, so a close that is not a
+            # number is rejected before anything is derived from it.
+            if pd.isna(current_price) or current_price == 0:
+                continue
+
+            vpt = self._calculate_vpt(df)
+            fast_ema = self._ema(vpt, self.fast_period)
+            slow_ema = self._ema(vpt, self.slow_period)
+
+            fast_current = fast_ema.iloc[-1]
+            fast_prev = fast_ema.iloc[-2]
+            slow_current = slow_ema.iloc[-1]
+            slow_prev = slow_ema.iloc[-2]
+            timestamp = df.index[-1]
+
+            if (
+                pd.isna(fast_current)
+                or pd.isna(fast_prev)
+                or pd.isna(slow_current)
+                or pd.isna(slow_prev)
+            ):
+                continue
+
+            # Bullish crossover: fast VPT EMA crosses above slow VPT EMA
+            if fast_prev <= slow_prev and fast_current > slow_current:
+                strength = (
+                    min(
+                        1.0,
+                        abs(float(fast_current - slow_current))
+                        / (abs(float(fast_current)) + abs(float(slow_current))),
+                    )
+                    if fast_current != 0 or slow_current != 0
+                    else 0.5
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "vpt": float(vpt.iloc[-1]),
+                            "fast_ema": float(fast_current),
+                            "slow_ema": float(slow_current),
+                            "fast_period": self.fast_period,
+                            "slow_period": self.slow_period,
+                            "signal_type": "vpt_bullish_crossover",
+                        },
+                    )
+                )
+            # Bearish crossover: fast VPT EMA crosses below slow VPT EMA
+            elif fast_prev >= slow_prev and fast_current < slow_current:
+                strength = (
+                    min(
+                        1.0,
+                        abs(float(slow_current - fast_current))
+                        / (abs(float(fast_current)) + abs(float(slow_current))),
+                    )
+                    if fast_current != 0 or slow_current != 0
+                    else 0.5
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "vpt": float(vpt.iloc[-1]),
+                            "fast_ema": float(fast_current),
+                            "slow_ema": float(slow_current),
+                            "fast_period": self.fast_period,
+                            "slow_period": self.slow_period,
+                            "signal_type": "vpt_bearish_crossover",
+                        },
+                    )
+                )
+
+        return signals
+
+
 class ChaikinOscillatorStrategy(Strategy):
     """Chaikin Oscillator Strategy.
 
