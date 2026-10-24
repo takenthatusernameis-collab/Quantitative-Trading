@@ -63,6 +63,7 @@ BUILTIN_STRATEGY_KEYS = [
     "vroc",
     "ao",
     "vol",
+    "ppo",
     "cho",
     "cmo",
     "ema",
