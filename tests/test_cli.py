@@ -1615,6 +1615,7 @@ class TestRunCombined:
             ("Volume_Rate_Of_Change", 15.0),
             ("Volume_Oscillator", 16.0),
             ("Percentage_Volume_Oscillator", 15.8),
+            ("Percentage_Price_Oscillator", 15.9),
             ("Ease_Of_Movement", 17.5),
             ("Chaikin_Oscillator", 16.5),
             ("Awesome_Oscillator", 12.8),
