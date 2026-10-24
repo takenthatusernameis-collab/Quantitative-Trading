@@ -1269,6 +1269,11 @@ below it (trend turns bearish):
 ```bash
 python examples/run_super_trend.py
 ```
+
+For a TRIX demonstration, see `examples/run_trix.py`.
+```bash
+python examples/run_trix.py
+```
 For a Donchian Channel demonstration using the highest high/lowest low over a
 lookback period, see `examples/run_donchian.py`. It runs the
 `DonchianChannelStrategy` against seeded synthetic data, generating buy signals
