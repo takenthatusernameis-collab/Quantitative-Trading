@@ -4413,3 +4413,85 @@ class VortexStrategy(Strategy):
                 )
 
         return signals
+
+class TrixStrategy(Strategy):
+    """TRIX (Triple Exponential Average) Strategy.
+
+    TRIX measures the rate of change of a triple exponentially smoothed
+    moving average of the close price:
+
+    - EMA1 = EMA(close, period)
+    - EMA2 = EMA(EMA1, period)
+    - EMA3 = EMA(EMA2, period)
+    - TRIX = (EMA3 - EMA3_prev) / EMA3_prev * 100
+
+    Trading signals:
+    - Buy when TRIX crosses above zero (momentum turning positive).
+    - Sell when TRIX crosses below zero (momentum turning negative).
+    """
+
+    def __init__(self, period: int = 14, name: str = "TRIX"):
+        super().__init__(name, {"period": period})
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate_trix(self, df: pd.DataFrame) -> pd.Series:
+        close = df["close"]
+        ema1 = close.ewm(span=self.period, adjust=False).mean()
+        ema2 = ema1.ewm(span=self.period, adjust=False).mean()
+        ema3 = ema2.ewm(span=self.period, adjust=False).mean()
+        trix: pd.Series = ema3.pct_change() * 100.0
+        return trix
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals: list[Signal] = []
+        for symbol, df in data.items():
+            if len(df) < self.period * 3 + 2:
+                continue
+            close = df["close"]
+            current_price = close.iloc[-1]
+            if pd.isna(current_price) or current_price == 0:
+                continue
+            trix = self._calculate_trix(df)
+            current_trix = trix.iloc[-1]
+            prev_trix = trix.iloc[-2]
+            timestamp = df.index[-1]
+            if pd.isna(current_trix) or pd.isna(prev_trix):
+                continue
+            if prev_trix <= 0 and current_trix > 0:
+                strength = min(1.0, abs(float(current_trix)) / (abs(float(current_trix)) + 1.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "trix": float(current_trix),
+                            "period": self.period,
+                            "signal_type": "trix_cross_above_zero",
+                        },
+                    )
+                )
+            elif prev_trix >= 0 and current_trix < 0:
+                strength = min(1.0, abs(float(current_trix)) / (abs(float(current_trix)) + 1.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "trix": float(current_trix),
+                            "period": self.period,
+                            "signal_type": "trix_cross_below_zero",
+                        },
+                    )
+                )
+        return signals

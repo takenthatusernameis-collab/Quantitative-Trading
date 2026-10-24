@@ -5,7 +5,7 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 ## Features
 
 - **Strategy Framework**: Abstract base class for creating custom trading strategies
-- **Built-in Strategies**: 28 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR, VWAP, Vortex, Momentum, ADX, Commodity Channel Index, Williams %R, On-Balance Volume, Chaikin Money Flow, Force Index, Money Flow Index, Elder Ray, Rate of Change, Volume Rate of Change, Volume Oscillator, Chande Momentum Oscillator and Chaikin Oscillator
+- **Built-in Strategies**: 29 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR, VWAP, Vortex, Momentum, ADX, Commodity Channel Index, Williams %R, On-Balance Volume, Chaikin Money Flow, Force Index, Money Flow Index, Elder Ray, Rate of Change, Volume Rate of Change, Volume Oscillator, Chande Momentum Oscillator, Chaikin Oscillator and TRIX
 - **Backtesting Engine**: Event-driven backtest with realistic costs (commission, slippage), long and short positions
 - **Data Providers**: Yahoo Finance integration with caching support
 - **Portfolio Management**: Position tracking, rebalancing, and allocation

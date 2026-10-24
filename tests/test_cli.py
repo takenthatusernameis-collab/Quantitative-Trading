@@ -1616,6 +1616,7 @@ class TestRunCombined:
             ("Volume_Oscillator", 16.0),
             ("Chaikin_Oscillator", 16.5),
             ("Chande_Momentum_Oscillator", 15.5),
+            ("TRIX", 14.0),
         ]:
             m = MagicMock(
                 spec=[

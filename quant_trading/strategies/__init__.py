@@ -25,6 +25,7 @@ from .examples import (
     RSIStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
+    TrixStrategy,
     VolumeOscillatorStrategy,
     VolumeRateOfChangeStrategy,
     VortexStrategy,
@@ -70,6 +71,7 @@ register_strategy("elder_ray", ElderRayStrategy, aliases=["elder_ray_index", "er
 register_strategy("roc", RateOfChangeStrategy, aliases=["rate_of_change"])
 register_strategy("force_index", ForceIndexStrategy, aliases=["forceindex", "fi"])
 register_strategy("mfi", MoneyFlowIndexStrategy, aliases=["money_flow_index"])
+register_strategy("trix", TrixStrategy)
 
 
 __all__ = [
@@ -100,6 +102,7 @@ __all__ = [
     "StrategyManager",
     "StrategyRegistry",
     "SuperTrendStrategy",
+    "TrixStrategy",
     "VolumeOscillatorStrategy",
     "VolumeRateOfChangeStrategy",
     "VortexStrategy",

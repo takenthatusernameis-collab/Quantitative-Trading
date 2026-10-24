@@ -51,6 +51,7 @@ BUILTIN_STRATEGY_KEYS = [
     "bb",
     "macd",
     "supertrend",
+    "trix",
     "donchian",
     "aroon",
     "keltner",
