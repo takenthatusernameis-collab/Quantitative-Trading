@@ -1622,6 +1622,7 @@ class TestRunCombined:
             ("Chande_Momentum_Oscillator", 15.5),
             ("TRIX", 14.0),
             ("Ultimate_Oscillator", 13.2),
+            ("Detrended_Price_Oscillator", 10.0),
         ]:
             m = MagicMock(
                 spec=[
