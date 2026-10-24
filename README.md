@@ -523,6 +523,60 @@ when RSI is overbought (> 70):
 python examples/run_rsi.py
 ```
 
+For a trend-following demonstration using the Vortex Indicator, see
+`examples/run_vortex.py`. It runs the `VortexStrategy` against seeded synthetic
+data, generating buy signals when VI+ crosses above VI- and sell signals when
+VI- crosses above VI+:
+
+```bash
+python examples/run_vortex.py
+```
+
+For an Ease of Movement demonstration, see `examples/run_ease_of_movement.py`.
+It runs the `EaseOfMovementStrategy` against seeded synthetic data, generating
+buy signals when EOM crosses above zero and sell signals when EOM crosses below
+zero:
+
+```bash
+python examples/run_ease_of_movement.py
+```
+
+For a Percentage Price Oscillator demonstration, see `examples/run_ppo.py`. It
+runs the `PercentagePriceOscillatorStrategy` against seeded synthetic data,
+generating buy signals when PPO crosses above its signal line and sell signals
+when PPO crosses below it:
+
+```bash
+python examples/run_ppo.py
+```
+
+For a Percentage Volume Oscillator demonstration, see `examples/run_pvo.py`.
+It runs the `PercentageVolumeOscillatorStrategy` against seeded synthetic data,
+generating buy signals when PVO crosses above its signal line and sell signals
+when PVO crosses below it:
+
+```bash
+python examples/run_pvo.py
+```
+
+For a Stochastic Momentum Index demonstration, see `examples/run_smi.py`. It
+runs the `StochasticMomentumIndexStrategy` against seeded synthetic data,
+generating buy signals when the SMI line crosses above its signal line and sell
+signals when it crosses below:
+
+```bash
+python examples/run_smi.py
+```
+
+For an Ultimate Oscillator demonstration, see `examples/run_ultimate_oscillator.py`.
+It runs the `UltimateOscillatorStrategy` against seeded synthetic data,
+generating buy signals when the oscillator crosses above its signal line and
+sell signals when it crosses below:
+
+```bash
+python examples/run_ultimate_oscillator.py
+```
+
 
 ## Data fetching
 
