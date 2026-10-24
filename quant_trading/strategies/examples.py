@@ -4248,6 +4248,149 @@ class ChaikinOscillatorStrategy(Strategy):
         return signals
 
 
+class EaseOfMovementStrategy(Strategy):
+    """Ease of Movement (EOM) Strategy.
+
+    Ease of Movement relates price movement to volume, oscillating around
+    zero:
+
+    - EMV = ((high + low) / 2 - (prev_high + prev_low) / 2) * (high - low)
+            / volume
+    - EOM = EMA(EMV, period)
+
+    A positive EOM means price is advancing on relatively light volume (easy
+    upward movement); a negative EOM means price is declining on light volume.
+    The common 100,000,000 volume divisor found in some published variants is
+    omitted because it only scales the magnitude and does not affect the
+    zero-line crossings used for signals.
+
+    Trading signals:
+    - Buy when EOM crosses above zero.
+    - Sell when EOM crosses below zero.
+    """
+
+    def __init__(self, period: int = 14, name: str = "Ease_Of_Movement"):
+        """Initialize the Ease of Movement strategy.
+
+        Args:
+            period: Lookback window for the EMA smoothing of EMV.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+
+        """
+        super().__init__(
+            name,
+            {
+                "period": period,
+            },
+        )
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate_eom(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate the Ease of Movement series.
+
+        Args:
+            df: DataFrame containing at least ``"high"``, ``"low"`` and
+                ``"volume"`` columns indexed by timestamp.
+
+        Returns:
+            Series of EOM values aligned with ``df`` index.
+
+        """
+        high = df["high"]
+        low = df["low"]
+        volume = df["volume"]
+        midpoint = (high + low) / 2.0
+        distance = midpoint - midpoint.shift(1)
+        price_range = high - low
+        with np.errstate(divide="ignore", invalid="ignore"):
+            emv: pd.Series = distance * price_range / volume
+        emv = emv.replace([np.inf, -np.inf], np.nan)
+        eom: pd.Series = emv.ewm(span=self.period, adjust=False).mean()
+        return eom
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from EOM zero-line crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least
+                ``"high"``, ``"low"``, ``"close"`` and ``"volume"`` columns
+                indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose EOM crosses the
+            zero line between the last two bars.
+
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 2:
+                continue
+
+            close = df["close"]
+            current_price = close.iloc[-1]
+            if pd.isna(current_price) or current_price == 0:
+                continue
+
+            eom = self._calculate_eom(df)
+            current_eom = eom.iloc[-1]
+            prev_eom = eom.iloc[-2]
+            timestamp = df.index[-1]
+
+            if pd.isna(current_eom) or pd.isna(prev_eom):
+                continue
+
+            # EOM crosses above zero - easy upward movement begins
+            if prev_eom <= 0 and current_eom > 0:
+                strength = min(1.0, abs(float(current_eom)) / (abs(float(current_eom)) + 100.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "eom": float(current_eom),
+                            "period": self.period,
+                            "signal_type": "eom_cross_above_zero",
+                        },
+                    )
+                )
+            # EOM crosses below zero - easy downward movement begins
+            elif prev_eom >= 0 and current_eom < 0:
+                strength = min(1.0, abs(float(current_eom)) / (abs(float(current_eom)) + 100.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "eom": float(current_eom),
+                            "period": self.period,
+                            "signal_type": "eom_cross_below_zero",
+                        },
+                    )
+                )
+
+        return signals
+
 
 class AwesomeOscillatorStrategy(Strategy):
     def __init__(self, short_period=5, long_period=34, name="Awesome_Oscillator"):

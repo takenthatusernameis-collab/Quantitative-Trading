@@ -5,7 +5,7 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 ## Features
 
 - **Strategy Framework**: Abstract base class for creating custom trading strategies
-- **Built-in Strategies**: 30 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR, VWAP, Vortex, Awesome Oscillator, Momentum, ADX, Commodity Channel Index, Williams %R, On-Balance Volume, Chaikin Money Flow, Force Index, Money Flow Index, Elder Ray, Rate of Change, Volume Rate of Change, Volume Oscillator, Chande Momentum Oscillator, Chaikin Oscillator and TRIX
+- **Built-in Strategies**: 31 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Ease of Movement, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Parabolic SAR, VWAP, Vortex, Awesome Oscillator, Momentum, ADX, Commodity Channel Index, Williams %R, On-Balance Volume, Chaikin Money Flow, Force Index, Money Flow Index, Elder Ray, Rate of Change, Volume Rate of Change, Volume Oscillator, Chande Momentum Oscillator, Chaikin Oscillator and TRIX
 - **Backtesting Engine**: Event-driven backtest with realistic costs (commission, slippage), long and short positions
 - **Data Providers**: Yahoo Finance integration with caching support
 - **Portfolio Management**: Position tracking, rebalancing, and allocation
@@ -104,6 +104,7 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `bb` (aliases: `bollinger_bands`, `bollinger`) → `BollingerBandsStrategy`
 - `macd` (alias: `macd_crossover`) → `MACDStrategy`
 - `ema` (aliases: `ema_crossover`, `exponential_ma_crossover`) → `EMACrossover`
+- `eom` (aliases: `ease_of_movement`) → `EaseOfMovementStrategy`
 - `supertrend` (aliases: `st`, `super_trend`) → `SuperTrendStrategy`
 - `donchian` (aliases: `donchian_channel`, `dc`) → `DonchianChannelStrategy`
 - `aroon` (alias: `aroon_oscillator`) → `AroonStrategy`

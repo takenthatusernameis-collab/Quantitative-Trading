@@ -1614,6 +1614,7 @@ class TestRunCombined:
             ("Rate_Of_Change", 14.5),
             ("Volume_Rate_Of_Change", 15.0),
             ("Volume_Oscillator", 16.0),
+            ("Ease_Of_Movement", 17.5),
             ("Chaikin_Oscillator", 16.5),
             ("Awesome_Oscillator", 12.8),
             ("Chande_Momentum_Oscillator", 15.5),
@@ -1712,6 +1713,7 @@ class TestRunCombined:
         assert "Force_Index" in captured.out
         assert "Money_Flow_Index" in captured.out
         assert "Volume_Rate_Of_Change" in captured.out
+        assert "Ease_Of_Movement" in captured.out
         assert "Chande_Momentum_Oscillator" in captured.out
         assert "Best strategy (by Sharpe)" in captured.out
 

@@ -12,6 +12,7 @@ from quant_trading.strategies.examples import (
     ChaikinMoneyFlowStrategy,
     ChandeMomentumOscillatorStrategy,
     DonchianChannelStrategy,
+    EaseOfMovementStrategy,
     EMACrossover,
     ForceIndexStrategy,
     IchimokuCloudStrategy,
@@ -3582,6 +3583,143 @@ class TestVolumeOscillatorStrategy:
         """A NaN last volume is rejected before any signal is derived."""
         strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": create_volume_oscillator_data("AAPL", [1_000_000.0] * 25 + [float("nan")])}
+        assert strategy.generate_signals(data) == []
+
+
+def create_ease_of_movement_data(
+    symbol: str, rows: list[tuple[float, float, float]], close: float = 100.0
+) -> pd.DataFrame:
+    """Create deterministic OHLCV data for Ease of Movement tests.
+
+    Each row is a ``(high, low, volume)`` triple; the close is constant so the
+    EOM is driven purely by the price/volume series.
+    """
+    dates = pd.date_range(end=datetime.now(), periods=len(rows), freq="D")
+    high = [r[0] for r in rows]
+    low = [r[1] for r in rows]
+    volume = [r[2] for r in rows]
+    return pd.DataFrame(
+        {
+            "open": [close] * len(rows),
+            "high": high,
+            "low": low,
+            "close": [close] * len(rows),
+            "volume": np.asarray(volume, dtype=float),
+        },
+        index=dates,
+    )
+
+
+class TestEaseOfMovementStrategy:
+    """Tests for the Ease of Movement strategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = EaseOfMovementStrategy(period=14, name="Test_EOM")
+        assert strategy.name == "Test_EOM"
+        assert strategy.period == 14
+        assert strategy.parameters["period"] == 14
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for a non-positive period."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            EaseOfMovementStrategy(period=0)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with fewer bars than period + 2."""
+        strategy = EaseOfMovementStrategy(period=2)
+        data = {
+            "AAPL": create_ease_of_movement_data(
+                "AAPL", [(10.0, 8.0, 100.0), (12.0, 10.0, 200.0), (14.0, 12.0, 400.0)]
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_eom_crosses_above_zero(self):
+        """A final upward move flips EOM from below to above zero (buy)."""
+        strategy = EaseOfMovementStrategy(period=2)
+        data = {
+            "AAPL": create_ease_of_movement_data(
+                "AAPL",
+                [(10.0, 8.0, 100.0), (8.0, 6.0, 200.0), (10.0, 8.0, 400.0), (12.0, 10.0, 200.0)],
+            )
+        }
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(0.0001333155579256099)
+        assert signal.price == pytest.approx(100.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "eom_cross_above_zero"
+        assert signal.metadata["eom"] == pytest.approx(0.013333333333333332)
+        assert signal.metadata["period"] == 2
+
+    def test_generate_signals_eom_crosses_below_zero(self):
+        """A final downward move flips EOM from above to below zero (sell)."""
+        strategy = EaseOfMovementStrategy(period=2)
+        data = {
+            "AAPL": create_ease_of_movement_data(
+                "AAPL",
+                [(10.0, 8.0, 100.0), (12.0, 10.0, 200.0), (14.0, 12.0, 400.0), (11.0, 9.0, 200.0)],
+            )
+        }
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(0.00015553136178816625)
+        assert signal.price == pytest.approx(100.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "eom_cross_below_zero"
+        assert signal.metadata["eom"] == pytest.approx(-0.015555555555555552)
+        assert signal.metadata["period"] == 2
+
+    def test_generate_signals_flat_price_no_signals(self):
+        """Constant price keeps EOM at zero, so no crossover fires."""
+        strategy = EaseOfMovementStrategy(period=2)
+        data = {"AAPL": create_ease_of_movement_data("AAPL", [(10.0, 8.0, 100.0)] * 30)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals evaluates each symbol independently."""
+        strategy = EaseOfMovementStrategy(period=2)
+        data = {
+            "AAPL": create_ease_of_movement_data(
+                "AAPL",
+                [(10.0, 8.0, 100.0), (8.0, 6.0, 200.0), (10.0, 8.0, 400.0), (12.0, 10.0, 200.0)],
+            ),
+            "MSFT": create_ease_of_movement_data(
+                "MSFT",
+                [(10.0, 8.0, 100.0), (12.0, 10.0, 200.0), (14.0, 12.0, 400.0), (11.0, 9.0, 200.0)],
+            ),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+
+    def test_generate_signals_skips_nan_volume(self):
+        """A NaN final volume is rejected before any signal is derived."""
+        strategy = EaseOfMovementStrategy(period=2)
+        data = {
+            "AAPL": create_ease_of_movement_data(
+                "AAPL",
+                [
+                    (10.0, 8.0, 100.0),
+                    (10.0, 8.0, 100.0),
+                    (10.0, 8.0, 100.0),
+                    (10.0, 8.0, float("nan")),
+                ],
+            ),
+        }
         assert strategy.generate_signals(data) == []
 
 

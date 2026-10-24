@@ -10,6 +10,7 @@ from .examples import (
     ChaikinOscillatorStrategy,
     ChandeMomentumOscillatorStrategy,
     DonchianChannelStrategy,
+    EaseOfMovementStrategy,
     ElderRayStrategy,
     EMACrossover,
     ForceIndexStrategy,
@@ -52,6 +53,7 @@ register_strategy("bb", BollingerBandsStrategy, aliases=["bollinger_bands", "bol
 register_strategy("macd", MACDStrategy, aliases=["macd_crossover"])
 register_strategy("supertrend", SuperTrendStrategy, aliases=["st", "super_trend"])
 register_strategy("donchian", DonchianChannelStrategy, aliases=["donchian_channel", "dc"])
+register_strategy("eom", EaseOfMovementStrategy, aliases=["ease_of_movement"])
 register_strategy("aroon", AroonStrategy, aliases=["aroon_oscillator"])
 register_strategy("keltner", KeltnerChannelStrategy, aliases=["kc", "keltner_channel"])
 register_strategy("stoch", StochasticOscillatorStrategy, aliases=["stochastic", "stoch_oscillator"])
@@ -87,6 +89,7 @@ __all__ = [
     "ChaikinOscillatorStrategy",
     "ChandeMomentumOscillatorStrategy",
     "DonchianChannelStrategy",
+    "EaseOfMovementStrategy",
     "EMACrossover",
     "ElderRayStrategy",
     "ForceIndexStrategy",
