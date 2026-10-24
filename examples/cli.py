@@ -68,6 +68,7 @@ BUILTIN_STRATEGY_KEYS = [
     "cho",
     "cmo",
     "ema",
+    "dpo",
     "eom",
     "momentum",
     "adx",

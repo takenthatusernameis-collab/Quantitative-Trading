@@ -11,6 +11,7 @@ from .examples import (
     ChaikinOscillatorStrategy,
     ChandeMomentumOscillatorStrategy,
     DonchianChannelStrategy,
+    DetrendedPriceOscillatorStrategy,
     EMACrossover,
     EaseOfMovementStrategy,
     ElderRayStrategy,
@@ -85,7 +86,7 @@ register_strategy("roc", RateOfChangeStrategy, aliases=["rate_of_change"])
 register_strategy("force_index", ForceIndexStrategy, aliases=["forceindex", "fi"])
 register_strategy("mfi", MoneyFlowIndexStrategy, aliases=["money_flow_index"])
 register_strategy("trix", TrixStrategy)
-register_strategy("ultimate_oscillator", UltimateOscillatorStrategy, aliases=["uo", "ultimate"])
+register_strategy("dpo", DetrendedPriceOscillatorStrategy, aliases=["detrended_price_oscillator"])
 
 
 __all__ = [
@@ -97,6 +98,7 @@ __all__ = [
     "ChaikinMoneyFlowStrategy",
     "ChaikinOscillatorStrategy",
     "ChandeMomentumOscillatorStrategy",
+    "DetrendedPriceOscillatorStrategy",
     "DonchianChannelStrategy",
     "EMACrossover",
     "EaseOfMovementStrategy",

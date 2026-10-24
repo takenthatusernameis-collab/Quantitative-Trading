@@ -5114,3 +5114,79 @@ class PercentageVolumeOscillatorStrategy(Strategy):
 # Aliases
 PVO = PercentageVolumeOscillatorStrategy
 PVOStrategy = PercentageVolumeOscillatorStrategy
+
+
+class DetrendedPriceOscillatorStrategy(Strategy):
+    """Detrended Price Oscillator (DPO) Strategy.
+
+    DPO attempts to remove long-term trends to identify short-term cycles:
+    - DPO = close - SMA(close, period) shifted by (period // 2 + 1)
+
+    Trading signals:
+    - Buy when DPO crosses above zero (price above the displaced moving average).
+    - Sell when DPO crosses below zero (price below the displaced moving average).
+    """
+
+    def __init__(self, period: int = 20, name: str = "Detrended_Price_Oscillator"):
+        super().__init__(name, {"period": period})
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate(self, df: pd.DataFrame) -> pd.Series:
+        close = df["close"]
+        sma = close.rolling(window=self.period).mean()
+        shift = self.period // 2 + 1
+        return close - sma.shift(shift)
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals: list[Signal] = []
+        for symbol, df in data.items():
+            if len(df) < self.period + (self.period // 2 + 1) + 2:
+                continue
+            close = df["close"]
+            current_price = close.iloc[-1]
+            if pd.isna(current_price):
+                continue
+            dpo = self._calculate(df)
+            curr_dpo = dpo.iloc[-1]
+            prev_dpo = dpo.iloc[-2]
+            timestamp = df.index[-1]
+            if pd.isna(curr_dpo) or pd.isna(prev_dpo):
+                continue
+            if prev_dpo <= 0 and curr_dpo > 0:
+                strength = min(1.0, abs(float(curr_dpo)) / (abs(float(curr_dpo)) + 5.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "dpo": float(curr_dpo),
+                            "period": self.period,
+                            "signal_type": "dpo_cross_above_zero",
+                        },
+                    )
+                )
+            elif prev_dpo >= 0 and curr_dpo < 0:
+                strength = min(1.0, abs(float(curr_dpo)) / (abs(float(curr_dpo)) + 5.0))
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "dpo": float(curr_dpo),
+                            "period": self.period,
+                            "signal_type": "dpo_cross_below_zero",
+                        },
+                    )
+                )
+        return signals
