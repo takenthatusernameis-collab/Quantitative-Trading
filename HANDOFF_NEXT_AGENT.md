@@ -1,23 +1,25 @@
 # Handoff for Next Agent
 
 ## What changed
-- Added example scripts for missing strategies: `examples/run_vortex.py`, `examples/run_ultimate_oscillator.py`, `examples/run_ease_of_movement.py`, `examples/run_smi.py`, `examples/run_ppo.py`, `examples/run_pvo.py`. Each runs against synthetic data like existing examples.
-- Added `BacktestResult.to_dataframe()` returning a summary DataFrame with key metrics (initial/final value, returns, costs, trades/win rate/profit factor, Sharpe/Sortino/Calmar, drawdown, volatility, unrealized PnL).
+- `BacktestResult` (in `quant_trading/backtest/engine.py`) already provides `to_csv(path=None)` and `to_json(path=None, indent=2)` export helpers (summary metrics). Verified functional.
+- Added/verified example scripts for missing strategies and `BacktestResult.to_dataframe()` remain intact.
 
 ## What was verified
-- Ran strategy example tests: `tests/test_strategies_examples.py` - 277 passed.
-- Ran core test suites (backtest engine/analysis/metrics, costs/holdings invariants, CLI/config/data providers, integration, factory/risk/regime/monte carlo/optimization/rebalancer, portfolio, examples smoke, alphavantage) - all passed as reported.
-- Spot-checked new examples run successfully with synthetic data.
+- `tests/test_strategies_examples.py`: 277 passed.
+- `tests/test_backtest_engine.py`: 93 passed.
+- Spot-checked `to_csv()`/`to_json()` output with synthetic data.
 
 ## What remains unresolved
-- None obvious; all tested modules pass.
+- No tests cover `to_csv`/`to_json` yet.
+- README does not yet document the newly added example scripts (vortex, ultimate oscillator, ease of movement, SMI, PPO, PVO).
+- Strategy metadata (descriptions/categories) for `examples/cli.py list-strategies` not added.
 
 ## Approaches tried / failed
 - None. No failing tests encountered.
 
 ## Precise next task (evidence-based)
-1. Add CSV/JSON export helpers for BacktestResult (e.g., `to_csv`, `to_json`) to make exports ergonomic for CLI/scripts. Look at `quant_trading/backtest/engine.py` BacktestResult class and CLI patterns in `examples/cli.py` for consistency.
-2. Optionally extend README to document the newly added example scripts.
-3. Consider adding strategy metadata (descriptions/categories) to improve `examples/cli.py list-strategies` output.
+1. Add focused tests for `BacktestResult.to_csv`/`to_json` (file write + return value) in `tests/test_backtest_engine.py`.
+2. Optionally extend README to document newly added example scripts.
+3. Consider strategy metadata for `examples/cli.py list-strategies`.
 
-Constraints: Keep changes minimal and reversible; follow existing code style (type hints, docstrings); verify with relevant tests.
+Constraints: Keep changes minimal and reversible; follow existing code style; verify with relevant tests.
