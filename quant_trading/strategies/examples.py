@@ -5739,3 +5739,67 @@ class AccumulationDistributionStrategy(Strategy):
                 )
 
         return signals
+
+
+class NegativeVolumeIndexStrategy(Strategy):
+    """Negative Volume Index (NVI) Strategy.
+
+    The Negative Volume Index tracks cumulative price change on days when
+    volume decreases, starting from a base of 1000.0:
+
+    - If volume_t < volume_{t-1}: NVI_t = NVI_{t-1} * (1 + (close_t - close_{t-1}) / close_{t-1})
+    - Otherwise: NVI_t = NVI_{t-1}
+
+    Trading signals are generated when the NVI crosses above/below its
+    exponential moving average.
+    """
+
+    def __init__(
+        self,
+        period: int = 255,
+        name: str = "Negative_Volume_Index",
+    ):
+        super().__init__(name, {"period": period})
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate_nvi(self, df: pd.DataFrame) -> pd.Series:
+        close = df["close"]
+        volume = df["volume"]
+        nvi = pd.Series(1000.0, index=df.index, dtype=float)
+        for i in range(1, len(df)):
+            if volume.iloc[i] < volume.iloc[i - 1] and close.iloc[i - 1] != 0:
+                nvi.iloc[i] = nvi.iloc[i - 1] * (1.0 + (close.iloc[i] - close.iloc[i - 1]) / close.iloc[i - 1])
+            else:
+                nvi.iloc[i] = nvi.iloc[i - 1]
+        return nvi
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals: list[Signal] = []
+        for symbol, df in data.items():
+            if len(df) < self.period + 2:
+                continue
+            close = df["close"]
+            current_price = close.iloc[-1]
+            if pd.isna(current_price) or current_price == 0:
+                continue
+            nvi = self._calculate_nvi(df)
+            ema = nvi.ewm(span=self.period, adjust=False).mean()
+            current_nvi = nvi.iloc[-1]
+            prev_nvi = nvi.iloc[-2]
+            current_ema = ema.iloc[-1]
+            prev_ema = ema.iloc[-2]
+            timestamp = df.index[-1]
+            if pd.isna(current_nvi) or pd.isna(prev_nvi) or pd.isna(current_ema) or pd.isna(prev_ema):
+                continue
+            if prev_nvi <= prev_ema and current_nvi > current_ema:
+                strength = min(1.0, abs(float(current_nvi - current_ema)) / (abs(float(current_nvi)) + abs(float(current_ema)) + 1e-12))
+                signals.append(Signal(symbol=symbol, action="buy", strength=strength, price=current_price, timestamp=timestamp, metadata={"nvi": float(current_nvi), "ema": float(current_ema)}))
+            elif prev_nvi >= prev_ema and current_nvi < current_ema:
+                strength = min(1.0, abs(float(current_nvi - current_ema)) / (abs(float(current_nvi)) + abs(float(current_ema)) + 1e-12))
+                signals.append(Signal(symbol=symbol, action="sell", strength=strength, price=current_price, timestamp=timestamp, metadata={"nvi": float(current_nvi), "ema": float(current_ema)}))
+        return signals

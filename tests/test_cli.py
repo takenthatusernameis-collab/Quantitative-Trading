@@ -1615,6 +1615,7 @@ class TestRunCombined:
             ("Volume_Rate_Of_Change", 15.0),
             ("Volume_Oscillator", 16.0),
             ("Volume_Price_Trend", 16.0),
+            ("Negative_Volume_Index", 16.0),
             ("Stochastic_Momentum_Index", 16.5),
             ("Percentage_Volume_Oscillator", 15.8),
             ("Percentage_Price_Oscillator", 15.9),
