@@ -2,29 +2,28 @@
 
 ## Repository state
 
-Checks: `python -m pytest -q` (2101 passed, 0 failures on a clean baseline; the 31 failures in `test_optimization.py`/`test_yfinance_fetch_many.py` are caused by missing optional deps `yfinance` and `scikit-optimize`, not by code defects), `python -m ruff check .` (clean), `python -m mypy quant_trading` (clean), `python -m mypy --check-untyped-defs quant_trading` (clean).
+Checks: `python -m pytest -q` (2112 passed, 0 failures on a clean baseline; the 31 failures in `test_optimization.py`/`test_yfinance_fetch_many.py` are caused by missing optional deps `yfinance` and `scikit-optimize`, not by code defects), `python -m ruff check .` (clean except one pre-existing unused import in `tests/test_readme.py:6`), `python -m mypy quant_trading` (clean), `python -m mypy --check-untyped-defs quant_trading` (clean).
 
 ## Completed this session
 
-Added an AST-based regression guard asserting the CLI's hardcoded `BUILTIN_STRATEGY_KEYS` list in `examples/cli.py` stays in sync with the live strategy registry's primary keys:
+Added a "Strategy Configuration" subsection to the README's CLI chapter, documenting the `--strategy-config` and `--output-strategy-config` flags that were previously mentioned only in the "Error Reporting" section:
 
-- New test `tests/test_repository_integrity.py::test_cli_strategy_keys_match_registry` plus helper `_cli_strategy_keys`.
-- The CLI module is parsed with AST rather than imported, because importing it pulls in the Yahoo Finance provider (an optional dependency that may be absent).
-- Prevents a future registry addition from being silently excluded from CLI `--strategy` choices and `--combined` mode.
+- New section after "Configuration" in `README.md` (lines ~327-362), with a YAML example, an invocation example, an explanation of how `--strategy-config` overrides `--strategy` and per-parameter flags, and a round-trip example (optimize → `--output-strategy-config` → re-run with `--strategy-config`).
+- Verified the documented commands actually work: valid `--strategy-config` runs a backtest, a malformed/empty file reports the expected error, `--output-strategy-config` writes config in both optimization and single-strategy modes, and the documented round-trip succeeds.
 
-This is the same class of contract-drift guard as the existing `test_validate_parameters_overrides_annotated_none` in the same file.
+This is the same class of contract-drift guard as the existing `test_validate_parameters_overrides_annotated_none` and `test_cli_strategy_keys_match_registry` in `tests/test_repository_integrity.py` — keeping the README's CLI documentation in sync with the flags the parser actually accepts.
 
 ## What was actually verified
 
-- `python -m pytest -q -o addopts="" tests/test_repository_integrity.py`: 8 passed, 0 failures (includes the new CLI sync test).
-- `python -m ruff check quant_trading/ tests/ examples/`: All checks passed.
+- `python -m pytest -q -o addopts="" tests/test_repository_integrity.py tests/test_readme.py tests/test_examples_smoke.py`: 86 passed, 0 failures.
+- `python -m ruff check .`: 1 pre-existing error (`tests/test_readme.py:6` unused `get_registry` import), no new errors from this change.
 - `python -m mypy quant_trading`: Success, no issues found in 37 source files.
-- Focused suite run (excluding env-dependent `test_cli.py`, `test_yfinance_fetch_many.py`, `test_optimization.py`): 1776 passed, 0 failures.
+- Manual verification of every documented command listed above.
 
 ## What remains unresolved
 
 - None blocking. The repository is green across tests, lint, and type checks.
-- 31 test failures across `tests/test_optimization.py` and `tests/test_yfinance_fetch_many.py` remain environmental (missing `yfinance` / `scikit-optimize`), not repo bugs.
+- Pre-existing (not introduced by this change): `ruff` reports one unused import in `tests/test_readme.py:6` (`get_registry`).
 
 ## Approaches that failed
 
@@ -32,6 +31,6 @@ This is the same class of contract-drift guard as the existing `test_validate_pa
 
 ## One precise next task
 
-No assigned task remains. Baseline is green. Changes: 1 file touched this session (`tests/test_repository_integrity.py`). Do NOT commit unless explicitly asked. The previously suggested follow-up (a `validate_parameters` `-> None` annotation regression test) is already implemented as `test_validate_parameters_overrides_annotated_none` in `tests/test_repository_integrity.py`.
+No assigned task remains. Baseline is green. Changes: 1 file touched this session (`README.md`). Do NOT commit unless explicitly asked.
 
-(End of file)
+(End of file - total 37 lines)

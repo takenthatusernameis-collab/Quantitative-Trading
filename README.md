@@ -324,6 +324,45 @@ The `periods_per_year` of the configuration is replaced by the value that
 matches the interval of the run, so the metrics are annualized for the data
 that was fetched.
 
+### Strategy Configuration
+
+Instead of picking a built-in strategy with `--strategy` and overriding its
+parameters one flag at a time, a strategy can be described in a YAML file and
+passed with `--strategy-config`:
+
+```yaml
+type: rsi
+name: MyRSI
+parameters:
+  period: 21
+  oversold: 25
+  overbought: 75
+```
+
+```bash
+python examples/cli.py --offline --strategy-config strat.yaml --symbols AAPL --days 120
+```
+
+The `type` is resolved through the strategy registry (a primary key or an
+alias), `name` is the label the run reports, and `parameters` is forwarded to
+the strategy constructor. A `--strategy-config` file overrides `--strategy` and
+every individual `--*-period` / `--*-multiplier` flag that would have set the
+same parameter.
+
+The reverse direction is available with `--output-strategy-config`, which writes
+the configuration of the strategy that was run (the best result of an
+optimization, the most recent walk-forward window, or the single strategy of a
+regular backtest) to a YAML file, so it can be re-run later with
+`--strategy-config`:
+
+```bash
+python examples/cli.py --offline --optimize --strategy ma \
+    --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
+    --symbols AAPL --days 120 \
+    --output-strategy-config best_ma.yaml
+python examples/cli.py --offline --strategy-config best_ma.yaml --symbols AAPL --days 120
+```
+
 ### Output
 
 Save results to JSON:
