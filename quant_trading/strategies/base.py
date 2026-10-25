@@ -139,13 +139,6 @@ class Position:
 
 
 class Strategy(ABC):
-    description: str | None = None
-    category: str | None = None
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        if cls.description is None and cls.__doc__:
-            cls.description = cls.__doc__.strip().splitlines()[0].rstrip(".")
     """Abstract base class for trading strategies.
 
     Subclasses implement :meth:`generate_signals` to produce trading signals
@@ -172,6 +165,14 @@ class Strategy(ABC):
             assert strategy.parameters == {}
 
     """
+
+    description: str | None = None
+    category: str | None = None
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls.description is None and cls.__doc__:
+            cls.description = cls.__doc__.strip().splitlines()[0].rstrip(".")
 
     def __init__(self, name: str, parameters: dict[str, Any] | None = None):
         """Initialize the strategy.

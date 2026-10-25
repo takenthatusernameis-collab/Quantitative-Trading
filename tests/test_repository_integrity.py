@@ -140,3 +140,33 @@ def test_validate_parameters_overrides_annotated_none():
                 rel = path.relative_to(REPO_ROOT)
                 offenders.append(f"{rel}:{node.lineno}")
     assert not offenders, "validate_parameters without -> None:\n" + "\n".join(offenders)
+
+
+def test_class_docstring_is_first_statement():
+    """A class docstring must be the first statement in the class body.
+
+    A docstring placed after assignments or methods is a dead ``Expr``
+    statement: ``cls.__doc__`` stays ``None`` and any ``__init_subclass__``
+    logic that derives metadata from the docstring silently no-ops. This
+    only flags classes that actually contain a stray string literal.
+    """
+    offenders: list[str] = []
+    for path in _python_files():
+        tree = _parse(path)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef) or not node.body:
+                continue
+            first = node.body[0]
+            first_is_docstring = isinstance(first, ast.Expr) and isinstance(
+                getattr(first, "value", None), ast.Constant
+            ) and isinstance(first.value.value, str)
+            if first_is_docstring:
+                continue
+            for stmt in node.body[1:]:
+                if isinstance(stmt, ast.Expr) and isinstance(
+                    getattr(stmt, "value", None), ast.Constant
+                ) and isinstance(stmt.value.value, str):
+                    rel = path.relative_to(REPO_ROOT)
+                    offenders.append(f"{rel}:{node.lineno} ({node.name})")
+                    break
+    assert not offenders, "stray class docstring not first:\n" + "\n".join(offenders)
