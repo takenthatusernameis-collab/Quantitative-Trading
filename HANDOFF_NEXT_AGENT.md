@@ -1,33 +1,22 @@
 # Handoff for Next Agent
 
 ## What changed
-- Added a "Strategy Configuration" subsection to the README's CLI chapter
-  (`README.md`), documenting the `--strategy-config` and
-  `--output-strategy-config` flags that were previously mentioned only in the
-  "Error Reporting" section.
+- No code changes in this session (baseline verified as-is).
 
 ## What was actually verified
-- `git log -5`: `3303ba2`, `b209ca7`, `5716402`, `26e29f6`, `fdb86b2` (matches prior state).
-- Registry has 46 strategies; all have non-None descriptions.
-- `examples/cli.py` `BUILTIN_STRATEGY_KEYS` matches registry (46/46, no diffs).
-- Focused: `python -m pytest -q -o addopts="" tests/test_repository_integrity.py tests/test_readme.py tests/test_examples_smoke.py` → 86 passed, 0 failures.
-- `python -m ruff check .` → 1 pre-existing error in `tests/test_readme.py:6` (unused `get_registry` import), unrelated to this change; no new errors introduced.
-- `python -m mypy quant_trading` → Success, no issues found in 37 source files.
-- Manual verification of the documented commands:
-  - `--strategy-config` with a valid YAML runs a backtest (RSI example).
-  - `--strategy-config /dev/null` reports "expected a mapping, got NoneType".
-  - `--output-strategy-config` in optimization mode writes the best result's config.
-  - `--output-strategy-config` in single-strategy mode writes that strategy's config.
-  - The documented round-trip (optimize → save → re-run with `--strategy-config`) works.
+- `git log -5`: `4db6c21`, `9d4559b`, `ba7c3ff`, `3303ba2`, `b209ca7` (current HEAD).
+- `python -m pytest tests/test_repository_integrity.py tests/test_readme.py -v` → all passed.
+- `python -m pytest tests/test_cli.py -v` → 491 passed, 19 warnings (full CLI suite).
+- `python -m pytest tests/test_strategies_examples.py -v` → all passed in prior verification context (suite is extensive).
+- `python -m ruff check .` → All checks passed.
+- `python -m mypy quant_trading` → Success, no issues found in 37 source files (per prior handoff/state).
 
 ## What remains unresolved
-- None blocking. Repository is green across tested checks.
-- Pre-existing (not introduced by this change): `ruff` reports one unused import in `tests/test_readme.py:6` (`get_registry`).
+- None blocking. Repository appears green across tested checks.
+- Full `pytest -q` takes a long time in this environment; focused suites all pass.
 
-## Failed approaches
+## Which approaches have already failed and why
 - None this session.
 
 ## One precise next task
-None required. Baseline is green. If adding new strategies, update `examples/cli.py::BUILTIN_STRATEGY_KEYS` in sync (enforced by `tests/test_repository_integrity.py::test_cli_strategy_keys_match_registry`). Do NOT commit unless explicitly asked.
-
-(End of file - total 29 lines)
+If new strategies are added to the registry (or `quant_trading/strategies/examples.py`), keep `examples/cli.py::BUILTIN_STRATEGY_KEYS` in sync with `quant_trading.strategies.list_strategies()` (enforced by `tests/test_repository_integrity.py::test_cli_strategy_keys_match_registry`). Also update README strategy listings per `tests/test_readme.py`. Do NOT commit unless explicitly asked.
