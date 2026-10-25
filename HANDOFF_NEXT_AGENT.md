@@ -82,3 +82,27 @@ Review `git diff`/`git status` and, if approved, commit the accumulated changes.
 
 ## One precise next task
 If desired, add `klinger` to `BUILTIN_STRATEGY_KEYS` in `examples/cli.py` for CLI discoverability/parity with other builtins and add CLI args/default handling if needed, but it's not required for combined/registry-based usage. Otherwise commit accumulated changes only if explicitly requested.
+
+---
+
+# Handoff: Session 5 (2026-10-25)
+
+## What changed
+Added `"klinger"` to `BUILTIN_STRATEGY_KEYS` in `examples/cli.py:60` (after `"ichimoku"`).
+
+Root cause: the `klinger` strategy was already registered in the strategy registry (`quant_trading/strategies/__init__.py:73`) and `list_strategies()`/combined mode discover it via the registry, but `BUILTIN_STRATEGY_KEYS` — which drives `run_combined`'s canonical strategy list and the "Unknown strategy: ... Available: {BUILTIN_STRATEGY_KEYS}" error messages in `run_optimization`/`run_walk_forward` — omitted `klinger`, breaking CLI parity with the other builtins.
+
+## What was actually verified
+- `tests/test_cli.py`: 157 passed, 0 failures (no regressions).
+- `ruff check examples/cli.py`: all checks passed.
+- `mypy examples/cli.py`: Success, no issues.
+- Functional: `python examples/cli.py --strategy klinger --symbols AAPL --days 60 --provider synthetic --offline` runs `Klinger_Oscillator` end-to-end offline (no network).
+
+## What remains unresolved
+- None from this session.
+
+## Approaches that failed
+- None.
+
+## One precise next task
+Review `git diff`/`git status` (only `examples/cli.py` is modified, +1 line) and, if approved, commit the accumulated change. Do NOT commit unless explicitly asked. Otherwise the repo is in a clean, verified state; the next agent can select a new bounded task from the repo.
