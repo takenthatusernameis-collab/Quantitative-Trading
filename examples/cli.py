@@ -1654,6 +1654,7 @@ def run_optimization(
         )
 
     if args.output:
+        output_format = getattr(args, "output_format", None)
         output_data = {
             "strategy": strategy_cls.__name__,
             "symbols": args.symbols,
@@ -1688,7 +1689,7 @@ def run_optimization(
             ),
             "all_results": result.all_results,
         }
-        if not _save_json_output(args.output, output_data):
+        if not _save_json_output(args.output, output_data, output_format):
             return 1
 
     # Persist the winning strategy configuration when requested
@@ -1788,6 +1789,7 @@ def run_walk_forward(
         print(f"  Combined Test Costs:  ${result.combined_test_result.total_costs:,.2f}")
         print(f"  Combined Test Sharpe: {summary['combined_test_sharpe']:.4f}")
 
+    output_format = getattr(args, "output_format", None)
     if args.output:
         output_data = {
             "strategy": strategy_cls.__name__,
@@ -1804,7 +1806,7 @@ def run_walk_forward(
             "window_results": result.to_dataframe().to_dict(orient="records"),
             "summary": summary,
         }
-        if not _save_json_output(args.output, output_data):
+        if not _save_json_output(args.output, output_data, output_format):
             return 1
 
     # Persist the most recent window's winning strategy configuration when
@@ -2255,6 +2257,7 @@ def run_combined(
             )
             _print_trade_analysis(trade_analysis)
 
+    output_format = getattr(args, "output_format", None)
     if args.output:
         output_data = {
             "comparison": [
@@ -2280,7 +2283,7 @@ def run_combined(
             output_data["monte_carlo"] = mc_analysis.summary()
         if trade_analysis is not None:
             output_data["trade_analysis"] = trade_analysis.to_dict()
-        if not _save_json_output(args.output, output_data):
+        if not _save_json_output(args.output, output_data, output_format):
             return 1
 
     return 0

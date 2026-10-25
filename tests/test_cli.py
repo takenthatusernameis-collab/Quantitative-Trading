@@ -3075,6 +3075,75 @@ class TestUnrealizedPnlReporting:
         )
 
 
+class TestCsvOutput:
+    """The ``--output-format csv`` flag produces a CSV file in every output mode.
+
+    The flag was previously honoured only in single-strategy mode; combined,
+    optimization and walk-forward modes always wrote JSON. These tests cover
+    single-strategy and combined mode end to end.
+    """
+
+    def test_main_with_output_file_csv(self):
+        """Single-strategy mode writes a CSV file with a header and a data row."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = f"{tmpdir}/results.csv"
+            args = [
+                "--offline",
+                "--output-format",
+                "csv",
+                "--output",
+                output_path,
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+            ]
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 0
+            import os
+
+            assert os.path.exists(output_path)
+            with open(output_path) as f:
+                lines = f.read().strip().splitlines()
+            assert len(lines) >= 2
+            header = lines[0].split(",")
+            assert "strategy" in header
+            assert "total_return_pct" in header
+            assert "total_pnl" in header
+            assert "unrealized_pnl" in header
+
+    def test_main_combined_output_csv(self):
+        """Combined mode writes a CSV comparison file with one row per strategy."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = f"{tmpdir}/comparison.csv"
+            args = [
+                "--combined",
+                "--offline",
+                "--output-format",
+                "csv",
+                "--output",
+                output_path,
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+            ]
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 0
+            import os
+
+            assert os.path.exists(output_path)
+            with open(output_path) as f:
+                lines = f.read().strip().splitlines()
+            assert len(lines) >= 2
+            header = lines[0].split(",")
+            assert "comparison" in header
+            assert "best_strategy" in header
+            assert any("MA_Crossover" in line for line in lines[1:])
+
+
 class TestUserErrorReporting:
     """A user error is a one-line message, not a traceback.
 
