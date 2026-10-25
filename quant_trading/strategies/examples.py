@@ -1,6 +1,6 @@
 """Example trading strategies."""
 
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -3164,7 +3164,7 @@ class CCIStrategy(Strategy):
         if self.threshold <= 0:
             raise ValueError("threshold must be positive")
 
-    def _calculate_cci(self, high, low, close):
+    def _calculate_cci(self, high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
         typical = (high + low + close) / 3.0
         sma = typical.rolling(window=self.period).mean()
         mean_dev = typical.rolling(window=self.period).apply(
@@ -3271,12 +3271,12 @@ class WilliamsRStrategy(Strategy):
         if self.oversold >= self.overbought:
             raise ValueError("oversold must be below overbought")
 
-    def _calculate_williams_r(self, high, low, close):
+    def _calculate_williams_r(self, high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
         highest = high.rolling(window=self.period).max()
         lowest = low.rolling(window=self.period).min()
         denominator = highest - lowest
         williams_r = (highest - close) / denominator.replace(0, np.nan) * -100.0
-        return williams_r
+        return cast(pd.Series, williams_r)
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals = []
@@ -5369,7 +5369,7 @@ class AwesomeOscillatorStrategy(Strategy):
         if self.short_period >= self.long_period:
             raise ValueError("short_period must be less than long_period")
 
-    def _calculate_ao(self, df):
+    def _calculate_ao(self, df: pd.DataFrame) -> pd.Series:
         median_price = (df["high"] + df["low"]) / 2.0
         short_sma = median_price.rolling(window=self.short_period).mean()
         long_sma = median_price.rolling(window=self.long_period).mean()
@@ -5708,7 +5708,7 @@ class UltimateOscillatorStrategy(Strategy):
         if not (self.short_period < self.medium_period < self.long_period):
             raise ValueError("periods must be in increasing order: short < medium < long")
 
-    def _calculate_ultimate(self, df):
+    def _calculate_ultimate(self, df: pd.DataFrame) -> pd.Series:
         high = df["high"]
         low = df["low"]
         close = df["close"]
@@ -5718,7 +5718,7 @@ class UltimateOscillatorStrategy(Strategy):
             [high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1
         ).max(axis=1)
 
-        def avg_bp_tr(p):
+        def avg_bp_tr(p: int) -> pd.Series:
             bp_sum = bp.rolling(window=p).sum()
             tr_sum = tr.rolling(window=p).sum()
             return bp_sum / tr_sum
