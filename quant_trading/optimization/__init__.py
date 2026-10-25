@@ -12,7 +12,11 @@ from .base import (
     maximize_win_rate,
     minimize_max_drawdown,
 )
-from .bayesian import BayesianOptimizer
+
+try:
+    from .bayesian import BayesianOptimizer
+except ImportError:
+    BayesianOptimizer = None
 from .grid_search import GridSearch
 from .random_search import RandomSearch
 from .walk_forward import WalkForwardOptimizer

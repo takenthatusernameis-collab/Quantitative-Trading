@@ -13,7 +13,6 @@ import pytest
 
 from quant_trading.data.providers import DataManager
 from quant_trading.optimization import (
-    BayesianOptimizer,
     GridSearch,
     OptimizationResult,
     ParameterGrid,
@@ -27,6 +26,11 @@ from quant_trading.optimization import (
     maximize_win_rate,
     minimize_max_drawdown,
 )
+
+try:
+    from quant_trading.optimization import BayesianOptimizer
+except ImportError:
+    BayesianOptimizer = None
 from quant_trading.strategies.base import Signal, Strategy
 from quant_trading.strategies.examples import MovingAverageCrossover, RSIStrategy
 
