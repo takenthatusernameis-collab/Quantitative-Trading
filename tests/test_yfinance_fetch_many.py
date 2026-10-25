@@ -6,6 +6,7 @@ These tests inject a ``FakeYf`` that mimics the column structure produced by
 any network access.
 """
 
+import importlib.util
 import os
 import pickle
 import sys
@@ -301,6 +302,14 @@ def _make_market_data(symbol: str, start: datetime, end: datetime) -> MarketData
     )
 
 
+def _module_available(name: str) -> bool:
+    """Return True if a top-level module can be imported (never raises)."""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
 def test_get_yf_lazy_import_success():
     provider = YFinanceProvider(cache_dir=None)
     yf = provider._get_yf()
@@ -308,6 +317,14 @@ def test_get_yf_lazy_import_success():
     import yfinance
 
     assert yf is yfinance
+
+
+# This test asserts the lazy import succeeds, so it is only meaningful when
+# yfinance is installed; skip instead of failing when it is absent.
+test_get_yf_lazy_import_success = pytest.mark.skipif(
+    not _module_available("yfinance"),
+    reason="yfinance is not installed",
+)(test_get_yf_lazy_import_success)
 
 
 def test_get_yf_raises_when_yfinance_unavailable(monkeypatch):

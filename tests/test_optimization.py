@@ -1,5 +1,6 @@
 """Tests for the optimization module."""
 
+import importlib.util
 import itertools
 from concurrent.futures import _base
 from concurrent.futures.process import BrokenProcessPool, ProcessPoolExecutor
@@ -28,6 +29,28 @@ from quant_trading.optimization import (
 )
 from quant_trading.strategies.base import Signal, Strategy
 from quant_trading.strategies.examples import MovingAverageCrossover, RSIStrategy
+
+
+# Optional dependencies used by some tests. Tests that require them are
+# skipped (not failed) when the dependency is unavailable so the suite is
+# deterministic in any environment without network or extra packages.
+def _module_available(name: str) -> bool:
+    """Return True if a top-level module can be imported."""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+_HAS_SKOPT = _module_available("skopt")
+_HAS_YFINANCE = _module_available("yfinance")
+
+skip_if_no_skopt = pytest.mark.skipif(
+    not _HAS_SKOPT, reason="scikit-optimize (skopt) is not installed"
+)
+skip_if_no_yfinance = pytest.mark.skipif(
+    not _HAS_YFINANCE, reason="yfinance is not installed"
+)
 
 
 class MockDataProvider:
@@ -553,6 +576,7 @@ def test_parameter_space_log_distribution():
     # Log distribution should produce values in range
 
 
+@skip_if_no_skopt
 def test_bayesian_optimizer():
     """Test BayesianOptimizer optimization."""
     symbols = ["AAPL"]
@@ -588,6 +612,7 @@ def test_bayesian_optimizer():
     assert len(result.all_results) == 8
 
 
+@skip_if_no_skopt
 def test_bayesian_optimizer_categorical():
     """Test BayesianOptimizer with categorical parameters."""
     symbols = ["AAPL"]
@@ -623,6 +648,7 @@ def test_bayesian_optimizer_categorical():
     assert len(result.all_results) == 8
 
 
+@skip_if_no_skopt
 def test_bayesian_optimizer_multiple_symbols():
     """Test BayesianOptimizer with multiple symbols."""
     symbols = ["AAPL", "MSFT"]
@@ -658,6 +684,7 @@ def test_bayesian_optimizer_multiple_symbols():
     assert len(result.all_results) == 8
 
 
+@skip_if_no_skopt
 def test_bayesian_optimizer_different_objectives():
     """Test BayesianOptimizer with different objective functions."""
     symbols = ["AAPL"]
@@ -698,6 +725,7 @@ def test_bayesian_optimizer_different_objectives():
         assert result.best_score != float("-inf")
 
 
+@skip_if_no_skopt
 def test_walk_forward_with_bayesian():
     """Test WalkForwardOptimizer with Bayesian optimizer."""
     symbols = ["AAPL"]
@@ -1672,6 +1700,7 @@ def test_bayesian_optimizer_import_error(monkeypatch):
         )
 
 
+@skip_if_no_skopt
 def test_bayesian_optimizer_default_objective():
     """Test BayesianOptimizer defaults to maximize_sharpe when objective is None."""
     symbols = ["AAPL"]
@@ -1700,6 +1729,7 @@ def test_bayesian_optimizer_default_objective():
     assert optimizer.objective is maximize_sharpe
 
 
+@skip_if_no_skopt
 def test_bayesian_optimizer_log_prior():
     """Test BayesianOptimizer builds a log-uniform Real space for log distribution."""
     symbols = ["AAPL"]
@@ -1732,6 +1762,7 @@ def test_bayesian_optimizer_log_prior():
     assert scale_dim.prior == "log-uniform"
 
 
+@skip_if_no_skopt
 def test_bayesian_optimizer_verbose(capsys):
     """Test BayesianOptimizer verbose prints progress."""
     symbols = ["AAPL"]
@@ -1764,6 +1795,7 @@ def test_bayesian_optimizer_verbose(capsys):
     assert "BayesianOptimizer complete" in out
 
 
+@skip_if_no_skopt
 def test_bayesian_optimizer_error_handling(monkeypatch, capsys):
     """Test BayesianOptimizer handles errors from the optimizer gracefully."""
     import skopt
@@ -1998,6 +2030,7 @@ def test_walk_forward_risk_free_rate_reaches_combined_metrics():
     )
 
 
+@skip_if_no_skopt
 def test_bayesian_optimizer_error_handling_quiet(monkeypatch):
     """When skopt fails and verbose is False, the except branch runs without
     printing (the `if self.verbose` False branch, 206->209)."""
@@ -2037,6 +2070,7 @@ def test_bayesian_optimizer_error_handling_quiet(monkeypatch):
     assert result.best_params == {}
 
 
+@skip_if_no_skopt
 def test_bayesian_create_skopt_space_min_val_without_max():
     """A parameter space with min_val set but max_val None is skipped in
     _create_skopt_space (the `elif` fall-through, 119->115)."""
@@ -2058,6 +2092,7 @@ def test_bayesian_create_skopt_space_min_val_without_max():
     assert space == []
 
 
+@skip_if_no_yfinance
 def test_grid_search_parallel_verbose(capsys):
     """Test GridSearch parallel path prints progress and 'New best'."""
     symbols = ["AAPL"]
@@ -2091,6 +2126,7 @@ def test_grid_search_parallel_verbose(capsys):
     assert len(result.all_results) == 4
 
 
+@skip_if_no_yfinance
 def test_grid_search_parallel_error_handling(capsys):
     """Test GridSearch parallel path catches worker errors and prints them."""
     symbols = ["AAPL"]
@@ -2123,6 +2159,7 @@ def test_grid_search_parallel_error_handling(capsys):
     assert len(result.all_results) == 4
 
 
+@skip_if_no_yfinance
 def test_random_search_parallel_verbose(capsys):
     """Test RandomSearch parallel path prints progress and 'New best'."""
     symbols = ["AAPL"]
@@ -2158,6 +2195,7 @@ def test_random_search_parallel_verbose(capsys):
     assert len(result.all_results) == 4
 
 
+@skip_if_no_yfinance
 def test_random_search_parallel_error_handling(capsys):
     """Test RandomSearch parallel path catches worker errors and prints them."""
     symbols = ["AAPL"]
@@ -2192,6 +2230,7 @@ def test_random_search_parallel_error_handling(capsys):
     assert len(result.all_results) == 4
 
 
+@skip_if_no_yfinance
 def test_grid_search_parallel_error_handling_quiet():
     """Test GridSearch parallel path catches worker errors silently (verbose=False)."""
     symbols = ["AAPL"]
@@ -2222,6 +2261,7 @@ def test_grid_search_parallel_error_handling_quiet():
     assert len(result.all_results) == 4
 
 
+@skip_if_no_yfinance
 def test_grid_search_parallel_with_config():
     """Test GridSearch parallel path unwraps a Config into its DataConfig (line 173)."""
     from quant_trading.config.settings import Config
@@ -2254,6 +2294,7 @@ def test_grid_search_parallel_with_config():
     assert len(result.all_results) == 4
 
 
+@skip_if_no_yfinance
 def test_random_search_parallel_error_handling_quiet():
     """Test RandomSearch parallel path catches worker errors silently (verbose=False)."""
     symbols = ["AAPL"]
@@ -2286,6 +2327,7 @@ def test_random_search_parallel_error_handling_quiet():
     assert len(result.all_results) == 4
 
 
+@skip_if_no_yfinance
 def test_random_search_parallel_with_config():
     """Test RandomSearch parallel path unwraps a Config into its DataConfig (line 185)."""
     from quant_trading.config.settings import Config
@@ -2345,6 +2387,7 @@ def test_evaluate_params_worker_grid():
     assert result.metrics is not None
 
 
+@skip_if_no_yfinance
 def test_evaluate_params_worker_grid_none_config():
     """Test grid_search._evaluate_params_worker with data_config=None (line 39 False branch)."""
     from quant_trading.optimization.grid_search import _evaluate_params_worker
@@ -2366,6 +2409,7 @@ def test_evaluate_params_worker_grid_none_config():
     assert result is not None
 
 
+@skip_if_no_yfinance
 def test_evaluate_params_worker_grid_config_branch():
     """Test grid_search._evaluate_params_worker with a Config instance (line 40-41 branch)."""
     from quant_trading.config.settings import Config
@@ -2418,6 +2462,7 @@ def test_evaluate_params_worker_grid_fallthrough_branch():
     assert result is not None
 
 
+@skip_if_no_yfinance
 def test_evaluate_params_worker_grid_error():
     """Test grid_search._evaluate_params_worker propagates worker errors."""
     from quant_trading.optimization.grid_search import _evaluate_params_worker
@@ -2463,6 +2508,7 @@ def test_evaluate_params_worker_random():
     assert result is not None
 
 
+@skip_if_no_yfinance
 def test_evaluate_params_worker_random_none_config():
     """Test random_search._evaluate_params_worker with data_config=None (line 41 False branch)."""
     from quant_trading.optimization.random_search import _evaluate_params_worker
@@ -2484,6 +2530,7 @@ def test_evaluate_params_worker_random_none_config():
     assert result is not None
 
 
+@skip_if_no_yfinance
 def test_evaluate_params_worker_random_config_branch():
     """Test random_search._evaluate_params_worker with a Config instance (line 42-43 branch)."""
     from quant_trading.config.settings import Config
@@ -2536,6 +2583,7 @@ def test_evaluate_params_worker_random_fallthrough_branch():
     assert result is not None
 
 
+@skip_if_no_yfinance
 def test_evaluate_params_worker_random_error():
     """Test random_search._evaluate_params_worker propagates worker errors."""
     from quant_trading.optimization.random_search import _evaluate_params_worker
@@ -2557,6 +2605,7 @@ def test_evaluate_params_worker_random_error():
         )
 
 
+@skip_if_no_yfinance
 def test_grid_search_parallel():
     """Test GridSearch optimization with parallel execution."""
     symbols = ["AAPL"]
@@ -2644,6 +2693,7 @@ def _make_parallel_optimizer(cls, n_iter=None, verbose=True):
     )
 
 
+@skip_if_no_yfinance
 def test_random_search_parallel():
     """Test RandomSearch optimization with parallel execution."""
     symbols = ["AAPL"]
@@ -2710,6 +2760,7 @@ def test_random_search_parallel_worker_death_fallback(monkeypatch):
     assert len(result.all_results) == 4
 
 
+@skip_if_no_yfinance
 def test_grid_search_parallel_partial_worker_death_fallback(monkeypatch):
     """Test GridSearch mixes successful parallel results with sequential retries."""
     import quant_trading.optimization.grid_search as grid_search_module
