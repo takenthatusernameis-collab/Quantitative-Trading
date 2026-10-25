@@ -123,3 +123,20 @@ def test_all_package_modules_import():
         except Exception as exc:  # noqa: BLE001 - any import-time failure must be reported
             failures.append(f"{module.name}: {exc!r}")
     assert not failures, "modules failed to import:\n" + "\n".join(failures)
+
+
+def test_validate_parameters_overrides_annotated_none():
+    """Every override of validate_parameters must declare -> None."""
+    offenders: list[str] = []
+    for path in _python_files():
+        tree = _parse(path)
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if node.name != "validate_parameters":
+                continue
+            returns = node.returns
+            if not ((isinstance(returns, ast.Name) and returns.id == "None") or (isinstance(returns, ast.Constant) and returns.value is None)):
+                rel = path.relative_to(REPO_ROOT)
+                offenders.append(f"{rel}:{node.lineno}")
+    assert not offenders, "validate_parameters without -> None:\n" + "\n".join(offenders)
