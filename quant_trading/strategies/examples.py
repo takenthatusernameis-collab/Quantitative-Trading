@@ -5355,7 +5355,12 @@ class AwesomeOscillatorStrategy(Strategy):
 
     """
 
-    def __init__(self, short_period=5, long_period=34, name="Awesome_Oscillator"):
+    def __init__(
+        self,
+        short_period: int = 5,
+        long_period: int = 34,
+        name: str = "Awesome_Oscillator",
+    ):
         super().__init__(name, {"short_period": short_period, "long_period": long_period})
         self.short_period = short_period
         self.long_period = long_period
