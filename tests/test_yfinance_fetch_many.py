@@ -19,6 +19,26 @@ import requests
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
 from quant_trading.data.yfinance_provider import AlphaVantageProvider, YFinanceProvider
 
+
+# Optional dependencies used by some tests. Tests that require them are
+# skipped (not failed) when the dependency is unavailable so the suite is
+# deterministic in any environment without network or extra packages.
+def _module_available(name: str) -> bool:
+    """Return True if a top-level module can be imported."""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+_HAS_YFINANCE = _module_available("yfinance")
+
+skip_if_no_yfinance = pytest.mark.skipif(
+    not _HAS_YFINANCE, reason="yfinance is not installed"
+)
+
+pytestmark = skip_if_no_yfinance
+
 FIELDS = ["Open", "High", "Low", "Close", "Volume"]
 
 
