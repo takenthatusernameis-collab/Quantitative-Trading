@@ -170,3 +170,32 @@ def test_class_docstring_is_first_statement():
                     offenders.append(f"{rel}:{node.lineno} ({node.name})")
                     break
     assert not offenders, "stray class docstring not first:\n" + "\n".join(offenders)
+
+
+def test_module_docstring_is_first_statement():
+    """A module docstring must be the first statement in the module body.
+
+    A docstring placed after imports or other statements is a dead ``Expr``
+    statement and is not recognized as the module docstring (``module.__doc__``
+    stays ``None``). This only flags modules that actually contain a stray
+    string literal after the first statement.
+    """
+    offenders: list[str] = []
+    for path in _python_files():
+        tree = _parse(path)
+        if not tree.body:
+            continue
+        first = tree.body[0]
+        first_is_docstring = isinstance(first, ast.Expr) and isinstance(
+            getattr(first, "value", None), ast.Constant
+        ) and isinstance(first.value.value, str)
+        if first_is_docstring:
+            continue
+        for stmt in tree.body[1:]:
+            if isinstance(stmt, ast.Expr) and isinstance(
+                getattr(stmt, "value", None), ast.Constant
+            ) and isinstance(stmt.value.value, str):
+                rel = path.relative_to(REPO_ROOT)
+                offenders.append(f"{rel}:{stmt.lineno}")
+                break
+    assert not offenders, "stray module docstring not first:\n" + "\n".join(offenders)
