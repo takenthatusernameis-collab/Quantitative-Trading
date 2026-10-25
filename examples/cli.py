@@ -2096,52 +2096,36 @@ def _run_cli() -> int:
 
         if args.output:
             output_format = getattr(args, "output_format", None)
-            if result is not None and hasattr(result, "to_csv") and hasattr(result, "to_json"):
-                fmt = output_format
-                if fmt is None:
-                    fmt = "csv" if args.output.lower().endswith(".csv") else "json"
-                try:
-                    if fmt == "csv":
-                        result.to_csv(args.output)
-                        print(f"\nResults saved to {args.output}")
-                    else:
-                        result.to_json(args.output)
-                        print(f"\nResults saved to {args.output}")
-                    # Also run other analyses and print them even if saving
-                except Exception as e:
-                    print(f"Error: could not write output file '{args.output}': {e}")
-                    return 1
-            else:
-                output_data = {
-                    "strategy": strategy.name,
-                    "symbols": args.symbols,
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
-                    "initial_capital": result.initial_capital,
-                    "final_value": result.final_value,
-                    "total_return": result.total_return,
-                    "total_return_pct": result.total_return_pct,
-                    "total_pnl": result.metrics.total_pnl,
-                    "unrealized_pnl": result.metrics.unrealized_pnl,
-                    "total_costs": result.total_costs,
-                    "num_trades": result.metrics.num_trades,
-                    "win_rate": result.metrics.win_rate,
-                    "sharpe_ratio": result.metrics.sharpe_ratio,
-                    "max_drawdown_pct": result.metrics.max_drawdown_pct,
-                    "profit_factor": result.metrics.profit_factor,
-                    "sortino_ratio": result.metrics.sortino_ratio,
-                    "volatility": result.metrics.volatility,
-                    "var_95": result.metrics.var_95,
-                    "calmar_ratio": result.metrics.calmar_ratio,
-                }
-                if args.regime:
-                    output_data["regime_analysis"] = regime_analysis.to_dict()
-                if args.monte_carlo:
-                    output_data["monte_carlo"] = mc_analysis.summary()
-                if args.trade_analysis:
-                    output_data["trade_analysis"] = trade_analysis.to_dict()
-                if not _save_json_output(args.output, output_data, getattr(args, "output_format", None)):
-                    return 1
+            output_data = {
+                "strategy": strategy.name,
+                "symbols": args.symbols,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "initial_capital": result.initial_capital,
+                "final_value": result.final_value,
+                "total_return": result.total_return,
+                "total_return_pct": result.total_return_pct,
+                "total_pnl": result.metrics.total_pnl,
+                "unrealized_pnl": result.metrics.unrealized_pnl,
+                "total_costs": result.total_costs,
+                "num_trades": result.metrics.num_trades,
+                "win_rate": result.metrics.win_rate,
+                "sharpe_ratio": result.metrics.sharpe_ratio,
+                "max_drawdown_pct": result.metrics.max_drawdown_pct,
+                "profit_factor": result.metrics.profit_factor,
+                "sortino_ratio": result.metrics.sortino_ratio,
+                "volatility": result.metrics.volatility,
+                "var_95": result.metrics.var_95,
+                "calmar_ratio": result.metrics.calmar_ratio,
+            }
+            if args.regime:
+                output_data["regime_analysis"] = regime_analysis.to_dict()
+            if args.monte_carlo:
+                output_data["monte_carlo"] = mc_analysis.summary()
+            if args.trade_analysis:
+                output_data["trade_analysis"] = trade_analysis.to_dict()
+            if not _save_json_output(args.output, output_data, output_format):
+                return 1
 
     except (ValueError, RuntimeError, KeyError) as e:
         print(f"Error running backtest: {e}")
