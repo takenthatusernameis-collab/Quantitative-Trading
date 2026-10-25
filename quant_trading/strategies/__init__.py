@@ -12,6 +12,8 @@ from .examples import (
     CCIStrategy,
     ChaikinMoneyFlowStrategy,
     ChaikinOscillatorStrategy,
+    ChoppinessIndexStrategy,
+    ChoppinessIndexStrategy,
     ChandeMomentumOscillatorStrategy,
     DetrendedPriceOscillatorStrategy,
     DonchianChannelStrategy,
@@ -104,6 +106,7 @@ register_strategy("trix", TrixStrategy)
 register_strategy("ultimate_oscillator", UltimateOscillatorStrategy, aliases=["ultimate"])
 register_strategy("dpo", DetrendedPriceOscillatorStrategy, aliases=["detrended_price_oscillator"])
 register_strategy("smi", StochasticMomentumIndexStrategy, aliases=["stochastic_momentum_index"])
+register_strategy("chop", ChoppinessIndexStrategy, aliases=["choppiness", "choppiness_index"])
 
 
 __all__ = [
@@ -117,6 +120,7 @@ __all__ = [
     "CCIStrategy",
     "ChaikinMoneyFlowStrategy",
     "ChaikinOscillatorStrategy",
+    "ChoppinessIndexStrategy",
     "ChandeMomentumOscillatorStrategy",
     "DetrendedPriceOscillatorStrategy",
     "DonchianChannelStrategy",

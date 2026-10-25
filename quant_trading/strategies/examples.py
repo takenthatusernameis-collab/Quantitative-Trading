@@ -6459,3 +6459,128 @@ class StochRSIStrategy(Strategy):
                         )
                     )
         return signals
+
+
+class ChoppinessIndexStrategy(Strategy):
+    """Choppiness Index strategy.
+
+    The Choppiness Index (CHOP) measures whether the market is trending or
+    choppy. Values above a high threshold indicate choppy/consolidating
+    markets (range-bound), values below a low threshold indicate trending
+    markets. This implementation uses a crossover approach: when CHOP crosses
+    below the low threshold it suggests a trending environment (buy signal),
+    when CHOP crosses above the high threshold it suggests choppy environment
+    (sell signal / exit trend).
+    """
+
+    def __init__(
+        self,
+        period: int = 14,
+        low_threshold: float = 38.2,
+        high_threshold: float = 61.8,
+        name: str = "Choppiness_Index",
+    ):
+        super().__init__(name=name)
+        self.period = period
+        self.low_threshold = low_threshold
+        self.high_threshold = high_threshold
+        self.parameters = {
+            "period": period,
+            "low_threshold": low_threshold,
+            "high_threshold": high_threshold,
+        }
+
+    def validate_parameters(self) -> bool:
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+        if self.low_threshold >= self.high_threshold:
+            raise ValueError("low_threshold must be less than high_threshold")
+        if self.low_threshold < 0 or self.high_threshold > 100:
+            raise ValueError("thresholds must be between 0 and 100")
+        return True
+
+    def _calculate_choppiness_index(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate Choppiness Index."""
+        high = df["high"]
+        low = df["low"]
+        close = df["close"]
+
+        # True Range
+        tr1 = high - low
+        tr2 = abs(high - close.shift(1))
+        tr3 = abs(low - close.shift(1))
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+        # Sum of True Range over period
+        atr_sum = tr.rolling(window=self.period).sum()
+
+        # Highest high and lowest low over period
+        hh = high.rolling(window=self.period).max()
+        ll = low.rolling(window=self.period).min()
+
+        # Choppiness Index
+        range_hl = hh - ll
+        # Avoid division by zero
+        range_hl = range_hl.replace(0, np.nan)
+
+        # CHOP = 100 * LOG10( SUM(TR, n) / (Highest High(n) - Lowest Low(n)) ) / LOG10(n)
+        chop = 100 * np.log10(atr_sum / range_hl) / np.log10(self.period)
+        return chop
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals = []
+        self.validate_parameters()
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 2:
+                continue
+            if "high" not in df.columns or "low" not in df.columns or "close" not in df.columns:
+                continue
+            if pd.isna(df["close"].iloc[-1]):
+                continue
+
+            chop = self._calculate_choppiness_index(df)
+            current_chop = chop.iloc[-1]
+            prev_chop = chop.iloc[-2]
+
+            if pd.isna(current_chop) or pd.isna(prev_chop):
+                continue
+
+            current_price = df["close"].iloc[-1]
+            timestamp = df.index[-1]
+
+            # Cross below low threshold - trending market (buy)
+            if prev_chop >= self.low_threshold and current_chop < self.low_threshold:
+                strength = min(1.0, (self.low_threshold - current_chop) / self.low_threshold + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "choppiness_index": float(current_chop),
+                            "signal_type": "cross_below_low_threshold",
+                            "period": self.period,
+                        },
+                    )
+                )
+            # Cross above high threshold - choppy market (sell)
+            elif prev_chop <= self.high_threshold and current_chop > self.high_threshold:
+                strength = min(1.0, (current_chop - self.high_threshold) / (100 - self.high_threshold) + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "choppiness_index": float(current_chop),
+                            "signal_type": "cross_above_high_threshold",
+                            "period": self.period,
+                        },
+                    )
+                )
+        return signals

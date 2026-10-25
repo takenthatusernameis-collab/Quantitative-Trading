@@ -118,6 +118,7 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `vwap` → `VWAPStrategy`
 - `vortex` (alias: `vortex_indicator`) → `VortexStrategy`
 - `vpt` (alias: `volume_price_trend`) → `VolumePriceTrendStrategy`
+- `chop` (aliases: `choppiness`, `choppiness_index`) → `ChoppinessIndexStrategy`
 - `vroc` (alias: `volume_rate_of_change`) → `VolumeRateOfChangeStrategy`
 - `ao` (alias: `awesome_oscillator`) → `AwesomeOscillatorStrategy`
 - `vol` (alias: `volume_oscillator`) → `VolumeOscillatorStrategy`
