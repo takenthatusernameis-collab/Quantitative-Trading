@@ -5692,7 +5692,7 @@ class UltimateOscillatorStrategy(Strategy):
     """
 
     def __init__(
-        self, short_period=7, medium_period=14, long_period=28, name="Ultimate_Oscillator"
+        self, short_period: int = 7, medium_period: int = 14, long_period: int = 28, name: str = "Ultimate_Oscillator"
     ):
         super().__init__(
             name,
