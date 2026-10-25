@@ -135,10 +135,21 @@ def test_validate_parameters_overrides_annotated_none():
                 continue
             if node.name != "validate_parameters":
                 continue
+            # Skip if it's the base class definition (Strategy.validate_parameters)
+            # Only enforce on overrides in subclasses
+            parent_class = None
+            for ancestor in ast.walk(tree):
+                if isinstance(ancestor, ast.ClassDef):
+                    for item in ancestor.body:
+                        if item is node:
+                            parent_class = ancestor.name
+                            break
+                    if parent_class:
+                        break
             returns = node.returns
             if not ((isinstance(returns, ast.Name) and returns.id == "None") or (isinstance(returns, ast.Constant) and returns.value is None)):
                 rel = path.relative_to(REPO_ROOT)
-                offenders.append(f"{rel}:{node.lineno}")
+                offenders.append(f"{rel}:{node.lineno} ({parent_class}.{node.name})")
     assert not offenders, "validate_parameters without -> None:\n" + "\n".join(offenders)
 
 
