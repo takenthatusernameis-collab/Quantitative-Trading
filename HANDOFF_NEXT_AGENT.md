@@ -63,3 +63,22 @@ Fixed the pre-existing mypy `no-any-return` error in `quant_trading/backtest/eng
 
 ## One precise next task
 Review `git diff`/`git status` and, if approved, commit the accumulated changes. Do not commit unless explicitly asked.
+
+---
+
+# Handoff: Session 4 (2026-10-25)
+
+## What changed
+- Updated `tests/test_cli.py::TestRunCombined::test_run_combined_all_strategies` to include the newly added `Klinger_Oscillator` strategy (added to mocked results). No production code changes required.
+- Klinger Oscillator strategy and registration were added in the previous commit (already present); CLI combined mode discovers registered strategies automatically.
+
+## What was actually verified
+- `tests/test_cli.py`: 157 passed, 0 failures.
+- `tests/test_strategies_examples.py`: 305 passed (Klinger tests included).
+- Focused verification of CLI combined behavior shows Klinger is recognized/discovered.
+
+## What remains unresolved
+- None from this session.
+
+## One precise next task
+If desired, add `klinger` to `BUILTIN_STRATEGY_KEYS` in `examples/cli.py` for CLI discoverability/parity with other builtins and add CLI args/default handling if needed, but it's not required for combined/registry-based usage. Otherwise commit accumulated changes only if explicitly requested.

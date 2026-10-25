@@ -1627,6 +1627,7 @@ class TestRunCombined:
             ("Chande_Momentum_Oscillator", 15.5),
             ("TRIX", 14.0),
             ("Ultimate_Oscillator", 13.2),
+            ("Klinger_Oscillator", 12.9),
             ("Detrended_Price_Oscillator", 10.0),
             ("Accumulation_Distribution", 11.0),
         ]:
