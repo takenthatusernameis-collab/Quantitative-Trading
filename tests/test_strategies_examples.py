@@ -8,6 +8,7 @@ import pytest
 
 from quant_trading.strategies.examples import (
     ADXStrategy,
+    AverageTrueRangeStrategy,
     BollingerBandsStrategy,
     BollingerPercentBStrategy,
     ChaikinMoneyFlowStrategy,
@@ -4668,4 +4669,131 @@ class TestPositiveVolumeIndexStrategy:
         closes = [100.0] * 6 + [float("nan")]
         volumes = [1000.0] * 7
         data = {"AAPL": create_positive_volume_index_data("AAPL", closes, volumes)}
+        assert strategy.generate_signals(data) == []
+
+
+def create_average_true_range_data(
+    symbol: str,
+    closes: list[float],
+    highs: list[float] | None = None,
+    lows: list[float] | None = None,
+) -> pd.DataFrame:
+    """Create deterministic high/low/close data for Average True Range tests.
+
+    When ``highs``/``lows`` are omitted they mirror the close.
+    """
+    dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
+    close = np.asarray(closes, dtype=float)
+    high = np.asarray(highs if highs is not None else closes, dtype=float)
+    low = np.asarray(lows if lows is not None else closes, dtype=float)
+    return pd.DataFrame(
+        {
+            "open": close,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": np.full(len(close), 1_000_000.0),
+        },
+        index=dates,
+    )
+
+
+class TestAverageTrueRangeStrategy:
+    """Tests for the Average True Range Channel Breakout strategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = AverageTrueRangeStrategy(
+            period=2, atr_multiplier=1.0, name="Test_ATR"
+        )
+        assert strategy.name == "Test_ATR"
+        assert strategy.period == 2
+        assert strategy.atr_multiplier == 1.0
+        assert strategy.parameters["period"] == 2
+        assert strategy.parameters["atr_multiplier"] == 1.0
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid values."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            AverageTrueRangeStrategy(period=0, atr_multiplier=1.0)
+        with pytest.raises(ValueError, match="atr_multiplier must be positive"):
+            AverageTrueRangeStrategy(period=2, atr_multiplier=0.0)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with fewer bars than period + 2."""
+        strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
+        data = {"AAPL": create_average_true_range_data("AAPL", [100.0] * 3)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_atr_bullish_breakout(self):
+        """A sharp close above the prior close + ATR band fires a buy."""
+        strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
+        data = {
+            "AAPL": create_average_true_range_data(
+                "AAPL", [100.0, 100.0, 100.0, 110.0]
+            )
+        }
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.price == pytest.approx(110.0)
+        assert signal.timestamp is not None
+        assert 0.0 < signal.strength <= 1.0
+        assert signal.metadata["signal_type"] == "atr_bullish_breakout"
+        assert signal.metadata["period"] == 2
+        assert signal.metadata["atr_multiplier"] == 1.0
+
+    def test_generate_signals_atr_bearish_breakout(self):
+        """A sharp close below the prior close - ATR band fires a sell."""
+        strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
+        data = {
+            "AAPL": create_average_true_range_data(
+                "AAPL", [100.0, 100.0, 100.0, 90.0]
+            )
+        }
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.price == pytest.approx(90.0)
+        assert signal.timestamp is not None
+        assert 0.0 < signal.strength <= 1.0
+        assert signal.metadata["signal_type"] == "atr_bearish_breakout"
+        assert signal.metadata["period"] == 2
+
+    def test_generate_signals_flat_price_no_signals(self):
+        """Constant price keeps the close inside the ATR band, so no breakout."""
+        strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
+        data = {"AAPL": create_average_true_range_data("AAPL", [100.0] * 10)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals evaluates each symbol independently."""
+        strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
+        data = {
+            "AAPL": create_average_true_range_data(
+                "AAPL", [100.0, 100.0, 100.0, 110.0]
+            ),
+            "MSFT": create_average_true_range_data(
+                "MSFT", [100.0, 100.0, 100.0, 90.0]
+            ),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+
+    def test_generate_signals_skips_nan_last_close(self):
+        """A NaN last close is rejected before any signal is derived."""
+        strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
+        closes = [100.0, 100.0, 100.0, float("nan")]
+        data = {"AAPL": create_average_true_range_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []

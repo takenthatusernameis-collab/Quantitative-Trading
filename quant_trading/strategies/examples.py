@@ -2721,6 +2721,210 @@ class MomentumStrategy(Strategy):
         return signals
 
 
+class AverageTrueRangeStrategy(Strategy):
+    """Average True Range Channel Breakout Strategy.
+
+    The Average True Range (ATR) measures volatility. The strategy builds an
+    ATR channel around the close -- an upper band at ``close + multiplier *
+    ATR`` and a lower band at ``close - multiplier * ATR`` -- and fires
+    breakout signals:
+
+    - Buy when the close crosses above the upper band (volatility expanding
+      to the upside).
+    - Sell when the close crosses below the lower band (volatility expanding
+      to the downside).
+
+    Requires ``"high"``, ``"low"`` and ``"close"`` columns.
+    """
+
+    def __init__(
+        self,
+        period: int = 14,
+        atr_multiplier: float = 2.0,
+        name: str = "Average_True_Range",
+    ):
+        """Initialize the Average True Range strategy.
+
+        Args:
+            period: Lookback window for the ATR calculation.
+            atr_multiplier: Channel width as a multiple of ATR; must be
+                positive.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+
+        """
+        super().__init__(
+            name,
+            {
+                "period": period,
+                "atr_multiplier": atr_multiplier,
+            },
+        )
+        self.period = period
+        self.atr_multiplier = atr_multiplier
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` or ``atr_multiplier`` is not positive.
+
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+        if self.atr_multiplier <= 0:
+            raise ValueError("atr_multiplier must be positive")
+
+    def _true_range(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate the per-bar true range.
+
+        Args:
+            df: DataFrame containing at least ``"high"``, ``"low"`` and
+                ``"close"`` columns.
+
+        Returns:
+            Series of true range values aligned with ``df`` index.
+
+        """
+        high = df["high"]
+        low = df["low"]
+        close = df["close"]
+        prev_close = close.shift(1)
+        tr = pd.concat(
+            [
+                high - low,
+                (high - prev_close).abs(),
+                (low - prev_close).abs(),
+            ],
+            axis=1,
+        ).max(axis=1)
+        return tr.fillna(0.0)
+
+    def _atr(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate the Average True Range series.
+
+        Args:
+            df: DataFrame containing at least ``"high"``, ``"low"`` and
+                ``"close"`` columns.
+
+        Returns:
+            Series of ATR values aligned with ``df`` index.
+
+        """
+        return self._true_range(df).ewm(span=self.period, adjust=False).mean()
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from ATR channel breakouts.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least
+                ``"high"``, ``"low"`` and ``"close"`` columns indexed by
+                timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose close crosses
+            the ATR channel between the last two bars.
+
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 2:
+                continue
+
+            close = df["close"]
+            current_price = close.iloc[-1]
+            # The signal is emitted at the last close, so a close that is not a
+            # number is rejected before anything is derived from it.
+            if pd.isna(current_price) or current_price == 0:
+                continue
+
+            atr = self._atr(df)
+            # Anchor the channel on the previous close so the current close can
+            # actually break out of it.
+            prev_close_series = close.shift(1)
+            upper_band = prev_close_series + self.atr_multiplier * atr
+            lower_band = prev_close_series - self.atr_multiplier * atr
+
+            prev_close = close.iloc[-2]
+            prev_upper = upper_band.iloc[-2]
+            prev_lower = lower_band.iloc[-2]
+            current_upper = upper_band.iloc[-1]
+            current_lower = lower_band.iloc[-1]
+            timestamp = df.index[-1]
+
+            if (
+                pd.isna(prev_close)
+                or pd.isna(prev_upper)
+                or pd.isna(prev_lower)
+                or pd.isna(current_upper)
+                or pd.isna(current_lower)
+            ):
+                continue
+
+            # Bullish breakout: close crosses above the upper ATR band.
+            if prev_close <= prev_upper and current_price > current_upper:
+                strength = (
+                    min(
+                        1.0,
+                        abs(float(current_price - current_upper))
+                        / (abs(float(current_price)) + abs(float(current_upper))),
+                    )
+                    if current_price != 0 or current_upper != 0
+                    else 0.5
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "atr": float(atr.iloc[-1]),
+                            "upper_band": float(current_upper),
+                            "lower_band": float(current_lower),
+                            "period": self.period,
+                            "atr_multiplier": self.atr_multiplier,
+                            "signal_type": "atr_bullish_breakout",
+                        },
+                    )
+                )
+            # Bearish breakout: close crosses below the lower ATR band.
+            elif prev_close >= prev_lower and current_price < current_lower:
+                strength = (
+                    min(
+                        1.0,
+                        abs(float(current_lower - current_price))
+                        / (abs(float(current_price)) + abs(float(current_lower))),
+                    )
+                    if current_price != 0 or current_lower != 0
+                    else 0.5
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "atr": float(atr.iloc[-1]),
+                            "upper_band": float(current_upper),
+                            "lower_band": float(current_lower),
+                            "period": self.period,
+                            "atr_multiplier": self.atr_multiplier,
+                            "signal_type": "atr_bearish_breakout",
+                        },
+                    )
+                )
+
+        return signals
+
+
 class ADXStrategy(Strategy):
     """Average Directional Index Strategy.
 

@@ -82,6 +82,7 @@ BUILTIN_STRATEGY_KEYS = [
     "momentum",
     "adl",
     "adx",
+    "atr",
     "cci",
     "williamsr",
     "obv",

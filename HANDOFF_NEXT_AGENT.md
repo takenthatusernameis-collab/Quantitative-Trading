@@ -1,24 +1,33 @@
 # Handoff for Next Agent
 
 ## What changed
-Fixed the pre-existing ruff `I001` (unsorted/unformatted import block) error in `quant_trading/strategies/__init__.py`, which was caused by a duplicated `ChoppinessIndexStrategy` import on line 17.
 
-Root cause: `ChoppinessIndexStrategy` was imported twice in the `from .examples import (...)` block (lines 16–17). The duplicate was harmless at runtime (Python silently ignores a redundant name binding in an import block) but violated the project's `ruff` lint invariant and was reported by `ruff check` as `I001`.
+Added a new built-in strategy, Average True Range Channel Breakout (`atr`), following the Volume Price Trend pattern, across 6 files:
 
-Change: removed the duplicate line. `ruff check --fix` then also reordered the remaining imports and the `__all__` list alphabetically (moving `ChoppinessIndexStrategy` after `ChandeMomentumOscillatorStrategy`, and `StochRSIStrategy` after `StochasticOscillatorStrategy`) to satisfy the isort-style ordering rule. No name bindings changed; the public API is identical.
+- `quant_trading/strategies/examples.py`: new `AverageTrueRangeStrategy` class (EMA-based ATR channel anchored on the previous close; buy on upside breakout, sell on downside breakout; requires `high`/`low`/`close`).
+- `quant_trading/strategies/__init__.py`: import, `register_strategy("atr", ..., aliases=["average_true_range","atr_channel"])`, and `__all__` entry. 46 registered strategies.
+- `tests/test_strategies_examples.py`: `TestAverageTrueRangeStrategy` (8 tests) + `create_average_true_range_data` helper.
+- `examples/cli.py`: `"atr"` added to `BUILTIN_STRATEGY_KEYS`.
+- `tests/test_cli.py::TestRunCombined`: added `("Average_True_Range", 16.0)` mock entry.
+- `README.md`: added registry entry for `atr`.
+
+A band-design bug was caught and fixed: the channel must be anchored on the *previous* close (`prev_close ± mult*ATR`), not the current close, otherwise a breakout is impossible.
 
 ## What was actually verified
-- `python3 -m ruff check quant_trading examples tests`: All checks passed (was: 4 pre-existing I001 errors, now 0).
-- `python3 -c "import quant_trading.strategies"`: import OK, `list_strategies()` still returns 45 keys (unchanged).
-- `tests/test_repository_integrity.py`: 4 passed (parses, no duplicate defs, no duplicate class members, all package modules import).
-- `tests/test_strategies_examples.py tests/test_strategy_factory.py tests/test_cli.py` (`-o addopts=""`): 500 passed, 0 failures.
-- `python3 -m mypy quant_trading`: the single reported error (`examples.py:6655` `validate_parameters` override mismatch) is **pre-existing** — confirmed by stashing the change and re-running mypy, which reports the identical error on the clean baseline. No new errors introduced.
+
+- `ruff check` on all touched files: clean (2 fixable `__all__`/import ordering issues auto-fixed during the session).
+- `mypy quant_trading`: 1 error, confirmed pre-existing on clean baseline (`examples.py:6655` → `:6859` after line shift); no new errors introduced.
+- `pytest -q -o addopts=""`: 2101 passed, 0 failures (full suite incl. `test_repository_integrity.py` and `TestRunCombined`).
+- `import quant_trading.strategies`: OK, `list_strategies()` returns 46 keys, `"atr"` resolves.
 
 ## What remains unresolved
-- None from this session. The repo is in a clean, fully-verified state.
+
+- None from this session.
 
 ## Approaches that failed
-- None.
+
+- Channel anchored on current close → no breakout possible; fixed by anchoring on previous close.
 
 ## One precise next task
-No assigned task remains. If continuing, run `git diff`/`git status` to review (only `quant_trading/strategies/__init__.py` is modified) and consider committing; do NOT commit unless explicitly asked. Otherwise the baseline is green and the next agent can select a new bounded task from the repo.
+
+No assigned task remains. Changes are unstaged (`git status` shows 6 modified files). Review `git diff`; do NOT commit unless explicitly asked. Otherwise the baseline is green and the next agent can select a new bounded task from the repo.

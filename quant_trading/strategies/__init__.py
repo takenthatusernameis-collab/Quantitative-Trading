@@ -7,6 +7,7 @@ from .examples import (
     AccumulationDistributionStrategy,
     ADXStrategy,
     AroonStrategy,
+    AverageTrueRangeStrategy,
     AwesomeOscillatorStrategy,
     BollingerBandsStrategy,
     BollingerPercentBStrategy,
@@ -90,6 +91,7 @@ register_strategy("ppo", PercentagePriceOscillatorStrategy, aliases=["percentage
 register_strategy("pvo", PercentageVolumeOscillatorStrategy, aliases=["percentage_volume_oscillator", "pvo_strategy"])
 register_strategy("momentum", MomentumStrategy, aliases=["mom"])
 register_strategy("adx", ADXStrategy, aliases=["average_directional_index"])
+register_strategy("atr", AverageTrueRangeStrategy, aliases=["average_true_range", "atr_channel"])
 register_strategy("adl", AccumulationDistributionStrategy, aliases=["accumulation_distribution", "ad_line"])
 register_strategy("cci", CCIStrategy, aliases=["commodity_channel_index"])
 register_strategy("williamsr", WilliamsRStrategy, aliases=["williams_pct_r"])
@@ -116,6 +118,7 @@ __all__ = [
     "ADXStrategy",
     "AccumulationDistributionStrategy",
     "AroonStrategy",
+    "AverageTrueRangeStrategy",
     "AwesomeOscillatorStrategy",
     "BollingerBandsStrategy",
     "BollingerPercentBStrategy",

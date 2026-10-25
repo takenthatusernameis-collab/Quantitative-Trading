@@ -1633,6 +1633,7 @@ class TestRunCombined:
             ("Klinger_Oscillator", 12.9),
             ("Detrended_Price_Oscillator", 10.0),
             ("Accumulation_Distribution", 11.0),
+            ("Average_True_Range", 16.0),
         ]:
             m = MagicMock(
                 spec=[

@@ -129,6 +129,7 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `cmo` (alias: `chande_momentum_oscillator`) → `ChandeMomentumOscillatorStrategy`
 - `momentum` (alias: `mom`) → `MomentumStrategy`
 - `adx` (alias: `average_directional_index`) → `ADXStrategy`
+- `atr` (aliases: `average_true_range`, `atr_channel`) → `AverageTrueRangeStrategy`
 - `cci` (alias: `commodity_channel_index`) → `CCIStrategy`
 - `williamsr` (alias: `williams_pct_r`) → `WilliamsRStrategy`
 - `obv` (alias: `on_balance_volume`) → `OBVStrategy`
