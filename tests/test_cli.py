@@ -3392,6 +3392,39 @@ class TestUserErrorReporting:
         assert "step must be greater than 0" in output
         assert "Traceback" not in output
 
+    def test_single_strategy_saves_strategy_config(self, capsys, tmp_path):
+        """A single strategy run can save its configuration."""
+        out = tmp_path / "strategy.yaml"
+        result, output = self._run(
+            [
+                "--strategy",
+                "ma",
+                "--fast-period",
+                "5",
+                "--slow-period",
+                "25",
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "60",
+                "--output-strategy-config",
+                str(out),
+            ],
+            capsys,
+        )
+        assert result == 0
+        assert out.exists()
+        assert "Strategy configuration saved" in output
+
+        import yaml
+
+        with open(out) as f:
+            saved = yaml.safe_load(f)
+        assert saved["type"] == "ma"
+        assert saved["parameters"]["fast_period"] == 5
+        assert saved["parameters"]["slow_period"] == 25
+
 
 if __name__ == "__main__":
     import pytest
