@@ -30,4 +30,4 @@ A band-design bug was caught and fixed: the channel must be anchored on the *pre
 
 ## One precise next task
 
-No assigned task remains. Changes are unstaged (`git status` shows 6 modified files). Review `git diff`; do NOT commit unless explicitly asked. Otherwise the baseline is green and the next agent can select a new bounded task from the repo.
+No assigned task remains. Changes: 1 unstaged file (`README.md` — ATR added to registry/list, count corrected to 46). The ATR strategy and supporting files were committed in `8327fbd` (as noted in handoff). Review `git diff`; do NOT commit unless explicitly asked. Baseline is green (strategies/CLI tests pass; full suite previously passed) and the next agent can select a new bounded task from the repo.
