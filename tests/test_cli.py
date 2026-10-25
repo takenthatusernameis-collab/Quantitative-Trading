@@ -1597,6 +1597,7 @@ class TestRunCombined:
             ("Aroon_25", 11.0),
             ("Keltner_20_10_2.0", 13.0),
             ("Stoch_14_3_20_80", 12.5),
+            ("StochRSI", 12.0),
             ("Ichimoku_Cloud", 9.0),
             ("Parabolic_SAR_0.02_0.2", 7.5),
             ("VWAP", 5.0),
