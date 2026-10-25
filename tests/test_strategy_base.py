@@ -142,6 +142,24 @@ class TestStrategySetParameter:
         assert strategy.parameters["flag"] == "original"
         assert not hasattr(strategy, "flag")
 
+    def test_set_parameter_rollback_restores_none_value_in_real_strategy(self):
+        """Test rollback restores a parameter key whose value was None.
+
+        A parameter entry that legitimately holds None must be restored
+        to None, not removed. Distinguishing "key absent" from "key
+        present with value None" is the whole point of the rollback:
+        some strategies store None in their parameters dict (e.g. an
+        optional exit period that defaults to the entry period).
+        """
+        from quant_trading.strategies.examples import DonchianChannelStrategy
+
+        strategy = DonchianChannelStrategy(name="Test")
+        assert strategy.parameters["exit_period"] is None
+        with pytest.raises(ValueError, match="exit_period must be positive"):
+            strategy.set_parameter("exit_period", -5)
+        assert strategy.parameters["exit_period"] is None
+        assert strategy.exit_period == 20
+
 
 class TestStrategyManager:
     """Tests for StrategyManager class."""

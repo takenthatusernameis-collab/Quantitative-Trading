@@ -259,7 +259,13 @@ class Strategy(ABC):
             ValueError: If validation fails after the tentative update.
 
         """
-        # Store old values for rollback on validation failure
+        # Store old values for rollback on validation failure. The parameter
+        # entry is restored only when the key existed before the tentative
+        # update; a key that was absent is removed. Distinguishing "absent"
+        # from "present with value None" matters because some strategies
+        # legitimately store None in their parameters dict (e.g. an optional
+        # exit period that defaults to the entry period).
+        key_existed = key in self.parameters
         old_param_value = self.parameters.get(key)
         old_attr_value = getattr(self, key, None) if hasattr(self, key) else None
 
@@ -272,7 +278,7 @@ class Strategy(ABC):
             self.validate_parameters()
         except ValueError:
             # Rollback on validation failure
-            if old_param_value is not None:
+            if key_existed:
                 self.parameters[key] = old_param_value
             else:
                 self.parameters.pop(key, None)
