@@ -142,6 +142,53 @@ def test_validate_parameters_overrides_annotated_none():
     assert not offenders, "validate_parameters without -> None:\n" + "\n".join(offenders)
 
 
+def _cli_strategy_keys(tree: ast.Module) -> set[str]:
+    """Extract the string literals of the CLI's ``BUILTIN_STRATEGY_KEYS`` list."""
+    keys: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "BUILTIN_STRATEGY_KEYS"
+            and isinstance(node.value, ast.List)
+        ):
+            for elt in node.value.elts:
+                if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                    keys.add(elt.value)
+    return keys
+
+
+def test_cli_strategy_keys_match_registry():
+    """The CLI's hardcoded strategy keys must match the live registry.
+
+    ``examples/cli.py`` duplicates the registry's primary keys in the
+    hardcoded ``BUILTIN_STRATEGY_KEYS`` list, which drives the ``--strategy``
+    argparse choices and the strategies run by ``--combined`` mode. If a
+    strategy is added to the registry but not to that list, the CLI silently
+    rejects or excludes it. This test locks the two in sync.
+
+    The CLI module is parsed with AST rather than imported, because importing
+    it pulls in the Yahoo Finance provider (an optional dependency that may be
+    absent).
+    """
+    from quant_trading.strategies import list_strategies
+
+    registry_keys = set(list_strategies().keys())
+    cli_path = REPO_ROOT / "examples" / "cli.py"
+    tree = _parse(cli_path)
+    cli_keys = _cli_strategy_keys(tree)
+    rel = cli_path.relative_to(REPO_ROOT)
+    offenders: list[str] = []
+    missing = sorted(registry_keys - cli_keys)
+    extra = sorted(cli_keys - registry_keys)
+    if missing:
+        offenders.append(f"{rel}: registry keys missing from BUILTIN_STRATEGY_KEYS: {missing}")
+    if extra:
+        offenders.append(f"{rel}: BUILTIN_STRATEGY_KEYS keys not in the registry: {extra}")
+    assert not offenders, "CLI strategy keys out of sync with the registry:\n" + "\n".join(offenders)
+
+
 def test_class_docstring_is_first_statement():
     """A class docstring must be the first statement in the class body.
 

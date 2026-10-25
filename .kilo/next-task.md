@@ -6,24 +6,25 @@ Checks: `python -m pytest -q` (2101 passed, 0 failures on a clean baseline; the 
 
 ## Completed this session
 
-Fixed a contract-drift defect found by AST inspection of `quant_trading/strategies/examples.py`:
+Added an AST-based regression guard asserting the CLI's hardcoded `BUILTIN_STRATEGY_KEYS` list in `examples/cli.py` stays in sync with the live strategy registry's primary keys:
 
-- `AwesomeOscillatorStrategy.validate_parameters` (line 5364) and `UltimateOscillatorStrategy.validate_parameters` (line 5705) overrode the base `Strategy.validate_parameters() -> None` without a return annotation. Both now declare `-> None`, matching the base class and the other 44 overrides in the file (all 46 overrides verified annotated `-> None`).
+- New test `tests/test_repository_integrity.py::test_cli_strategy_keys_match_registry` plus helper `_cli_strategy_keys`.
+- The CLI module is parsed with AST rather than imported, because importing it pulls in the Yahoo Finance provider (an optional dependency that may be absent).
+- Prevents a future registry addition from being silently excluded from CLI `--strategy` choices and `--combined` mode.
 
-This is the same class of bug the previous session fixed for `ChoppinessIndexStrategy` (`-> bool` + `return True`). It was invisible to plain `mypy` only because `disallow_untyped_defs = false`; `mypy --check-untyped-defs` is clean either way, so it was a pure annotation/contract inconsistency, not a runtime bug.
+This is the same class of contract-drift guard as the existing `test_validate_parameters_overrides_annotated_none` in the same file.
 
 ## What was actually verified
 
-- `ruff check quant_trading/strategies/examples.py`: clean.
-- `mypy quant_trading`: clean, identical to clean baseline (confirmed via `git stash`).
-- `mypy --check-untyped-defs quant_trading`: clean.
-- AST scan: all 46 `validate_parameters` overrides in `examples.py` annotated `-> None`.
-- `pytest -q -o addopts="" tests/test_strategies_examples.py tests/test_strategy_base.py tests/test_strategy_factory.py tests/test_repository_integrity.py tests/test_readme.py`: 381 passed, 0 failures.
-- `pytest -q -o addopts="" tests/test_cli.py`: 155 passed, 2 failed — both `ImportError: yfinance is not installed`, pre-existing environmental, unrelated to this change.
+- `python -m pytest -q -o addopts="" tests/test_repository_integrity.py`: 8 passed, 0 failures (includes the new CLI sync test).
+- `python -m ruff check quant_trading/ tests/ examples/`: All checks passed.
+- `python -m mypy quant_trading`: Success, no issues found in 37 source files.
+- Focused suite run (excluding env-dependent `test_cli.py`, `test_yfinance_fetch_many.py`, `test_optimization.py`): 1776 passed, 0 failures.
 
 ## What remains unresolved
 
-- 31 test failures across `tests/test_optimization.py` and `tests/test_yfinance_fetch_many.py` are caused by missing optional dependencies (`yfinance`, `scikit-optimize`), not by code defects. Installing them would clear them; this is an environment gap, not a repo bug.
+- None blocking. The repository is green across tests, lint, and type checks.
+- 31 test failures across `tests/test_optimization.py` and `tests/test_yfinance_fetch_many.py` remain environmental (missing `yfinance` / `scikit-optimize`), not repo bugs.
 
 ## Approaches that failed
 
@@ -31,6 +32,6 @@ This is the same class of bug the previous session fixed for `ChoppinessIndexStr
 
 ## One precise next task
 
-No assigned task remains. Baseline is green. Changes: 1 unstaged file (`quant_trading/strategies/examples.py` — two annotation fixes). Do NOT commit unless explicitly asked. If continuing, a bounded follow-up is to add a regression test asserting that every `Strategy` subclass override of `validate_parameters` carries a `-> None` annotation, mirroring `test_repository_integrity.py`.
+No assigned task remains. Baseline is green. Changes: 1 file touched this session (`tests/test_repository_integrity.py`). Do NOT commit unless explicitly asked. The previously suggested follow-up (a `validate_parameters` `-> None` annotation regression test) is already implemented as `test_validate_parameters_overrides_annotated_none` in `tests/test_repository_integrity.py`.
 
 (End of file)
