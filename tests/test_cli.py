@@ -1615,6 +1615,7 @@ class TestRunCombined:
             ("Volume_Rate_Of_Change", 15.0),
             ("Volume_Oscillator", 16.0),
             ("Volume_Price_Trend", 16.0),
+            ("Hull_Moving_Average", 16.0),
             ("Negative_Volume_Index", 16.0),
             ("Positive_Volume_Index", 16.0),
             ("Stochastic_Momentum_Index", 16.5),
@@ -1723,6 +1724,7 @@ class TestRunCombined:
         assert "Volume_Rate_Of_Change" in captured.out
         assert "Ease_Of_Movement" in captured.out
         assert "Chande_Momentum_Oscillator" in captured.out
+        assert "Hull_Moving_Average" in captured.out
         assert "Best strategy (by Sharpe)" in captured.out
 
     @patch("examples.cli.run_backtest")

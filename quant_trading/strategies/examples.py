@@ -4345,6 +4345,181 @@ class VolumePriceTrendStrategy(Strategy):
         return signals
 
 
+class HullMovingAverageStrategy(Strategy):
+    """Hull Moving Average (HMA) Strategy.
+
+    The Hull Moving Average reduces lag while remaining smooth. It is built
+    from weighted moving averages:
+
+    - ``raw = 2 * WMA(close, period // 2) - WMA(close, period)``
+    - ``HMA = WMA(raw, round(sqrt(period)))``
+
+    Trading signals:
+
+    - Buy when the close crosses above the HMA.
+    - Sell when the close crosses below the HMA.
+
+    Requires a ``"close"`` column.
+    """
+
+    def __init__(self, period: int = 16, name: str = "Hull_Moving_Average"):
+        """Initialize the Hull Moving Average strategy.
+
+        Args:
+            period: Lookback window for the Hull Moving Average; must be at
+                least 2.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If ``period`` is invalid.
+
+        """
+        super().__init__(
+            name,
+            {
+                "period": period,
+            },
+        )
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is less than 2.
+
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+        if self.period < 2:
+            raise ValueError("period must be at least 2")
+
+    def _wma(self, series: pd.Series, period: int) -> pd.Series:
+        """Calculate a Weighted Moving Average.
+
+        Args:
+            series: Series of values to smooth.
+            period: Lookback window; the most recent bar carries the largest
+                weight.
+
+        Returns:
+            Series of WMA values aligned with ``series``.
+
+        """
+        weights = np.arange(1, period + 1, dtype=float)
+
+        def weighted(values: np.ndarray) -> float:
+            w = weights[-len(values) :]
+            return float(np.dot(values, w) / w.sum())
+
+        return series.rolling(window=period, min_periods=1).apply(weighted, raw=True)
+
+    def _hull_moving_average(self, close: pd.Series) -> pd.Series:
+        """Calculate the Hull Moving Average of ``close``.
+
+        Args:
+            close: Series of closing prices aligned with the data index.
+
+        Returns:
+            Series of HMA values aligned with ``close``.
+
+        """
+        half_period = max(1, self.period // 2)
+        sqrt_period = max(1, round(self.period**0.5))
+        raw = 2.0 * self._wma(close, half_period) - self._wma(close, self.period)
+        return self._wma(raw, sqrt_period)
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from close/HMA crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least a
+                ``"close"`` column indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose close crosses
+            the HMA between the last two bars.
+
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 2:
+                continue
+
+            close = df["close"]
+            current_price = float(close.iloc[-1])
+            # The signal is emitted at the last close, so a close that is not a
+            # number is rejected before anything is derived from it.
+            if pd.isna(current_price) or current_price == 0:
+                continue
+
+            hma = self._hull_moving_average(close)
+            hma_current = float(hma.iloc[-1])
+            hma_prev = float(hma.iloc[-2])
+            prev_close = float(close.iloc[-2])
+            timestamp = df.index[-1]
+
+            if pd.isna(hma_current) or pd.isna(hma_prev):
+                continue
+
+            # Bullish cross: the close crosses above the HMA.
+            if prev_close <= hma_prev and current_price > hma_current:
+                strength = (
+                    min(
+                        1.0,
+                        abs(current_price - hma_current) / (abs(current_price) + abs(hma_current)),
+                    )
+                    if current_price != 0 or hma_current != 0
+                    else 0.5
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "hma": hma_current,
+                            "hma_prev": hma_prev,
+                            "period": self.period,
+                            "close": current_price,
+                            "signal_type": "hma_bullish_crossover",
+                        },
+                    )
+                )
+            # Bearish cross: the close crosses below the HMA.
+            elif prev_close >= hma_prev and current_price < hma_current:
+                strength = (
+                    min(
+                        1.0,
+                        abs(hma_current - current_price) / (abs(current_price) + abs(hma_current)),
+                    )
+                    if current_price != 0 or hma_current != 0
+                    else 0.5
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "hma": hma_current,
+                            "hma_prev": hma_prev,
+                            "period": self.period,
+                            "close": current_price,
+                            "signal_type": "hma_bearish_crossover",
+                        },
+                    )
+                )
+
+        return signals
+
+
 class ChaikinOscillatorStrategy(Strategy):
     """Chaikin Oscillator Strategy.
 

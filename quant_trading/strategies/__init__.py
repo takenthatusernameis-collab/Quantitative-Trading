@@ -19,6 +19,7 @@ from .examples import (
     ElderRayStrategy,
     EMACrossover,
     ForceIndexStrategy,
+    HullMovingAverageStrategy,
     IchimokuCloudStrategy,
     KeltnerChannelStrategy,
     MACDStrategy,
@@ -70,6 +71,7 @@ register_strategy("aroon", AroonStrategy, aliases=["aroon_oscillator"])
 register_strategy("keltner", KeltnerChannelStrategy, aliases=["kc", "keltner_channel"])
 register_strategy("stoch", StochasticOscillatorStrategy, aliases=["stochastic", "stoch_oscillator"])
 register_strategy("ichimoku", IchimokuCloudStrategy, aliases=["ichimoku_cloud", "ichimoku"])
+register_strategy("hma", HullMovingAverageStrategy, aliases=["hull_moving_average"])
 register_strategy("sar", ParabolicSARStrategy, aliases=["parabolic_sar", "psar"])
 register_strategy("vwap", VWAPStrategy)
 register_strategy("vroc", VolumeRateOfChangeStrategy, aliases=["volume_rate_of_change"])
@@ -118,6 +120,7 @@ __all__ = [
     "EaseOfMovementStrategy",
     "ElderRayStrategy",
     "ForceIndexStrategy",
+    "HullMovingAverageStrategy",
     "IchimokuCloudStrategy",
     "KeltnerChannelStrategy",
     "MACDStrategy",

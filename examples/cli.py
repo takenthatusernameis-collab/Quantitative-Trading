@@ -57,6 +57,7 @@ BUILTIN_STRATEGY_KEYS = [
     "keltner",
     "stoch",
     "ichimoku",
+    "hma",
     "sar",
     "vwap",
     "vortex",
