@@ -37,6 +37,7 @@ from .examples import (
     PVOStrategy,
     RateOfChangeStrategy,
     RSIStrategy,
+    StochRSIStrategy,
     StochasticMomentumIndexStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
@@ -72,6 +73,7 @@ register_strategy("aroon", AroonStrategy, aliases=["aroon_oscillator"])
 register_strategy("keltner", KeltnerChannelStrategy, aliases=["kc", "keltner_channel"])
 register_strategy("klinger", KlingerOscillatorStrategy, aliases=["klinger_oscillator"])
 register_strategy("stoch", StochasticOscillatorStrategy, aliases=["stochastic", "stoch_oscillator"])
+register_strategy("stochrsi", StochRSIStrategy, aliases=["stochastic_rsi", "stoch_rsi"])
 register_strategy("ichimoku", IchimokuCloudStrategy, aliases=["ichimoku_cloud", "ichimoku"])
 register_strategy("hma", HullMovingAverageStrategy, aliases=["hull_moving_average"])
 register_strategy("sar", ParabolicSARStrategy, aliases=["parabolic_sar", "psar"])
@@ -140,6 +142,7 @@ __all__ = [
     "Position",
     "PositiveVolumeIndexStrategy",
     "RSIStrategy",
+    "StochRSIStrategy",
     "RateOfChangeStrategy",
     "Signal",
     "StochasticMomentumIndexStrategy",

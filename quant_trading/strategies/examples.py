@@ -6295,3 +6295,167 @@ class PositiveVolumeIndexStrategy(Strategy):
                     )
                 )
         return signals
+
+
+class StochRSIStrategy(Strategy):
+    """Stochastic RSI (StochRSI) Strategy.
+
+    The Stochastic RSI applies the Stochastic Oscillator formula to RSI values
+    rather than price, measuring the location of RSI relative to its high/low
+    range over a given period.
+
+    Trading signals:
+    - Buy when %K crosses above %D in oversold territory (< 20)
+    - Sell when %K crosses below %D in overbought territory (> 80)
+    - Optional: Buy/sell on %K crossing the 50 level (mid-line)
+    """
+
+    def __init__(
+        self,
+        rsi_period: int = 14,
+        stoch_period: int = 14,
+        k_period: int = 3,
+        d_period: int = 3,
+        oversold: float = 20,
+        overbought: float = 80,
+        use_midline: bool = False,
+        name: str = "StochRSI",
+    ):
+        super().__init__(
+            name,
+            {
+                "rsi_period": rsi_period,
+                "stoch_period": stoch_period,
+                "k_period": k_period,
+                "d_period": d_period,
+                "oversold": oversold,
+                "overbought": overbought,
+                "use_midline": use_midline,
+            },
+        )
+        self.rsi_period = rsi_period
+        self.stoch_period = stoch_period
+        self.k_period = k_period
+        self.d_period = d_period
+        self.oversold = oversold
+        self.overbought = overbought
+        self.use_midline = use_midline
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        if self.rsi_period <= 0:
+            raise ValueError("rsi_period must be positive")
+        if self.stoch_period <= 0:
+            raise ValueError("stoch_period must be positive")
+        if self.k_period <= 0:
+            raise ValueError("k_period must be positive")
+        if self.d_period <= 0:
+            raise ValueError("d_period must be positive")
+        if not (0 < self.oversold < 100):
+            raise ValueError("oversold must be between 0 and 100")
+        if not (0 < self.overbought < 100):
+            raise ValueError("overbought must be between 0 and 100")
+        if self.oversold >= self.overbought:
+            raise ValueError("oversold must be less than overbought")
+
+    def _calculate_rsi(self, close: pd.Series) -> pd.Series:
+        delta = close.diff()
+        gain = delta.where(delta > 0, 0.0)
+        loss = -delta.where(delta < 0, 0.0)
+        avg_gain = gain.ewm(alpha=1.0 / self.rsi_period, min_periods=self.rsi_period, adjust=False).mean()
+        avg_loss = loss.ewm(alpha=1.0 / self.rsi_period, min_periods=self.rsi_period, adjust=False).mean()
+        rs = avg_gain / avg_loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
+
+    def _calculate_stoch_rsi(self, close: pd.Series) -> tuple[pd.Series, pd.Series]:
+        rsi = self._calculate_rsi(close)
+        rsi_min = rsi.rolling(window=self.stoch_period).min()
+        rsi_max = rsi.rolling(window=self.stoch_period).max()
+        stoch_rsi = 100 * (rsi - rsi_min) / (rsi_max - rsi_min)
+        k_percent = stoch_rsi.rolling(window=self.k_period).mean()
+        d_percent = k_percent.rolling(window=self.d_period).mean()
+        return k_percent, d_percent
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals = []
+        for symbol, df in data.items():
+            min_required = self.rsi_period + self.stoch_period + self.k_period + self.d_period + 5
+            if len(df) < min_required:
+                continue
+            close = df["close"]
+            k_percent, d_percent = self._calculate_stoch_rsi(close)
+            current_k = k_percent.iloc[-1]
+            current_d = d_percent.iloc[-1]
+            prev_k = k_percent.iloc[-2]
+            prev_d = d_percent.iloc[-2]
+            current_price = close.iloc[-1]
+            timestamp = df.index[-1]
+            if pd.isna(current_k) or pd.isna(current_d) or pd.isna(prev_k) or pd.isna(prev_d):
+                continue
+            if prev_k <= prev_d and current_k > current_d and current_k < self.oversold:
+                strength = min(1.0, (self.oversold - current_k) / self.oversold + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "k_percent": float(current_k),
+                            "d_percent": float(current_d),
+                            "signal_type": "oversold_crossover",
+                        },
+                    )
+                )
+            elif prev_k >= prev_d and current_k < current_d and current_k > self.overbought:
+                strength = min(1.0, (current_k - self.overbought) / (100 - self.overbought) + 0.5)
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "k_percent": float(current_k),
+                            "d_percent": float(current_d),
+                            "signal_type": "overbought_crossover",
+                        },
+                    )
+                )
+            elif self.use_midline:
+                if prev_k <= 50 and current_k > 50:
+                    strength = min(1.0, abs(current_k - 50) / 50 * 0.5 + 0.3)
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="buy",
+                            strength=strength,
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "k_percent": float(current_k),
+                                "d_percent": float(current_d),
+                                "signal_type": "midline_cross_up",
+                            },
+                        )
+                    )
+                elif prev_k >= 50 and current_k < 50:
+                    strength = min(1.0, abs(50 - current_k) / 50 * 0.5 + 0.3)
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="sell",
+                            strength=strength,
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "k_percent": float(current_k),
+                                "d_percent": float(current_d),
+                                "signal_type": "midline_cross_down",
+                            },
+                        )
+                    )
+        return signals

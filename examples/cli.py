@@ -56,6 +56,7 @@ BUILTIN_STRATEGY_KEYS = [
     "aroon",
     "keltner",
     "stoch",
+    "stochrsi",
     "ichimoku",
     "klinger",
     "hma",
