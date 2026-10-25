@@ -1168,7 +1168,7 @@ def _save_json_output(path: str, output_data: dict, output_format: str | None = 
                     v = output_data[k]
                     # Convert complex objects to string representation
                     if isinstance(v, (dict, list)):
-                        row.append(json.dumps(v))
+                        row.append(json.dumps(v, default=str))
                     else:
                         row.append(v)
                 writer.writerow(row)
