@@ -5361,7 +5361,7 @@ class AwesomeOscillatorStrategy(Strategy):
         self.long_period = long_period
         self.validate_parameters()
 
-    def validate_parameters(self):
+    def validate_parameters(self) -> None:
         if self.short_period <= 0:
             raise ValueError("short_period must be positive")
         if self.long_period <= 0:
@@ -5702,7 +5702,7 @@ class UltimateOscillatorStrategy(Strategy):
         self.long_period = long_period
         self.validate_parameters()
 
-    def validate_parameters(self):
+    def validate_parameters(self) -> None:
         if self.short_period <= 0 or self.medium_period <= 0 or self.long_period <= 0:
             raise ValueError("periods must be positive")
         if not (self.short_period < self.medium_period < self.long_period):
