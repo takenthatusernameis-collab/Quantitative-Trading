@@ -3173,7 +3173,7 @@ class CCIStrategy(Strategy):
         cci = (typical - sma) / (0.015 * mean_dev)
         return cci
 
-    def generate_signals(self, data):
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals = []
         min_bars = self.period
 
@@ -3278,7 +3278,7 @@ class WilliamsRStrategy(Strategy):
         williams_r = (highest - close) / denominator.replace(0, np.nan) * -100.0
         return williams_r
 
-    def generate_signals(self, data):
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals = []
         min_bars = self.period
 
@@ -5375,7 +5375,7 @@ class AwesomeOscillatorStrategy(Strategy):
         long_sma = median_price.rolling(window=self.long_period).mean()
         return short_sma - long_sma
 
-    def generate_signals(self, data):
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals = []
         for symbol, df in data.items():
             if len(df) < self.long_period + 2:
@@ -5729,7 +5729,7 @@ class UltimateOscillatorStrategy(Strategy):
         uo = 100.0 * (4.0 * avg1 + 2.0 * avg2 + avg3) / 7.0
         return uo
 
-    def generate_signals(self, data):
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals: list[Signal] = []
         for symbol, df in data.items():
             if len(df) < self.long_period + 2:
