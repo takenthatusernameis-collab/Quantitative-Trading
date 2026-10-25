@@ -5814,3 +5814,100 @@ class NegativeVolumeIndexStrategy(Strategy):
                 strength = min(1.0, abs(float(current_nvi - current_ema)) / (abs(float(current_nvi)) + abs(float(current_ema)) + 1e-12))
                 signals.append(Signal(symbol=symbol, action="sell", strength=strength, price=current_price, timestamp=timestamp, metadata={"nvi": float(current_nvi), "ema": float(current_ema)}))
         return signals
+
+
+class PositiveVolumeIndexStrategy(Strategy):
+    """Positive Volume Index (PVI) Strategy.
+
+    The Positive Volume Index tracks cumulative price change on days when
+    volume increases, starting from a base of 1000.0:
+
+    - If volume_t > volume_{t-1}: PVI_t = PVI_{t-1} * (1 + (close_t - close_{t-1}) / close_{t-1})
+    - Otherwise: PVI_t = PVI_{t-1}
+
+    Trading signals are generated when the PVI crosses above/below its
+    exponential moving average.
+    """
+
+    def __init__(
+        self,
+        period: int = 255,
+        name: str = "Positive_Volume_Index",
+    ):
+        super().__init__(name, {"period": period})
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate_pvi(self, df: pd.DataFrame) -> pd.Series:
+        close = df["close"]
+        volume = df["volume"]
+        pvi = pd.Series(1000.0, index=df.index, dtype=float)
+        for i in range(1, len(df)):
+            if volume.iloc[i] > volume.iloc[i - 1] and close.iloc[i - 1] != 0:
+                pvi.iloc[i] = pvi.iloc[i - 1] * (
+                    1.0 + (close.iloc[i] - close.iloc[i - 1]) / close.iloc[i - 1]
+                )
+            else:
+                pvi.iloc[i] = pvi.iloc[i - 1]
+        return pvi
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        signals: list[Signal] = []
+        for symbol, df in data.items():
+            if len(df) < self.period + 2:
+                continue
+            close = df["close"]
+            current_price = close.iloc[-1]
+            if pd.isna(current_price) or current_price == 0:
+                continue
+            pvi = self._calculate_pvi(df)
+            ema = pvi.ewm(span=self.period, adjust=False).mean()
+            current_pvi = pvi.iloc[-1]
+            prev_pvi = pvi.iloc[-2]
+            current_ema = ema.iloc[-1]
+            prev_ema = ema.iloc[-2]
+            timestamp = df.index[-1]
+            if (
+                pd.isna(current_pvi)
+                or pd.isna(prev_pvi)
+                or pd.isna(current_ema)
+                or pd.isna(prev_ema)
+            ):
+                continue
+            if prev_pvi <= prev_ema and current_pvi > current_ema:
+                strength = min(
+                    1.0,
+                    abs(float(current_pvi - current_ema))
+                    / (abs(float(current_pvi)) + abs(float(current_ema)) + 1e-12),
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={"pvi": float(current_pvi), "ema": float(current_ema)},
+                    )
+                )
+            elif prev_pvi >= prev_ema and current_pvi < current_ema:
+                strength = min(
+                    1.0,
+                    abs(float(current_pvi - current_ema))
+                    / (abs(float(current_pvi)) + abs(float(current_ema)) + 1e-12),
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={"pvi": float(current_pvi), "ema": float(current_ema)},
+                    )
+                )
+        return signals

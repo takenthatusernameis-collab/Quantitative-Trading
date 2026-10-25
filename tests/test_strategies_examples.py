@@ -32,6 +32,8 @@ from quant_trading.strategies.examples import (
     VortexStrategy,
     VWAPStrategy,
     WilliamsRStrategy,
+    NegativeVolumeIndexStrategy,
+    PositiveVolumeIndexStrategy,
 )
 
 
@@ -4180,3 +4182,131 @@ class TestUltimateOscillatorStrategy:
         )
         signals = strategy.generate_signals({"AAPL": data})
         assert isinstance(signals, list)
+
+
+def create_negative_volume_index_data(
+    symbol: str, closes: list[float], volumes: list[float]
+) -> pd.DataFrame:
+    dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
+    close = np.asarray(closes, dtype=float)
+    volume = np.asarray(volumes, dtype=float)
+    return pd.DataFrame(
+        {
+            "open": close,
+            "high": close,
+            "low": close,
+            "close": close,
+            "volume": volume,
+        },
+        index=dates,
+    )
+
+
+class TestNegativeVolumeIndexStrategy:
+    def test_initialization(self):
+        strategy = NegativeVolumeIndexStrategy(period=255, name="Test_NVI")
+        assert strategy.name == "Test_NVI"
+        assert strategy.period == 255
+        assert strategy.parameters["period"] == 255
+
+    def test_validate_parameters(self):
+        with pytest.raises(ValueError, match="period must be positive"):
+            NegativeVolumeIndexStrategy(period=0)
+
+    def test_generate_signals_insufficient_data(self):
+        strategy = NegativeVolumeIndexStrategy(period=255)
+        data = {"AAPL": create_negative_volume_index_data("AAPL", [100.0] * 10, [1000.0] * 10)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_nvi_bullish_crossover(self):
+        strategy = NegativeVolumeIndexStrategy(period=5)
+        # Create data where NVI was below EMA and crosses above at end
+        # Build up so NVI stays flat, then volume drops sharply with price up
+        closes = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 101.0]
+        volumes = [1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 2000.0, 1500.0]  # vol drops at last step
+        data = {"AAPL": create_negative_volume_index_data("AAPL", closes, volumes)}
+        signals = strategy.generate_signals(data)
+        assert len(signals) >= 1
+        assert signals[0].symbol == "AAPL"
+        assert signals[0].action == "buy"
+
+    def test_generate_signals_multiple_symbols(self):
+        strategy = NegativeVolumeIndexStrategy(period=5)
+        closes = [100.0, 100.0, 101.0, 101.0, 101.0, 101.0, 102.0]
+        volumes = [1000.0, 2000.0, 1500.0, 1500.0, 1500.0, 1500.0, 1400.0]
+        data = {
+            "AAPL": create_negative_volume_index_data("AAPL", closes, volumes),
+            "MSFT": create_negative_volume_index_data("MSFT", closes, volumes),
+        }
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
+    def test_generate_signals_skips_nan_last_close(self):
+        strategy = NegativeVolumeIndexStrategy(period=5)
+        closes = [100.0] * 6 + [float("nan")]
+        volumes = [1000.0] * 7
+        data = {"AAPL": create_negative_volume_index_data("AAPL", closes, volumes)}
+        assert strategy.generate_signals(data) == []
+
+
+def create_positive_volume_index_data(
+    symbol: str, closes: list[float], volumes: list[float]
+) -> pd.DataFrame:
+    dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
+    close = np.asarray(closes, dtype=float)
+    volume = np.asarray(volumes, dtype=float)
+    return pd.DataFrame(
+        {
+            "open": close,
+            "high": close,
+            "low": close,
+            "close": close,
+            "volume": volume,
+        },
+        index=dates,
+    )
+
+
+class TestPositiveVolumeIndexStrategy:
+    def test_initialization(self):
+        strategy = PositiveVolumeIndexStrategy(period=255, name="Test_PVI")
+        assert strategy.name == "Test_PVI"
+        assert strategy.period == 255
+        assert strategy.parameters["period"] == 255
+
+    def test_validate_parameters(self):
+        with pytest.raises(ValueError, match="period must be positive"):
+            PositiveVolumeIndexStrategy(period=0)
+
+    def test_generate_signals_insufficient_data(self):
+        strategy = PositiveVolumeIndexStrategy(period=255)
+        data = {"AAPL": create_positive_volume_index_data("AAPL", [100.0] * 10, [1000.0] * 10)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_pvi_bullish_crossover(self):
+        strategy = PositiveVolumeIndexStrategy(period=5)
+        closes = [100.0, 100.0, 101.0, 101.0, 101.0, 101.0, 102.0]
+        volumes = [1000.0, 900.0, 1000.0, 1000.0, 1000.0, 1000.0, 1100.0]
+        data = {"AAPL": create_positive_volume_index_data("AAPL", closes, volumes)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
+    def test_generate_signals_multiple_symbols(self):
+        strategy = PositiveVolumeIndexStrategy(period=5)
+        closes = [100.0, 100.0, 101.0, 101.0, 101.0, 101.0, 102.0]
+        volumes = [1000.0, 900.0, 1000.0, 1000.0, 1000.0, 1000.0, 1100.0]
+        data = {
+            "AAPL": create_positive_volume_index_data("AAPL", closes, volumes),
+            "MSFT": create_positive_volume_index_data("MSFT", closes, volumes),
+        }
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
+    def test_generate_signals_skips_nan_last_close(self):
+        strategy = PositiveVolumeIndexStrategy(period=5)
+        closes = [100.0] * 6 + [float("nan")]
+        volumes = [1000.0] * 7
+        data = {"AAPL": create_positive_volume_index_data("AAPL", closes, volumes)}
+        assert strategy.generate_signals(data) == []

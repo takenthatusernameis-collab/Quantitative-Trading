@@ -26,6 +26,7 @@ from .examples import (
     MoneyFlowIndexStrategy,
     MovingAverageCrossover,
     NegativeVolumeIndexStrategy,
+    PositiveVolumeIndexStrategy,
     OBVStrategy,
     ParabolicSARStrategy,
     PercentagePriceOscillatorStrategy,
@@ -92,6 +93,7 @@ register_strategy("roc", RateOfChangeStrategy, aliases=["rate_of_change"])
 register_strategy("force_index", ForceIndexStrategy, aliases=["forceindex", "fi"])
 register_strategy("mfi", MoneyFlowIndexStrategy, aliases=["money_flow_index"])
 register_strategy("nvi", NegativeVolumeIndexStrategy, aliases=["negative_volume_index"])
+register_strategy("pvi", PositiveVolumeIndexStrategy, aliases=["positive_volume_index"])
 register_strategy("trix", TrixStrategy)
 register_strategy("ultimate_oscillator", UltimateOscillatorStrategy, aliases=["ultimate"])
 register_strategy("dpo", DetrendedPriceOscillatorStrategy, aliases=["detrended_price_oscillator"])
@@ -123,6 +125,7 @@ __all__ = [
     "MoneyFlowIndexStrategy",
     "MovingAverageCrossover",
     "NegativeVolumeIndexStrategy",
+    "PositiveVolumeIndexStrategy",
     "OBVStrategy",
     "PPOStrategy",
     "PVOStrategy",

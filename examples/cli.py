@@ -63,6 +63,7 @@ BUILTIN_STRATEGY_KEYS = [
     "vroc",
     "vpt",
     "nvi",
+    "pvi",
     "ao",
     "vol",
     "ppo",
