@@ -412,6 +412,168 @@ class BollingerBandsStrategy(Strategy):
                             "sma": current_sma,
                             "signal_type": "upper_band_touch",
                         },
+                )
+            )
+
+        return signals
+
+
+class BollingerPercentBStrategy(Strategy):
+    """Bollinger Bands %B (%B) Strategy.
+
+    The Bollinger Bands %B indicator shows where the close sits relative to
+    the Bollinger Bands, computed as ``(close - lower_band) / (upper_band -
+    lower_band)``. A value below ``oversold`` means the price is at or below
+    the lower band; a value above ``overbought`` means it is at or above the
+    upper band. The strategy emits a buy when %B crosses below the oversold
+    threshold and a sell when it crosses above the overbought threshold.
+
+    Requires a ``"close"`` column.
+    """
+
+    def __init__(
+        self,
+        period: int = 20,
+        std_dev: float = 2.0,
+        oversold: float = 0.2,
+        overbought: float = 0.8,
+        name: str = "Bollinger_Percent_B",
+    ):
+        """Initialize the Bollinger Bands %B strategy.
+
+        Args:
+            period: Lookback window for the moving average and standard
+                deviation used to build the bands.
+            std_dev: Number of standard deviations for the bands.
+            oversold: %B threshold below which a buy signal fires.
+            overbought: %B threshold above which a sell signal fires.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+
+        """
+        super().__init__(
+            name,
+            {
+                "period": period,
+                "std_dev": std_dev,
+                "oversold": oversold,
+                "overbought": overbought,
+            },
+        )
+        self.period = period
+        self.std_dev = std_dev
+        self.oversold = oversold
+        self.overbought = overbought
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` or ``std_dev`` is non-positive, or if
+                ``oversold``/``overbought`` are not ordered thresholds in
+                ``[0, 1]``.
+
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+        if self.std_dev <= 0:
+            raise ValueError("std_dev must be positive")
+        if not (0.0 <= self.oversold < self.overbought <= 1.0):
+            raise ValueError("oversold must be in [0, 1) and below overbought in (0, 1]")
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from %B threshold crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least a
+                ``"close"`` column indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose %B crossed the
+            oversold/overbought threshold between the last two bars.
+
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 1:
+                continue
+
+            close = df["close"]
+            current_price = close.iloc[-1]
+            if pd.isna(current_price) or current_price == 0:
+                continue
+
+            sma = close.rolling(window=self.period).mean()
+            std = close.rolling(window=self.period).std()
+            upper_band = sma + (std * self.std_dev)
+            lower_band = sma - (std * self.std_dev)
+            band_width = upper_band - lower_band
+            # %B is undefined when the bands collapse; treat those bars as NaN.
+            pct_b = (close - lower_band) / band_width.replace(0, np.nan)
+
+            pb_current = pct_b.iloc[-1]
+            pb_prev = pct_b.iloc[-2]
+            timestamp = df.index[-1]
+
+            if pd.isna(pb_current) or pd.isna(pb_prev):
+                continue
+
+            # Buy: %B crosses below the oversold threshold.
+            if pb_prev >= self.oversold and pb_current < self.oversold:
+                strength = (
+                    min(1.0, (self.oversold - pb_current) / self.oversold)
+                    if self.oversold > 0
+                    else 1.0
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "pct_b": float(pb_current),
+                            "upper_band": float(upper_band.iloc[-1]),
+                            "lower_band": float(lower_band.iloc[-1]),
+                            "sma": float(sma.iloc[-1]),
+                            "period": self.period,
+                            "std_dev": self.std_dev,
+                            "oversold": self.oversold,
+                            "overbought": self.overbought,
+                            "signal_type": "percent_b_oversold",
+                        },
+                    )
+                )
+            # Sell: %B crosses above the overbought threshold.
+            elif pb_prev <= self.overbought and pb_current > self.overbought:
+                strength = (
+                    min(1.0, (pb_current - self.overbought) / (1.0 - self.overbought))
+                    if self.overbought < 1.0
+                    else 1.0
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "pct_b": float(pb_current),
+                            "upper_band": float(upper_band.iloc[-1]),
+                            "lower_band": float(lower_band.iloc[-1]),
+                            "sma": float(sma.iloc[-1]),
+                            "period": self.period,
+                            "std_dev": self.std_dev,
+                            "oversold": self.oversold,
+                            "overbought": self.overbought,
+                            "signal_type": "percent_b_overbought",
+                        },
                     )
                 )
 

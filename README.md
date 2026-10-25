@@ -5,7 +5,7 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 ## Features
 
 - **Strategy Framework**: Abstract base class for creating custom trading strategies
-- **Built-in Strategies**: 42 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Stochastic RSI, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Ease of Movement, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Hull Moving Average, Parabolic SAR, VWAP, Vortex, Awesome Oscillator, Momentum, ADX, Commodity Channel Index, Williams %R, On-Balance Volume, Chaikin Money Flow, Force Index, Money Flow Index, Elder Ray, Rate of Change, Volume Rate of Change, Volume Oscillator, Volume Price Trend, Percentage Price Oscillator, Percentage Volume Oscillator, Chande Momentum Oscillator, Chaikin Oscillator, TRIX, Accumulation Distribution, Negative Volume Index, Positive Volume Index, Ultimate Oscillator, Detrended Price Oscillator, Stochastic Momentum Index, and Volume Weighted Average Price (VWAP) variations/others present as implemented
+- **Built-in Strategies**: 45 registered strategies — Moving Average Crossover, EMA Crossover, RSI Mean Reversion, Stochastic RSI, Bollinger Bands, MACD, SuperTrend, Donchian Channel, Ease of Movement, Aroon, Keltner Channel, Stochastic Oscillator, Ichimoku Cloud, Hull Moving Average, Parabolic SAR, VWAP, Vortex, Awesome Oscillator, Momentum, ADX, Commodity Channel Index, Williams %R, On-Balance Volume, Chaikin Money Flow, Force Index, Money Flow Index, Elder Ray, Rate of Change, Volume Rate of Change, Volume Oscillator, Volume Price Trend, Percentage Price Oscillator, Percentage Volume Oscillator, Chande Momentum Oscillator, Chaikin Oscillator, TRIX, Accumulation Distribution, Negative Volume Index, Positive Volume Index, Ultimate Oscillator, Detrended Price Oscillator, Stochastic Momentum Index, and Volume Weighted Average Price (VWAP) variations/others present as implemented
 - **Backtesting Engine**: Event-driven backtest with realistic costs (commission, slippage), long and short positions
 - **Data Providers**: Yahoo Finance integration with caching support
 - **Portfolio Management**: Position tracking, rebalancing, and allocation
@@ -102,6 +102,7 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `ma` (aliases: `moving_average`, `ma_crossover`) → `MovingAverageCrossover`
 - `rsi` (alias: `rsi_mean_reversion`) → `RSIStrategy`
 - `bb` (aliases: `bollinger_bands`, `bollinger`) → `BollingerBandsStrategy`
+- `bbpct` (aliases: `bollinger_bands_pct`, `percent_b`) → `BollingerPercentBStrategy`
 - `macd` (alias: `macd_crossover`) → `MACDStrategy`
 - `ema` (aliases: `ema_crossover`, `exponential_ma_crossover`) → `EMACrossover`
 - `eom` (aliases: `ease_of_movement`) → `EaseOfMovementStrategy`

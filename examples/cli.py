@@ -49,6 +49,7 @@ BUILTIN_STRATEGY_KEYS = [
     "ma",
     "rsi",
     "bb",
+    "bbpct",
     "macd",
     "supertrend",
     "trix",

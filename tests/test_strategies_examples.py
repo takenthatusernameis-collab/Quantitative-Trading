@@ -9,6 +9,7 @@ import pytest
 from quant_trading.strategies.examples import (
     ADXStrategy,
     BollingerBandsStrategy,
+    BollingerPercentBStrategy,
     ChaikinMoneyFlowStrategy,
     ChandeMomentumOscillatorStrategy,
     DonchianChannelStrategy,
@@ -3709,6 +3710,127 @@ class TestVolumePriceTrendStrategy:
         closes = [100.0] * 25 + [float("nan")]
         data = {"AAPL": create_volume_price_trend_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
+
+
+def create_bollinger_percent_b_data(symbol: str, closes: list[float]) -> pd.DataFrame:
+    """Create deterministic close data for Bollinger Bands %B tests.
+
+    The close is the only varying column; open/high/low mirror the close.
+    """
+    dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
+    close = np.asarray(closes, dtype=float)
+    return pd.DataFrame(
+        {
+            "open": close,
+            "high": close,
+            "low": close,
+            "close": close,
+        },
+        index=dates,
+    )
+
+
+class TestBollingerPercentBStrategy:
+    """Tests for the Bollinger Bands %B strategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = BollingerPercentBStrategy(
+            period=20,
+            std_dev=2.0,
+            oversold=0.2,
+            overbought=0.8,
+            name="Test_BB_Percent_B",
+        )
+        assert strategy.name == "Test_BB_Percent_B"
+        assert strategy.period == 20
+        assert strategy.std_dev == 2.0
+        assert strategy.oversold == 0.2
+        assert strategy.overbought == 0.8
+        assert strategy.parameters["period"] == 20
+        assert strategy.parameters["std_dev"] == 2.0
+        assert strategy.parameters["oversold"] == 0.2
+        assert strategy.parameters["overbought"] == 0.8
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid parameters."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            BollingerPercentBStrategy(period=0, std_dev=2.0)
+        with pytest.raises(ValueError, match="std_dev must be positive"):
+            BollingerPercentBStrategy(period=20, std_dev=0.0)
+        with pytest.raises(ValueError, match="oversold"):
+            BollingerPercentBStrategy(period=20, std_dev=2.0, oversold=0.8, overbought=0.2)
+        with pytest.raises(ValueError, match="oversold"):
+            BollingerPercentBStrategy(period=20, std_dev=2.0, oversold=-0.1, overbought=0.8)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with fewer bars than period + 1."""
+        strategy = BollingerPercentBStrategy(period=20)
+        data = {"AAPL": create_bollinger_percent_b_data("AAPL", [100.0] * 20)}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_flat_price_no_signals(self):
+        """Constant price collapses the bands, so %B is undefined and no signal fires."""
+        strategy = BollingerPercentBStrategy(period=20)
+        data = {"AAPL": create_bollinger_percent_b_data("AAPL", [100.0] * 30)}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_percent_b_oversold_buy(self):
+        """A final crash pushes %B below the oversold threshold (buy)."""
+        strategy = BollingerPercentBStrategy(period=20, oversold=0.2, overbought=0.8)
+        # 28 flat bars, a small bump, then a crash: %B crosses below oversold.
+        closes = [100.0] * 28 + [110.0, 50.0]
+        data = {"AAPL": create_bollinger_percent_b_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.price == pytest.approx(50.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "percent_b_oversold"
+        assert signal.metadata["pct_b"] < strategy.oversold
+        assert signal.metadata["period"] == 20
+        assert signal.metadata["std_dev"] == 2.0
+        assert signal.metadata["oversold"] == 0.2
+        assert signal.metadata["overbought"] == 0.8
+
+    def test_generate_signals_percent_b_overbought_sell(self):
+        """A final spike pushes %B above the overbought threshold (sell)."""
+        strategy = BollingerPercentBStrategy(period=20, oversold=0.2, overbought=0.8)
+        # A declining run then a moderate bar and a spike: %B crosses above overbought.
+        closes = list(range(113, 85, -1)) + [100.0, 200.0]
+        data = {"AAPL": create_bollinger_percent_b_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.price == pytest.approx(200.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "percent_b_overbought"
+        assert signal.metadata["pct_b"] > strategy.overbought
+        assert signal.metadata["period"] == 20
+        assert signal.metadata["std_dev"] == 2.0
+        assert signal.metadata["oversold"] == 0.2
+        assert signal.metadata["overbought"] == 0.8
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals evaluates each symbol independently."""
+        strategy = BollingerPercentBStrategy(period=20)
+        data = {
+            "AAPL": create_bollinger_percent_b_data("AAPL", [100.0] * 28 + [110.0, 50.0]),
+            "MSFT": create_bollinger_percent_b_data(
+                "MSFT", list(range(113, 85, -1)) + [100.0, 200.0]
+            ),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
 
 
 def create_klinger_oscillator_data(
