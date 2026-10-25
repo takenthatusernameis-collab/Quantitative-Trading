@@ -337,7 +337,7 @@ class BacktestResult:
             The CSV-formatted summary string.
         """
 
-        csv = self.to_dataframe().to_csv(index=False)
+        csv = str(self.to_dataframe().to_csv(index=False))
         if path is not None:
             with open(path, "w", encoding="utf-8") as handle:
                 handle.write(csv)

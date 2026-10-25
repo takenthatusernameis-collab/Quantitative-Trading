@@ -45,3 +45,21 @@ Change: added `output_format = getattr(args, "output_format", None)` and passed 
 
 ## One precise next task
 None — both assigned tasks are complete. If continuing, run `git diff`/`git status` to review and consider committing; do not commit unless explicitly asked.
+
+---
+
+# Handoff: Session 3 (2026-10-25)
+
+## What changed
+Fixed the pre-existing mypy `no-any-return` error in `quant_trading/backtest/engine.py:344` by casting `DataFrame.to_csv(index=False)` result to `str`.
+
+## What was actually verified
+- `mypy quant_trading examples`: Success, no issues.
+- `tests/test_backtest_engine.py`: 93 passed.
+- `ruff check .`: all checks passed.
+
+## What remains unresolved
+- None.
+
+## One precise next task
+Review `git diff`/`git status` and, if approved, commit the accumulated changes. Do not commit unless explicitly asked.
