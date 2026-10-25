@@ -106,3 +106,26 @@ Root cause: the `klinger` strategy was already registered in the strategy regist
 
 ## One precise next task
 Review `git diff`/`git status` (only `examples/cli.py` is modified, +1 line) and, if approved, commit the accumulated change. Do NOT commit unless explicitly asked. Otherwise the repo is in a clean, verified state; the next agent can select a new bounded task from the repo.
+
+---
+
+# Handoff: Session 6 (2026-10-25)
+
+## What changed
+Staged deletion of 12 empty, tracked, unreferenced junk files in the repo root: `=0.1.0`, `=0.10.0`, `=0.2.0`, `=1.0.0`, `=1.24.0`, `=2.0.0`, `=2.31.0`, `=23.0.0`, `=3.0.0`, `=4.0.0`, `=6.0`, `=7.0.0`. These match dependency version numbers and serve no purpose. No production code touched.
+
+## What was actually verified
+- `git status`: working tree clean except the 12 staged deletions; nothing else modified.
+- `python3 -c "import quant_trading"`: import OK.
+- Focused test subset `tests/test_cli.py tests/test_backtest_engine.py tests/test_strategies_examples.py`: 566 passed, 0 failures (baseline, run with `-o addopts=""`).
+- `ruff`/`mypy` not available in this environment (command not found); could not run those checks locally.
+
+## What remains unresolved
+- The 12 deletions are staged but NOT committed (not explicitly asked).
+- Full test suite `pytest -q` timed out at 300s (doctests in `quant_trading/` + network-dependent tests); not yet run to completion in this session.
+
+## Approaches that failed
+- None.
+
+## One precise next task
+Run the full test suite to completion (it timed out at 300s here; prefer `python3 -m pytest tests/ -q -o addopts=""` to skip quant_trading doctests, or raise the timeout) to confirm no regressions, then commit the staged deletion of the 12 junk files if approved. Do NOT commit unless explicitly asked.
