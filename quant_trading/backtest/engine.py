@@ -301,7 +301,7 @@ class BacktestResult:
         """
 
         metrics = self.metrics
-        return pd.DataFrame(
+        return pd.DataFrame(  # type: ignore[no-any-return]
             [
                 {
                     "start_date": self.start_date,

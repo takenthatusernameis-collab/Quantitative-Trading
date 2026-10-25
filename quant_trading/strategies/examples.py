@@ -6537,7 +6537,7 @@ class NegativeVolumeIndexStrategy(Strategy):
                 nvi.iloc[i] = nvi.iloc[i - 1] * (1.0 + (close.iloc[i] - close.iloc[i - 1]) / close.iloc[i - 1])
             else:
                 nvi.iloc[i] = nvi.iloc[i - 1]
-        return nvi
+        return nvi  # type: ignore[no-any-return]
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals: list[Signal] = []
@@ -6603,7 +6603,7 @@ class PositiveVolumeIndexStrategy(Strategy):
                 )
             else:
                 pvi.iloc[i] = pvi.iloc[i - 1]
-        return pvi
+        return pvi  # type: ignore[no-any-return]
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals: list[Signal] = []
@@ -6732,7 +6732,7 @@ class StochRSIStrategy(Strategy):
         avg_loss = loss.ewm(alpha=1.0 / self.rsi_period, min_periods=self.rsi_period, adjust=False).mean()
         rs = avg_gain / avg_loss
         rsi = 100 - (100 / (1 + rs))
-        return rsi
+        return rsi  # type: ignore[no-any-return]
 
     def _calculate_stoch_rsi(self, close: pd.Series) -> tuple[pd.Series, pd.Series]:
         rsi = self._calculate_rsi(close)
@@ -6890,7 +6890,7 @@ class ChoppinessIndexStrategy(Strategy):
 
         # CHOP = 100 * LOG10( SUM(TR, n) / (Highest High(n) - Lowest Low(n)) ) / LOG10(n)
         chop = 100 * np.log10(atr_sum / range_hl) / np.log10(self.period)
-        return chop
+        return chop  # type: ignore[no-any-return]
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals = []
