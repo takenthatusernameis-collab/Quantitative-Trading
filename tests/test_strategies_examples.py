@@ -21,8 +21,10 @@ from quant_trading.strategies.examples import (
     MomentumStrategy,
     MoneyFlowIndexStrategy,
     MovingAverageCrossover,
+    NegativeVolumeIndexStrategy,
     OBVStrategy,
     ParabolicSARStrategy,
+    PositiveVolumeIndexStrategy,
     RSIStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
@@ -32,8 +34,6 @@ from quant_trading.strategies.examples import (
     VortexStrategy,
     VWAPStrategy,
     WilliamsRStrategy,
-    NegativeVolumeIndexStrategy,
-    PositiveVolumeIndexStrategy,
 )
 
 
