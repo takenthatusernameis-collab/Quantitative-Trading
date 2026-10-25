@@ -231,6 +231,8 @@ CLI_ARG_DEFAULTS = {
     "kc_atr_period": 10,
     "kc_multiplier": 2.0,
     "kc_use_middle_cross": False,
+    "atr_period": 14,
+    "atr_multiplier": 2.0,
     "stoch_k_period": 14,
     "stoch_d_period": 3,
     "stoch_oversold": 20,
@@ -486,6 +488,18 @@ def parse_args() -> argparse.Namespace:
         help="Enable middle line (EMA) crossover signals for Keltner Channel",
     )
     parser.add_argument(
+        "--atr-period",
+        type=int,
+        default=14,
+        help="ATR lookback period for the Average True Range channel",
+    )
+    parser.add_argument(
+        "--atr-multiplier",
+        type=float,
+        default=2.0,
+        help="Channel width as a multiple of ATR for the Average True Range channel",
+    )
+    parser.add_argument(
         "--stoch-k-period",
         type=int,
         default=14,
@@ -653,6 +667,18 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="1.0,3.0,0.5",
         help="Keltner multiplier range: min,max,step",
+    )
+    parser.add_argument(
+        "--atr-period-range",
+        type=str,
+        default="5,30,5",
+        help="ATR period range: min,max,step",
+    )
+    parser.add_argument(
+        "--atr-multiplier-range",
+        type=str,
+        default="1.0,4.0,0.5",
+        help="ATR multiplier range: min,max,step",
     )
     parser.add_argument(
         "--stoch-k-period-range",
@@ -1045,6 +1071,7 @@ def create_strategy(args: argparse.Namespace):
             ("kc_multiplier", "multiplier"),
             ("kc_use_middle_cross", "use_middle_cross"),
         ],
+        "atr": [("atr_period", "period"), ("atr_multiplier", "atr_multiplier")],
         "stoch": [
             ("stoch_k_period", "k_period"),
             ("stoch_d_period", "d_period"),
@@ -1092,6 +1119,8 @@ def create_strategy(args: argparse.Namespace):
             kwargs["name"] = (
                 f"Keltner_{args.kc_ema_period}_{args.kc_atr_period}_{args.kc_multiplier}"
             )
+        elif args.strategy == "atr":
+            kwargs["name"] = f"ATR_{args.atr_period}_{args.atr_multiplier}"
         elif args.strategy == "stoch":
             kwargs["name"] = (
                 f"Stoch_{args.stoch_k_period}_{args.stoch_d_period}_{args.stoch_oversold}_{args.stoch_overbought}"
@@ -1550,6 +1579,23 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
     elif args.strategy == "vwap":
         # VWAP has no configurable parameters
         pass
+    elif args.strategy == "atr":
+        period_min, period_max, period_step = parse_range(args.atr_period_range)
+        mult_min, mult_max, mult_step = parse_range(args.atr_multiplier_range)
+        grid.add(
+            ParameterSpace(
+                "period", min_val=period_min, max_val=period_max, step=period_step, param_type=int
+            )
+        )
+        grid.add(
+            ParameterSpace(
+                "atr_multiplier",
+                min_val=mult_min,
+                max_val=mult_max,
+                step=mult_step,
+                param_type=float,
+            )
+        )
 
     return grid
 
@@ -2185,6 +2231,9 @@ def run_combined(
         elif strategy_key == "sar":
             strategy_args.sar_step = getattr(args, "sar_step", 0.02)
             strategy_args.sar_max_step = getattr(args, "sar_max_step", 0.20)
+        elif strategy_key == "atr":
+            strategy_args.atr_period = getattr(args, "atr_period", 14)
+            strategy_args.atr_multiplier = getattr(args, "atr_multiplier", 2.0)
         strategy = create_strategy(strategy_args)
 
         try:

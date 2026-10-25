@@ -1633,7 +1633,7 @@ class TestRunCombined:
             ("Klinger_Oscillator", 12.9),
             ("Detrended_Price_Oscillator", 10.0),
             ("Accumulation_Distribution", 11.0),
-            ("Average_True_Range", 16.0),
+            ("ATR_14_2.0", 16.0),
         ]:
             m = MagicMock(
                 spec=[
@@ -1716,6 +1716,7 @@ class TestRunCombined:
         assert "Donchian_20_20" in captured.out
         assert "Aroon_25" in captured.out
         assert "Keltner_20_10_2.0" in captured.out
+        assert "ATR_14_2.0" in captured.out
         assert "Stoch_14_3_20_80" in captured.out
         assert "Ichimoku_Cloud" in captured.out
         assert "Parabolic_SAR" in captured.out

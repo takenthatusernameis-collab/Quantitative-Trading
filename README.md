@@ -1296,6 +1296,15 @@ channel and sell signals when price breaks below the lower channel:
 python examples/run_keltner.py
 ```
 
+For an Average True Range Channel Breakout demonstration using seeded synthetic data,
+see `examples/run_atr.py`. It runs the `AverageTrueRangeStrategy`, which builds an ATR
+channel anchored on the previous close and generates buy signals on upside breakouts
+and sell signals on downside breakouts:
+
+```bash
+python examples/run_atr.py
+```
+
 For a Moving Average Crossover demonstration using fast/slow moving averages,
 see `examples/run_ma_crossover.py`. It runs the `MovingAverageCrossover`
 strategy against seeded synthetic data, generating buy signals on golden
