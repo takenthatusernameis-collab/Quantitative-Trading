@@ -22,6 +22,7 @@ from .examples import (
     HullMovingAverageStrategy,
     IchimokuCloudStrategy,
     KeltnerChannelStrategy,
+    KlingerOscillatorStrategy,
     MACDStrategy,
     MomentumStrategy,
     MoneyFlowIndexStrategy,
@@ -69,6 +70,7 @@ register_strategy("donchian", DonchianChannelStrategy, aliases=["donchian_channe
 register_strategy("eom", EaseOfMovementStrategy, aliases=["ease_of_movement"])
 register_strategy("aroon", AroonStrategy, aliases=["aroon_oscillator"])
 register_strategy("keltner", KeltnerChannelStrategy, aliases=["kc", "keltner_channel"])
+register_strategy("klinger", KlingerOscillatorStrategy, aliases=["klinger_oscillator"])
 register_strategy("stoch", StochasticOscillatorStrategy, aliases=["stochastic", "stoch_oscillator"])
 register_strategy("ichimoku", IchimokuCloudStrategy, aliases=["ichimoku_cloud", "ichimoku"])
 register_strategy("hma", HullMovingAverageStrategy, aliases=["hull_moving_average"])
@@ -123,6 +125,7 @@ __all__ = [
     "HullMovingAverageStrategy",
     "IchimokuCloudStrategy",
     "KeltnerChannelStrategy",
+    "KlingerOscillatorStrategy",
     "MACDStrategy",
     "MomentumStrategy",
     "MoneyFlowIndexStrategy",

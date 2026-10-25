@@ -4345,6 +4345,215 @@ class VolumePriceTrendStrategy(Strategy):
         return signals
 
 
+class KlingerOscillatorStrategy(Strategy):
+    """Klinger Oscillator Strategy.
+
+    The Klinger Oscillator is a volume-based momentum indicator that
+    measures the difference between a fast and a slow exponential moving
+    average of the cumulative money flow. Money flow is the volume-weighted
+    direction of the typical price:
+
+    - ``typical_price = (high + low + close) / 3``
+    - ``money_flow = volume * sign(typical_price - prev_typical_price)``
+      (the first bar contributes zero because there is no previous typical
+      price)
+    - ``klinger = cumsum(money_flow)``
+    - ``KO = EMA(klinger, fast) - EMA(klinger, slow)``
+
+    Trading signals:
+    - Buy when the fast Klinger EMA crosses above the slow Klinger EMA.
+    - Sell when the fast Klinger EMA crosses below the slow Klinger EMA.
+
+    Requires ``"high"``, ``"low"``, ``"close"`` and ``"volume"`` columns.
+    """
+
+    def __init__(
+        self,
+        fast_period: int = 55,
+        slow_period: int = 200,
+        name: str = "Klinger_Oscillator",
+    ):
+        """Initialize the Klinger Oscillator strategy.
+
+        Args:
+            fast_period: Lookback window for the fast Klinger EMA.
+            slow_period: Lookback window for the slow Klinger EMA; must
+                exceed ``fast_period``.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+
+        """
+        super().__init__(
+            name,
+            {
+                "fast_period": fast_period,
+                "slow_period": slow_period,
+            },
+        )
+        self.fast_period = fast_period
+        self.slow_period = slow_period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``fast_period`` or ``slow_period`` is non-positive,
+                or if ``fast_period`` is not less than ``slow_period``.
+
+        """
+        if self.fast_period <= 0:
+            raise ValueError("fast_period must be positive")
+        if self.slow_period <= 0:
+            raise ValueError("slow_period must be positive")
+        if self.fast_period >= self.slow_period:
+            raise ValueError("fast_period must be less than slow_period")
+
+    def _calculate_klinger(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate the Klinger Oscillator series.
+
+        Args:
+            df: DataFrame containing at least ``"high"``, ``"low"``,
+                ``"close"`` and ``"volume"`` columns.
+
+        Returns:
+            Series of Klinger values aligned with ``df`` index.
+
+        """
+        typical_price = (df["high"] + df["low"] + df["close"]) / 3.0
+        volume = df["volume"]
+        prev_typical = typical_price.shift(1)
+        # Direction of money flow: +1 when the typical price rises, -1 when
+        # it falls, 0 when it is unchanged. The first bar has no previous
+        # typical price, so its contribution is zero.
+        direction = np.where(
+            typical_price > prev_typical,
+            1.0,
+            np.where(typical_price < prev_typical, -1.0, 0.0),
+        )
+        money_flow = volume * direction
+        klinger: pd.Series = money_flow.cumsum()
+        return klinger
+
+    def _ema(self, series: pd.Series, period: int) -> pd.Series:
+        """Calculate an Exponential Moving Average.
+
+        Args:
+            series: Series of values to smooth.
+            period: Lookback window for the EMA.
+
+        Returns:
+            Series of EMA values aligned with ``series``.
+
+        """
+        return series.ewm(span=period, adjust=False).mean()
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from Klinger EMA crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least a
+                ``"high"``, ``"low"``, ``"close"`` and ``"volume"`` column
+                indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose fast Klinger
+            EMA crosses the slow Klinger EMA between the last two bars.
+
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.slow_period + 2:
+                continue
+
+            close = df["close"]
+            current_price = close.iloc[-1]
+            # The signal is emitted at the last close, so a close that is not a
+            # number is rejected before anything is derived from it.
+            if pd.isna(current_price) or current_price == 0:
+                continue
+
+            klinger = self._calculate_klinger(df)
+            fast_ema = self._ema(klinger, self.fast_period)
+            slow_ema = self._ema(klinger, self.slow_period)
+
+            fast_current = fast_ema.iloc[-1]
+            fast_prev = fast_ema.iloc[-2]
+            slow_current = slow_ema.iloc[-1]
+            slow_prev = slow_ema.iloc[-2]
+            timestamp = df.index[-1]
+
+            if (
+                pd.isna(fast_current)
+                or pd.isna(fast_prev)
+                or pd.isna(slow_current)
+                or pd.isna(slow_prev)
+            ):
+                continue
+
+            # Bullish crossover: fast Klinger EMA crosses above slow EMA
+            if fast_prev <= slow_prev and fast_current > slow_current:
+                strength = (
+                    min(
+                        1.0,
+                        abs(float(fast_current - slow_current))
+                        / (abs(float(fast_current)) + abs(float(slow_current))),
+                    )
+                    if fast_current != 0 or slow_current != 0
+                    else 0.5
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "klinger": float(klinger.iloc[-1]),
+                            "fast_ema": float(fast_current),
+                            "slow_ema": float(slow_current),
+                            "fast_period": self.fast_period,
+                            "slow_period": self.slow_period,
+                            "signal_type": "klinger_bullish_crossover",
+                        },
+                    )
+                )
+            # Bearish crossover: fast Klinger EMA crosses below slow EMA
+            elif fast_prev >= slow_prev and fast_current < slow_current:
+                strength = (
+                    min(
+                        1.0,
+                        abs(float(slow_current - fast_current))
+                        / (abs(float(fast_current)) + abs(float(slow_current))),
+                    )
+                    if fast_current != 0 or slow_current != 0
+                    else 0.5
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "klinger": float(klinger.iloc[-1]),
+                            "fast_ema": float(fast_current),
+                            "slow_ema": float(slow_current),
+                            "fast_period": self.fast_period,
+                            "slow_period": self.slow_period,
+                            "signal_type": "klinger_bearish_crossover",
+                        },
+                    )
+                )
+
+        return signals
+
+
 class HullMovingAverageStrategy(Strategy):
     """Hull Moving Average (HMA) Strategy.
 

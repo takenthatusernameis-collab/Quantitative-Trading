@@ -18,6 +18,7 @@ from quant_trading.strategies.examples import (
     HullMovingAverageStrategy,
     IchimokuCloudStrategy,
     KeltnerChannelStrategy,
+    KlingerOscillatorStrategy,
     MACDStrategy,
     MomentumStrategy,
     MoneyFlowIndexStrategy,
@@ -3707,6 +3708,130 @@ class TestVolumePriceTrendStrategy:
         strategy = VolumePriceTrendStrategy(fast_period=5, slow_period=13)
         closes = [100.0] * 25 + [float("nan")]
         data = {"AAPL": create_volume_price_trend_data("AAPL", closes)}
+        assert strategy.generate_signals(data) == []
+
+
+def create_klinger_oscillator_data(
+    symbol: str, closes: list[float], volume: float = 1_000_000.0
+) -> pd.DataFrame:
+    """Create deterministic high/low/close/volume data for Klinger tests.
+
+    The close is the only varying column; high/low/close are held equal and
+    volume is held constant so the Klinger series is driven purely by the
+    price moves.
+    """
+    dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
+    close = np.asarray(closes, dtype=float)
+    return pd.DataFrame(
+        {
+            "open": close,
+            "high": close,
+            "low": close,
+            "close": close,
+            "volume": np.full(len(close), volume),
+        },
+        index=dates,
+    )
+
+
+class TestKlingerOscillatorStrategy:
+    """Tests for the Klinger Oscillator strategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization."""
+        strategy = KlingerOscillatorStrategy(
+            fast_period=55, slow_period=200, name="Test_Klinger"
+        )
+        assert strategy.name == "Test_Klinger"
+        assert strategy.fast_period == 55
+        assert strategy.slow_period == 200
+        assert strategy.parameters["fast_period"] == 55
+        assert strategy.parameters["slow_period"] == 200
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid periods."""
+        with pytest.raises(ValueError, match="fast_period must be positive"):
+            KlingerOscillatorStrategy(fast_period=0, slow_period=200)
+        with pytest.raises(ValueError, match="slow_period must be positive"):
+            KlingerOscillatorStrategy(fast_period=55, slow_period=0)
+        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+            KlingerOscillatorStrategy(fast_period=200, slow_period=200)
+
+    def test_generate_signals_insufficient_data(self):
+        """Test generate_signals with fewer bars than slow_period + 2."""
+        strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
+        data = {"AAPL": create_klinger_oscillator_data("AAPL", [100.0] * 15)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_klinger_bullish_crossover(self):
+        """A final price surge flips the fast Klinger EMA above the slow EMA (buy)."""
+        strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
+        # 25 flat bars keep both EMAs at zero; the final bar jumps to 300,
+        # pushing the fast Klinger EMA above the slow Klinger EMA on the last
+        # bar only.
+        data = {"AAPL": create_klinger_oscillator_data("AAPL", [100.0] * 25 + [300.0])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(0.4)
+        assert signal.price == pytest.approx(300.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "klinger_bullish_crossover"
+        assert signal.metadata["klinger"] == pytest.approx(1_000_000.0)
+        assert signal.metadata["fast_ema"] == pytest.approx(333333.3333333333)
+        assert signal.metadata["slow_ema"] == pytest.approx(142857.14285714284)
+        assert signal.metadata["fast_period"] == 5
+        assert signal.metadata["slow_period"] == 13
+
+    def test_generate_signals_klinger_bearish_crossover(self):
+        """A final price drop flips the fast Klinger EMA below the slow EMA (sell)."""
+        strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
+        data = {"AAPL": create_klinger_oscillator_data("AAPL", [100.0] * 25 + [1.0])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(0.4)
+        assert signal.price == pytest.approx(1.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "klinger_bearish_crossover"
+        assert signal.metadata["klinger"] == pytest.approx(-1_000_000.0)
+        assert signal.metadata["fast_ema"] == pytest.approx(-333333.3333333333)
+        assert signal.metadata["slow_ema"] == pytest.approx(-142857.14285714284)
+        assert signal.metadata["fast_period"] == 5
+        assert signal.metadata["slow_period"] == 13
+
+    def test_generate_signals_flat_price_no_signals(self):
+        """Constant price keeps the Klinger series at zero, so no crossover fires."""
+        strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
+        data = {"AAPL": create_klinger_oscillator_data("AAPL", [100.0] * 30)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Test generate_signals evaluates each symbol independently."""
+        strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
+        data = {
+            "AAPL": create_klinger_oscillator_data("AAPL", [100.0] * 25 + [300.0]),
+            "MSFT": create_klinger_oscillator_data("MSFT", [100.0] * 25 + [1.0]),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
+
+    def test_generate_signals_skips_nan_last_close(self):
+        """A NaN last close is rejected before any signal is derived."""
+        strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
+        closes = [100.0] * 25 + [float("nan")]
+        data = {"AAPL": create_klinger_oscillator_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
 
 
