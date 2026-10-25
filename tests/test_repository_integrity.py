@@ -147,7 +147,10 @@ def test_validate_parameters_overrides_annotated_none():
                     if parent_class:
                         break
             returns = node.returns
-            if not ((isinstance(returns, ast.Name) and returns.id == "None") or (isinstance(returns, ast.Constant) and returns.value is None)):
+            if not (
+                (isinstance(returns, ast.Name) and returns.id == "None")
+                or (isinstance(returns, ast.Constant) and returns.value is None)
+            ):
                 rel = path.relative_to(REPO_ROOT)
                 offenders.append(f"{rel}:{node.lineno} ({parent_class}.{node.name})")
     assert not offenders, "validate_parameters without -> None:\n" + "\n".join(offenders)
@@ -197,7 +200,9 @@ def test_cli_strategy_keys_match_registry():
         offenders.append(f"{rel}: registry keys missing from BUILTIN_STRATEGY_KEYS: {missing}")
     if extra:
         offenders.append(f"{rel}: BUILTIN_STRATEGY_KEYS keys not in the registry: {extra}")
-    assert not offenders, "CLI strategy keys out of sync with the registry:\n" + "\n".join(offenders)
+    assert not offenders, "CLI strategy keys out of sync with the registry:\n" + "\n".join(
+        offenders
+    )
 
 
 def test_class_docstring_is_first_statement():
@@ -215,15 +220,19 @@ def test_class_docstring_is_first_statement():
             if not isinstance(node, ast.ClassDef) or not node.body:
                 continue
             first = node.body[0]
-            first_is_docstring = isinstance(first, ast.Expr) and isinstance(
-                getattr(first, "value", None), ast.Constant
-            ) and isinstance(first.value.value, str)
+            first_is_docstring = (
+                isinstance(first, ast.Expr)
+                and isinstance(getattr(first, "value", None), ast.Constant)
+                and isinstance(first.value.value, str)
+            )
             if first_is_docstring:
                 continue
             for stmt in node.body[1:]:
-                if isinstance(stmt, ast.Expr) and isinstance(
-                    getattr(stmt, "value", None), ast.Constant
-                ) and isinstance(stmt.value.value, str):
+                if (
+                    isinstance(stmt, ast.Expr)
+                    and isinstance(getattr(stmt, "value", None), ast.Constant)
+                    and isinstance(stmt.value.value, str)
+                ):
                     rel = path.relative_to(REPO_ROOT)
                     offenders.append(f"{rel}:{node.lineno} ({node.name})")
                     break
@@ -244,15 +253,19 @@ def test_module_docstring_is_first_statement():
         if not tree.body:
             continue
         first = tree.body[0]
-        first_is_docstring = isinstance(first, ast.Expr) and isinstance(
-            getattr(first, "value", None), ast.Constant
-        ) and isinstance(first.value.value, str)
+        first_is_docstring = (
+            isinstance(first, ast.Expr)
+            and isinstance(getattr(first, "value", None), ast.Constant)
+            and isinstance(first.value.value, str)
+        )
         if first_is_docstring:
             continue
         for stmt in tree.body[1:]:
-            if isinstance(stmt, ast.Expr) and isinstance(
-                getattr(stmt, "value", None), ast.Constant
-            ) and isinstance(stmt.value.value, str):
+            if (
+                isinstance(stmt, ast.Expr)
+                and isinstance(getattr(stmt, "value", None), ast.Constant)
+                and isinstance(stmt.value.value, str)
+            ):
                 rel = path.relative_to(REPO_ROOT)
                 offenders.append(f"{rel}:{stmt.lineno}")
                 break

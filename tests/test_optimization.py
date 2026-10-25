@@ -52,9 +52,7 @@ _HAS_YFINANCE = _module_available("yfinance")
 skip_if_no_skopt = pytest.mark.skipif(
     not _HAS_SKOPT, reason="scikit-optimize (skopt) is not installed"
 )
-skip_if_no_yfinance = pytest.mark.skipif(
-    not _HAS_YFINANCE, reason="yfinance is not installed"
-)
+skip_if_no_yfinance = pytest.mark.skipif(not _HAS_YFINANCE, reason="yfinance is not installed")
 
 
 class MockDataProvider:

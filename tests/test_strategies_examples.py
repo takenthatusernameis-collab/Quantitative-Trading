@@ -3862,9 +3862,7 @@ class TestKlingerOscillatorStrategy:
 
     def test_initialization(self):
         """Test strategy initialization."""
-        strategy = KlingerOscillatorStrategy(
-            fast_period=55, slow_period=200, name="Test_Klinger"
-        )
+        strategy = KlingerOscillatorStrategy(fast_period=55, slow_period=200, name="Test_Klinger")
         assert strategy.name == "Test_Klinger"
         assert strategy.fast_period == 55
         assert strategy.slow_period == 200
@@ -4703,9 +4701,7 @@ class TestAverageTrueRangeStrategy:
 
     def test_initialization(self):
         """Test strategy initialization."""
-        strategy = AverageTrueRangeStrategy(
-            period=2, atr_multiplier=1.0, name="Test_ATR"
-        )
+        strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0, name="Test_ATR")
         assert strategy.name == "Test_ATR"
         assert strategy.period == 2
         assert strategy.atr_multiplier == 1.0
@@ -4729,11 +4725,7 @@ class TestAverageTrueRangeStrategy:
     def test_generate_signals_atr_bullish_breakout(self):
         """A sharp close above the prior close + ATR band fires a buy."""
         strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
-        data = {
-            "AAPL": create_average_true_range_data(
-                "AAPL", [100.0, 100.0, 100.0, 110.0]
-            )
-        }
+        data = {"AAPL": create_average_true_range_data("AAPL", [100.0, 100.0, 100.0, 110.0])}
         signals = strategy.generate_signals(data)
 
         assert len(signals) == 1
@@ -4750,11 +4742,7 @@ class TestAverageTrueRangeStrategy:
     def test_generate_signals_atr_bearish_breakout(self):
         """A sharp close below the prior close - ATR band fires a sell."""
         strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
-        data = {
-            "AAPL": create_average_true_range_data(
-                "AAPL", [100.0, 100.0, 100.0, 90.0]
-            )
-        }
+        data = {"AAPL": create_average_true_range_data("AAPL", [100.0, 100.0, 100.0, 90.0])}
         signals = strategy.generate_signals(data)
 
         assert len(signals) == 1
@@ -4778,12 +4766,8 @@ class TestAverageTrueRangeStrategy:
         """Test generate_signals evaluates each symbol independently."""
         strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
         data = {
-            "AAPL": create_average_true_range_data(
-                "AAPL", [100.0, 100.0, 100.0, 110.0]
-            ),
-            "MSFT": create_average_true_range_data(
-                "MSFT", [100.0, 100.0, 100.0, 90.0]
-            ),
+            "AAPL": create_average_true_range_data("AAPL", [100.0, 100.0, 100.0, 110.0]),
+            "MSFT": create_average_true_range_data("MSFT", [100.0, 100.0, 100.0, 90.0]),
         }
         signals = strategy.generate_signals(data)
         by_symbol = {s.symbol: s for s in signals}

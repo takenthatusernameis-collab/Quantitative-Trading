@@ -87,12 +87,22 @@ register_strategy("ao", AwesomeOscillatorStrategy, aliases=["awesome_oscillator"
 register_strategy("vol", VolumeOscillatorStrategy, aliases=["volume_oscillator"])
 register_strategy("vortex", VortexStrategy, aliases=["vortex_indicator"])
 register_strategy("vpt", VolumePriceTrendStrategy, aliases=["volume_price_trend"])
-register_strategy("ppo", PercentagePriceOscillatorStrategy, aliases=["percentage_price_oscillator", "ppo_strategy"])
-register_strategy("pvo", PercentageVolumeOscillatorStrategy, aliases=["percentage_volume_oscillator", "pvo_strategy"])
+register_strategy(
+    "ppo",
+    PercentagePriceOscillatorStrategy,
+    aliases=["percentage_price_oscillator", "ppo_strategy"],
+)
+register_strategy(
+    "pvo",
+    PercentageVolumeOscillatorStrategy,
+    aliases=["percentage_volume_oscillator", "pvo_strategy"],
+)
 register_strategy("momentum", MomentumStrategy, aliases=["mom"])
 register_strategy("adx", ADXStrategy, aliases=["average_directional_index"])
 register_strategy("atr", AverageTrueRangeStrategy, aliases=["average_true_range", "atr_channel"])
-register_strategy("adl", AccumulationDistributionStrategy, aliases=["accumulation_distribution", "ad_line"])
+register_strategy(
+    "adl", AccumulationDistributionStrategy, aliases=["accumulation_distribution", "ad_line"]
+)
 register_strategy("cci", CCIStrategy, aliases=["commodity_channel_index"])
 register_strategy("williamsr", WilliamsRStrategy, aliases=["williams_pct_r"])
 register_strategy("obv", OBVStrategy, aliases=["on_balance_volume"])
@@ -178,6 +188,7 @@ __all__ = [
     "register_strategy",
     "strategy_keys",
 ]
+
 
 # Convenience functions
 def get_available_strategies() -> dict[str, type[Strategy]]:

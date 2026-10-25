@@ -385,9 +385,7 @@ class BacktestResult:
         for attr in ("regime_analysis", "monte_carlo", "trade_analysis"):
             value = getattr(self, attr, None)
             if value is not None:
-                data[attr] = (
-                    value.to_dict() if hasattr(value, "to_dict") else value
-                )
+                data[attr] = value.to_dict() if hasattr(value, "to_dict") else value
 
         content = json.dumps(data, indent=indent, default=str)
         if path is not None:

@@ -412,8 +412,8 @@ class BollingerBandsStrategy(Strategy):
                             "sma": current_sma,
                             "signal_type": "upper_band_touch",
                         },
+                    )
                 )
-            )
 
         return signals
 
@@ -6534,7 +6534,9 @@ class NegativeVolumeIndexStrategy(Strategy):
         nvi = pd.Series(1000.0, index=df.index, dtype=float)
         for i in range(1, len(df)):
             if volume.iloc[i] < volume.iloc[i - 1] and close.iloc[i - 1] != 0:
-                nvi.iloc[i] = nvi.iloc[i - 1] * (1.0 + (close.iloc[i] - close.iloc[i - 1]) / close.iloc[i - 1])
+                nvi.iloc[i] = nvi.iloc[i - 1] * (
+                    1.0 + (close.iloc[i] - close.iloc[i - 1]) / close.iloc[i - 1]
+                )
             else:
                 nvi.iloc[i] = nvi.iloc[i - 1]
         return nvi  # type: ignore[no-any-return]
@@ -6555,14 +6557,45 @@ class NegativeVolumeIndexStrategy(Strategy):
             current_ema = ema.iloc[-1]
             prev_ema = ema.iloc[-2]
             timestamp = df.index[-1]
-            if pd.isna(current_nvi) or pd.isna(prev_nvi) or pd.isna(current_ema) or pd.isna(prev_ema):
+            if (
+                pd.isna(current_nvi)
+                or pd.isna(prev_nvi)
+                or pd.isna(current_ema)
+                or pd.isna(prev_ema)
+            ):
                 continue
             if prev_nvi <= prev_ema and current_nvi > current_ema:
-                strength = min(1.0, abs(float(current_nvi - current_ema)) / (abs(float(current_nvi)) + abs(float(current_ema)) + 1e-12))
-                signals.append(Signal(symbol=symbol, action="buy", strength=strength, price=current_price, timestamp=timestamp, metadata={"nvi": float(current_nvi), "ema": float(current_ema)}))
+                strength = min(
+                    1.0,
+                    abs(float(current_nvi - current_ema))
+                    / (abs(float(current_nvi)) + abs(float(current_ema)) + 1e-12),
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={"nvi": float(current_nvi), "ema": float(current_ema)},
+                    )
+                )
             elif prev_nvi >= prev_ema and current_nvi < current_ema:
-                strength = min(1.0, abs(float(current_nvi - current_ema)) / (abs(float(current_nvi)) + abs(float(current_ema)) + 1e-12))
-                signals.append(Signal(symbol=symbol, action="sell", strength=strength, price=current_price, timestamp=timestamp, metadata={"nvi": float(current_nvi), "ema": float(current_ema)}))
+                strength = min(
+                    1.0,
+                    abs(float(current_nvi - current_ema))
+                    / (abs(float(current_nvi)) + abs(float(current_ema)) + 1e-12),
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={"nvi": float(current_nvi), "ema": float(current_ema)},
+                    )
+                )
         return signals
 
 
@@ -6728,8 +6761,12 @@ class StochRSIStrategy(Strategy):
         delta = close.diff()
         gain = delta.where(delta > 0, 0.0)
         loss = -delta.where(delta < 0, 0.0)
-        avg_gain = gain.ewm(alpha=1.0 / self.rsi_period, min_periods=self.rsi_period, adjust=False).mean()
-        avg_loss = loss.ewm(alpha=1.0 / self.rsi_period, min_periods=self.rsi_period, adjust=False).mean()
+        avg_gain = gain.ewm(
+            alpha=1.0 / self.rsi_period, min_periods=self.rsi_period, adjust=False
+        ).mean()
+        avg_loss = loss.ewm(
+            alpha=1.0 / self.rsi_period, min_periods=self.rsi_period, adjust=False
+        ).mean()
         rs = avg_gain / avg_loss
         rsi = 100 - (100 / (1 + rs))
         return rsi  # type: ignore[no-any-return]
@@ -6933,7 +6970,9 @@ class ChoppinessIndexStrategy(Strategy):
                 )
             # Cross above high threshold - choppy market (sell)
             elif prev_chop <= self.high_threshold and current_chop > self.high_threshold:
-                strength = min(1.0, (current_chop - self.high_threshold) / (100 - self.high_threshold) + 0.5)
+                strength = min(
+                    1.0, (current_chop - self.high_threshold) / (100 - self.high_threshold) + 0.5
+                )
                 signals.append(
                     Signal(
                         symbol=symbol,

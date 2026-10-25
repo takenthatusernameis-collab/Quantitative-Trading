@@ -33,9 +33,7 @@ def _module_available(name: str) -> bool:
 
 _HAS_YFINANCE = _module_available("yfinance")
 
-skip_if_no_yfinance = pytest.mark.skipif(
-    not _HAS_YFINANCE, reason="yfinance is not installed"
-)
+skip_if_no_yfinance = pytest.mark.skipif(not _HAS_YFINANCE, reason="yfinance is not installed")
 
 pytestmark = skip_if_no_yfinance
 
