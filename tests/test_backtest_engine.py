@@ -1262,7 +1262,7 @@ class SameBarSignalStrategy(Strategy):
 def _price_frame(prices: list[float], start: str = "2024-01-01") -> pd.DataFrame:
     """Build an OHLC frame with the given close prices."""
     index = pd.date_range(start, periods=len(prices), freq="D")
-    return pd.DataFrame(
+    frame: pd.DataFrame = pd.DataFrame(
         {
             "open": prices,
             "high": [price * 1.01 for price in prices],
@@ -1271,6 +1271,7 @@ def _price_frame(prices: list[float], start: str = "2024-01-01") -> pd.DataFrame
         },
         index=index,
     )
+    return frame
 
 
 def _run_script(

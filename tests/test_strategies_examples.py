@@ -4684,7 +4684,7 @@ def create_average_true_range_data(
     close = np.asarray(closes, dtype=float)
     high = np.asarray(highs if highs is not None else closes, dtype=float)
     low = np.asarray(lows if lows is not None else closes, dtype=float)
-    return pd.DataFrame(
+    frame: pd.DataFrame = pd.DataFrame(
         {
             "open": close,
             "high": high,
@@ -4694,6 +4694,7 @@ def create_average_true_range_data(
         },
         index=dates,
     )
+    return frame
 
 
 class TestAverageTrueRangeStrategy:

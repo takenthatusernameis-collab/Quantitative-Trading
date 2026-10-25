@@ -124,7 +124,7 @@ def create_test_data(symbol: str, days: int = 100, end: datetime | None = None) 
     returns = np.random.normal(0.0005, 0.02, days)
     prices = 100 * np.exp(np.cumsum(returns))
 
-    df = pd.DataFrame(
+    df: pd.DataFrame = pd.DataFrame(
         {
             "open": prices * (1 + np.random.uniform(-0.005, 0.005, days)),
             "high": prices * (1 + np.random.uniform(0, 0.01, days)),
