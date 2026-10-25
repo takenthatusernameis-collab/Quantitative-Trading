@@ -338,10 +338,14 @@ class BacktestResult:
         """
 
         csv = self.to_dataframe().to_csv(index=False)
+        if not isinstance(csv, str):
+            csv_str = str(csv)
+        else:
+            csv_str = csv
         if path is not None:
             with open(path, "w", encoding="utf-8") as handle:
-                handle.write(csv)
-        return csv
+                handle.write(csv_str)
+        return csv_str
 
     def to_json(self, path: str | None = None, indent: int = 2) -> str:
         """Export the summary metrics to JSON.
@@ -359,10 +363,14 @@ class BacktestResult:
 
         records = self.to_dataframe().to_dict(orient="records")
         content = json.dumps(records, indent=indent, default=str)
+        if not isinstance(content, str):
+            content_str = str(content)
+        else:
+            content_str = content
         if path is not None:
             with open(path, "w", encoding="utf-8") as handle:
-                handle.write(content)
-        return content
+                handle.write(content_str)
+        return content_str
 
 
 class BacktestEngine:
