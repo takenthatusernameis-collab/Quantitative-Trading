@@ -265,5 +265,53 @@ class TestStrategyValidateParameters:
         assert strategy.validate_called is True
 
 
+class TestStrategyDescriptionDerivation:
+    """Tests for Strategy.__init_subclass__ description derivation.
+
+    A subclass that does not declare an explicit ``description`` derives it
+    from the first line of its docstring, so a misplaced (dead) docstring
+    silently leaves ``description`` at ``None``.
+    """
+
+    def test_description_is_derived_from_docstring_first_line(self):
+        """A subclass without an explicit description derives it from its docstring."""
+
+        class DocstringStrategy(Strategy):
+            """Mean reversion strategy based on RSI levels.
+
+            It buys when RSI is oversold and sells when overbought.
+            """
+
+            def generate_signals(self, data):
+                return []
+
+        strategy = DocstringStrategy(name="Test")
+        assert strategy.description == "Mean reversion strategy based on RSI levels"
+
+    def test_explicit_description_is_preserved(self):
+        """An explicit description attribute is not overridden by the docstring."""
+
+        class ExplicitDescriptionStrategy(Strategy):
+            """Some docstring."""
+
+            description = "Explicitly set description"
+
+            def generate_signals(self, data):
+                return []
+
+        strategy = ExplicitDescriptionStrategy(name="Test")
+        assert strategy.description == "Explicitly set description"
+
+    def test_description_is_none_without_docstring(self):
+        """A subclass with no docstring and no description keeps description None."""
+
+        class NoDocstringStrategy(Strategy):
+            def generate_signals(self, data):
+                return []
+
+        strategy = NoDocstringStrategy(name="Test")
+        assert strategy.description is None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
