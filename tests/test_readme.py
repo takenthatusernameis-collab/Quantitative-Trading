@@ -4,7 +4,6 @@ import re
 from pathlib import Path
 
 from quant_trading.strategies import list_strategies
-from quant_trading.strategies.factory import get_registry
 
 README_PATH = Path(__file__).resolve().parent.parent / "README.md"
 EXAMPLES_DIR = README_PATH.parent / "examples"
