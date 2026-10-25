@@ -322,14 +322,6 @@ def _make_market_data(symbol: str, start: datetime, end: datetime) -> MarketData
     )
 
 
-def _module_available(name: str) -> bool:
-    """Return True if a top-level module can be imported (never raises)."""
-    try:
-        return importlib.util.find_spec(name) is not None
-    except (ImportError, ValueError):
-        return False
-
-
 def test_get_yf_lazy_import_success():
     provider = YFinanceProvider(cache_dir=None)
     yf = provider._get_yf()

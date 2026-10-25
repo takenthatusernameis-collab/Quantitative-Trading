@@ -16,7 +16,7 @@ from .base import (
 try:
     from .bayesian import BayesianOptimizer
 except ImportError:
-    BayesianOptimizer = None
+    BayesianOptimizer = None  # type: ignore[assignment,misc]
 from .grid_search import GridSearch
 from .random_search import RandomSearch
 from .walk_forward import WalkForwardOptimizer
