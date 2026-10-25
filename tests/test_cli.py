@@ -3145,6 +3145,84 @@ class TestCsvOutput:
             assert "best_strategy" in header
             assert any("MA_Crossover" in line for line in lines[1:])
 
+    def test_main_optimize_output_csv(self):
+        """Optimization mode writes a CSV file when ``--output-format csv``."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = f"{tmpdir}/opt.csv"
+            args = [
+                "--optimize",
+                "--strategy",
+                "ma",
+                "--offline",
+                "--output-format",
+                "csv",
+                "--output",
+                output_path,
+                "--symbols",
+                "AAPL",
+                "--days",
+                "150",
+                "--ma-fast-range",
+                "5,10,1",
+                "--ma-slow-range",
+                "20,30,1",
+                "--n-iter",
+                "2",
+            ]
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 0
+            import os
+
+            assert os.path.exists(output_path)
+            with open(output_path) as f:
+                lines = f.read().strip().splitlines()
+            assert len(lines) >= 2
+            header = lines[0].split(",")
+            assert "strategy" in header
+            assert "best_params" in header
+
+    def test_main_walk_forward_output_csv(self):
+        """Walk-forward mode writes a CSV file when ``--output-format csv``."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = f"{tmpdir}/wf.csv"
+            args = [
+                "--walk-forward",
+                "--strategy",
+                "ma",
+                "--offline",
+                "--output-format",
+                "csv",
+                "--output",
+                output_path,
+                "--symbols",
+                "AAPL",
+                "--days",
+                "200",
+                "--ma-fast-range",
+                "5,10,1",
+                "--ma-slow-range",
+                "20,30,1",
+                "--wf-windows",
+                "2",
+                "--wf-train-size",
+                "0.6",
+                "--n-iter",
+                "1",
+            ]
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 0
+            import os
+
+            assert os.path.exists(output_path)
+            with open(output_path) as f:
+                lines = f.read().strip().splitlines()
+            assert len(lines) >= 2
+            header = lines[0].split(",")
+            assert "strategy" in header
+            assert "window_results" in header
+
 
 class TestUserErrorReporting:
     """A user error is a one-line message, not a traceback.
