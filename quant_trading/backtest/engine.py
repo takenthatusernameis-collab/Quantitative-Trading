@@ -311,6 +311,7 @@ class BacktestResult:
                     "total_return": self.total_return,
                     "total_return_pct": self.total_return_pct,
                     "total_costs": self.total_costs,
+                    "total_pnl": getattr(metrics, "total_pnl", None),
                     "total_trades": getattr(metrics, "num_trades", None),
                     "win_rate": getattr(metrics, "win_rate", None),
                     "profit_factor": getattr(metrics, "profit_factor", None),
@@ -352,13 +353,43 @@ class BacktestResult:
             indent: Indentation level for the JSON output.
 
         Returns:
-            The JSON-formatted summary string.
+            The JSON-formatted summary object.
         """
 
         import json
 
-        records = self.to_dataframe().to_dict(orient="records")
-        content = json.dumps(records, indent=indent, default=str)
+        metrics = self.metrics
+        data: dict[str, Any] = {
+            "start_date": self.start_date,
+            "end_date": self.end_date,
+            "initial_capital": self.initial_capital,
+            "final_value": self.final_value,
+            "total_return": self.total_return,
+            "total_return_pct": self.total_return_pct,
+            "total_costs": self.total_costs,
+            "total_pnl": getattr(metrics, "total_pnl", None),
+            "unrealized_pnl": self.unrealized_pnl,
+            "total_trades": getattr(metrics, "num_trades", None),
+            "win_rate": getattr(metrics, "win_rate", None),
+            "profit_factor": getattr(metrics, "profit_factor", None),
+            "sharpe_ratio": getattr(metrics, "sharpe_ratio", None),
+            "sortino_ratio": getattr(metrics, "sortino_ratio", None),
+            "calmar_ratio": getattr(metrics, "calmar_ratio", None),
+            "max_drawdown": getattr(metrics, "max_drawdown", None),
+            "max_drawdown_pct": getattr(metrics, "max_drawdown_pct", None),
+            "volatility": getattr(metrics, "volatility", None),
+            "annual_return": getattr(metrics, "annual_return", None),
+            "portfolio_violations": list(self.portfolio_violations),
+        }
+
+        for attr in ("regime_analysis", "monte_carlo", "trade_analysis"):
+            value = getattr(self, attr, None)
+            if value is not None:
+                data[attr] = (
+                    value.to_dict() if hasattr(value, "to_dict") else value
+                )
+
+        content = json.dumps(data, indent=indent, default=str)
         if path is not None:
             with open(path, "w", encoding="utf-8") as handle:
                 handle.write(content)

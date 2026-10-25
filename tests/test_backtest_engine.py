@@ -1,5 +1,6 @@
 """Tests for the backtest engine."""
 
+import json
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -272,6 +273,120 @@ def test_backtest_result_dataclass():
     assert result.total_return_pct == 2.0
     # total_costs defaults to 0.0 so existing constructions keep working.
     assert result.total_costs == 0.0
+
+
+def test_backtest_result_to_dataframe_includes_total_pnl():
+    """to_dataframe() exposes total_pnl alongside the other headline totals."""
+    from quant_trading.backtest.metrics import BacktestMetrics
+
+    metrics = BacktestMetrics(total_pnl=1250.0, unrealized_pnl=250.0)
+    result = BacktestResult(
+        equity_curve=pd.Series([100000.0]),
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=datetime(2023, 1, 1),
+        end_date=datetime(2023, 1, 10),
+        initial_capital=100000.0,
+        final_value=101500.0,
+        total_return=1500.0,
+        total_return_pct=1.5,
+    )
+
+    frame = result.to_dataframe()
+    assert list(frame.columns).count("total_pnl") == 1
+    assert frame["total_pnl"].iloc[0] == 1250.0
+    assert frame["unrealized_pnl"].iloc[0] == 250.0
+
+
+def test_backtest_result_to_json_returns_object_not_list():
+    """to_json() serializes a JSON object, not a list of records."""
+    from quant_trading.backtest.metrics import BacktestMetrics
+
+    metrics = BacktestMetrics(total_pnl=1250.0, unrealized_pnl=250.0, num_trades=3)
+    result = BacktestResult(
+        equity_curve=pd.Series([100000.0, 101500.0]),
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=datetime(2023, 1, 1),
+        end_date=datetime(2023, 1, 10),
+        initial_capital=100000.0,
+        final_value=101500.0,
+        total_return=1500.0,
+        total_return_pct=1.5,
+        total_costs=12.5,
+    )
+
+    payload = json.loads(result.to_json())
+    assert isinstance(payload, dict), "to_json() must emit an object, not a list"
+    assert payload["total_pnl"] == 1250.0
+    assert payload["unrealized_pnl"] == 250.0
+    assert payload["total_costs"] == 12.5
+    assert payload["total_return"] == 1500.0
+    assert payload["total_trades"] == 3
+    assert payload["portfolio_violations"] == []
+
+
+def test_backtest_result_to_json_includes_attached_analyses():
+    """to_json() conditionally includes regime/monte-carlo/trade analysis."""
+    from quant_trading.backtest.metrics import BacktestMetrics
+
+    metrics = BacktestMetrics(total_pnl=1250.0)
+    result = BacktestResult(
+        equity_curve=pd.Series([100000.0]),
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=datetime(2023, 1, 1),
+        end_date=datetime(2023, 1, 10),
+        initial_capital=100000.0,
+        final_value=101250.0,
+        total_return=1250.0,
+        total_return_pct=1.25,
+    )
+
+    class FakeAnalysis:
+        def to_dict(self):
+            return {"current_regime": "bull"}
+
+    result.regime_analysis = FakeAnalysis()
+    result.monte_carlo = {"summary": "mocked"}
+    result.trade_analysis = None
+
+    payload = json.loads(result.to_json())
+    assert payload["regime_analysis"] == {"current_regime": "bull"}
+    assert payload["monte_carlo"] == {"summary": "mocked"}
+    assert "trade_analysis" not in payload
+
+
+def test_backtest_result_to_csv_writes_file(tmp_path):
+    """to_csv() returns a CSV string and optionally writes it to a file."""
+    from quant_trading.backtest.metrics import BacktestMetrics
+
+    metrics = BacktestMetrics(total_pnl=1250.0)
+    result = BacktestResult(
+        equity_curve=pd.Series([100000.0, 101500.0]),
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=datetime(2023, 1, 1),
+        end_date=datetime(2023, 1, 10),
+        initial_capital=100000.0,
+        final_value=101500.0,
+        total_return=1500.0,
+        total_return_pct=1.5,
+        total_costs=12.5,
+    )
+
+    csv_text = result.to_csv()
+    assert "total_pnl" in csv_text
+    assert "1250.0" in csv_text
+
+    out_path = tmp_path / "result.csv"
+    returned = result.to_csv(path=str(out_path))
+    assert returned == csv_text
+    assert out_path.read_text(encoding="utf-8") == csv_text
 
 
 def test_mock_backtest_run():
