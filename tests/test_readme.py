@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 from quant_trading.strategies import list_strategies
+from quant_trading.strategies.factory import get_registry
 
 README_PATH = Path(__file__).resolve().parent.parent / "README.md"
 EXAMPLES_DIR = README_PATH.parent / "examples"
@@ -11,6 +12,10 @@ EXAMPLES_DIR = README_PATH.parent / "examples"
 # Matches a registry bullet such as:
 #   - `ma` (aliases: `moving_average`, `ma_crossover`) → `MovingAverageCrossover`
 REGISTRY_ENTRY = re.compile(r"^-\s+`(?P<key>[^`]+)`.*→\s+`(?P<cls>[^`]+)`\s*$")
+
+# Matches the parenthesised alias list of a registry bullet:
+#   - `ma` (aliases: `moving_average`, `ma_crossover`) → ...
+ALIAS_LIST = re.compile(r"\(aliases?:\s*(?P<aliases>[^)]*)\)")
 
 
 def _registry_section() -> str:
@@ -30,6 +35,29 @@ def _documented_entries() -> dict[str, str]:
         if match:
             entries[match.group("key")] = match.group("cls")
     return entries
+
+
+def _documented_aliases() -> dict[str, set[str]]:
+    """Map each documented primary key to its documented alias set.
+
+    Strategies with no documented alias map to an empty set.
+    """
+    aliases: dict[str, set[str]] = {}
+    for line in _registry_section().splitlines():
+        match = REGISTRY_ENTRY.match(line.strip())
+        if not match:
+            continue
+        key = match.group("key")
+        alias_match = ALIAS_LIST.search(line)
+        if alias_match:
+            aliases[key] = {
+                a.strip().strip("`").strip()
+                for a in alias_match.group("aliases").split(",")
+                if a.strip()
+            }
+        else:
+            aliases.setdefault(key, set())
+    return aliases
 
 
 class TestReadmeStrategyRegistry:
