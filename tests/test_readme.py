@@ -159,3 +159,117 @@ class TestReadmeExampleScripts:
         actual = {path.name for path in sorted(EXAMPLES_DIR.glob("run_*.py"))}
         unknown = sorted(documented - actual)
         assert unknown == [], f"README advertises missing example scripts: {unknown}"
+
+
+# The README "Supported intervals" bullets that name a concrete set of
+# intervals, each mapped to a ClassVar set on ``AlphaVantageProvider``. The
+# README is the user-facing contract for which intervals the provider accepts;
+# if a set is renamed or its members change without updating the README,
+# users are silently pointed at keys the provider rejects. The guard below
+# locks the two in sync.
+#
+# Two README bullets are deliberately excluded from the exact-match check:
+#   * "Technical Indicators" ends with "etc." and is intentionally a partial
+#     sample, so an exact match would be the wrong contract.
+#   * "Real-time Batch" describes the fallback rule (any other interval),
+#     not a concrete set of members.
+_AV_INTERVAL_CATEGORIES: tuple[str, ...] = (
+    "Daily",
+    "Weekly",
+    "Weekly Adjusted",
+    "Monthly",
+    "Monthly Adjusted",
+    "Intraday",
+    "Global Quote",
+    "Market Status",
+    "FX Daily",
+    "FX Intraday",
+    "Crypto Daily",
+    "Crypto Weekly",
+    "Crypto Monthly",
+    "Crypto Intraday",
+    "Sector Performance",
+    "Commodities",
+    "Precious Metals",
+    "Economic Indicators",
+)
+
+
+def _av_supported_section() -> str:
+    """Return the README "Supported intervals" block under Alpha Vantage."""
+    text = README_PATH.read_text(encoding="utf-8")
+    start = text.index("Supported intervals:")
+    end = text.index("\n\n", start)
+    return text[start:end]
+
+
+def _documented_av_intervals() -> dict[str, set[str]]:
+    """Map each README Alpha Vantage category to its documented interval set."""
+    documented: dict[str, set[str]] = {}
+    for line in _av_supported_section().splitlines():
+        line = line.strip()
+        if not line.startswith("- "):
+            continue
+        name = line[2:].split(":", 1)[0].strip()
+        rest = line.split(":", 1)[1] if ":" in line else ""
+        members = {
+            m.strip().strip("`").strip()
+            for m in re.findall(r"`([^`]+)`", rest)
+            if "(" not in m  # prose calls like `get_gold_spot()` are not intervals
+        }
+        documented[name] = members
+    return documented
+
+
+def _provider_av_intervals() -> dict[str, set[str]]:
+    """Map the same category names to the live ``AlphaVantageProvider`` sets."""
+    from quant_trading.data.yfinance_provider import AlphaVantageProvider
+
+    provider = AlphaVantageProvider
+    return {
+        "Daily": {"1d", "daily"},
+        "Weekly": set(provider.WEEKLY_INTERVALS),
+        "Weekly Adjusted": {"1wa", "weekly_adjusted"},
+        "Monthly": set(provider.MONTHLY_INTERVALS),
+        "Monthly Adjusted": {"1ma", "monthly_adjusted"},
+        "Intraday": set(provider.INTRADAY_INTERVALS),
+        "Global Quote": set(provider.QUOTE_INTERVALS),
+        "Market Status": set(provider.MARKET_STATUS_INTERVALS),
+        "FX Daily": set(provider.FX_DAILY_INTERVALS),
+        "FX Intraday": set(provider.FX_INTRADAY_INTERVALS),
+        "Crypto Daily": {"crypto_daily", "digital_daily"},
+        "Crypto Weekly": {"crypto_weekly", "digital_weekly"},
+        "Crypto Monthly": {"crypto_monthly", "digital_monthly"},
+        "Crypto Intraday": {"crypto_intraday", "digital_intraday"},
+        "Sector Performance": set(provider.SECTOR_INTERVALS),
+        "Commodities": set(provider.COMMODITIES_INTERVALS),
+        "Precious Metals": set(provider.GOLD_INTERVALS),
+        "Economic Indicators": set(provider.ECONOMIC_INDICATORS),
+    }
+
+
+class TestReadmeAlphaVantageIntervals:
+    """The README's Alpha Vantage "Supported intervals" must match the provider."""
+
+    def test_documented_intervals_match_the_provider(self):
+        """Every concrete README interval category must match the live provider."""
+        documented = _documented_av_intervals()
+        actual = _provider_av_intervals()
+        offenders: list[str] = []
+        for category in _AV_INTERVAL_CATEGORIES:
+            readme_set = documented.get(category)
+            if readme_set is None:
+                offenders.append(f"README has no '{category}' supported-intervals bullet")
+                continue
+            provider_set = actual[category]
+            missing = sorted(provider_set - readme_set)
+            extra = sorted(readme_set - provider_set)
+            if missing:
+                offenders.append(f"{category}: provider intervals missing from README: {missing}")
+            if extra:
+                offenders.append(
+                    f"{category}: README intervals not accepted by the provider: {extra}"
+                )
+        assert (
+            not offenders
+        ), "README Alpha Vantage intervals out of sync with the provider:\n" + "\n".join(offenders)
