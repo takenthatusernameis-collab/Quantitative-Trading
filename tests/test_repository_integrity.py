@@ -233,7 +233,6 @@ def test_cli_provider_entries_match_data_providers():
     import quant_trading.data.synthetic as synthetic_mod
     import quant_trading.data.yfinance_provider as yf_mod
 
-
     available = {
         name
         for mod in (providers_mod, synthetic_mod, yf_mod)
