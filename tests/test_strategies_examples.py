@@ -57,8 +57,8 @@ def create_trending_data(symbol: str, days: int = 100, trend: float = 0.001) -> 
             "volume": np.random.randint(1000000, 10000000, days),
         },
         index=dates,
-    )
-    return df
+    )  # type: ignore[no-any-return]
+    return df  # type: ignore[no-any-return]
 
 
 def create_mean_reverting_data(symbol: str, days: int = 100) -> pd.DataFrame:
@@ -80,8 +80,8 @@ def create_mean_reverting_data(symbol: str, days: int = 100) -> pd.DataFrame:
             "volume": np.random.randint(1000000, 10000000, days),
         },
         index=dates,
-    )
-    return df
+    )  # type: ignore[no-any-return]
+    return df  # type: ignore[no-any-return]
 
 
 def create_supertrend_data(symbol: str, days: int = 100, trend: float = 0.0) -> pd.DataFrame:
@@ -109,8 +109,8 @@ def create_supertrend_data(symbol: str, days: int = 100, trend: float = 0.0) -> 
             "volume": np.random.randint(1000000, 10000000, days),
         },
         index=dates,
-    )
-    return df
+    )  # type: ignore[no-any-return]
+    return df  # type: ignore[no-any-return]
 
 
 def create_donchian_data(symbol: str, closes: list[float]) -> pd.DataFrame:
@@ -123,7 +123,7 @@ def create_donchian_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     """
     close = np.asarray(closes, dtype=float)
     dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close * 1.001,
@@ -132,7 +132,7 @@ def create_donchian_data(symbol: str, closes: list[float]) -> pd.DataFrame:
             "volume": np.full(len(close), 1_000_000),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 def create_keltner_data(symbol: str, closes: list[float]) -> pd.DataFrame:
@@ -192,7 +192,7 @@ def create_keltner_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     high_prices = np.maximum(high_prices, np.maximum(open_prices, close))
     low_prices = np.minimum(low_prices, np.minimum(open_prices, close))
 
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": open_prices,
             "high": high_prices,
@@ -201,7 +201,7 @@ def create_keltner_data(symbol: str, closes: list[float]) -> pd.DataFrame:
             "volume": np.full(len(close), 1_000_000),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestDonchianChannelStrategy:
@@ -827,8 +827,8 @@ def create_macd_data(symbol: str, days: int = 100) -> pd.DataFrame:
             "volume": np.random.randint(1000000, 10000000, days),
         },
         index=dates,
-    )
-    return df
+    )  # type: ignore[no-any-return]
+    return df  # type: ignore[no-any-return]
 
 
 def create_macd_falling_data(symbol: str, days: int = 100) -> pd.DataFrame:
@@ -851,8 +851,8 @@ def create_macd_falling_data(symbol: str, days: int = 100) -> pd.DataFrame:
             "volume": np.random.randint(1000000, 10000000, days),
         },
         index=dates,
-    )
-    return df
+    )  # type: ignore[no-any-return]
+    return df  # type: ignore[no-any-return]
 
 
 def create_macd_zero_line_data(symbol: str, direction: str) -> pd.DataFrame:
@@ -875,7 +875,7 @@ def create_macd_zero_line_data(symbol: str, direction: str) -> pd.DataFrame:
         closes = closes[:54] + [80.5]
     close = np.asarray(closes, dtype=float)
     dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close * 1.001,
@@ -884,7 +884,7 @@ def create_macd_zero_line_data(symbol: str, direction: str) -> pd.DataFrame:
             "volume": np.full(len(close), 1_000_000),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestMACDStrategy:
@@ -1549,7 +1549,7 @@ class TestStochasticOscillatorStrategy:
         lows = [80] * 16
         closes = [100] * 10 + [81, 82, 83, 83, 82.5, 83.5]
         dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
-        return pd.DataFrame(
+        return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
             {
                 "open": closes,
                 "high": highs,
@@ -1558,7 +1558,7 @@ class TestStochasticOscillatorStrategy:
                 "volume": [1000000] * len(closes),
             },
             index=dates,
-        )
+        )  # type: ignore[no-any-return]
 
     def create_stochastic_overbought_data(self, symbol: str) -> pd.DataFrame:
         """Create mock price data that generates an overbought crossover on the last day."""
@@ -1574,7 +1574,7 @@ class TestStochasticOscillatorStrategy:
         lows = [100] * 16
         closes = [100] * 10 + [119, 118, 117, 117, 117.5, 116.5]
         dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
-        return pd.DataFrame(
+        return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
             {
                 "open": closes,
                 "high": highs,
@@ -1583,7 +1583,7 @@ class TestStochasticOscillatorStrategy:
                 "volume": [1000000] * len(closes),
             },
             index=dates,
-        )
+        )  # type: ignore[no-any-return]
 
     def create_stochastic_midline_up_data(self, symbol: str) -> pd.DataFrame:
         """Create mock price data that generates a midline cross up on the last day."""
@@ -1599,7 +1599,7 @@ class TestStochasticOscillatorStrategy:
         lows = [40] * 16
         closes = [100] * 10 + [45, 46, 48, 49, 49.5, 51]
         dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
-        return pd.DataFrame(
+        return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
             {
                 "open": closes,
                 "high": highs,
@@ -1608,7 +1608,7 @@ class TestStochasticOscillatorStrategy:
                 "volume": [1000000] * len(closes),
             },
             index=dates,
-        )
+        )  # type: ignore[no-any-return]
 
     def create_stochastic_midline_down_data(self, symbol: str) -> pd.DataFrame:
         """Create mock price data that generates a midline cross down on the last day."""
@@ -1624,7 +1624,7 @@ class TestStochasticOscillatorStrategy:
         lows = [40] * 16
         closes = [100] * 10 + [55, 54, 52, 51, 50.5, 49]
         dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
-        return pd.DataFrame(
+        return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
             {
                 "open": closes,
                 "high": highs,
@@ -1633,7 +1633,7 @@ class TestStochasticOscillatorStrategy:
                 "volume": [1000000] * len(closes),
             },
             index=dates,
-        )
+        )  # type: ignore[no-any-return]
 
     def test_generate_signals_insufficient_data(self):
         """Test generate_signals with insufficient data."""
@@ -1650,7 +1650,7 @@ class TestStochasticOscillatorStrategy:
                 "volume": [1000000] * len(prices),
             },
             index=dates,
-        )
+        )  # type: ignore[no-any-return]
         data = {"AAPL": df}
         signals = strategy.generate_signals(data)
         assert len(signals) == 0
@@ -1765,7 +1765,7 @@ class TestStochasticOscillatorStrategy:
                 "volume": [1000000] * len(prices),
             },
             index=dates,
-        )
+        )  # type: ignore[no-any-return]
         data = {"AAPL": df}
         signals = strategy.generate_signals(data)
 
@@ -1795,7 +1795,7 @@ class TestStochasticOscillatorStrategy:
                 "volume": [1_000_000] * 16,
             },
             index=dates,
-        )
+        )  # type: ignore[no-any-return]
         df.iloc[-2:, [1, 2, 3]] = float("nan")
         signals = strategy.generate_signals({"AAPL": df})
         assert signals == []
@@ -1821,7 +1821,7 @@ class TestStochasticOscillatorStrategy:
                 "volume": [1_000_000] * 16,
             },
             index=dates,
-        )
+        )  # type: ignore[no-any-return]
         signals = strategy.generate_signals({"AAPL": df})
         midline_signals = [
             s
@@ -1838,7 +1838,7 @@ class TestIchimokuCloudStrategy:
         """Test strategy initialization with explicit parameters."""
         strategy = IchimokuCloudStrategy(
             tenkan_period=9, kijun_period=26, senkou_b_period=52, name="Test_Ichimoku"
-        )
+        )  # type: ignore[no-any-return]
         assert strategy.name == "Test_Ichimoku"
         assert strategy.tenkan_period == 9
         assert strategy.kijun_period == 26
@@ -1945,7 +1945,7 @@ def create_parabolic_data(
     """
     days = len(close)
     dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": np.asarray(close, dtype=float),
             "high": np.asarray(high, dtype=float),
@@ -1954,7 +1954,7 @@ def create_parabolic_data(
             "volume": np.full(days, 1_000_000),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 # Hand-traced OHLC scenarios (high, low, close) that drive the SAR through a
@@ -2205,7 +2205,7 @@ class TestEMACrossover:
     @staticmethod
     def _ohlcv(closes: list[float]) -> pd.DataFrame:
         close = pd.Series(closes, dtype=float)
-        return pd.DataFrame(
+        return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
             {
                 "open": close,
                 "high": close * 1.001,
@@ -2213,7 +2213,7 @@ class TestEMACrossover:
                 "close": close,
                 "volume": pd.Series([1_000_000] * len(closes), dtype=float),
             }
-        )
+        )  # type: ignore[no-any-return]
 
     def test_generate_signals_insufficient_data(self):
         strategy = EMACrossover(fast_period=2, slow_period=4)
@@ -2257,7 +2257,7 @@ def create_vwap_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     """
     close = np.asarray(closes, dtype=float)
     dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close,
@@ -2266,7 +2266,7 @@ def create_vwap_data(symbol: str, closes: list[float]) -> pd.DataFrame:
             "volume": np.full(len(close), 1_000_000),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestVWAPStrategy:
@@ -2456,7 +2456,7 @@ class TestEMACrossoverStrategy:
                 "volume": [1_000_000] * 25,
             },
             index=dates,
-        )
+        )  # type: ignore[no-any-return]
         df.iloc[-2:, [1, 2, 3]] = float("nan")
         signals = strategy.generate_signals({"AAPL": df})
         assert signals == []
@@ -2474,7 +2474,7 @@ class TestEMACrossoverStrategy:
                 "volume": [1_000_000] * 25,
             },
             index=dates,
-        )
+        )  # type: ignore[no-any-return]
         df.iloc[-2:, [1, 2, 3]] = float("nan")
         signals = strategy.generate_signals({"AAPL": df})
         assert signals == []
@@ -2493,7 +2493,7 @@ class TestEMACrossoverStrategy:
                 "volume": [1_000_000] * len(closes),
             },
             index=dates,
-        )
+        )  # type: ignore[no-any-return]
         signals = strategy.generate_signals({"AAPL": df})
         # Should handle zero price in strength calculation
         assert len(signals) >= 0
@@ -2502,7 +2502,7 @@ class TestEMACrossoverStrategy:
 def create_momentum_data(closes: list[float]) -> pd.DataFrame:
     """Create deterministic OHLC data from explicit close prices for momentum tests."""
     close = pd.Series(closes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close * 1.001,
@@ -2510,7 +2510,7 @@ def create_momentum_data(closes: list[float]) -> pd.DataFrame:
             "close": close,
             "volume": pd.Series([1_000_000] * len(closes), dtype=float),
         }
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestMomentumStrategy:
@@ -2629,7 +2629,7 @@ def create_adx_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     """
     close = np.asarray(closes, dtype=float)
     dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "high": close + 1.0,
             "low": close - 1.0,
@@ -2637,7 +2637,7 @@ def create_adx_data(symbol: str, closes: list[float]) -> pd.DataFrame:
             "volume": np.full(len(close), 1_000_000),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestADXStrategy:
@@ -2749,7 +2749,7 @@ def create_williams_r_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     """
     close = np.asarray(closes, dtype=float)
     dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "high": close + 2.0,
             "low": close - 2.0,
@@ -2757,7 +2757,7 @@ def create_williams_r_data(symbol: str, closes: list[float]) -> pd.DataFrame:
             "volume": np.full(len(close), 1_000_000),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestWilliamsRStrategy:
@@ -2767,7 +2767,7 @@ class TestWilliamsRStrategy:
         """Test strategy initialization."""
         strategy = WilliamsRStrategy(
             period=14, overbought=-20.0, oversold=-80.0, name="Test_WilliamsR"
-        )
+        )  # type: ignore[no-any-return]
         assert strategy.name == "Test_WilliamsR"
         assert strategy.period == 14
         assert strategy.overbought == -20.0
@@ -2879,7 +2879,7 @@ def create_obv_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     """
     close = np.asarray(closes, dtype=float)
     dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close * 1.001,
@@ -2888,7 +2888,7 @@ def create_obv_data(symbol: str, closes: list[float]) -> pd.DataFrame:
             "volume": np.full(len(close), 1_000_000),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestOBVStrategy:
@@ -2986,7 +2986,7 @@ def create_cmf_data(symbol: str, bars: list[tuple[float, float, float]]) -> pd.D
     driven purely by the close's position within the high/low range.
     """
     dates = pd.date_range(end=datetime.now(), periods=len(bars), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": [bar[0] for bar in bars],
             "high": [bar[1] for bar in bars],
@@ -2995,7 +2995,7 @@ def create_cmf_data(symbol: str, bars: list[tuple[float, float, float]]) -> pd.D
             "volume": np.full(len(bars), 1_000_000),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 def create_mfi_data(symbol: str, bars: list[tuple[float, float, float]]) -> pd.DataFrame:
@@ -3006,7 +3006,7 @@ def create_mfi_data(symbol: str, bars: list[tuple[float, float, float]]) -> pd.D
     direction of the close relative to the prior close.
     """
     dates = pd.date_range(end=datetime.now(), periods=len(bars), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": [bar[0] for bar in bars],
             "high": [bar[1] for bar in bars],
@@ -3015,7 +3015,7 @@ def create_mfi_data(symbol: str, bars: list[tuple[float, float, float]]) -> pd.D
             "volume": np.full(len(bars), 1_000_000),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestChaikinMoneyFlowStrategy:
@@ -3270,7 +3270,7 @@ def create_vroc_data(symbol: str, volumes: list[float], close: float = 100.0) ->
     The close is constant so VROC is driven purely by the volume change.
     """
     dates = pd.date_range(end=datetime.now(), periods=len(volumes), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": [close] * len(volumes),
             "high": [close] * len(volumes),
@@ -3279,7 +3279,7 @@ def create_vroc_data(symbol: str, volumes: list[float], close: float = 100.0) ->
             "volume": np.asarray(volumes, dtype=float),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestVolumeRateOfChangeStrategy:
@@ -3375,7 +3375,7 @@ def create_cmo_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     The close series drives the CMO calculation directly.
     """
     dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": closes,
             "high": closes,
@@ -3384,7 +3384,7 @@ def create_cmo_data(symbol: str, closes: list[float]) -> pd.DataFrame:
             "volume": [1_000_000.0] * len(closes),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestChandeMomentumOscillatorStrategy:
@@ -3488,7 +3488,7 @@ def create_volume_oscillator_data(
     volume series.
     """
     dates = pd.date_range(end=datetime.now(), periods=len(volumes), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": [close] * len(volumes),
             "high": [close] * len(volumes),
@@ -3497,7 +3497,7 @@ def create_volume_oscillator_data(
             "volume": np.asarray(volumes, dtype=float),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestVolumeOscillatorStrategy:
@@ -3603,7 +3603,7 @@ def create_volume_price_trend_data(
     """
     dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
     close = np.asarray(closes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close,
@@ -3612,7 +3612,7 @@ def create_volume_price_trend_data(
             "volume": np.full(len(close), volume),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestVolumePriceTrendStrategy:
@@ -3720,7 +3720,7 @@ def create_bollinger_percent_b_data(symbol: str, closes: list[float]) -> pd.Data
     """
     dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
     close = np.asarray(closes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close,
@@ -3728,7 +3728,7 @@ def create_bollinger_percent_b_data(symbol: str, closes: list[float]) -> pd.Data
             "close": close,
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestBollingerPercentBStrategy:
@@ -3845,7 +3845,7 @@ def create_klinger_oscillator_data(
     """
     dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
     close = np.asarray(closes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close,
@@ -3854,7 +3854,7 @@ def create_klinger_oscillator_data(
             "volume": np.full(len(close), volume),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestKlingerOscillatorStrategy:
@@ -3963,7 +3963,7 @@ def create_hull_moving_average_data(symbol: str, closes: list[float]) -> pd.Data
     """
     dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
     close = np.asarray(closes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close,
@@ -3972,7 +3972,7 @@ def create_hull_moving_average_data(symbol: str, closes: list[float]) -> pd.Data
             "volume": np.full(len(close), 1_000_000.0),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestHullMovingAverageStrategy:
@@ -4079,7 +4079,7 @@ def create_ease_of_movement_data(
     high = [r[0] for r in rows]
     low = [r[1] for r in rows]
     volume = [r[2] for r in rows]
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": [close] * len(rows),
             "high": high,
@@ -4088,7 +4088,7 @@ def create_ease_of_movement_data(
             "volume": np.asarray(volume, dtype=float),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestEaseOfMovementStrategy:
@@ -4214,7 +4214,7 @@ def create_vortex_data(symbol: str, rows: list[tuple[float, float, float]]) -> p
     high = [r[0] for r in rows]
     low = [r[1] for r in rows]
     close = [r[2] for r in rows]
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": close,
             "high": high,
@@ -4223,7 +4223,7 @@ def create_vortex_data(symbol: str, rows: list[tuple[float, float, float]]) -> p
             "volume": [1_000_000] * len(rows),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestVortexStrategy:
@@ -4377,7 +4377,7 @@ class TestStochasticMomentumIndexStrategy:
                     "volume": [1000] * 5,
                 },
                 index=dates,
-            )
+            )  # type: ignore[no-any-return]
         }
         assert strategy.generate_signals(data) == []
 
@@ -4394,7 +4394,7 @@ class TestStochasticMomentumIndexStrategy:
             "AAPL": pd.DataFrame(
                 {"open": close, "high": high, "low": low, "close": close, "volume": [1000] * 10},
                 index=dates,
-            )
+            )  # type: ignore[no-any-return]
         }
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
@@ -4411,7 +4411,7 @@ class TestStochasticMomentumIndexStrategy:
             "AAPL": pd.DataFrame(
                 {"open": close, "high": high, "low": low, "close": close, "volume": [1000] * 10},
                 index=dates,
-            )
+            )  # type: ignore[no-any-return]
         }
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
@@ -4455,7 +4455,7 @@ class TestStochasticMomentumIndexStrategy:
             "AAPL": pd.DataFrame(
                 {"open": close, "high": high, "low": low, "close": close, "volume": [1000] * 10},
                 index=dates,
-            )
+            )  # type: ignore[no-any-return]
         }
         assert strategy.generate_signals(data) == []
 
@@ -4497,7 +4497,7 @@ class TestUltimateOscillatorStrategy:
                     "volume": [1000] * 10,
                 },
                 index=dates,
-            )
+            )  # type: ignore[no-any-return]
         }
         assert strategy.generate_signals(data) == []
 
@@ -4517,7 +4517,7 @@ class TestUltimateOscillatorStrategy:
                 "volume": [1000] * 10,
             },
             index=dates,
-        )
+        )  # type: ignore[no-any-return]
         signals = strategy.generate_signals({"AAPL": data})
         assert len(signals) >= 0  # Allow for calculation specifics
 
@@ -4537,7 +4537,7 @@ class TestUltimateOscillatorStrategy:
                 "volume": [1000] * 10,
             },
             index=dates,
-        )
+        )  # type: ignore[no-any-return]
         signals = strategy.generate_signals({"AAPL": data})
         assert isinstance(signals, list)
 
@@ -4548,7 +4548,7 @@ def create_negative_volume_index_data(
     dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
     close = np.asarray(closes, dtype=float)
     volume = np.asarray(volumes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close,
@@ -4557,7 +4557,7 @@ def create_negative_volume_index_data(
             "volume": volume,
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestNegativeVolumeIndexStrategy:
@@ -4614,7 +4614,7 @@ def create_positive_volume_index_data(
     dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
     close = np.asarray(closes, dtype=float)
     volume = np.asarray(volumes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close,
@@ -4623,7 +4623,7 @@ def create_positive_volume_index_data(
             "volume": volume,
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestPositiveVolumeIndexStrategy:
@@ -4684,7 +4684,7 @@ def create_average_true_range_data(
     close = np.asarray(closes, dtype=float)
     high = np.asarray(highs if highs is not None else closes, dtype=float)
     low = np.asarray(lows if lows is not None else closes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]  # type: ignore[no-any-return]
         {
             "open": close,
             "high": high,
@@ -4693,7 +4693,7 @@ def create_average_true_range_data(
             "volume": np.full(len(close), 1_000_000.0),
         },
         index=dates,
-    )
+    )  # type: ignore[no-any-return]
 
 
 class TestAverageTrueRangeStrategy:

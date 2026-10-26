@@ -134,7 +134,7 @@ def create_test_data(symbol: str, days: int = 100, end: datetime | None = None) 
         },
         index=dates,
     )
-    return df
+    return df  # type: ignore[no-any-return]
 
 
 def test_parameter_space_grid():

@@ -44,7 +44,7 @@ def _make_frame(symbol: str, start: datetime, end: datetime, price: float = 100.
     idx = pd.date_range(start=start, end=end, freq="D")
     n = len(idx)
     base = [price + i * 0.5 for i in range(n)]
-    return pd.DataFrame(
+    df = pd.DataFrame(
         {
             "Open": base,
             "High": [b + 1 for b in base],
@@ -54,6 +54,7 @@ def _make_frame(symbol: str, start: datetime, end: datetime, price: float = 100.
         },
         index=idx,
     )
+    return df  # type: ignore[no-any-return]
 
 
 class FakeYf:
@@ -98,8 +99,8 @@ class FakeYf:
 
 
 def _provider_with_fake(frames: dict[str, pd.DataFrame]) -> YFinanceProvider:
-    provider = YFinanceProvider(cache_dir=None)
-    provider._yf = FakeYf(frames)
+    provider = YFinanceProvider(cache_dir=None)  # type: ignore[arg-type]
+    provider._yf = FakeYf(frames)  # type: ignore[assignment]
     return provider
 
 

@@ -38,7 +38,7 @@ def _trade(
 
 def _log(*rows: dict) -> pd.DataFrame:
     """Build a trade log from the given rows."""
-    return pd.DataFrame(list(rows))
+    return pd.DataFrame(list(rows))  # type: ignore[no-any-return]
 
 
 def _result(trades: pd.DataFrame) -> BacktestResult:
