@@ -5,3 +5,15 @@ A modular framework for algorithmic trading strategies, backtesting, and portfol
 
 __version__ = "0.1.0"
 __author__ = "Kilo Autonomous Agent"
+
+from .data import (
+    SyntheticDataProvider,
+    create_synthetic_data,
+    create_synthetic_provider,
+)
+
+__all__ = [
+    "SyntheticDataProvider",
+    "create_synthetic_data",
+    "create_synthetic_provider",
+]
