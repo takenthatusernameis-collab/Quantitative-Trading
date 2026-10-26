@@ -1,4 +1,5 @@
 from typing import Any
+
 """Tests for the optimization module."""
 
 import importlib.util
