@@ -1,5 +1,3 @@
-from typing import Any
-
 """Tests for the optimization module."""
 
 import importlib.util
@@ -8,6 +6,7 @@ from concurrent.futures import _base
 from concurrent.futures.process import BrokenProcessPool, ProcessPoolExecutor
 from datetime import datetime, timedelta
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import pandas as pd
