@@ -397,3 +397,22 @@ def test_cli_strategy_imports_exist():
                 imported.add(alias.name)
     missing = sorted(name for name in imported if not hasattr(mod, name))
     assert not missing, "examples/cli.py imports missing from strategies: " + ", ".join(missing)
+
+
+def test_example_scripts_import_from_strategies_examples_exist():
+    """Names imported from quant_trading.strategies.examples by example scripts must exist."""
+    import ast
+    import quant_trading.strategies.examples as mod
+
+    failures: list[str] = []
+    for path in sorted((REPO_ROOT / "examples").glob("run_*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        imported: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == "quant_trading.strategies.examples":
+                for alias in node.names:
+                    imported.add(alias.name)
+        for name in sorted(imported):
+            if not hasattr(mod, name):
+                failures.append(f"{path.name}: {name} missing from quant_trading.strategies.examples")
+    assert not failures, "example script imports missing:\n" + "\n".join(failures)
