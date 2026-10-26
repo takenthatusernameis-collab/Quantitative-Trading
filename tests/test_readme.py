@@ -306,3 +306,91 @@ class TestReadmeAlphaVantageIntervals:
         assert (
             not offenders
         ), "README Alpha Vantage intervals out of sync with the provider:\n" + "\n".join(offenders)
+
+
+# Matches a backtick-quoted method name immediately followed by an opening
+# parenthesis, e.g. ``get_market_status()`` or ``get_sma(symbol)``. The name
+# is captured so it can be checked against the provider's public API.
+_METHOD_CALL = re.compile(r"`(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*\(")
+
+
+def _documented_av_methods() -> set[str]:
+    """Return the set of Alpha Vantage method names advertised in the README.
+
+    Parses the "Additional methods:" bullet list under the Alpha Vantage
+    provider section. Each bullet may name one method (``foo()``) or several
+    comma-separated methods (``foo()``, ``bar()``, ``baz()``); all are
+    collected into a single set.
+    """
+    text = README_PATH.read_text(encoding="utf-8")
+    start = text.index("Additional methods:")
+    remainder = text[start:]
+    end = remainder.find("\n## ")
+    block = remainder if end == -1 else remainder[:end]
+
+    names: set[str] = set()
+    for line in block.splitlines():
+        if not line.strip().startswith("- "):
+            continue
+        for match in _METHOD_CALL.finditer(line):
+            names.add(match.group("name"))
+    return names
+
+
+# Public provider methods that are implementation details rather than
+# user-facing API advertised in the README. These are intentionally excluded
+# from the "no undocumented methods" direction so the guard stays focused on
+# the documented contract.
+_AV_INTERNAL_METHODS: set[str] = set()
+
+
+def _provider_av_methods() -> set[str]:
+    """Return the set of public, user-facing method names on the provider.
+
+    Collects every non-private method defined directly on
+    ``AlphaVantageProvider`` (including overrides of base-class methods such
+    as ``fetch``) and subtracts the core :class:`DataProvider` contract so the
+    guard focuses on the provider-specific API the README documents.
+    """
+    import inspect
+
+    from quant_trading.data.providers import DataProvider
+    from quant_trading.data.yfinance_provider import AlphaVantageProvider
+
+    base_contract = {
+        name
+        for name, member in inspect.getmembers(DataProvider, predicate=inspect.isfunction)
+        if not name.startswith("_")
+    }
+
+    names: set[str] = set()
+    for name, member in inspect.getmembers(AlphaVantageProvider, predicate=inspect.isfunction):
+        if name.startswith("_") or name in base_contract or name in _AV_INTERNAL_METHODS:
+            continue
+        names.add(name)
+    return names
+
+
+class TestReadmeAlphaVantageMethods:
+    """The README's "Additional methods" list must match the provider's API.
+
+    Complements :class:`TestReadmeAlphaVantageIntervals` by guarding the
+    provider's public methods instead of its interval sets. If a method is
+    added to the provider but not advertised in the README, or removed from
+    the provider while the README still references it, users are silently
+    misdirected; this test catches both forms of drift.
+    """
+
+    def test_every_documented_method_exists_on_the_provider(self):
+        """Every method named in the README must exist on ``AlphaVantageProvider``."""
+        documented = _documented_av_methods()
+        actual = _provider_av_methods()
+        missing = sorted(documented - actual)
+        assert missing == [], f"README advertises methods missing from provider: {missing}"
+
+    def test_no_undocumented_methods_are_advertised(self):
+        """The README must not advertise methods that do not exist on the provider."""
+        documented = _documented_av_methods()
+        actual = _provider_av_methods()
+        extra = sorted(actual - documented)
+        assert extra == [], f"README advertises unknown methods: {extra}"
