@@ -561,7 +561,9 @@ class AlphaVantageProvider(DataProvider):
     }
 
     WEEKLY_INTERVALS: ClassVar[set[str]] = {"1w", "weekly", "week"}
+    WEEKLY_ADJUSTED_INTERVALS: ClassVar[set[str]] = {"1wa", "weekly_adjusted"}
     MONTHLY_INTERVALS: ClassVar[set[str]] = {"1mo", "monthly", "month"}
+    MONTHLY_ADJUSTED_INTERVALS: ClassVar[set[str]] = {"1ma", "monthly_adjusted"}
     QUOTE_INTERVALS: ClassVar[set[str]] = {"quote", "realtime", "rt"}
     MARKET_STATUS_INTERVALS: ClassVar[set[str]] = {"market_status", "marketstatus"}
     FX_DAILY_INTERVALS: ClassVar[set[str]] = {"fx_daily", "fx", "forex_daily"}
@@ -3919,7 +3921,9 @@ class AlphaVantageProvider(DataProvider):
 
         is_intraday = interval in self.INTRADAY_INTERVALS
         is_weekly = interval in self.WEEKLY_INTERVALS
+        is_weekly_adjusted = interval in self.WEEKLY_ADJUSTED_INTERVALS
         is_monthly = interval in self.MONTHLY_INTERVALS
+        is_monthly_adjusted = interval in self.MONTHLY_ADJUSTED_INTERVALS
         is_quote = interval in self.QUOTE_INTERVALS
         is_market_status = interval in self.MARKET_STATUS_INTERVALS
         is_fx_daily = interval in self.FX_DAILY_INTERVALS
@@ -3934,11 +3938,11 @@ class AlphaVantageProvider(DataProvider):
 
         if interval in ("1d", "daily"):
             fetch_result = self._fetch_single(symbols, start, end, interval)
-        elif interval in ("1wa", "weekly_adjusted"):
+        elif is_weekly_adjusted:
             fetch_result = self._fetch_weekly_adjusted(symbols, start, end, interval)
         elif is_weekly:
             fetch_result = self._fetch_weekly(symbols, start, end, interval)
-        elif interval in ("1ma", "monthly_adjusted"):
+        elif is_monthly_adjusted:
             fetch_result = self._fetch_monthly_adjusted(symbols, start, end, interval)
         elif is_monthly:
             fetch_result = self._fetch_monthly(symbols, start, end, interval)
@@ -4047,7 +4051,9 @@ class AlphaVantageProvider(DataProvider):
             all_symbols = sorted({s for symbols, _, _, _, _ in reqs for s in symbols})
             is_intraday = interval in self.INTRADAY_INTERVALS
             is_weekly = interval in self.WEEKLY_INTERVALS
+            is_weekly_adjusted = interval in self.WEEKLY_ADJUSTED_INTERVALS
             is_monthly = interval in self.MONTHLY_INTERVALS
+            is_monthly_adjusted = interval in self.MONTHLY_ADJUSTED_INTERVALS
             is_quote = interval in self.QUOTE_INTERVALS
             is_market_status = interval in self.MARKET_STATUS_INTERVALS
             is_sector = interval in self.SECTOR_INTERVALS
@@ -4062,7 +4068,13 @@ class AlphaVantageProvider(DataProvider):
             is_symbol_search = interval in self.SYMBOL_SEARCH_INTERVALS
             is_gold = interval in self.GOLD_INTERVALS
 
-            if interval in ("1d", "daily", "1wa", "weekly_adjusted") or is_weekly or is_monthly:
+            if (
+                interval in ("1d", "daily")
+                or is_weekly_adjusted
+                or is_weekly
+                or is_monthly_adjusted
+                or is_monthly
+            ):
                 # No batch historical endpoint; fall back to per-symbol
                 for symbols, start, end, interval, extra_kwargs in reqs:
                     key = self._request_key(symbols, start, end, interval)

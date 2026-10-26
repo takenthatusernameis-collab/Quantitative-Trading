@@ -229,9 +229,9 @@ def _provider_av_intervals() -> dict[str, set[str]]:
     return {
         "Daily": {"1d", "daily"},
         "Weekly": set(provider.WEEKLY_INTERVALS),
-        "Weekly Adjusted": {"1wa", "weekly_adjusted"},
+        "Weekly Adjusted": set(provider.WEEKLY_ADJUSTED_INTERVALS),
         "Monthly": set(provider.MONTHLY_INTERVALS),
-        "Monthly Adjusted": {"1ma", "monthly_adjusted"},
+        "Monthly Adjusted": set(provider.MONTHLY_ADJUSTED_INTERVALS),
         "Intraday": set(provider.INTRADAY_INTERVALS),
         "Global Quote": set(provider.QUOTE_INTERVALS),
         "Market Status": set(provider.MARKET_STATUS_INTERVALS),
