@@ -328,7 +328,7 @@ SYMBOL_SEARCH_RESPONSE = {
     ]
 }
 
-SYMBOL_SEARCH_EMPTY_RESPONSE = {"bestMatches": []}
+SYMBOL_SEARCH_EMPTY_RESPONSE: dict = {"bestMatches": []}
 
 MARKET_STATUS_RESPONSE = {
     "markets": [
@@ -558,7 +558,7 @@ TECHNICAL_INDICATOR_RESPONSE = {
     },
 }
 
-TECHNICAL_INDICATOR_EMPTY_RESPONSE = {"Technical Analysis: SMA": {"SMA": {}}}
+TECHNICAL_INDICATOR_EMPTY_RESPONSE: dict = {"Technical Analysis: SMA": {"SMA": {}}}
 
 TECHNICAL_INDICATOR_BAD_RESPONSE = {"Error Message": "Invalid API call."}
 

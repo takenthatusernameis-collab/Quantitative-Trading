@@ -44,7 +44,7 @@ def _make_frame(symbol: str, start: datetime, end: datetime, price: float = 100.
     idx = pd.date_range(start=start, end=end, freq="D")
     n = len(idx)
     base = [price + i * 0.5 for i in range(n)]
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "Open": base,
             "High": [b + 1 for b in base],
@@ -98,8 +98,8 @@ class FakeYf:
 
 
 def _provider_with_fake(frames: dict[str, pd.DataFrame]) -> YFinanceProvider:
-    provider = YFinanceProvider(cache_dir=None)
-    provider._yf = FakeYf(frames)
+    provider = YFinanceProvider(cache_dir=None)  # type: ignore[arg-type]
+    provider._yf = FakeYf(frames)  # type: ignore[assignment]
     return provider
 
 
@@ -206,7 +206,7 @@ def test_data_manager_fetch_many_delegates_to_provider_fetch_many():
 
         @property
         def name(self) -> str:
-            return self._name
+            return self._name  # type: ignore[no-any-return]
 
         def fetch(self, symbols, start=None, end=None, interval="1d"):
             raise AssertionError("provider.fetch must not be called by fetch_many")

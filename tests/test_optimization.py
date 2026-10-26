@@ -1,3 +1,4 @@
+from typing import Any
 """Tests for the optimization module."""
 
 import importlib.util
@@ -30,7 +31,7 @@ from quant_trading.optimization import (
 try:
     from quant_trading.optimization import BayesianOptimizer
 except ImportError:
-    BayesianOptimizer = None
+    BayesianOptimizer: Any = None  # type: ignore[no-redef]
 from quant_trading.strategies.base import Signal, Strategy
 from quant_trading.strategies.examples import MovingAverageCrossover, RSIStrategy
 
@@ -1967,7 +1968,7 @@ def test_walk_forward_risk_free_rate_reaches_combined_metrics():
             end=datetime(2024, 4, 1),
             initial_capital=100000.0,
             risk_free_rate=risk_free_rate,
-            data_manager=DataManager([MockDataProvider({"AAPL": create_test_data("AAPL", 200)})]),
+            data_manager=DataManager([MockDataProvider({"AAPL": create_test_data("AAPL", 200)})]),  # type: ignore[list-item]
         )
 
     optimizer_default = build_optimizer(0.02)

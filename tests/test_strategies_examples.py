@@ -58,7 +58,7 @@ def create_trending_data(symbol: str, days: int = 100, trend: float = 0.001) -> 
         },
         index=dates,
     )
-    return df
+    return df  # type: ignore[no-any-return]
 
 
 def create_mean_reverting_data(symbol: str, days: int = 100) -> pd.DataFrame:
@@ -81,7 +81,7 @@ def create_mean_reverting_data(symbol: str, days: int = 100) -> pd.DataFrame:
         },
         index=dates,
     )
-    return df
+    return df  # type: ignore[no-any-return]
 
 
 def create_supertrend_data(symbol: str, days: int = 100, trend: float = 0.0) -> pd.DataFrame:
@@ -110,7 +110,7 @@ def create_supertrend_data(symbol: str, days: int = 100, trend: float = 0.0) -> 
         },
         index=dates,
     )
-    return df
+    return df  # type: ignore[no-any-return]
 
 
 def create_donchian_data(symbol: str, closes: list[float]) -> pd.DataFrame:
@@ -123,7 +123,7 @@ def create_donchian_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     """
     close = np.asarray(closes, dtype=float)
     dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close * 1.001,
@@ -192,7 +192,7 @@ def create_keltner_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     high_prices = np.maximum(high_prices, np.maximum(open_prices, close))
     low_prices = np.minimum(low_prices, np.minimum(open_prices, close))
 
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": open_prices,
             "high": high_prices,
@@ -828,7 +828,7 @@ def create_macd_data(symbol: str, days: int = 100) -> pd.DataFrame:
         },
         index=dates,
     )
-    return df
+    return df  # type: ignore[no-any-return]
 
 
 def create_macd_falling_data(symbol: str, days: int = 100) -> pd.DataFrame:
@@ -852,7 +852,7 @@ def create_macd_falling_data(symbol: str, days: int = 100) -> pd.DataFrame:
         },
         index=dates,
     )
-    return df
+    return df  # type: ignore[no-any-return]
 
 
 def create_macd_zero_line_data(symbol: str, direction: str) -> pd.DataFrame:
@@ -875,7 +875,7 @@ def create_macd_zero_line_data(symbol: str, direction: str) -> pd.DataFrame:
         closes = closes[:54] + [80.5]
     close = np.asarray(closes, dtype=float)
     dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close * 1.001,
@@ -1549,7 +1549,7 @@ class TestStochasticOscillatorStrategy:
         lows = [80] * 16
         closes = [100] * 10 + [81, 82, 83, 83, 82.5, 83.5]
         dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
-        return pd.DataFrame(
+        return pd.DataFrame(  # type: ignore[no-any-return]
             {
                 "open": closes,
                 "high": highs,
@@ -1574,7 +1574,7 @@ class TestStochasticOscillatorStrategy:
         lows = [100] * 16
         closes = [100] * 10 + [119, 118, 117, 117, 117.5, 116.5]
         dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
-        return pd.DataFrame(
+        return pd.DataFrame(  # type: ignore[no-any-return]
             {
                 "open": closes,
                 "high": highs,
@@ -1599,7 +1599,7 @@ class TestStochasticOscillatorStrategy:
         lows = [40] * 16
         closes = [100] * 10 + [45, 46, 48, 49, 49.5, 51]
         dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
-        return pd.DataFrame(
+        return pd.DataFrame(  # type: ignore[no-any-return]
             {
                 "open": closes,
                 "high": highs,
@@ -1624,7 +1624,7 @@ class TestStochasticOscillatorStrategy:
         lows = [40] * 16
         closes = [100] * 10 + [55, 54, 52, 51, 50.5, 49]
         dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
-        return pd.DataFrame(
+        return pd.DataFrame(  # type: ignore[no-any-return]
             {
                 "open": closes,
                 "high": highs,
@@ -1945,7 +1945,7 @@ def create_parabolic_data(
     """
     days = len(close)
     dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": np.asarray(close, dtype=float),
             "high": np.asarray(high, dtype=float),
@@ -2205,7 +2205,7 @@ class TestEMACrossover:
     @staticmethod
     def _ohlcv(closes: list[float]) -> pd.DataFrame:
         close = pd.Series(closes, dtype=float)
-        return pd.DataFrame(
+        return pd.DataFrame(  # type: ignore[no-any-return]
             {
                 "open": close,
                 "high": close * 1.001,
@@ -2257,7 +2257,7 @@ def create_vwap_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     """
     close = np.asarray(closes, dtype=float)
     dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close,
@@ -2502,7 +2502,7 @@ class TestEMACrossoverStrategy:
 def create_momentum_data(closes: list[float]) -> pd.DataFrame:
     """Create deterministic OHLC data from explicit close prices for momentum tests."""
     close = pd.Series(closes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close * 1.001,
@@ -2629,7 +2629,7 @@ def create_adx_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     """
     close = np.asarray(closes, dtype=float)
     dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "high": close + 1.0,
             "low": close - 1.0,
@@ -2749,7 +2749,7 @@ def create_williams_r_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     """
     close = np.asarray(closes, dtype=float)
     dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "high": close + 2.0,
             "low": close - 2.0,
@@ -2879,7 +2879,7 @@ def create_obv_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     """
     close = np.asarray(closes, dtype=float)
     dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close * 1.001,
@@ -2986,7 +2986,7 @@ def create_cmf_data(symbol: str, bars: list[tuple[float, float, float]]) -> pd.D
     driven purely by the close's position within the high/low range.
     """
     dates = pd.date_range(end=datetime.now(), periods=len(bars), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": [bar[0] for bar in bars],
             "high": [bar[1] for bar in bars],
@@ -3006,7 +3006,7 @@ def create_mfi_data(symbol: str, bars: list[tuple[float, float, float]]) -> pd.D
     direction of the close relative to the prior close.
     """
     dates = pd.date_range(end=datetime.now(), periods=len(bars), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": [bar[0] for bar in bars],
             "high": [bar[1] for bar in bars],
@@ -3270,7 +3270,7 @@ def create_vroc_data(symbol: str, volumes: list[float], close: float = 100.0) ->
     The close is constant so VROC is driven purely by the volume change.
     """
     dates = pd.date_range(end=datetime.now(), periods=len(volumes), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": [close] * len(volumes),
             "high": [close] * len(volumes),
@@ -3375,7 +3375,7 @@ def create_cmo_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     The close series drives the CMO calculation directly.
     """
     dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": closes,
             "high": closes,
@@ -3488,7 +3488,7 @@ def create_volume_oscillator_data(
     volume series.
     """
     dates = pd.date_range(end=datetime.now(), periods=len(volumes), freq="D")
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": [close] * len(volumes),
             "high": [close] * len(volumes),
@@ -3603,7 +3603,7 @@ def create_volume_price_trend_data(
     """
     dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
     close = np.asarray(closes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close,
@@ -3720,7 +3720,7 @@ def create_bollinger_percent_b_data(symbol: str, closes: list[float]) -> pd.Data
     """
     dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
     close = np.asarray(closes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close,
@@ -3845,7 +3845,7 @@ def create_klinger_oscillator_data(
     """
     dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
     close = np.asarray(closes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close,
@@ -3963,7 +3963,7 @@ def create_hull_moving_average_data(symbol: str, closes: list[float]) -> pd.Data
     """
     dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
     close = np.asarray(closes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close,
@@ -4079,7 +4079,7 @@ def create_ease_of_movement_data(
     high = [r[0] for r in rows]
     low = [r[1] for r in rows]
     volume = [r[2] for r in rows]
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": [close] * len(rows),
             "high": high,
@@ -4214,7 +4214,7 @@ def create_vortex_data(symbol: str, rows: list[tuple[float, float, float]]) -> p
     high = [r[0] for r in rows]
     low = [r[1] for r in rows]
     close = [r[2] for r in rows]
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": close,
             "high": high,
@@ -4548,7 +4548,7 @@ def create_negative_volume_index_data(
     dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
     close = np.asarray(closes, dtype=float)
     volume = np.asarray(volumes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close,
@@ -4614,7 +4614,7 @@ def create_positive_volume_index_data(
     dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
     close = np.asarray(closes, dtype=float)
     volume = np.asarray(volumes, dtype=float)
-    return pd.DataFrame(
+    return pd.DataFrame(  # type: ignore[no-any-return]
         {
             "open": close,
             "high": close,

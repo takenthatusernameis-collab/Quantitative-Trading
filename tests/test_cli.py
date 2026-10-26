@@ -2120,7 +2120,7 @@ class TestFactoryIntegration:
                 super().__init__(**kwargs)
                 self.custom_param = custom_param
 
-            def generate_signals(self, data, symbol: str):
+            def generate_signals(self, data, symbol: str):  # type: ignore[override]
                 return 0
 
             def get_parameters(self):
@@ -2168,7 +2168,7 @@ class TestFactoryIntegration:
             def __init__(self, **kwargs):
                 super().__init__(name="TestStrategy", **kwargs)
 
-            def generate_signals(self, data, symbol: str):
+            def generate_signals(self, data, symbol: str):  # type: ignore[override]
                 return 0
 
             def get_parameters(self):
@@ -2196,7 +2196,7 @@ class TestFactoryIntegration:
             def __init__(self, **kwargs):
                 super().__init__(name="CustomStrategy", **kwargs)
 
-            def generate_signals(self, data, symbol: str):
+            def generate_signals(self, data, symbol: str):  # type: ignore[override]
                 return 0
 
             def get_parameters(self):

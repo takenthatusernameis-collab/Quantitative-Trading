@@ -26,7 +26,7 @@ def create_trending_data(symbol: str, days: int = 100, trend: float = 0.001) -> 
         },
         index=dates,
     )
-    return df
+    return df  # type: ignore[no-any-return]
 
 
 def create_mean_reverting_data(symbol: str, days: int = 100) -> pd.DataFrame:
@@ -49,7 +49,7 @@ def create_mean_reverting_data(symbol: str, days: int = 100) -> pd.DataFrame:
         },
         index=dates,
     )
-    return df
+    return df  # type: ignore[no-any-return]
 
 
 def create_aroon_bullish_data(symbol: str, days: int = 50) -> pd.DataFrame:
@@ -96,7 +96,7 @@ def create_aroon_bullish_data(symbol: str, days: int = 50) -> pd.DataFrame:
         },
         index=dates,
     )
-    return df
+    return df  # type: ignore[no-any-return]
 
 
 def create_aroon_bearish_data(symbol: str, days: int = 50) -> pd.DataFrame:
@@ -143,7 +143,7 @@ def create_aroon_bearish_data(symbol: str, days: int = 50) -> pd.DataFrame:
         },
         index=dates,
     )
-    return df
+    return df  # type: ignore[no-any-return]
 
 
 class TestAroonStrategy:
