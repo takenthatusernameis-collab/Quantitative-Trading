@@ -2,35 +2,32 @@
 
 ## Repository state
 
-Checks: `python -m pytest -q` (2112 passed, 0 failures on a clean baseline; the 31 failures in `test_optimization.py`/`test_yfinance_fetch_many.py` are caused by missing optional deps `yfinance` and `scikit-optimize`, not by code defects), `python -m ruff check .` (clean except one pre-existing unused import in `tests/test_readme.py:6`), `python -m mypy quant_trading` (clean), `python -m mypy --check-untyped-defs quant_trading` (clean).
+Checks: `python -m pytest -q` (2203 passed, 0 failures), `python -m ruff check .` (clean), `python -m mypy quant_trading tests examples` (clean), `python -m black --check quant_trading tests examples` (clean). Baseline is green.
 
 ## Completed this session
 
-Added a "Strategy Configuration" subsection to the README's CLI chapter, documenting the `--strategy-config` and `--output-strategy-config` flags that were previously mentioned only in the "Error Reporting" section:
-
-- New section after "Configuration" in `README.md` (lines ~327-362), with a YAML example, an invocation example, an explanation of how `--strategy-config` overrides `--strategy` and per-parameter flags, and a round-trip example (optimize → `--output-strategy-config` → re-run with `--strategy-config`).
-- Verified the documented commands actually work: valid `--strategy-config` runs a backtest, a malformed/empty file reports the expected error, `--output-strategy-config` writes config in both optimization and single-strategy modes, and the documented round-trip succeeds.
-
-This is the same class of contract-drift guard as the existing `test_validate_parameters_overrides_annotated_none` and `test_cli_strategy_keys_match_registry` in `tests/test_repository_integrity.py` — keeping the README's CLI documentation in sync with the flags the parser actually accepts.
+Fixed a contract-drift gap: the README's "Parameter Optimization" Features bullet omitted Bayesian optimization even though `BayesianOptimizer` is implemented, exported, CLI-wired, and tested. Updated `README.md:8` and added a regression guard `test_readme_features_list_advertises_all_optimizers` in `tests/test_repository_integrity.py`.
 
 ## What was actually verified
 
-- `python -m pytest -q -o addopts="" tests/test_repository_integrity.py tests/test_readme.py tests/test_examples_smoke.py`: 86 passed, 0 failures.
-- `python -m ruff check .`: 1 pre-existing error (`tests/test_readme.py:6` unused `get_registry` import), no new errors from this change.
-- `python -m mypy quant_trading`: Success, no issues found in 37 source files.
-- Manual verification of every documented command listed above.
+- `python -m pytest tests/test_repository_integrity.py tests/test_readme.py -q` → 14 passed, 0 failures.
+- `python -m pytest -q` (full suite) → 2203 passed, 0 failures in ~157s.
+- `python -m ruff check .` → All checks passed.
+- `python -m mypy quant_trading tests examples` → Success, no issues found in 101 source files.
+- `python -m black --check quant_trading tests examples` → All checks passed.
+- Negative test: reverting the README bullet to the old wording makes the new guard fail, confirming it is meaningful.
 
 ## What remains unresolved
 
-- None blocking. The repository is green across tests, lint, and type checks.
-- Pre-existing (not introduced by this change): `ruff` reports one unused import in `tests/test_readme.py:6` (`get_registry`).
+- None blocking. The repository is green across tests, lint, type checks, and formatting.
+- Pre-existing (not introduced by this change): `black --check README.md` fails because black is not configured to format markdown; it fails identically on the clean baseline.
 
 ## Approaches that failed
 
-- None this session.
+- A literal "every CLI flag is documented in the README" test was considered and rejected: the README uses prose patterns (`--*-range`, `--*-period`) rather than enumerating all 111 flags, so such a test would produce ~100 false positives. The bounded Features-list guard is the high-signal version of that idea.
 
 ## One precise next task
 
-No assigned task remains. Baseline is green. Changes: 1 file touched this session (`README.md`). Do NOT commit unless explicitly asked.
+No assigned task remains. Baseline is green. Changes: 2 files (`README.md`, `tests/test_repository_integrity.py`). Do NOT commit unless explicitly asked.
 
 (End of file - total 37 lines)

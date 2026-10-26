@@ -13,7 +13,7 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 - **Performance Metrics**: Sharpe, Sortino, Calmar ratios, max drawdown, VaR, win rate, profit factor
 - **Market Regime Detection**: Classify equity curves into bull/bear/sideways regimes (low/high volatility)
 - **Monte Carlo Simulation**: Bootstrap and parametric simulation of backtest outcomes
-- **Parameter Optimization**: Grid search, random search, and walk-forward analysis
+- **Parameter Optimization**: Grid search, random search, Bayesian optimization, and walk-forward analysis
 - **Configuration**: YAML-based configuration system
 
 ## Installation

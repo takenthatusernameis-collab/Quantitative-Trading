@@ -270,3 +270,38 @@ def test_module_docstring_is_first_statement():
                 offenders.append(f"{rel}:{stmt.lineno}")
                 break
     assert not offenders, "stray module docstring not first:\n" + "\n".join(offenders)
+
+
+# Optimizer classes the README's Features list must advertise. Kept in sync
+# with ``quant_trading.optimization.__all__``; the README is the user-facing
+# contract and silently dropping an optimizer from it is a real regression.
+_OPTIMIZER_FEATURE_MARKERS: dict[str, str] = {
+    "GridSearch": "Grid search",
+    "RandomSearch": "random search",
+    "BayesianOptimizer": "Bayesian optimization",
+    "WalkForwardOptimizer": "walk-forward",
+}
+
+
+def test_readme_features_list_advertises_all_optimizers():
+    """The README "Features" bullet must name every exported optimizer class.
+
+    The Features list is the first thing a reader sees. If an optimizer is
+    added to the package but the bullet is not updated, users will not know
+    it exists, even though it is fully wired into the CLI and tests.
+    """
+    from quant_trading import optimization
+
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    features_start = readme.index("**Parameter Optimization**:")
+    features_end = readme.index("\n", features_start)
+    features_line = readme[features_start:features_end]
+
+    exported = set(optimization.__all__)
+    missing: list[str] = []
+    for cls_name, marker in _OPTIMIZER_FEATURE_MARKERS.items():
+        if cls_name in exported and marker.lower() not in features_line.lower():
+            missing.append(f"{cls_name} (marker '{marker}')")
+    assert (
+        not missing
+    ), "README Features bullet does not advertise every exported optimizer:\n" + "\n".join(missing)
