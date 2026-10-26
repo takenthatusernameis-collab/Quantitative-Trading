@@ -113,11 +113,14 @@ INTERVAL_PERIODS_PER_YEAR = {
     "wk": 52,
     "week": 52,
     "weekly": 52,
+    "weekly_adjusted": 52,
+    "1wa": 52,
     "1mo": 12,
     "mo": 12,
     "month": 12,
     "monthly": 12,
     "monthly_adjusted": 12,
+    "1ma": 12,
 }
 
 # Minutes in a standard US equity trading session (6.5 hours), used to
@@ -136,6 +139,10 @@ ALPHAVANTAGE_INTERVALS: frozenset[str] = frozenset(
         *AlphaVantageProvider.INTRADAY_INTERVALS,
         *AlphaVantageProvider.WEEKLY_INTERVALS,
         *AlphaVantageProvider.MONTHLY_INTERVALS,
+        "1wa",
+        "weekly_adjusted",
+        "1ma",
+        "monthly_adjusted",
         *AlphaVantageProvider.QUOTE_INTERVALS,
         *AlphaVantageProvider.MARKET_STATUS_INTERVALS,
         *AlphaVantageProvider.FX_DAILY_INTERVALS,
@@ -148,6 +155,7 @@ ALPHAVANTAGE_INTERVALS: frozenset[str] = frozenset(
         *AlphaVantageProvider.SECTOR_INTERVALS,
         *AlphaVantageProvider.COMMODITIES_INTERVALS,
         *AlphaVantageProvider.GOLD_INTERVALS,
+        *getattr(AlphaVantageProvider, "ECONOMIC_INDICATORS", set()),
     }
 )
 
