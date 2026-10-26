@@ -125,6 +125,30 @@ def test_all_package_modules_import():
     assert not failures, "modules failed to import:\n" + "\n".join(failures)
 
 
+def test_no_duplicate_all_entries():
+    """No module may list the same name twice in ``__all__``."""
+    offenders: list[str] = []
+    for path in _python_files():
+        tree = _parse(path)
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if (
+                        isinstance(target, ast.Name)
+                        and target.id == "__all__"
+                        and isinstance(node.value, (ast.List, ast.Tuple))
+                    ):
+                        seen: set[str] = set()
+                        for elt in node.value.elts:
+                            if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                                if elt.value in seen:
+                                    rel = path.relative_to(REPO_ROOT)
+                                    offenders.append(f"{rel}: duplicate {elt.value} in __all__")
+                                    break
+                                seen.add(elt.value)
+    assert not offenders, "duplicate __all__ entries:\n" + "\n".join(offenders)
+
+
 def test_validate_parameters_overrides_annotated_none():
     """Every override of validate_parameters must declare -> None."""
     offenders: list[str] = []
