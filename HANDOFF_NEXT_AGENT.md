@@ -1,10 +1,10 @@
 # Handoff for Next Agent
 
 ## What changed
-- `tests/test_repository_integrity.py`: `test_strategies_init_all_exports_exist()` already present; verified it passes.
+- `tests/test_repository_integrity.py`: added `test_cli_strategy_imports_exist()` guard.
 
 ## What was actually verified
-- `python -m pytest tests/test_repository_integrity.py -q` → 12 passed.
+- `python -m pytest tests/test_repository_integrity.py -q` → 13 passed.
 
 ## What remains unresolved
 - None blocking.
@@ -13,5 +13,4 @@
 - None.
 
 ## One precise next task
-- If extending guards, consider a cheap check that `quant_trading.strategies.__init__` exports used by examples/CLI are all present (e.g. ensure symbols imported/registered match expectations) without re-parsing large files or importing heavy deps.
-"""
+- Consider a cheap guard that all example scripts' `from quant_trading.strategies.examples import ...` names exist, mirroring the CLI import check.

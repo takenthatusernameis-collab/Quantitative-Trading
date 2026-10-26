@@ -382,3 +382,18 @@ def test_strategies_init_all_exports_exist():
 
     missing = [name for name in mod.__all__ if not hasattr(mod, name)]
     assert not missing, "strategies.__all__ names missing from module: " + ", ".join(missing)
+
+
+def test_cli_strategy_imports_exist():
+    """Names imported from quant_trading.strategies by examples/cli.py must exist."""
+    import ast
+    import quant_trading.strategies as mod
+
+    tree = ast.parse((REPO_ROOT / "examples" / "cli.py").read_text(encoding="utf-8"))
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "quant_trading.strategies":
+            for alias in node.names:
+                imported.add(alias.name)
+    missing = sorted(name for name in imported if not hasattr(mod, name))
+    assert not missing, "examples/cli.py imports missing from strategies: " + ", ".join(missing)
