@@ -134,6 +134,37 @@ class TestReadmeStrategyRegistry:
         ), "README strategy aliases out of sync with the registry:\n" + "\n".join(offenders)
 
 
+# Names imported from ``quant_trading.data`` in the README's DataManager example.
+# The snippet must stay in sync with ``quant_trading.data.__all__``; a future
+# export change must not silently desync the docs.
+def _documented_data_import_names() -> set[str]:
+    """Return the set of names imported from quant_trading.data in the README."""
+    text = README_PATH.read_text(encoding="utf-8")
+    start = text.index("from quant_trading.data import (")
+    end = text.index(")", start)
+    snippet = text[start:end]
+    names = set(re.findall(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*,?\s*$", snippet, re.M))
+    return names
+
+
+class TestReadmeDataImports:
+    """The README's quant_trading.data import snippet must match quant_trading.data.__all__."""
+
+    def test_data_imports_match_data_all(self):
+        from quant_trading import data
+
+        documented = _documented_data_import_names()
+        exported = set(data.__all__)
+        missing = sorted(exported - documented)
+        extra = sorted(documented - exported)
+        offenders: list[str] = []
+        if missing:
+            offenders.append(f"missing from README: {missing}")
+        if extra:
+            offenders.append(f"not in quant_trading.data.__all__: {extra}")
+        assert not offenders, "README quant_trading.data imports out of sync:\n" + "\n".join(offenders)
+
+
 def _documented_example_scripts() -> set[str]:
     """Return the set of example script basenames referenced in the README."""
     text = README_PATH.read_text(encoding="utf-8")

@@ -657,10 +657,14 @@ request's result is keyed by its stable request key.
 
 ```python
 from quant_trading.data import (
+    AlphaVantageProvider,
     DataManager,
+    DataProvider,
+    MarketData,
     SyntheticDataProvider,
     YFinanceProvider,
-    AlphaVantageProvider,
+    create_synthetic_data,
+    create_synthetic_provider,
 )
 
 # Create manager with providers
