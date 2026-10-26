@@ -374,3 +374,11 @@ def test_readme_features_list_advertises_all_optimizers():
     assert (
         not missing
     ), "README Features bullet does not advertise every exported optimizer:\n" + "\n".join(missing)
+
+
+def test_strategies_init_all_exports_exist():
+    """Every name in quant_trading.strategies.__all__ must be importable."""
+    import quant_trading.strategies as mod
+
+    missing = [name for name in mod.__all__ if not hasattr(mod, name)]
+    assert not missing, "strategies.__all__ names missing from module: " + ", ".join(missing)
