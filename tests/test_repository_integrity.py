@@ -205,6 +205,52 @@ def test_cli_strategy_keys_match_registry():
     )
 
 
+def _cli_provider_entries(tree: ast.Module) -> dict[str, str]:
+    entries: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "PROVIDERS"
+            and isinstance(node.value, ast.Dict)
+        ):
+            for key, val in zip(node.value.keys, node.value.values):
+                if (
+                    isinstance(key, ast.Constant)
+                    and isinstance(key.value, str)
+                    and isinstance(val, ast.Tuple)
+                    and val.elts
+                    and isinstance(val.elts[0], ast.Constant)
+                    and isinstance(val.elts[0].value, str)
+                ):
+                    entries[key.value] = val.elts[0].value
+    return entries
+
+
+def test_cli_provider_entries_match_data_providers():
+    import quant_trading.data.providers as providers_mod
+    import quant_trading.data.synthetic as synthetic_mod
+    import quant_trading.data.yfinance_provider as yf_mod
+
+
+    available = {
+        name
+        for mod in (providers_mod, synthetic_mod, yf_mod)
+        for name in dir(mod)
+        if name.endswith("Provider") and name != "DataProvider"
+    }
+    cli_path = REPO_ROOT / "examples" / "cli.py"
+    tree = _parse(cli_path)
+    entries = _cli_provider_entries(tree)
+    assert entries, "could not parse PROVIDERS from examples/cli.py"
+    offenders = []
+    for key, cls_name in entries.items():
+        if cls_name not in available:
+            offenders.append(f"{key}: {cls_name} not found in data providers")
+    assert not offenders, "CLI providers out of sync:\\n" + "\\n".join(offenders)
+
+
 def test_class_docstring_is_first_statement():
     """A class docstring must be the first statement in the class body.
 
