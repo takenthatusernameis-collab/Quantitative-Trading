@@ -112,7 +112,7 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `keltner` (aliases: `kc`, `keltner_channel`) → `KeltnerChannelStrategy`
 - `stoch` (aliases: `stochastic`, `stoch_oscillator`) → `StochasticOscillatorStrategy`
 - `stochrsi` (aliases: `stochastic_rsi`, `stoch_rsi`) → `StochRSIStrategy`
-- `ichimoku` (aliases: `ichimoku_cloud`, `ichimoku`) → `IchimokuCloudStrategy`
+- `ichimoku` (alias: `ichimoku_cloud`) → `IchimokuCloudStrategy`
 - `klinger` (aliases: `klinger_oscillator`) → `KlingerOscillatorStrategy`
 - `hma` (alias: `hull_moving_average`) → `HullMovingAverageStrategy`
 - `sar` (aliases: `parabolic_sar`, `psar`) → `ParabolicSARStrategy`

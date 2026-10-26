@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from quant_trading.strategies import list_strategies
+from quant_trading.strategies import get_registry, list_strategies
 
 README_PATH = Path(__file__).resolve().parent.parent / "README.md"
 EXAMPLES_DIR = README_PATH.parent / "examples"
@@ -14,7 +14,7 @@ REGISTRY_ENTRY = re.compile(r"^-\s+`(?P<key>[^`]+)`.*→\s+`(?P<cls>[^`]+)`\s*$"
 
 # Matches the parenthesised alias list of a registry bullet:
 #   - `ma` (aliases: `moving_average`, `ma_crossover`) → ...
-ALIAS_LIST = re.compile(r"\(aliases?:\s*(?P<aliases>[^)]*)\)")
+ALIAS_LIST = re.compile(r"\(alias(es)?:\s*(?P<aliases>[^)]*)\)")
 
 
 def _registry_section() -> str:
@@ -59,6 +59,26 @@ def _documented_aliases() -> dict[str, set[str]]:
     return aliases
 
 
+def _registry_aliases() -> dict[str, set[str]]:
+    """Map each primary strategy key to its live registry aliases.
+
+    Built only from the public API (``keys()`` / ``primary_keys()`` / ``get()``)
+    so the test does not reach into the registry's private state.
+    """
+    registry = get_registry()
+    primaries = set(registry.primary_keys())
+    alias_map: dict[str, set[str]] = {primary: set() for primary in primaries}
+    for key in registry.keys():  # noqa: SIM118 - registry is StrategyRegistry, not a dict
+        if key in primaries:
+            continue
+        target = registry.get(key)
+        for primary in primaries:
+            if registry.get(primary) is target:
+                alias_map[primary].add(key)
+                break
+    return alias_map
+
+
 class TestReadmeStrategyRegistry:
     """The README registry table must match the real strategy registry."""
 
@@ -85,6 +105,33 @@ class TestReadmeStrategyRegistry:
             if key in registry and documented[key] != registry[key].__name__
         ]
         assert mismatched == []
+
+    def test_documented_aliases_match_the_registry(self):
+        """The aliases documented in the README registry table must match the live registry.
+
+        The README lists the aliases of every strategy (e.g. ``ma`` documents
+        ``moving_average`` and ``ma_crossover``). If a strategy's aliases are
+        changed in code but the README table is not updated, users are pointed
+        at keys that do not resolve, silently. This test locks the documented
+        aliases to the registry so such drift is caught immediately.
+        """
+        documented = _documented_aliases()
+        actual = _registry_aliases()
+        offenders: list[str] = []
+        for key, documented_aliases in documented.items():
+            if key not in actual:
+                offenders.append(f"{key}: documented in README but not a registered primary key")
+                continue
+            actual_aliases = actual[key]
+            missing = sorted(actual_aliases - documented_aliases)
+            extra = sorted(documented_aliases - actual_aliases)
+            if missing:
+                offenders.append(f"{key}: registry aliases missing from README: {missing}")
+            if extra:
+                offenders.append(f"{key}: README aliases not present in the registry: {extra}")
+        assert (
+            not offenders
+        ), "README strategy aliases out of sync with the registry:\n" + "\n".join(offenders)
 
 
 def _documented_example_scripts() -> set[str]:
