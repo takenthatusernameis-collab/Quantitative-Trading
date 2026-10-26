@@ -162,7 +162,9 @@ class TestReadmeDataImports:
             offenders.append(f"missing from README: {missing}")
         if extra:
             offenders.append(f"not in quant_trading.data.__all__: {extra}")
-        assert not offenders, "README quant_trading.data imports out of sync:\n" + "\n".join(offenders)
+        assert not offenders, "README quant_trading.data imports out of sync:\n" + "\n".join(
+            offenders
+        )
 
 
 def _documented_example_scripts() -> set[str]:
