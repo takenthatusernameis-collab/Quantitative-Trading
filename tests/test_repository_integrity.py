@@ -416,3 +416,27 @@ def test_example_scripts_import_from_strategies_examples_exist():
             if not hasattr(mod, name):
                 failures.append(f"{path.name}: {name} missing from quant_trading.strategies.examples")
     assert not failures, "example script imports missing:\n" + "\n".join(failures)
+
+
+def test_example_scripts_quant_trading_imports_exist():
+    """Names imported from quant_trading.* by example scripts must exist."""
+    import ast
+    import importlib
+
+    failures: list[str] = []
+    for path in sorted((REPO_ROOT / "examples").glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("quant_trading")):
+                continue
+            try:
+                mod = importlib.import_module(node.module)
+            except Exception as exc:  # noqa: BLE001
+                failures.append(f"{path.name}: cannot import {node.module}: {exc!r}")
+                continue
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                if not hasattr(mod, alias.name):
+                    failures.append(f"{path.name}: {alias.name} missing from {node.module}")
+    assert not failures, "example script imports missing:\n" + "\n".join(failures)
