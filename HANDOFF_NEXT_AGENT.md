@@ -1,10 +1,10 @@
 # Handoff for Next Agent
 
 ## What changed
-- `tests/test_repository_integrity.py`: added `test_example_scripts_quant_trading_imports_exist()` guard covering all `quant_trading.*` imports in example scripts.
+- `tests/test_repository_integrity.py`: added `test_cli_quant_trading_imports_exist()` guard covering all `quant_trading.*` imports in `examples/cli.py`.
 
 ## What was actually verified
-- `python -m pytest tests/test_repository_integrity.py -q` → 15 passed.
+- `python -m pytest tests/test_repository_integrity.py -q` → 16 passed.
 
 ## What remains unresolved
 - None blocking.
@@ -13,4 +13,4 @@
 - None.
 
 ## One precise next task
-- Consider a cheap guard that CLI imports from `quant_trading.*` (beyond strategies) also exist, mirroring the example scripts check.
+- None suggested; consider extending similar import-existence guards to other entrypoints if any exist.
