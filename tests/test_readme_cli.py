@@ -1,10 +1,12 @@
 """Tests that keep the README's CLI flag documentation in sync with the parser.
 
 The README's "Command Line Interface" section is the user-facing contract for
-which flags ``examples/cli.py`` accepts. If a flag is advertised in the README
-but removed from the parser, users following the docs hit an argparse error.
-The guard below catches that drift by parsing the README's CLI section and
-comparing it to the live ``parse_args()`` namespace.
+which flags ``examples/cli.py`` accepts. Flags are advertised there both as
+backtick-quoted prose (``--strategy``) and as plain tokens inside bash code
+blocks (``python examples/cli.py --strategy rsi``). If a flag is advertised in
+the README but removed from the parser, users following the docs hit an
+argparse error. The guard below parses the README's CLI section and compares
+every documented flag to the live ``parse_args()`` namespace.
 
 The direction is one-way (README -> parser) because the README intentionally
 documents a curated subset of flags, not every flag the parser accepts. This
@@ -24,6 +26,10 @@ README_PATH = Path(__file__).resolve().parent.parent / "README.md"
 
 # Matches a backtick-quoted CLI flag such as ``--strategy`` or ``--ma-fast-range``.
 _CLI_FLAG = re.compile(r"`(?P<flag>--[a-z][a-z0-9-]*)`")
+# Matches a plain CLI flag inside a bash code block, e.g. ``--strategy rsi``.
+# The negative lookbehind avoids matching a flag glued to a preceding word.
+_FLAG_TOKEN = re.compile(r"(?<!\w)(?P<flag>--[a-z][a-z0-9-]*)")
+_CODE_BLOCK = re.compile(r"```bash\n(?P<body>.*?)```", re.DOTALL)
 
 
 def _cli_section() -> str:
@@ -39,13 +45,17 @@ def _documented_cli_flags() -> set[str]:
     """Return the set of CLI flags advertised in the README.
 
     Every backtick-quoted ``--flag`` token in the "Command Line Interface"
-    section is collected. The same flag may appear several times (for example
-    in shell invocations such as ``--strategy rsi --symbols AAPL``); duplicates
-    are collapsed into a set.
+    section is collected, as is every plain ``--flag`` token inside a bash
+    code block (the shell invocations users copy-paste). The same flag may
+    appear several times; duplicates are collapsed into a set.
     """
     documented: set[str] = set()
-    for match in _CLI_FLAG.finditer(_cli_section()):
+    section = _cli_section()
+    for match in _CLI_FLAG.finditer(section):
         documented.add(match.group("flag").lstrip("-"))
+    for block in _CODE_BLOCK.finditer(section):
+        for match in _FLAG_TOKEN.finditer(block.group("body")):
+            documented.add(match.group("flag").lstrip("-"))
     return documented
 
 
