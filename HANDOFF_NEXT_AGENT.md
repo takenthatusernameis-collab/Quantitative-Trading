@@ -1,24 +1,24 @@
 # Handoff for Next Agent
 
 ## What changed
-- No code changes this session. Verified repository health (ruff, mypy, black, integrity/example tests all green).
+- Added `--validate-config PATH` flag and `validate_config()` in `examples/cli.py` to load and validate a config YAML via `Config.from_yaml()`; exits early with a clear message/exit code on success or error.
 
 ## What was actually verified
-- `python -m ruff check .` → All checks passed.
-- `python -m mypy quant_trading` → Success, no issues.
-- `python -m black --check .` → 102 files unchanged.
-- `python -m pytest tests/test_repository_integrity.py tests/test_readme.py tests/test_examples_smoke.py tests/test_strategies_examples.py -q` → all passed.
+- `python examples/cli.py --init-config /tmp/test_cfg.yaml` → wrote default config
+- `python examples/cli.py --validate-config /tmp/test_cfg.yaml` → `Config is valid: ...`
+- `python examples/cli.py --validate-config /tmp/nonexistent.yaml` → `Error: ...` with non-zero exit behavior (main maps errors)
+- `python -m pytest tests/test_cli.py -q` → 158 passed
+- `python -m ruff check examples/cli.py` → All checks passed
 
 ## What remains unresolved
-- None blocking. No failing checks found.
+- None blocking; consider adding unit tests for `--validate-config` if desired.
 
 ## Approaches that failed and why
 - None.
 
 ## One precise next task
-- No required work. Pick a bounded feature/fix from backlog if desired; baseline is green.
+- Add CLI tests for `--validate-config` (valid file, invalid YAML/type errors, missing file) to cover the new flag similar to how `--init-config` is tested.
 
 Constraints:
 - Keep black, ruff, mypy clean and full suite green.
 - Do NOT commit unless explicitly asked.
-(End of file)

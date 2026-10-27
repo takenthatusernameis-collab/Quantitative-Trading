@@ -292,6 +292,12 @@ def parse_args() -> argparse.Namespace:
         metavar="PATH",
         help="Generate a default config YAML file at PATH and exit",
     )
+    parser.add_argument(
+        "--validate-config",
+        type=str,
+        metavar="PATH",
+        help="Validate a config YAML file at PATH and exit",
+    )
 
     parser.add_argument(
         "--symbols",
@@ -1262,6 +1268,17 @@ def init_config(path: str) -> int:
     return 0
 
 
+def validate_config(path: str) -> int:
+    """Validate a configuration YAML file and report any errors."""
+    try:
+        Config.from_yaml(path)
+    except (OSError, ValueError) as e:
+        print(f"Error: {e}")
+        return 1
+    print(f"Config is valid: {path}")
+    return 0
+
+
 def create_config(args: argparse.Namespace) -> Config:
     """Create Config from args and optional YAML file."""
     config = Config()
@@ -2047,6 +2064,8 @@ def _run_cli() -> int:
         return list_providers()
     if args.init_config:
         return init_config(args.init_config)
+    if getattr(args, "validate_config", None):
+        return validate_config(args.validate_config)
 
     # Parse dates
     end_date = datetime.strptime(args.end, "%Y-%m-%d") if args.end else datetime.now()
