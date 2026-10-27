@@ -387,6 +387,7 @@ def test_strategies_init_all_exports_exist():
 def test_cli_strategy_imports_exist():
     """Names imported from quant_trading.strategies by examples/cli.py must exist."""
     import ast
+
     import quant_trading.strategies as mod
 
     tree = ast.parse((REPO_ROOT / "examples" / "cli.py").read_text(encoding="utf-8"))
@@ -402,6 +403,7 @@ def test_cli_strategy_imports_exist():
 def test_example_scripts_import_from_strategies_examples_exist():
     """Names imported from quant_trading.strategies.examples by example scripts must exist."""
     import ast
+
     import quant_trading.strategies.examples as mod
 
     failures: list[str] = []
@@ -409,12 +411,17 @@ def test_example_scripts_import_from_strategies_examples_exist():
         tree = ast.parse(path.read_text(encoding="utf-8"))
         imported: set[str] = set()
         for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module == "quant_trading.strategies.examples":
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module == "quant_trading.strategies.examples"
+            ):
                 for alias in node.names:
                     imported.add(alias.name)
         for name in sorted(imported):
             if not hasattr(mod, name):
-                failures.append(f"{path.name}: {name} missing from quant_trading.strategies.examples")
+                failures.append(
+                    f"{path.name}: {name} missing from quant_trading.strategies.examples"
+                )
     assert not failures, "example script imports missing:\n" + "\n".join(failures)
 
 
@@ -427,7 +434,11 @@ def test_example_scripts_quant_trading_imports_exist():
     for path in sorted((REPO_ROOT / "examples").glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
-            if not (isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("quant_trading")):
+            if not (
+                isinstance(node, ast.ImportFrom)
+                and node.module
+                and node.module.startswith("quant_trading")
+            ):
                 continue
             try:
                 mod = importlib.import_module(node.module)
@@ -451,7 +462,11 @@ def test_cli_quant_trading_imports_exist():
     tree = ast.parse(path.read_text(encoding="utf-8"))
     failures: list[str] = []
     for node in ast.walk(tree):
-        if not (isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("quant_trading")):
+        if not (
+            isinstance(node, ast.ImportFrom)
+            and node.module
+            and node.module.startswith("quant_trading")
+        ):
             continue
         try:
             mod = importlib.import_module(node.module)

@@ -143,7 +143,7 @@ def _documented_data_import_names() -> set[str]:
     start = text.index("from quant_trading.data import (")
     end = text.index(")", start)
     snippet = text[start:end]
-    names = set(re.findall(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*,?\s*$", snippet, re.M))
+    names = set(re.findall(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*,?\s*$", snippet, re.MULTILINE))
     return names
 
 
