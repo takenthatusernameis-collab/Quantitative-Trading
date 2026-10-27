@@ -1,5 +1,6 @@
 """Tests that keep the README in sync with the code it documents."""
 
+import importlib
 import re
 from pathlib import Path
 
@@ -147,6 +148,37 @@ def _documented_data_import_names() -> set[str]:
     return names
 
 
+def _documented_quant_trading_imports() -> dict[str, set[str]]:
+    """Map each README-imported ``quant_trading.*`` module to the names it imports.
+
+    Handles single-line imports (``from quant_trading.backtest import foo``),
+    multi-name single-line imports (``from quant_trading.backtest import foo,
+    bar``) and parenthesised multi-line blocks
+    (``from quant_trading.strategies import (\n    foo,\n)``).
+    """
+    text = README_PATH.read_text(encoding="utf-8")
+    imports: dict[str, set[str]] = {}
+    for match in re.finditer(
+        r"from\s+(?P<module>quant_trading\.[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s+import\s+",
+        text,
+    ):
+        module = match.group("module")
+        start = match.end()
+        if start < len(text) and text[start] == "(":
+            end = text.index(")", start)
+            snippet = text[start:end]
+        else:
+            line_end = text.find("\n", start)
+            snippet = text[start : line_end if line_end != -1 else len(text)]
+        names = {
+            n
+            for n in re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", snippet)
+            if n not in {"from", "import", "as"}
+        }
+        imports.setdefault(module, set()).update(names)
+    return imports
+
+
 class TestReadmeDataImports:
     """The README's quant_trading.data import snippet must match quant_trading.data.__all__."""
 
@@ -163,6 +195,38 @@ class TestReadmeDataImports:
         if extra:
             offenders.append(f"not in quant_trading.data.__all__: {extra}")
         assert not offenders, "README quant_trading.data imports out of sync:\n" + "\n".join(
+            offenders
+        )
+
+
+class TestReadmeQuantTradingImports:
+    """Every name imported from a ``quant_trading.*`` module in the README must exist on that module.
+
+    The README shows ``from quant_trading.X import ...`` snippets for the
+    backtest, monte carlo, risk, config and strategies modules (among others).
+    If a name is renamed or removed from a module without updating the README,
+    users following the docs hit an ``ImportError`` or ``AttributeError``.
+    This guard catches that drift by importing each referenced module and
+    checking every documented name is exported.
+
+    The direction is one-way (README -> module): modules export more names than
+    the README documents, so the reverse is not asserted.
+    """
+
+    def test_documented_quant_trading_imports_resolve(self):
+        """Each name imported from a ``quant_trading.*`` module in the README exists on that module."""
+        imports = _documented_quant_trading_imports()
+        offenders: list[str] = []
+        for module in sorted(imports):
+            try:
+                mod = importlib.import_module(module)
+            except ImportError as e:
+                offenders.append(f"{module}: cannot import module ({e})")
+                continue
+            for name in sorted(imports[module]):
+                if not hasattr(mod, name):
+                    offenders.append(f"{module}.{name}: name not exported by {module}")
+        assert not offenders, "README quant_trading imports that do not resolve:\n" + "\n".join(
             offenders
         )
 
