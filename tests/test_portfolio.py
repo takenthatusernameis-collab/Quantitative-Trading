@@ -1,5 +1,7 @@
 """Tests for the portfolio data structures."""
 
+from datetime import datetime
+
 import pytest
 
 from quant_trading.portfolio.portfolio import Holding, Portfolio
@@ -469,3 +471,128 @@ class TestHoldingMarketValue:
         """A holding without units has no market value."""
         holding = Holding(symbol="AAPL", quantity=0, avg_cost=100.0, current_price=150.0)
         assert holding.market_value == 0.0
+
+
+class TestHoldingSerialization:
+    """Tests for Holding.to_dict / Holding.from_dict."""
+
+    def test_to_dict_contains_all_fields(self):
+        """to_dict exposes every field the holding carries."""
+        holding = Holding(symbol="AAPL", quantity=100, avg_cost=100.0, current_price=150.0)
+        data = holding.to_dict()
+        assert set(data) == {"symbol", "quantity", "avg_cost", "current_price", "market_value"}
+        assert data["symbol"] == "AAPL"
+        assert data["quantity"] == 100
+        assert data["avg_cost"] == 100.0
+        assert data["current_price"] == 150.0
+        assert data["market_value"] == 15000.0
+
+    def test_to_dict_short_position(self):
+        """to_dict carries the signed values of a short holding."""
+        holding = Holding(symbol="GOOG", quantity=-50, avg_cost=200.0, current_price=210.0)
+        data = holding.to_dict()
+        assert data["quantity"] == -50
+        assert data["market_value"] == -10500.0
+
+    def test_from_dict_round_trip_long(self):
+        """from_dict(to_dict(holding)) restores the holding exactly."""
+        holding = Holding(symbol="AAPL", quantity=100, avg_cost=100.0, current_price=150.0)
+        restored = Holding.from_dict(holding.to_dict())
+        assert restored.symbol == holding.symbol
+        assert restored.quantity == holding.quantity
+        assert restored.avg_cost == holding.avg_cost
+        assert restored.current_price == holding.current_price
+        assert restored.market_value == holding.market_value
+
+    def test_from_dict_round_trip_short(self):
+        """from_dict(to_dict(holding)) restores a short holding exactly."""
+        holding = Holding(symbol="GOOG", quantity=-50, avg_cost=200.0, current_price=210.0)
+        restored = Holding.from_dict(holding.to_dict())
+        assert restored.quantity == -50
+        assert restored.market_value == -10500.0
+
+    def test_from_dict_defaults_missing_fields(self):
+        """from_dict tolerates a dict that omits optional fields."""
+        restored = Holding.from_dict({"symbol": "AAPL"})
+        assert restored.symbol == "AAPL"
+        assert restored.quantity == 0.0
+        assert restored.avg_cost == 0.0
+        assert restored.current_price == 0.0
+
+
+class TestPortfolioSerialization:
+    """Tests for Portfolio.to_dict / Portfolio.from_dict."""
+
+    def test_to_dict_contains_all_fields(self):
+        """to_dict exposes cash, holdings, total_value, initial_capital and last_rebalance."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 100, 100.0)
+        data = portfolio.to_dict()
+        assert set(data) == {"cash", "holdings", "total_value", "initial_capital", "last_rebalance"}
+        # Buying 100 shares at $100 debits $10,000 from cash.
+        assert data["cash"] == 90000.0
+        assert data["total_value"] == portfolio.total_value
+        assert data["initial_capital"] == 100000.0
+        assert data["last_rebalance"] is None
+        assert set(data["holdings"]) == {"AAPL"}
+
+    def test_to_dict_serializes_holdings_recursively(self):
+        """Each holding in the dict is itself a serialized holding dict."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 100, 100.0)
+        data = portfolio.to_dict()
+        holding_data = data["holdings"]["AAPL"]
+        assert holding_data["symbol"] == "AAPL"
+        assert holding_data["quantity"] == 100
+        assert holding_data["market_value"] == 10000.0
+
+    def test_to_dict_serializes_last_rebalance_isoformat(self):
+        """last_rebalance is rendered as an ISO-8601 string when set."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.last_rebalance = datetime(2024, 1, 15, 9, 30)
+        data = portfolio.to_dict()
+        assert data["last_rebalance"] == "2024-01-15T09:30:00"
+
+    def test_from_dict_round_trip_with_holdings_and_rebalance(self):
+        """from_dict(to_dict(portfolio)) restores cash, holdings and the rebalance date."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 100, 100.0)
+        portfolio.add_holding("GOOG", -50, 200.0)
+        portfolio.last_rebalance = datetime(2024, 1, 15)
+
+        restored = Portfolio.from_dict(portfolio.to_dict())
+        assert restored.cash == portfolio.cash
+        assert restored.initial_capital == portfolio.initial_capital
+        assert restored.total_value == portfolio.total_value
+        assert restored.last_rebalance == datetime(2024, 1, 15)
+        assert set(restored.holdings) == {"AAPL", "GOOG"}
+        assert restored.holdings["AAPL"].quantity == 100
+        assert restored.holdings["GOOG"].quantity == -50
+
+    def test_from_dict_round_trip_empty_portfolio(self):
+        """from_dict(to_dict(portfolio)) works for a cash-only portfolio."""
+        portfolio = Portfolio(cash=50000.0, initial_capital=50000.0)
+        restored = Portfolio.from_dict(portfolio.to_dict())
+        assert restored.cash == 50000.0
+        assert restored.initial_capital == 50000.0
+        assert restored.holdings == {}
+
+    def test_from_dict_none_last_rebalance(self):
+        """A missing or null last_rebalance restores to None."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        restored = Portfolio.from_dict(portfolio.to_dict())
+        assert restored.last_rebalance is None
+
+    def test_from_dict_invalid_last_rebalance_string(self):
+        """An unparseable last_rebalance string is treated as None."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.last_rebalance = "not-a-date"
+        restored = Portfolio.from_dict(portfolio.to_dict())
+        assert restored.last_rebalance is None
+
+    def test_from_dict_uses_defaults_for_missing_fields(self):
+        """from_dict tolerates a dict that omits optional fields."""
+        restored = Portfolio.from_dict({"cash": 25000.0})
+        assert restored.cash == 25000.0
+        assert restored.initial_capital == 25000.0
+        assert restored.holdings == {}
