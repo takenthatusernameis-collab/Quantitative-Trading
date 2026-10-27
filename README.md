@@ -276,6 +276,9 @@ python examples/cli.py --list-providers
 
 # Generate a default config.yaml file
 python examples/cli.py --init-config config.yaml
+
+# Validate a config YAML file
+python examples/cli.py --validate-config config.yaml
 ```
 
 ### Combined Mode
