@@ -1,6 +1,6 @@
 """Strategies module for trading strategy implementations."""
 
-from .base import Position, Signal, Strategy, StrategyManager
+from .base import BaseStrategy, Position, Signal, Strategy, StrategyManager
 from .examples import (
     PPO,
     PVO,
@@ -123,6 +123,7 @@ register_strategy("chop", ChoppinessIndexStrategy, aliases=["choppiness", "chopp
 
 
 __all__ = [
+    "BaseStrategy",
     "PPO",
     "PVO",
     "ADXStrategy",

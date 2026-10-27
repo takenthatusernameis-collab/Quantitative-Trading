@@ -316,7 +316,8 @@ class Strategy(ABC):
         return create_strategy(strategy_type, name=name, **parameters)
 
 
-class StrategyManager:
+# Alias for compatibility
+BaseStrategy = Strategy
     """Manages multiple strategies.
 
     Attributes:

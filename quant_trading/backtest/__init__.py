@@ -5,7 +5,7 @@ from .analysis import (
     analyze_regimes,
     regime_for_backtest,
 )
-from .engine import BacktestEngine, BacktestResult
+from .engine import BacktestEngine, BacktestResult, run_backtest
 from .metrics import BacktestMetrics
 from .trade_analysis import TradeAnalysis, analyze_trades, print_trade_analysis
 
@@ -19,4 +19,5 @@ __all__ = [
     "analyze_trades",
     "print_trade_analysis",
     "regime_for_backtest",
+    "run_backtest",
 ]
