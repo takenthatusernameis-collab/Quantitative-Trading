@@ -137,6 +137,27 @@ class Holding:
             unrealized_pnl=self.unrealized_pnl,
         )
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize holding to a dictionary."""
+        return {
+            "symbol": self.symbol,
+            "quantity": self.quantity,
+            "avg_cost": self.avg_cost,
+            "current_price": self.current_price,
+            "market_value": self.market_value,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Holding":
+        """Deserialize holding from a dictionary."""
+        return cls(
+            symbol=data["symbol"],
+            quantity=data.get("quantity", 0.0),
+            avg_cost=data.get("avg_cost", 0.0),
+            current_price=data.get("current_price", 0.0),
+            market_value=data.get("market_value", 0.0),
+        )
+
 
 @dataclass
 class Portfolio:
@@ -457,3 +478,44 @@ class Portfolio:
                 else 0
             ),
         }
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize portfolio to a dictionary."""
+        last_rebalance_serialized: str | Any | None = None
+        if self.last_rebalance is not None:
+            if hasattr(self.last_rebalance, "isoformat"):
+                last_rebalance_serialized = self.last_rebalance.isoformat()
+            else:
+                last_rebalance_serialized = self.last_rebalance
+        return {
+            "cash": self.cash,
+            "holdings": {sym: h.to_dict() for sym, h in self.holdings.items()},
+            "total_value": self.total_value,
+            "initial_capital": self.initial_capital,
+            "last_rebalance": last_rebalance_serialized,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Portfolio":
+        """Deserialize portfolio from a dictionary."""
+        last_rebalance_raw = data.get("last_rebalance")
+        last_rebalance: datetime | None = None
+        if isinstance(last_rebalance_raw, str) and last_rebalance_raw:
+            try:
+                last_rebalance = datetime.fromisoformat(last_rebalance_raw)
+            except (ValueError, TypeError):
+                last_rebalance = None
+        elif isinstance(last_rebalance_raw, datetime):
+            last_rebalance = last_rebalance_raw
+        portfolio = cls(
+            cash=data.get("cash", 0.0),
+            initial_capital=data.get("initial_capital", data.get("cash", 0.0)),
+        )
+        portfolio.total_value = data.get("total_value", portfolio.cash)
+        portfolio.last_rebalance = last_rebalance
+        portfolio.holdings = {}
+        holdings_data = data.get("holdings", {}) or {}
+        for sym, hdata in holdings_data.items():
+            holding = Holding.from_dict(hdata)
+            portfolio.holdings[sym] = holding
+        return portfolio
