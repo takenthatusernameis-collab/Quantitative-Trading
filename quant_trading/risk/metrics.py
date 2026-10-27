@@ -76,6 +76,20 @@ class RiskMetrics:
             "calmar_ratio": self.calmar_ratio,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, float]) -> "RiskMetrics":
+        """Deserialize risk metrics from a dictionary."""
+        return cls(
+            sharpe_ratio=data.get("sharpe_ratio", 0.0),
+            sortino_ratio=data.get("sortino_ratio", 0.0),
+            max_drawdown=data.get("max_drawdown", 0.0),
+            volatility=data.get("volatility", 0.0),
+            var_95=data.get("var_95", 0.0),
+            var_99=data.get("var_99", 0.0),
+            beta=data.get("beta", 0.0),
+            alpha=data.get("alpha", 0.0),
+            calmar_ratio=data.get("calmar_ratio", 0.0),
+        )
 
 def calculate_returns(prices: pd.Series) -> pd.Series:
     """Calculate simple returns from price series.
