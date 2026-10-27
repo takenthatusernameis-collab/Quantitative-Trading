@@ -1952,6 +1952,15 @@ class TestMain:
         assert result == 0
         mock_init_config.assert_called_once_with("config.yaml")
 
+    @patch("examples.cli.validate_config")
+    def test_main_validate_config(self, mock_validate_config):
+        mock_validate_config.return_value = 0
+        args = ["--validate-config", "config.yaml"]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+        mock_validate_config.assert_called_once_with("config.yaml")
+
     @patch("examples.cli.run_combined")
     def test_main_combined(self, mock_run_combined):
         mock_run_combined.return_value = 0
