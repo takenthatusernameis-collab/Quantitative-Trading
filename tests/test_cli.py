@@ -97,6 +97,11 @@ class TestParseArgs:
             args = parse_args()
         assert args.init_config == "config.yaml"
 
+    def test_validate_config_flag(self):
+        with patch("sys.argv", ["cli.py", "--validate-config", "config.yaml"]):
+            args = parse_args()
+        assert args.validate_config == "config.yaml"
+
     def test_combined_flag(self):
         with patch("sys.argv", ["cli.py", "--combined"]):
             args = parse_args()
@@ -316,6 +321,55 @@ class TestListProviders:
         assert "YFinanceProvider" in captured.out
         assert "AlphaVantageProvider" in captured.out
         assert "SyntheticDataProvider" in captured.out
+
+
+class TestValidateConfig:
+    """Tests for validate_config function."""
+
+    def test_validate_config_valid_file(self, capsys):
+        from examples.cli import validate_config
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = f"{tmpdir}/config.yaml"
+            init_config(path)
+            result = validate_config(path)
+            assert result == 0
+            captured = capsys.readouterr()
+            assert f"Config is valid: {path}" in captured.out
+
+    def test_validate_config_missing_file(self, capsys):
+        from examples.cli import validate_config
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = f"{tmpdir}/does_not_exist.yaml"
+            result = validate_config(path)
+            assert result == 1
+            captured = capsys.readouterr()
+            assert "Error:" in captured.out
+
+    def test_validate_config_invalid_yaml(self, capsys):
+        from examples.cli import validate_config
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = f"{tmpdir}/bad.yaml"
+            with open(path, "w") as f:
+                f.write("backtest:\n  initial_capital: [unclosed\n")
+            result = validate_config(path)
+            assert result == 1
+            captured = capsys.readouterr()
+            assert "Error:" in captured.out
+
+    def test_validate_config_invalid_type(self, capsys):
+        from examples.cli import validate_config
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = f"{tmpdir}/bad_type.yaml"
+            with open(path, "w") as f:
+                f.write("backtest:\n  initial_capital: abc\n")
+            result = validate_config(path)
+            assert result == 1
+            captured = capsys.readouterr()
+            assert "Error:" in captured.out
 
 
 class TestInitConfig:
