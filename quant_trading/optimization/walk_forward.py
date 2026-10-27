@@ -116,6 +116,31 @@ class WalkForwardWindow:
             "test_result": self.test_result,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "WalkForwardWindow":
+        """Deserialize window from a dictionary."""
+        train_start = data.get("train_start")
+        train_end = data.get("train_end")
+        test_start = data.get("test_start")
+        test_end = data.get("test_end")
+        if isinstance(train_start, str):
+            train_start = datetime.fromisoformat(train_start)
+        if isinstance(train_end, str):
+            train_end = datetime.fromisoformat(train_end)
+        if isinstance(test_start, str):
+            test_start = datetime.fromisoformat(test_start)
+        if isinstance(test_end, str):
+            test_end = datetime.fromisoformat(test_end)
+        return cls(
+            train_start=train_start,
+            train_end=train_end,
+            test_start=test_start,
+            test_end=test_end,
+            best_params=data.get("best_params"),
+            train_result=data.get("train_result"),
+            test_result=data.get("test_result"),
+        )
+
 
 @dataclass
 class WalkForwardResult:
@@ -153,6 +178,30 @@ class WalkForwardResult:
     windows: list[WalkForwardWindow]
     combined_test_result: BacktestResult | None = None
     anchored: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert result to a dictionary."""
+        return {
+            "windows": [w.to_dict() for w in self.windows],
+            "combined_test_result": self.combined_test_result,
+            "anchored": self.anchored,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "WalkForwardResult":
+        """Deserialize result from a dictionary."""
+        windows_data = data.get("windows", []) or []
+        windows = []
+        for wdata in windows_data:
+            if isinstance(wdata, dict):
+                windows.append(WalkForwardWindow.from_dict(wdata))
+            elif isinstance(wdata, WalkForwardWindow):
+                windows.append(wdata)
+        return cls(
+            windows=windows,
+            combined_test_result=data.get("combined_test_result"),
+            anchored=bool(data.get("anchored", True)),
+        )
 
     def to_dataframe(self) -> pd.DataFrame:
         """Convert window results to a DataFrame.
