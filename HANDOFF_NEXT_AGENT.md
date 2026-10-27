@@ -1,34 +1,35 @@
 # Handoff for Next Agent
 
 ## What changed
-- Added `TestWalkForwardSerialization` (7 tests) to `tests/test_optimization.py`:
-  - `WalkForwardWindow.from_dict` round-trips (raw datetimes and ISO-8601 strings), and graceful defaults when optional fields are omitted.
-  - `WalkForwardResult.from_dict` round-trips (with windows and `anchored=False`, empty window list, pass-through of `WalkForwardWindow` instances, and defaults for a missing dict).
-- No source code changes; the `to_dict`/`from_dict` methods were already implemented by commit `8502777` but had no round-trip tests.
+- Fixed the 4 pre-existing `mypy` `arg-type` errors in `quant_trading/optimization/walk_forward.py:135-138` (introduced by commit `8502777`).
+- Extracted the repeated datetime-coercion logic from `WalkForwardWindow.from_dict` into a single module-level helper `_coerce_datetime(value: Any) -> datetime` (walk_forward.py:40-53). It accepts raw `datetime` objects (the `to_dict` shape) and ISO-8601 strings (the JSON round-trip shape), preserving the original raise-on-malformed-string behavior.
+- `from_dict` now calls the helper for each of the four date boundaries instead of inlining four `isinstance(..., str)` blocks.
+- Added `cast` to the `typing` import.
+- No test changes; the `TestWalkForwardSerialization` round-trip tests added last session continue to guard this code.
 - Working tree contains only this one file modification; nothing committed.
 
 ## What was actually verified
-- `python -m pytest tests/test_optimization.py -q` → 83 passed (was 76; +7 new tests), 28 skipped, 0 failures.
-- Discriminative power proven: `WalkForwardWindow.from_dict` was temporarily patched to return `datetime.fromisoformat("2099-01-01")` for string inputs; `test_walk_forward_window_round_trip_with_string_datetimes` reported `assert datetime(2099,1,1) == datetime(2024,1,1)`. The source file was restored afterward (`git diff --stat quant_trading/optimization/walk_forward.py` is empty).
-- `python -m pytest -q` (full suite) → 2260 passed, 55 skipped, 0 failures in ~165s (was 2253; +7 new tests). Two failures seen before `yfinance` was installed (`ImportError: yfinance is not installed`) are an environment gap, not a code regression; they pass after `pip install yfinance`.
-- `python -m ruff check tests/test_optimization.py` → All checks passed.
-- `python -m black --check --line-length 100 tests/test_optimization.py` → 1 file unchanged (black reformatted two lines during authoring; nothing left to reformat).
-- `python -m mypy tests/test_optimization.py` → no errors attributed to `tests/test_optimization.py`. The 4 errors reported are pre-existing in `quant_trading/optimization/walk_forward.py:135-138` (introduced by commit `8502777`, present on the clean baseline).
-- `git status --short` → only `tests/test_optimization.py` modified; working tree otherwise clean.
+- `python -m mypy quant_trading/optimization/walk_forward.py` → Success: no issues found in 1 source file (was 4 errors).
+- `python -m mypy quant_trading tests examples` → Success: no issues found in 103 source files (was 4 errors).
+- `python -m pytest tests/test_optimization.py -q` → 100 passed, 11 skipped, 0 failures.
+- `python -m pytest quant_trading/optimization/walk_forward.py -q` → 11 doctests passed.
+- `python -m pytest -q` (full suite) → 2260 passed, 55 skipped, 0 failures in ~165s (unchanged count; no regressions).
+- `python -m ruff check quant_trading/optimization/walk_forward.py` → All checks passed.
+- `python -m black --check --line-length 100 quant_trading/optimization/walk_forward.py` → 1 file would be left unchanged.
+- Behavioral preservation confirmed by reading the test expectations: `from_dict` still raises `ValueError` on malformed strings (no silent None fallback introduced), and `to_dict` still emits raw `datetime` objects.
 
 ## What remains unresolved
-- None blocking. The codebase is green (tests, ruff, black). The `to_dict`/`from_dict` methods added in `8502777` are now guarded by round-trip tests.
-- Pre-existing (not introduced by this session): `mypy quant_trading/optimization/walk_forward.py` reports 4 `arg-type` errors at lines 135-138 because `WalkForwardWindow.from_dict` passes `datetime | Any | None` values into fields typed `datetime`. Worth fixing in a later session if mypy strictness is desired.
+- None blocking. The codebase is green across tests, ruff, black, and mypy — the last known type-check gap is closed.
+- `pip install yfinance` is still needed in a fresh environment for two tests; that is an environment gap, not a code regression.
 
 ## Approaches that failed and why
-- `replaceAll` on the trailing `assert out == ""  # No output expected in quiet mode` block duplicated the new class twice (the anchor string appears in two test functions). Fixed by deleting the first duplicate with `sed` and keeping the second, which sits at the true end of the file.
-- Black wanted `WalkForwardResult(windows=[window], combined_test_result=None, anchored=False)` on one line and an extra blank line before the new class; applied it.
+- First draft of `_coerce_datetime` returned `datetime | None` with a `try/except ValueError` fallback to `None`. This would have silently changed `from_dict`'s contract (malformed strings → `None` instead of raising) and still left an `arg-type` error because the non-optional dataclass fields reject `None`. Fixed by narrowing the return type to `datetime` and letting `datetime.fromisoformat` raise as before; the `None`/unknown-value path is handled by `cast(datetime, value)`, which matches the existing `cast` usage pattern in `quant_trading/data/yfinance_provider.py` and `quant_trading/strategies/examples.py`.
 
 ## One precise next task
-- No required work. Consider selecting a bounded, high-value feature or fix from the backlog. All core functionality verified and working.
+- No required work. All checks are green. Consider selecting a bounded, high-value feature or fix from the backlog.
 
 Constraints:
 - Keep `black`, `ruff`, `mypy` clean for changed files and the full suite green.
 - Do NOT commit unless explicitly asked.
 
-(End of file - total 49 lines)
+(End of file - total 48 lines)

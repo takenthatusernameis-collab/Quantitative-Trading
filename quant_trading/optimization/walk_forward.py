@@ -22,7 +22,7 @@ Examples:
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -35,6 +35,22 @@ from quant_trading.optimization.base import (
 )
 from quant_trading.optimization.grid_search import GridSearch
 from quant_trading.strategies.base import Strategy
+
+
+def _coerce_datetime(value: Any) -> datetime:
+    """Coerce a serialized value into a ``datetime``.
+
+    Accepts raw ``datetime`` objects (the shape :meth:`to_dict` emits) and
+    ISO-8601 strings (the shape a JSON round-trip would emit). A missing value
+    is passed through unchanged so that callers may apply their own defaults;
+    malformed strings raise ``ValueError`` from :meth:`datetime.fromisoformat`.
+
+    """
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    return cast(datetime, value)
 
 
 @dataclass
@@ -119,18 +135,10 @@ class WalkForwardWindow:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WalkForwardWindow":
         """Deserialize window from a dictionary."""
-        train_start = data.get("train_start")
-        train_end = data.get("train_end")
-        test_start = data.get("test_start")
-        test_end = data.get("test_end")
-        if isinstance(train_start, str):
-            train_start = datetime.fromisoformat(train_start)
-        if isinstance(train_end, str):
-            train_end = datetime.fromisoformat(train_end)
-        if isinstance(test_start, str):
-            test_start = datetime.fromisoformat(test_start)
-        if isinstance(test_end, str):
-            test_end = datetime.fromisoformat(test_end)
+        train_start = _coerce_datetime(data.get("train_start"))
+        train_end = _coerce_datetime(data.get("train_end"))
+        test_start = _coerce_datetime(data.get("test_start"))
+        test_end = _coerce_datetime(data.get("test_end"))
         return cls(
             train_start=train_start,
             train_end=train_end,
