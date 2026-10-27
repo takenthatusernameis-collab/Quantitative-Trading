@@ -91,6 +91,7 @@ class RiskMetrics:
             calmar_ratio=data.get("calmar_ratio", 0.0),
         )
 
+
 def calculate_returns(prices: pd.Series) -> pd.Series:
     """Calculate simple returns from price series.
 

@@ -389,6 +389,34 @@ def test_backtest_result_to_csv_writes_file(tmp_path):
     assert out_path.read_text(encoding="utf-8") == csv_text
 
 
+def test_backtest_result_to_json_writes_file(tmp_path):
+    """to_json() writes the serialized object to ``path`` and returns the same text."""
+    from quant_trading.backtest.metrics import BacktestMetrics
+
+    metrics = BacktestMetrics(total_pnl=1250.0, unrealized_pnl=250.0, num_trades=3)
+    result = BacktestResult(
+        equity_curve=pd.Series([100000.0, 101500.0]),
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=datetime(2023, 1, 1),
+        end_date=datetime(2023, 1, 10),
+        initial_capital=100000.0,
+        final_value=101500.0,
+        total_return=1500.0,
+        total_return_pct=1.5,
+        total_costs=12.5,
+    )
+
+    out_path = tmp_path / "result.json"
+    returned = result.to_json(path=str(out_path))
+    assert returned == out_path.read_text(encoding="utf-8")
+    payload = json.loads(returned)
+    assert isinstance(payload, dict)
+    assert payload["total_pnl"] == 1250.0
+    assert payload["total_costs"] == 12.5
+
+
 def test_mock_backtest_run():
     """Test a full backtest run with mock data."""
     symbols = ["AAPL", "MSFT"]

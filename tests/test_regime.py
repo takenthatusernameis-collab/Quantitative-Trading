@@ -103,6 +103,14 @@ def test_detect_regimes_non_series_input_converted():
     assert result.n_segments >= 1
 
 
+def test_detect_regimes_two_bar_series_returns_empty_result():
+    """A two-bar series yields a single NaN return, so no signal survives."""
+    result = detect_regimes(pd.Series([100.0, 101.0]), window=20)
+    assert isinstance(result, RegimeResult)
+    assert result.n_segments == 0
+    assert result.current_regime == Regime.UNKNOWN
+
+
 def test_detect_regimes_deterministic_same_seed():
     prices = _make_series(n=100, trend=0.001, vol=0.01, seed=6)
     a = detect_regimes(prices, window=20)
