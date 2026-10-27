@@ -24,8 +24,27 @@
 ## Approaches that failed and why
 - None in this session.
 
+## What changed
+- Fixed a real breakage on `main` introduced by commit `b010eb0` (no source change had been intended there): `quant_trading/strategies/base.py` had `class StrategyManager:` replaced with a `BaseStrategy = Strategy` alias, leaving the `StrategyManager` docstring/methods orphaned → `IndentationError` at line 321, so the package could not even be imported and no tests could collect. Restored `class StrategyManager:` and relocated the `BaseStrategy = Strategy` alias to the end of the module.
+- Fixed `quant_trading/strategies/__init__.py` `__all__` ordering: the same commit inserted `"BaseStrategy"` at the top of `__all__`, breaking isort/ruff alphabetical sorting; moved it to its alphabetical position (after `AwesomeOscillatorStrategy`).
+- No other source changes. Working tree contains only these two file modifications; nothing committed.
+
+## What was actually verified
+- `import quant_trading` and `from quant_trading.strategies import StrategyManager, BaseStrategy, Strategy` work; `StrategyManager()` instantiates.
+- `python -m pytest -q` (full suite) → 2240 passed, 55 skipped, 0 failures in ~335s (previously the suite could not collect at all due to the IndentationError).
+- `python -m ruff check .` → All checks passed.
+- `python -m mypy quant_trading tests examples` → Success, no issues found in 103 source files.
+- `python -m black --check quant_trading tests examples` → 103 files unchanged.
+- Focused run `tests/test_strategy_base.py tests/test_readme_cli.py tests/test_readme_cli_commands.py tests/test_readme.py` → 63 passed, 44 skipped.
+
+## What remains unresolved
+- None blocking. The import breakage on `main` is fixed and the suite is green.
+
+## Approaches that failed and why
+- None in this session.
+
 ## One precise next task
-- No required work. All core functionality, README↔CLI sync (flags + commands), config validation, CLI end-to-end/error-reporting coverage, and the full suite are green. Consider selecting a bounded, high-value feature or fix from the backlog if one exists.
+- No required work. The codebase is green (tests, ruff, mypy, black). Commit the two-file fix only when explicitly asked (do NOT commit unless asked). Otherwise consider selecting a bounded, high-value feature or fix from the backlog.
 
 Constraints:
 - Keep `black`, `ruff`, `mypy` clean for changed files and the full suite green.

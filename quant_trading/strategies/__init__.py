@@ -123,7 +123,6 @@ register_strategy("chop", ChoppinessIndexStrategy, aliases=["choppiness", "chopp
 
 
 __all__ = [
-    "BaseStrategy",
     "PPO",
     "PVO",
     "ADXStrategy",
@@ -131,6 +130,7 @@ __all__ = [
     "AroonStrategy",
     "AverageTrueRangeStrategy",
     "AwesomeOscillatorStrategy",
+    "BaseStrategy",
     "BollingerBandsStrategy",
     "BollingerPercentBStrategy",
     "CCIStrategy",

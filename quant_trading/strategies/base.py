@@ -316,8 +316,7 @@ class Strategy(ABC):
         return create_strategy(strategy_type, name=name, **parameters)
 
 
-# Alias for compatibility
-BaseStrategy = Strategy
+class StrategyManager:
     """Manages multiple strategies.
 
     Attributes:
@@ -405,3 +404,7 @@ BaseStrategy = Strategy
         for name, strategy in self.strategies.items():
             signals[name] = strategy.generate_signals(data)
         return signals
+
+
+# Alias for compatibility
+BaseStrategy = Strategy
