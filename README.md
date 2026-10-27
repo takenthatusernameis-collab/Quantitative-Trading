@@ -1470,3 +1470,117 @@ negative and below the negative threshold:
 ```bash
 python examples/run_momentum.py
 ```
+
+For an Accumulation/Distribution demonstration, see `examples/run_accumulation_distribution.py`. It runs the `AccumulationDistributionStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_accumulation_distribution.py
+```
+
+For an Awesome Oscillator demonstration, see `examples/run_awesome_oscillator.py`. It runs the `AwesomeOscillatorStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_awesome_oscillator.py
+```
+
+For a Bollinger %B demonstration, see `examples/run_bollinger_percent_b.py`. It runs the `BollingerPercentBStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_bollinger_percent_b.py
+```
+
+For a Chaikin Money Flow demonstration, see `examples/run_chaikin_money_flow.py`. It runs the `ChaikinMoneyFlowStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_chaikin_money_flow.py
+```
+
+For a Chaikin Oscillator demonstration, see `examples/run_chaikin_oscillator.py`. It runs the `ChaikinOscillatorStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_chaikin_oscillator.py
+```
+
+For a Chande Momentum Oscillator demonstration, see `examples/run_chande_momentum_oscillator.py`. It runs the `ChandeMomentumOscillatorStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_chande_momentum_oscillator.py
+```
+
+For a Choppiness Index demonstration, see `examples/run_choppiness_index.py`. It runs the `ChoppinessIndexStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_choppiness_index.py
+```
+
+For a Detrended Price Oscillator demonstration, see `examples/run_detrended_price_oscillator.py`. It runs the `DetrendedPriceOscillatorStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_detrended_price_oscillator.py
+```
+
+For a Force Index demonstration, see `examples/run_force_index.py`. It runs the `ForceIndexStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_force_index.py
+```
+
+For a Hull Moving Average demonstration, see `examples/run_hull_moving_average.py`. It runs the `HullMovingAverageStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_hull_moving_average.py
+```
+
+For a Klinger Oscillator demonstration, see `examples/run_klinger_oscillator.py`. It runs the `KlingerOscillatorStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_klinger_oscillator.py
+```
+
+For a Money Flow Index demonstration, see `examples/run_money_flow_index.py`. It runs the `MoneyFlowIndexStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_money_flow_index.py
+```
+
+For a Negative Volume Index demonstration, see `examples/run_negative_volume_index.py`. It runs the `NegativeVolumeIndexStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_negative_volume_index.py
+```
+
+For a Positive Volume Index demonstration, see `examples/run_positive_volume_index.py`. It runs the `PositiveVolumeIndexStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_positive_volume_index.py
+```
+
+For a Rate of Change demonstration, see `examples/run_rate_of_change.py`. It runs the `RateOfChangeStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_rate_of_change.py
+```
+
+For a Stochastic RSI demonstration, see `examples/run_stochastic_rsi.py`. It runs the `StochRSIStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_stochastic_rsi.py
+```
+
+For a Volume Oscillator demonstration, see `examples/run_volume_oscillator.py`. It runs the `VolumeOscillatorStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_volume_oscillator.py
+```
+
+For a Volume Price Trend demonstration, see `examples/run_volume_price_trend.py`. It runs the `VolumePriceTrendStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_volume_price_trend.py
+```
+
+For a Volume Rate of Change demonstration, see `examples/run_volume_rate_of_change.py`. It runs the `VolumeRateOfChangeStrategy` against seeded synthetic data:
+
+```bash
+python examples/run_volume_rate_of_change.py
+```
