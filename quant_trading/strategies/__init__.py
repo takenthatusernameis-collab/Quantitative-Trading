@@ -78,7 +78,7 @@ register_strategy("keltner", KeltnerChannelStrategy, aliases=["kc", "keltner_cha
 register_strategy("klinger", KlingerOscillatorStrategy, aliases=["klinger_oscillator"])
 register_strategy("stoch", StochasticOscillatorStrategy, aliases=["stochastic", "stoch_oscillator"])
 register_strategy("stochrsi", StochRSIStrategy, aliases=["stochastic_rsi", "stoch_rsi"])
-register_strategy("ichimoku", IchimokuCloudStrategy, aliases=["ichimoku_cloud", "ichimoku"])
+register_strategy("ichimoku", IchimokuCloudStrategy, aliases=["ichimoku_cloud"])
 register_strategy("hma", HullMovingAverageStrategy, aliases=["hull_moving_average"])
 register_strategy("sar", ParabolicSARStrategy, aliases=["parabolic_sar", "psar"])
 register_strategy("vwap", VWAPStrategy)

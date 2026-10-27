@@ -155,6 +155,30 @@ class TestGlobalRegistry:
         for key in ("ma", "rsi", "bb", "macd", "moving_average", "bollinger"):
             assert key in keys
 
+    def test_strategy_keys_are_unique(self):
+        """``strategy_keys()`` must not contain duplicates.
+
+        A duplicate arises when a primary key is also listed as one of its own
+        aliases (e.g. ``register_strategy("ichimoku", ..., aliases=["ichimoku"])``).
+        The primary key is then emitted twice, so callers that iterate the list
+        (such as the CLI's combined mode) run the same strategy twice.
+        """
+        keys = strategy_keys()
+        duplicates = sorted({k for k in keys if keys.count(k) > 1})
+        assert duplicates == [], f"duplicate strategy keys: {duplicates}"
+
+    def test_no_alias_collides_with_a_primary_key(self):
+        """An alias must not shadow a primary key of another strategy.
+
+        If an alias resolves to a primary key that is also a primary key, the
+        alias silently overwrites the primary in ``_aliases`` and the primary
+        key's own class becomes unreachable through the alias.
+        """
+        registry = get_registry()
+        primaries = set(registry.primary_keys())
+        offenders = sorted(set(registry._aliases) & primaries)
+        assert offenders == [], f"aliases colliding with primary keys: {offenders}"
+
     def test_get_strategy_unknown_returns_none(self):
         assert get_strategy("not_a_real_strategy") is None
 
