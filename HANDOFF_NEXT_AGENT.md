@@ -1,32 +1,26 @@
 # Handoff for Next Agent
 
 ## What changed
-- Fixed the 4 pre-existing `mypy` `arg-type` errors in `quant_trading/optimization/walk_forward.py:135-138` (introduced by commit `8502777`).
-- Extracted the repeated datetime-coercion logic from `WalkForwardWindow.from_dict` into a single module-level helper `_coerce_datetime(value: Any) -> datetime` (walk_forward.py:40-53). It accepts raw `datetime` objects (the `to_dict` shape) and ISO-8601 strings (the JSON round-trip shape), preserving the original raise-on-malformed-string behavior.
-- `from_dict` now calls the helper for each of the four date boundaries instead of inlining four `isinstance(..., str)` blocks.
-- Added `cast` to the `typing` import.
-- No test changes; the `TestWalkForwardSerialization` round-trip tests added last session continue to guard this code.
-- Working tree contains only this one file modification; nothing committed.
+- Installed `scikit-optimize` (0.10.2) and its transitive deps (`scikit-learn`, `scipy`) in this environment. It was already declared in `pyproject.toml` `dev` dependencies but was not installed, so 11 Bayesian optimization tests were skipped.
+- No source files were modified; `git status` is clean.
 
 ## What was actually verified
-- `python -m mypy quant_trading/optimization/walk_forward.py` → Success: no issues found in 1 source file (was 4 errors).
-- `python -m mypy quant_trading tests examples` → Success: no issues found in 103 source files (was 4 errors).
-- `python -m pytest tests/test_optimization.py -q` → 100 passed, 11 skipped, 0 failures.
-- `python -m pytest quant_trading/optimization/walk_forward.py -q` → 11 doctests passed.
-- `python -m pytest -q` (full suite) → 2260 passed, 55 skipped, 0 failures in ~165s (unchanged count; no regressions).
-- `python -m ruff check quant_trading/optimization/walk_forward.py` → All checks passed.
-- `python -m black --check --line-length 100 quant_trading/optimization/walk_forward.py` → 1 file would be left unchanged.
-- Behavioral preservation confirmed by reading the test expectations: `from_dict` still raises `ValueError` on malformed strings (no silent None fallback introduced), and `to_dict` still emits raw `datetime` objects.
+- `python -c "import skopt; print(skopt.__version__)"` → skopt 0.10.2 imports cleanly.
+- `python -m pytest tests/test_optimization.py -q` → previously 11 skipped (`scikit-optimize is not installed`); now those Bayesian optimization tests pass (12 passed including walk-forward-with-bayesian).
+- `python -m pytest -q` (full suite) → 2271 passed, 44 skipped, 0 failures in ~167s (was 2260 passed, 55 skipped; the 11 Bayesian tests are no longer skipped). The remaining 44 skips are network-dependent (yfinance/alphavantage) and expected.
+- `python -m mypy quant_trading tests examples` → Success: no issues found in 103 source files.
+- `python -m ruff check .` → All checks passed.
+- `python -m black --check --line-length 100 quant_trading tests examples` → 1 file would be reformatted: `quant_trading/risk/metrics.py:88`. This is pre-existing committed drift, not caused by this session; left untouched per the smallest-change principle.
 
 ## What remains unresolved
-- None blocking. The codebase is green across tests, ruff, black, and mypy — the last known type-check gap is closed.
-- `pip install yfinance` is still needed in a fresh environment for two tests; that is an environment gap, not a code regression.
+- 44 tests in `tests/test_readme_cli_commands.py` still skipped: require network access (yfinance/alphavantage). Environment gap, not a code regression.
+- `quant_trading/risk/metrics.py:88` has pre-existing black formatting drift (committed). Not a blocker; formatting only.
 
 ## Approaches that failed and why
-- First draft of `_coerce_datetime` returned `datetime | None` with a `try/except ValueError` fallback to `None`. This would have silently changed `from_dict`'s contract (malformed strings → `None` instead of raising) and still left an `arg-type` error because the non-optional dataclass fields reject `None`. Fixed by narrowing the return type to `datetime` and letting `datetime.fromisoformat` raise as before; the `None`/unknown-value path is handled by `cast(datetime, value)`, which matches the existing `cast` usage pattern in `quant_trading/data/yfinance_provider.py` and `quant_trading/strategies/examples.py`.
+- None. All targeted checks pass.
 
 ## One precise next task
-- No required work. All checks are green. Consider selecting a bounded, high-value feature or fix from the backlog.
+- No required work. Baseline is green across tests, mypy, ruff. Optional follow-ups: (a) run `black quant_trading/risk/metrics.py` to clean the pre-existing formatting drift, or (b) leave the 44 network-dependent skips as-is (they require credentials/network and are correctly skipped).
 
 Constraints:
 - Keep `black`, `ruff`, `mypy` clean for changed files and the full suite green.
