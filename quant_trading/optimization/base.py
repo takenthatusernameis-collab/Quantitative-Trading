@@ -345,6 +345,45 @@ def maximize_calmar(result: BacktestResult) -> float:
     return result.metrics.calmar_ratio or 0.0
 
 
+def maximize_sortino(result: BacktestResult) -> float:
+    """Objective function that maximizes the Sortino ratio.
+
+    The Sortino ratio only penalizes downside deviation, so it is a useful
+    objective when large negative returns are more costly than large positive
+    ones.
+
+    Args:
+        result: Backtest result containing performance metrics.
+
+    Returns:
+        Sortino ratio value, or 0.0 if the Sortino ratio is None.
+
+    Examples:
+        >>> from quant_trading.optimization.base import maximize_sortino
+        >>> from quant_trading.backtest.engine import BacktestResult
+        >>> from quant_trading.backtest.metrics import BacktestMetrics
+        >>> import pandas as pd
+        >>> metrics = BacktestMetrics(sharpe_ratio=1.0, sortino_ratio=2.5)
+        >>> eq = pd.Series([100000, 105000], index=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-31")])
+        >>> res = BacktestResult(
+        ...     equity_curve=eq,
+        ...     trades=pd.DataFrame(),
+        ...     positions={},
+        ...     metrics=metrics,
+        ...     start_date=pd.Timestamp("2024-01-01"),
+        ...     end_date=pd.Timestamp("2024-01-31"),
+        ...     initial_capital=100000,
+        ...     final_value=105000,
+        ...     total_return=5000,
+        ...     total_return_pct=5.0,
+        ... )
+        >>> maximize_sortino(res)
+        2.5
+
+    """
+    return result.metrics.sortino_ratio or 0.0
+
+
 def minimize_max_drawdown(result: BacktestResult) -> float:
     """Objective function that minimizes maximum drawdown.
 

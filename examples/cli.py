@@ -29,6 +29,7 @@ from quant_trading.optimization import (
     maximize_calmar,
     maximize_profit_factor,
     maximize_sharpe,
+    maximize_sortino,
     maximize_total_return,
     maximize_win_rate,
     minimize_max_drawdown,
@@ -204,6 +205,7 @@ def resolve_periods_per_year(interval: str, override: int | None = None) -> int:
 
 OBJECTIVES = {
     "sharpe": maximize_sharpe,
+    "sortino": maximize_sortino,
     "return": maximize_total_return,
     "calmar": maximize_calmar,
     "drawdown": minimize_max_drawdown,

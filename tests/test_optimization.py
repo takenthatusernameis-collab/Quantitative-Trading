@@ -23,6 +23,7 @@ from quant_trading.optimization import (
     maximize_calmar,
     maximize_profit_factor,
     maximize_sharpe,
+    maximize_sortino,
     maximize_total_return,
     maximize_win_rate,
     minimize_max_drawdown,
@@ -231,6 +232,7 @@ def test_objective_functions():
     metrics.max_drawdown_pct = -2.0
     metrics.profit_factor = 2.5
     metrics.win_rate = 0.67
+    metrics.sortino_ratio = 3.0
     metrics.num_trades = 3
 
     from quant_trading.backtest.engine import BacktestResult
@@ -254,6 +256,29 @@ def test_objective_functions():
     assert minimize_max_drawdown(result) == 2.0  # negative of -2.0
     assert maximize_profit_factor(result) == 2.5
     assert maximize_win_rate(result) == 0.67
+    assert maximize_sortino(result) == 3.0
+
+
+def test_maximize_sortino_none_returns_zero():
+    """maximize_sortino returns 0.0 when the Sortino ratio is unset."""
+    from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.metrics import BacktestMetrics
+
+    metrics = BacktestMetrics()
+    eq = pd.Series([100000, 105000], index=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-31")])
+    result = BacktestResult(
+        equity_curve=eq,
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=pd.Timestamp("2024-01-01"),
+        end_date=pd.Timestamp("2024-01-31"),
+        initial_capital=100000,
+        final_value=105000,
+        total_return=5000,
+        total_return_pct=5.0,
+    )
+    assert maximize_sortino(result) == 0.0
 
 
 def test_grid_search():
