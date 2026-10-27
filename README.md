@@ -368,11 +368,12 @@ python examples/cli.py --offline --strategy-config best_ma.yaml --symbols AAPL -
 
 ### Output
 
-Save results to JSON:
+Save results to JSON or CSV:
 
 ```bash
 python examples/cli.py --output results.json
 python examples/cli.py --combined --output comparison.json
+python examples/cli.py --output results.csv --output-format csv
 ```
 
 ### Error Reporting
