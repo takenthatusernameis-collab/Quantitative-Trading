@@ -628,6 +628,53 @@ sell signals when it crosses below:
 python examples/run_ultimate_oscillator.py
 ```
 
+For an ADX demonstration, see `examples/run_adx.py`. It runs the
+`ADXStrategy` against seeded synthetic data, generating a buy signal when ADX
+is above the trend threshold and the positive directional index exceeds the
+negative one (bullish trend) and a sell signal when ADX is above the
+threshold and the negative directional index exceeds the positive one
+(bearish trend):
+
+```bash
+python examples/run_adx.py
+```
+
+For a Commodity Channel Index demonstration, see `examples/run_cci.py`. It runs
+the `CCIStrategy` against seeded synthetic data, generating a buy signal when
+the CCI crosses above the threshold (bullish) and a sell signal when it crosses
+below the negative threshold (bearish):
+
+```bash
+python examples/run_cci.py
+```
+
+For a Williams %R demonstration, see `examples/run_williams_r.py`. It runs the
+`WilliamsRStrategy` against seeded synthetic data, generating a buy signal
+when Williams %R is below the oversold level and a sell signal when it is above
+the overbought level:
+
+```bash
+python examples/run_williams_r.py
+```
+
+For an On-Balance Volume demonstration, see `examples/run_obv.py`. It runs the
+`OBVStrategy` against seeded synthetic data, generating a buy signal when OBV
+crosses above its signal line (rising buying pressure) and a sell signal when
+it crosses below it (rising selling pressure):
+
+```bash
+python examples/run_obv.py
+```
+
+For an Elder Ray demonstration, see `examples/run_elder_ray.py`. It runs the
+`ElderRayStrategy` against seeded synthetic data, generating a buy signal when
+Bull Power crosses above zero (bulls take control) and a sell signal when Bear
+Power crosses below zero (bears take control):
+
+```bash
+python examples/run_elder_ray.py
+```
+
 
 ## Data fetching
 
