@@ -3059,3 +3059,137 @@ def test_random_search_parallel_worker_death_fallback_quiet(monkeypatch, capsys)
     assert result.best_score != float("-inf")
     assert len(result.all_results) == 4
     assert out == ""  # No output expected in quiet mode
+
+
+class TestWalkForwardSerialization:
+    """Round-trip tests for WalkForwardWindow.to_dict / from_dict and
+    WalkForwardResult.to_dict / from_dict.
+
+    Commit ``8502777`` added the ``from_dict`` classmethods alongside the
+    existing ``to_dict`` methods but shipped no tests for them. These tests
+    guard the round trip so a future change to either direction is caught.
+    """
+
+    def test_walk_forward_window_round_trip(self):
+        """from_dict(to_dict(window)) restores every field, including datetimes."""
+        from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+        window = WalkForwardWindow(
+            train_start=datetime(2024, 1, 1),
+            train_end=datetime(2024, 2, 1),
+            test_start=datetime(2024, 2, 1),
+            test_end=datetime(2024, 3, 1),
+            best_params={"fast_period": 5, "slow_period": 20},
+        )
+        restored = WalkForwardWindow.from_dict(window.to_dict())
+
+        assert restored.train_start == datetime(2024, 1, 1)
+        assert restored.train_end == datetime(2024, 2, 1)
+        assert restored.test_start == datetime(2024, 2, 1)
+        assert restored.test_end == datetime(2024, 3, 1)
+        assert restored.best_params == {"fast_period": 5, "slow_period": 20}
+
+    def test_walk_forward_window_round_trip_with_string_datetimes(self):
+        """from_dict accepts ISO-8601 strings, as JSON round-trips would emit.
+
+        ``to_dict`` keeps the raw ``datetime`` objects rather than serializing
+        them, so a consumer that round-trips through JSON (which emits ISO
+        strings) must be handled by ``from_dict`` as well.
+        """
+        from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+        window = WalkForwardWindow(
+            train_start=datetime(2024, 1, 1),
+            train_end=datetime(2024, 2, 1),
+            test_start=datetime(2024, 2, 1),
+            test_end=datetime(2024, 3, 1),
+        )
+        data = {
+            "train_start": window.train_start.isoformat(),
+            "train_end": window.train_end.isoformat(),
+            "test_start": window.test_start.isoformat(),
+            "test_end": window.test_end.isoformat(),
+            "best_params": None,
+        }
+        restored = WalkForwardWindow.from_dict(data)
+
+        assert restored.train_start == datetime(2024, 1, 1)
+        assert restored.test_end == datetime(2024, 3, 1)
+        assert restored.best_params is None
+
+    def test_walk_forward_window_from_dict_defaults_missing_fields(self):
+        """from_dict tolerates a dict that omits optional fields."""
+        from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+        restored = WalkForwardWindow.from_dict(
+            {
+                "train_start": datetime(2024, 1, 1),
+                "train_end": datetime(2024, 2, 1),
+                "test_start": datetime(2024, 2, 1),
+                "test_end": datetime(2024, 3, 1),
+            }
+        )
+        assert restored.best_params is None
+        assert restored.train_result is None
+        assert restored.test_result is None
+
+    def test_walk_forward_result_round_trip(self):
+        """from_dict(to_dict(result)) restores windows and the anchored flag."""
+        from quant_trading.optimization.walk_forward import (
+            WalkForwardResult,
+            WalkForwardWindow,
+        )
+
+        window = WalkForwardWindow(
+            train_start=datetime(2024, 1, 1),
+            train_end=datetime(2024, 2, 1),
+            test_start=datetime(2024, 2, 1),
+            test_end=datetime(2024, 3, 1),
+            best_params={"fast_period": 5},
+        )
+        result = WalkForwardResult(windows=[window], combined_test_result=None, anchored=False)
+        restored = WalkForwardResult.from_dict(result.to_dict())
+
+        assert restored.anchored is False
+        assert len(restored.windows) == 1
+        assert restored.windows[0].train_start == datetime(2024, 1, 1)
+        assert restored.windows[0].best_params == {"fast_period": 5}
+        assert restored.combined_test_result is None
+
+    def test_walk_forward_result_round_trip_empty(self):
+        """from_dict(to_dict(result)) works for a result with no windows."""
+        from quant_trading.optimization.walk_forward import WalkForwardResult
+
+        result = WalkForwardResult(windows=[], combined_test_result=None, anchored=True)
+        restored = WalkForwardResult.from_dict(result.to_dict())
+
+        assert restored.windows == []
+        assert restored.anchored is True
+        assert restored.combined_test_result is None
+
+    def test_walk_forward_result_from_dict_accepts_window_objects(self):
+        """from_dict passes through WalkForwardWindow instances unchanged."""
+        from quant_trading.optimization.walk_forward import (
+            WalkForwardResult,
+            WalkForwardWindow,
+        )
+
+        window = WalkForwardWindow(
+            train_start=datetime(2024, 1, 1),
+            train_end=datetime(2024, 2, 1),
+            test_start=datetime(2024, 2, 1),
+            test_end=datetime(2024, 3, 1),
+        )
+        restored = WalkForwardResult.from_dict({"windows": [window], "anchored": True})
+
+        assert restored.windows[0] is window
+        assert restored.anchored is True
+
+    def test_walk_forward_result_from_dict_defaults_missing_fields(self):
+        """from_dict tolerates a dict that omits optional fields."""
+        from quant_trading.optimization.walk_forward import WalkForwardResult
+
+        restored = WalkForwardResult.from_dict({})
+        assert restored.windows == []
+        assert restored.anchored is True
+        assert restored.combined_test_result is None
