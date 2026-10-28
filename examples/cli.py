@@ -625,6 +625,24 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Number of Monte Carlo simulations",
     )
     parser.add_argument(
+        "--mc-confidence",
+        type=float,
+        default=0.95,
+        help="Confidence level for Monte Carlo intervals",
+    )
+    parser.add_argument(
+        "--mc-method",
+        choices=["bootstrap", "parametric"],
+        default="bootstrap",
+        help="Monte Carlo simulation method",
+    )
+    parser.add_argument(
+        "--mc-seed",
+        type=int,
+        default=None,
+        help="Random seed for Monte Carlo simulation",
+    )
+    parser.add_argument(
         "--regime",
         action="store_true",
         help="Detect market regime for equity curve",
@@ -638,13 +656,13 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--regime-vol-threshold",
         type=float,
-        default=1.2,
+        default=0.0,
         help="Volatility threshold for regime classification",
     )
     parser.add_argument(
         "--regime-return-threshold",
         type=float,
-        default=0.02,
+        default=0.0,
         help="Return threshold for regime classification",
     )
     parser.add_argument(
@@ -1009,13 +1027,13 @@ def create_config(args: argparse.Namespace) -> Config:
     elif args.provider is not None:
         config.data.provider = args.provider
 
-    if args.cache_dir is not None:
+    if getattr(args, "cache_dir", None) is not None:
         config.data.cache_dir = args.cache_dir
 
-    if args.synthetic_days is not None:
+    if getattr(args, "synthetic_days", None) is not None:
         config.data.synthetic_days = args.synthetic_days
 
-    if args.synthetic_seed is not None:
+    if getattr(args, "synthetic_seed", None) is not None:
         config.data.synthetic_seed = args.synthetic_seed
 
     if args.alphavantage_key is not None:
