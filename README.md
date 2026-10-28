@@ -352,6 +352,17 @@ the strategy constructor. A `--strategy-config` file overrides `--strategy` and
 every individual `--*-period` / `--*-multiplier` flag that would have set the
 same parameter.
 
+The objective that the optimizer maximizes (or minimizes, for drawdown) is
+selected with `--objective`, which accepts `sharpe` (default), `sortino`,
+`return`, `calmar`, `drawdown`, `profit_factor`, and `win_rate`:
+
+```bash
+python examples/cli.py --offline --optimize --strategy ma \
+    --objective sortino \
+    --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
+    --symbols AAPL --days 120
+```
+
 The reverse direction is available with `--output-strategy-config`, which writes
 the configuration of the strategy that was run (the best result of an
 optimization, the most recent walk-forward window, or the single strategy of a
