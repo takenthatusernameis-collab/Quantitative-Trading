@@ -1,6 +1,9 @@
 """Tests that keep the README in sync with the code it documents."""
 
+import ast
+import contextlib
 import importlib
+import io
 import re
 from pathlib import Path
 
@@ -458,3 +461,161 @@ class TestReadmeAlphaVantageMethods:
         actual = _provider_av_methods()
         extra = sorted(actual - documented)
         assert extra == [], f"README advertises unknown methods: {extra}"
+
+
+# ---------------------------------------------------------------------------
+# README code-block output lock.
+#
+# The README embeds ``python`` snippets whose trailing comments assert a
+# concrete return value (e.g. ``rm.get_position_stop_loss("AAPL")  # 165.0``).
+# ``TestReadmeQuantTradingImports`` only checks that the *names* referenced by
+# those snippets resolve; it does not check that the snippets actually
+# produce the value the comment claims. A renamed return value, a flipped
+# comparison, or a changed default would silently desync the docs from the
+# code, and users following the docs would get a different answer than the
+# one printed. The guard below executes each documented snippet and locks its
+# trailing comment to the live return value.
+#
+# Only snippets whose trailing comment is a bare value expression (a number,
+# a bool, a list, or a short string) are checked. Snippets whose comment is a
+# prose annotation (``# primary keys + aliases``, ``# e.g. Regime.BULL_LOW_VOL``)
+# are excluded, because they describe the output rather than pinning it.
+# ---------------------------------------------------------------------------
+
+# A trailing comment is treated as a pinned output when the code before it is
+# a bare expression or a single ``print(...)`` call and the comment parses as
+# a literal. Prose annotations such as ``# e.g. Regime.BULL_LOW_VOL`` are
+# excluded: they describe the output's *shape* rather than pinning a value.
+_PINNED_OUTPUT = re.compile(
+    r"^(?P<code>.+?)\s*#\s*(?P<value>-?\d+(?:\.\d+)?|True|False|None|"
+    r"\[[^\]]*\]|'[^']*'|\"[^\"]*\")\s*$"
+)
+
+
+def _pinned_readme_blocks() -> list[tuple[str, list[str], str, str]]:
+    """Return ``(block_index, prefix_lines, code, expected)`` for every pinned snippet.
+
+    ``prefix_lines`` is the list of block lines *before* the pinned line, so
+    the snippet's setup statements (``rm = RiskManager(...)``) are executed
+    before the pinned expression is evaluated. ``code`` is the bare
+    expression or ``print(...)`` argument that the pinned comment annotates,
+    and ``expected`` is the literal value the comment asserts.
+
+    A pinned line is either:
+    * an inline comment, ``expr  # value`` (the expression and the comment on
+      the same line), or
+    * a standalone comment line, ``# value``, which annotates the bare
+      expression statement on the line immediately above it.
+
+    Blocks whose trailing comment is prose (not a literal) are skipped.
+    """
+    text = README_PATH.read_text(encoding="utf-8")
+    blocks = re.findall(r"```python\n(.*?)```", text, re.DOTALL)
+    pinned: list[tuple[str, list[str], str, str]] = []
+    for index, block in enumerate(blocks):
+        lines = block.splitlines()
+        for position, line in enumerate(lines):
+            inline = _PINNED_OUTPUT.match(line)
+            if inline:
+                code = inline.group("code").strip()
+                try:
+                    ast.parse(code, mode="eval")
+                except SyntaxError:
+                    # Not a bare expression (e.g. an assignment with a
+                    # trailing comment); nothing to pin.
+                    continue
+                pinned.append((str(index), lines[:position], code, inline.group("value")))
+                continue
+            # Standalone comment annotating the previous expression line.
+            standalone = re.match(r"^\s*#\s*(?P<value>-?\d+(?:\.\d+)?|True|False|None|"
+                                  r"\[[^\]]*\]|'[^']*'|\"[^\"]*\")\s*$", line)
+            if not standalone or position == 0:
+                continue
+            code = lines[position - 1].strip()
+            try:
+                ast.parse(code, mode="eval")
+            except SyntaxError:
+                continue
+            pinned.append((str(index), lines[: position - 1], code, standalone.group("value")))
+    return pinned
+
+
+class TestReadmeCodeBlockOutputs:
+    """Every pinned value in a README ``python`` snippet must match the live code."""
+
+    def test_pinned_readme_outputs_match_live_behavior(self):
+        """Each ``# value`` comment on a bare README expression must be exact."""
+        from quant_trading.backtest import analyze_regimes
+        from quant_trading.backtest.engine import run_backtest
+        from quant_trading.backtest.metrics import calculate_backtest_metrics
+        from quant_trading.data import create_synthetic_provider
+        from quant_trading.risk.limits import PortfolioLimit
+        from quant_trading.risk.manager import RiskManager
+        from quant_trading.strategies.base import Position
+        from quant_trading.strategies.examples import MovingAverageCrossover
+
+        # A deterministic backtest result shared by the snippets that need one.
+        provider = create_synthetic_provider(symbols=["AAPL"], days=200, seed=42)
+        result = run_backtest(
+            strategy=MovingAverageCrossover(fast_period=10, slow_period=30),
+            symbols=["AAPL"],
+            start=None,
+            end=None,
+            data_manager=provider,
+            periods_per_year=52,
+        )
+
+        # Map each snippet's code to the value it must produce. Snippets that
+        # depend on the shared ``result`` are evaluated against it; the rest
+        # are self-contained and evaluated in an empty namespace.
+        shared = {
+            "result": result,
+            "analyze_regimes": analyze_regimes,
+            "calculate_backtest_metrics": calculate_backtest_metrics,
+            "run_backtest": run_backtest,
+            "create_synthetic_provider": create_synthetic_provider,
+            "PortfolioLimit": PortfolioLimit,
+            "RiskManager": RiskManager,
+            "Position": Position,
+        }
+
+        offenders: list[str] = []
+        for block_index, prefix_lines, code, expected in _pinned_readme_blocks():
+            namespace = dict(shared)
+            # Execute the snippet's setup statements first, so expressions
+            # that reference names defined earlier in the block resolve.
+            setup_ok = True
+            for statement in prefix_lines:
+                if not statement.strip():
+                    continue
+                try:
+                    exec(statement, namespace)  # noqa: S102
+                except Exception as exc:  # noqa: BLE001 - report setup failures
+                    offenders.append(
+                        f"README block {block_index}: setup {statement!r} raised {exc!r}"
+                    )
+                    setup_ok = False
+                    break
+            if not setup_ok:
+                continue
+            # A snippet written as ``print(expr)  # value`` documents the
+            # *argument* of the print, so evaluate the argument rather than
+            # the call (which would return None).
+            eval_code = code
+            call_match = re.match(r"^print\((.*)\)\s*$", code)
+            if call_match:
+                eval_code = call_match.group(1)
+            try:
+                value = eval(eval_code, {"__builtins__": {}}, namespace)  # noqa: S307
+            except Exception as exc:  # noqa: BLE001 - report any evaluation failure
+                offenders.append(
+                    f"README block {block_index}: snippet {code!r} raised {exc!r}"
+                )
+                continue
+            actual = repr(value)
+            if actual != expected:
+                offenders.append(
+                    f"README block {block_index}: {code!r} produced {actual!r}, "
+                    f"README claims {expected!r}"
+                )
+        assert not offenders, "README code-block outputs out of sync:\n" + "\n".join(offenders)
