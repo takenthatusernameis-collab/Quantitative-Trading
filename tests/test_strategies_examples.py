@@ -4959,3 +4959,153 @@ class TestChoppinessIndexStrategy:
         for s in signals:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
+
+
+class TestAccumulationDistributionStrategy:
+    """Tests for AccumulationDistributionStrategy."""
+
+    def test_initialization(self):
+        strategy = AccumulationDistributionStrategy(signal_period=21, name="Test_ADL")
+        assert strategy.name == "Test_ADL"
+        assert strategy.signal_period == 21
+
+    def test_validate_parameters(self):
+        with pytest.raises(ValueError, match="signal_period must be positive"):
+            AccumulationDistributionStrategy(signal_period=0)
+
+    def test_generate_signals_insufficient_data(self):
+        strategy = AccumulationDistributionStrategy(signal_period=21)
+        data = {"AAPL": create_trending_data("AAPL", days=10)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_returns_list(self):
+        strategy = AccumulationDistributionStrategy(signal_period=21)
+        data = {"AAPL": create_trending_data("AAPL", days=80)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+        for s in signals:
+            assert s.symbol == "AAPL"
+            assert s.action in ("buy", "sell")
+
+
+class TestAwesomeOscillatorStrategy:
+    """Tests for AwesomeOscillatorStrategy."""
+
+    def test_initialization(self):
+        strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34, name="Test_AO")
+        assert strategy.name == "Test_AO"
+        assert strategy.short_period == 5
+        assert strategy.long_period == 34
+
+    def test_validate_parameters(self):
+        with pytest.raises(ValueError, match="short_period must be positive"):
+            AwesomeOscillatorStrategy(short_period=0)
+        with pytest.raises(ValueError, match="long_period must be positive"):
+            AwesomeOscillatorStrategy(long_period=0)
+        with pytest.raises(ValueError, match="short_period must be less than long_period"):
+            AwesomeOscillatorStrategy(short_period=10, long_period=5)
+
+    def test_generate_signals_insufficient_data(self):
+        strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34)
+        data = {"AAPL": create_trending_data("AAPL", days=10)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_returns_list(self):
+        strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34)
+        data = {"AAPL": create_trending_data("AAPL", days=80)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+        for s in signals:
+            assert s.symbol == "AAPL"
+            assert s.action in ("buy", "sell")
+
+
+class TestChaikinOscillatorStrategy:
+    """Tests for ChaikinOscillatorStrategy."""
+
+    def test_initialization(self):
+        strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10, name="Test_CHO")
+        assert strategy.name == "Test_CHO"
+        assert strategy.fast_period == 3
+        assert strategy.slow_period == 10
+
+    def test_validate_parameters(self):
+        with pytest.raises(ValueError, match="fast_period must be positive"):
+            ChaikinOscillatorStrategy(fast_period=0)
+        with pytest.raises(ValueError, match="slow_period must be positive"):
+            ChaikinOscillatorStrategy(slow_period=0)
+        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+            ChaikinOscillatorStrategy(fast_period=10, slow_period=5)
+
+    def test_generate_signals_insufficient_data(self):
+        strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
+        data = {"AAPL": create_trending_data("AAPL", days=10)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_returns_list(self):
+        strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
+        data = {"AAPL": create_trending_data("AAPL", days=80)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+        for s in signals:
+            assert s.symbol == "AAPL"
+            assert s.action in ("buy", "sell")
+
+
+class TestDetrendedPriceOscillatorStrategy:
+    """Tests for DetrendedPriceOscillatorStrategy."""
+
+    def test_initialization(self):
+        strategy = DetrendedPriceOscillatorStrategy(period=20, name="Test_DPO")
+        assert strategy.name == "Test_DPO"
+        assert strategy.period == 20
+
+    def test_validate_parameters(self):
+        with pytest.raises(ValueError, match="period must be positive"):
+            DetrendedPriceOscillatorStrategy(period=0)
+
+    def test_generate_signals_insufficient_data(self):
+        strategy = DetrendedPriceOscillatorStrategy(period=20)
+        data = {"AAPL": create_trending_data("AAPL", days=10)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_returns_list(self):
+        strategy = DetrendedPriceOscillatorStrategy(period=20)
+        data = {"AAPL": create_trending_data("AAPL", days=80)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+        for s in signals:
+            assert s.symbol == "AAPL"
+            assert s.action in ("buy", "sell")
+
+
+class TestElderRayStrategy:
+    """Tests for ElderRayStrategy."""
+
+    def test_initialization(self):
+        strategy = ElderRayStrategy(period=13, name="Test_ELDER")
+        assert strategy.name == "Test_ELDER"
+        assert strategy.period == 13
+
+    def test_validate_parameters(self):
+        with pytest.raises(ValueError, match="period must be positive"):
+            ElderRayStrategy(period=0)
+
+    def test_generate_signals_insufficient_data(self):
+        strategy = ElderRayStrategy(period=13)
+        data = {"AAPL": create_trending_data("AAPL", days=10)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_returns_list(self):
+        strategy = ElderRayStrategy(period=13)
+        data = {"AAPL": create_trending_data("AAPL", days=80)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+        for s in signals:
+            assert s.symbol == "AAPL"
+            assert s.action in ("buy", "sell")
