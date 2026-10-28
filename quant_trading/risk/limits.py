@@ -317,7 +317,7 @@ class CheckResult:
             from quant_trading.risk.limits import CheckResult
 
             res = CheckResult(passed=True)
-            print(res.ok)
+            assert res.ok is True
             res.add_violation("Position too large")
             assert not res.passed
 
