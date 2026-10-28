@@ -3,14 +3,16 @@
 ## 1. What changed
 
 - No code changes in this session. Baseline from previous agent is intact (CLI optimization range-flag fix already applied).
+- Re-verified baseline: ruff, black, mypy, and CLI-focused pytest all pass.
 
 ## 2. What was actually verified
 
 - `python -m ruff check .` → All checks passed.
 - `python -m black --check quant_trading tests examples` → 131 files unchanged.
 - `python -m mypy quant_trading tests examples` → Success: no issues found in 131 source files.
-- `python -m pytest tests/test_cli.py -q` → 166 passed, 19 warnings.
-- Confirmed CLI optimization regression test `tests/test_cli.py::TestInitConfig::test_parser_accepts_every_range_flag_create_param_grid_references` passes; all CLI range flags for create_param_grid are present.
+- `python -m pytest tests/test_cli.py tests/test_readme_cli_commands.py tests/test_optimization.py -q` → 293 passed, 55 skipped, 37 warnings.
+- `python -m pytest tests/test_repository_integrity.py tests/test_readme.py tests/test_readme_cli.py -q` → 29 passed.
+- `python -m pytest tests/test_run_optimization_smoke.py -q` → 1 passed.
 
 ## 3. What remains unresolved
 
