@@ -1,12 +1,11 @@
 # Handoff for Next Agent
 
 ## 1. What changed
-- Added `TestParseArgs.test_version_flag_exits` to `tests/test_cli.py` verifying the `--version` flag introduced in `examples/cli.py` exits cleanly (exit code 0).
+- No code changes this session. Re-verified baseline per prior handoff.
 
 ## 2. What was actually verified
 - `python -m ruff check .` → All checks passed
 - `python -m black --check quant_trading tests examples` → 131 files unchanged
-- `python -m mypy quant_trading tests examples` → Success: no issues found
 - `python -m pytest tests/test_cli.py -q` → 165 passed
 
 ## 3. What remains unresolved
