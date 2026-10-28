@@ -1,23 +1,23 @@
 # Handoff for Next Agent
 
 ## 1. What changed
-- No source changes made in this session. Baseline verified green; no new work taken because the prior handoff identified no backlog.
+- No source changes made in this session. Baseline verified green; no concrete backlog found to act on per handoff guidance.
 
 ## 2. What was actually verified
 - `python -m ruff check .` → All checks passed
 - `python -m black --check quant_trading tests examples` → 131 files unchanged
 - `python -m mypy quant_trading tests examples` → Success: no issues found
-- `python -m pytest tests/test_cli.py -q` → 165 passed (~65s, test file is slow but green)
-- `python -m pytest tests/test_examples_smoke.py -q` → 123 passed (~235s, subprocess-per-script smoke suite)
-- Every other `tests/test_*.py` file passes individually (network-backed `test_alphavantage_provider.py` and `test_yfinance_fetch_many.py` pass offline too; the full-suite run exceeds the session timeout only because of cumulative slowness, not failures).
-- 55 network tests skipped offline remain runnable only with network access/API keys (unchanged from prior handoff).
+- `python -m pytest tests/test_backtest_engine.py tests/test_strategies_examples.py tests/test_strategy_factory.py tests/test_data_providers.py -q` → 212 passed
+- `python -m pytest tests/test_cli.py -q` → 165 passed (~65s)
+- `python -m pytest tests/test_examples_smoke.py -q` → 123 passed (~235s)
+- Core functionality smoke tested via `python examples/run_backtest_offline.py` (all three strategies + combined run produce expected outputs)
+- Full suite cumulative time is high (~minutes) but individual test files pass; 55 network tests skipped offline remain runnable with network/API keys.
 
 ## 3. What remains unresolved
-- No backlog identified. Only take new work if a concrete, verifiable gap is found.
+- No backlog identified. Take new work only if a concrete, verifiable gap is found.
 
 ## 4. Approaches that failed and why
 - None.
 
 ## 5. One precise next task
-- Keep baseline green; only take new work if a concrete, verifiable gap is found. No further backlog identified.
-- Constraints: do NOT commit unless explicitly asked; do not disable tests; preserve working baseline. If running the full suite, allow for cumulative slowness (~several minutes) or run test files individually.
+- Keep baseline green. Only take work if you find a concrete verifiable gap (inspect tests/docs/implementation for inconsistencies). Do NOT commit unless explicitly asked; preserve working baseline. If running full suite, allow cumulative slowness or run test files individually.
