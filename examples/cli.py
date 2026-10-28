@@ -45,6 +45,11 @@ from quant_trading.strategies import (
     list_strategies as factory_list_strategies,
 )
 
+try:
+    from quant_trading import __version__
+except (ImportError, AttributeError):
+    __version__ = "0.1.0"
+
 # Built-in strategy keys for argparse choices (preserves existing behavior)
 BUILTIN_STRATEGY_KEYS = [
     "ma",
@@ -278,6 +283,11 @@ def _create_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"quant-trading {__version__}",
+    )
     parser.add_argument(
         "--list-strategies",
         action="store_true",
