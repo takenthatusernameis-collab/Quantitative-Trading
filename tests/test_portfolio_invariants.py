@@ -92,6 +92,27 @@ def _positions(portfolio: Portfolio) -> dict[str, tuple[float, float, float]]:
     }
 
 
+def _assert_positions_match(
+    actual: dict[str, tuple[float, float, float]],
+    expected: dict[str, tuple[float, float, float]],
+) -> None:
+    """Compare two per-symbol position snapshots element-wise with tolerance.
+
+    ``pytest.approx`` on a dict whose values are tuples raises a ``TypeError``
+    on pytest 9+ (it no longer descends into non-container values), so the
+    comparison is done explicitly. This is at least as strict as the original
+    ``_positions(a) == pytest.approx(_positions(b))``: every key and every
+    component of every tuple must agree within the same tolerance.
+    """
+    assert set(actual) == set(expected), f"position keys differ: {set(actual)} != {set(expected)}"
+    for symbol, actual_tuple in actual.items():
+        expected_tuple = expected[symbol]
+        for actual_value, expected_value in zip(actual_tuple, expected_tuple):
+            assert actual_value == pytest.approx(
+                expected_value, rel=1e-9, abs=1e-9
+            ), f"{symbol}: {actual_value} != {expected_value}"
+
+
 @pytest.mark.parametrize("seed", range(20))
 def test_randomized_trade_sequence_invariants(seed: int):
     """A random sequence of trades keeps every portfolio invariant intact."""
@@ -191,7 +212,7 @@ def test_add_holding_reduction_matches_remove_holding(seed: int):
 
     assert reduced.cash == pytest.approx(removed.cash)
     assert reduced.total_value == pytest.approx(removed.total_value)
-    assert _positions(reduced) == pytest.approx(_positions(removed))
+    _assert_positions_match(_positions(reduced), _positions(removed))
     # The cash that moved in the add_holding reduction is the cash that
     # remove_holding reported.
     assert reduced.cash - (INITIAL_CASH - opened * price * (1 + commission + slippage)) == (
@@ -221,7 +242,7 @@ def test_covering_a_short_matches_remove_holding(seed: int):
 
     assert covered_portfolio.cash == pytest.approx(removed_portfolio.cash)
     assert covered_portfolio.total_value == pytest.approx(removed_portfolio.total_value)
-    assert _positions(covered_portfolio) == pytest.approx(_positions(removed_portfolio))
+    _assert_positions_match(_positions(covered_portfolio), _positions(removed_portfolio))
     assert covered_portfolio.cash - (
         INITIAL_CASH + opened * price * (1 - commission - slippage)
     ) == (pytest.approx(cash_effect))
