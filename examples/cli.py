@@ -440,6 +440,168 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Slow MA range for optimization as 'min,max,step' (default: 20,30,10)",
     )
     parser.add_argument(
+        "--rsi-period-range",
+        type=str,
+        default="10,20,2",
+        help="RSI period range for optimization as 'min,max,step' (default: 10,20,2)",
+    )
+    parser.add_argument(
+        "--rsi-oversold-range",
+        type=str,
+        default="20,35,5",
+        help="RSI oversold range for optimization as 'min,max,step' (default: 20,35,5)",
+    )
+    parser.add_argument(
+        "--rsi-overbought-range",
+        type=str,
+        default="65,80,5",
+        help="RSI overbought range for optimization as 'min,max,step' (default: 65,80,5)",
+    )
+    parser.add_argument(
+        "--bb-period-range",
+        type=str,
+        default="10,30,5",
+        help="Bollinger Bands period range for optimization as 'min,max,step' (default: 10,30,5)",
+    )
+    parser.add_argument(
+        "--bb-std-range",
+        type=str,
+        default="1.5,3.0,0.5",
+        help="Bollinger Bands std-dev range for optimization as 'min,max,step' (default: 1.5,3.0,0.5)",
+    )
+    parser.add_argument(
+        "--macd-fast-range",
+        type=str,
+        default="8,16,2",
+        help="MACD fast period range for optimization as 'min,max,step' (default: 8,16,2)",
+    )
+    parser.add_argument(
+        "--macd-slow-range",
+        type=str,
+        default="20,30,2",
+        help="MACD slow period range for optimization as 'min,max,step' (default: 20,30,2)",
+    )
+    parser.add_argument(
+        "--macd-signal-range",
+        type=str,
+        default="7,12,1",
+        help="MACD signal period range for optimization as 'min,max,step' (default: 7,12,1)",
+    )
+    parser.add_argument(
+        "--st-period-range",
+        type=str,
+        default="7,20,1",
+        help="SuperTrend period range for optimization as 'min,max,step' (default: 7,20,1)",
+    )
+    parser.add_argument(
+        "--st-multiplier-range",
+        type=str,
+        default="2.0,4.0,0.5",
+        help="SuperTrend multiplier range for optimization as 'min,max,step' (default: 2.0,4.0,0.5)",
+    )
+    parser.add_argument(
+        "--dc-period-range",
+        type=str,
+        default="10,40,5",
+        help="Donchian Channel period range for optimization as 'min,max,step' (default: 10,40,5)",
+    )
+    parser.add_argument(
+        "--dc-exit-period-range",
+        type=str,
+        default="5,20,5",
+        help="Donchian Channel exit period range for optimization as 'min,max,step' (default: 5,20,5)",
+    )
+    parser.add_argument(
+        "--aroon-period-range",
+        type=str,
+        default="10,50,5",
+        help="Aroon period range for optimization as 'min,max,step' (default: 10,50,5)",
+    )
+    parser.add_argument(
+        "--kc-ema-period-range",
+        type=str,
+        default="10,30,5",
+        help="Keltner Channel EMA period range for optimization as 'min,max,step' (default: 10,30,5)",
+    )
+    parser.add_argument(
+        "--kc-atr-period-range",
+        type=str,
+        default="5,20,2",
+        help="Keltner Channel ATR period range for optimization as 'min,max,step' (default: 5,20,2)",
+    )
+    parser.add_argument(
+        "--kc-multiplier-range",
+        type=str,
+        default="1.0,3.0,0.5",
+        help="Keltner Channel multiplier range for optimization as 'min,max,step' (default: 1.0,3.0,0.5)",
+    )
+    parser.add_argument(
+        "--stoch-k-period-range",
+        type=str,
+        default="10,20,2",
+        help="Stochastic %%K period range for optimization as 'min,max,step' (default: 10,20,2)",
+    )
+    parser.add_argument(
+        "--stoch-d-period-range",
+        type=str,
+        default="2,5,1",
+        help="Stochastic %%D period range for optimization as 'min,max,step' (default: 2,5,1)",
+    )
+    parser.add_argument(
+        "--stoch-oversold-range",
+        type=str,
+        default="10,30,5",
+        help="Stochastic oversold level range for optimization as 'min,max,step' (default: 10,30,5)",
+    )
+    parser.add_argument(
+        "--stoch-overbought-range",
+        type=str,
+        default="70,90,5",
+        help="Stochastic overbought level range for optimization as 'min,max,step' (default: 70,90,5)",
+    )
+    parser.add_argument(
+        "--ichimoku-tenkan-period-range",
+        type=str,
+        default="5,15,2",
+        help="Ichimoku Tenkan period range for optimization as 'min,max,step' (default: 5,15,2)",
+    )
+    parser.add_argument(
+        "--ichimoku-kijun-period-range",
+        type=str,
+        default="10,30,5",
+        help="Ichimoku Kijun period range for optimization as 'min,max,step' (default: 10,30,5)",
+    )
+    parser.add_argument(
+        "--ichimoku-senkou-b-period-range",
+        type=str,
+        default="20,60,10",
+        help="Ichimoku Senkou B period range for optimization as 'min,max,step' (default: 20,60,10)",
+    )
+    parser.add_argument(
+        "--sar-step-range",
+        type=str,
+        default="0.01,0.05,0.01",
+        help="Parabolic SAR step range for optimization as 'min,max,step' (default: 0.01,0.05,0.01)",
+    )
+    parser.add_argument(
+        "--sar-max-step-range",
+        type=str,
+        default="0.10,0.20,0.05",
+        help="Parabolic SAR max step range for optimization as 'min,max,step' (default: 0.10,0.20,0.05)",
+    )
+    parser.add_argument(
+        "--atr-period-range",
+        type=str,
+        default="10,30,5",
+        help="ATR period range for optimization as 'min,max,step' (default: 10,30,5)",
+    )
+    parser.add_argument(
+        "--atr-multiplier-range",
+        type=str,
+        default="1.0,3.0,0.5",
+        help="ATR multiplier range for optimization as 'min,max,step' (default: 1.0,3.0,0.5)",
+    )
+    parser.add_argument(
         "--optimize",
         action="store_true",
         help="Run parameter optimization instead of a single backtest",

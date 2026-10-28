@@ -450,6 +450,55 @@ class TestInitConfig:
         with pytest.raises(ValueError, match="minimum.*greater than the maximum"):
             parse_range("20,5,5")
 
+    def test_parser_accepts_every_range_flag_create_param_grid_references(self):
+        """Every ``--*-range`` attribute read by ``create_param_grid`` must exist
+        on the live parser, otherwise ``--optimize`` crashes for that strategy.
+        """
+        from examples.cli import _create_parser
+
+        parser = _create_parser()
+        parser_flags: set[str] = set()
+        for action in parser._actions:
+            for option in action.option_strings:
+                if option.startswith("--"):
+                    parser_flags.add(option.lstrip("-"))
+
+        range_flags = [
+            "ma-fast-range",
+            "ma-slow-range",
+            "rsi-period-range",
+            "rsi-oversold-range",
+            "rsi-overbought-range",
+            "bb-period-range",
+            "bb-std-range",
+            "macd-fast-range",
+            "macd-slow-range",
+            "macd-signal-range",
+            "st-period-range",
+            "st-multiplier-range",
+            "dc-period-range",
+            "dc-exit-period-range",
+            "aroon-period-range",
+            "kc-ema-period-range",
+            "kc-atr-period-range",
+            "kc-multiplier-range",
+            "stoch-k-period-range",
+            "stoch-d-period-range",
+            "stoch-oversold-range",
+            "stoch-overbought-range",
+            "ichimoku-tenkan-period-range",
+            "ichimoku-kijun-period-range",
+            "ichimoku-senkou-b-period-range",
+            "sar-step-range",
+            "sar-max-step-range",
+            "atr-period-range",
+            "atr-multiplier-range",
+        ]
+        missing = sorted(flag for flag in range_flags if flag not in parser_flags)
+        assert (
+            missing == []
+        ), "create_param_grid references range flags missing from the parser: " + ", ".join(missing)
+
     def test_main_optimize_calls_run_optimization(self):
         with patch("examples.cli.run_optimization") as mock_opt:
             mock_opt.return_value = 0

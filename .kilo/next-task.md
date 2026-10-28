@@ -2,24 +2,21 @@
 
 ## Repository state
 
-Checks: `python -m ruff check .` → clean (131 files). `python -m black --check quant_trading tests examples` → clean (131 files unchanged). `python -m mypy quant_trading tests examples` → clean, 0 errors across 131 source files. `python -m pytest -q` → 2383 passed, 55 skipped, 0 failures. 55 skips are network-dependent yfinance/Alpha Vantage tests (expected offline).
+Checks: `python -m ruff check .` → clean. `python -m black --check quant_trading tests examples` → clean (131 files unchanged). `python -m mypy quant_trading tests examples` → clean, 0 errors across 131 source files. `python -m pytest tests/test_cli.py tests/test_readme_cli.py tests/test_readme_cli_commands.py tests/test_readme.py -q` → 205 passed, 44 skipped (network).
 
 ## What changed (this session)
 
-- Fixed `tests/test_strategy_cci.py:23` — added `# type: ignore[no-any-return]` so mypy reports 0 errors (matches convention in `tests/test_strategy_aroon.py`).
-- Installed missing dev/runtime deps locally (`pandas`, `numpy`, `pytest`, `black`, `ruff`, `mypy`, `pandas-stubs`, `yfinance`) to run verification; no repo files changed for this.
+Fixed `examples/cli.py`: `_create_parser()` only defined `--ma-fast-range`/`--ma-slow-range`, but `create_param_grid()` reads ~20 `args.*_range` attributes (rsi, bb, macd, supertrend, donchian, aroon, keltner, stoch, ichimoku, sar, atr). So `--optimize`/`--walk-forward` crashed with `AttributeError` for every non-MA strategy. Added all 20 missing `--*-range` flags and fixed `%%K`/`%%D` help-text escaping. Added `tests/test_cli.py::test_parser_accepts_every_range_flag_create_param_grid_references` regression test.
 
 ## What was actually verified
 
-- `python -m ruff check .` → All checks passed.
-- `python -m black --check quant_trading tests examples` → clean.
-- `python -m mypy quant_trading tests examples` → Success: no issues found in 131 source files.
-- `python -m pytest -q` (full suite incl. doctests) → 2383 passed, 55 skipped, 0 failures.
+- Offline `--optimize` runs end-to-end for `rsi`, `bb`, `macd`; `--walk-forward` for `rsi` (previously crashed).
+- ruff/black/mypy all clean; 205 CLI/readme tests passed, 44 network skips.
 
 ## What remains unresolved
 
-- None observed. All quality gates clean; full suite green.
-- 55 network tests skipped offline; only runnable with network access/API keys.
+- Full `pytest -q` could not finish (one network test hangs, pre-existing, unrelated to this change).
+- 55 network tests skipped offline.
 
 ## Approaches that failed and why
 
@@ -27,6 +24,5 @@ Checks: `python -m ruff check .` → clean (131 files). `python -m black --check
 
 ## One precise next task
 
-- Keep the baseline green: run `python -m ruff check .`, `python -m black --check quant_trading tests examples`, `python -m mypy quant_trading tests examples`, and `python -m pytest -q` before/after any change; fix any regression with the smallest reversible change.
-- Constraints: do NOT commit unless explicitly asked; do not disable tests to hide failures; preserve working baseline; exclude secrets/env/cache artifacts.
-- All 46 registered strategies already have dedicated test classes; registry smoke coverage exists — no testing backlog remains.
+- Keep baseline green: run ruff/black/mypy and `python -m pytest tests/test_cli.py tests/test_readme_cli_commands.py -q` before/after any change; fix any regression with the smallest reversible change.
+- Constraints: do NOT commit unless explicitly asked; do not disable tests; preserve working baseline; exclude secrets/env/cache artifacts.
