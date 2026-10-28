@@ -272,11 +272,403 @@ def _is_supported_interval(interval: str) -> bool:
     return False
 
 
-def parse_args() -> argparse.Namespace:
+def _create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run backtests with the Quantitative Trading framework",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+
+    parser.add_argument(
+        "--list-strategies",
+        action="store_true",
+        help="List available strategies and exit",
+    )
+    parser.add_argument(
+        "--list-providers",
+        action="store_true",
+        help="List available data providers and exit",
+    )
+    parser.add_argument(
+        "--init-config",
+        type=str,
+        metavar="PATH",
+        help="Generate a default config YAML file at PATH and exit",
+    )
+    parser.add_argument(
+        "--validate-config",
+        type=str,
+        metavar="PATH",
+        help="Validate a config YAML file at PATH and exit",
+    )
+
+    parser.add_argument(
+        "--symbols",
+        nargs="+",
+        default=["AAPL", "MSFT", "GOOGL"],
+        help="Symbols to trade",
+    )
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=365,
+        help="Number of days of historical data",
+    )
+    parser.add_argument(
+        "--start",
+        type=str,
+        help="Start date (YYYY-MM-DD), overrides --days",
+    )
+    parser.add_argument(
+        "--end",
+        type=str,
+        help="End date (YYYY-MM-DD), defaults to today",
+    )
+    parser.add_argument(
+        "--initial-capital",
+        type=float,
+        default=None,
+        help=(
+            "Initial capital (defaults to config value, or 100000.0 if not set)"
+        ),
+    )
+    parser.add_argument(
+        "--commission",
+        type=float,
+        default=None,
+        help=(
+            "Commission per trade (defaults to config value, or 0.001 if not set)"
+        ),
+    )
+    parser.add_argument(
+        "--slippage",
+        type=float,
+        default=None,
+        help=("Slippage fraction (defaults to config value, or 0.0005 if not set)"),
+    )
+    parser.add_argument(
+        "--risk-free-rate",
+        type=float,
+        default=None,
+        help=("Risk-free rate (defaults to config value, or 0.02 if not set)"),
+    )
+    parser.add_argument(
+        "--provider",
+        choices=["yfinance", "alphavantage", "synthetic"],
+        default="yfinance",
+        help="Data provider to use",
+    )
+    parser.add_argument(
+        "--interval",
+        type=str,
+        default=None,
+        help=(
+            "Data interval (e.g., '1d', '1h', '5m', '1wk', 'weekly', "
+            "'monthly_adjusted', 'quote', 'fx_daily'). Passed to provider when supported."
+        ),
+    )
+    parser.add_argument(
+        "--periods-per-year",
+        type=int,
+        default=None,
+        help=(
+            "Periods per year for annualization (e.g., 252 for daily, 52 for weekly). "
+            "Defaults to interval-based value when omitted."
+        ),
+    )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Use offline synthetic data (equivalent to --provider synthetic)",
+    )
+    parser.add_argument(
+        "--alphavantage-key",
+        type=str,
+        default=None,
+        help="Alpha Vantage API key (or set ALPHAVANTAGE_API_KEY env var)",
+    )
+    parser.add_argument(
+        "--cache-dir",
+        type=str,
+        default=None,
+        help="Cache directory for downloaded data",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to YAML config file",
+    )
+    parser.add_argument(
+        "--strategy",
+        choices=BUILTIN_STRATEGY_KEYS,
+        default=None,
+        help=(
+            "Strategy to use (built-in keys). Use --list-strategies for full registry."
+        ),
+    )
+    parser.add_argument(
+        "--strategy-config",
+        type=str,
+        default=None,
+        help="Path to YAML strategy config file (overrides --strategy)",
+    )
+    parser.add_argument(
+        "--output-strategy-config",
+        type=str,
+        default=None,
+        help="Path to write resolved strategy config YAML and exit",
+    )
+    parser.add_argument(
+        "--ma-fast",
+        type=int,
+        default=None,
+        help="MA fast period (for ma/ema strategies)",
+    )
+    parser.add_argument(
+        "--ma-slow",
+        type=int,
+        default=None,
+        help="MA slow period (for ma/ema strategies)",
+    )
+    parser.add_argument(
+        "--rsi-period",
+        type=int,
+        default=None,
+        help="RSI period",
+    )
+    parser.add_argument(
+        "--rsi-oversold",
+        type=float,
+        default=None,
+        help="RSI oversold threshold",
+    )
+    parser.add_argument(
+        "--rsi-overbought",
+        type=float,
+        default=None,
+        help="RSI overbought threshold",
+    )
+    parser.add_argument(
+        "--bb-period",
+        type=int,
+        default=None,
+        help="Bollinger Bands period",
+    )
+    parser.add_argument(
+        "--bb-std",
+        type=float,
+        default=None,
+        help="Bollinger Bands standard deviation",
+    )
+    parser.add_argument(
+        "--macd-fast",
+        type=int,
+        default=None,
+        help="MACD fast period",
+    )
+    parser.add_argument(
+        "--macd-slow",
+        type=int,
+        default=None,
+        help="MACD slow period",
+    )
+    parser.add_argument(
+        "--macd-signal",
+        type=int,
+        default=None,
+        help="MACD signal period",
+    )
+    parser.add_argument(
+        "--combined",
+        action="store_true",
+        help="Run all strategies on each symbol and show combined summary",
+    )
+    parser.add_argument(
+        "--optimize",
+        action="store_true",
+        help="Run parameter optimization",
+    )
+    parser.add_argument(
+        "--optimizer",
+        choices=["grid", "random", "bayesian"],
+        default="grid",
+        help="Optimization algorithm",
+    )
+    parser.add_argument(
+        "--objective",
+        choices=[
+            "sharpe",
+            "sortino",
+            "calmar",
+            "total_return",
+            "win_rate",
+            "profit_factor",
+            "max_drawdown",
+        ],
+        default="sharpe",
+        help="Optimization objective",
+    )
+    parser.add_argument(
+        "--n-iter",
+        type=int,
+        default=50,
+        help="Number of iterations for random/bayesian optimization",
+    )
+    parser.add_argument(
+        "--n-jobs",
+        type=int,
+        default=1,
+        help="Number of parallel jobs for optimization",
+    )
+    parser.add_argument(
+        "--bayesian-n-initial",
+        type=int,
+        default=10,
+        help="Initial random points for Bayesian optimization",
+    )
+    parser.add_argument(
+        "--bayesian-acq-func",
+        choices=["EI", "LCB", "PI", "gp_hedge"],
+        default="EI",
+        help="Acquisition function for Bayesian optimization",
+    )
+    parser.add_argument(
+        "--bayesian-acq-optimizer",
+        choices=["auto", "sampling", "lbfgs"],
+        default="auto",
+        help="Acquisition optimizer for Bayesian optimization",
+    )
+    parser.add_argument(
+        "--ma-fast-range",
+        type=str,
+        default=None,
+        help="Range for MA fast period (e.g., '5,20,1')",
+    )
+    parser.add_argument(
+        "--ma-slow-range",
+        type=str,
+        default=None,
+        help="Range for MA slow period (e.g., '20,50,1')",
+    )
+    parser.add_argument(
+        "--bb-period-range",
+        type=str,
+        default=None,
+        help="Range for BB period (e.g., '10,30,1')",
+    )
+    parser.add_argument(
+        "--bb-std-range",
+        type=str,
+        default=None,
+        help="Range for BB std (e.g., '1.5,3.0,0.5')",
+    )
+    parser.add_argument(
+        "--rsi-period-range",
+        type=str,
+        default=None,
+        help="Range for RSI period (e.g., '10,20,1')",
+    )
+    parser.add_argument(
+        "--rsi-oversold-range",
+        type=str,
+        default=None,
+        help="Range for RSI oversold (e.g., '20,40,5')",
+    )
+    parser.add_argument(
+        "--rsi-overbought-range",
+        type=str,
+        default=None,
+        help="Range for RSI overbought (e.g., '60,80,5')",
+    )
+    parser.add_argument(
+        "--walk-forward",
+        action="store_true",
+        help="Run walk-forward analysis",
+    )
+    parser.add_argument(
+        "--wf-train-size",
+        type=float,
+        default=0.7,
+        help="Training set fraction for walk-forward",
+    )
+    parser.add_argument(
+        "--wf-windows",
+        type=int,
+        default=5,
+        help="Number of walk-forward windows",
+    )
+    parser.add_argument(
+        "--wf-anchored",
+        action="store_true",
+        help="Use anchored walk-forward (expanding window)",
+    )
+    parser.add_argument(
+        "--wf-rolling",
+        action="store_true",
+        help="Use rolling walk-forward",
+    )
+    parser.add_argument(
+        "--wf-optimizer",
+        choices=["grid", "random", "bayesian"],
+        default="grid",
+        help="Optimizer for walk-forward",
+    )
+    parser.add_argument(
+        "--monte-carlo",
+        action="store_true",
+        help="Run Monte Carlo simulation on backtest results",
+    )
+    parser.add_argument(
+        "--mc-simulations",
+        type=int,
+        default=1000,
+        help="Number of Monte Carlo simulations",
+    )
+    parser.add_argument(
+        "--regime",
+        action="store_true",
+        help="Detect market regime for equity curve",
+    )
+    parser.add_argument(
+        "--regime-window",
+        type=int,
+        default=20,
+        help="Window for regime detection",
+    )
+    parser.add_argument(
+        "--regime-vol-threshold",
+        type=float,
+        default=1.2,
+        help="Volatility threshold for regime classification",
+    )
+    parser.add_argument(
+        "--regime-return-threshold",
+        type=float,
+        default=0.02,
+        help="Return threshold for regime classification",
+    )
+    parser.add_argument(
+        "--trade-analysis",
+        action="store_true",
+        help="Show detailed trade analysis",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Save results to JSON file",
+    )
+    parser.add_argument(
+        "--output-format",
+        choices=["json", "csv"],
+        default="json",
+        help="Output format for --output",
+    )
+    return parser
+
+
+def parse_args() -> argparse.Namespace:
+    parser = _create_parser()
 
     parser.add_argument(
         "--list-strategies",
