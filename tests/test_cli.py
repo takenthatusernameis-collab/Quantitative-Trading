@@ -38,6 +38,11 @@ from quant_trading.strategies.examples import (
 class TestParseArgs:
     """Tests for argument parsing."""
 
+    def test_version_flag_exits(self):
+        with patch("sys.argv", ["cli.py", "--version"]), pytest.raises(SystemExit) as exc:
+            parse_args()
+        assert exc.value.code == 0
+
     def test_default_args(self):
         with patch("sys.argv", ["cli.py"]):
             args = parse_args()
