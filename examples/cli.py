@@ -394,294 +394,16 @@ def _create_parser() -> argparse.ArgumentParser:
         default=None,
         help="Path to YAML config file",
     )
-    parser.add_argument(
-        "--strategy",
-        choices=BUILTIN_STRATEGY_KEYS,
-        default="ma",
-        help=("Strategy to use (built-in keys). Use --list-strategies for full registry."),
-    )
-    parser.add_argument(
-        "--strategy-config",
-        type=str,
-        default=None,
-        help="Path to YAML strategy config file (overrides --strategy)",
-    )
-    parser.add_argument(
-        "--output-strategy-config",
-        type=str,
-        default=None,
-        help="Path to write resolved strategy config YAML and exit",
-    )
-    parser.add_argument(
-        "--ma-fast",
-        type=int,
-        default=None,
-        help="MA fast period (for ma/ema strategies)",
-    )
-    parser.add_argument(
-        "--ma-slow",
-        type=int,
-        default=None,
-        help="MA slow period (for ma/ema strategies)",
-    )
-    parser.add_argument(
-        "--rsi-period",
-        type=int,
-        default=None,
-        help="RSI period",
-    )
-    parser.add_argument(
-        "--rsi-oversold",
-        type=float,
-        default=None,
-        help="RSI oversold threshold",
-    )
-    parser.add_argument(
-        "--rsi-overbought",
-        type=float,
-        default=None,
-        help="RSI overbought threshold",
-    )
-    parser.add_argument(
-        "--bb-period",
-        type=int,
-        default=None,
-        help="Bollinger Bands period",
-    )
-    parser.add_argument(
-        "--bb-std",
-        type=float,
-        default=None,
-        help="Bollinger Bands standard deviation",
-    )
-    parser.add_argument(
-        "--macd-fast",
-        type=int,
-        default=None,
-        help="MACD fast period",
-    )
-    parser.add_argument(
-        "--macd-slow",
-        type=int,
-        default=None,
-        help="MACD slow period",
-    )
-    parser.add_argument(
-        "--macd-signal",
-        type=int,
-        default=None,
-        help="MACD signal period",
-    )
-    parser.add_argument(
-        "--combined",
-        action="store_true",
-        help="Run all strategies on each symbol and show combined summary",
-    )
-    parser.add_argument(
-        "--optimize",
-        action="store_true",
-        help="Run parameter optimization",
-    )
-    parser.add_argument(
-        "--optimizer",
-        choices=["grid", "random", "bayesian"],
-        default="grid",
-        help="Optimization algorithm",
-    )
-    parser.add_argument(
-        "--objective",
-        choices=[
-            "sharpe",
-            "sortino",
-            "calmar",
-            "total_return",
-            "win_rate",
-            "profit_factor",
-            "max_drawdown",
-        ],
-        default="sharpe",
-        help="Optimization objective",
-    )
-    parser.add_argument(
-        "--n-iter",
-        type=int,
-        default=50,
-        help="Number of iterations for random/bayesian optimization",
-    )
-    parser.add_argument(
-        "--n-jobs",
-        type=int,
-        default=1,
-        help="Number of parallel jobs for optimization",
-    )
-    parser.add_argument(
-        "--bayesian-n-initial",
-        type=int,
-        default=10,
-        help="Initial random points for Bayesian optimization",
-    )
-    parser.add_argument(
-        "--bayesian-acq-func",
-        choices=["EI", "LCB", "PI", "gp_hedge"],
-        default="EI",
-        help="Acquisition function for Bayesian optimization",
-    )
-    parser.add_argument(
-        "--bayesian-acq-optimizer",
-        choices=["auto", "sampling", "lbfgs"],
-        default="auto",
-        help="Acquisition optimizer for Bayesian optimization",
-    )
-    parser.add_argument(
-        "--ma-fast-range",
-        type=str,
-        default=None,
-        help="Range for MA fast period (e.g., '5,20,1')",
-    )
-    parser.add_argument(
-        "--ma-slow-range",
-        type=str,
-        default=None,
-        help="Range for MA slow period (e.g., '20,50,1')",
-    )
-    parser.add_argument(
-        "--bb-period-range",
-        type=str,
-        default=None,
-        help="Range for BB period (e.g., '10,30,1')",
-    )
-    parser.add_argument(
-        "--bb-std-range",
-        type=str,
-        default=None,
-        help="Range for BB std (e.g., '1.5,3.0,0.5')",
-    )
-    parser.add_argument(
-        "--rsi-period-range",
-        type=str,
-        default=None,
-        help="Range for RSI period (e.g., '10,20,1')",
-    )
-    parser.add_argument(
-        "--rsi-oversold-range",
-        type=str,
-        default=None,
-        help="Range for RSI oversold (e.g., '20,40,5')",
-    )
-    parser.add_argument(
-        "--rsi-overbought-range",
-        type=str,
-        default=None,
-        help="Range for RSI overbought (e.g., '60,80,5')",
-    )
-    parser.add_argument(
-        "--walk-forward",
-        action="store_true",
-        help="Run walk-forward analysis",
-    )
-    parser.add_argument(
-        "--wf-train-size",
-        type=float,
-        default=0.7,
-        help="Training set fraction for walk-forward",
-    )
-    parser.add_argument(
-        "--wf-windows",
-        type=int,
-        default=5,
-        help="Number of walk-forward windows",
-    )
-    parser.add_argument(
-        "--wf-anchored",
-        action="store_true",
-        help="Use anchored walk-forward (expanding window)",
-    )
-    parser.add_argument(
-        "--wf-rolling",
-        action="store_true",
-        help="Use rolling walk-forward",
-    )
-    parser.add_argument(
-        "--wf-optimizer",
-        choices=["grid", "random", "bayesian"],
-        default="grid",
-        help="Optimizer for walk-forward",
-    )
-    parser.add_argument(
-        "--monte-carlo",
-        action="store_true",
-        help="Run Monte Carlo simulation on backtest results",
-    )
-    parser.add_argument(
-        "--mc-simulations",
-        type=int,
-        default=1000,
-        help="Number of Monte Carlo simulations",
-    )
-    parser.add_argument(
-        "--mc-confidence",
-        type=float,
-        default=0.95,
-        help="Confidence level for Monte Carlo intervals",
-    )
-    parser.add_argument(
-        "--mc-method",
-        choices=["bootstrap", "parametric"],
-        default="bootstrap",
-        help="Monte Carlo simulation method",
-    )
-    parser.add_argument(
-        "--mc-seed",
-        type=int,
-        default=None,
-        help="Random seed for Monte Carlo simulation",
-    )
-    parser.add_argument(
-        "--regime",
-        action="store_true",
-        help="Detect market regime for equity curve",
-    )
-    parser.add_argument(
-        "--regime-window",
-        type=int,
-        default=20,
-        help="Window for regime detection",
-    )
-    parser.add_argument(
-        "--regime-vol-threshold",
-        type=float,
-        default=0.0,
-        help="Volatility threshold for regime classification",
-    )
-    parser.add_argument(
-        "--regime-return-threshold",
-        type=float,
-        default=0.0,
-        help="Return threshold for regime classification",
-    )
-    parser.add_argument(
-        "--trade-analysis",
-        action="store_true",
-        help="Show detailed trade analysis",
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default=None,
-        help="Save results to JSON file",
-    )
-    parser.add_argument(
-        "--output-format",
-        choices=["json", "csv"],
-        default="json",
-        help="Output format for --output",
-    )
+
     return parser
 
-
 def parse_args() -> argparse.Namespace:
-    parser = _create_parser()
-    args = parser.parse_args()
+    try:
+        parser = _create_parser()
+        args = parser.parse_args()
+    except SystemExit as e:
+        # If argparse exits due to invalid choice/usage, re-raise to be caught
+        raise
     _validate_range_arguments(args)
     if args.mc_simulations < 1:
         raise ValueError(
@@ -1776,6 +1498,12 @@ def main() -> int:
     except (OSError, ValueError) as e:
         print(f"Error: {e}")
         return 1
+    except SystemExit as e:
+        # Convert argparse errors (exit code 2) to user-friendly messages
+        code = e.code if isinstance(e.code, int) else 1
+        if code != 0:
+            return 1
+        return 0
 
 
 def _run_cli() -> int:
@@ -1784,7 +1512,15 @@ def _run_cli() -> int:
     Returns:
         The exit code of the run: 0 on success, 1 on a failed run.
     """
-    args = parse_args()
+    try:
+        args = parse_args()
+    except SystemExit as e:
+        # argparse already printed usage/error to stderr; convert to exit code 1
+        code = e.code if isinstance(e.code, int) else 1
+        return 1 if code != 0 else 0
+    except Exception as e:
+        print(f"Error: {e}")
+        return 1
 
     # Handle info commands that exit early
     if args.list_strategies:

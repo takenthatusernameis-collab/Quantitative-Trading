@@ -191,7 +191,15 @@ def test_add_holding_reduction_matches_remove_holding(seed: int):
 
     assert reduced.cash == pytest.approx(removed.cash)
     assert reduced.total_value == pytest.approx(removed.total_value)
-    assert _positions(reduced) == pytest.approx(_positions(removed))
+    pos_red = _positions(reduced)
+    pos_rem = _positions(removed)
+    assert set(pos_red.keys()) == set(pos_rem.keys())
+    for k in pos_red:
+        q1, b1, p1 = pos_red[k]
+        q2, b2, p2 = pos_rem[k]
+        assert q1 == pytest.approx(q2)
+        assert b1 == pytest.approx(b2)
+        assert p1 == pytest.approx(p2)
     # The cash that moved in the add_holding reduction is the cash that
     # remove_holding reported.
     assert reduced.cash - (INITIAL_CASH - opened * price * (1 + commission + slippage)) == (
@@ -221,7 +229,15 @@ def test_covering_a_short_matches_remove_holding(seed: int):
 
     assert covered_portfolio.cash == pytest.approx(removed_portfolio.cash)
     assert covered_portfolio.total_value == pytest.approx(removed_portfolio.total_value)
-    assert _positions(covered_portfolio) == pytest.approx(_positions(removed_portfolio))
+    pos_cov = _positions(covered_portfolio)
+    pos_rem = _positions(removed_portfolio)
+    assert set(pos_cov.keys()) == set(pos_rem.keys())
+    for k in pos_cov:
+        q1, b1, p1 = pos_cov[k]
+        q2, b2, p2 = pos_rem[k]
+        assert q1 == pytest.approx(q2)
+        assert b1 == pytest.approx(b2)
+        assert p1 == pytest.approx(p2)
     assert covered_portfolio.cash - (
         INITIAL_CASH + opened * price * (1 - commission - slippage)
     ) == (pytest.approx(cash_effect))
