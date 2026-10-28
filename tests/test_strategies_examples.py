@@ -7,14 +7,22 @@ import pandas as pd
 import pytest
 
 from quant_trading.strategies.examples import (
+    AccumulationDistributionStrategy,
     ADXStrategy,
+    AroonStrategy,
+    AwesomeOscillatorStrategy,
     AverageTrueRangeStrategy,
     BollingerBandsStrategy,
     BollingerPercentBStrategy,
+    CCIStrategy,
     ChaikinMoneyFlowStrategy,
+    ChaikinOscillatorStrategy,
     ChandeMomentumOscillatorStrategy,
+    ChoppinessIndexStrategy,
+    DetrendedPriceOscillatorStrategy,
     DonchianChannelStrategy,
     EaseOfMovementStrategy,
+    ElderRayStrategy,
     EMACrossover,
     ForceIndexStrategy,
     HullMovingAverageStrategy,
@@ -28,10 +36,15 @@ from quant_trading.strategies.examples import (
     NegativeVolumeIndexStrategy,
     OBVStrategy,
     ParabolicSARStrategy,
+    PercentagePriceOscillatorStrategy,
+    PercentageVolumeOscillatorStrategy,
     PositiveVolumeIndexStrategy,
+    RateOfChangeStrategy,
     RSIStrategy,
+    StochRSIStrategy,
     StochasticOscillatorStrategy,
     SuperTrendStrategy,
+    TrixStrategy,
     VolumeOscillatorStrategy,
     VolumePriceTrendStrategy,
     VolumeRateOfChangeStrategy,
@@ -4782,3 +4795,167 @@ class TestAverageTrueRangeStrategy:
         closes = [100.0, 100.0, 100.0, float("nan")]
         data = {"AAPL": create_average_true_range_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
+
+
+class TestCCIStrategy:
+    """Tests for CCIStrategy."""
+
+    def test_initialization(self):
+        strategy = CCIStrategy(period=20, threshold=100.0, name="Test_CCI")
+        assert strategy.name == "Test_CCI"
+        assert strategy.period == 20
+        assert strategy.threshold == 100.0
+
+    def test_validate_parameters(self):
+        with pytest.raises(ValueError, match="period must be positive"):
+            CCIStrategy(period=0)
+        with pytest.raises(ValueError, match="threshold must be positive"):
+            CCIStrategy(threshold=0)
+
+    def test_generate_signals_insufficient_data(self):
+        strategy = CCIStrategy(period=20)
+        data = {"AAPL": create_trending_data("AAPL", days=10)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_overbought(self):
+        strategy = CCIStrategy(period=5, threshold=10)
+        closes = [100] * 10 + [150] * 5  # strong move up at end
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+        for s in signals:
+            assert s.symbol == "AAPL"
+            assert s.action in ("buy", "sell")
+
+    def test_generate_signals_multi_symbol(self):
+        strategy = CCIStrategy(period=20, threshold=100)
+        data = {
+            "AAPL": create_trending_data("AAPL", days=60),
+            "MSFT": create_trending_data("MSFT", days=60),
+        }
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+        for s in signals:
+            assert s.symbol in ("AAPL", "MSFT")
+
+
+class TestAroonStrategy:
+    """Tests for AroonStrategy."""
+
+    def test_initialization(self):
+        strategy = AroonStrategy(period=25, name="Test_Aroon")
+        assert strategy.name == "Test_Aroon"
+        assert strategy.period == 25
+
+    def test_validate_parameters(self):
+        with pytest.raises(ValueError, match="period must be positive"):
+            AroonStrategy(period=0)
+
+    def test_generate_signals_insufficient_data(self):
+        strategy = AroonStrategy(period=25)
+        data = {"AAPL": create_trending_data("AAPL", days=10)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_returns_list(self):
+        strategy = AroonStrategy(period=14)
+        data = {"AAPL": create_trending_data("AAPL", days=60)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+        for s in signals:
+            assert s.symbol == "AAPL"
+            assert s.action in ("buy", "sell")
+
+
+class TestStochRSIStrategy:
+    """Tests for StochRSIStrategy."""
+
+    def test_initialization(self):
+        strategy = StochRSIStrategy(rsi_period=14, stoch_period=14, k_period=3, d_period=3, name="Test_StochRSI")
+        assert strategy.name == "Test_StochRSI"
+        assert strategy.rsi_period == 14
+
+    def test_validate_parameters(self):
+        with pytest.raises(ValueError, match="rsi_period must be positive"):
+            StochRSIStrategy(rsi_period=0)
+        with pytest.raises(ValueError, match="oversold must be between"):
+            StochRSIStrategy(oversold=0)
+        with pytest.raises(ValueError, match="overbought must be between"):
+            StochRSIStrategy(overbought=100)
+        with pytest.raises(ValueError, match="oversold must be less than overbought"):
+            StochRSIStrategy(oversold=50, overbought=40)
+
+    def test_generate_signals_insufficient_data(self):
+        strategy = StochRSIStrategy()
+        data = {"AAPL": create_trending_data("AAPL", days=10)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_multi_symbol(self):
+        strategy = StochRSIStrategy()
+        data = {
+            "AAPL": create_trending_data("AAPL", days=80),
+            "MSFT": create_trending_data("MSFT", days=80),
+        }
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+        for s in signals:
+            assert s.symbol in ("AAPL", "MSFT")
+            assert s.action in ("buy", "sell")
+
+
+class TestPercentagePriceOscillatorStrategy:
+    """Tests for PercentagePriceOscillatorStrategy."""
+
+    def test_initialization(self):
+        strategy = PercentagePriceOscillatorStrategy(fast_period=12, slow_period=26, signal_period=9, name="Test_PPO")
+        assert strategy.name == "Test_PPO"
+
+    def test_validate_parameters(self):
+        with pytest.raises(ValueError, match="fast_period must be positive"):
+            PercentagePriceOscillatorStrategy(fast_period=0)
+
+    def test_generate_signals_insufficient_data(self):
+        strategy = PercentagePriceOscillatorStrategy()
+        data = {"AAPL": create_trending_data("AAPL", days=10)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_returns_list(self):
+        strategy = PercentagePriceOscillatorStrategy()
+        data = {"AAPL": create_trending_data("AAPL", days=80)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+        for s in signals:
+            assert s.symbol == "AAPL"
+            assert s.action in ("buy", "sell")
+
+
+class TestChoppinessIndexStrategy:
+    """Tests for ChoppinessIndexStrategy."""
+
+    def test_initialization(self):
+        strategy = ChoppinessIndexStrategy(period=14, name="Test_CHOP")
+        assert strategy.name == "Test_CHOP"
+        assert strategy.period == 14
+
+    def test_validate_parameters(self):
+        strategy = ChoppinessIndexStrategy(period=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            strategy.validate_parameters()
+
+    def test_generate_signals_insufficient_data(self):
+        strategy = ChoppinessIndexStrategy(period=14)
+        data = {"AAPL": create_trending_data("AAPL", days=10)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_returns_list(self):
+        strategy = ChoppinessIndexStrategy(period=14)
+        data = {"AAPL": create_trending_data("AAPL", days=60)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+        for s in signals:
+            assert s.symbol == "AAPL"
+            assert s.action in ("buy", "sell")
