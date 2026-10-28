@@ -345,12 +345,12 @@ def _create_parser() -> argparse.ArgumentParser:
         "--risk-free-rate",
         type=float,
         default=None,
-        help=("Risk-free rate (defaults to config value, or 0.02 if not set)"),
+        help=("Risk-free rate (0.02 for 2%%)"),
     )
     parser.add_argument(
         "--provider",
         choices=["yfinance", "alphavantage", "synthetic"],
-        default="yfinance",
+        default=None,
         help="Data provider to use",
     )
     parser.add_argument(
@@ -713,13 +713,13 @@ def _create_parser() -> argparse.ArgumentParser:
         "--stoch-k-period",
         type=int,
         default=CLI_ARG_DEFAULTS["stoch_k_period"],
-        help="Stochastic K period",
+        help="Stochastic %%K period",
     )
     parser.add_argument(
         "--stoch-d-period",
         type=int,
         default=CLI_ARG_DEFAULTS["stoch_d_period"],
-        help="Stochastic D period",
+        help="Stochastic %%D period",
     )
     parser.add_argument(
         "--stoch-oversold",
