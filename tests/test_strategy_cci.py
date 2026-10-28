@@ -20,7 +20,7 @@ def create_data(days: int = 100, seed: int = 42) -> pd.DataFrame:
         },
         index=dates,
     )
-    return df
+    return df  # type: ignore[no-any-return]
 
 
 def test_cci_constructs_with_defaults():
