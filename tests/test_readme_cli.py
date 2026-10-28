@@ -18,7 +18,6 @@ that do not exist.
 
 import re
 from pathlib import Path
-from unittest.mock import patch
 
 from examples import cli
 

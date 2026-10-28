@@ -327,17 +327,13 @@ def _create_parser() -> argparse.ArgumentParser:
         "--initial-capital",
         type=float,
         default=None,
-        help=(
-            "Initial capital (defaults to config value, or 100000.0 if not set)"
-        ),
+        help=("Initial capital (defaults to config value, or 100000.0 if not set)"),
     )
     parser.add_argument(
         "--commission",
         type=float,
         default=None,
-        help=(
-            "Commission per trade (defaults to config value, or 0.001 if not set)"
-        ),
+        help=("Commission per trade (defaults to config value, or 0.001 if not set)"),
     )
     parser.add_argument(
         "--slippage",
@@ -402,9 +398,7 @@ def _create_parser() -> argparse.ArgumentParser:
         "--strategy",
         choices=BUILTIN_STRATEGY_KEYS,
         default="ma",
-        help=(
-            "Strategy to use (built-in keys). Use --list-strategies for full registry."
-        ),
+        help=("Strategy to use (built-in keys). Use --list-strategies for full registry."),
     )
     parser.add_argument(
         "--strategy-config",
@@ -842,9 +836,13 @@ def create_strategy(args: argparse.Namespace):
 
         # Generate the strategy name based on the strategy and parameters
         if args.strategy == "ma":
-            kwargs["name"] = f"MA_Crossover_{getattr(args, 'fast_period', CLI_ARG_DEFAULTS.get('fast_period'))}_{getattr(args, 'slow_period', CLI_ARG_DEFAULTS.get('slow_period'))}"
+            kwargs["name"] = (
+                f"MA_Crossover_{getattr(args, 'fast_period', CLI_ARG_DEFAULTS.get('fast_period'))}_{getattr(args, 'slow_period', CLI_ARG_DEFAULTS.get('slow_period'))}"
+            )
         elif args.strategy == "ema":
-            kwargs["name"] = f"EMA_Crossover_{getattr(args, 'fast_period', CLI_ARG_DEFAULTS.get('fast_period'))}_{getattr(args, 'slow_period', CLI_ARG_DEFAULTS.get('slow_period'))}"
+            kwargs["name"] = (
+                f"EMA_Crossover_{getattr(args, 'fast_period', CLI_ARG_DEFAULTS.get('fast_period'))}_{getattr(args, 'slow_period', CLI_ARG_DEFAULTS.get('slow_period'))}"
+            )
         elif args.strategy == "rsi":
             kwargs["name"] = f"RSI_{args.rsi_period}"
         elif args.strategy == "bb":
