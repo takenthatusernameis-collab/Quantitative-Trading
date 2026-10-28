@@ -2,39 +2,33 @@
 
 ## Repository state
 
-Checks: `python -m pytest -q` (2323 passed, 44 skipped, 0 failures; the 44 skips are network-dependent yfinance/alphavantage tests and expected), `python -m ruff check .` (clean), `python -m mypy quant_trading tests examples` (clean — 0 errors across 127 source files), `python -m black --check quant_trading tests examples` (clean — 127 files unchanged). Baseline is fully green across tests, lint, type checks, and formatting.
+Checks: `python -m pytest -q` → 2321 passed, 44 skipped, 2 failed (the 2 failures are pre-existing on HEAD: `test_default_args` asserts `args.provider is None` but `--provider` defaults to `"yfinance"`, and `test_the_help_text_renders` asserts `"0.02 for 2%"` which never existed in `cli.py`; neither was introduced or worsened this session). `python -m ruff check .` → clean. `python -m black --check quant_trading tests examples` → clean (127 files unchanged). `python -m mypy quant_trading tests examples` → clean, 0 errors across 127 source files. 44 skips are network-dependent yfinance/Alpha Vantage tests (expected offline).
 
 ## What changed (this session)
 
-Bounded task: document the previously-undocumented `--objective` CLI flag in the README.
-
-- The `--objective` flag (accepting `sharpe`, `sortino`, `return`, `calmar`, `drawdown`, `profit_factor`, `win_rate`) was wired into `examples/cli.py` in a prior session alongside `maximize_sortino`, but the README's optimization section never advertised it — the only `--optimize` example showed the default `sharpe` objective with no way for users to learn the other choices.
-- Added a `--objective` usage block to `README.md` between the existing `--optimize` example and the `--output-strategy-config` example, listing every accepted choice and showing `--objective sortino` in action.
-- No source code changed; the README already had an `--optimize` example block to anchor the insertion, so the edit was mechanical.
+- Fixed the broken lint baseline: removed a bare `try/except SystemExit: raise` (ruff TRY203/F841), added a `BLE001` noqa to the intentional broad `except Exception`, applied black formatting. `ruff check .` and `black --check` now pass (they were failing before this session with the installed tooling).
+- Registered 31 CLI arguments the parser was missing but the README documents and the code references (`--strategy`, `--objective`, `--optimize`, `--regime`, `--trade-analysis`, `--walk-forward`, `--output`, `--monte-carlo`, etc.), plus every strategy parameter from `CLI_ARG_DEFAULTS`. This resolved ~106 of the ~108 pre-existing test failures.
+- Fixed `quant_trading/regime/detector.py` so a `None` regime threshold is treated like `<= 0` (derived from the data) instead of crashing with a `TypeError`.
+- Adjusted defaults to match the `tests/test_cli.py` contract (`--regime-vol-threshold`/`--regime-return-threshold` → `0.0`, `--mc-seed` → `None`).
 
 ## What was actually verified
 
-- `python -m pytest -q` → 2323 passed, 44 skipped, 0 failures (~472s).
-- `python -m pytest tests/test_readme_cli.py tests/test_readme.py tests/test_repository_integrity.py -q` → 28 passed. The README/CLI sync guards confirm the documented `--objective` flag and its choices match the live parser's `OBJECTIVES` dict.
-- `python -m pytest tests/test_optimization.py -q` → 112 passed (includes `maximize_sortino` from prior session).
-- `python -m pytest --doctest-modules quant_trading/optimization/base.py -q` → 12 passed.
+- `python -m ruff check .` → All checks passed.
 - `python -m black --check quant_trading tests examples` → clean.
-- `python -m ruff check .` → clean.
 - `python -m mypy quant_trading tests examples` → clean, 0 errors.
-- `import skopt` → skopt 0.10.2 imports cleanly; Bayesian optimization tests pass.
+- `python -m pytest -q` → 2321 passed, 44 skipped, 2 failed (both pre-existing on HEAD).
+- `python -m pytest tests/test_readme_cli.py tests/test_readme_cli_commands.py -q` → all pass.
 
 ## What remains unresolved
 
-- 44 tests in `tests/test_readme_cli_commands.py` still skipped: require network access (yfinance/alphavantage). Environment gap, not a code regression.
+- 2 pre-existing `tests/test_cli.py` failures (fail on HEAD; out of scope for this session).
+- 44 network-dependent tests skipped offline.
 
 ## Approaches that failed and why
 
-- None. The gap was a single missing documentation block; the insertion followed the existing `--optimize` example's style and was verified by the README/CLI sync tests.
+- None.
 
 ## One precise next task
 
-- No required work. All checks green. Optional follow-up: re-verify baseline (`python -m pytest -q`, `ruff`, `mypy`, `black --check`) after any dependency/environment change; otherwise nothing remains.
-
-Constraints:
-- Keep `black`, `ruff`, `mypy` clean for changed files and the full suite green.
-- Do NOT commit unless explicitly asked.
+- Keep the full suite green on any change. The only true to-do is the 2 pre-existing `test_cli.py` failures (`provider` default, `--help` text), which fail on HEAD and are unrelated to this session's work — decide whether to take them on; otherwise nothing remains.
+- Constraints: keep `ruff`, `black`, `mypy` clean for changed files; full suite green (modulo the 2 pre-existing + 44 network skips); do NOT commit unless explicitly asked; do not disable tests to hide failures.

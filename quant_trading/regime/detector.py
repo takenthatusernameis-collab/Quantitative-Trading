@@ -367,11 +367,11 @@ class RegimeDetector:
         rolling_mean = returns.rolling(self.window).mean() * self.periods_per_year
 
         vol_threshold = self.vol_threshold
-        if vol_threshold <= 0:
+        if vol_threshold is None or vol_threshold <= 0:
             vol_threshold = float(rolling_vol.mean())
 
         ret_threshold = self.return_threshold
-        if ret_threshold <= 0:
+        if ret_threshold is None or ret_threshold <= 0:
             ret_threshold = float(rolling_mean.mean()) if not np.isnan(rolling_mean.mean()) else 0.0
 
         segments = self._build_segments(

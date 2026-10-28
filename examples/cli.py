@@ -394,16 +394,387 @@ def _create_parser() -> argparse.ArgumentParser:
         default=None,
         help="Path to YAML config file",
     )
+    parser.add_argument(
+        "--strategy",
+        default="ma",
+        help="Strategy to run (default: ma)",
+    )
+    parser.add_argument(
+        "--strategy-config",
+        type=str,
+        metavar="PATH",
+        help="Path to a YAML strategy configuration (overrides --strategy)",
+    )
+    parser.add_argument(
+        "--bb-period",
+        type=float,
+        default=CLI_ARG_DEFAULTS["bb_period"],
+        help="Bollinger Bands period (default: 20)",
+    )
+    parser.add_argument(
+        "--bb-std",
+        type=float,
+        default=CLI_ARG_DEFAULTS["bb_std"],
+        help="Bollinger Bands standard-deviation multiplier (default: 2.0)",
+    )
+    parser.add_argument(
+        "--ma-fast-range",
+        type=str,
+        default="5,15,5",
+        help="Fast MA range for optimization as 'min,max,step' (default: 5,15,5)",
+    )
+    parser.add_argument(
+        "--ma-slow-range",
+        type=str,
+        default="20,30,10",
+        help="Slow MA range for optimization as 'min,max,step' (default: 20,30,10)",
+    )
+    parser.add_argument(
+        "--optimize",
+        action="store_true",
+        help="Run parameter optimization instead of a single backtest",
+    )
+    parser.add_argument(
+        "--optimizer",
+        choices=list(OPTIMIZERS),
+        default="grid",
+        help="Optimizer: grid, random, or bayesian (default: grid)",
+    )
+    parser.add_argument(
+        "--objective",
+        choices=list(OBJECTIVES),
+        default="sharpe",
+        help="Optimization objective: sharpe, sortino, return, calmar, drawdown, profit_factor, or win_rate (default: sharpe)",
+    )
+    parser.add_argument(
+        "--n-iter",
+        type=int,
+        default=50,
+        help="Number of iterations for random/bayesian optimization (default: 50)",
+    )
+    parser.add_argument(
+        "--n-jobs",
+        type=int,
+        default=1,
+        help="Number of parallel jobs (default: 1)",
+    )
+    parser.add_argument(
+        "--bayesian-n-initial",
+        type=int,
+        default=10,
+        help="Initial random points for Bayesian optimization (default: 10)",
+    )
+    parser.add_argument(
+        "--bayesian-acq-func",
+        choices=["EI", "PI", "LCB", "gp_hedge"],
+        default="EI",
+        help="Bayesian acquisition function (default: EI)",
+    )
+    parser.add_argument(
+        "--bayesian-acq-optimizer",
+        choices=["auto", "sampling", "lbfgs"],
+        default="auto",
+        help="Bayesian acquisition optimizer (default: auto)",
+    )
+    parser.add_argument(
+        "--combined",
+        action="store_true",
+        help="Run all strategies and compare results",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        metavar="PATH",
+        help="Write results to PATH (JSON or CSV)",
+    )
+    parser.add_argument(
+        "--output-format",
+        choices=["json", "csv"],
+        default=None,
+        help="Output format: json or csv (default: inferred from extension)",
+    )
+    parser.add_argument(
+        "--output-strategy-config",
+        type=str,
+        metavar="PATH",
+        help="Write the (best) strategy configuration to PATH",
+    )
+    parser.add_argument(
+        "--regime",
+        action="store_true",
+        help="Run market regime analysis on the equity curve",
+    )
+    parser.add_argument(
+        "--regime-window",
+        type=int,
+        default=20,
+        help="Regime detection rolling window (default: 20)",
+    )
+    parser.add_argument(
+        "--regime-vol-threshold",
+        type=float,
+        default=0.0,
+        help="Explicit annualized volatility threshold for regime detection (0.0 derives it from the data)",
+    )
+    parser.add_argument(
+        "--regime-return-threshold",
+        type=float,
+        default=0.0,
+        help="Explicit annualized return threshold for regime detection (0.0 derives it from the data)",
+    )
+    parser.add_argument(
+        "--monte-carlo",
+        action="store_true",
+        help="Run Monte Carlo simulation on the equity curve",
+    )
+    parser.add_argument(
+        "--mc-simulations",
+        type=int,
+        default=1000,
+        help="Number of Monte Carlo simulations (default: 1000)",
+    )
+    parser.add_argument(
+        "--mc-method",
+        choices=["bootstrap", "parametric"],
+        default="bootstrap",
+        help="Monte Carlo method: bootstrap or parametric (default: bootstrap)",
+    )
+    parser.add_argument(
+        "--mc-confidence",
+        type=float,
+        default=0.95,
+        help="Monte Carlo confidence level (default: 0.95)",
+    )
+    parser.add_argument(
+        "--mc-seed",
+        type=int,
+        default=None,
+        help="Monte Carlo random seed (default: nondeterministic)",
+    )
+    parser.add_argument(
+        "--trade-analysis",
+        action="store_true",
+        help="Run detailed trade-level analysis",
+    )
+    parser.add_argument(
+        "--walk-forward",
+        action="store_true",
+        help="Run walk-forward optimization",
+    )
+    parser.add_argument(
+        "--wf-windows",
+        type=int,
+        default=5,
+        help="Number of walk-forward windows (default: 5)",
+    )
+    parser.add_argument(
+        "--wf-train-size",
+        type=float,
+        default=0.7,
+        help="Walk-forward training fraction (default: 0.7)",
+    )
+    parser.add_argument(
+        "--wf-anchored",
+        action="store_true",
+        default=True,
+        help="Use expanding (anchored) walk-forward windows (default)",
+    )
+    parser.add_argument(
+        "--wf-rolling",
+        action="store_false",
+        dest="wf_anchored",
+        help="Use sliding (rolling) walk-forward windows",
+    )
+    parser.add_argument(
+        "--wf-optimizer",
+        choices=list(OPTIMIZERS),
+        default="grid",
+        help="Inner walk-forward optimizer: grid, random, or bayesian",
+    )
+    parser.add_argument(
+        "--fast-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["fast_period"],
+        help="Fast period for moving-average crossover strategies",
+    )
+    parser.add_argument(
+        "--slow-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["slow_period"],
+        help="Slow period for moving-average crossover strategies",
+    )
+    parser.add_argument(
+        "--rsi-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["rsi_period"],
+        help="RSI period",
+    )
+    parser.add_argument(
+        "--rsi-oversold",
+        type=int,
+        default=CLI_ARG_DEFAULTS["rsi_oversold"],
+        help="RSI oversold level",
+    )
+    parser.add_argument(
+        "--rsi-overbought",
+        type=int,
+        default=CLI_ARG_DEFAULTS["rsi_overbought"],
+        help="RSI overbought level",
+    )
+    parser.add_argument(
+        "--macd-fast",
+        type=int,
+        default=CLI_ARG_DEFAULTS["macd_fast"],
+        help="MACD fast period",
+    )
+    parser.add_argument(
+        "--macd-slow",
+        type=int,
+        default=CLI_ARG_DEFAULTS["macd_slow"],
+        help="MACD slow period",
+    )
+    parser.add_argument(
+        "--macd-signal",
+        type=int,
+        default=CLI_ARG_DEFAULTS["macd_signal"],
+        help="MACD signal period",
+    )
+    parser.add_argument(
+        "--macd-zero-line",
+        action="store_true",
+        help="Use the MACD zero line for crossovers",
+    )
+    parser.add_argument(
+        "--st-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["st_period"],
+        help="SuperTrend period",
+    )
+    parser.add_argument(
+        "--st-multiplier",
+        type=float,
+        default=CLI_ARG_DEFAULTS["st_multiplier"],
+        help="SuperTrend multiplier",
+    )
+    parser.add_argument(
+        "--dc-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["dc_period"],
+        help="Donchian Channel period",
+    )
+    parser.add_argument(
+        "--dc-exit-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["dc_exit_period"],
+        help="Donchian Channel exit period",
+    )
+    parser.add_argument(
+        "--aroon-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["aroon_period"],
+        help="Aroon period",
+    )
+    parser.add_argument(
+        "--kc-ema-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["kc_ema_period"],
+        help="Keltner Channel EMA period",
+    )
+    parser.add_argument(
+        "--kc-atr-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["kc_atr_period"],
+        help="Keltner Channel ATR period",
+    )
+    parser.add_argument(
+        "--kc-multiplier",
+        type=float,
+        default=CLI_ARG_DEFAULTS["kc_multiplier"],
+        help="Keltner Channel multiplier",
+    )
+    parser.add_argument(
+        "--kc-use-middle-cross",
+        action="store_true",
+        help="Keltner Channel middle cross",
+    )
+    parser.add_argument(
+        "--atr-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["atr_period"],
+        help="ATR period",
+    )
+    parser.add_argument(
+        "--atr-multiplier",
+        type=float,
+        default=CLI_ARG_DEFAULTS["atr_multiplier"],
+        help="ATR multiplier",
+    )
+    parser.add_argument(
+        "--stoch-k-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["stoch_k_period"],
+        help="Stochastic K period",
+    )
+    parser.add_argument(
+        "--stoch-d-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["stoch_d_period"],
+        help="Stochastic D period",
+    )
+    parser.add_argument(
+        "--stoch-oversold",
+        type=int,
+        default=CLI_ARG_DEFAULTS["stoch_oversold"],
+        help="Stochastic oversold level",
+    )
+    parser.add_argument(
+        "--stoch-overbought",
+        type=int,
+        default=CLI_ARG_DEFAULTS["stoch_overbought"],
+        help="Stochastic overbought level",
+    )
+    parser.add_argument(
+        "--stoch-use-midline",
+        action="store_true",
+        help="Stochastic midline",
+    )
+    parser.add_argument(
+        "--tenkan-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["tenkan_period"],
+        help="Ichimoku Tenkan period",
+    )
+    parser.add_argument(
+        "--kijun-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["kijun_period"],
+        help="Ichimoku Kijun period",
+    )
+    parser.add_argument(
+        "--senkou-b-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["senkou_b_period"],
+        help="Ichimoku Senkou B period",
+    )
+    parser.add_argument(
+        "--sar-step",
+        type=float,
+        default=CLI_ARG_DEFAULTS["sar_step"],
+        help="Parabolic SAR step",
+    )
+    parser.add_argument(
+        "--sar-max-step",
+        type=float,
+        default=CLI_ARG_DEFAULTS["sar_max_step"],
+        help="Parabolic SAR max step",
+    )
 
     return parser
 
+
 def parse_args() -> argparse.Namespace:
-    try:
-        parser = _create_parser()
-        args = parser.parse_args()
-    except SystemExit as e:
-        # If argparse exits due to invalid choice/usage, re-raise to be caught
-        raise
+    parser = _create_parser()
+    args = parser.parse_args()
     _validate_range_arguments(args)
     if args.mc_simulations < 1:
         raise ValueError(
@@ -1518,7 +1889,7 @@ def _run_cli() -> int:
         # argparse already printed usage/error to stderr; convert to exit code 1
         code = e.code if isinstance(e.code, int) else 1
         return 1 if code != 0 else 0
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 -- intentional broad catch for one-line error reporting
         print(f"Error: {e}")
         return 1
 
