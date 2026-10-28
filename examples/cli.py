@@ -401,7 +401,7 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--strategy",
         choices=BUILTIN_STRATEGY_KEYS,
-        default=None,
+        default="ma",
         help=(
             "Strategy to use (built-in keys). Use --list-strategies for full registry."
         ),
@@ -751,6 +751,8 @@ def _validate_range_arguments(args: argparse.Namespace) -> None:
 
 def create_strategy(args: argparse.Namespace):
     """Create strategy instance from args using the factory registry."""
+    if getattr(args, "strategy", None) is None:
+        args.strategy = "ma"
     # If strategy config file is provided, use it
     strategy_config_path = getattr(args, "strategy_config", None)
     if strategy_config_path:
@@ -840,9 +842,9 @@ def create_strategy(args: argparse.Namespace):
 
         # Generate the strategy name based on the strategy and parameters
         if args.strategy == "ma":
-            kwargs["name"] = f"MA_Crossover_{args.fast_period}_{args.slow_period}"
+            kwargs["name"] = f"MA_Crossover_{getattr(args, 'fast_period', CLI_ARG_DEFAULTS.get('fast_period'))}_{getattr(args, 'slow_period', CLI_ARG_DEFAULTS.get('slow_period'))}"
         elif args.strategy == "ema":
-            kwargs["name"] = f"EMA_Crossover_{args.fast_period}_{args.slow_period}"
+            kwargs["name"] = f"EMA_Crossover_{getattr(args, 'fast_period', CLI_ARG_DEFAULTS.get('fast_period'))}_{getattr(args, 'slow_period', CLI_ARG_DEFAULTS.get('slow_period'))}"
         elif args.strategy == "rsi":
             kwargs["name"] = f"RSI_{args.rsi_period}"
         elif args.strategy == "bb":
@@ -1967,10 +1969,13 @@ def run_combined(
         # Create a copy of args with the current strategy
         strategy_args = argparse.Namespace(**vars(args))
         strategy_args.strategy = strategy_key
+        for _k, _v in CLI_ARG_DEFAULTS.items():
+            if getattr(strategy_args, _k, None) is None:
+                setattr(strategy_args, _k, _v)
         # Set defaults for strategy-specific args
         if strategy_key == "donchian":
             strategy_args.dc_period = getattr(args, "dc_period", 20)
-            strategy_args.dc_exit_period = getattr(args, "dc_exit_period", None)
+            strategy_args.dc_exit_period = getattr(args, "dc_exit_period", 20)
         elif strategy_key == "aroon":
             strategy_args.aroon_period = getattr(args, "aroon_period", 25)
         elif strategy_key == "keltner":
