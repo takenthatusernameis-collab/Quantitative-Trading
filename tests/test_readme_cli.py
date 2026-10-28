@@ -62,15 +62,18 @@ def _documented_cli_flags() -> set[str]:
 def _parser_cli_flags() -> set[str]:
     """Return the set of flags the live ``parse_args()`` parser accepts.
 
-    Built from the namespace produced by ``parse_args()`` rather than by
-    scanning ``add_argument`` calls, so a flag that shares its destination
-    with another (for example ``--wf-rolling``, which sets the same
-    ``wf_anchored`` attribute as ``--wf-anchored``) is counted exactly once
-    and reflects the flags a user can actually pass.
+    Built by scanning every option string registered on the parser's actions,
+    so flags that share a destination with another (for example ``--wf-rolling``,
+    which sets the same ``wf_anchored`` attribute as ``--wf-anchored``) are all
+    counted and reflect the flags a user can actually pass.
     """
-    with patch("sys.argv", ["cli.py"]):
-        args = cli.parse_args()
-    return {name.replace("_", "-") for name in vars(args)}
+    parser = cli._create_parser()
+    flags: set[str] = set()
+    for action in parser._actions:
+        for option in action.option_strings:
+            if option.startswith("--"):
+                flags.add(option.lstrip("-"))
+    return flags
 
 
 class TestReadmeCliFlags:

@@ -352,6 +352,31 @@ the strategy constructor. A `--strategy-config` file overrides `--strategy` and
 every individual `--*-period` / `--*-multiplier` flag that would have set the
 same parameter.
 
+The optimizer that searches the parameter space is selected with `--optimizer`,
+which accepts `grid` (default), `random`, and `bayesian`:
+
+```bash
+python examples/cli.py --offline --optimize --strategy ma \
+    --optimizer bayesian \
+    --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
+    --symbols AAPL --days 120
+```
+
+The `random` and `bayesian` optimizers evaluate a fixed number of parameter
+combinations, set with `--n-iter` (default 50). The number of parallel jobs is
+controlled with `--n-jobs` (default 1). The Bayesian optimizer additionally
+accepts `--bayesian-n-initial` (initial random points, default 10),
+`--bayesian-acq-func` (acquisition function: `EI`, `PI`, `LCB`, `gp_hedge`;
+default `EI`), and `--bayesian-acq-optimizer` (`auto`, `sampling`, `lbfgs`;
+default `auto`):
+
+```bash
+python examples/cli.py --offline --optimize --strategy ma \
+    --optimizer random --n-iter 200 --n-jobs 4 \
+    --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
+    --symbols AAPL --days 120
+```
+
 The objective that the optimizer maximizes (or minimizes, for drawdown) is
 selected with `--objective`, which accepts `sharpe` (default), `sortino`,
 `return`, `calmar`, `drawdown`, `profit_factor`, and `win_rate`:
@@ -376,6 +401,26 @@ python examples/cli.py --offline --optimize --strategy ma \
     --output-strategy-config best_ma.yaml
 python examples/cli.py --offline --strategy-config best_ma.yaml --symbols AAPL --days 120
 ```
+
+### Walk-Forward Optimization
+
+Instead of optimizing once over the whole history, walk-forward optimization
+re-optimizes inside sliding windows and measures out-of-sample parameter
+stability. It is enabled with `--walk-forward`, which accepts the same
+`--optimizer` and `--objective` flags as the single optimization:
+
+```bash
+python examples/cli.py --offline --walk-forward --strategy ma \
+    --wf-windows 5 --wf-train-size 0.7 \
+    --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
+    --symbols AAPL --days 365
+```
+
+The windows are controlled with `--wf-windows` (number of windows, default 5),
+`--wf-train-size` (training fraction, default 0.7), and either `--wf-anchored`
+(expanding windows, the default) or `--wf-rolling` (sliding windows). The
+optimizer used inside each window is selected with `--wf-optimizer`
+(`grid`, `random`, or `bayesian`; default `grid`).
 
 ### Output
 
