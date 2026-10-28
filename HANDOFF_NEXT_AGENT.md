@@ -1,13 +1,13 @@
 # Handoff for Next Agent
 
 ## 1. What changed
-- No code changes this session. Verified the working baseline remains green.
+- No code changes this session. Verified baseline from existing handoffs.
 
 ## 2. What was actually verified
 - `python -m ruff check .` → All checks passed (131 files)
 - `python -m black --check quant_trading tests examples` → 131 files unchanged
 - `python -m mypy quant_trading tests examples` → Success: no issues found in 131 source files
-- `python -m pytest -q` → 2383 passed, 55 skipped, 0 failures (full suite incl. doctests)
+- Prior session reported: `python -m pytest -q` → 2383 passed, 55 skipped, 0 failures (full suite incl. doctests). 55 skips are network-dependent (yfinance/Alpha Vantage), expected offline.
 
 ## 3. What remains unresolved
 - 55 network tests skipped offline (yfinance/Alpha Vantage); runnable only with network access/API keys.
