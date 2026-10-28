@@ -1,9 +1,7 @@
 """Tests that keep the README in sync with the code it documents."""
 
 import ast
-import contextlib
 import importlib
-import io
 import re
 from pathlib import Path
 
@@ -527,8 +525,11 @@ def _pinned_readme_blocks() -> list[tuple[str, list[str], str, str]]:
                 pinned.append((str(index), lines[:position], code, inline.group("value")))
                 continue
             # Standalone comment annotating the previous expression line.
-            standalone = re.match(r"^\s*#\s*(?P<value>-?\d+(?:\.\d+)?|True|False|None|"
-                                  r"\[[^\]]*\]|'[^']*'|\"[^\"]*\")\s*$", line)
+            standalone = re.match(
+                r"^\s*#\s*(?P<value>-?\d+(?:\.\d+)?|True|False|None|"
+                r"\[[^\]]*\]|'[^']*'|\"[^\"]*\")\s*$",
+                line,
+            )
             if not standalone or position == 0:
                 continue
             code = lines[position - 1].strip()
@@ -584,19 +585,11 @@ class TestReadmeCodeBlockOutputs:
             namespace = dict(shared)
             # Execute the snippet's setup statements first, so expressions
             # that reference names defined earlier in the block resolve.
-            setup_ok = True
-            for statement in prefix_lines:
-                if not statement.strip():
-                    continue
-                try:
-                    exec(statement, namespace)  # noqa: S102
-                except Exception as exc:  # noqa: BLE001 - report setup failures
-                    offenders.append(
-                        f"README block {block_index}: setup {statement!r} raised {exc!r}"
-                    )
-                    setup_ok = False
-                    break
-            if not setup_ok:
+            setup_code = "\n".join(prefix_lines)
+            try:
+                exec(setup_code, namespace)  # noqa: S102
+            except Exception as exc:  # noqa: BLE001 - report setup failures
+                offenders.append(f"README block {block_index}: setup {setup_code!r} raised {exc!r}")
                 continue
             # A snippet written as ``print(expr)  # value`` documents the
             # *argument* of the print, so evaluate the argument rather than
@@ -606,11 +599,9 @@ class TestReadmeCodeBlockOutputs:
             if call_match:
                 eval_code = call_match.group(1)
             try:
-                value = eval(eval_code, {"__builtins__": {}}, namespace)  # noqa: S307
+                value = eval(eval_code, {"__builtins__": {}}, namespace)
             except Exception as exc:  # noqa: BLE001 - report any evaluation failure
-                offenders.append(
-                    f"README block {block_index}: snippet {code!r} raised {exc!r}"
-                )
+                offenders.append(f"README block {block_index}: snippet {code!r} raised {exc!r}")
                 continue
             actual = repr(value)
             if actual != expected:
