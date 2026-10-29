@@ -607,6 +607,12 @@ class SuperTrendStrategy(Strategy):
 
     The SuperTrend line acts as a dynamic support/resistance level that trails price
     based on volatility.
+
+    Examples:
+        >>> from quant_trading.strategies.examples import SuperTrendStrategy
+        >>> s = SuperTrendStrategy(period=10, multiplier=3.0)
+        >>> s.period, s.multiplier
+        (10, 3.0)
     """
 
     def __init__(
@@ -1086,6 +1092,12 @@ class DonchianChannelStrategy(Strategy):
     - Middle Band: Average of upper and lower bands
 
     This is a classic trend-following breakout strategy.
+
+    Examples:
+        >>> from quant_trading.strategies.examples import DonchianChannelStrategy
+        >>> s = DonchianChannelStrategy(period=20, exit_period=10)
+        >>> s.period, s.exit_period
+        (20, 10)
     """
 
     def __init__(
