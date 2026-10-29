@@ -447,6 +447,12 @@ class BollingerPercentBStrategy(Strategy):
     threshold and a sell when it crosses above the overbought threshold.
 
     Requires a ``"close"`` column.
+
+    Examples:
+        >>> from quant_trading.strategies.examples import BollingerPercentBStrategy
+        >>> s = BollingerPercentBStrategy(period=20, std_dev=2.0, oversold=0.2, overbought=0.8)
+        >>> s.period, s.std_dev, s.oversold, s.overbought
+        (20, 2.0, 0.2, 0.8)
     """
 
     def __init__(
@@ -1377,6 +1383,12 @@ class AroonStrategy(Strategy):
     - When Aroon Down crosses above Aroon Up: potential downtrend (sell signal)
     - Extreme values (>70) indicate strong trends
     - Values near 0 indicate weak trends or consolidation
+
+    Examples:
+        >>> from quant_trading.strategies.examples import AroonStrategy
+        >>> s = AroonStrategy(period=25)
+        >>> s.period
+        25
     """
 
     def __init__(
