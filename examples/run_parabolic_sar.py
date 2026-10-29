@@ -45,7 +45,7 @@ def main() -> None:
     end_date = datetime.now()
     start_date = end_date - timedelta(days=365)
 
-    provider = create_synthetic_provider(symbols, days=365, seed=42)
+    provider = create_synthetic_provider(symbols, days=365, seed=42, end_date=end_date)
     data_manager = DataManager([provider])
 
     config = BacktestConfig(
