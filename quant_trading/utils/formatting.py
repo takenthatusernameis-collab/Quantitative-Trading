@@ -12,6 +12,11 @@ def format_currency(value: float, currency: str = "$", decimals: int = 2) -> str
     Returns:
         Formatted currency string.
 
+    >>> format_currency(1234.5)
+    '$1,234.50'
+    >>> format_currency(-1000, decimals=0)
+    '-$1,000'
+
     """
     sign = "-" if value < 0 else ""
     formatted = f"{abs(value):,.{decimals}f}"
@@ -28,6 +33,11 @@ def format_percent(value: float, decimals: int = 2) -> str:
     Returns:
         Formatted percentage string.
 
+    >>> format_percent(0.05)
+    '5.00%'
+    >>> format_percent(1.5, decimals=1)
+    '150.0%'
+
     """
     return f"{value * 100:.{decimals}f}%"
 
@@ -41,6 +51,11 @@ def format_number(value: float, decimals: int = 0) -> str:
 
     Returns:
         Formatted number string.
+
+    >>> format_number(1234567)
+    '1,234,567'
+    >>> format_number(1234.5678, decimals=2)
+    '1,234.57'
 
     """
     return f"{value:,.{decimals}f}"
