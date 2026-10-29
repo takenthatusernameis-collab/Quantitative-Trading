@@ -2024,8 +2024,13 @@ class IchimokuCloudStrategy(Strategy):
     Trading signals:
     - Buy when Tenkan-sen crosses above Kijun-sen and price is above the cloud
     - Sell when Tenkan-sen crosses below Kijun-sen and price is below the cloud
-    """
 
+    Examples:
+        >>> from quant_trading.strategies.examples import IchimokuCloudStrategy
+        >>> s = IchimokuCloudStrategy(tenkan_period=9, kijun_period=26, senkou_b_period=52)
+        >>> s.tenkan_period, s.kijun_period, s.senkou_b_period
+        (9, 26, 52)
+    """
     def __init__(
         self,
         tenkan_period: int = 9,
@@ -2199,8 +2204,13 @@ class VWAPStrategy(Strategy):
     Trading signals:
     - Buy when price crosses above VWAP
     - Sell when price crosses below VWAP
-    """
 
+    Examples:
+        >>> from quant_trading.strategies.examples import VWAPStrategy
+        >>> s = VWAPStrategy()
+        >>> s.name
+        'VWAP'
+    """
     def __init__(self, name: str = "VWAP"):
         """Initialize the VWAP strategy.
 
@@ -2307,6 +2317,12 @@ class ParabolicSARStrategy(Strategy):
     Trading signals:
         - Buy when price crosses above the SAR (trend changes to bullish)
         - Sell when price crosses below the SAR (trend changes to bearish)
+
+    Examples:
+        >>> from quant_trading.strategies.examples import ParabolicSARStrategy
+        >>> s = ParabolicSARStrategy(step=0.02, max_step=0.20)
+        >>> s.step, s.max_step
+        (0.02, 0.2)
     """
 
     def __init__(
@@ -2538,8 +2554,13 @@ class EMACrossover(Strategy):
         fast_period (int): Lookback window for the fast EMA (default: 12)
         slow_period (int): Lookback window for the slow EMA (default: 26)
 
-    """
+    Examples:
+        >>> from quant_trading.strategies.examples import EMACrossover
+        >>> s = EMACrossover(fast_period=12, slow_period=26)
+        >>> s.fast_period, s.slow_period
+        (12, 26)
 
+    """
     def __init__(
         self,
         fast_period: int = 12,
@@ -2677,8 +2698,13 @@ class MomentumStrategy(Strategy):
     Trading signals:
         - Buy when momentum > threshold (positive momentum)
         - Sell when momentum < -threshold (negative momentum)
-    """
 
+    Examples:
+        >>> from quant_trading.strategies.examples import MomentumStrategy
+        >>> s = MomentumStrategy(period=10, threshold=0.01)
+        >>> s.period, s.threshold
+        (10, 0.01)
+    """
     def __init__(
         self,
         period: int = 10,
