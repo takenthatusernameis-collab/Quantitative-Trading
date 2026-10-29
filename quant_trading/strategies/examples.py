@@ -3636,6 +3636,12 @@ class ChaikinMoneyFlowStrategy(Strategy):
     Trading signals:
     - Buy when CMF crosses above zero (selling pressure turns to buying pressure).
     - Sell when CMF crosses below zero (buying pressure turns to selling pressure).
+
+    Examples:
+        >>> from quant_trading.strategies.examples import ChaikinMoneyFlowStrategy
+        >>> s = ChaikinMoneyFlowStrategy(period=20)
+        >>> s.period
+        20
     """
 
     def __init__(self, period: int = 20, name: str = "Chaikin_Money_Flow"):
