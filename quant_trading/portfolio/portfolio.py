@@ -1,27 +1,29 @@
 """Portfolio and holding data structures.
 
-Examples:
-    Create a portfolio, add a holding, and inspect its value::
+>>> from quant_trading.portfolio.portfolio import Portfolio
+>>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+>>> portfolio.add_holding("AAPL", 100, 150.0)
+>>> portfolio.update_prices({"AAPL": 160.0})
+>>> portfolio.get_position_value("AAPL")
+16000.0
+>>> portfolio.get_position_pct("AAPL") > 0.0
+True
 
-        from quant_trading.portfolio.portfolio import Portfolio
+Reset the portfolio to a fresh cash balance::
 
-        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
-        portfolio.add_holding("AAPL", 100, 150.0)
-        portfolio.update_prices({"AAPL": 160.0})
-        assert portfolio.get_position_value("AAPL") == 16000.0
-        assert portfolio.get_position_pct("AAPL") > 0.0
+>>> portfolio.reset(200000.0)
+>>> portfolio.cash
+200000.0
+>>> len(portfolio.holdings)
+0
 
-    Reset the portfolio to a fresh cash balance::
+Produce a serializable summary of portfolio state::
 
-        portfolio.reset(200000.0)
-        assert portfolio.cash == 200000.0
-        assert len(portfolio.holdings) == 0
-
-    Produce a serializable summary of portfolio state::
-
-        summary = portfolio.summary()
-        assert summary["num_positions"] == 0
-        assert summary["pnl"] == 0.0
+>>> summary = portfolio.summary()
+>>> summary["num_positions"]
+0
+>>> summary["pnl"]
+0.0
 
 """
 
@@ -47,28 +49,33 @@ class Holding:
     Examples:
         Create a holding and inspect its unrealized PnL::
 
-            from quant_trading.portfolio.portfolio import Holding
-
-            holding = Holding(
-                symbol="AAPL", quantity=100, avg_cost=100.0, current_price=150.0
-            )
-            assert holding.unrealized_pnl == 5000.0
-            assert holding.unrealized_pnl_pct == 0.5
+            >>> from quant_trading.portfolio.portfolio import Holding
+            >>> holding = Holding(
+            ...     symbol="AAPL", quantity=100, avg_cost=100.0, current_price=150.0
+            ... )
+            >>> holding.unrealized_pnl
+            5000.0
+            >>> holding.unrealized_pnl_pct
+            0.5
 
         A short with the same prices is the mirror image: its PnL and its
         percentage are the negation of the long's::
 
-            holding = Holding(
-                symbol="AAPL", quantity=-100, avg_cost=100.0, current_price=150.0
-            )
-            assert holding.unrealized_pnl == -5000.0
-            assert holding.unrealized_pnl_pct == -0.5
+            >>> holding = Holding(
+            ...     symbol="AAPL", quantity=-100, avg_cost=100.0, current_price=150.0
+            ... )
+            >>> holding.unrealized_pnl
+            -5000.0
+            >>> holding.unrealized_pnl_pct
+            -0.5
 
         A zero-quantity holding reports 0.0 for both::
 
-            holding = Holding(symbol="AAPL", quantity=0, avg_cost=100.0, current_price=150.0)
-            assert holding.unrealized_pnl == 0.0
-            assert holding.unrealized_pnl_pct == 0.0
+            >>> holding = Holding(symbol="AAPL", quantity=0, avg_cost=100.0, current_price=150.0)
+            >>> holding.unrealized_pnl
+            0.0
+            >>> holding.unrealized_pnl_pct
+            0.0
 
     """
 
@@ -173,13 +180,14 @@ class Portfolio:
     Examples:
         Create a portfolio and track a position through a price update::
 
-            from quant_trading.portfolio.portfolio import Portfolio
-
-            portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
-            portfolio.add_holding("AAPL", 100, 100.0)
-            portfolio.update_prices({"AAPL": 120.0})
-            assert portfolio.holdings["AAPL"].market_value == 12000.0
-            assert portfolio.summary()["num_positions"] == 1
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            >>> portfolio.add_holding("AAPL", 100, 100.0)
+            >>> portfolio.update_prices({"AAPL": 120.0})
+            >>> portfolio.holdings["AAPL"].market_value
+            12000.0
+            >>> portfolio.summary()["num_positions"]
+            1
 
     """
 
