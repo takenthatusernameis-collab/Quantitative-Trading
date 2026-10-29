@@ -1,19 +1,40 @@
 """Monte Carlo simulation for backtest strategy analysis.
 
-Examples:
-    Run a bootstrap Monte Carlo simulation on a backtest result::
-
-        from quant_trading.monte_carlo import run_monte_carlo
-
-        mc = run_monte_carlo(result, n_simulations=1000, method="bootstrap", random_state=42)
-        profit_prob = mc.probability_of_profit()
-        lower, upper = mc.get_confidence_interval("total_return_pct")
-
-    Run a parametric simulation and inspect the summary::
-
-        mc = run_monte_carlo(result, n_simulations=500, method="parametric", random_state=7)
-        summary = mc.summary()
-        mean_sharpe = summary["sharpe_ratio_mean"]
+>>> from datetime import datetime
+>>> import pandas as pd
+>>> from quant_trading.backtest.engine import BacktestResult
+>>> from quant_trading.backtest.metrics import calculate_backtest_metrics
+>>> from quant_trading.monte_carlo import run_monte_carlo
+>>> import numpy as np
+>>> rng = np.random.default_rng(0)
+>>> returns = rng.normal(loc=0.0008, scale=0.01, size=59)
+>>> equity = 100000.0 * np.cumprod(1 + returns)
+>>> equity = np.concatenate([[100000.0], equity])
+>>> equity_series = pd.Series(equity)
+>>> metrics = calculate_backtest_metrics(equity_series)
+>>> result = BacktestResult(
+...     equity_curve=equity_series,
+...     trades=pd.DataFrame(),
+...     positions={},
+...     metrics=metrics,
+...     start_date=datetime(2024, 1, 1),
+...     end_date=datetime(2024, 3, 1),
+...     initial_capital=100000.0,
+...     final_value=float(equity_series.iloc[-1]),
+...     total_return=float(equity_series.iloc[-1] - equity_series.iloc[0]),
+...     total_return_pct=float((equity_series.iloc[-1] / equity_series.iloc[0] - 1) * 100),
+... )
+>>> mc = run_monte_carlo(result, n_simulations=25, method="bootstrap", random_state=42)
+>>> profit_prob = mc.probability_of_profit()
+>>> 0.0 <= profit_prob <= 1.0
+True
+>>> lower, upper = mc.get_confidence_interval("total_return_pct")
+>>> lower <= upper
+True
+>>> mc2 = run_monte_carlo(result, n_simulations=25, method="parametric", random_state=7)
+>>> summary = mc2.summary()
+>>> isinstance(summary["sharpe_ratio_mean"], float)
+True
 
 """
 
@@ -40,11 +61,37 @@ class MonteCarloResult:
         start_time: When the simulation run started.
         end_time: When the simulation run finished.
 
-    Examples:
-        mc = run_monte_carlo(result, random_state=42)
-        profit_prob = mc.probability_of_profit()
-        assert 0.0 <= profit_prob <= 1.0
-        lower, upper = mc.get_confidence_interval("max_drawdown_pct")
+    >>> from datetime import datetime
+    >>> from quant_trading.monte_carlo import run_monte_carlo
+    >>> from quant_trading.backtest.engine import BacktestResult
+    >>> from quant_trading.backtest.metrics import calculate_backtest_metrics
+    >>> import pandas as pd
+    >>> import numpy as np
+    >>> rng = np.random.default_rng(123)
+    >>> returns = rng.normal(loc=0.0008, scale=0.01, size=59)
+    >>> equity = 100000.0 * np.cumprod(1 + returns)
+    >>> equity = np.concatenate([[100000.0], equity])
+    >>> equity_series = pd.Series(equity)
+    >>> metrics = calculate_backtest_metrics(equity_series)
+    >>> result = BacktestResult(
+    ...     equity_curve=equity_series,
+    ...     trades=pd.DataFrame(),
+    ...     positions={},
+    ...     metrics=metrics,
+    ...     start_date=datetime(2024, 1, 1),
+    ...     end_date=datetime(2024, 3, 1),
+    ...     initial_capital=100000.0,
+    ...     final_value=float(equity_series.iloc[-1]),
+    ...     total_return=float(equity_series.iloc[-1] - equity_series.iloc[0]),
+    ...     total_return_pct=float((equity_series.iloc[-1] / equity_series.iloc[0] - 1) * 100),
+    ... )
+    >>> mc = run_monte_carlo(result, n_simulations=20, random_state=42)
+    >>> profit_prob = mc.probability_of_profit()
+    >>> 0.0 <= profit_prob <= 1.0
+    True
+    >>> lower, upper = mc.get_confidence_interval("max_drawdown_pct")
+    >>> lower <= upper
+    True
 
     """
 
@@ -318,9 +365,34 @@ class MonteCarloSimulator:
             MonteCarloResult with simulation statistics.
 
         Examples:
-            sim = MonteCarloSimulator(n_simulations=200, random_state=0)
-            mc = sim.run(result, method="bootstrap")
-            n_sims = mc.summary()["n_simulations"]
+            >>> from datetime import datetime
+            >>> from quant_trading.monte_carlo.simulator import MonteCarloSimulator
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> from quant_trading.backtest.metrics import calculate_backtest_metrics
+            >>> import pandas as pd
+            >>> import numpy as np
+            >>> rng = np.random.default_rng(5)
+            >>> returns = rng.normal(loc=0.0008, scale=0.01, size=59)
+            >>> equity = 100000.0 * np.cumprod(1 + returns)
+            >>> equity = np.concatenate([[100000.0], equity])
+            >>> equity_series = pd.Series(equity)
+            >>> metrics = calculate_backtest_metrics(equity_series)
+            >>> result = BacktestResult(
+            ...     equity_curve=equity_series,
+            ...     trades=pd.DataFrame(),
+            ...     positions={},
+            ...     metrics=metrics,
+            ...     start_date=datetime(2024, 1, 1),
+            ...     end_date=datetime(2024, 3, 1),
+            ...     initial_capital=100000.0,
+            ...     final_value=float(equity_series.iloc[-1]),
+            ...     total_return=float(equity_series.iloc[-1] - equity_series.iloc[0]),
+            ...     total_return_pct=float((equity_series.iloc[-1] / equity_series.iloc[0] - 1) * 100),
+            ... )
+            >>> sim = MonteCarloSimulator(n_simulations=50, random_state=0)
+            >>> mc = sim.run(result, method="bootstrap")
+            >>> mc.summary()["n_simulations"]
+            50
 
         """
         start_time = datetime.now()
@@ -489,9 +561,34 @@ def run_monte_carlo(
         MonteCarloResult with simulation statistics.
 
     Examples:
-        mc = run_monte_carlo(result, n_simulations=500, random_state=42)
-        profit_prob = mc.probability_of_profit()
-        assert 0.0 <= profit_prob <= 1.0
+        >>> from datetime import datetime
+        >>> from quant_trading.monte_carlo import run_monte_carlo
+        >>> from quant_trading.backtest.engine import BacktestResult
+        >>> from quant_trading.backtest.metrics import calculate_backtest_metrics
+        >>> import pandas as pd
+        >>> import numpy as np
+        >>> rng = np.random.default_rng(9)
+        >>> returns = rng.normal(loc=0.0008, scale=0.01, size=59)
+        >>> equity = 100000.0 * np.cumprod(1 + returns)
+        >>> equity = np.concatenate([[100000.0], equity])
+        >>> equity_series = pd.Series(equity)
+        >>> metrics = calculate_backtest_metrics(equity_series)
+        >>> result = BacktestResult(
+        ...     equity_curve=equity_series,
+        ...     trades=pd.DataFrame(),
+        ...     positions={},
+        ...     metrics=metrics,
+        ...     start_date=datetime(2024, 1, 1),
+        ...     end_date=datetime(2024, 3, 1),
+        ...     initial_capital=100000.0,
+        ...     final_value=float(equity_series.iloc[-1]),
+        ...     total_return=float(equity_series.iloc[-1] - equity_series.iloc[0]),
+        ...     total_return_pct=float((equity_series.iloc[-1] / equity_series.iloc[0] - 1) * 100),
+        ... )
+        >>> mc = run_monte_carlo(result, n_simulations=25, random_state=42)
+        >>> profit_prob = mc.probability_of_profit()
+        >>> 0.0 <= profit_prob <= 1.0
+        True
 
     """
     simulator = MonteCarloSimulator(
