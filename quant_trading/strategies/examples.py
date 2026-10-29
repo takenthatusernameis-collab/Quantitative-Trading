@@ -2031,6 +2031,7 @@ class IchimokuCloudStrategy(Strategy):
         >>> s.tenkan_period, s.kijun_period, s.senkou_b_period
         (9, 26, 52)
     """
+
     def __init__(
         self,
         tenkan_period: int = 9,
@@ -2211,6 +2212,7 @@ class VWAPStrategy(Strategy):
         >>> s.name
         'VWAP'
     """
+
     def __init__(self, name: str = "VWAP"):
         """Initialize the VWAP strategy.
 
@@ -2561,6 +2563,7 @@ class EMACrossover(Strategy):
         (12, 26)
 
     """
+
     def __init__(
         self,
         fast_period: int = 12,
@@ -2705,6 +2708,7 @@ class MomentumStrategy(Strategy):
         >>> s.period, s.threshold
         (10, 0.01)
     """
+
     def __init__(
         self,
         period: int = 10,
@@ -3791,7 +3795,7 @@ class ForceIndexStrategy(Strategy):
         >>> s = ForceIndexStrategy(period=13)
         >>> s.period
         13
-"""
+    """
 
     def __init__(self, period: int = 13, name: str = "Force_Index"):
         """Initialize the Force Index strategy.
@@ -3935,7 +3939,7 @@ class MoneyFlowIndexStrategy(Strategy):
         >>> s = MoneyFlowIndexStrategy(period=14)
         >>> s.period
         14
-"""
+    """
 
     def __init__(self, period: int = 14, name: str = "Money_Flow_Index"):
         """Initialize the Money Flow Index strategy.
@@ -4087,7 +4091,7 @@ class ElderRayStrategy(Strategy):
         >>> s = ElderRayStrategy(period=13)
         >>> s.period
         13
-"""
+    """
 
     def __init__(self, period: int = 13, name: str = "Elder_Ray"):
         super().__init__(name, {"period": period})
@@ -4176,7 +4180,7 @@ class RateOfChangeStrategy(Strategy):
         >>> s = RateOfChangeStrategy(period=12)
         >>> s.period
         12
-"""
+    """
 
     def __init__(self, period: int = 12, name: str = "Rate_Of_Change"):
         super().__init__(name, {"period": period})
@@ -4264,7 +4268,7 @@ class VolumeRateOfChangeStrategy(Strategy):
         >>> s = VolumeRateOfChangeStrategy(period=14)
         >>> s.period
         14
-"""
+    """
 
     def __init__(self, period: int = 14, name: str = "Volume_Rate_Of_Change"):
         """Initialize the Volume Rate of Change strategy.
@@ -4402,7 +4406,7 @@ class ChandeMomentumOscillatorStrategy(Strategy):
         >>> s = ChandeMomentumOscillatorStrategy(period=14)
         >>> s.period
         14
-"""
+    """
 
     def __init__(self, period: int = 14, name: str = "Chande_Momentum_Oscillator"):
         """Initialize the Chande Momentum Oscillator strategy.
@@ -4545,7 +4549,7 @@ class VolumeOscillatorStrategy(Strategy):
         >>> s = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
         >>> s.fast_period, s.slow_period
         (5, 13)
-"""
+    """
 
     def __init__(
         self,
@@ -4706,7 +4710,7 @@ class VolumePriceTrendStrategy(Strategy):
         >>> s = VolumePriceTrendStrategy(fast_period=5, slow_period=13)
         >>> s.fast_period, s.slow_period
         (5, 13)
-"""
+    """
 
     def __init__(
         self,
@@ -4916,7 +4920,7 @@ class KlingerOscillatorStrategy(Strategy):
         >>> s = KlingerOscillatorStrategy(fast_period=55, slow_period=200)
         >>> s.fast_period, s.slow_period
         (55, 200)
-"""
+    """
 
     def __init__(
         self,
@@ -5127,7 +5131,7 @@ class HullMovingAverageStrategy(Strategy):
         >>> s = HullMovingAverageStrategy(period=16)
         >>> s.period
         16
-"""
+    """
 
     def __init__(self, period: int = 16, name: str = "Hull_Moving_Average"):
         """Initialize the Hull Moving Average strategy.
@@ -5305,7 +5309,7 @@ class ChaikinOscillatorStrategy(Strategy):
         >>> s = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
         >>> s.fast_period, s.slow_period
         (3, 10)
-"""
+    """
 
     def __init__(
         self,
@@ -5424,7 +5428,7 @@ class EaseOfMovementStrategy(Strategy):
         >>> s = EaseOfMovementStrategy(period=14)
         >>> s.period
         14
-"""
+    """
 
     def __init__(self, period: int = 14, name: str = "Ease_Of_Movement"):
         """Initialize the Ease of Movement strategy.
@@ -5566,7 +5570,7 @@ class AwesomeOscillatorStrategy(Strategy):
         >>> s = AwesomeOscillatorStrategy(short_period=5, long_period=34)
         >>> s.short_period, s.long_period
         (5, 34)
-"""
+    """
 
     def __init__(
         self,
@@ -5669,7 +5673,7 @@ class VortexStrategy(Strategy):
         >>> s = VortexStrategy(period=14)
         >>> s.period
         14
-"""
+    """
 
     def __init__(
         self,
@@ -5840,7 +5844,7 @@ class TrixStrategy(Strategy):
         >>> s = TrixStrategy(period=14)
         >>> s.period
         14
-"""
+    """
 
     def __init__(self, period: int = 14, name: str = "TRIX"):
         super().__init__(name, {"period": period})
@@ -5923,7 +5927,7 @@ class UltimateOscillatorStrategy(Strategy):
         >>> s = UltimateOscillatorStrategy(short_period=7, medium_period=14, long_period=28)
         >>> s.short_period, s.medium_period, s.long_period
         (7, 14, 28)
-"""
+    """
 
     def __init__(
         self,
@@ -6044,7 +6048,7 @@ class PercentagePriceOscillatorStrategy(Strategy):
         >>> s = PercentagePriceOscillatorStrategy(fast_period=12, slow_period=26, signal_period=9)
         >>> s.fast_period, s.slow_period, s.signal_period
         (12, 26, 9)
-"""
+    """
 
     def __init__(
         self,
@@ -6220,7 +6224,7 @@ class PercentageVolumeOscillatorStrategy(Strategy):
         >>> s = PercentageVolumeOscillatorStrategy(fast_period=12, slow_period=26, signal_period=9)
         >>> s.fast_period, s.slow_period, s.signal_period
         (12, 26, 9)
-"""
+    """
 
     def __init__(
         self,
@@ -6397,7 +6401,7 @@ class DetrendedPriceOscillatorStrategy(Strategy):
         >>> s = DetrendedPriceOscillatorStrategy(period=20)
         >>> s.period
         20
-"""
+    """
 
     def __init__(self, period: int = 20, name: str = "Detrended_Price_Oscillator"):
         super().__init__(name, {"period": period})
@@ -6489,7 +6493,7 @@ class StochasticMomentumIndexStrategy(Strategy):
         >>> s = StochasticMomentumIndexStrategy(k_period=5, signal_period=3)
         >>> s.k_period, s.signal_period
         (5, 3)
-"""
+    """
 
     def __init__(
         self,
@@ -6651,7 +6655,7 @@ class AccumulationDistributionStrategy(Strategy):
         >>> s = AccumulationDistributionStrategy(signal_period=21)
         >>> s.signal_period
         21
-"""
+    """
 
     def __init__(self, signal_period: int = 21, name: str = "Accumulation_Distribution"):
         """Initialize the Accumulation/Distribution Line strategy.
@@ -6798,7 +6802,7 @@ class NegativeVolumeIndexStrategy(Strategy):
         >>> s = NegativeVolumeIndexStrategy(period=255)
         >>> s.period
         255
-"""
+    """
 
     def __init__(
         self,
@@ -6902,7 +6906,7 @@ class PositiveVolumeIndexStrategy(Strategy):
         >>> s = PositiveVolumeIndexStrategy(period=255)
         >>> s.period
         255
-"""
+    """
 
     def __init__(
         self,
@@ -7006,7 +7010,7 @@ class StochRSIStrategy(Strategy):
         >>> s = StochRSIStrategy(rsi_period=14, stoch_period=14, k_period=3, d_period=3)
         >>> s.rsi_period, s.stoch_period, s.k_period, s.d_period
         (14, 14, 3, 3)
-"""
+    """
 
     def __init__(
         self,
@@ -7180,7 +7184,7 @@ class ChoppinessIndexStrategy(Strategy):
         >>> s = ChoppinessIndexStrategy(period=14)
         >>> s.period
         14
-"""
+    """
 
     def __init__(
         self,
