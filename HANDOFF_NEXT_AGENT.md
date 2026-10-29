@@ -2,17 +2,20 @@
 
 ## 1. What changed
 
-- Verified full test suite after prior type-only change: `python -m pytest -q -p no:cacheprovider` → 2396 passed, 44 skipped, 0 failures (220.48s).
-- No code changes this session.
+- Added doctest examples to `quant_trading/strategies/examples.py`:
+  - `MovingAverageCrossover` class docstring
+  - `RSIStrategy` class docstring
+- No other code changes.
 
 ## 2. What was actually verified
 
-- Full suite green.
-- mypy/ruff from prior session still valid (no changes).
+- Doctests pass: `python -m pytest quant_trading/strategies/examples.py -v` → 2 passed.
+- Lint: `python -m ruff check quant_trading/strategies/examples.py` → All checks passed.
+- Type check: `python -m mypy quant_trading/strategies/examples.py` → Success: no issues found.
 
 ## 3. What remains unresolved
 
-- No open defects found.
+- No open defects found from this change.
 
 ## 4. Approaches that failed and why
 
@@ -20,4 +23,4 @@
 
 ## 5. One precise next task
 
-- Pick a bounded, high-value task: e.g., expand doctest coverage for a strategy module lacking doctests (check `grep -L ">>>" quant_trading/strategies/examples.py`-style), or add a missing edge-case test. Inspect `git log` and tests dir for gaps; run focused tests + mypy + ruff before handoff.
+- Expand doctest coverage for another strategy class in `quant_trading/strategies/examples.py` (e.g., `BollingerBandsStrategy`, `MACDStrategy`) with a simple instantiation example. Run focused doctests, `ruff`, and `mypy` on that file before handoff.

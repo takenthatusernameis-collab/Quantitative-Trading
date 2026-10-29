@@ -13,6 +13,12 @@ class MovingAverageCrossover(Strategy):
 
     Generates buy signals when fast MA crosses above slow MA,
     and sell signals when fast MA crosses below slow MA.
+
+    Examples:
+        >>> from quant_trading.strategies.examples import MovingAverageCrossover
+        >>> s = MovingAverageCrossover(fast_period=3, slow_period=5)
+        >>> s.fast_period, s.slow_period
+        (3, 5)
     """
 
     def __init__(
@@ -158,6 +164,12 @@ class RSIStrategy(Strategy):
     """RSI Mean Reversion Strategy.
 
     Buys when RSI is oversold (< 30), sells when overbought (> 70).
+
+    Examples:
+        >>> from quant_trading.strategies.examples import RSIStrategy
+        >>> s = RSIStrategy(period=14, oversold=30, overbought=70)
+        >>> s.oversold, s.overbought
+        (30, 70)
     """
 
     def __init__(
