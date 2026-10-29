@@ -8,57 +8,41 @@ point for offline backtesting and is exercised by the test suite with
 synthetic data so that no network access is required.
 
 Examples:
-    Run a backtest offline using synthetic data and inspect the result::
-
-        from datetime import datetime, timedelta
-
-        from quant_trading.backtest.engine import BacktestEngine, run_backtest
-        from quant_trading.config.settings import BacktestConfig
-        from quant_trading.data.providers import DataManager
-        from quant_trading.data.synthetic import create_synthetic_provider
-        from quant_trading.strategies.examples import MovingAverageCrossover
-
-        symbols = ["AAPL"]
-        end = datetime(2023, 12, 31)
-        start = end - timedelta(days=100)
-
-        provider = create_synthetic_provider(symbols, days=100, seed=42)
-        data_manager = DataManager([provider])
-
-        engine = BacktestEngine(
-            config=BacktestConfig(initial_capital=100000.0),
-            data_manager=data_manager,
-        )
-        engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=20))
-        result = engine.run(symbols, start, end)
-        assert result is not None
-        assert result.final_value >= result.initial_capital * 0.5
+    >>> from datetime import datetime, timedelta
+    >>> from quant_trading.backtest.engine import BacktestEngine, run_backtest
+    >>> from quant_trading.config.settings import BacktestConfig
+    >>> from quant_trading.data.providers import DataManager
+    >>> from quant_trading.data.synthetic import create_synthetic_provider
+    >>> from quant_trading.strategies.examples import MovingAverageCrossover
+    >>> symbols = ["AAPL"]
+    >>> end = datetime(2023, 12, 31)
+    >>> start = end - timedelta(days=100)
+    >>> provider = create_synthetic_provider(symbols, days=100, seed=42)
+    >>> data_manager = DataManager([provider])
+    >>> engine = BacktestEngine(
+    ...     config=BacktestConfig(initial_capital=100000.0),
+    ...     data_manager=data_manager,
+    ... )
+    >>> engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=20))
+    >>> result = engine.run(symbols, start, end)
+    >>> result is not None
+    True
+    >>> result.final_value >= result.initial_capital * 0.5
+    True
 
     Use the convenience function to run a single strategy offline::
 
-        from datetime import datetime, timedelta
-
-        from quant_trading.backtest.engine import run_backtest
-        from quant_trading.data.providers import DataManager
-        from quant_trading.data.synthetic import create_synthetic_provider
-        from quant_trading.strategies.examples import MovingAverageCrossover
-
-        symbols = ["AAPL"]
-        end = datetime(2023, 12, 31)
-        start = end - timedelta(days=100)
-
-        provider = create_synthetic_provider(symbols, days=100, seed=42)
-        data_manager = DataManager([provider])
-
-        result = run_backtest(
-            strategy=MovingAverageCrossover(fast_period=5, slow_period=20),
-            symbols=symbols,
-            start=start,
-            end=end,
-            initial_capital=100000.0,
-            data_manager=data_manager,
-        )
-        assert result.trades is not None
+    >>> from quant_trading.backtest.engine import run_backtest
+    >>> result = run_backtest(
+    ...     strategy=MovingAverageCrossover(fast_period=5, slow_period=20),
+    ...     symbols=symbols,
+    ...     start=start,
+    ...     end=end,
+    ...     initial_capital=100000.0,
+    ...     data_manager=data_manager,
+    ... )
+    >>> result.trades is not None
+    True
 
 """
 
@@ -170,29 +154,26 @@ class Trade:
     def fee(self) -> float:
         """Total commission and slippage charged for this trade.
 
-        The fee is always paid on the gross trade value, so it is positive
-        for both buys and sells.
+                The fee is always paid on the gross trade value, so it is positive
+                for both buys and sells.
 
-        Returns:
-            ``quantity * price * (commission + slippage)``.
+                Returns:
+                    ``quantity * price * (commission + slippage)``.
 
         Examples:
-            Compute the fee charged on a round-trip trade::
-
-                from datetime import datetime
-
-                from quant_trading.backtest.engine import Trade
-
-                buy = Trade(
-                    symbol="AAPL",
-                    action="buy",
-                    quantity=100,
-                    price=150.0,
-                    timestamp=datetime.now(),
-                    commission=0.001,
-                    slippage=0.0005,
-                )
-                assert buy.fee == 22.5
+                >>> from datetime import datetime
+                >>> from quant_trading.backtest.engine import Trade
+                >>> buy = Trade(
+                ...     symbol="AAPL",
+                ...     action="buy",
+                ...     quantity=100,
+                ...     price=150.0,
+                ...     timestamp=datetime.now(),
+                ...     commission=0.001,
+                ...     slippage=0.0005,
+                ... )
+                >>> buy.fee
+                22.5
 
         """
         return self.quantity * self.price * (self.commission + self.slippage)
@@ -256,12 +237,36 @@ class BacktestResult:
     Examples:
         Inspect key result fields after a backtest run::
 
-            assert result.initial_capital > 0
-            assert result.final_value >= 0
-            assert isinstance(result.metrics.sharpe_ratio, float)
-            assert result.trades is not None
-            assert result.equity_curve is not None
-            assert result.total_costs >= 0
+        >>> from datetime import datetime, timedelta
+        >>> from quant_trading.backtest.engine import run_backtest
+        >>> from quant_trading.data.providers import DataManager
+        >>> from quant_trading.data.synthetic import create_synthetic_provider
+        >>> from quant_trading.strategies.examples import MovingAverageCrossover
+        >>> symbols = ["AAPL"]
+        >>> end = datetime(2023, 12, 31)
+        >>> start = end - timedelta(days=100)
+        >>> provider = create_synthetic_provider(symbols, days=100, seed=42)
+        >>> data_manager = DataManager([provider])
+        >>> result = run_backtest(
+        ...     strategy=MovingAverageCrossover(fast_period=5, slow_period=20),
+        ...     symbols=symbols,
+        ...     start=start,
+        ...     end=end,
+        ...     initial_capital=100000.0,
+        ...     data_manager=data_manager,
+        ... )
+        >>> result.initial_capital > 0
+        True
+        >>> result.final_value >= 0
+        True
+        >>> isinstance(result.metrics.sharpe_ratio, float)
+        True
+        >>> result.trades is not None
+        True
+        >>> result.equity_curve is not None
+        True
+        >>> result.total_costs >= 0
+        True
 
     """
 
@@ -410,30 +415,25 @@ class BacktestEngine:
         strategies: Registered strategies keyed by name.
 
     Examples:
-        Create an engine with offline synthetic data and run a backtest::
-
-            from datetime import datetime, timedelta
-
-            from quant_trading.backtest.engine import BacktestEngine
-            from quant_trading.config.settings import BacktestConfig
-            from quant_trading.data.providers import DataManager
-            from quant_trading.data.synthetic import create_synthetic_provider
-            from quant_trading.strategies.examples import MovingAverageCrossover
-
-            symbols = ["AAPL"]
-            end = datetime(2023, 12, 31)
-            start = end - timedelta(days=100)
-
-            provider = create_synthetic_provider(symbols, days=100, seed=42)
-            data_manager = DataManager([provider])
-
-            engine = BacktestEngine(
-                config=BacktestConfig(initial_capital=100000.0),
-                data_manager=data_manager,
-            )
-            engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=20))
-            result = engine.run(symbols, start, end)
-            assert len(result.trades) >= 0
+        >>> from datetime import datetime, timedelta
+        >>> from quant_trading.backtest.engine import BacktestEngine
+        >>> from quant_trading.config.settings import BacktestConfig
+        >>> from quant_trading.data.providers import DataManager
+        >>> from quant_trading.data.synthetic import create_synthetic_provider
+        >>> from quant_trading.strategies.examples import MovingAverageCrossover
+        >>> symbols = ["AAPL"]
+        >>> end = datetime(2023, 12, 31)
+        >>> start = end - timedelta(days=100)
+        >>> provider = create_synthetic_provider(symbols, days=100, seed=42)
+        >>> data_manager = DataManager([provider])
+        >>> engine = BacktestEngine(
+        ...     config=BacktestConfig(initial_capital=100000.0),
+        ...     data_manager=data_manager,
+        ... )
+        >>> engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=20))
+        >>> result = engine.run(symbols, start, end)
+        >>> len(result.trades) >= 0
+        True
 
     """
 
@@ -1157,88 +1157,85 @@ def run_backtest(
 ) -> BacktestResult:
     """Run a single strategy backtest.
 
-    When a full :class:`~quant_trading.config.settings.Config` is given, its
-    ``backtest``, ``risk`` and ``portfolio`` sections drive the run: the
-    ``backtest`` section provides the starting capital, the costs, the
-    annualization period and the engine switches, the ``risk`` section
-    provides the limits of the risk manager and the ``portfolio`` section
-    provides the limit on the number of open positions. A value that is
-    passed explicitly wins over the configured one, and the configured one
-    wins over the built-in default. The configuration itself is never
-    modified.
+        When a full :class:`~quant_trading.config.settings.Config` is given, its
+        ``backtest``, ``risk`` and ``portfolio`` sections drive the run: the
+        ``backtest`` section provides the starting capital, the costs, the
+        annualization period and the engine switches, the ``risk`` section
+        provides the limits of the risk manager and the ``portfolio`` section
+        provides the limit on the number of open positions. A value that is
+        passed explicitly wins over the configured one, and the configured one
+        wins over the built-in default. The configuration itself is never
+        modified.
 
-    Args:
-        strategy: The strategy to backtest.
-        symbols: List of symbols to trade.
-        start: Start date for backtest.
-        end: End date for backtest.
-        initial_capital: Initial capital. Defaults to the configured value, or
-            to 100000.0 when nothing is configured.
-        commission: Commission rate. Defaults to the configured value, or to
-            0.001 when nothing is configured.
-        slippage: Slippage rate. Defaults to the configured value, or to 0.0005
-            when nothing is configured.
-        interval: Data interval (default: "1d").
-        data_manager: Optional DataManager for offline/testing. If not provided
-            and no config is given, a shared default DataManager with
-            YFinanceProvider will be used (requires network).
-        config: Optional Config or DataConfig. When no data manager is given,
-            a DataManager is created from the config (supporting
-            offline/synthetic modes). A full Config also configures the
-            backtest, the risk limits and the position limit.
-        periods_per_year: Trading periods per year used to annualize the
-            return, volatility, Sharpe, Sortino and Calmar metrics. Defaults to
-            the configured value, or to 252 (daily data) when nothing is
-            configured.
+        Args:
+            strategy: The strategy to backtest.
+            symbols: List of symbols to trade.
+            start: Start date for backtest.
+            end: End date for backtest.
+            initial_capital: Initial capital. Defaults to the configured value, or
+                to 100000.0 when nothing is configured.
+            commission: Commission rate. Defaults to the configured value, or to
+                0.001 when nothing is configured.
+            slippage: Slippage rate. Defaults to the configured value, or to 0.0005
+                when nothing is configured.
+            interval: Data interval (default: "1d").
+            data_manager: Optional DataManager for offline/testing. If not provided
+                and no config is given, a shared default DataManager with
+                YFinanceProvider will be used (requires network).
+            config: Optional Config or DataConfig. When no data manager is given,
+                a DataManager is created from the config (supporting
+                offline/synthetic modes). A full Config also configures the
+                backtest, the risk limits and the position limit.
+            periods_per_year: Trading periods per year used to annualize the
+                return, volatility, Sharpe, Sortino and Calmar metrics. Defaults to
+                the configured value, or to 252 (daily data) when nothing is
+                configured.
 
-    Returns:
-        BacktestResult containing equity curve, trades, metrics, and metadata.
+        Returns:
+            BacktestResult containing equity curve, trades, metrics, and metadata.
 
     Examples:
-        Run a single strategy backtest using synthetic offline data::
-
-            from datetime import datetime, timedelta
-
-            from quant_trading.backtest.engine import run_backtest
-            from quant_trading.data.providers import DataManager
-            from quant_trading.data.synthetic import create_synthetic_provider
-            from quant_trading.strategies.examples import MovingAverageCrossover
-
-            symbols = ["AAPL", "MSFT"]
-            end = datetime(2023, 12, 31)
-            start = end - timedelta(days=100)
-
-            provider = create_synthetic_provider(symbols, days=100, seed=42)
-            data_manager = DataManager([provider])
-
-            result = run_backtest(
-                strategy=MovingAverageCrossover(fast_period=5, slow_period=20),
-                symbols=symbols,
-                start=start,
-                end=end,
-                initial_capital=100000.0,
-                commission=0.001,
-                slippage=0.0005,
-                data_manager=data_manager,
-            )
-            assert result is not None
-            assert result.initial_capital == 100000.0
-            assert result.metrics is not None
+        >>> from datetime import datetime, timedelta
+        >>> from quant_trading.backtest.engine import run_backtest
+        >>> from quant_trading.data.providers import DataManager
+        >>> from quant_trading.data.synthetic import create_synthetic_provider
+        >>> from quant_trading.strategies.examples import MovingAverageCrossover
+        >>> symbols = ["AAPL", "MSFT"]
+        >>> end = datetime(2023, 12, 31)
+        >>> start = end - timedelta(days=100)
+        >>> provider = create_synthetic_provider(symbols, days=100, seed=42)
+        >>> data_manager = DataManager([provider])
+        >>> result = run_backtest(
+        ...     strategy=MovingAverageCrossover(fast_period=5, slow_period=20),
+        ...     symbols=symbols,
+        ...     start=start,
+        ...     end=end,
+        ...     initial_capital=100000.0,
+        ...     commission=0.001,
+        ...     slippage=0.0005,
+        ...     data_manager=data_manager,
+        ... )
+        >>> result is not None
+        True
+        >>> result.initial_capital == 100000.0
+        True
+        >>> result.metrics is not None
+        True
 
         A configuration drives the risk limits of the run::
 
-            from quant_trading.config.settings import Config, RiskConfig
-
-            config = Config(risk=RiskConfig(max_position_size=0.05))
-            result = run_backtest(
-                strategy=strategy,
-                symbols=symbols,
-                start=start,
-                end=end,
-                config=config,
-                data_manager=data_manager,
-            )
-            assert result is not None
+        >>> from quant_trading.config.settings import Config, RiskConfig
+        >>> config = Config(risk=RiskConfig(max_position_size=0.05))
+        >>> result = run_backtest(
+        ...     strategy=MovingAverageCrossover(fast_period=5, slow_period=20),
+        ...     symbols=symbols,
+        ...     start=start,
+        ...     end=end,
+        ...     config=config,
+        ...     data_manager=data_manager,
+        ... )
+        >>> result is not None
+        True
 
     """
     backtest_config = _resolve_backtest_config(
