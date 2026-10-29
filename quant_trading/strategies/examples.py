@@ -3026,7 +3026,7 @@ class ADXStrategy(Strategy):
                     smoothed[index] = (
                         smoothed[index - 1] - smoothed[index - 1] / period + arr[index]
                     )
-            return pd.Series(smoothed, index=values.index)
+            return cast(pd.Series, pd.Series(smoothed, index=values.index))
 
         smoothed_tr = wilder_smooth(true_range)
         smoothed_plus_dm = wilder_smooth(plus_dm)
