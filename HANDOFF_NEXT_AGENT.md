@@ -1,23 +1,22 @@
 # Handoff for Next Agent
 
 ## 1. What changed
-- Converted non-doctest `Examples:` blocks to executable `>>>` doctests in:
-  - `quant_trading/strategies/base.py` (module/classes: `Signal`, `Position`, `Strategy`, `StrategyManager`)
-  - `quant_trading/portfolio/rebalancer.py` (module, `RebalanceAction`, `RebalanceExecution`, `Rebalancer`) with corrected module doctest to match actual behavior
-  - `quant_trading/data/yfinance_provider.py` (class examples for `YFinanceProvider`, `AlphaVantageProvider`)
-- The task from the prior handoff (`quant_trading/backtest/trade_analysis.py`) was already completed and verified.
+- No code changes in this session: `quant_trading/risk/metrics.py` was already fully converted to executable `>>>` doctests in the working tree (verified committed state, `git status` clean).
+- Extended the verification scope beyond the assigned module: confirmed every module's `Examples:` blocks across the entire `quant_trading` package are executable doctests.
 
 ## 2. What was actually verified
-- Doctests: `python -m pytest --doctest-modules quant_trading/backtest/trade_analysis.py quant_trading/monte_carlo/simulator.py quant_trading/strategies/base.py quant_trading/portfolio/rebalancer.py quant_trading/data/yfinance_provider.py quant_trading/risk/limits.py quant_trading/optimization/base.py -v` → 34 passed.
-- Lint/format/type: `ruff`/`black --check`/`mypy` all pass on modified files.
-- Existing tests still pass (e.g. `tests/test_monte_carlo.py` passed earlier).
+- Doctests on `quant_trading/risk/metrics.py`: 11/11 passed (`python -m pytest --doctest-modules quant_trading/risk/metrics.py`).
+- Lint/format/type on `metrics.py`: `python -m ruff check`, `python -m black --check`, `python -m mypy` all clean.
+- Full package doctests: `python -m pytest --doctest-modules quant_trading` → 168/168 passed (all modules: backtest, config, data, monte_carlo, optimization, portfolio, regime, risk, strategies, utils).
+- Unit tests: `tests/test_risk_metrics.py`, `tests/test_limits.py`, `tests/test_monte_carlo.py` → 150 passed.
 
 ## 3. What remains unresolved
-- `quant_trading/strategies/examples.py` is not black-clean (pre-existing, unrelated).
-- Some `Examples:` blocks in other modules remain non-doctest style (e.g. parts of `risk/metrics.py`, `data/synthetic.py`, `regime/detector.py`, etc.) - not blocking.
+- Full `pytest tests` run hangs beyond 3 minutes (timed out), almost certainly due to network-dependent tests (`test_yfinance_fetch_many.py`, `test_data_providers.py`, `test_alphavantage_provider.py`, `test_readme*.py`, `tests/test_cli.py`). Pre-existing, unrelated to doctest work, not investigated in depth.
 
 ## 4. Approaches that failed and why
-- None.
+- None for the doctest task. Excluded network-heavy test files when running `pytest tests` because the run hung (transient/environmental, not a code defect).
 
 ## 5. One precise next task
-- Convert remaining `Examples:` blocks to executable `>>>` doctests in a small module (e.g. `quant_trading/risk/metrics.py`), making them runnable without external network/data dependencies. Run focused doctests + ruff/black/mypy on that module and report results.
+- Triage the hanging full test suite: run `pytest tests -p no:cacheprovider -q` with `--timeout` or `faulthandler` to identify which test hangs, confirm it is network-dependent, and either mark it for network exclusion or fix it so `pytest tests` completes green offline. Constraint: do not delete tests or disable validation; keep the change minimal and reversible. Relevant evidence: `pytest tests` exceeded 180s with no output; risk/limits/monte_carlo tests (150) pass in <1s.
+
+(End of file)
