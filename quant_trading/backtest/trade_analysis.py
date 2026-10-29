@@ -1,19 +1,33 @@
 """Trade-level analysis for backtest results.
 
-Examples:
-    Analyze a backtest result and inspect its trade statistics::
-
-        from quant_trading.backtest import analyze_trades
-
-        analysis = analyze_trades(result)
-        print(f"Total trades: {analysis.total_trades}")
-        print(f"Win rate: {analysis.win_rate:.2%}")
-        print(f"Profit factor: {analysis.profit_factor:.2f}")
-
-    Convert the analysis to a dictionary for serialization::
-
-        data = analysis.to_dict()
-        assert data["total_trades"] == analysis.total_trades
+>>> import numpy as np
+>>> import pandas as pd
+>>> from datetime import datetime
+>>> from quant_trading.backtest import analyze_trades
+>>> from quant_trading.backtest.engine import BacktestResult
+>>> from quant_trading.backtest.metrics import BacktestMetrics
+>>> dates = pd.date_range("2024-01-01", periods=10)
+>>> equity = pd.Series(100000 + np.arange(10) * 100, index=dates)
+>>> trades = pd.DataFrame([
+...     {"symbol": "AAPL", "action": "buy", "quantity": 10, "price": 150.0,
+...      "timestamp": datetime(2024, 1, 5), "commission": 0.0, "slippage": 0.0,
+...      "cost": 1500.0, "pnl": 0.0},
+...     {"symbol": "AAPL", "action": "sell", "quantity": 10, "price": 160.0,
+...      "timestamp": datetime(2024, 1, 6), "commission": 0.0, "slippage": 0.0,
+...      "cost": 1600.0, "pnl": 95.0},
+... ])
+>>> metrics = BacktestMetrics(total_return=95.0, total_return_pct=0.095, num_trades=1,
+...                           num_winning_trades=1, num_losing_trades=0)
+>>> result = BacktestResult(equity_curve=equity, trades=trades, positions={},
+...                         metrics=metrics, start_date=datetime(2024, 1, 1),
+...                         end_date=datetime(2024, 1, 10), initial_capital=100000.0,
+...                         final_value=100095.0, total_return=95.0, total_return_pct=0.095)
+>>> analysis = analyze_trades(result)
+>>> analysis.total_trades
+1
+>>> data = analysis.to_dict()
+>>> data["total_trades"] == analysis.total_trades
+True
 
 """
 
@@ -69,9 +83,32 @@ class TradeAnalysis:
         sortino_ratio: Annualized Sortino ratio of the per-trade return series.
 
     Examples:
-        analysis = analyze_trades(result)
-        assert 0.0 <= analysis.win_rate <= 1.0
-        assert analysis.profit_factor >= 0.0
+        >>> import numpy as np
+        >>> import pandas as pd
+        >>> from datetime import datetime
+        >>> from quant_trading.backtest import analyze_trades
+        >>> from quant_trading.backtest.engine import BacktestResult
+        >>> from quant_trading.backtest.metrics import BacktestMetrics
+        >>> dates = pd.date_range("2024-01-01", periods=10)
+        >>> equity = pd.Series(100000 + np.arange(10) * 100, index=dates)
+        >>> trades = pd.DataFrame([
+        ...     {"symbol": "AAPL", "action": "buy", "quantity": 10, "price": 150.0,
+        ...      "timestamp": datetime(2024, 1, 5), "commission": 0.0, "slippage": 0.0,
+        ...      "cost": 1500.0, "pnl": 0.0},
+        ...     {"symbol": "AAPL", "action": "sell", "quantity": 10, "price": 160.0,
+        ...      "timestamp": datetime(2024, 1, 6), "commission": 0.0, "slippage": 0.0,
+        ...      "cost": 1600.0, "pnl": 95.0},
+        ... ])
+        >>> metrics = BacktestMetrics(total_return=95.0, total_return_pct=0.095)
+        >>> result = BacktestResult(equity_curve=equity, trades=trades, positions={},
+        ...                         metrics=metrics, start_date=datetime(2024, 1, 1),
+        ...                         end_date=datetime(2024, 1, 10), initial_capital=100000.0,
+        ...                         final_value=100095.0, total_return=95.0, total_return_pct=0.095)
+        >>> analysis = analyze_trades(result)
+        >>> 0.0 <= analysis.win_rate <= 1.0
+        True
+        >>> analysis.profit_factor >= 0.0
+        True
 
     """
 
@@ -494,9 +531,32 @@ def analyze_trades(
         TradeAnalysis with detailed statistics.
 
     Examples:
-        analysis = analyze_trades(result, risk_free_rate=0.02)
-        assert analysis.total_trades > 0
-        print(f"Expectancy: ${analysis.expectancy:,.2f}")
+        >>> import numpy as np
+        >>> import pandas as pd
+        >>> from datetime import datetime
+        >>> from quant_trading.backtest import analyze_trades
+        >>> from quant_trading.backtest.engine import BacktestResult
+        >>> from quant_trading.backtest.metrics import BacktestMetrics
+        >>> dates = pd.date_range("2024-01-01", periods=10)
+        >>> equity = pd.Series(100000 + np.arange(10) * 100, index=dates)
+        >>> trades = pd.DataFrame([
+        ...     {"symbol": "AAPL", "action": "buy", "quantity": 10, "price": 150.0,
+        ...      "timestamp": datetime(2024, 1, 5), "commission": 0.0, "slippage": 0.0,
+        ...      "cost": 1500.0, "pnl": 0.0},
+        ...     {"symbol": "AAPL", "action": "sell", "quantity": 10, "price": 160.0,
+        ...      "timestamp": datetime(2024, 1, 6), "commission": 0.0, "slippage": 0.0,
+        ...      "cost": 1600.0, "pnl": 95.0},
+        ... ])
+        >>> metrics = BacktestMetrics()
+        >>> result = BacktestResult(equity_curve=equity, trades=trades, positions={},
+        ...                         metrics=metrics, start_date=datetime(2024, 1, 1),
+        ...                         end_date=datetime(2024, 1, 10), initial_capital=100000.0,
+        ...                         final_value=100095.0, total_return=95.0, total_return_pct=0.095)
+        >>> analysis = analyze_trades(result, risk_free_rate=0.02)
+        >>> analysis.total_trades > 0
+        True
+        >>> print(f"Expectancy: ${analysis.expectancy:,.2f}")
+        Expectancy: $95.00
 
     """
     trades = result.trades.copy()
@@ -606,8 +666,29 @@ def print_trade_analysis(analysis: TradeAnalysis) -> None:
         analysis: TradeAnalysis to print.
 
     Examples:
-        analysis = analyze_trades(result)
-        print_trade_analysis(analysis)
+        >>> import numpy as np
+        >>> import pandas as pd
+        >>> from datetime import datetime
+        >>> from quant_trading.backtest import analyze_trades
+        >>> from quant_trading.backtest.engine import BacktestResult
+        >>> from quant_trading.backtest.metrics import BacktestMetrics
+        >>> dates = pd.date_range("2024-01-01", periods=10)
+        >>> equity = pd.Series(100000 + np.arange(10) * 100, index=dates)
+        >>> trades = pd.DataFrame([
+        ...     {"symbol": "AAPL", "action": "buy", "quantity": 10, "price": 150.0,
+        ...      "timestamp": datetime(2024, 1, 5), "commission": 0.0, "slippage": 0.0,
+        ...      "cost": 1500.0, "pnl": 0.0},
+        ...     {"symbol": "AAPL", "action": "sell", "quantity": 10, "price": 160.0,
+        ...      "timestamp": datetime(2024, 1, 6), "commission": 0.0, "slippage": 0.0,
+        ...      "cost": 1600.0, "pnl": 95.0},
+        ... ])
+        >>> metrics = BacktestMetrics()
+        >>> result = BacktestResult(equity_curve=equity, trades=trades, positions={},
+        ...                         metrics=metrics, start_date=datetime(2024, 1, 1),
+        ...                         end_date=datetime(2024, 1, 10), initial_capital=100000.0,
+        ...                         final_value=100095.0, total_return=95.0, total_return_pct=0.095)
+        >>> analysis = analyze_trades(result)
+        >>> print_trade_analysis(analysis)  # doctest: +SKIP
 
     """
     print(f"\n{'=' * 60}")
