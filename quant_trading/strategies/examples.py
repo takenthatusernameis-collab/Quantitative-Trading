@@ -306,6 +306,12 @@ class BollingerBandsStrategy(Strategy):
     """Bollinger Bands Mean Reversion Strategy.
 
     Buys when price touches lower band, sells when price touches upper band.
+
+    Examples:
+        >>> from quant_trading.strategies.examples import BollingerBandsStrategy
+        >>> s = BollingerBandsStrategy(period=20, std_dev=2.0)
+        >>> s.period, s.std_dev
+        (20, 2.0)
     """
 
     def __init__(
@@ -832,6 +838,12 @@ class MACDStrategy(Strategy):
     (bullish crossover), and sell signals when the MACD line crosses below the
     signal line (bearish crossover). Optionally also reacts to the MACD line
     crossing the zero axis.
+
+    Examples:
+        >>> from quant_trading.strategies.examples import MACDStrategy
+        >>> s = MACDStrategy(fast_period=12, slow_period=26, signal_period=9)
+        >>> s.fast_period, s.slow_period, s.signal_period
+        (12, 26, 9)
     """
 
     def __init__(
