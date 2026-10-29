@@ -3784,7 +3784,14 @@ class ForceIndexStrategy(Strategy):
     Trading signals (common approach):
     - Buy when the smoothed Force Index crosses above zero (bullish pressure).
     - Sell when the smoothed Force Index crosses below zero (bearish pressure).
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import ForceIndexStrategy
+        >>> s = ForceIndexStrategy(period=13)
+        >>> s.period
+        13
+"""
 
     def __init__(self, period: int = 13, name: str = "Force_Index"):
         """Initialize the Force Index strategy.
@@ -3921,7 +3928,14 @@ class MoneyFlowIndexStrategy(Strategy):
     Trading signals:
     - Buy when MFI crosses above 50 (selling pressure turns to buying).
     - Sell when MFI crosses below 50 (buying pressure turns to selling).
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import MoneyFlowIndexStrategy
+        >>> s = MoneyFlowIndexStrategy(period=14)
+        >>> s.period
+        14
+"""
 
     def __init__(self, period: int = 14, name: str = "Money_Flow_Index"):
         """Initialize the Money Flow Index strategy.
@@ -4066,7 +4080,14 @@ class ElderRayStrategy(Strategy):
     Trading signals:
     - Buy when Bull Power crosses above zero (bulls take control).
     - Sell when Bear Power crosses below zero (bears take control).
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import ElderRayStrategy
+        >>> s = ElderRayStrategy(period=13)
+        >>> s.period
+        13
+"""
 
     def __init__(self, period: int = 13, name: str = "Elder_Ray"):
         super().__init__(name, {"period": period})
@@ -4148,7 +4169,14 @@ class RateOfChangeStrategy(Strategy):
     Trading signals:
     - Buy when ROC crosses above zero (momentum turns positive).
     - Sell when ROC crosses below zero (momentum turns negative).
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import RateOfChangeStrategy
+        >>> s = RateOfChangeStrategy(period=12)
+        >>> s.period
+        12
+"""
 
     def __init__(self, period: int = 12, name: str = "Rate_Of_Change"):
         super().__init__(name, {"period": period})
@@ -4229,7 +4257,14 @@ class VolumeRateOfChangeStrategy(Strategy):
     Trading signals:
     - Buy when VROC crosses above zero (volume expansion begins).
     - Sell when VROC crosses below zero (volume contraction begins).
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import VolumeRateOfChangeStrategy
+        >>> s = VolumeRateOfChangeStrategy(period=14)
+        >>> s.period
+        14
+"""
 
     def __init__(self, period: int = 14, name: str = "Volume_Rate_Of_Change"):
         """Initialize the Volume Rate of Change strategy.
@@ -4360,7 +4395,14 @@ class ChandeMomentumOscillatorStrategy(Strategy):
     Trading signals:
     - Buy when CMO crosses above zero (momentum turns positive).
     - Sell when CMO crosses below zero (momentum turns negative).
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import ChandeMomentumOscillatorStrategy
+        >>> s = ChandeMomentumOscillatorStrategy(period=14)
+        >>> s.period
+        14
+"""
 
     def __init__(self, period: int = 14, name: str = "Chande_Momentum_Oscillator"):
         """Initialize the Chande Momentum Oscillator strategy.
@@ -4496,7 +4538,14 @@ class VolumeOscillatorStrategy(Strategy):
     Trading signals:
     - Buy when VOL crosses above zero (volume expansion accelerating).
     - Sell when VOL crosses below zero (volume contraction accelerating).
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import VolumeOscillatorStrategy
+        >>> s = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
+        >>> s.fast_period, s.slow_period
+        (5, 13)
+"""
 
     def __init__(
         self,
@@ -4650,7 +4699,14 @@ class VolumePriceTrendStrategy(Strategy):
       (volume-backed momentum is decelerating).
 
     Requires ``"close"`` and ``"volume"`` columns.
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import VolumePriceTrendStrategy
+        >>> s = VolumePriceTrendStrategy(fast_period=5, slow_period=13)
+        >>> s.fast_period, s.slow_period
+        (5, 13)
+"""
 
     def __init__(
         self,
@@ -4853,7 +4909,14 @@ class KlingerOscillatorStrategy(Strategy):
     - Sell when the fast Klinger EMA crosses below the slow Klinger EMA.
 
     Requires ``"high"``, ``"low"``, ``"close"`` and ``"volume"`` columns.
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import KlingerOscillatorStrategy
+        >>> s = KlingerOscillatorStrategy(fast_period=55, slow_period=200)
+        >>> s.fast_period, s.slow_period
+        (55, 200)
+"""
 
     def __init__(
         self,
@@ -5057,7 +5120,14 @@ class HullMovingAverageStrategy(Strategy):
     - Sell when the close crosses below the HMA.
 
     Requires a ``"close"`` column.
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import HullMovingAverageStrategy
+        >>> s = HullMovingAverageStrategy(period=16)
+        >>> s.period
+        16
+"""
 
     def __init__(self, period: int = 16, name: str = "Hull_Moving_Average"):
         """Initialize the Hull Moving Average strategy.
@@ -5228,7 +5298,14 @@ class ChaikinOscillatorStrategy(Strategy):
     It measures the momentum of the ADL. Trading signals:
     - Buy when CHO crosses above zero (accumulation momentum).
     - Sell when CHO crosses below zero (distribution momentum).
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import ChaikinOscillatorStrategy
+        >>> s = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
+        >>> s.fast_period, s.slow_period
+        (3, 10)
+"""
 
     def __init__(
         self,
@@ -5340,7 +5417,14 @@ class EaseOfMovementStrategy(Strategy):
     Trading signals:
     - Buy when EOM crosses above zero.
     - Sell when EOM crosses below zero.
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import EaseOfMovementStrategy
+        >>> s = EaseOfMovementStrategy(period=14)
+        >>> s.period
+        14
+"""
 
     def __init__(self, period: int = 14, name: str = "Ease_Of_Movement"):
         """Initialize the Ease of Movement strategy.
@@ -5475,7 +5559,14 @@ class AwesomeOscillatorStrategy(Strategy):
     ((high + low) / 2). The strategy emits a buy when the AO crosses above
     the zero line and a sell when it crosses below it.
 
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import AwesomeOscillatorStrategy
+        >>> s = AwesomeOscillatorStrategy(short_period=5, long_period=34)
+        >>> s.short_period, s.long_period
+        (5, 34)
+"""
 
     def __init__(
         self,
@@ -5571,7 +5662,14 @@ class VortexStrategy(Strategy):
 
     - Buy when VIP+ crosses above VIP- (upward trend emerging).
     - Sell when VIP- crosses above VIP+ (downward trend emerging).
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import VortexStrategy
+        >>> s = VortexStrategy(period=14)
+        >>> s.period
+        14
+"""
 
     def __init__(
         self,
@@ -5735,7 +5833,14 @@ class TrixStrategy(Strategy):
     Trading signals:
     - Buy when TRIX crosses above zero (momentum turning positive).
     - Sell when TRIX crosses below zero (momentum turning negative).
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import TrixStrategy
+        >>> s = TrixStrategy(period=14)
+        >>> s.period
+        14
+"""
 
     def __init__(self, period: int = 14, name: str = "TRIX"):
         super().__init__(name, {"period": period})
@@ -5811,7 +5916,14 @@ class UltimateOscillatorStrategy(Strategy):
     reduce false signals. It measures buying pressure relative to true range
     across all three periods and generates signals based on divergence from
     zero and crossover conditions.
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import UltimateOscillatorStrategy
+        >>> s = UltimateOscillatorStrategy(short_period=7, medium_period=14, long_period=28)
+        >>> s.short_period, s.medium_period, s.long_period
+        (7, 14, 28)
+"""
 
     def __init__(
         self,
@@ -5925,7 +6037,14 @@ class PercentagePriceOscillatorStrategy(Strategy):
     Generates buy signals when the PPO line crosses above the signal line
     (bullish crossover), and sell signals when it crosses below the signal line
     (bearish crossover). Optionally also reacts to PPO crossing the zero axis.
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import PercentagePriceOscillatorStrategy
+        >>> s = PercentagePriceOscillatorStrategy(fast_period=12, slow_period=26, signal_period=9)
+        >>> s.fast_period, s.slow_period, s.signal_period
+        (12, 26, 9)
+"""
 
     def __init__(
         self,
@@ -6094,7 +6213,14 @@ class PercentageVolumeOscillatorStrategy(Strategy):
     Generates buy signals when the PVO line crosses above the signal line
     (bullish crossover), and sell signals when it crosses below the signal line
     (bearish crossover). Optionally also reacts to PVO crossing the zero axis.
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import PercentageVolumeOscillatorStrategy
+        >>> s = PercentageVolumeOscillatorStrategy(fast_period=12, slow_period=26, signal_period=9)
+        >>> s.fast_period, s.slow_period, s.signal_period
+        (12, 26, 9)
+"""
 
     def __init__(
         self,
@@ -6264,7 +6390,14 @@ class DetrendedPriceOscillatorStrategy(Strategy):
     Trading signals:
     - Buy when DPO crosses above zero (price above the displaced moving average).
     - Sell when DPO crosses below zero (price below the displaced moving average).
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import DetrendedPriceOscillatorStrategy
+        >>> s = DetrendedPriceOscillatorStrategy(period=20)
+        >>> s.period
+        20
+"""
 
     def __init__(self, period: int = 20, name: str = "Detrended_Price_Oscillator"):
         super().__init__(name, {"period": period})
@@ -6349,7 +6482,14 @@ class StochasticMomentumIndexStrategy(Strategy):
     Trading signals:
     - Buy when SMI crosses above zero (%K rising above its signal line).
     - Sell when SMI crosses below zero (%K falling below its signal line).
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
+        >>> s = StochasticMomentumIndexStrategy(k_period=5, signal_period=3)
+        >>> s.k_period, s.signal_period
+        (5, 3)
+"""
 
     def __init__(
         self,
@@ -6504,7 +6644,14 @@ class AccumulationDistributionStrategy(Strategy):
     Trading signals:
     - Buy when ADL crosses above its signal line (accumulation).
     - Sell when ADL crosses below its signal line (distribution).
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import AccumulationDistributionStrategy
+        >>> s = AccumulationDistributionStrategy(signal_period=21)
+        >>> s.signal_period
+        21
+"""
 
     def __init__(self, signal_period: int = 21, name: str = "Accumulation_Distribution"):
         """Initialize the Accumulation/Distribution Line strategy.
@@ -6644,7 +6791,14 @@ class NegativeVolumeIndexStrategy(Strategy):
 
     Trading signals are generated when the NVI crosses above/below its
     exponential moving average.
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import NegativeVolumeIndexStrategy
+        >>> s = NegativeVolumeIndexStrategy(period=255)
+        >>> s.period
+        255
+"""
 
     def __init__(
         self,
@@ -6741,7 +6895,14 @@ class PositiveVolumeIndexStrategy(Strategy):
 
     Trading signals are generated when the PVI crosses above/below its
     exponential moving average.
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import PositiveVolumeIndexStrategy
+        >>> s = PositiveVolumeIndexStrategy(period=255)
+        >>> s.period
+        255
+"""
 
     def __init__(
         self,
@@ -6838,7 +6999,14 @@ class StochRSIStrategy(Strategy):
     - Buy when %K crosses above %D in oversold territory (< 20)
     - Sell when %K crosses below %D in overbought territory (> 80)
     - Optional: Buy/sell on %K crossing the 50 level (mid-line)
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import StochRSIStrategy
+        >>> s = StochRSIStrategy(rsi_period=14, stoch_period=14, k_period=3, d_period=3)
+        >>> s.rsi_period, s.stoch_period, s.k_period, s.d_period
+        (14, 14, 3, 3)
+"""
 
     def __init__(
         self,
@@ -7005,7 +7173,14 @@ class ChoppinessIndexStrategy(Strategy):
     below the low threshold it suggests a trending environment (buy signal),
     when CHOP crosses above the high threshold it suggests choppy environment
     (sell signal / exit trend).
-    """
+
+
+    Examples:
+        >>> from quant_trading.strategies.examples import ChoppinessIndexStrategy
+        >>> s = ChoppinessIndexStrategy(period=14)
+        >>> s.period
+        14
+"""
 
     def __init__(
         self,
