@@ -1,18 +1,19 @@
 # Handoff for Next Agent
 
 ## 1. What changed
-- No code changes. Triaged hanging full test suite.
+- No code changes. Bisected full-suite hang.
 
 ## 2. What was actually verified
-- Isolated suspected network-heavy files (test_yfinance_fetch_many, test_data_providers, test_alphavantage_provider, test_cli, test_readme*) all pass individually.
-- Full `pytest tests` hangs deterministically around test_cli.py after test_alphavantage_provider, test_backtest_*; test_cli alone passes in ~36s.
-- `pytest quant_trading` doctests pass (168/168).
+- `pytest tests/test_alphavantage_provider.py tests/test_cli.py` passes (469 tests).
+- Full `pytest tests` hangs; process tree shows a child `examples/run_parabolic_sar.py` at ~100% CPU.
+- Running `examples/run_parabolic_sar.py` alone exits 0 in ~seconds, so hang is intermittent/environment/order-dependent.
+- Other example scripts (run_backtest_offline.py, run_klinger_oscillator.py) run fine.
 
 ## 3. What remains unresolved
-- Root cause of hang in test_cli under full run not yet identified; likely shared state/ordering or a slow network call triggered by prior tests.
+- Root cause of intermittent hang not yet identified; ParabolicSARStrategy._calculate_sar has no obvious infinite loop but may be triggered by specific synthetic data/ordering.
 
 ## 4. Approaches that failed and why
-- Running full suite: hangs indefinitely; not a code failure in isolated files.
+- Running full suite: hangs due to subprocess example execution; isolated script passes.
 
 ## 5. One precise next task
-- Bisect ordering: run `pytest tests/test_alphavantage_provider.py tests/test_cli.py` and progressively add files to find the trigger; inspect test_cli for module-level/global state and network calls. Keep change minimal.
+- Add timeout/logging to example smoke test subprocess, or profile ParabolicSARStrategy on the exact data produced during full run; inspect shared state in DataManager/synthetic provider.
