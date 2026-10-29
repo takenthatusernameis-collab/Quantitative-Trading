@@ -30,12 +30,10 @@ class YFinanceProvider(DataProvider):
         _yf: Lazily imported ``yfinance`` module (``None`` until first use).
 
     Examples:
-        Construct a provider with a short cache TTL for testing::
-
-            from quant_trading.data.yfinance_provider import YFinanceProvider
-
-            provider = YFinanceProvider(cache_dir="/tmp/yt_cache", cache_ttl_hours=1)
-            assert provider.name == "yfinance"
+        >>> from quant_trading.data.yfinance_provider import YFinanceProvider
+        >>> provider = YFinanceProvider(cache_dir="/tmp/yt_cache", cache_ttl_hours=1)
+        >>> provider.name
+        'yfinance'
 
     """
 
@@ -540,12 +538,10 @@ class AlphaVantageProvider(DataProvider):
         _warn_on_demo: Whether to warn when using the demo key.
 
     Examples:
-        Construct a provider with a custom cache directory::
-
-            from quant_trading.data.yfinance_provider import AlphaVantageProvider
-
-            provider = AlphaVantageProvider(cache_dir="/tmp/av_cache")
-            assert provider.name == "alphavantage"
+        >>> from quant_trading.data.yfinance_provider import AlphaVantageProvider
+        >>> provider = AlphaVantageProvider(cache_dir="/tmp/av_cache")
+        >>> provider.name
+        'alphavantage'
 
     """
 

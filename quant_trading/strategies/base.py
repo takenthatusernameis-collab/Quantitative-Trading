@@ -87,26 +87,24 @@ class Position:
         realized_pnl: Realized profit and loss.
 
     Examples:
-        Create a long position with an unrealized gain::
-
-            from quant_trading.strategies.base import Position
-
-            pos = Position(
-                symbol="AAPL",
-                quantity=100,
-                avg_price=150.0,
-                current_price=160.0,
-                unrealized_pnl=1000.0,
-                realized_pnl=500.0,
-            )
-            assert pos.market_value == 16000.0
-            assert pos.pnl == 1500.0
-
-        Create a flat (zero) position::
-
-            flat = Position(symbol="AAPL")
-            assert flat.market_value == 0.0
-            assert flat.pnl == 0.0
+        >>> from quant_trading.strategies.base import Position
+        >>> pos = Position(
+        ...     symbol="AAPL",
+        ...     quantity=100,
+        ...     avg_price=150.0,
+        ...     current_price=160.0,
+        ...     unrealized_pnl=1000.0,
+        ...     realized_pnl=500.0,
+        ... )
+        >>> pos.market_value
+        16000.0
+        >>> pos.pnl
+        1500.0
+        >>> flat = Position(symbol="AAPL")
+        >>> flat.market_value
+        0.0
+        >>> flat.pnl
+        0.0
 
     """
 
@@ -152,17 +150,15 @@ class Strategy(ABC):
         positions: Dictionary of current positions keyed by symbol.
 
     Examples:
-        Subclass the base class to implement a strategy::
-
-            from quant_trading.strategies.base import Strategy, Signal
-
-            class MyStrategy(Strategy):
-                def generate_signals(self, data):
-                    return [Signal(symbol="AAPL", action="buy", price=150.0)]
-
-            strategy = MyStrategy(name="My")
-            assert strategy.name == "My"
-            assert strategy.parameters == {}
+        >>> from quant_trading.strategies.base import Strategy, Signal
+        >>> class MyStrategy(Strategy):
+        ...     def generate_signals(self, data):
+        ...         return [Signal(symbol="AAPL", action="buy", price=150.0)]
+        >>> strategy = MyStrategy(name="My")
+        >>> strategy.name
+        'My'
+        >>> strategy.parameters
+        {}
 
     """
 
@@ -323,21 +319,19 @@ class StrategyManager:
         strategies: Dictionary of strategies keyed by their name.
 
     Examples:
-        Register strategies and generate signals from all of them::
-
-            from quant_trading.strategies.base import Strategy, StrategyManager
-
-            class NoOpStrategy(Strategy):
-                def generate_signals(self, data):
-                    return []
-
-            manager = StrategyManager()
-            manager.add_strategy(NoOpStrategy(name="Strat1"))
-            manager.add_strategy(NoOpStrategy(name="Strat2"))
-            assert set(manager.strategies) == {"Strat1", "Strat2"}
-
-            signals = manager.generate_all_signals({"AAPL": pd.DataFrame()})
-            assert set(signals) == {"Strat1", "Strat2"}
+        >>> from quant_trading.strategies.base import Strategy, StrategyManager
+        >>> import pandas as pd
+        >>> class NoOpStrategy(Strategy):
+        ...     def generate_signals(self, data):
+        ...         return []
+        >>> manager = StrategyManager()
+        >>> manager.add_strategy(NoOpStrategy(name="Strat1"))
+        >>> manager.add_strategy(NoOpStrategy(name="Strat2"))
+        >>> set(manager.strategies) == {"Strat1", "Strat2"}
+        True
+        >>> signals = manager.generate_all_signals({"AAPL": pd.DataFrame()})
+        >>> set(signals) == {"Strat1", "Strat2"}
+        True
 
     """
 

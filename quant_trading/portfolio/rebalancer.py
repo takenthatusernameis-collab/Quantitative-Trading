@@ -4,33 +4,26 @@ This module translates a portfolio's current allocation and a set of trading
 signals into concrete :class:`RebalanceAction` objects that should be
 executed to bring the portfolio back to its target allocation.
 
-Examples:
-    Generate buy and sell actions for a target allocation::
-
-        from quant_trading.portfolio.portfolio import Portfolio
-        from quant_trading.portfolio.rebalancer import Rebalancer
-        from quant_trading.strategies.base import Signal
-
-        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
-        portfolio.add_holding("AAPL", 100, 100.0)
-        rebalancer = Rebalancer(
-            portfolio,
-            frequency="monthly",
-            target_allocation={"AAPL": 0.6, "MSFT": 0.4},
-        )
-        actions = rebalancer.generate_rebalance_actions()
-        assert all(a.reason == "target_allocation" for a in actions)
-
-    React to a sell signal for an unallocated symbol::
-
-        sell_signal = Signal(symbol="AAPL", action="sell", price=150.0)
-        actions = rebalancer.generate_rebalance_actions(signals=[sell_signal])
-        assert actions[0].action == "sell"
-
-    Apply the generated actions to the portfolio::
-
-        executions = rebalancer.execute_actions(actions, prices={"AAPL": 150.0})
-        assert all(e.executed_quantity >= 0 for e in executions)
+>>> from quant_trading.portfolio.portfolio import Portfolio
+>>> from quant_trading.portfolio.rebalancer import Rebalancer
+>>> from quant_trading.strategies.base import Signal
+>>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+>>> portfolio.add_holding("AAPL", 100, 100.0)
+>>> rebalancer = Rebalancer(
+...     portfolio,
+...     frequency="monthly",
+...     target_allocation={"AAPL": 0.6, "MSFT": 0.4},
+... )
+>>> actions = rebalancer.generate_rebalance_actions()
+>>> all(a.reason == "target_allocation" for a in actions)
+True
+>>> sell_signal = Signal(symbol="AAPL", action="sell", price=150.0)
+>>> actions = rebalancer.generate_rebalance_actions(signals=[sell_signal])
+>>> any(a.action == "sell" for a in actions)
+True
+>>> executions = rebalancer.execute_actions(actions, prices={"AAPL": 150.0})
+>>> all(e.executed_quantity >= 0 for e in executions)
+True
 
 """
 
@@ -65,19 +58,15 @@ class RebalanceAction:
         timestamp: Time the action was generated (defaults to now).
 
     Examples:
-        Create a buy action for a target allocation::
-
-            from quant_trading.portfolio.rebalancer import RebalanceAction
-
-            action = RebalanceAction(
-                symbol="AAPL", action="buy", quantity=10, reason="target_allocation"
-            )
-            assert action.quantity == 10
-
-        Create a sell action driven by a signal::
-
-            sell = RebalanceAction(symbol="AAPL", action="sell", quantity=5)
-            assert sell.reason == ""
+        >>> from quant_trading.portfolio.rebalancer import RebalanceAction
+        >>> action = RebalanceAction(
+        ...     symbol="AAPL", action="buy", quantity=10, reason="target_allocation"
+        ... )
+        >>> action.quantity
+        10
+        >>> sell = RebalanceAction(symbol="AAPL", action="sell", quantity=5)
+        >>> sell.reason
+        ''
 
     """
 
@@ -110,19 +99,17 @@ class RebalanceExecution:
         timestamp: Time the action was applied (defaults to now).
 
     Examples:
-        Record the execution of a buy action::
-
-            from quant_trading.portfolio.rebalancer import RebalanceExecution
-
-            execution = RebalanceExecution(
-                symbol="AAPL",
-                action="buy",
-                requested_quantity=10.0,
-                executed_quantity=10.0,
-                price=150.0,
-                cash_effect=-1500.0,
-            )
-            assert execution.executed_quantity == 10.0
+        >>> from quant_trading.portfolio.rebalancer import RebalanceExecution
+        >>> execution = RebalanceExecution(
+        ...     symbol="AAPL",
+        ...     action="buy",
+        ...     requested_quantity=10.0,
+        ...     executed_quantity=10.0,
+        ...     price=150.0,
+        ...     cash_effect=-1500.0,
+        ... )
+        >>> execution.executed_quantity
+        10.0
 
     """
 
@@ -189,18 +176,16 @@ class Rebalancer:
             are applied.
 
     Examples:
-        Create a rebalancer and check whether it is time to rebalance::
-
-            from quant_trading.portfolio.portfolio import Portfolio
-            from quant_trading.portfolio.rebalancer import Rebalancer
-
-            portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
-            rebalancer = Rebalancer(
-                portfolio,
-                frequency="monthly",
-                target_allocation={"AAPL": 0.6, "MSFT": 0.4},
-            )
-            assert rebalancer.should_rebalance() is True
+        >>> from quant_trading.portfolio.portfolio import Portfolio
+        >>> from quant_trading.portfolio.rebalancer import Rebalancer
+        >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        >>> rebalancer = Rebalancer(
+        ...     portfolio,
+        ...     frequency="monthly",
+        ...     target_allocation={"AAPL": 0.6, "MSFT": 0.4},
+        ... )
+        >>> rebalancer.should_rebalance()
+        True
 
     """
 
