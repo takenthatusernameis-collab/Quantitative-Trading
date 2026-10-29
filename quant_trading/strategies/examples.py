@@ -1815,6 +1815,12 @@ class StochasticOscillatorStrategy(Strategy):
     - Buy when %K crosses above %D in oversold territory (< 20)
     - Sell when %K crosses below %D in overbought territory (> 80)
     - Optional: Buy/sell on %K crossing the 50 level (mid-line)
+
+    Examples:
+        >>> from quant_trading.strategies.examples import StochasticOscillatorStrategy
+        >>> s = StochasticOscillatorStrategy(k_period=14, d_period=3, oversold=20, overbought=80)
+        >>> s.k_period, s.d_period, s.oversold, s.overbought
+        (14, 3, 20, 80)
     """
 
     def __init__(
