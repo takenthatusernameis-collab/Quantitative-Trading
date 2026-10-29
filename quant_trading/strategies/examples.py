@@ -2821,6 +2821,12 @@ class AverageTrueRangeStrategy(Strategy):
       to the downside).
 
     Requires ``"high"``, ``"low"`` and ``"close"`` columns.
+
+    Examples:
+        >>> from quant_trading.strategies.examples import AverageTrueRangeStrategy
+        >>> s = AverageTrueRangeStrategy(period=14, atr_multiplier=2.0)
+        >>> s.period, s.atr_multiplier
+        (14, 2.0)
     """
 
     def __init__(
@@ -3028,6 +3034,12 @@ class ADXStrategy(Strategy):
     * ``-DI``: smoothed downward directional movement over ``period`` bars.
     * ``ADX``: smoothed average of the directional index ``DX = 100 * |
       +DI - -DI | / (+DI + -DI)``.
+
+    Examples:
+        >>> from quant_trading.strategies.examples import ADXStrategy
+        >>> s = ADXStrategy(period=14, threshold=25.0)
+        >>> s.period, s.threshold
+        (14, 25.0)
     """
 
     def __init__(
@@ -3225,6 +3237,12 @@ class CCIStrategy(Strategy):
     price from its simple moving average relative to the mean deviation.
     Values above ``+threshold`` indicate a strong bullish trend and values
     below ``-threshold`` indicate a strong bearish trend.
+
+    Examples:
+        >>> from quant_trading.strategies.examples import CCIStrategy
+        >>> s = CCIStrategy(period=20, threshold=100.0)
+        >>> s.period, s.threshold
+        (20, 100.0)
     """
 
     def __init__(
@@ -3322,9 +3340,15 @@ class WilliamsRStrategy(Strategy):
 
     Williams %R is a momentum oscillator that measures where the close lies
     between the highest high and lowest low over a lookback period. Values
-    range from -100 to 0: readings below ``oversold`` indicate an oversold
+    range from -100 to 0:     readings below ``oversold`` indicate an oversold
     market (buy), readings above ``overbought`` indicate an overbought
     market (sell).
+
+    Examples:
+        >>> from quant_trading.strategies.examples import WilliamsRStrategy
+        >>> s = WilliamsRStrategy(period=14, overbought=-20.0, oversold=-80.0)
+        >>> s.period, s.overbought, s.oversold
+        (14, -20.0, -80.0)
     """
 
     def __init__(
@@ -3441,6 +3465,12 @@ class OBVStrategy(Strategy):
       pressure).
     - A sell signal when OBV crosses below its signal line (increasing selling
       pressure).
+
+    Examples:
+        >>> from quant_trading.strategies.examples import OBVStrategy
+        >>> s = OBVStrategy(signal_period=20)
+        >>> s.signal_period
+        20
     """
 
     def __init__(self, signal_period: int = 20, name: str = "OBV"):
