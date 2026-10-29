@@ -1,15 +1,12 @@
 """Risk management orchestration.
 
-Examples:
-    Create a risk manager and check a trading signal::
-
-        from quant_trading.risk.manager import RiskManager
-        from quant_trading.strategies.base import Signal
-
-        rm = RiskManager(initial_capital=100000.0, max_position_size=0.1)
-        signal = Signal(symbol="AAPL", action="buy", price=150.0, strength=1.0)
-        result = rm.check_signal(signal, portfolio_value=100000.0)
-        assert result.passed in (True, False)
+>>> from quant_trading.risk.manager import RiskManager
+>>> from quant_trading.strategies.base import Signal
+>>> rm = RiskManager(initial_capital=100000.0, max_position_size=0.1)
+>>> signal = Signal(symbol="AAPL", action="buy", price=150.0, strength=1.0)
+>>> result = rm.check_signal(signal, portfolio_value=100000.0)
+>>> result.passed in (True, False)
+True
 
 """
 
@@ -39,8 +36,9 @@ class PortfolioRisk:
         peak_value: Peak portfolio value observed.
 
     Examples:
-        pr = PortfolioRisk(total_market_value=100000.0, cash=50000.0, positions_value=50000.0)
-        assert pr.total_value == 100000.0
+        >>> pr = PortfolioRisk(total_market_value=100000.0, cash=50000.0, positions_value=50000.0)
+        >>> pr.total_value == 100000.0
+        True
 
     """
 
@@ -83,9 +81,11 @@ class RiskManager:
             favour before its trailing stop starts to trail.
 
     Examples:
-        rm = RiskManager(initial_capital=50000.0, max_position_size=0.2)
-        assert rm.initial_capital == 50000.0
-        assert rm.risk_enabled
+        >>> rm = RiskManager(initial_capital=50000.0, max_position_size=0.2)
+        >>> rm.initial_capital == 50000.0
+        True
+        >>> rm.risk_enabled
+        True
 
     """
 
