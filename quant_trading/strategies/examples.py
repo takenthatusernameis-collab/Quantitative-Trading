@@ -1568,6 +1568,12 @@ class KeltnerChannelStrategy(Strategy):
     - Sell when price closes below the lower channel (breakdown)
     - Optional: Buy when price crosses above the middle EMA (trend change)
     - Optional: Sell when price crosses below the middle EMA (trend change)
+
+    Examples:
+        >>> from quant_trading.strategies.examples import KeltnerChannelStrategy
+        >>> s = KeltnerChannelStrategy(ema_period=20, atr_period=10, multiplier=2.0)
+        >>> s.ema_period, s.atr_period, s.multiplier
+        (20, 10, 2.0)
     """
 
     def __init__(
