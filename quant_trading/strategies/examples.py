@@ -3018,16 +3018,15 @@ class ADXStrategy(Strategy):
         ).max(axis=1)
 
         def wilder_smooth(values: pd.Series) -> pd.Series:
-            smoothed: pd.Series = values.copy()
-            smoothed.iloc[: period - 1] = np.nan
-            smoothed.iloc[period - 1] = values.iloc[:period].sum()
-            for index in range(period, len(values)):
-                smoothed.iloc[index] = (
-                    smoothed.iloc[index - 1]
-                    - smoothed.iloc[index - 1] / period
-                    + values.iloc[index]
-                )
-            return smoothed
+            arr = values.to_numpy(dtype=float).copy()
+            smoothed = np.full(len(values), np.nan, dtype=float)
+            if len(values) >= period:
+                smoothed[period - 1] = np.nansum(arr[:period])
+                for index in range(period, len(values)):
+                    smoothed[index] = (
+                        smoothed[index - 1] - smoothed[index - 1] / period + arr[index]
+                    )
+            return pd.Series(smoothed, index=values.index)
 
         smoothed_tr = wilder_smooth(true_range)
         smoothed_plus_dm = wilder_smooth(plus_dm)
@@ -3042,13 +3041,14 @@ class ADXStrategy(Strategy):
         minus_di = minus_di.fillna(0.0)
         dx = dx.fillna(0.0)
 
-        adx = dx.copy()
+        adx_arr = dx.to_numpy(dtype=float).copy()
         first_adx = 2 * period - 1
-        if len(adx) > first_adx:
-            adx.iloc[:first_adx] = np.nan
-            adx.iloc[first_adx] = dx.iloc[period - 1 : 2 * period - 1].mean()
-            for index in range(first_adx + 1, len(adx)):
-                adx.iloc[index] = (adx.iloc[index - 1] * (period - 1) + dx.iloc[index]) / period
+        if len(adx_arr) > first_adx:
+            adx_arr[:first_adx] = np.nan
+            adx_arr[first_adx] = dx.iloc[period - 1 : 2 * period - 1].mean()
+            for index in range(first_adx + 1, len(adx_arr)):
+                adx_arr[index] = (adx_arr[index - 1] * (period - 1) + dx.iloc[index]) / period
+        adx = pd.Series(adx_arr, index=dx.index)
 
         return adx, plus_di, minus_di
 
