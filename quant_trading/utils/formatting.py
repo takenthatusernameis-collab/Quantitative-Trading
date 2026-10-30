@@ -59,3 +59,26 @@ def format_number(value: float, decimals: int = 0) -> str:
 
     """
     return f"{value:,.{decimals}f}"
+
+
+def format_basis_points(bps: float, decimals: int = 1) -> str:
+    """Format basis points as a human-readable percentage string.
+
+    One basis point equals 0.01%, so 100 basis points = 1.00%.
+
+    Args:
+        bps: Value in basis points.
+        decimals: Number of decimal places for the percentage.
+
+    Returns:
+        Formatted percentage string representing basis points.
+
+    >>> format_basis_points(100)
+    '1.0%'
+    >>> format_basis_points(25, decimals=2)
+    '0.25%'
+    >>> format_basis_points(150)
+    '1.5%'
+
+    """
+    return f"{bps / 10000 * 100:.{decimals}f}%"

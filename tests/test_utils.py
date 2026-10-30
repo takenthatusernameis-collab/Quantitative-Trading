@@ -3,6 +3,7 @@
 import logging
 
 from quant_trading.utils import (
+    format_basis_points,
     format_currency,
     format_number,
     format_percent,
@@ -30,6 +31,12 @@ def test_format_percent():
 def test_format_number():
     assert format_number(1234567.89) == "1,234,568"
     assert format_number(1234.5, decimals=2) == "1,234.50"
+
+
+def test_format_basis_points():
+    assert format_basis_points(100) == "1.0%"
+    assert format_basis_points(25, decimals=2) == "0.25%"
+    assert format_basis_points(150) == "1.5%"
 
 
 def test_setup_logger_console_only(tmp_path):
