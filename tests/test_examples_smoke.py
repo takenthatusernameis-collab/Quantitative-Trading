@@ -151,6 +151,11 @@ def test_example_script_imports_cleanly(script: Path) -> None:
 @pytest.mark.parametrize("script", _offline_scripts(), ids=lambda p: p.name)
 def test_example_script_runs_offline(script: Path) -> None:
     """The offline example scripts must run end to end."""
+    # Use a per-test timeout wrapper around the Parabolic SAR path as a
+    # defensive measure in case of regressions.
+    timeout_s = 300
+    if script.name == "run_parabolic_sar.py":
+        timeout_s = 180
     proc = subprocess.Popen(
         [sys.executable, str(script), *OFFLINE_ARGUMENTS.get(script.name, [])],
         stdout=subprocess.PIPE,
@@ -159,7 +164,7 @@ def test_example_script_runs_offline(script: Path) -> None:
         start_new_session=True,
     )
     try:
-        stdout, stderr = proc.communicate(timeout=300)
+        stdout, stderr = proc.communicate(timeout=timeout_s)
     except subprocess.TimeoutExpired:
         try:
             os.killpg(proc.pid, signal.SIGKILL)
@@ -177,7 +182,7 @@ def test_example_script_runs_offline(script: Path) -> None:
         except Exception as exc:  # pragma: no cover - best effort
             tree = f"<ps failed: {exc}>"
         raise AssertionError(
-            f"{script.name} timed out after 300s\n"
+            f"{script.name} timed out after {timeout_s}s\n"
             f"PROCESS TREE:\n{tree}\n"
             f"STDOUT:\n{stdout or ''}\n"
             f"STDERR:\n{stderr or ''}"
