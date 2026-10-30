@@ -8,22 +8,22 @@ serialization to and from YAML.
 Examples:
     Load a configuration from YAML and inspect it::
 
-        import tempfile, os
-        from quant_trading.config.settings import Config
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "config.yaml")
-            Config().to_yaml(path)
-            loaded = Config.from_yaml(path)
-            assert loaded.logging_level == "INFO"
+        >>> import tempfile, os
+        >>> from quant_trading.config.settings import Config
+        >>> tmpdir = tempfile.mkdtemp()
+        >>> path = os.path.join(tmpdir, "config.yaml")
+        >>> Config().to_yaml(path)
+        >>> loaded = Config.from_yaml(path)
+        >>> loaded.logging_level == "INFO"
+        True
 
     Update configuration fields via keyword arguments::
 
-        from quant_trading.config.settings import Config
-
-        config = Config()
-        config.update(logging_level="DEBUG")
-        assert config.logging_level == "DEBUG"
+        >>> from quant_trading.config.settings import Config
+        >>> config = Config()
+        >>> config.update(logging_level="DEBUG")
+        >>> config.logging_level == "DEBUG"
+        True
 
 """
 
@@ -281,16 +281,17 @@ class Config:
     Examples:
         Create a config and update a field::
 
-            from quant_trading.config.settings import Config
-
-            config = Config()
-            config.update(logging_level="DEBUG")
-            assert config.logging_level == "DEBUG"
+            >>> from quant_trading.config.settings import Config
+            >>> config = Config()
+            >>> config.update(logging_level="DEBUG")
+            >>> config.logging_level == "DEBUG"
+            True
 
         Unknown keys are silently ignored::
 
-            config.update(unknown_key="value")
-            assert not hasattr(config, "unknown_key")
+            >>> config.update(unknown_key="value")
+            >>> not hasattr(config, "unknown_key")
+            True
 
     """
 
