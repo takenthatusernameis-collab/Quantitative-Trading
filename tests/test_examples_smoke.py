@@ -149,13 +149,22 @@ def test_example_script_imports_cleanly(script: Path) -> None:
 @pytest.mark.parametrize("script", _offline_scripts(), ids=lambda p: p.name)
 def test_example_script_runs_offline(script: Path) -> None:
     """The offline example scripts must run end to end."""
-    completed = subprocess.run(
-        [sys.executable, str(script), *OFFLINE_ARGUMENTS.get(script.name, [])],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=300,
-    )
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(script), *OFFLINE_ARGUMENTS.get(script.name, [])],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout or ""
+        stderr = exc.stderr or ""
+        raise AssertionError(
+            f"{script.name} timed out after 300s\n"
+            f"STDOUT:\n{stdout}\n"
+            f"STDERR:\n{stderr}"
+        ) from exc
     assert completed.returncode == 0, (
         f"{script.name} exited with code {completed.returncode}\n"
         f"STDOUT:\n{completed.stdout}\n"

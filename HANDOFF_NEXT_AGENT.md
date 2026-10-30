@@ -1,19 +1,18 @@
 # Handoff for Next Agent
 
 ## 1. What changed
-- No code changes. Bisected full-suite hang.
+- Added TimeoutExpired handling with stdout/stderr in tests/test_examples_smoke.py (test_example_script_runs_offline). No changes to strategy/engine code.
 
 ## 2. What was actually verified
-- `pytest tests/test_alphavantage_provider.py tests/test_cli.py` passes (469 tests).
-- Full `pytest tests` hangs; process tree shows a child `examples/run_parabolic_sar.py` at ~100% CPU.
-- Running `examples/run_parabolic_sar.py` alone exits 0 in ~seconds, so hang is intermittent/environment/order-dependent.
-- Other example scripts (run_backtest_offline.py, run_klinger_oscillator.py) run fine.
+- `python -m pytest tests/test_examples_smoke.py::test_example_script_runs_offline[run_parabolic_sar.py] -v` passed (31s).
+- Full suite: `python -m pytest tests` completed with `2296 passed, 55 skipped, 37 warnings` in ~344s (no hang observed).
+- Manually ran `timeout 120 python examples/run_parabolic_sar.py` successfully (returns summary).
 
 ## 3. What remains unresolved
-- Root cause of intermittent hang not yet identified; ParabolicSARStrategy._calculate_sar has no obvious infinite loop but may be triggered by specific synthetic data/ordering.
+- Intermittent hang root cause not reproduced in this session; likely environment/order-dependent. If it reappears, investigate ParabolicSARStrategy._calculate_sar with profiling on the exact failing sequence.
 
 ## 4. Approaches that failed and why
-- Running full suite: hangs due to subprocess example execution; isolated script passes.
+- Prior full-suite run appeared to hang (child examples/run_parabolic_sar.py at high CPU per handoff) — not reproducible now; added defensive timeout/logging as suggested.
 
 ## 5. One precise next task
-- Add timeout/logging to example smoke test subprocess, or profile ParabolicSARStrategy on the exact data produced during full run; inspect shared state in DataManager/synthetic provider.
+- If the hang returns, add process-group termination and/or `subprocess.run(..., start_new_session=True)` with `os.killpg` on timeout in tests/test_examples_smoke.py, and/or add a per-test timeout wrapper around the Parabolic SAR path; capture full process tree on timeout with evidence before changing strategy logic.
