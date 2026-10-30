@@ -154,18 +154,24 @@ class DataProvider(ABC):
     Examples:
         Subclass and implement the abstract methods::
 
-            from quant_trading.data.providers import DataProvider, FetchResult
-
-            class MyProvider(DataProvider):
-                @property
-                def name(self) -> str:
-                    return "my"
-
-                def fetch(self, symbols, start=None, end=None, interval="1d"):
-                    return FetchResult()
-
-                def fetch_latest(self, symbols):
-                    return FetchResult()
+            >>> from quant_trading.data.providers import DataProvider, FetchResult
+            >>> class MyProvider(DataProvider):
+            ...     @property
+            ...     def name(self) -> str:
+            ...         return "my"
+            ...     def fetch(self, symbols, start=None, end=None, interval="1d"):
+            ...         return FetchResult()
+            ...     def fetch_latest(self, symbols):
+            ...         return FetchResult()
+            >>> provider = MyProvider()
+            >>> provider.name
+            'my'
+            >>> result = provider.fetch(["AAPL"])
+            >>> result.is_success
+            True
+            >>> latest = provider.fetch_latest(["AAPL"])
+            >>> latest.is_success
+            True
 
     """
 
