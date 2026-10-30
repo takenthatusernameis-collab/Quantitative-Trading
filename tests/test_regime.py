@@ -343,6 +343,24 @@ def test_prices_with_inf():
     assert isinstance(result.current_regime, Regime)
 
 
+def test_prices_all_nan_after_first_bar_returns_empty_result():
+    """When every return is NaN, dropna() yields zero returns and the detector
+    short-circuits at the `if len(returns) < 1` guard (detector.py:364).
+
+    A two-bar series whose second bar is NaN has len(prices) >= 2 (so the first
+    guard at line 359 does not fire) but pct_change() produces only NaNs, so
+    the returns series is empty after dropna().
+    """
+    prices = pd.Series([100.0, np.nan], index=pd.date_range("2024-01-01", periods=2, freq="D"))
+    result = detect_regimes(prices, window=20)
+
+    assert isinstance(result, RegimeResult)
+    assert result.n_segments == 0
+    assert result.current_regime == Regime.UNKNOWN
+    assert result.regimes == []
+    assert result.segments == []
+
+
 def test_merge_segments_single_element():
     """Single element label list should produce one segment."""
     from quant_trading.regime import Regime
