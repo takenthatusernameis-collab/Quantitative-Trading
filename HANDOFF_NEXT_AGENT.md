@@ -21,5 +21,5 @@
 - Per-symbol slice caching in the engine: slice cost ~0.07s total, no win (prior session).
 
 ## 5. One precise next task
-- Re-run `python -m cProfile -s cumulative examples/run_backtest_offline.py` and confirm no single strategy's `generate_signals` still exceeds ~1s cumtime and total wall stays below 5.7s. If one does, make it incremental using the MA/RSI/BB running-state pattern with full-recompute fallback plus a parity test (verification: byte-identical example output, `python -m pytest -q` green). If none does, the optimization cycle is complete: the only remaining duty is to commit the two modified files — but ONLY if the user explicitly requests it (repo rule: no commits without explicit request).
-- Constraints: keep examples/run_backtest_offline.py output byte-identical; keep pytest at 2472 passed / 55 skipped (or higher only via new tests); total wall time below 5.7s.
+- Optimization cycle COMPLETE. Verification (this session): cProfile shows no generate_signals above 1s (max 0.451s MovingAverageCrossover), total wall 3.120s (< 5.7s). test_strategies_examples.py: 375 passed. Full pytest was not re-run here (exceeds 120s tool limit) but baseline 2472 passed / 55 skipped recorded; no code changed this session.
+- No commit made (repo rule: only on explicit user request). If user requests commit, stage only examples.py and tests/test_strategies_examples.py.
