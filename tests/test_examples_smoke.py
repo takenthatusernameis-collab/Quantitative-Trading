@@ -181,8 +181,9 @@ def test_example_script_runs_offline(script: Path) -> None:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                check=False,
             ).stdout
-        except Exception as exc:  # pragma: no cover - best effort
+        except (OSError, subprocess.TimeoutExpired) as exc:  # pragma: no cover - best effort
             tree = f"<ps failed: {exc}>"
         raise AssertionError(
             f"{script.name} timed out after {timeout_s}s\n"
