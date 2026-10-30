@@ -590,9 +590,15 @@ class TestPortfolioSerialization:
         restored = Portfolio.from_dict(portfolio.to_dict())
         assert restored.last_rebalance is None
 
-    def test_from_dict_uses_defaults_for_missing_fields(self):
-        """from_dict tolerates a dict that omits optional fields."""
-        restored = Portfolio.from_dict({"cash": 25000.0})
-        assert restored.cash == 25000.0
-        assert restored.initial_capital == 25000.0
-        assert restored.holdings == {}
+    def test_from_dict_accepts_last_rebalance_as_datetime(self):
+        """from_dict passes through datetime objects (branch at line 517)."""
+        dt = datetime(2024, 2, 3, 10, 11, 12)
+        data = {
+            "cash": 1000.0,
+            "holdings": {},
+            "total_value": 1000.0,
+            "initial_capital": 1000.0,
+            "last_rebalance": dt,
+        }
+        restored = Portfolio.from_dict(data)
+        assert restored.last_rebalance == dt

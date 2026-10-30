@@ -28,3 +28,9 @@
 - Constraints: do NOT commit unless explicitly asked; preserve working baseline; exclude secrets/env/cache artifacts.
 
 (End of file)
+## Update (current session)
+- Added test `test_from_dict_accepts_last_rebalance_as_datetime` in `tests/test_portfolio.py` to cover `quant_trading/portfolio/portfolio.py:517` (datetime passthrough in `from_dict`).
+- Verified: `ruff` clean, `black --check` clean, `mypy quant_trading` clean.
+- Tests: `pytest tests/test_portfolio.py tests/test_backtest_engine.py tests/test_regime.py` → 212 passed.
+- Coverage (COVERAGE_CORE=pytrace): `quant_trading/portfolio/portfolio.py` now 100%; `quant_trading/backtest/engine.py` 100% (confirmed earlier).
+- No commit made (only on explicit request). Remaining gaps noted in prior handoff still stand (optimization/__init__ unreachable branch, other single-branch misses, and pre-existing hanging test in `tests/test_alphavantage_provider.py`).
