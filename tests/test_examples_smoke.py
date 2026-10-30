@@ -19,6 +19,8 @@ Scripts that require network access (importing ``YFinanceProvider`` or
 ``AlphaVantageProvider``) are only import-checked, never executed.
 """
 
+import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -149,22 +151,40 @@ def test_example_script_imports_cleanly(script: Path) -> None:
 @pytest.mark.parametrize("script", _offline_scripts(), ids=lambda p: p.name)
 def test_example_script_runs_offline(script: Path) -> None:
     """The offline example scripts must run end to end."""
+    proc = subprocess.Popen(
+        [sys.executable, str(script), *OFFLINE_ARGUMENTS.get(script.name, [])],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
     try:
-        completed = subprocess.run(
-            [sys.executable, str(script), *OFFLINE_ARGUMENTS.get(script.name, [])],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
-    except subprocess.TimeoutExpired as exc:
-        stdout = exc.stdout or ""
-        stderr = exc.stderr or ""
+        stdout, stderr = proc.communicate(timeout=300)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        stdout, stderr = proc.communicate()
+        # Capture surviving child processes for evidence.
+        try:
+            tree = subprocess.run(
+                ["ps", "-eo", "pid,ppid,pgid,stat,pcpu,pmem,cmd"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            ).stdout
+        except Exception as exc:  # pragma: no cover - best effort
+            tree = f"<ps failed: {exc}>"
         raise AssertionError(
             f"{script.name} timed out after 300s\n"
-            f"STDOUT:\n{stdout}\n"
-            f"STDERR:\n{stderr}"
-        ) from exc
+            f"PROCESS TREE:\n{tree}\n"
+            f"STDOUT:\n{stdout or ''}\n"
+            f"STDERR:\n{stderr or ''}"
+        )
+    completed = subprocess.CompletedProcess(
+        args=proc.args, returncode=proc.returncode, stdout=stdout, stderr=stderr
+    )
     assert completed.returncode == 0, (
         f"{script.name} exited with code {completed.returncode}\n"
         f"STDOUT:\n{completed.stdout}\n"
