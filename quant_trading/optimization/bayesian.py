@@ -1,32 +1,19 @@
 """Bayesian parameter optimization using scikit-optimize.
 
 Examples:
-    Run Bayesian optimization over a strategy's parameter grid::
-
-        from quant_trading.optimization import (
-            BayesianOptimizer,
-            ParameterGrid,
-            ParameterSpace,
-            maximize_sharpe,
-        )
-        from quant_trading.strategies.examples import MovingAverageCrossover
-
-        param_grid = ParameterGrid()
-        param_grid.add(ParameterSpace("fast_period", min_val=5, max_val=15, param_type=int))
-        param_grid.add(ParameterSpace("slow_period", min_val=20, max_val=30, param_type=int))
-
-        optimizer = BayesianOptimizer(
-            strategy_cls=MovingAverageCrossover,
-            param_grid=param_grid,
-            objective=maximize_sharpe,
-            symbols=["AAPL"],
-            start=start,
-            end=end,
-            data_manager=data_manager,
-            random_state=42,
-        )
-        result = optimizer.run()
-        print(f"Best parameters: {result.best_params}")
+    >>> from quant_trading.optimization import (
+    ...     BayesianOptimizer,
+    ...     ParameterGrid,
+    ...     ParameterSpace,
+    ...     maximize_sharpe,
+    ... )
+    >>> from quant_trading.strategies.examples import MovingAverageCrossover
+    >>> from quant_trading.optimization.bayesian import BayesianOptimizerConfig
+    >>> cfg = BayesianOptimizerConfig(n_calls=10, random_state=123)
+    >>> cfg.n_calls == 10
+    True
+    >>> cfg.random_state == 123
+    True
 
 """
 

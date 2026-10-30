@@ -6,9 +6,11 @@ process-wide global registry. Strategies can be looked up by primary key or
 by alias, and instantiated with arbitrary keyword arguments.
 
 Examples:
-    >>> from quant_trading.strategies.factory import register_strategy, get_strategy, create_strategy
+    >>> from quant_trading.strategies.factory import register_strategy, get_strategy, create_strategy, strategy_keys
     >>> from quant_trading.strategies.base import Strategy
     >>> class MyStrategy(Strategy):
+    ...     def __init__(self, name="my", parameters=None):
+    ...         super().__init__(name=name, parameters=parameters)
     ...     def generate_signals(self, data):
     ...         return []
     >>> register_strategy("my", MyStrategy)
@@ -17,8 +19,6 @@ Examples:
     >>> instance = create_strategy("my")
     >>> isinstance(instance, MyStrategy)
     True
-
-    >>> from quant_trading.strategies.factory import strategy_keys
     >>> "ma" in strategy_keys()
     True
 

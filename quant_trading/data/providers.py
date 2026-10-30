@@ -7,29 +7,27 @@ providers (e.g. :mod:`quant_trading.data.yfinance_provider` and
 :attr:`fetch`, :attr:`fetch_latest`, and :attr:`fetch_many`.
 
 Examples:
-    Wrap a provider in a DataManager to get caching for free::
-
-        from quant_trading.data.providers import DataManager
-        from quant_trading.data.synthetic import create_synthetic_provider
-
-        manager = DataManager()
-        manager.add_provider(create_synthetic_provider({"AAPL": 100.0}))
-        result = manager.fetch(["AAPL"])
-        assert result.is_success
-        assert "AAPL" in result.data
-
-    Inspect a fetch result's success and error state::
-
-        from quant_trading.data.providers import FetchResult
-
-        ok = FetchResult()
-        assert ok.is_success
-        assert not ok.has_errors
-        assert not ok.has_missing
-
-        failed = FetchResult(errors={"AAPL": RuntimeError("boom")})
-        assert failed.has_errors
-        assert not failed.is_success
+    >>> from quant_trading.data.providers import DataManager, FetchResult
+    >>> from quant_trading.data.synthetic import create_synthetic_provider
+    >>> manager = DataManager()
+    >>> manager.add_provider(create_synthetic_provider({"AAPL": 100.0}))
+    >>> result = manager.fetch(["AAPL"])
+    >>> result.is_success
+    True
+    >>> "AAPL" in result.data
+    True
+    >>> ok = FetchResult()
+    >>> ok.is_success
+    True
+    >>> ok.has_errors
+    False
+    >>> ok.has_missing
+    False
+    >>> failed = FetchResult(errors={"AAPL": RuntimeError("boom")})
+    >>> failed.has_errors
+    True
+    >>> failed.is_success
+    False
 
 """
 
