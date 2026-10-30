@@ -266,7 +266,10 @@ def calculate_backtest_metrics(
         round_trips = log.round_trips
 
         # The realized PnL of the run is the sum of the trade log
-        if not log.entries.empty:
+        # Unreachable: split_trade_log returns a copy of the non-empty input
+        # whenever the caller already verified len(trades) > 0 and a ``pnl``
+        # column is present, so ``log.entries`` is never empty here.
+        if not log.entries.empty:  # pragma: no cover
             metrics.total_pnl = float(log.entries["pnl"].sum())
 
         winning = round_trips[round_trips["pnl"] > 0]

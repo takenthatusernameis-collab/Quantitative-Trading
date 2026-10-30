@@ -1587,6 +1587,159 @@ def test_walk_forward_combine_drops_overlapping_points():
     assert index.is_unique
 
 
+def test_walk_forward_combine_window_with_no_new_points_does_not_update_cumulative():
+    """A window whose every bar is already covered leaves cumulative_final unchanged.
+
+    When a later window's test period is entirely contained in the previous
+    windows' emitted range, every point is dropped by the ``timestamp <=
+    last_timestamp`` filter and ``all_equity`` stays empty for that window, so
+    the ``if all_equity:`` update at line 796 is skipped and the combined curve
+    continues from the previous cumulative final.
+    """
+    from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.metrics import calculate_backtest_metrics
+    from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+    optimizer = _walk_forward_optimizer()
+
+    eq1 = pd.Series(
+        [100000.0, 110000.0, 105000.0],
+        index=pd.to_datetime(["2024-02-01", "2024-02-15", "2024-03-15"]),
+    )
+    # The second window's bars are all at or before the last emitted bar
+    # (2024-03-15), so none of them survive the overlap filter.
+    eq2 = pd.Series(
+        [100000.0, 95000.0, 100000.0],
+        index=pd.to_datetime(["2024-03-01", "2024-03-10", "2024-03-15"]),
+    )
+    windows = [
+        WalkForwardWindow(
+            train_start=WALK_FORWARD_START,
+            train_end=datetime(2024, 2, 1),
+            test_start=datetime(2024, 2, 1),
+            test_end=datetime(2024, 3, 1),
+            best_params={"fast_period": 5, "slow_period": 20},
+            test_result=BacktestResult(
+                equity_curve=eq1,
+                trades=pd.DataFrame(),
+                positions={},
+                metrics=calculate_backtest_metrics(eq1),
+                start_date=datetime(2024, 2, 1),
+                end_date=datetime(2024, 3, 1),
+                initial_capital=100000.0,
+                final_value=eq1.iloc[-1],
+                total_return=eq1.iloc[-1] - 100000.0,
+                total_return_pct=(eq1.iloc[-1] / 100000.0 - 1) * 100,
+            ),
+        ),
+        WalkForwardWindow(
+            train_start=WALK_FORWARD_START,
+            train_end=datetime(2024, 3, 1),
+            test_start=datetime(2024, 3, 1),
+            test_end=datetime(2024, 4, 1),
+            best_params={"fast_period": 5, "slow_period": 20},
+            test_result=BacktestResult(
+                equity_curve=eq2,
+                trades=pd.DataFrame(),
+                positions={},
+                metrics=calculate_backtest_metrics(eq2),
+                start_date=datetime(2024, 3, 1),
+                end_date=datetime(2024, 4, 1),
+                initial_capital=100000.0,
+                final_value=eq2.iloc[-1],
+                total_return=eq2.iloc[-1] - 100000.0,
+                total_return_pct=(eq2.iloc[-1] / 100000.0 - 1) * 100,
+            ),
+        ),
+    ]
+
+    combined = optimizer._combine_test_results(windows)
+    assert combined is not None
+    # The second window contributes nothing, so the combined curve is just the
+    # first window's bars and the cumulative final is 105000.0 (unchanged).
+    assert [round(float(v), 2) for v in combined.equity_curve.values] == [
+        100000.0,
+        110000.0,
+        105000.0,
+    ]
+
+
+def test_walk_forward_combine_skips_short_curve_before_valid_window():
+    """A single-point window is skipped before a window that contributes data.
+
+    The first window's equity curve has only one bar, so ``len(eq) < 2``
+    triggers ``continue`` and ``all_equity`` stays empty; the ``if all_equity:``
+    guard at line 796 then skips the ``cumulative_final`` update for that
+    window. The second window seeds the combined curve from the initial
+    capital instead of from a stale cumulative final.
+    """
+    from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.metrics import calculate_backtest_metrics
+    from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+    optimizer = _walk_forward_optimizer()
+
+    # Single-point curve: skipped by the ``len(eq) < 2`` guard.
+    eq_short = pd.Series(
+        [100000.0],
+        index=pd.to_datetime(["2024-02-01"]),
+    )
+    eq2 = pd.Series(
+        [100000.0, 105000.0, 110000.0],
+        index=pd.to_datetime(["2024-03-01", "2024-03-15", "2024-04-01"]),
+    )
+    windows = [
+        WalkForwardWindow(
+            train_start=WALK_FORWARD_START,
+            train_end=datetime(2024, 2, 1),
+            test_start=datetime(2024, 2, 1),
+            test_end=datetime(2024, 3, 1),
+            best_params={"fast_period": 5, "slow_period": 20},
+            test_result=BacktestResult(
+                equity_curve=eq_short,
+                trades=pd.DataFrame(),
+                positions={},
+                metrics=calculate_backtest_metrics(eq_short),
+                start_date=datetime(2024, 2, 1),
+                end_date=datetime(2024, 3, 1),
+                initial_capital=100000.0,
+                final_value=100000.0,
+                total_return=0.0,
+                total_return_pct=0.0,
+            ),
+        ),
+        WalkForwardWindow(
+            train_start=WALK_FORWARD_START,
+            train_end=datetime(2024, 3, 1),
+            test_start=datetime(2024, 3, 1),
+            test_end=datetime(2024, 4, 1),
+            best_params={"fast_period": 5, "slow_period": 20},
+            test_result=BacktestResult(
+                equity_curve=eq2,
+                trades=pd.DataFrame(),
+                positions={},
+                metrics=calculate_backtest_metrics(eq2),
+                start_date=datetime(2024, 3, 1),
+                end_date=datetime(2024, 4, 1),
+                initial_capital=100000.0,
+                final_value=eq2.iloc[-1],
+                total_return=eq2.iloc[-1] - 100000.0,
+                total_return_pct=(eq2.iloc[-1] / 100000.0 - 1) * 100,
+            ),
+        ),
+    ]
+
+    combined = optimizer._combine_test_results(windows)
+    assert combined is not None
+    # The short window is skipped, so the combined curve starts at the initial
+    # capital and continues from the second window's bars (scale == 1.0).
+    assert [round(float(v), 2) for v in combined.equity_curve.values] == [
+        100000.0,
+        105000.0,
+        110000.0,
+    ]
+
+
 def test_walk_forward_verbose(capsys):
     """Test WalkForwardOptimizer verbose prints window progress."""
     symbols = ["AAPL"]
@@ -3158,6 +3311,26 @@ class TestWalkForwardSerialization:
         assert restored.train_result is None
         assert restored.test_result is None
 
+    def test_walk_forward_window_from_dict_passes_through_non_datetime_values(self):
+        """from_dict passes non-datetime/non-string values through unchanged.
+
+        ``_coerce_datetime`` only converts ``datetime`` and ``str`` inputs; any
+        other value (including ``None`` from a missing key) is returned as-is so
+        callers may apply their own defaults. This guards that passthrough.
+        """
+        from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+        restored = WalkForwardWindow.from_dict(
+            {
+                "train_start": None,
+                "train_end": None,
+                "test_start": None,
+                "test_end": None,
+            }
+        )
+        assert restored.train_start is None
+        assert restored.test_end is None
+
     def test_walk_forward_result_round_trip(self):
         """from_dict(to_dict(result)) restores windows and the anchored flag."""
         from quant_trading.optimization.walk_forward import (
@@ -3218,3 +3391,29 @@ class TestWalkForwardSerialization:
         assert restored.windows == []
         assert restored.anchored is True
         assert restored.combined_test_result is None
+
+    def test_walk_forward_result_from_dict_skips_non_window_entries(self):
+        """from_dict ignores window entries that are neither dicts nor windows.
+
+        A malformed ``windows`` list (e.g. one that round-tripped through a
+        non-JSON serializer) must not raise; the bad entries are skipped and
+        the valid ones are preserved.
+        """
+        from quant_trading.optimization.walk_forward import (
+            WalkForwardResult,
+            WalkForwardWindow,
+        )
+
+        window = WalkForwardWindow(
+            train_start=datetime(2024, 1, 1),
+            train_end=datetime(2024, 2, 1),
+            test_start=datetime(2024, 2, 1),
+            test_end=datetime(2024, 3, 1),
+        )
+        restored = WalkForwardResult.from_dict(
+            {"windows": ["not-a-window", window, 42], "anchored": False}
+        )
+
+        assert len(restored.windows) == 1
+        assert restored.windows[0] is window
+        assert restored.anchored is False

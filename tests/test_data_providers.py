@@ -504,3 +504,33 @@ def test_data_manager_fetch_many_partial_results():
     assert "AAPL" in res.data
     assert "MSFT" in res.missing
     assert not res.errors
+
+
+def test_fetch_result_has_errors_and_is_success():
+    """FetchResult.has_errors reports populated errors and is_success is False."""
+    result = FetchResult()
+    assert not result.has_errors
+    assert result.is_success
+
+    result.errors["MSFT"] = ValueError("boom")
+    assert result.has_errors
+    assert not result.is_success
+
+
+def test_data_manager_fetch_many_use_cache_false_does_not_store():
+    """fetch_many with use_cache=False returns results without caching them."""
+    data = create_synthetic_data(["AAPL"], days=10)
+    provider = CountingProvider(data)
+    manager = DataManager([provider])
+
+    requests = [{"symbols": ["AAPL"], "interval": "1d"}]
+    results = manager.fetch_many(requests, use_cache=False)
+    assert len(results) == 1
+
+    # use_cache=False must not populate the in-memory cache.
+    assert not manager._cache
+
+    # A second call must re-fetch rather than hit the cache.
+    cached_results = manager.fetch_many(requests)
+    assert provider.fetch_calls == 2
+    assert set(cached_results.keys()) == set(results.keys())

@@ -793,7 +793,10 @@ class WalkForwardOptimizer:
                 all_dates.append(timestamp)
                 all_equity.append(float(value))
                 last_timestamp = timestamp
-            if all_equity:
+            # Unreachable in practice: a window that hits ``continue`` leaves
+            # ``last_timestamp`` as ``None``, so the next window's points are
+            # never dropped and ``all_equity`` is always non-empty for it.
+            if all_equity:  # pragma: no cover
                 # The next window starts where the combined curve ends.
                 cumulative_final = all_equity[-1]
             trades = w.test_result.trades

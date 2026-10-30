@@ -200,6 +200,19 @@ class TestConfig:
         result = settings._filter_fields(DataConfig, "not_a_dict")
         assert result == {}
 
+    def test_type_matches_accepts_unrecognized_annotation(self):
+        """_type_matches returns True for annotations it does not recognize.
+
+        The fallback at settings.py:136 accepts anything when the annotation is
+        not one of the known primitives or a union, so custom class types (such
+        as nested dataclass fields) do not raise during type checking.
+        """
+        from quant_trading.config import settings
+
+        assert settings._type_matches(DataConfig, "anything") is True
+        assert settings._type_matches(DataConfig, 123) is True
+        assert settings._type_matches(DataConfig, None) is True
+
     def test_to_yaml_bare_filename(self, tmp_path, monkeypatch):
         """to_yaml with a bare filename skips directory creation (settings.py:96->98)."""
         config = Config()

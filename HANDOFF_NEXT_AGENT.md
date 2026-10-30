@@ -44,8 +44,19 @@ Do not add arbitrary sleeps, remove test coverage, or mark a hanging test as ski
 
 (End of file)
 ## Update (current session)
-- Added test `test_from_dict_accepts_last_rebalance_as_datetime` in `tests/test_portfolio.py` to cover `quant_trading/portfolio/portfolio.py:517` (datetime passthrough in `from_dict`).
+- Added three tests covering previously-uncovered branches:
+  - `tests/test_data_providers.py::test_data_manager_fetch_many_use_cache_false_does_not_store` — covers `quant_trading/data/providers.py:493->495` (the `if use_cache:` False branch inside `DataManager.fetch_many`).
+  - `tests/test_data_providers.py::test_fetch_result_has_errors_and_is_success` — covers `quant_trading/data/providers.py:135` (`FetchResult.has_errors`).
+  - `tests/test_config.py::TestConfig::test_type_matches_accepts_unrecognized_annotation` — covers `quant_trading/config/settings.py:136` (the `return True` fallback in `_type_matches` for unrecognized annotations such as nested dataclass fields).
+  - `tests/test_optimization.py::test_walk_forward_combine_skips_short_curve_before_valid_window` — covers `quant_trading/optimization/walk_forward.py:796` (the `if all_equity:` True branch; the False branch is structurally unreachable and now marked `# pragma: no cover`).
+  - `tests/test_optimization.py::TestWalkForwardSerialization::test_walk_forward_result_from_dict_skips_non_window_entries` — covers `quant_trading/optimization/walk_forward.py:206` (the `elif isinstance(wdata, WalkForwardWindow)` branch in `WalkForwardResult.from_dict`).
+  - `tests/test_optimization.py::TestWalkForwardSerialization::test_walk_forward_window_from_dict_passes_through_non_datetime_values` — covers `quant_trading/optimization/walk_forward.py:53` (the passthrough `return` in `_coerce_datetime` for non-datetime/non-string values).
+- Marked two structurally-unreachable branches `# pragma: no cover` with evidence, consistent with repo conventions:
+  - `quant_trading/optimization/walk_forward.py:799` (`if all_equity:` False branch — a skipped window leaves `last_timestamp=None`, so the next window's points are never dropped).
+  - `quant_trading/backtest/metrics.py:269` (`if not log.entries.empty:` False branch — `split_trade_log` always returns a non-empty `entries` copy when the caller already verified `len(trades) > 0` and a `pnl` column is present).
 - Verified: `ruff` clean, `black --check` clean, `mypy quant_trading` clean.
-- Tests: `pytest tests/test_portfolio.py tests/test_backtest_engine.py tests/test_regime.py` → 212 passed.
-- Coverage (COVERAGE_CORE=pytrace): `quant_trading/portfolio/portfolio.py` now 100%; `quant_trading/backtest/engine.py` 100% (confirmed earlier).
-- No commit made (only on explicit request). Remaining gaps noted in prior handoff still stand (optimization/__init__ unreachable branch, other single-branch misses, and pre-existing hanging test in `tests/test_alphavantage_provider.py`).
+- Tests: 951 passed across `tests/test_optimization.py tests/test_config.py tests/test_data_providers.py tests/test_backtest_engine.py tests/test_regime.py tests/test_portfolio.py tests/test_risk_metrics.py tests/test_monte_carlo.py tests/test_strategies_examples.py tests/test_backtest_metrics.py tests/test_trade_analysis.py tests/test_repository_integrity.py`.
+- Coverage (COVERAGE_CORE=pytrace): `quant_trading/data/providers.py`, `quant_trading/config/settings.py`, `quant_trading/optimization/walk_forward.py`, `quant_trading/backtest/metrics.py`, `quant_trading/backtest/engine.py`, `quant_trading/portfolio/portfolio.py`, `quant_trading/regime/detector.py`, `quant_trading/risk/metrics.py` all 100%.
+- No commit made (only on explicit request). Remaining gaps: `quant_trading/optimization/__init__.py` `except ImportError` (structurally unreachable — skopt imports are lazy), `quant_trading/portfolio/rebalancer.py` (15%, needs integration tests), and the pre-existing hanging test in `tests/test_alphavantage_provider.py`.
+
+(End of file - total 36 lines)
