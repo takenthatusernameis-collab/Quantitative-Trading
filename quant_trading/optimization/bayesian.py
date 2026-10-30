@@ -107,18 +107,36 @@ class BayesianOptimizer(BaseOptimizer):
     to balance exploration and exploitation.
 
     Examples:
-        optimizer = BayesianOptimizer(
-            strategy_cls=MovingAverageCrossover,
-            param_grid=param_grid,
-            objective=maximize_sharpe,
-            symbols=["AAPL"],
-            start=start,
-            end=end,
-            data_manager=data_manager,
-            random_state=42,
-        )
-        result = optimizer.run()
-        assert result.best_params is not None
+        >>> from datetime import datetime, timedelta
+        >>> from quant_trading.data.providers import DataManager
+        >>> from quant_trading.data.synthetic import create_synthetic_provider
+        >>> from quant_trading.optimization import ParameterGrid, ParameterSpace, maximize_sharpe
+        >>> from quant_trading.optimization.bayesian import BayesianOptimizer
+        >>> from quant_trading.strategies.examples import MovingAverageCrossover
+        >>> provider = create_synthetic_provider(["AAPL"], days=60, seed=42)
+        >>> data_manager = DataManager([provider])
+        >>> param_grid = ParameterGrid()
+        >>> _ = param_grid.add(ParameterSpace("fast_period", min_val=5, max_val=15, param_type=int))
+        >>> _ = param_grid.add(ParameterSpace("slow_period", min_val=20, max_val=30, param_type=int))
+        >>> optimizer = BayesianOptimizer(
+        ...     strategy_cls=MovingAverageCrossover,
+        ...     param_grid=param_grid,
+        ...     objective=maximize_sharpe,
+        ...     symbols=["AAPL"],
+        ...     start=datetime.now() - timedelta(days=50),
+        ...     end=datetime.now(),
+        ...     data_manager=data_manager,
+        ...     random_state=42,
+        ... )
+        >>> result = optimizer.run()
+        >>> result.best_params is not None
+        True
+        >>> "fast_period" in result.best_params
+        True
+        >>> "slow_period" in result.best_params
+        True
+        >>> len(result.all_results) == optimizer.n_calls
+        True
 
     """
 
