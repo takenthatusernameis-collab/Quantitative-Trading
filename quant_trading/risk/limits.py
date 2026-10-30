@@ -312,14 +312,13 @@ class CheckResult:
         timestamp: Time at which the check result was created.
 
     Examples:
-        Create a passing check result and add violations::
-
-            from quant_trading.risk.limits import CheckResult
-
-            res = CheckResult(passed=True)
-            assert res.ok is True
-            res.add_violation("Position too large")
-            assert not res.passed
+        >>> from quant_trading.risk.limits import CheckResult
+        >>> res = CheckResult(passed=True)
+        >>> res.ok is True
+        True
+        >>> res.add_violation("Position too large")
+        >>> res.passed
+        False
 
     """
 
