@@ -1,20 +1,19 @@
 # Handoff for Next Agent
 
 ## 1. What changed
-- Process-group termination for timed-out offline example execution already present in tests/test_examples_smoke.py (`start_new_session=True`, `os.killpg` on `TimeoutExpired`, process-tree capture).
-- Full test suite re-run; no code changes needed this session.
+- Added lightweight timing instrumentation to `examples/run_parabolic_sar.py` (prints `Elapsed: Xs`) and to `tests/test_examples_smoke.py` (prints per-script elapsed).
 
 ## 2. What was actually verified
-- `python -m pytest tests` completed with `2296 passed, 55 skipped, 37 warnings` in ~343s.
-- No hang observed in this run.
+- `python examples/run_parabolic_sar.py` completed in ~31.43s.
+- `pytest tests/test_examples_smoke.py -k parabolic` passed (2 tests).
 
 ## 3. What remains unresolved
-- Intermittent Parabolic SAR hang root cause still not reproduced; likely environment/order-dependent.
-- Repository has no configured lint/typecheck tooling installed (ruff/mypy unavailable), so static checks were not run.
+- Intermittent Parabolic SAR hang root cause still not reproduced.
 
 ## 4. Approaches that failed and why
 - None this session.
 
 ## 5. One precise next task
-- If the hang returns, profile `ParabolicSARStrategy._calculate_sar` on the exact failing sequence and capture the full process tree before changing strategy logic; otherwise, add lightweight CI/test timing instrumentation around `run_parabolic_sar.py` to capture evidence of future hangs.
-"
+- If a hang occurs, profile `ParabolicSARStrategy._calculate_sar` using the captured elapsed timing and process tree evidence; otherwise leave instrumentation in place.
+" filePath">
+/home/runner/work/Quantitative-Trading/Quantitative-Trading/HANDOFF_NEXT_AGENT.md

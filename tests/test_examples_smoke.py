@@ -156,6 +156,9 @@ def test_example_script_runs_offline(script: Path) -> None:
     timeout_s = 300
     if script.name == "run_parabolic_sar.py":
         timeout_s = 180
+    import time as _time
+
+    _start = _time.monotonic()
     proc = subprocess.Popen(
         [sys.executable, str(script), *OFFLINE_ARGUMENTS.get(script.name, [])],
         stdout=subprocess.PIPE,
@@ -190,6 +193,8 @@ def test_example_script_runs_offline(script: Path) -> None:
     completed = subprocess.CompletedProcess(
         args=proc.args, returncode=proc.returncode, stdout=stdout, stderr=stderr
     )
+    _elapsed = _time.monotonic() - _start
+    print(f"{script.name} elapsed: {_elapsed:.2f}s")
     assert completed.returncode == 0, (
         f"{script.name} exited with code {completed.returncode}\n"
         f"STDOUT:\n{completed.stdout}\n"

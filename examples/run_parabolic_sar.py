@@ -11,6 +11,7 @@ SAR (trend turns bearish).
 """
 
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -40,6 +41,7 @@ def _print_summary(name: str, result) -> None:
 
 
 def main() -> None:
+    start = time.monotonic()
     symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "META"]
 
     end_date = datetime.now()
@@ -60,6 +62,7 @@ def main() -> None:
     engine.add_strategy(strategy)
     result = engine.run(symbols, start_date, end_date, "1d")
     _print_summary(strategy.name, result)
+    print(f"Elapsed: {time.monotonic() - start:.2f}s")
 
 
 if __name__ == "__main__":
