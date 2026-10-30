@@ -2322,6 +2322,27 @@ class TestStopExitAndShortCoveringEdges:
         assert trades == []
         assert engine.portfolio.holdings["AAPL"].quantity == -100
 
+    def test_cover_short_trims_to_positive_quantity_when_partially_funded(self):
+        """A cover trimmed by cash but still positive executes (line 1030 false branch)."""
+        engine = self._engine()
+        engine.portfolio.cash = 50.0
+        engine.portfolio.holdings["AAPL"] = Holding(
+            symbol="AAPL", quantity=-100, avg_cost=100.0, current_price=100.0
+        )
+        holding = engine.portfolio.holdings["AAPL"]
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=100.0)
+        trades: list[Trade] = []
+        engine._cover_short(
+            symbol="AAPL",
+            signal=signal,
+            trades_list=trades,
+            timestamp=self._timestamp(),
+            price=100.0,
+            holding=holding,
+        )
+        assert len(trades) == 1
+        assert engine.portfolio.holdings["AAPL"].quantity > -100
+
 
 class TestMetricsAndAnalysisReconciliationOnEngineResults:
     """The public APIs must agree on engine-generated results."""
