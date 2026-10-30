@@ -179,12 +179,13 @@ class RiskManager:
         Examples:
             Update portfolio after a trade execution::
 
-                from quant_trading.strategies.base import Position
-
-                rm = RiskManager(initial_capital=50000.0)
-                positions = {"AAPL": Position("AAPL", 100, 150.0, 152.0)}
-                rm.update_portfolio_value(positions, 35000.0)
-                assert rm.portfolio_risk.positions_value > 0.0
+                >>> from quant_trading.risk.manager import RiskManager
+                >>> from quant_trading.strategies.base import Position
+                >>> rm = RiskManager(initial_capital=50000.0)
+                >>> positions = {"AAPL": Position("AAPL", 100, 150.0, 152.0)}
+                >>> rm.update_portfolio_value(positions, 35000.0)
+                >>> rm.portfolio_risk.positions_value > 0.0
+                True
 
         """
         self.positions = positions
@@ -255,12 +256,12 @@ class RiskManager:
         Examples:
             Keep the snapshot current while a batch of trades is executed::
 
-                from quant_trading.risk.manager import RiskManager
-                from quant_trading.strategies.base import Position
-
-                rm = RiskManager(initial_capital=100000.0, max_leverage=0.5)
-                rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
-                assert "AAPL" in rm.positions
+                >>> from quant_trading.risk.manager import RiskManager
+                >>> from quant_trading.strategies.base import Position
+                >>> rm = RiskManager(initial_capital=100000.0, max_leverage=0.5)
+                >>> rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
+                >>> "AAPL" in rm.positions
+                True
 
         """
         if position is None:
@@ -426,13 +427,13 @@ class RiskManager:
         Examples:
             Buy signal is rejected when position size limits are violated::
 
-                from quant_trading.risk.manager import RiskManager
-                from quant_trading.strategies.base import Signal
-
-                rm = RiskManager(initial_capital=100000.0, max_position_size=0.1)
-                signal = Signal(symbol="AAPL", action="buy", price=150.0, strength=2.0)
-                result = rm.check_signal(signal)
-                assert result.passed in (True, False)
+                >>> from quant_trading.risk.manager import RiskManager
+                >>> from quant_trading.strategies.base import Signal
+                >>> rm = RiskManager(initial_capital=100000.0, max_position_size=0.1)
+                >>> signal = Signal(symbol="AAPL", action="buy", price=150.0, strength=2.0)
+                >>> result = rm.check_signal(signal)
+                >>> result.passed in (True, False)
+                True
 
         """
         result = CheckResult(passed=True)
@@ -575,10 +576,12 @@ class RiskManager:
         Examples:
             Check portfolio constraints after updating values::
 
-                rm = RiskManager(initial_capital=100000.0, max_positions=20)
-                rm.update_portfolio_value({}, 100000.0)
-                result = rm.check_portfolio()
-                assert result.passed
+                >>> from quant_trading.risk.manager import RiskManager
+                >>> rm = RiskManager(initial_capital=100000.0, max_positions=20)
+                >>> rm.update_portfolio_value({}, 100000.0)
+                >>> result = rm.check_portfolio()
+                >>> result.passed
+                True
 
         """
         result = CheckResult(passed=True)
@@ -640,12 +643,12 @@ class RiskManager:
         Examples:
             A short position is recognised by its negative quantity::
 
-                from quant_trading.risk.manager import RiskManager
-                from quant_trading.strategies.base import Position
-
-                rm = RiskManager()
-                rm.sync_position("AAPL", Position("AAPL", -100, 150.0, 150.0))
-                assert rm.is_short_position("AAPL")
+                >>> from quant_trading.risk.manager import RiskManager
+                >>> from quant_trading.strategies.base import Position
+                >>> rm = RiskManager()
+                >>> rm.sync_position("AAPL", Position("AAPL", -100, 150.0, 150.0))
+                >>> rm.is_short_position("AAPL")
+                True
 
         """
         position = self.positions.get(symbol)
@@ -710,13 +713,12 @@ class RiskManager:
         Examples:
             A trailing stop follows the best price of a long position::
 
-                from quant_trading.risk.manager import RiskManager
-                from quant_trading.strategies.base import Position
-
-                rm = RiskManager(trailing_stop_pct=0.05)
-                rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
-                rm.update_trailing_stop("AAPL", 120.0)
-                assert rm.get_trailing_stop("AAPL") == 114.0
+                >>> from quant_trading.risk.manager import RiskManager
+                >>> from quant_trading.strategies.base import Position
+                >>> rm = RiskManager(trailing_stop_pct=0.05)
+                >>> rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+                >>> rm.update_trailing_stop("AAPL", 120.0)
+                114.0
 
         """
         return self._trailing_stops.get(symbol)
