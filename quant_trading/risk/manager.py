@@ -747,13 +747,12 @@ class RiskManager:
         Examples:
             The trailing stop of a short follows the lowest price it reached::
 
-                from quant_trading.risk.manager import RiskManager
-                from quant_trading.strategies.base import Position
-
-                rm = RiskManager(trailing_stop_pct=0.05)
-                rm.sync_position("AAPL", Position("AAPL", -100, 100.0, 100.0))
-                rm.update_trailing_stop("AAPL", 80.0)
-                assert rm.get_trailing_stop("AAPL") == 84.0
+                >>> from quant_trading.risk.manager import RiskManager
+                >>> from quant_trading.strategies.base import Position
+                >>> rm = RiskManager(trailing_stop_pct=0.05)
+                >>> rm.sync_position("AAPL", Position("AAPL", -100, 100.0, 100.0))
+                >>> rm.update_trailing_stop("AAPL", 80.0)
+                84.0
 
         """
         if self.trailing_stop_pct <= 0 or price <= 0:
