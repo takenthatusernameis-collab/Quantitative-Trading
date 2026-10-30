@@ -49,6 +49,7 @@ class MovingAverageCrossover(Strategy):
         self.fast_period = fast_period
         self.slow_period = slow_period
         self.validate_parameters()
+        self._ma_state: dict[str, dict[str, Any]] = {}
 
     def validate_parameters(self) -> None:
         """Validate strategy parameters.
@@ -94,24 +95,55 @@ class MovingAverageCrossover(Strategy):
             if pd.isna(current_price):
                 continue
 
-            fast_ma = close.rolling(window=self.fast_period).mean()
-            slow_ma = close.rolling(window=self.slow_period).mean()
-
-            if len(fast_ma) < 2 or len(slow_ma) < 2:
-                continue
-
-            # Current and previous values
-            fast_current = fast_ma.iloc[-1]
-            fast_prev = fast_ma.iloc[-2]
-            slow_current = slow_ma.iloc[-1]
-            slow_prev = slow_ma.iloc[-2]
-
-            if (
-                pd.isna(fast_current)
-                or pd.isna(fast_prev)
-                or pd.isna(slow_current)
-                or pd.isna(slow_prev)
-            ):
+            state = self._ma_state.get(symbol)
+            n = len(close)
+            if state is not None and state.get("n") == n - 1 and "fast_sum" in state and "slow_sum" in state:
+                # Incremental update
+                # Remove oldest values leaving window if they exist
+                fast_old = float(close.iloc[n - 1 - self.fast_period]) if n - 1 - self.fast_period >= 0 else None
+                slow_old = float(close.iloc[n - 1 - self.slow_period]) if n - 1 - self.slow_period >= 0 else None
+                curr_close = float(close.iloc[-1])
+                fast_sum = state["fast_sum"]
+                slow_sum = state["slow_sum"]
+                if fast_old is not None and (n - 1) >= self.fast_period:  # had full window
+                    fast_sum = fast_sum - fast_old + curr_close
+                else:
+                    fast_sum = fast_sum + curr_close  # window still growing
+                if slow_old is not None and (n - 1) >= self.slow_period:
+                    slow_sum = slow_sum - slow_old + curr_close
+                else:
+                    slow_sum = slow_sum + curr_close
+                fast_current = fast_sum / self.fast_period if self.fast_period > 0 else curr_close
+                slow_current = slow_sum / self.slow_period if self.slow_period > 0 else curr_close
+                fast_prev = state.get("fast_current")
+                slow_prev = state.get("slow_current")
+                self._ma_state[symbol] = {
+                    "n": n,
+                    "fast_sum": fast_sum,
+                    "slow_sum": slow_sum,
+                    "fast_current": fast_current,
+                    "slow_current": slow_current,
+                }
+            else:
+                fast_ma = close.rolling(window=self.fast_period).mean()
+                slow_ma = close.rolling(window=self.slow_period).mean()
+                if len(fast_ma) < 2 or len(slow_ma) < 2:
+                    continue
+                fast_current = fast_ma.iloc[-1]
+                fast_prev = fast_ma.iloc[-2]
+                slow_current = slow_ma.iloc[-1]
+                slow_prev = slow_ma.iloc[-2]
+                # Initialize state
+                fast_sum = float(close.iloc[max(0, n - self.fast_period) : n].sum()) if n >= self.fast_period else float(close.sum())
+                slow_sum = float(close.iloc[max(0, n - self.slow_period) : n].sum()) if n >= self.slow_period else float(close.sum())
+                self._ma_state[symbol] = {
+                    "n": n,
+                    "fast_sum": fast_sum,
+                    "slow_sum": slow_sum,
+                    "fast_current": fast_current,
+                    "slow_current": slow_current,
+                }
+            if pd.isna(fast_current) or pd.isna(fast_prev) or pd.isna(slow_current) or pd.isna(slow_prev):
                 continue
             timestamp = df.index[-1]
 
@@ -203,6 +235,8 @@ class RSIStrategy(Strategy):
         self.oversold = oversold
         self.overbought = overbought
         self.validate_parameters()
+        # state: symbol -> {n, avg_gain, avg_loss, last_close}
+        self._rsi_state: dict[str, dict[str, Any]] = {}
 
     def validate_parameters(self) -> None:
         """Validate strategy parameters.
@@ -257,47 +291,129 @@ class RSIStrategy(Strategy):
                 continue
 
             close = df["close"]
-            rsi = self._calculate_rsi(close)
-
-            current_rsi = rsi.iloc[-1]
-            prev_rsi = rsi.iloc[-2]
-            current_price = close.iloc[-1]
-            if pd.isna(current_rsi) or pd.isna(prev_rsi) or pd.isna(current_price):
+            state = self._rsi_state.get(symbol)
+            n = len(close)
+            if state is not None and state.get("n") == n - 1 and state.get("last_close") is not None:
+                # Incremental update
+                last_close = state["last_close"]
+                curr_close = float(close.iloc[-1])
+                delta = curr_close - last_close
+                gain = max(delta, 0.0)
+                loss = max(-delta, 0.0)
+                avg_gain = (state["avg_gain"] * (self.period - 1) + gain) / self.period
+                avg_loss = (state["avg_loss"] * (self.period - 1) + loss) / self.period
+                if avg_loss == 0 and avg_gain == 0:
+                    curr_rsi = float("nan")
+                elif avg_loss == 0:
+                    curr_rsi = 100.0
+                else:
+                    rs = avg_gain / avg_loss
+                    curr_rsi = 100 - (100 / (1 + rs))
+                prev_rsi = state.get("curr_rsi")
+                self._rsi_state[symbol] = {
+                    "n": n,
+                    "avg_gain": avg_gain,
+                    "avg_loss": avg_loss,
+                    "last_close": curr_close,
+                    "curr_rsi": curr_rsi,
+                }
+                current_rsi = curr_rsi
+                current_price = curr_close
+                if pd.isna(prev_rsi) or pd.isna(current_rsi) or pd.isna(current_price):
+                    continue
+                timestamp = df.index[-1]
+                # Check signals
+                if prev_rsi <= self.oversold and current_rsi > self.oversold:
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="buy",
+                            strength=min(1.0, (self.oversold - prev_rsi) / self.oversold + 0.5),
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "rsi": current_rsi,
+                                "signal_type": "oversold_bounce",
+                            },
+                        )
+                    )
+                elif prev_rsi >= self.overbought and current_rsi < self.overbought:
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="sell",
+                            strength=min(
+                                1.0, (prev_rsi - self.overbought) / (100 - self.overbought) + 0.5
+                            ),
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "rsi": current_rsi,
+                                "signal_type": "overbought_rejection",
+                            },
+                        )
+                    )
                 continue
-            timestamp = df.index[-1]
+            else:
+                # Compute full RSI
+                rsi = self._calculate_rsi(close)
+                current_rsi = rsi.iloc[-1]
+                prev_rsi = rsi.iloc[-2]
+                current_price = close.iloc[-1]
+                # Initialize state for future increments (Wilder's smoothing)
+                delta = close.diff()
+                gain = delta.where(delta > 0, 0.0)
+                loss = (-delta.where(delta < 0, 0.0))
+                # Initial average is SMA of first period values
+                if n >= self.period + 1:
+                    avg_gain = float(gain.iloc[1 : 1 + self.period].mean()) if len(gain) >= 1 + self.period else float(gain.iloc[1:].rolling(self.period).mean().iloc[-1]) if len(gain) > 1 else 0.0
+                    avg_loss = float(loss.iloc[1 : 1 + self.period].mean()) if len(loss) >= 1 + self.period else float(loss.iloc[1:].rolling(self.period).mean().iloc[-1]) if len(loss) > 1 else 0.0
+                else:
+                    avg_gain = 0.0
+                    avg_loss = 0.0
+                self._rsi_state[symbol] = {
+                    "n": n,
+                    "avg_gain": avg_gain,
+                    "avg_loss": avg_loss,
+                    "last_close": float(current_price),
+                    "curr_rsi": float(current_rsi) if pd.notna(current_rsi) else current_rsi,
+                }
+                if pd.isna(current_rsi) or pd.isna(prev_rsi) or pd.isna(current_price):
+                    continue
+                timestamp = df.index[-1]
 
-            # Oversold - buy signal
-            if prev_rsi <= self.oversold and current_rsi > self.oversold:
-                signals.append(
-                    Signal(
-                        symbol=symbol,
-                        action="buy",
-                        strength=min(1.0, (self.oversold - prev_rsi) / self.oversold + 0.5),
-                        price=current_price,
-                        timestamp=timestamp,
-                        metadata={
-                            "rsi": current_rsi,
-                            "signal_type": "oversold_bounce",
-                        },
+                # Oversold - buy signal
+                if prev_rsi <= self.oversold and current_rsi > self.oversold:
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="buy",
+                            strength=min(1.0, (self.oversold - prev_rsi) / self.oversold + 0.5),
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "rsi": current_rsi,
+                                "signal_type": "oversold_bounce",
+                            },
+                        )
                     )
-                )
-            # Overbought - sell signal
-            elif prev_rsi >= self.overbought and current_rsi < self.overbought:
-                signals.append(
-                    Signal(
-                        symbol=symbol,
-                        action="sell",
-                        strength=min(
-                            1.0, (prev_rsi - self.overbought) / (100 - self.overbought) + 0.5
-                        ),
-                        price=current_price,
-                        timestamp=timestamp,
-                        metadata={
-                            "rsi": current_rsi,
-                            "signal_type": "overbought_rejection",
-                        },
+                # Overbought - sell signal
+                elif prev_rsi >= self.overbought and current_rsi < self.overbought:
+                    signals.append(
+                        Signal(
+                            symbol=symbol,
+                            action="sell",
+                            strength=min(
+                                1.0, (prev_rsi - self.overbought) / (100 - self.overbought) + 0.5
+                            ),
+                            price=current_price,
+                            timestamp=timestamp,
+                            metadata={
+                                "rsi": current_rsi,
+                                "signal_type": "overbought_rejection",
+                            },
+                        )
                     )
-                )
 
         return signals
 
