@@ -7,23 +7,21 @@ market data is unavailable, but it also powers the
 :class:`SyntheticDataProvider`.
 
 Examples:
-    Generate a small synthetic dataset and inspect it::
-
-        from quant_trading.data.synthetic import create_synthetic_data
-
-        data = create_synthetic_data(["AAPL"], days=10, seed=42)
-        assert "AAPL" in data
-        assert list(data["AAPL"].columns) == ["open", "high", "low", "close", "volume"]
-        assert len(data["AAPL"]) == 10
-
-    Wrap generated data in a provider and fetch it back::
-
-        from quant_trading.data.synthetic import create_synthetic_provider
-
-        provider = create_synthetic_provider(["AAPL"], days=5)
-        result = provider.fetch(["AAPL"])
-        assert result.is_success
-        assert "AAPL" in result.data
+    >>> from quant_trading.data.synthetic import create_synthetic_data
+    >>> data = create_synthetic_data(["AAPL"], days=10, seed=42)
+    >>> "AAPL" in data
+    True
+    >>> list(data["AAPL"].columns)
+    ['open', 'high', 'low', 'close', 'volume']
+    >>> len(data["AAPL"])
+    10
+    >>> from quant_trading.data.synthetic import create_synthetic_provider
+    >>> provider = create_synthetic_provider(["AAPL"], days=5)
+    >>> result = provider.fetch(["AAPL"])
+    >>> result.is_success
+    True
+    >>> "AAPL" in result.data
+    True
 
 """
 
