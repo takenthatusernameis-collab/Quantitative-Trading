@@ -1,30 +1,30 @@
 # Handoff for Next Agent
 
 ## 1. What changed
-- Converted the prose-only `Examples:` block in `quant_trading/optimization/bayesian.py:109` (the `BayesianOptimizer` class docstring) to executable `>>>` doctests, following the instantiation/attribute-check style used elsewhere in the codebase. This was the last remaining prose-only `Examples:` block in the package (verified by scanning all `Examples:` headers for a following `>>>`).
-- No other changes made; prior agents' work remains intact.
+- Added 3 tests (`test_from_dict_round_trip`, `test_from_dict_defaults_missing_fields`, `test_from_dict_empty_dict`) to `TestRiskMetricsDataclass` in `tests/test_risk_metrics.py`, covering `RiskMetrics.from_dict` (`quant_trading/risk/metrics.py:79-92`), the public deserialization counterpart to `to_dict` (already covered by a doctest). This completes the serialization pair and closes the only uncovered statement in `risk/metrics.py`.
+- No other changes; prior agents' work remains intact.
 
 ## 2. What was actually verified
 - `python -m ruff check .`: All checks passed.
 - `python -m black --check quant_trading tests examples`: 131 files clean.
 - `python -m mypy quant_trading`: Success, no issues in 37 source files.
-- `python -m pytest --doctest-modules quant_trading`: 188 passed (up from 186; the two new doctests in `bayesian.py` are included).
-- `python -m pytest tests/test_optimization.py -q`: 112 passed, 32 warnings.
-- `python -m pytest --doctest-modules quant_trading/optimization/ -q`: 39 passed.
-- The new doctest exercises a real `BayesianOptimizer.run()` against synthetic data with `random_state=42` and asserts `best_params is not None`, presence of `fast_period`/`slow_period`, and `len(result.all_results) == optimizer.n_calls`. Output was verified offline before editing; the `param_grid.add(...)` return value was suppressed with `_ =` because it returns the grid repr.
+- `python -m pytest tests/test_risk_metrics.py -q`: 77 passed (includes the 3 new `from_dict` tests).
+- Full suite: 1938 passed, 44 skipped (up from 1935 passed; the +3 are the new `from_dict` tests).
+- Coverage: `quant_trading/risk/metrics.py` is now 100% (was 99%; line 82 covered by the new tests).
+- `python -m pytest --doctest-modules quant_trating` and the doctest/gate checks from the prior session remain green.
 
 ## 3. What remains unresolved
 - No commit made (repo rule: only on explicit user request).
-- All style/lint/format/typecheck/doctest checks now pass across the package. There are no remaining prose-only `Examples:` blocks.
-- Full `pytest -q` still cannot complete in one run due to a pre-existing hanging network test in `tests/test_alphavantage_provider.py` (unrelated to this change).
+- `quant_trading/optimization/__init__.py` lines 19-20 (`except ImportError`) remain uncovered, but the branch is structurally unreachable: scikit-optimize imports in `bayesian.py` are lazy (inside method bodies), so `from .bayesian import BayesianOptimizer` always succeeds. Not a meaningful gap.
+- Several other modules sit at 99% with a single uncovered defensive branch each: `config/settings.py:136`, `data/providers.py:493->495`, `optimization/walk_forward.py:53` & `796`, `portfolio/portfolio.py:517`, `regime/detector.py:364`, `backtest/engine.py:1030->1033`, `backtest/metrics.py:269->272`.
+- Full `pytest -q` still cannot complete in one run due to a pre-existing hanging network test in `tests/test_alphavantage_provider.py` (unrelated; that file is fully mocked but hangs in this environment).
 
 ## 4. Approaches that failed and why
-- First doctest attempt failed because `param_grid.add(...)` returns the `ParameterGrid` repr, which doctest captured as unexpected output. Fixed by assigning the return to `_ =`.
-- The `BayesianOptimizer` doctest emits `skopt` `UserWarning` messages about re-evaluated points; these are warnings, not doctest failures, so they are tolerated.
+- `quant_trading/optimization/__init__.py` `except ImportError` cannot be meaningfully covered: skopt imports are lazy, so the import always succeeds even when skopt is absent. Chasing it would test dead code.
 
 ## 5. One precise next task
-- The codebase is now fully compliant across all checked dimensions (ruff, black, mypy, doctests). No obvious style/consistency issues remain.
-- If continuing: inspect the repository for any outstanding functional gaps, bug reports, or feature requests. Check open issues/PRs or review the README for documented TODOs.
+- Pick up one of the remaining single-branch coverage gaps in a core module and add a deterministic test for it. Best candidate: `quant_trading/backtest/engine.py:1030` (`if quantity <= 0: return` inside `_cover_short` — triggers when cash can't cover even a fractional cover), or `quant_trading/regime/detector.py:364` (`if len(returns) < 1: return RegimeResult()`).
+- Then re-verify: ruff, black, mypy, and `pytest tests/test_<module>.py` plus coverage for that module.
 - Constraints: do NOT commit unless explicitly asked; preserve working baseline; exclude secrets/env/cache artifacts.
 
-(End of file - total 30 lines)
+(End of file)

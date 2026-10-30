@@ -418,6 +418,43 @@ class TestRiskMetricsDataclass:
         data = metrics.to_dict()
         assert all(v == 0.0 for v in data.values())
 
+    def test_from_dict_round_trip(self):
+        """from_dict(to_dict(metrics)) restores every field."""
+        metrics = RiskMetrics(
+            sharpe_ratio=1.5,
+            sortino_ratio=0.8,
+            max_drawdown=-0.1,
+            volatility=0.2,
+            var_95=-0.05,
+            var_99=-0.08,
+            beta=1.1,
+            alpha=0.02,
+            calmar_ratio=2.3,
+        )
+        restored = RiskMetrics.from_dict(metrics.to_dict())
+        assert restored.sharpe_ratio == pytest.approx(1.5)
+        assert restored.sortino_ratio == pytest.approx(0.8)
+        assert restored.max_drawdown == pytest.approx(-0.1)
+        assert restored.volatility == pytest.approx(0.2)
+        assert restored.var_95 == pytest.approx(-0.05)
+        assert restored.var_99 == pytest.approx(-0.08)
+        assert restored.beta == pytest.approx(1.1)
+        assert restored.alpha == pytest.approx(0.02)
+        assert restored.calmar_ratio == pytest.approx(2.3)
+
+    def test_from_dict_defaults_missing_fields(self):
+        """from_dict tolerates a dict that omits fields."""
+        restored = RiskMetrics.from_dict({"sharpe_ratio": 1.5})
+        assert restored.sharpe_ratio == pytest.approx(1.5)
+        assert all(
+            value == 0.0 for name, value in restored.to_dict().items() if name != "sharpe_ratio"
+        )
+
+    def test_from_dict_empty_dict(self):
+        """from_dict tolerates an empty dict."""
+        restored = RiskMetrics.from_dict({})
+        assert all(v == 0.0 for v in restored.to_dict().values())
+
 
 class TestCalculateAllMetrics:
     """Tests for calculate_all_metrics orchestration."""
