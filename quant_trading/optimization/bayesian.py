@@ -52,12 +52,16 @@ def _convert_to_native(obj: Any) -> Any:
         Native Python equivalent of the input.
 
     Examples:
-        import numpy as np
-
-        assert _convert_to_native(np.int64(5)) == 5
-        assert _convert_to_native(np.float64(1.5)) == 1.5
-        assert _convert_to_native(np.array([1, 2])) == [1, 2]
-        assert _convert_to_native({"a": np.int64(1)}) == {"a": 1}
+        >>> from quant_trading.optimization.bayesian import _convert_to_native
+        >>> import numpy as np
+        >>> _convert_to_native(np.int64(5))
+        5
+        >>> _convert_to_native(np.float64(1.5))
+        1.5
+        >>> _convert_to_native(np.array([1, 2]))
+        [1, 2]
+        >>> _convert_to_native({"a": np.int64(1)})
+        {'a': 1}
 
     """
     import numpy as np

@@ -33,23 +33,18 @@ class Signal:
         metadata: Optional extra context keyed by arbitrary strings.
 
     Examples:
-        Create a buy signal for a stock at market price::
-
-            from quant_trading.strategies.base import Signal
-
-            signal = Signal(symbol="AAPL", action="buy", price=150.0, strength=1.0)
-            assert signal.action == "buy"
-            assert signal.timestamp is not None
-
-        Create a hold signal with no price::
-
-            hold = Signal(symbol="AAPL", action="hold")
-            assert hold.price is None
-
-        Open a short position::
-
-            short = Signal(symbol="AAPL", action="short", price=150.0)
-            assert short.action == "short"
+        >>> from quant_trading.strategies.base import Signal
+        >>> signal = Signal(symbol="AAPL", action="buy", price=150.0, strength=1.0)
+        >>> signal.action
+        'buy'
+        >>> signal.timestamp is not None
+        True
+        >>> hold = Signal(symbol="AAPL", action="hold")
+        >>> hold.price is None
+        True
+        >>> short = Signal(symbol="AAPL", action="short", price=150.0)
+        >>> short.action
+        'short'
 
     """
 

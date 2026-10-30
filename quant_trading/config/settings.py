@@ -52,13 +52,12 @@ class DataConfig:
             provider is set to ``"alphavantage"``.
 
     Examples:
-        Create a data config with custom defaults::
-
-            from quant_trading.config.settings import DataConfig
-
-            data = DataConfig(provider="alphavantage", default_interval="1h")
-            assert data.default_interval == "1h"
-            assert data.alphavantage_api_key is None
+        >>> from quant_trading.config.settings import DataConfig
+        >>> data = DataConfig(provider="alphavantage", default_interval="1h")
+        >>> data.default_interval
+        '1h'
+        >>> data.alphavantage_api_key is None
+        True
 
     """
 
