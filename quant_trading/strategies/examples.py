@@ -469,7 +469,7 @@ class BollingerBandsStrategy(Strategy):
         self.period = period
         self.std_dev = std_dev
         self.validate_parameters()
-
+        self._bb_state: dict[str, dict[str, Any]] = {}
     def validate_parameters(self) -> None:
         """Validate strategy parameters.
 
@@ -501,17 +501,55 @@ class BollingerBandsStrategy(Strategy):
                 continue
 
             close = df["close"]
-            sma = close.rolling(window=self.period).mean()
-            std = close.rolling(window=self.period).std()
+            n = len(close)
+            state = self._bb_state.get(symbol)
+            if state is not None and state.get("n") == n - 1:
+                hist = state["hist"]
+                s = state["sum"]
+                sq = state["sumsq"]
+                last_val = float(close.iloc[-1])
+                s += last_val
+                sq += last_val * last_val
+                hist.append(last_val)
+                if len(hist) > self.period:
+                    old = hist.pop(0)
+                    s -= old
+                    sq -= old * old
+                mean = s / self.period
+                var = (sq - (s * s) / self.period) / (self.period - 1)
+                if var < 0:
+                    var = 0.0
+                std = var ** 0.5
+                self._bb_state[symbol] = {
+                    "n": n,
+                    "hist": hist,
+                    "sum": s,
+                    "sumsq": sq,
+                }
+            else:
+                window = close.iloc[-self.period:]
+                vals = [float(x) for x in window.tolist()]
+                s = float(sum(vals))
+                sq = float(sum(v * v for v in vals))
+                hist = vals
+                mean = float(window.mean())
+                std = float(window.std(ddof=1))
+                self._bb_state[symbol] = {
+                    "n": n,
+                    "hist": hist,
+                    "sum": s,
+                    "sumsq": sq,
+                }
 
-            upper_band = sma + (std * self.std_dev)
-            lower_band = sma - (std * self.std_dev)
-
-            current_price = close.iloc[-1]
-            current_upper = upper_band.iloc[-1]
-            current_lower = lower_band.iloc[-1]
-            current_sma = sma.iloc[-1]
+            current_price = float(close.iloc[-1])
+            current_sma = mean
+            current_std = std
+            upper_band = current_sma + (current_std * self.std_dev)
+            lower_band = current_sma - (current_std * self.std_dev)
             timestamp = df.index[-1]
+
+            current_upper = upper_band
+            current_lower = lower_band
 
             if (
                 pd.isna(current_price)
