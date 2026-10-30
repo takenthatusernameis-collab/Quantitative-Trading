@@ -119,6 +119,25 @@ def test_data_manager_fetch_many_uses_provider_and_cache():
     for key, result in cached_results.items():
         assert result is results[key]
 
+def test_data_manager_fetch_many_use_cache_false_bypasses_cache():
+    """DataManager.fetch_many(use_cache=False) bypasses the cache (providers.py:493->495)."""
+    data = create_synthetic_data(["AAPL", "MSFT"], days=20)
+    provider = CountingProvider(data)
+    manager = DataManager([provider])
+
+    end = datetime.now()
+    start = end - timedelta(days=10)
+    requests = [
+        {"symbols": ["AAPL"], "start": start, "end": end, "interval": "1d"},
+    ]
+
+    first = manager.fetch_many(requests)
+    assert provider.fetch_calls == 1
+
+    second = manager.fetch_many(requests, use_cache=False)
+    assert provider.fetch_calls == 2
+    assert set(second.keys()) == set(first.keys())
+
 
 def test_data_manager_fetch_many_respects_provider_name():
     """DataManager.fetch_many can target a named provider."""
