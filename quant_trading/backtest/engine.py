@@ -575,15 +575,10 @@ class BacktestEngine:
             if not current_data:
                 continue
 
-            # Generate signals from all strategies
-            all_signals = []
+            # Generate and process signals from all strategies
             for strategy in self.strategies.values():
-                signals = strategy.generate_signals(current_data)
-                all_signals.extend(signals)
-
-            # Process signals
-            for signal in all_signals:
-                self._process_signal(signal, trades_list, current_date)
+                for signal in strategy.generate_signals(current_data):
+                    self._process_signal(signal, trades_list, current_date)
 
             # Update portfolio value
             prices = {
