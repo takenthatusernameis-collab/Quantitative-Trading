@@ -567,9 +567,9 @@ class BacktestEngine:
         for current_date in dates:
             # Get data up to current date
             current_data = {
-                symbol: df[df.index <= current_date]
+                symbol: df.loc[:current_date]
                 for symbol, df in data.items()
-                if len(df[df.index <= current_date]) > 0
+                if current_date >= df.index[0]
             }
 
             if not current_data:
