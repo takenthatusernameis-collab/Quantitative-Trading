@@ -469,6 +469,7 @@ class BollingerBandsStrategy(Strategy):
         self.period = period
         self.std_dev = std_dev
         self.validate_parameters()
+        self._bb_state: dict[str, dict[str, Any]] = {}
 
     def validate_parameters(self) -> None:
         """Validate strategy parameters.
@@ -501,16 +502,55 @@ class BollingerBandsStrategy(Strategy):
                 continue
 
             close = df["close"]
-            sma = close.rolling(window=self.period).mean()
-            std = close.rolling(window=self.period).std()
-
-            upper_band = sma + (std * self.std_dev)
-            lower_band = sma - (std * self.std_dev)
-
-            current_price = close.iloc[-1]
-            current_upper = upper_band.iloc[-1]
-            current_lower = lower_band.iloc[-1]
-            current_sma = sma.iloc[-1]
+            n = len(close)
+            state = self._bb_state.get(symbol)
+            if state is not None and state.get("n") == n - 1:
+                last_closes = state["last_closes"]
+                s_sum = state["sum"]
+                s_sumsq = state["sumsq"]
+                curr_close = float(close.iloc[-1])
+                last_closes.append(curr_close)
+                s_sum += curr_close
+                s_sumsq += curr_close * curr_close
+                if len(last_closes) > self.period:
+                    old_val = last_closes.pop(0)
+                    s_sum -= old_val
+                    s_sumsq -= old_val * old_val
+                sma_val = s_sum / self.period
+                var = (s_sumsq - (s_sum * s_sum) / self.period) / (self.period - 1)
+                if var < 0:
+                    var = 0.0
+                std_val = var ** 0.5
+                self._bb_state[symbol] = {
+                    "n": n,
+                    "last_closes": last_closes,
+                    "sum": s_sum,
+                    "sumsq": s_sumsq,
+                }
+                current_sma = sma_val
+                current_std = std_val
+                current_price = curr_close
+                upper_band_val = current_sma + (current_std * self.std_dev)
+                lower_band_val = current_sma - (current_std * self.std_dev)
+                current_upper = upper_band_val
+                current_lower = lower_band_val
+            else:
+                sma = close.rolling(window=self.period).mean()
+                std = close.rolling(window=self.period).std()
+                current_sma = float(sma.iloc[-1])
+                current_std = float(std.iloc[-1])
+                current_price = float(close.iloc[-1])
+                current_upper = current_sma + (current_std * self.std_dev)
+                current_lower = current_sma - (current_std * self.std_dev)
+                last_closes = [float(x) for x in close.iloc[-self.period:].tolist()]
+                s_sum = float(sum(last_closes))
+                s_sumsq = float(sum(x * x for x in last_closes))
+                self._bb_state[symbol] = {
+                    "n": n,
+                    "last_closes": last_closes,
+                    "sum": s_sum,
+                    "sumsq": s_sumsq,
+                }
             timestamp = df.index[-1]
 
             if (
