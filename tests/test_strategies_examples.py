@@ -819,6 +819,44 @@ class TestBollingerBandsStrategy:
         data = {"AAPL": create_donchian_data("AAPL", [100.0, 102.0] * 10 + [0.0])}
         assert strategy.generate_signals(data) == []
 
+    def test_generate_signals_period_one(self):
+        """A one-bar window yields NaN bands: no crash, no signals."""
+        strategy = BollingerBandsStrategy(period=1, std_dev=2.0)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0, 102.0] * 10 + [95.0])}
+        assert strategy.generate_signals(data) == []
+        # Incremental bar-by-bar calls (as the engine does) must not crash.
+        incremental = BollingerBandsStrategy(period=1, std_dev=2.0)
+        df = data["AAPL"]
+        signals = []
+        for i in range(2, len(df)):
+            signals += incremental.generate_signals({"AAPL": df.iloc[: i + 1]})
+        assert signals == []
+
+    def test_generate_signals_incremental_matches_full_recompute(self):
+        """Bar-by-bar incremental updates match full recomputation exactly."""
+        strategy = BollingerBandsStrategy(period=20, std_dev=2.0)
+        df = create_mean_reverting_data("AAPL", days=120)
+        incremental_signals = []
+        for i in range(20, len(df)):
+            incremental_signals += strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+
+        full_signals = []
+        for i in range(20, len(df)):
+            fresh = BollingerBandsStrategy(period=20, std_dev=2.0)
+            full_signals += fresh.generate_signals({"AAPL": df.iloc[: i + 1]})
+
+        assert len(incremental_signals) == len(full_signals)
+        for inc, full in zip(incremental_signals, full_signals):
+            assert inc.symbol == full.symbol
+            assert inc.action == full.action
+            assert inc.price == pytest.approx(full.price)
+            assert inc.timestamp == full.timestamp
+            assert inc.metadata["signal_type"] == full.metadata["signal_type"]
+            assert inc.strength == pytest.approx(full.strength)
+            assert inc.metadata["sma"] == pytest.approx(full.metadata["sma"])
+            assert inc.metadata["upper_band"] == pytest.approx(full.metadata["upper_band"])
+            assert inc.metadata["lower_band"] == pytest.approx(full.metadata["lower_band"])
+
 
 def create_macd_data(symbol: str, days: int = 100) -> pd.DataFrame:
     """Create mock price data that produces a MACD bullish crossover at the end.

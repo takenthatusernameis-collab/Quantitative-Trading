@@ -517,10 +517,16 @@ class BollingerBandsStrategy(Strategy):
                     s_sum -= old_val
                     s_sumsq -= old_val * old_val
                 sma_val = s_sum / self.period
-                var = (s_sumsq - (s_sum * s_sum) / self.period) / (self.period - 1)
-                if var < 0:
-                    var = 0.0
-                std_val = var ** 0.5
+                if self.period < 2:
+                    # A one-bar window has no dispersion (pandas rolling(1).std()
+                    # is NaN); keep bands NaN so the bar is skipped, matching
+                    # the full-recompute branch.
+                    std_val = float("nan")
+                else:
+                    var = (s_sumsq - (s_sum * s_sum) / self.period) / (self.period - 1)
+                    if var < 0:
+                        var = 0.0
+                    std_val = var ** 0.5
                 self._bb_state[symbol] = {
                     "n": n,
                     "last_closes": last_closes,
