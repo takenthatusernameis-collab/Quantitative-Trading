@@ -293,15 +293,27 @@ class RSIStrategy(Strategy):
             close = df["close"]
             state = self._rsi_state.get(symbol)
             n = len(close)
-            if state is not None and state.get("n") == n - 1 and state.get("last_close") is not None:
-                # Incremental update
+            if state is not None and state.get("n") == n - 1:
+                # Incremental update: rolling mean of gains/losses over the
+                # last ``period`` deltas, matching _calculate_rsi exactly.
                 last_close = state["last_close"]
                 curr_close = float(close.iloc[-1])
                 delta = curr_close - last_close
-                gain = max(delta, 0.0)
-                loss = max(-delta, 0.0)
-                avg_gain = (state["avg_gain"] * (self.period - 1) + gain) / self.period
-                avg_loss = (state["avg_loss"] * (self.period - 1) + loss) / self.period
+                gain = max(delta, 0.0) if pd.notna(delta) else 0.0
+                loss = max(-delta, 0.0) if pd.notna(delta) else 0.0
+
+                gain_hist = state["gain_hist"]
+                loss_hist = state["loss_hist"]
+                gain_sum = state["gain_sum"] + gain
+                loss_sum = state["loss_sum"] + loss
+                gain_hist.append(gain)
+                loss_hist.append(loss)
+                if len(gain_hist) > self.period:
+                    gain_sum -= gain_hist.pop(0)
+                    loss_sum -= loss_hist.pop(0)
+
+                avg_gain = gain_sum / self.period
+                avg_loss = loss_sum / self.period
                 if avg_loss == 0 and avg_gain == 0:
                     curr_rsi = float("nan")
                 elif avg_loss == 0:
@@ -312,8 +324,10 @@ class RSIStrategy(Strategy):
                 prev_rsi = state.get("curr_rsi")
                 self._rsi_state[symbol] = {
                     "n": n,
-                    "avg_gain": avg_gain,
-                    "avg_loss": avg_loss,
+                    "gain_hist": gain_hist,
+                    "loss_hist": loss_hist,
+                    "gain_sum": gain_sum,
+                    "loss_sum": loss_sum,
                     "last_close": curr_close,
                     "curr_rsi": curr_rsi,
                 }
@@ -360,21 +374,19 @@ class RSIStrategy(Strategy):
                 current_rsi = rsi.iloc[-1]
                 prev_rsi = rsi.iloc[-2]
                 current_price = close.iloc[-1]
-                # Initialize state for future increments (Wilder's smoothing)
+                # Initialize state for future increments (rolling means of
+                # gains/losses over the last ``period`` deltas).
                 delta = close.diff()
-                gain = delta.where(delta > 0, 0.0)
-                loss = (-delta.where(delta < 0, 0.0))
-                # Initial average is SMA of first period values
-                if n >= self.period + 1:
-                    avg_gain = float(gain.iloc[1 : 1 + self.period].mean()) if len(gain) >= 1 + self.period else float(gain.iloc[1:].rolling(self.period).mean().iloc[-1]) if len(gain) > 1 else 0.0
-                    avg_loss = float(loss.iloc[1 : 1 + self.period].mean()) if len(loss) >= 1 + self.period else float(loss.iloc[1:].rolling(self.period).mean().iloc[-1]) if len(loss) > 1 else 0.0
-                else:
-                    avg_gain = 0.0
-                    avg_loss = 0.0
+                gain_seq = delta.where(delta > 0, 0.0)
+                loss_seq = (-delta.where(delta < 0, 0.0))
+                gain_hist = gain_seq.iloc[-self.period :].tolist()
+                loss_hist = loss_seq.iloc[-self.period :].tolist()
                 self._rsi_state[symbol] = {
                     "n": n,
-                    "avg_gain": avg_gain,
-                    "avg_loss": avg_loss,
+                    "gain_hist": gain_hist,
+                    "loss_hist": loss_hist,
+                    "gain_sum": float(sum(gain_hist)),
+                    "loss_sum": float(sum(loss_hist)),
                     "last_close": float(current_price),
                     "curr_rsi": float(current_rsi) if pd.notna(current_rsi) else current_rsi,
                 }
