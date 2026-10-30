@@ -1,3 +1,18 @@
+# DELAY-ELIMINATION OVERRIDE — 2026-10-30
+
+**Known blocker:** the full suite does not complete because `tests/test_alphavantage_provider.py` has a reported hang, despite the test file appearing to mock its HTTP calls. The exact test/call site is not yet established; do not assume it is a real network request.
+
+**Next diagnostic sequence (bounded, no repeated full-suite runs):**
+1. Run `python -m pytest --collect-only -q tests/test_alphavantage_provider.py` to separate collection delay from execution delay.
+2. Run the file with verbose progress and fail-fast under an OS-level timeout. Capture the last test name and traceback/stack dump; do not let the command wait indefinitely.
+3. Bisect the exact test by pytest node ID / halves. Inspect whether mocked requests leave real sleep/retry, file-lock, thread, or cache work active. Keep network disabled for this diagnostic.
+4. Fix only the demonstrated cause. Add a deterministic regression test for the specific hang and verify that the affected test/file completes within a bounded time.
+5. Continue with affected test modules while the hang is unresolved; run the full suite once after the fix, with a finite timeout.
+
+Do not add arbitrary sleeps, remove test coverage, or mark a hanging test as skipped without a documented reason. Keep the repository's no-commit-without-authorization rule; this task is to diagnose and remove the real delay, not to chase untestable coverage branches in the meantime.
+
+---
+
 # Handoff for Next Agent
 
 ## 1. What changed
