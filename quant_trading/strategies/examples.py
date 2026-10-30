@@ -2373,89 +2373,94 @@ class ParabolicSARStrategy(Strategy):
                 trend: 1 for bullish (SAR below price), -1 for bearish (SAR above price)
 
         """
+        n = len(high)
         # Initialize arrays
         sar = pd.Series(index=high.index, dtype=float)
         trend = pd.Series(index=high.index, dtype=int)
-        # Extreme point: highest high for long, lowest low for short
-        ep = pd.Series(index=high.index, dtype=float)
-        # Acceleration factor
-        af = pd.Series(index=high.index, dtype=float)
 
         # Need at least two periods to initialize
-        if len(high) < 2:
+        if n < 2:
             # Not enough data, return all NaN
             sar.iloc[:] = np.nan
             trend.iloc[:] = 0
-            ep.iloc[:] = np.nan
-            af.iloc[:] = 0.0
             return sar, trend
+
+        # Use numpy arrays for performance
+        high_arr = high.to_numpy(dtype=float)
+        low_arr = low.to_numpy(dtype=float)
+        sar_arr = np.empty(n, dtype=float)
+        trend_arr = np.empty(n, dtype=int)
+        ep_arr = np.empty(n, dtype=float)
+        af_arr = np.empty(n, dtype=float)
 
         # Initialize for the first day
         # We'll assume the initial trend based on the first two periods
-        if high.iloc[1] > high.iloc[0]:
+        if high_arr[1] > high_arr[0]:
             # Start with a long trend
-            trend.iloc[0] = 1
-            sar.iloc[0] = low.iloc[0]  # SAR starts at the low of the first period
-            ep.iloc[0] = high.iloc[0]  # EP is the high of the first period
-            af.iloc[0] = self.step
+            trend_arr[0] = 1
+            sar_arr[0] = low_arr[0]  # SAR starts at the low of the first period
+            ep_arr[0] = high_arr[0]  # EP is the high of the first period
+            af_arr[0] = self.step
         else:
             # Start with a short trend
-            trend.iloc[0] = -1
-            sar.iloc[0] = high.iloc[0]  # SAR starts at the high of the first period
-            ep.iloc[0] = low.iloc[0]  # EP is the low of the first period
-            af.iloc[0] = self.step
+            trend_arr[0] = -1
+            sar_arr[0] = high_arr[0]  # SAR starts at the high of the first period
+            ep_arr[0] = low_arr[0]  # EP is the low of the first period
+            af_arr[0] = self.step
 
         # Calculate for each subsequent period
-        for i in range(1, len(high)):
+        for i in range(1, n):
             # Previous values
-            prev_sar = sar.iloc[i - 1]
-            prev_trend = trend.iloc[i - 1]
-            prev_ep = ep.iloc[i - 1]
-            prev_af = af.iloc[i - 1]
+            prev_sar = sar_arr[i - 1]
+            prev_trend = trend_arr[i - 1]
+            prev_ep = ep_arr[i - 1]
+            prev_af = af_arr[i - 1]
 
             # Current SAR
-            sar.iloc[i] = prev_sar + prev_af * (prev_ep - prev_sar)
+            sar_arr[i] = prev_sar + prev_af * (prev_ep - prev_sar)
 
             # Check if we need to reverse the trend
             if prev_trend == 1:  # Currently long
                 # SAR should be below the low
-                if sar.iloc[i] > low.iloc[i]:
+                if sar_arr[i] > low_arr[i]:
                     # Trend reversal to short
-                    trend.iloc[i] = -1
-                    sar.iloc[i] = prev_ep  # SAR becomes the previous EP
-                    ep.iloc[i] = low.iloc[i]  # EP is the low of this period
-                    af.iloc[i] = self.step  # Reset AF
+                    trend_arr[i] = -1
+                    sar_arr[i] = prev_ep  # SAR becomes the previous EP
+                    ep_arr[i] = low_arr[i]  # EP is the low of this period
+                    af_arr[i] = self.step  # Reset AF
                 else:
                     # Continue long
-                    trend.iloc[i] = 1
+                    trend_arr[i] = 1
                     # Update EP if we have a new high
-                    if high.iloc[i] > prev_ep:
-                        ep.iloc[i] = high.iloc[i]
+                    if high_arr[i] > prev_ep:
+                        ep_arr[i] = high_arr[i]
                         # Increase AF, but not beyond max_step
-                        af.iloc[i] = min(prev_af + self.step, self.max_step)
+                        af_arr[i] = min(prev_af + self.step, self.max_step)
                     else:
-                        ep.iloc[i] = prev_ep
-                        af.iloc[i] = prev_af
+                        ep_arr[i] = prev_ep
+                        af_arr[i] = prev_af
             else:  # Currently short
                 # SAR should be above the high
-                if sar.iloc[i] < high.iloc[i]:
+                if sar_arr[i] < high_arr[i]:
                     # Trend reversal to long
-                    trend.iloc[i] = 1
-                    sar.iloc[i] = prev_ep  # SAR becomes the previous EP
-                    ep.iloc[i] = high.iloc[i]  # EP is the high of this period
-                    af.iloc[i] = self.step  # Reset AF
+                    trend_arr[i] = 1
+                    sar_arr[i] = prev_ep  # SAR becomes the previous EP
+                    ep_arr[i] = high_arr[i]  # EP is the high of this period
+                    af_arr[i] = self.step  # Reset AF
                 else:
                     # Continue short
-                    trend.iloc[i] = -1
+                    trend_arr[i] = -1
                     # Update EP if we have a new low
-                    if low.iloc[i] < prev_ep:
-                        ep.iloc[i] = low.iloc[i]
+                    if low_arr[i] < prev_ep:
+                        ep_arr[i] = low_arr[i]
                         # Increase AF, but not beyond max_step
-                        af.iloc[i] = min(prev_af + self.step, self.max_step)
+                        af_arr[i] = min(prev_af + self.step, self.max_step)
                     else:
-                        ep.iloc[i] = prev_ep
-                        af.iloc[i] = prev_af
+                        ep_arr[i] = prev_ep
+                        af_arr[i] = prev_af
 
+        sar.iloc[:] = sar_arr
+        trend.iloc[:] = trend_arr
         return sar, trend
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:

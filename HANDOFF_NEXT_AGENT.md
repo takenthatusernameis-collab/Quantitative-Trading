@@ -1,19 +1,19 @@
 # Handoff for Next Agent
 
 ## 1. What changed
-- Added lightweight timing instrumentation to `examples/run_parabolic_sar.py` (prints `Elapsed: Xs`) and to `tests/test_examples_smoke.py` (prints per-script elapsed).
+- Optimized `ParabolicSARStrategy._calculate_sar` to use NumPy arrays instead of pandas iloc in a Python loop for ~30x speedup (examples now run in ~1s).
+- Kept existing timing instrumentation in `examples/run_parabolic_sar.py` and `tests/test_examples_smoke.py`.
 
 ## 2. What was actually verified
-- `python examples/run_parabolic_sar.py` completed in ~31.43s.
-- `pytest tests/test_examples_smoke.py -k parabolic` passed (2 tests).
+- `python -m pytest tests/test_strategies_examples.py -v` (all 373 passed).
+- `python -m pytest tests/test_examples_smoke.py -v` (all 123 example smoke tests passed).
+- `timeout 120 python examples/run_parabolic_sar.py` completed successfully in ~1.08s.
 
 ## 3. What remains unresolved
-- Intermittent Parabolic SAR hang root cause still not reproduced.
+- None observed.
 
 ## 4. Approaches that failed and why
 - None this session.
 
 ## 5. One precise next task
-- If a hang occurs, profile `ParabolicSARStrategy._calculate_sar` using the captured elapsed timing and process tree evidence; otherwise leave instrumentation in place.
-" filePath">
-/home/runner/work/Quantitative-Trading/Quantitative-Trading/HANDOFF_NEXT_AGENT.md
+- Consider further profiling/optimization of the backtest engine if needed; current Parabolic SAR performance is no longer a bottleneck.
