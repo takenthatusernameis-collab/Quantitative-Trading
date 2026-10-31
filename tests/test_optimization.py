@@ -800,6 +800,22 @@ def test_walk_forward_with_bayesian():
     assert summary["n_windows"] == 3
 
 
+def test_walk_forward_create_optimizer_uses_bayesian_branch():
+    """_create_optimizer returns a BayesianOptimizer for optimizer="bayesian".
+
+    Exercises the ``elif self.optimizer_type == "bayesian"`` branch of
+    ``WalkForwardOptimizer._create_optimizer`` (quant_trading/optimization/walk_forward.py:516-519),
+    which the end-to-end test only reaches when scikit-optimize is installed.
+    BayesianOptimizer imports scikit-optimize lazily, so constructing the
+    backend here needs neither a full backtest run nor network access.
+    """
+    optimizer = _walk_forward_optimizer(optimizer="bayesian")
+    backend = optimizer._create_optimizer()
+    assert isinstance(backend, BayesianOptimizer)
+    assert backend.param_grid is optimizer.param_grid
+    assert backend.objective is optimizer.objective
+
+
 class RaisingStrategy(Strategy):
     """Strategy that raises ValueError in generate_signals for error handling tests."""
 
