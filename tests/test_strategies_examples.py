@@ -3414,6 +3414,20 @@ class TestChaikinMoneyFlowStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
+    def test_generate_signals_skips_nan_cmf(self):
+        """Bars where high == low == close yield NaN CMF and are skipped.
+
+        With every bar's high, low, and close equal, the money-flow
+        multiplier divides by zero (guarded to NaN), so the rolling CMF is
+        NaN on every bar. The ``pd.isna(current_cmf) or pd.isna(prev_cmf)``
+        guard at ``examples.py:3949-3950`` performs ``continue`` and no
+        signal is emitted.
+        """
+        strategy = ChaikinMoneyFlowStrategy(period=5)
+        bars = [(100.0, 100.0, 100.0)] * 15
+        data = {"AAPL": create_cmf_data("AAPL", bars)}
+        assert strategy.generate_signals(data) == []
+
 
 class TestForceIndexStrategy:
     """Tests for the Force Index strategy."""
