@@ -5228,6 +5228,24 @@ class TestAroonStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
+    def test_generate_signals_skips_nan_aroon(self):
+        """NaN Aroon values skip signal generation."""
+        strategy = AroonStrategy(period=14)
+        dates = pd.date_range(start="2023-01-01", periods=30, freq="D")
+        # Create normal data then inject NaN at the end
+        close = [100 + i * 0.1 for i in range(30)]
+        high = [c + 1 for c in close]
+        low = [c - 1 for c in close]
+        high[-1] = float("nan")
+        low[-1] = float("nan")
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": [1000] * 30},
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
 
 class TestStochRSIStrategy:
     """Tests for StochRSIStrategy."""
@@ -5428,6 +5446,22 @@ class TestPercentagePriceOscillatorStrategy:
         data = {"AAPL": create_ppo_pvo_zero_line_data("AAPL", "bullish")}
         signals = strategy.generate_signals(data)
         assert signals == []
+
+    def test_generate_signals_skips_nan_ppo(self):
+        """NaN PPO values skip signal generation."""
+        strategy = PercentagePriceOscillatorStrategy(
+            fast_period=5, slow_period=13, signal_period=5
+        )
+        dates = pd.date_range(start="2023-01-01", periods=50, freq="D")
+        close = [100 + i * 0.5 for i in range(50)]
+        close[-1] = float("nan")
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": [c + 1 for c in close], "low": [c - 1 for c in close], "close": close, "volume": [1000] * 50},
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
 
 
 class TestChoppinessIndexStrategy:
