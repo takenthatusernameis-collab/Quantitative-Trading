@@ -5616,13 +5616,32 @@ class TestAwesomeOscillatorStrategy:
         assert signals == []
 
     def test_generate_signals_returns_list(self):
-        strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34)
+        strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34, name="Test_AO")
         data = {"AAPL": create_trending_data("AAPL", days=80)}
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
         for s in signals:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
+
+    def test_generate_signals_skips_nan_ao(self):
+        """NaN AO values skip signal generation."""
+        strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34)
+        dates = pd.date_range(start="2023-01-01", periods=80, freq="D")
+        close = [100 + i * 0.5 for i in range(80)]
+        high = [c + 1 for c in close]
+        low = [c - 1 for c in close]
+        volume = [1000] * 80
+        # Inject NaN into high/low at the final bar to force NaN AO values
+        high[-1] = float("nan")
+        low[-1] = float("nan")
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": volume},
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
 
 
 class TestChaikinOscillatorStrategy:
