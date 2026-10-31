@@ -27,6 +27,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.slow
+
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 NETWORK_PROVIDERS = ("YFinanceProvider", "AlphaVantageProvider")
 

@@ -41,6 +41,7 @@ include = ["quant_trading*"]
 [tool.pytest.ini_options]
 testpaths = ["tests", "quant_trading"]
 addopts = "--doctest-modules"
+markers = ["slow: marks tests as slow (smoke/subprocess); deselect with -m \"not slow\""]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
