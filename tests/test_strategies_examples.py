@@ -2138,6 +2138,23 @@ class TestStochasticOscillatorStrategy:
         assert midline_signals == []
 
 
+    def test_generate_signals_skips_nan_k_d(self):
+        """Flat prices make the Stochastic %K/%D NaN, skipping signals."""
+        dates = pd.date_range(end=datetime.now(), periods=30, freq="D")
+        df = pd.DataFrame(
+            {
+                "open": [100.0] * 30,
+                "high": [100.0] * 30,
+                "low": [100.0] * 30,
+                "close": [100.0] * 30,
+                "volume": [1_000_000] * 30,
+            },
+            index=dates,
+        )
+        strategy = StochasticOscillatorStrategy()
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+
 class TestIchimokuCloudStrategy:
     """Tests for IchimokuCloudStrategy."""
 
