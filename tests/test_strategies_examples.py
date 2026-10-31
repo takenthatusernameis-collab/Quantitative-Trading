@@ -5167,6 +5167,22 @@ class TestCCIStrategy:
         for s in signals:
             assert s.symbol in ("AAPL", "MSFT")
 
+    def test_generate_signals_skips_nan_cci(self):
+        """Flat typical prices make mean deviation zero, so CCI is NaN and skipped."""
+        strategy = CCIStrategy(period=20, threshold=100.0)
+        dates = pd.date_range(end=datetime.now(), periods=20, freq="D")
+        df = pd.DataFrame(
+            {
+                "open": [100.0] * 20,
+                "high": [100.0] * 20,
+                "low": [100.0] * 20,
+                "close": [100.0] * 20,
+                "volume": [1_000_000] * 20,
+            },
+            index=dates,
+        )
+        assert strategy.generate_signals({"AAPL": df}) == []
+
 
 class TestAroonStrategy:
     """Tests for AroonStrategy."""
