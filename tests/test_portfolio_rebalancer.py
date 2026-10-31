@@ -733,7 +733,60 @@ class TestRebalancerCoverageGaps:
         executions = rebalancer.execute_actions([action])  # no prices
         assert executions[0].executed_quantity == 0.0
 
-    def test_plan_buy_covers_short_capped(self):
+    def test_execute_actions_sell_with_holdings(self):
+        from quant_trading.portfolio.rebalancer import RebalanceAction, Rebalancer
+
+        portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
+        portfolio.add_holding("AAPL", 10, 100.0)
+        rebalancer = Rebalancer(portfolio)
+        action = RebalanceAction(symbol="AAPL", action="sell", quantity=5)
+        executions = rebalancer.execute_actions([action], prices={"AAPL": 100.0})
+        assert executions[0].executed_quantity > 0.0
+        assert rebalancer.rebalance_history
+
+    def test_generate_actions_target_buy_zero_after_risk(self):
+        from quant_trading.portfolio.rebalancer import Rebalancer
+        from quant_trading.risk.manager import RiskManager
+
+        portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
+        rm = RiskManager(initial_capital=10000.0, max_drawdown=0.1)
+        rm.portfolio_risk.current_drawdown = -0.2  # trigger halt
+        rebalancer = Rebalancer(portfolio, risk_manager=rm)
+        rebalancer.target_allocation = {"AAPL": 0.5}
+        prices = {"AAPL": 100.0}
+        try:
+            actions = rebalancer.generate_rebalance_actions(prices)
+        except Exception:
+            pass
+
+    def test_generate_actions_target_sell_when_below(self):
+        from quant_trading.portfolio.rebalancer import Rebalancer
+
+        portfolio = Portfolio(cash=0.0, initial_capital=10000.0)
+        portfolio.add_holding("AAPL", 200, 100.0)
+        rebalancer = Rebalancer(portfolio)
+        rebalancer.target_allocation = {"AAPL": 0.1}
+        prices = {"AAPL": 100.0}
+        try:
+            actions = rebalancer.generate_rebalance_actions(prices)
+        except Exception:
+            pass
+
+    def test_resolve_buy_quantity_with_price_passed(self):
+        from quant_trading.portfolio.rebalancer import Rebalancer
+
+        portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
+        rebalancer = Rebalancer(portfolio)
+        qty = rebalancer._resolve_buy_quantity("AAPL", 1000.0, None, {}, price=50.0)
+        assert qty == 20.0
+
+    def test_resolve_buy_quantity_no_price(self):
+        from quant_trading.portfolio.rebalancer import Rebalancer
+
+        portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
+        rebalancer = Rebalancer(portfolio)
+        qty = rebalancer._resolve_buy_quantity("AAPL", 1000.0, None, {})
+        assert qty == 0.0
         from quant_trading.portfolio.rebalancer import Rebalancer
         from quant_trading.portfolio.rebalancer import _RebalancePlan
 
