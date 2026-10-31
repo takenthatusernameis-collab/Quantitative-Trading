@@ -50,6 +50,8 @@ filterwarnings = [
     "ignore:.*duplicate.*:UserWarning",
     "ignore:.*Pandas4Warning.*:Warning",
     "ignore:.*sort_index.*:FutureWarning",
+    "ignore:.*inplace.*:DeprecationWarning",
+    "ignore:.*inplace.*:FutureWarning",
 ]
 
 [tool.black]
