@@ -755,7 +755,7 @@ class TestRebalancerCoverageGaps:
         rebalancer.target_allocation = {"AAPL": 0.5}
         prices = {"AAPL": 100.0}
         try:
-            actions = rebalancer.generate_rebalance_actions(prices)
+            actions = rebalancer.generate_rebalance_actions(None, prices)
         except Exception:
             pass
 
@@ -768,7 +768,7 @@ class TestRebalancerCoverageGaps:
         rebalancer.target_allocation = {"AAPL": 0.1}
         prices = {"AAPL": 100.0}
         try:
-            actions = rebalancer.generate_rebalance_actions(prices)
+            actions = rebalancer.generate_rebalance_actions(None, prices)
         except Exception:
             pass
 
@@ -913,3 +913,67 @@ class TestRebalancerCoverageGaps:
         rebalancer = Rebalancer(portfolio)
         with pytest.raises(ValueError, match="fractions must not sum to zero"):
             rebalancer.set_target_allocation({"AAPL": 0, "MSFT": 0})
+
+
+def test_gen_target_buy_risk_halt_branch():
+    from quant_trading.portfolio.rebalancer import Rebalancer
+    from quant_trading.risk.manager import RiskManager, PortfolioRisk
+
+    portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
+    rm = RiskManager(initial_capital=10000.0, max_drawdown=0.1)
+    rm.portfolio_risk = PortfolioRisk(current_drawdown=-0.2)
+    rebalancer = Rebalancer(portfolio, risk_manager=rm, rebalance_threshold=0.0)
+    rebalancer.target_allocation = {"AAPL": 0.5}
+    prices = {"AAPL": 100.0}
+    actions = rebalancer.generate_rebalance_actions(None, prices)
+    assert not any(a.action == "buy" and a.reason == "target_allocation" for a in actions)
+
+
+def test_gen_target_buy_plan_buy_zero_branch():
+    from quant_trading.portfolio.rebalancer import Rebalancer
+
+    portfolio = Portfolio(cash=1.0, initial_capital=10000.0)
+    portfolio.add_holding("MSFT", 100, 100.0)
+    rebalancer = Rebalancer(portfolio, rebalance_threshold=0.0)
+    rebalancer.target_allocation = {"AAPL": 0.5}
+    prices = {"AAPL": 100.0, "MSFT": 100.0}
+    actions = rebalancer.generate_rebalance_actions(None, prices)
+    assert not any(a.symbol == "AAPL" and a.action == "buy" for a in actions)
+
+
+def test_gen_signal_buy_risk_halt_branch():
+    from quant_trading.portfolio.rebalancer import Rebalancer
+    from quant_trading.risk.manager import RiskManager, PortfolioRisk
+    from quant_trading.strategies.base import Signal
+
+    portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
+    rm = RiskManager(initial_capital=10000.0, max_drawdown=0.1)
+    rm.portfolio_risk = PortfolioRisk(current_drawdown=-0.2)
+    rebalancer = Rebalancer(portfolio, risk_manager=rm, rebalance_threshold=0.0)
+    sig = Signal(symbol="AAPL", action="buy", price=100.0, strength=1.0)
+    prices = {"AAPL": 100.0}
+    actions = rebalancer.generate_rebalance_actions([sig], prices)
+    assert not any(a.symbol == "AAPL" and a.action == "buy" for a in actions)
+
+
+def test_gen_signal_buy_plan_buy_zero_branch():
+    from quant_trading.portfolio.rebalancer import Rebalancer
+    from quant_trading.strategies.base import Signal
+
+    portfolio = Portfolio(cash=1.0, initial_capital=10000.0)
+    portfolio.add_holding("MSFT", 100, 100.0)
+    rebalancer = Rebalancer(portfolio, rebalance_threshold=0.0)
+    sig = Signal(symbol="AAPL", action="buy", price=100.0, strength=1.0)
+    prices = {"AAPL": 100.0, "MSFT": 100.0}
+    actions = rebalancer.generate_rebalance_actions([sig], prices)
+    assert not any(a.symbol == "AAPL" and a.action == "buy" for a in actions)
+
+
+def test_execute_actions_skip_zero_quantity_branch():
+    from quant_trading.portfolio.rebalancer import Rebalancer
+
+    portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
+    rebalancer = Rebalancer(portfolio)
+    action = RebalanceAction(symbol="AAPL", action="hold", quantity=5.0)
+    executions = rebalancer.execute_actions([action], prices={"AAPL": 100.0})
+    assert executions[0].executed_quantity == 0.0
