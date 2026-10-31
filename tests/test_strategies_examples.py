@@ -4780,6 +4780,26 @@ class TestStochasticMomentumIndexStrategy:
         }
         assert strategy.generate_signals(data) == []
 
+    def test_generate_signals_skips_nan_smi(self):
+        """Flat high/low on the final two bars makes SMI NaN (0/0), skipping signals."""
+        from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
+
+        strategy = StochasticMomentumIndexStrategy(k_period=2, signal_period=2)
+        dates = pd.date_range(start="2023-01-01", periods=10, freq="D")
+        # 7 trending bars, then 3 flat bars (high == low == close) so the
+        # k_period range is zero on both final windows -> k_percent -> NaN
+        # -> SMI NaN on the last two bars, exercising the NaN-continue guard.
+        close = [7, 7, 7, 7, 7, 7, 8.5, 11.0, 11.0, 11.0]
+        high = [10, 10, 10, 10, 10, 10, 11, 11.0, 11.0, 11.0]
+        low = [5, 5, 5, 5, 5, 5, 6, 11.0, 11.0, 11.0]
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": [1000] * 10},
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
 
 class TestUltimateOscillatorStrategy:
     """Tests for UltimateOscillatorStrategy."""
