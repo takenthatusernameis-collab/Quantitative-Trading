@@ -590,6 +590,38 @@ class TestNeedsRebalance:
         assert rebalancer.needs_rebalance() is False
 
 
+class TestRebalancerRemainingBranches:
+    """Tests covering the remaining False branches of generate_rebalance_actions."""
+
+    def test_target_buy_exact_target_no_action(self):
+        """Exactly at target emits no buy even when deviation clears threshold."""
+        portfolio = _empty_portfolio()
+        rebalancer = Rebalancer(
+            portfolio, target_allocation={"AAPL": 0.0}, rebalance_threshold=-0.001
+        )
+        actions = rebalancer.generate_rebalance_actions(prices={"AAPL": 100.0})
+        assert actions == []
+
+    def test_target_sell_unheld_symbol_no_action(self):
+        """A sell target for an unheld symbol emits no action (nothing to sell)."""
+        portfolio = _empty_portfolio()
+        rebalancer = Rebalancer(
+            portfolio, target_allocation={"AAPL": -0.5}, rebalance_threshold=0.05
+        )
+        actions = rebalancer.generate_rebalance_actions(prices={"AAPL": 100.0})
+        assert actions == []
+
+    def test_signal_buy_without_signal_price_yields_no_action(self):
+        """A buy signal whose own price is unset cannot be sized despite a market price."""
+        portfolio = _empty_portfolio()
+        rebalancer = Rebalancer(portfolio, target_allocation={})
+        signal = Signal(symbol="GOOGL", action="buy", strength=1.0, price=None)
+        actions = rebalancer.generate_rebalance_actions(
+            signals=[signal], prices={"GOOGL": 100.0}
+        )
+        assert actions == []
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
