@@ -5676,6 +5676,23 @@ class TestChaikinOscillatorStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
+    def test_generate_signals_skips_nan_cho(self):
+        """NaN CHO values skip signal generation."""
+        strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
+        dates = pd.date_range(start="2023-01-01", periods=80, freq="D")
+        close = [100 + i * 0.5 for i in range(80)]
+        high = [c + 1 for c in close]
+        low = [c - 1 for c in close]
+        volume = [1000] * 80
+        volume[-1] = float("nan")
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": volume},
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
 
 class TestDetrendedPriceOscillatorStrategy:
     """Tests for DetrendedPriceOscillatorStrategy."""
