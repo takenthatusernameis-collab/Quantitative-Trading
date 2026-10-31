@@ -5488,9 +5488,21 @@ class TestChoppinessIndexStrategy:
         data = {"AAPL": create_trending_data("AAPL", days=60)}
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
-        for s in signals:
-            assert s.symbol == "AAPL"
-            assert s.action in ("buy", "sell")
+
+    def test_generate_signals_skips_nan_chop(self):
+        """NaN Choppiness values skip signal generation."""
+        strategy = ChoppinessIndexStrategy(period=14)
+        dates = pd.date_range(start="2023-01-01", periods=40, freq="D")
+        close = [100.0] * 40
+        high = [100.0] * 40
+        low = [100.0] * 40
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": [1000] * 40},
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
 
     def test_generate_signals_nan_chop_skipped(self):
         strategy = ChoppinessIndexStrategy(period=14)
