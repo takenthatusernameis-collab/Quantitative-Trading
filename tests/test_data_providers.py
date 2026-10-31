@@ -119,6 +119,7 @@ def test_data_manager_fetch_many_uses_provider_and_cache():
     for key, result in cached_results.items():
         assert result is results[key]
 
+
 def test_data_manager_fetch_many_use_cache_false_bypasses_cache():
     """DataManager.fetch_many(use_cache=False) bypasses the cache (providers.py:493->495)."""
     data = create_synthetic_data(["AAPL", "MSFT"], days=20)
