@@ -749,7 +749,7 @@ class TestRebalancerCoverageGaps:
 
         portfolio = Portfolio(cash=100.0, initial_capital=100.0)
         rebalancer = Rebalancer(portfolio)
-        plan = _RebalancePlan(cash=1.0, positions={}, fee_rate=0.001)
+        plan = _RebalancePlan(cash=0.0, positions={}, fee_rate=0.001)
         qty = rebalancer._plan_buy(plan, "AAPL", 100.0, 100.0)
         assert qty == 0.0
 
@@ -767,14 +767,9 @@ class TestRebalancerCoverageGaps:
         from quant_trading.portfolio.rebalancer import Rebalancer
         from quant_trading.portfolio.rebalancer import _RebalancePlan
         from quant_trading.risk.manager import RiskManager, PortfolioRisk
-        from quant_trading.risk.limits import PortfolioLimit, PositionLimit
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
-        risk_manager = RiskManager(
-            initial_capital=10000.0,
-            position_limit=PositionLimit(),
-            portfolio_limit=PortfolioLimit(max_drawdown=0.1),
-        )
+        risk_manager = RiskManager(initial_capital=10000.0, max_drawdown=0.1)
         risk_manager.portfolio_risk = PortfolioRisk(current_drawdown=-0.2)
         rebalancer = Rebalancer(portfolio, risk_manager=risk_manager)
         plan = _RebalancePlan(cash=10000.0, positions={}, fee_rate=0.0)
@@ -785,14 +780,10 @@ class TestRebalancerCoverageGaps:
         from quant_trading.portfolio.rebalancer import Rebalancer
         from quant_trading.portfolio.rebalancer import _RebalancePlan
         from quant_trading.risk.manager import RiskManager
-        from quant_trading.risk.limits import PortfolioLimit, PositionLimit
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
-        risk_manager = RiskManager(
-            initial_capital=10000.0,
-            position_limit=PositionLimit(max_position_size=0.1, max_position_value=500),
-            portfolio_limit=PortfolioLimit(),
-        )
+        risk_manager = RiskManager(initial_capital=10000.0, max_position_size=0.1)
+        risk_manager.position_limit.max_value = 500
         rebalancer = Rebalancer(portfolio, risk_manager=risk_manager)
         plan = _RebalancePlan(cash=10000.0, positions={"AAPL": 10.0}, fee_rate=0.0)
         qty = rebalancer._risk_adjust_buy(plan, "AAPL", 1.0, 100.0, 10000.0)
