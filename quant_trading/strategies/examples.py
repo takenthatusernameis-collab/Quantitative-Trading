@@ -7035,9 +7035,8 @@ class NegativeVolumeIndexStrategy(Strategy):
         for i in range(1, len(df)):
             if volume.iloc[i] < volume.iloc[i - 1] and close.iloc[i - 1] != 0:
                 nvi.iloc[i] = float(
-                    nvi.iloc[i - 1] * (
-                        1.0 + (close.iloc[i] - close.iloc[i - 1]) / close.iloc[i - 1]
-                    )
+                    nvi.iloc[i - 1]
+                    * (1.0 + (close.iloc[i] - close.iloc[i - 1]) / close.iloc[i - 1])
                 )
             else:
                 nvi.iloc[i] = float(nvi.iloc[i - 1])
