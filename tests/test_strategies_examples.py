@@ -938,6 +938,61 @@ def create_macd_zero_line_data(symbol: str, direction: str) -> pd.DataFrame:
     )
 
 
+def create_ppo_pvo_zero_line_data(symbol: str, direction: str, pvo: bool = False) -> pd.DataFrame:
+    """Create deterministic data where the PPO/PVO line crosses zero on the
+    final bar *without* a signal-line crossover.
+
+    The same price ramp used for MACD zero-line data is reused here: the fast
+    EMA crosses the slow EMA (the PPO/PVO line crosses zero) while the signal
+    line lags, so neither signal-line crossover condition holds and the
+    ``elif self.use_zero_line`` arm fires instead.
+
+    Args:
+        symbol: Symbol name (unused except for API symmetry with other
+            helpers; the returned DataFrame is keyed by the caller).
+        direction: ``"bullish"`` puts the PPO/PVO line clearly above zero on
+            the final bar; ``"bearish"`` keeps it in the narrow band between
+            the (negative) signal line and zero, crossing it from above.
+        pvo: When ``True`` the ramp is applied to the ``"volume"`` column and
+            the price columns are held flat at 100, so only the volume
+            oscillator is exercised. When ``False`` (default) the ramp is
+            applied to ``"close"`` exactly as in the MACD helper.
+
+    Returns:
+        A DataFrame with OHLCV columns indexed by timestamp.
+    """
+    closes = [100.0] * 30 + [80.0] + [80.0] * 15 + [80.0 + 0.25 * i for i in range(1, 80)]
+    if direction == "bullish":
+        closes = closes[:53] + [100.0]
+    else:
+        closes = closes[:54] + [80.5]
+    ramp = np.asarray(closes, dtype=float)
+    dates = pd.date_range(end=datetime.now(), periods=len(ramp), freq="D")
+    if pvo:
+        volume = ramp * 10000.0
+        close = np.full(len(ramp), 100.0)
+        return pd.DataFrame(  # type: ignore[no-any-return]
+            {
+                "open": close,
+                "high": close * 1.001,
+                "low": close * 0.999,
+                "close": close,
+                "volume": volume,
+            },
+            index=dates,
+        )
+    return pd.DataFrame(  # type: ignore[no-any-return]
+        {
+            "open": ramp,
+            "high": ramp * 1.001,
+            "low": ramp * 0.999,
+            "close": ramp,
+            "volume": np.full(len(ramp), 1_000_000),
+        },
+        index=dates,
+    )
+
+
 class TestMACDStrategy:
     """Tests for MACDStrategy."""
 
@@ -4973,6 +5028,77 @@ class TestPercentagePriceOscillatorStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
+    def test_zero_line_option(self):
+        """Test that use_zero_line enables zero-line crossovers."""
+        strategy = PercentagePriceOscillatorStrategy(
+            fast_period=5, slow_period=13, signal_period=5, use_zero_line=True
+        )
+        assert strategy.use_zero_line is True
+        data = {"AAPL": create_trending_data("AAPL", days=100)}
+        signals = strategy.generate_signals(data)
+        # With zero-line enabled, more signal types may appear
+        for signal in signals:
+            assert signal.action in ("buy", "sell")
+
+    def test_generate_signals_zero_line_bullish(self):
+        """Test zero-line crossover generates buy when PPO crosses up.
+
+        The PPO line crosses zero on the final bar while staying above the
+        signal line, so no signal-line crossover occurs and the zero-line
+        branch fires instead.
+        """
+        strategy = PercentagePriceOscillatorStrategy(
+            fast_period=5, slow_period=13, signal_period=5, use_zero_line=True
+        )
+        data = {"AAPL": create_ppo_pvo_zero_line_data("AAPL", "bullish")}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.metadata["signal_type"] == "ppo_zero_cross_above"
+        assert signal.metadata["ppo"] == pytest.approx(4.187430785380317)
+        assert signal.metadata["ppo"] > 0
+        assert signal.metadata["signal"] == pytest.approx(1.0104568937649043)
+        assert "zero_line" not in signal.metadata
+
+    def test_generate_signals_zero_line_bearish(self):
+        """Test zero-line crossover generates sell when PPO crosses down.
+
+        The PPO line has just crossed above zero (signal line still lags
+        below zero); the final close is tuned so the PPO line crosses back
+        below zero without a signal-line crossover.
+        """
+        strategy = PercentagePriceOscillatorStrategy(
+            fast_period=5, slow_period=13, signal_period=5, use_zero_line=True
+        )
+        data = {"AAPL": create_ppo_pvo_zero_line_data("AAPL", "bearish")}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.metadata["signal_type"] == "ppo_zero_cross_below"
+        assert signal.metadata["ppo"] == pytest.approx(-0.14530598525153834)
+        assert signal.metadata["ppo"] < 0
+        assert signal.metadata["signal"] == pytest.approx(-0.28104965986088726)
+        assert "zero_line" not in signal.metadata
+
+    def test_generate_signals_zero_line_disabled(self):
+        """When use_zero_line is False and no signal-line crossover fires on
+        the final bar, the ``elif self.use_zero_line`` arm is False and no
+        signal is produced."""
+        strategy = PercentagePriceOscillatorStrategy(
+            fast_period=12, slow_period=26, signal_period=9, use_zero_line=False
+        )
+        data = {"AAPL": create_ppo_pvo_zero_line_data("AAPL", "bullish")}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
 
 class TestChoppinessIndexStrategy:
     """Tests for ChoppinessIndexStrategy."""
@@ -5236,3 +5362,74 @@ class TestPercentageVolumeOscillatorStrategy:
         for s in signals:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
+
+    def test_zero_line_option(self):
+        """Test that use_zero_line enables zero-line crossovers."""
+        strategy = PercentageVolumeOscillatorStrategy(
+            fast_period=5, slow_period=13, signal_period=5, use_zero_line=True
+        )
+        assert strategy.use_zero_line is True
+        data = {"AAPL": create_trending_data("AAPL", days=100)}
+        signals = strategy.generate_signals(data)
+        # With zero-line enabled, more signal types may appear
+        for signal in signals:
+            assert signal.action in ("buy", "sell")
+
+    def test_generate_signals_zero_line_bullish(self):
+        """Test zero-line crossover generates buy when PVO crosses up.
+
+        The PVO line crosses zero on the final bar while staying above the
+        signal line, so no signal-line crossover occurs and the zero-line
+        branch fires instead.
+        """
+        strategy = PercentageVolumeOscillatorStrategy(
+            fast_period=5, slow_period=13, signal_period=5, use_zero_line=True
+        )
+        data = {"AAPL": create_ppo_pvo_zero_line_data("AAPL", "bullish", pvo=True)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.metadata["signal_type"] == "pvo_zero_cross_above"
+        assert signal.metadata["pvo"] == pytest.approx(4.187430785380328)
+        assert signal.metadata["pvo"] > 0
+        assert signal.metadata["signal"] == pytest.approx(1.010456893764923)
+        assert "zero_line" not in signal.metadata
+
+    def test_generate_signals_zero_line_bearish(self):
+        """Test zero-line crossover generates sell when PVO crosses down.
+
+        The PVO line has just crossed above zero (signal line still lags
+        below zero); the final close is tuned so the PVO line crosses back
+        below zero without a signal-line crossover.
+        """
+        strategy = PercentageVolumeOscillatorStrategy(
+            fast_period=5, slow_period=13, signal_period=5, use_zero_line=True
+        )
+        data = {"AAPL": create_ppo_pvo_zero_line_data("AAPL", "bearish", pvo=True)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.metadata["signal_type"] == "pvo_zero_cross_below"
+        assert signal.metadata["pvo"] == pytest.approx(-0.1453059852515245)
+        assert signal.metadata["pvo"] < 0
+        assert signal.metadata["signal"] == pytest.approx(-0.28104965986087066)
+        assert "zero_line" not in signal.metadata
+
+    def test_generate_signals_zero_line_disabled(self):
+        """When use_zero_line is False and no signal-line crossover fires on
+        the final bar, the ``elif self.use_zero_line`` arm is False and no
+        signal is produced."""
+        strategy = PercentageVolumeOscillatorStrategy(
+            fast_period=12, slow_period=26, signal_period=9, use_zero_line=False
+        )
+        data = {"AAPL": create_ppo_pvo_zero_line_data("AAPL", "bullish", pvo=True)}
+        signals = strategy.generate_signals(data)
+        assert signals == []

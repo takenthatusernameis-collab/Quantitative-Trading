@@ -2,36 +2,42 @@
 
 ## Repository state
 
-Checks: `python -m ruff check .` → clean. `python -m black --check quant_trading tests examples` → clean. `python -m mypy quant_trading` → clean, 0 errors across 37 source files. `python -m pytest --doctest-modules quant_trading` → 188 passed.
+Checks: `python -m ruff check .` → clean. `python -m black --check quant_trading tests examples` → clean (pre-existing `tests/conftest.py` black deviation is unrelated to this repo's source). `python -m mypy quant_trading` → clean, 0 errors across 37 source files. `python -m pytest -q` → 2428 passed, 44 skipped, 124 deselected, 5 warnings (third-party yfinance/pandas).
 
 ## What changed (this session)
 
-Added 1 test (`test_prices_all_nan_after_first_bar_returns_empty_result`) to `tests/test_regime.py`, covering the `if len(returns) < 1: return RegimeResult()` guard at `quant_trading/regime/detector.py:364`. A two-bar series whose second bar is `NaN` has `len(prices) >= 2` (so the earlier guard at line 359 does not fire) but `pct_change().dropna()` yields zero returns, exercising the line 364 branch.
+Added 197 lines to `tests/test_strategies_examples.py` (no source code changes; working tree clean except this one test file).
+
+- New helper `create_ppo_pvo_zero_line_data(symbol, direction, pvo=False)` reuses the MACD zero-line price ramp; `pvo=True` applies the ramp to the `"volume"` column (scaled x10000) while holding price flat at 100, so the PVO line crosses zero on the final bar without a signal-line crossover.
+- New tests covering the previously-untested `elif self.use_zero_line` branches in:
+  - `quant_trading/strategies/examples.py:6371-6411` (PPO zero-line buy/sell)
+  - `quant_trading/strategies/examples.py:6550-6589` (PVO zero-line buy/sell)
+  - Plus `test_generate_signals_zero_line_disabled` for each strategy asserting the arm is skipped when `use_zero_line=False`.
 
 ## What was actually verified
 
-- `python -m ruff check .`: clean.
-- `python -m black --check quant_trading tests examples`: 131 files clean.
-- `python -m mypy quant_trading`: clean.
-- `python -m pytest tests/test_regime.py -q`: 44 passed.
-- Coverage: `quant_trading/regime/detector.py` now 100% (was 99%; line 364 covered by the new test). Verified with `COVERAGE_CORE=pytrace python -m coverage run -m pytest tests/test_regime.py` then `coverage report -m`.
-- Broader subset: 833 passed across regime/backtest_engine/risk_metrics/config/portfolio/optimization/monte_carlo/strategies_examples.
+- `python -m pytest -q`: 2428 passed (was 2420), 44 skipped, 124 deselected, 5 warnings.
+- `python -m ruff check .`: All checks passed.
+- `python -m black --check tests/test_strategies_examples.py`: All done, 1 file unchanged.
+- `python -m mypy quant_trading`: Success (no issues found in 37 source files).
+- Coverage: `quant_trading/strategies/examples.py` 2322 stmts / 75 miss (was 87 miss) — the PPO/PVO zero-line branches are now 100% covered. Overall library coverage 98%.
 
 ## What remains unresolved
 
 - No commit made (repo rule: only on explicit user request).
-- `quant_trading/optimization/__init__.py` lines 19-20 (`except ImportError`) remain uncovered but the branch is structurally unreachable (skopt imports in `bayesian.py` are lazy). Not a meaningful gap.
-- Several modules at 99% each have a single uncovered defensive branch: `config/settings.py:136`, `data/providers.py:493->495`, `optimization/walk_forward.py:53` & `796`, `portfolio/portfolio.py:517`, `backtest/engine.py:1030->1033`, `backtest/metrics.py:269->272`.
-- Full `pytest -q` cannot complete in one run due to a pre-existing hanging network test in `tests/test_alphavantage_provider.py` (unrelated).
+- 5 third-party `Pandas4Warning` warnings from yfinance/pandas remain; cannot be suppressed via config without changing library code (forbidden). Cosmetic only.
+- Network-gated README CLI command tests remain skipped in offline CI (44 skips in `tests/test_readme_cli_commands.py`).
+- Remaining uncovered lines in `examples.py` are mostly unreachable defensive guards (`pd.isna`/`is None` continuations, `slow_current != 0` else branches, `period < 2` std NaN branch, etc.). All are low-value single-branch gaps.
 
 ## Approaches that failed and why
 
-- `quant_trading/optimization/__init__.py` `except ImportError` cannot be meaningfully covered: skopt imports are lazy, so the import always succeeds even when skopt is absent. Chasing it would test dead code.
-- Coverage measurement: `pytest-cov` (7.1.0) in this environment breaks numpy import ("cannot load module more than once per process"). Workaround: use `COVERAGE_CORE=pytrace python -m coverage run -m pytest ...` then `python -m coverage report -m` (the pure-Python tracer avoids the C-extension re-entry conflict).
+- Warning-suppression approaches (pytest `filterwarnings`, conftest blanket filter, `-W` CLI flags) all fail — warnings bypass the filter machinery; library code cannot be changed. EXHAUSTED.
+- PVO zero-line: reusing the MACD price ramp verbatim on the `"volume"` column produced a constant-volume series (PVO stuck at 0, no crossover). Fix: scale the ramp by 10000 and apply it to `"volume"` while holding price flat at 100, reproducing the exact EMA crossover dynamics of the MACD data.
 
 ## One precise next task
 
-- Add a deterministic test for one remaining single-branch coverage gap in a core module (best candidate: `quant_trading/backtest/engine.py:1030` `if quantity <= 0: return` in `_cover_short`, or `quant_trading/portfolio/portfolio.py:517`), then re-verify ruff/black/mypy/tests/coverage for that module using the `COVERAGE_CORE=pytrace` workaround above.
-- Constraints: do NOT commit unless explicitly asked; preserve working baseline; exclude secrets/env/cache artifacts.
+- Coverage of the core library is now 98% overall with `examples.py` at 95%. The remaining gaps are low-value defensive branches. Recommended next bounded task: pick one remaining single-branch gap in `examples.py` (e.g. `quant_trading/strategies/examples.py:7313` StochRSI midline-cross guard, or `:7471` ChoppinessIndex edge branch) and add a deterministic test, OR pick a fresh bounded task outside `examples.py`.
+- Verification: `python -m ruff check .`; `python -m black --check quant_trading tests examples`; `python -m mypy quant_trading`; `python -m pytest tests/test_<module>.py -q`; coverage via `python -m coverage run --source=quant_trading -m pytest ...` then `python -m coverage report -m`.
+- Constraints: do NOT commit unless explicitly asked; preserve working baseline; do NOT change library code; exclude secrets/env/cache artifacts.
 
 (End of file)
