@@ -5492,13 +5492,15 @@ class TestChoppinessIndexStrategy:
     def test_generate_signals_skips_nan_chop(self):
         """NaN Choppiness values skip signal generation."""
         strategy = ChoppinessIndexStrategy(period=14)
-        dates = pd.date_range(start="2023-01-01", periods=40, freq="D")
-        close = [100.0] * 40
-        high = [100.0] * 40
-        low = [100.0] * 40
+        dates = pd.date_range(start="2023-01-01", periods=50, freq="D")
+        close = [100 + i * 0.2 for i in range(50)]
+        high = [c + 1 for c in close]
+        low = [c - 1 for c in close]
+        high[-1] = float("nan")
+        low[-1] = float("nan")
         data = {
             "AAPL": pd.DataFrame(
-                {"open": close, "high": high, "low": low, "close": close, "volume": [1000] * 40},
+                {"open": close, "high": high, "low": low, "close": close, "volume": [1000] * 50},
                 index=dates,
             )
         }
