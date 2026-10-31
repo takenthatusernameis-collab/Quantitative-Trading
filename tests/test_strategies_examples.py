@@ -5357,6 +5357,22 @@ class TestChoppinessIndexStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
+    def test_generate_signals_nan_chop_skipped(self):
+        strategy = ChoppinessIndexStrategy(period=14)
+        dates = pd.date_range("2023-01-01", periods=20)
+        df = pd.DataFrame(
+            {
+                "open": [100] * 20,
+                "high": [100] * 20,
+                "low": [100] * 20,
+                "close": [100] * 20,
+                "volume": [1000] * 20,
+            },
+            index=dates,
+        )
+        signals = strategy.generate_signals({"AAPL": df})
+        assert signals == []
+
 
 class TestAccumulationDistributionStrategy:
     """Tests for AccumulationDistributionStrategy."""
