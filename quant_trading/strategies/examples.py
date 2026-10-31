@@ -7034,12 +7034,14 @@ class NegativeVolumeIndexStrategy(Strategy):
         nvi = pd.Series(1000.0, index=df.index, dtype=float)
         for i in range(1, len(df)):
             if volume.iloc[i] < volume.iloc[i - 1] and close.iloc[i - 1] != 0:
-                nvi.iloc[i] = nvi.iloc[i - 1] * (
-                    1.0 + (close.iloc[i] - close.iloc[i - 1]) / close.iloc[i - 1]
+                nvi.iloc[i] = float(
+                    nvi.iloc[i - 1] * (
+                        1.0 + (close.iloc[i] - close.iloc[i - 1]) / close.iloc[i - 1]
+                    )
                 )
             else:
-                nvi.iloc[i] = nvi.iloc[i - 1]
-        return nvi  # type: ignore[no-any-return]
+                nvi.iloc[i] = float(nvi.iloc[i - 1])
+        return pd.Series(nvi.to_numpy(dtype=float), index=df.index)  # type: ignore[no-any-return]
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals: list[Signal] = []
