@@ -1,12 +1,13 @@
 # Handoff for Next Agent — 2026-10-31 (session updated)
 
 ## 1. What changed
-- Added test `test_generate_signals_skips_nan_ao` to `tests/test_strategies_examples.py` in `TestAwesomeOscillatorStrategy` covering the NaN-continue guard at `quant_trading/strategies/examples.py:5824` (Awesome Oscillator NaN check). Injects NaN into `high`/`low` at the final bar to force NaN AO values; asserts no signals emitted. No source code changes.
+- Added test `test_generate_signals_skips_nan_dpo` to `tests/test_strategies_examples.py` in `TestDetrendedPriceOscillatorStrategy` covering the NaN-continue guard at `quant_trading/strategies/examples.py:6645` (DPO NaN check). Injects NaN into `close` at the second-to-last bar so the shifted SMA produces a NaN DPO value at the final bar; asserts no signals emitted. No source code changes.
 
 ## 2. What was actually verified
-- `python -m pytest tests/test_strategies_examples.py -q --import-mode=importlib`: 399 passed (+1 from prior 398).
+- `python -m pytest tests/test_strategies_examples.py -q --import-mode=importlib`: 402 passed (+1 from prior 401).
+- Confirmed the new test specifically exercises the line-6645 guard: with `close[-2]=NaN`, `current_price` is still non-NaN (so the line-6639 guard is not hit), but `prev_dpo` is NaN, forcing the `pd.isna(curr_dpo) or pd.isna(prev_dpo)` continuation. Signals == [].
 - `python -m ruff check .`: All checks passed.
-- `python -m black --check quant_trading tests examples`: only pre-existing `tests/conftest.py` and pre-existing lines in `tests/test_strategies_examples.py` (lines ~2135, ~5447) would be reformatted — both untouched, out of scope. The newly added test code is already black-compliant.
+- `python -m black --check quant_trading tests examples`: only pre-existing `tests/conftest.py` would be reformatted — untouched, out of scope. The modified `tests/test_strategies_examples.py` is fully black-compliant (left unchanged).
 - `python -m mypy quant_trading`: Success (no issues found in 37 source files).
 
 ## 3. What remains unresolved
@@ -21,11 +22,9 @@
 
 ## 5. One precise next task
 - Cover one more small defensive guard in `examples.py`. Remaining concrete untested `pd.isna`-continue guards include:
-  - `TestChaikinOscillatorStrategy`: `examples.py:1476` (NaN CO check)
-  - `TestDetrendedPriceOscillatorStrategy`: `examples.py:2080` (NaN DPO check)
-  - `TestRateOfChangeStrategy`: `examples.py:3110` (NaN ROC check)
-  - `TestTrixStrategy`: `examples.py:7135` (NaN TRIX check)
-  - `TestAccumulationDistributionStrategy`: `examples.py:859` (NaN AD check — note: a `test_generate_signals_skips_nan_adl` test already exists at line 5577 covering close-NaN; the line-859 guard is a separate defensive branch)
+  - `TestRateOfChangeStrategy`: `examples.py:4422` (NaN ROC check)
+  - `TestTrixStrategy`: `examples.py:6037`+ (NaN TRIX check)
+  - `TestAccumulationDistributionStrategy`: `examples.py:6848`+ (NaN AD check — note: a `test_generate_signals_skips_nan_adl` test already exists at line 5580 covering close-NaN; a separate branch may remain)
 - Pick any one, add a deterministic test in the matching `Test*Strategy` class following the existing NaN-guard test patterns.
 - Verification: `python -m ruff check .`; `python -m black --check quant_trading tests examples`; `python -m mypy quant_trading`; `python -m pytest tests/test_strategies_examples.py -q --import-mode=importlib` (expect +1 test).
 - Constraints: do NOT commit unless explicitly asked; preserve working baseline; do NOT change library code; exclude secrets/env/cache artifacts; use `--import-mode=importlib` for pytest in this sandbox.

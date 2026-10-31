@@ -5724,6 +5724,25 @@ class TestDetrendedPriceOscillatorStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
+    def test_generate_signals_skips_nan_dpo(self):
+        """NaN DPO values skip signal generation."""
+        strategy = DetrendedPriceOscillatorStrategy(period=20)
+        dates = pd.date_range(start="2023-01-01", periods=80, freq="D")
+        close = [100 + i * 0.5 for i in range(80)]
+        high = [c + 1 for c in close]
+        low = [c - 1 for c in close]
+        volume = [1000] * 80
+        # Inject NaN into close at the second-to-last bar so the shifted SMA
+        # produces a NaN DPO value at the final bar.
+        close[-2] = float("nan")
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": volume},
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
 
 class TestElderRayStrategy:
     """Tests for ElderRayStrategy."""
