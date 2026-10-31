@@ -5373,6 +5373,30 @@ class TestChoppinessIndexStrategy:
         signals = strategy.generate_signals({"AAPL": df})
         assert signals == []
 
+    def test_generate_signals_nan_chop_last_two_bars_skipped(self):
+        """NaN CHOP on the final two bars triggers the continue guard."""
+        strategy = ChoppinessIndexStrategy(period=14)
+        dates = pd.date_range("2023-01-01", periods=30)
+        # Build normal trending data first
+        price = 100 + np.cumsum(np.random.RandomState(123).randn(30) * 0.5)
+        df = pd.DataFrame(
+            {
+                "open": price,
+                "high": price + 1.0,
+                "low": price - 1.0,
+                "close": price,
+                "volume": [1000] * 30,
+            },
+            index=dates,
+        )
+        # Force high == low on last two bars so range_hl becomes 0 -> NaN
+        df.at[df.index[-2], "high"] = df.at[df.index[-2], "close"]
+        df.at[df.index[-2], "low"] = df.at[df.index[-2], "close"]
+        df.at[df.index[-1], "high"] = df.at[df.index[-1], "close"]
+        df.at[df.index[-1], "low"] = df.at[df.index[-1], "close"]
+        signals = strategy.generate_signals({"AAPL": df})
+        assert signals == []
+
 
 class TestAccumulationDistributionStrategy:
     """Tests for AccumulationDistributionStrategy."""
