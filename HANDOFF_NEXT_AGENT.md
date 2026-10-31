@@ -1,12 +1,12 @@
 # Handoff for Next Agent — 2026-10-31 (session updated)
 
 ## 1. What changed
-- Added test `test_generate_signals_skips_nan_roc_current_price` to `tests/test_strategies_examples.py` in `TestRateOfChangeStrategy` covering the NaN-continue guard at `quant_trading/strategies/examples.py:4416-4417` (ROC `current_price` NaN check). Injects NaN into `close` at the last bar so `current_price` is NaN; asserts no signals emitted. No source code changes.
-- Prior change retained: `test_generate_signals_skips_nan_dpo` (DPO NaN guard at `examples.py:6645`) added in previous session.
+- Added test `test_generate_signals_skips_nan_vroc_current_price` to `tests/test_strategies_examples.py` in `TestVolumeRateOfChangeStrategy` covering the NaN-continue guard at `quant_trading/strategies/examples.py:4548-4549` (VROC `current_price` NaN check). Injects NaN into `close` at the last bar; asserts no signals emitted. No source code changes.
+- Prior change retained: `test_generate_signals_skips_nan_roc_current_price` (ROC `current_price` guard at `examples.py:4416-4417`) added in previous session.
 
 ## 2. What was actually verified
-- `python -m pytest tests/test_strategies_examples.py -q --import-mode=importlib`: 405 passed (+1 from prior 404).
-- Coverage: line `examples.py:4417` (ROC `current_price` guard `continue`) is now covered; miss count dropped 165→164 for `quant_trading/strategies/examples.py` (91% statement coverage).
+- `python -m pytest tests/test_strategies_examples.py -q --import-mode=importlib`: 406 passed (+1 from prior 405).
+- Coverage: line `examples.py:4549` (VROC `current_price` guard `continue`) is now covered.
 - `python -m ruff check .`: All checks passed.
 - `python -m black --check tests/test_strategies_examples.py`: file left unchanged (fully compliant).
 - `python -m mypy quant_trading`: Success (no issues found in 37 source files).
@@ -23,8 +23,8 @@
 - ROC `current_price` guard (`examples.py:4416-4417`) was NOT covered by the pre-existing `test_generate_signals_skips_nan_roc` (that one injects `close[-13]=NaN` tripping the `curr_roc` guard at 4422, not `current_price`). Fixed by injecting `close[-1]=NaN`.
 
 ## 5. One precise next task
-- Cover one more small defensive guard in `examples.py`. Best concrete target: VROC `current_price` NaN guard at `examples.py:4548-4549` (line 4549 `continue` still uncovered; existing `test_generate_signals_skips_nan_volume` injects volume NaN, not close/current_price). Add `test_generate_signals_skips_nan_vroc_current_price` to `TestVolumeRateOfChangeStrategy` injecting `close[-1]=float("nan")`, asserting `signals == []`. Other valid targets from the coverage missing list: PPO `current_signal`/`prev_signal` (`examples.py:6326-6327`), ADL `current_adl`/`prev_adl` (`examples.py:6939-6941`).
-- Verification: `python -m ruff check .`; `python -m black --check quant_trading tests examples`; `python -m mypy quant_trading`; `python -m pytest tests/test_strategies_examples.py -q --import-mode=importlib` (expect +1 test, total 406).
+- Cover one more small defensive guard in `examples.py`. Best concrete target: PPO `current_signal`/`prev_signal` NaN guard at `examples.py:6326-6327` (currently uncovered). Add `test_generate_signals_skips_nan_ppo_signal` to `TestPercentagePriceOscillatorStrategy` injecting close NaN at appropriate bar so signal line produces NaN, asserting `signals == []`. Other valid targets: ADL `current_adl`/`prev_adl` (`examples.py:6939-6941`).
+- Verification: `python -m ruff check .`; `python -m black --check quant_trading tests examples`; `python -m mypy quant_trading`; `python -m pytest tests/test_strategies_examples.py -q --import-mode=importlib` (expect +1 test, total 407).
 - Constraints: do NOT commit unless explicitly asked; preserve working baseline; do NOT change library code; exclude secrets/env/cache artifacts; use `--import-mode=importlib` for pytest in this sandbox.
 
 (End of file)
