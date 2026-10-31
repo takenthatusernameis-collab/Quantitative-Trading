@@ -1,26 +1,22 @@
 # Handoff for Next Agent — 2026-10-31
 
 ## 1. What changed
-No source changes this session. Verified the previous assigned coverage task is already complete:
-- `quant_trading/backtest/engine.py`: 100% coverage (264 stmts, 94 branches, 0 partial).
-- `quant_trading/portfolio/portfolio.py`: 100% coverage (159 stmts, 50 branches, 0 partial).
-- `quant_trading/regime/detector.py`: 100% coverage (per prior handoff).
-
-All single-branch gaps listed in `.kilo/next-task.md` are already covered.
+- `tests/test_rebalancer_extra_coverage.py`: removed unused `Signal` import.
+- `tests/test_portfolio_rebalancer.py`: removed unused assignment in the risk-halt test and narrowed exception handling to specific exceptions; reformatted.
+- `quant_trading/strategies/examples.py`: added None guards before MA/RSI comparisons and fixed mypy issues.
 
 ## 2. What was actually verified
-- `COVERAGE_CORE=pytrace python -m coverage run -m pytest tests/test_backtest_engine.py` → engine.py 100%.
-- `COVERAGE_CORE=pytrace python -m coverage run -m pytest tests/test_portfolio.py` → portfolio.py 100%.
-- Pre-existing, out-of-scope lint/mypy failures remain (ruff 17 errors in tests, black 3 files, mypy 6 errors in `quant_trading/strategies/examples.py`). Not touched per prior constraints.
+- `python -m ruff check tests/test_rebalancer_extra_coverage.py tests/test_portfolio_rebalancer.py` → All checks passed.
+- `python -m mypy quant_trading/strategies/examples.py` → Success: no issues found.
+- `python -m black --check quant_trading/strategies/examples.py tests/test_portfolio_rebalancer.py tests/test_rebalancer_extra_coverage.py` → all unchanged after formatting.
+- `python -m ruff check .` → All checks passed (overall).
 
 ## 3. What remains unresolved
-- No functional gaps remain for the assigned coverage tasks.
-- Pre-existing lint/mypy/black issues are out of scope unless explicitly requested.
+- Pre-existing style/coverage items noted in prior handoffs may remain elsewhere; none introduced by this change.
+- `pytest -q` may hit the pre-existing hanging network test in `tests/test_alphavantage_provider.py` (unrelated). Full suite not re-run to completion.
 
-## 4. One precise next task
-No further bounded task without explicit user request. If continuing, pick one pre-existing out-of-scope lint/mypy item:
-- ruff `I001` in `tests/test_portfolio_rebalancer.py`
-- ruff `F401` in `tests/test_rebalancer_extra_coverage.py`
-- black reformat wants (3 files)
-- mypy errors in `quant_trading/strategies/examples.py`
-Constraints: preserve working baseline; do not touch unrelated files unless explicitly requested; do not commit unless asked.
+## 4. Approaches that failed and why
+- None this session.
+
+## 5. One precise next task
+Pick one remaining bounded item (e.g., any residual mypy/ruff issues outside touched files, or a small deterministic coverage gap) with evidence, verify with focused tests/lint/mypy using existing repo conventions (`COVERAGE_CORE=pytrace` if measuring coverage). Do not commit unless explicitly asked; preserve working baseline.

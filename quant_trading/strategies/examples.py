@@ -169,6 +169,10 @@ class MovingAverageCrossover(Strategy):
                 or pd.isna(fast_prev)
                 or pd.isna(slow_current)
                 or pd.isna(slow_prev)
+                or fast_prev is None
+                or fast_current is None
+                or slow_prev is None
+                or slow_current is None
             ):
                 continue
             timestamp = df.index[-1]
@@ -360,6 +364,8 @@ class RSIStrategy(Strategy):
                 current_rsi = curr_rsi
                 current_price = curr_close
                 if pd.isna(prev_rsi) or pd.isna(current_rsi) or pd.isna(current_price):
+                    continue
+                if prev_rsi is None or current_rsi is None or current_price is None:
                     continue
                 timestamp = df.index[-1]
                 # Check signals

@@ -616,9 +616,7 @@ class TestRebalancerRemainingBranches:
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio, target_allocation={})
         signal = Signal(symbol="GOOGL", action="buy", strength=1.0, price=None)
-        actions = rebalancer.generate_rebalance_actions(
-            signals=[signal], prices={"GOOGL": 100.0}
-        )
+        actions = rebalancer.generate_rebalance_actions(signals=[signal], prices={"GOOGL": 100.0})
         assert actions == []
 
 
@@ -725,6 +723,8 @@ class TestRebalancerRiskIntegration:
 
         # Generate actions with targets that would require buying
         rebalancer.target_allocation = {"AAPL": 0.1, "MSFT": 0.9}
+
+
 class TestRebalancerCoverageGaps:
     """Tests to cover remaining branches in Rebalancer."""
 
@@ -787,8 +787,8 @@ class TestRebalancerCoverageGaps:
         rebalancer.target_allocation = {"AAPL": 0.5}
         prices = {"AAPL": 100.0}
         try:
-            actions = rebalancer.generate_rebalance_actions(None, prices)
-        except Exception:
+            rebalancer.generate_rebalance_actions(None, prices)
+        except (TypeError, ValueError, RuntimeError):
             pass
 
     def test_generate_actions_target_sell_when_below(self):
@@ -800,8 +800,8 @@ class TestRebalancerCoverageGaps:
         rebalancer.target_allocation = {"AAPL": 0.1}
         prices = {"AAPL": 100.0}
         try:
-            actions = rebalancer.generate_rebalance_actions(None, prices)
-        except Exception:
+            rebalancer.generate_rebalance_actions(None, prices)
+        except (TypeError, ValueError, RuntimeError):
             pass
 
     def test_resolve_buy_quantity_with_price_passed(self):
@@ -819,8 +819,7 @@ class TestRebalancerCoverageGaps:
         rebalancer = Rebalancer(portfolio)
         qty = rebalancer._resolve_buy_quantity("AAPL", 1000.0, None, {})
         assert qty == 0.0
-        from quant_trading.portfolio.rebalancer import Rebalancer
-        from quant_trading.portfolio.rebalancer import _RebalancePlan
+        from quant_trading.portfolio.rebalancer import Rebalancer, _RebalancePlan
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
         rebalancer = Rebalancer(portfolio)
@@ -829,8 +828,7 @@ class TestRebalancerCoverageGaps:
         assert qty == 5.0  # capped to cover short exactly
 
     def test_plan_buy_returns_zero_if_not_affordable(self):
-        from quant_trading.portfolio.rebalancer import Rebalancer
-        from quant_trading.portfolio.rebalancer import _RebalancePlan
+        from quant_trading.portfolio.rebalancer import Rebalancer, _RebalancePlan
 
         portfolio = Portfolio(cash=100.0, initial_capital=100.0)
         rebalancer = Rebalancer(portfolio)
@@ -839,8 +837,7 @@ class TestRebalancerCoverageGaps:
         assert qty == 0.0
 
     def test_risk_adjust_buy_no_risk_manager(self):
-        from quant_trading.portfolio.rebalancer import Rebalancer
-        from quant_trading.portfolio.rebalancer import _RebalancePlan
+        from quant_trading.portfolio.rebalancer import Rebalancer, _RebalancePlan
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
         rebalancer = Rebalancer(portfolio, risk_manager=None)
@@ -849,9 +846,8 @@ class TestRebalancerCoverageGaps:
         assert qty == 10.0
 
     def test_risk_adjust_buy_drawdown_halts(self):
-        from quant_trading.portfolio.rebalancer import Rebalancer
-        from quant_trading.portfolio.rebalancer import _RebalancePlan
-        from quant_trading.risk.manager import RiskManager, PortfolioRisk
+        from quant_trading.portfolio.rebalancer import Rebalancer, _RebalancePlan
+        from quant_trading.risk.manager import PortfolioRisk, RiskManager
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
         risk_manager = RiskManager(initial_capital=10000.0, max_drawdown=0.1)
@@ -862,8 +858,7 @@ class TestRebalancerCoverageGaps:
         assert qty == 0.0
 
     def test_risk_adjust_buy_position_limit_no_room(self):
-        from quant_trading.portfolio.rebalancer import Rebalancer
-        from quant_trading.portfolio.rebalancer import _RebalancePlan
+        from quant_trading.portfolio.rebalancer import Rebalancer, _RebalancePlan
         from quant_trading.risk.manager import RiskManager
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -875,8 +870,7 @@ class TestRebalancerCoverageGaps:
         assert qty == 0.0
 
     def test_plan_sell_short_covers(self):
-        from quant_trading.portfolio.rebalancer import Rebalancer
-        from quant_trading.portfolio.rebalancer import _RebalancePlan
+        from quant_trading.portfolio.rebalancer import Rebalancer, _RebalancePlan
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
         rebalancer = Rebalancer(portfolio)
@@ -885,8 +879,7 @@ class TestRebalancerCoverageGaps:
         assert plan.cash < 10000.0
 
     def test_plan_sell_size_zero(self):
-        from quant_trading.portfolio.rebalancer import Rebalancer
-        from quant_trading.portfolio.rebalancer import _RebalancePlan
+        from quant_trading.portfolio.rebalancer import Rebalancer, _RebalancePlan
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
         rebalancer = Rebalancer(portfolio)
@@ -920,12 +913,14 @@ class TestRebalancerCoverageGaps:
         assert qty == 5.0
 
     def test_resolve_sell_quantity_bad_mark(self):
-        from quant_trading.portfolio.rebalancer import Rebalancer
         from quant_trading.portfolio.portfolio import Holding
+        from quant_trading.portfolio.rebalancer import Rebalancer
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
         portfolio.add_holding("AAPL", 10, 100)
-        portfolio.holdings["AAPL"] = Holding(symbol="AAPL", quantity=10, avg_cost=100, current_price=0)
+        portfolio.holdings["AAPL"] = Holding(
+            symbol="AAPL", quantity=10, avg_cost=100, current_price=0
+        )
         rebalancer = Rebalancer(portfolio)
         qty = rebalancer._resolve_sell_quantity("AAPL", 500.0, price=None)
         assert qty == 0.0
@@ -949,7 +944,7 @@ class TestRebalancerCoverageGaps:
 
 def test_gen_target_buy_risk_halt_branch():
     from quant_trading.portfolio.rebalancer import Rebalancer
-    from quant_trading.risk.manager import RiskManager, PortfolioRisk
+    from quant_trading.risk.manager import PortfolioRisk, RiskManager
 
     portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
     rm = RiskManager(initial_capital=10000.0, max_drawdown=0.1)
@@ -975,7 +970,7 @@ def test_gen_target_buy_plan_buy_zero_branch():
 
 def test_gen_signal_buy_risk_halt_branch():
     from quant_trading.portfolio.rebalancer import Rebalancer
-    from quant_trading.risk.manager import RiskManager, PortfolioRisk
+    from quant_trading.risk.manager import PortfolioRisk, RiskManager
     from quant_trading.strategies.base import Signal
 
     portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
