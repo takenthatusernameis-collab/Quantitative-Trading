@@ -5858,6 +5858,26 @@ class TestTrixStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
+    def test_generate_signals_skips_nan_trix(self):
+        """NaN TRIX values skip signal generation."""
+        strategy = TrixStrategy(period=14)
+        dates = pd.date_range(start="2023-01-01", periods=90, freq="D")
+        close = [100 + i * 0.3 for i in range(90)]
+        close[-1] = float("nan")
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": [c + 1 if not pd.isna(c) else float("nan") for c in close],
+                    "low": [c - 1 if not pd.isna(c) else float("nan") for c in close],
+                    "close": close,
+                    "volume": [1000] * 90,
+                },
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
 
 class TestPercentageVolumeOscillatorStrategy:
     """Tests for PercentageVolumeOscillatorStrategy."""
