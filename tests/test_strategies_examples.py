@@ -1172,6 +1172,28 @@ def create_stochrsi_midline_data(symbol: str, direction: str) -> pd.DataFrame:
     )
 
 
+def create_stochrsi_flat_data(symbol: str, days: int = 40) -> pd.DataFrame:
+    """Create deterministic flat-price data that makes StochRSI %K/%D NaN.
+
+    A constant close series yields a flat RSI (avg_gain == avg_loss == 0, so
+    rs = 0/0 = NaN), which propagates NaN through %K and %D. With enough bars
+    to satisfy ``min_required`` the generate_signals NaN guard at
+    ``examples.py:7312`` fires and skips the symbol instead of emitting a signal.
+    """
+    close = np.full(days, 100.0, dtype=float)
+    dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
+    return pd.DataFrame(  # type: ignore[no-any-return]
+        {
+            "open": close,
+            "high": close * 1.001,
+            "low": close * 0.999,
+            "close": close,
+            "volume": np.full(days, 1_000_000),
+        },
+        index=dates,
+    )
+
+
 class TestMACDStrategy:
     """Tests for MACDStrategy."""
 
@@ -5225,6 +5247,18 @@ class TestStochRSIStrategy:
         fires, the midline arm is skipped and no signal is produced."""
         strategy = StochRSIStrategy(use_midline=False, name="Test_StochRSI")
         data = {"AAPL": create_stochrsi_midline_data("AAPL", "bullish")}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_skips_nan_k_d(self):
+        """NaN %K/%D (flat price) triggers the NaN guard and skips the symbol.
+
+        A constant close series makes RSI (and thus %K/%D) NaN, so
+        generate_signals hits the ``pd.isna(current_k) or ...`` guard at
+        ``examples.py:7312`` and skips the symbol instead of emitting a signal.
+        """
+        strategy = StochRSIStrategy(name="Test_StochRSI")
+        data = {"AAPL": create_stochrsi_flat_data("AAPL", days=40)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
