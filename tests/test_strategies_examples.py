@@ -5838,6 +5838,26 @@ class TestRateOfChangeStrategy:
         }
         assert strategy.generate_signals(data) == []
 
+    def test_generate_signals_skips_nan_roc_current_price(self):
+        """NaN current price skips ROC signal generation before calculation."""
+        strategy = RateOfChangeStrategy(period=12)
+        dates = pd.date_range(start="2023-01-01", periods=80, freq="D")
+        close = [100 + i * 0.5 for i in range(80)]
+        close[-1] = float("nan")
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": [c + 1 for c in close],
+                    "low": [c - 1 for c in close],
+                    "close": close,
+                    "volume": [1000] * 80,
+                },
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
 
 class TestTrixStrategy:
     """Tests for TrixStrategy."""
