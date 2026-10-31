@@ -6012,3 +6012,25 @@ class TestPercentageVolumeOscillatorStrategy:
         data = {"AAPL": create_ppo_pvo_zero_line_data("AAPL", "bullish", pvo=True)}
         signals = strategy.generate_signals(data)
         assert signals == []
+
+    def test_generate_signals_skips_nan_ppo_signal(self):
+        """NaN PPO signal line values skip signal generation."""
+        strategy = PercentagePriceOscillatorStrategy(
+            fast_period=12, slow_period=26, signal_period=9
+        )
+        dates = pd.date_range(start="2023-01-01", periods=80, freq="D")
+        close = [100 + i * 0.5 for i in range(80)]
+        close[-1] = float("nan")
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": [c + 1 if not pd.isna(c) else float("nan") for c in close],
+                    "low": [c - 1 if not pd.isna(c) else float("nan") for c in close],
+                    "close": close,
+                    "volume": [1000] * 80,
+                },
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
