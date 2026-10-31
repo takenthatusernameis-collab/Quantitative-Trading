@@ -7,13 +7,14 @@
   - `quant_trading/strategies/examples.py:6371-6411` (PPO zero-line buy/sell)
   - `quant_trading/strategies/examples.py:6550-6589` (PVO zero-line buy/sell)
   - Plus a `test_generate_signals_zero_line_disabled` for each strategy asserting the arm is skipped when `use_zero_line=False`.
+- Added helper `create_stochrsi_midline_data(symbol, direction)` and 3 tests in `TestStochRSIStrategy` covering the previously-untested `elif self.use_midline` midline-cross branches in `quant_trading/strategies/examples.py:7346-7378` (midline_cross_up buy, midline_cross_down sell) plus the `use_midline=False` skip case.
 
 ## 2. What was actually verified
-- `python -m pytest -q`: 2428 passed (was 2420), 44 skipped, 124 deselected, 5 warnings (third-party yfinance/pandas).
+- `python -m pytest -q`: 2431 passed (was 2428), 44 skipped, 124 deselected, 5 warnings (third-party yfinance/pandas). The +3 are the new StochRSI midline tests.
 - `python -m ruff check .`: All checks passed.
 - `python -m black --check tests/test_strategies_examples.py`: All done, 1 file unchanged.
 - `python -m mypy quant_trading`: Success (no issues found in 37 source files).
-- Coverage: `quant_trading/strategies/examples.py` 2322 stmts / 75 miss (was 87 miss) — the PPO/PVO zero-line branches are now 100% covered.
+- Coverage: StochRSI midline-cross branches (`examples.py:7347`, `:7363`) are now exercised; the NaN-continue guard (`:7313`) and oversold/overbought crossover bodies remain uncovered only under the partial single-file coverage run — full-suite baseline was 2322 stmts / 75 miss.
 
 ## 3. What remains unresolved
 - 5 third-party `Pandas4Warning` warnings from yfinance/pandas remain; cannot be suppressed via config without changing library code (forbidden by constraints). Cosmetic only; tests pass.
@@ -25,8 +26,8 @@
 - PVO zero-line: a naive reuse of the MACD price ramp on the `"volume"` column produced a constant-volume series (PVO stuck at 0). Fix: scale the ramp by 10000 and apply it to `"volume"` while holding price flat at 100, which reproduces the exact same EMA crossover dynamics as the MACD data.
 
 ## 5. One precise next task
-- Coverage of the core library is now 98% overall with `examples.py` at 95%. The remaining gaps are low-value defensive branches. Recommended next bounded task: pick one remaining single-branch gap in `examples.py` (e.g. `quant_trading/strategies/examples.py:7313` StochRSI midline-cross guard, or `:7471` ChoppinessIndex edge branch) and add a deterministic test, OR pick a fresh bounded task outside `examples.py`.
-- Verification: `python -m ruff check .`; `python -m black --check quant_trading tests examples`; `python -m mypy quant_trading`; `python -m pytest tests/test_<module>.py -q`; coverage via `python -m coverage run --source=quant_trading -m pytest ...` then `python -m coverage report -m`.
+- Cover the ChoppinessIndex edge branch at `quant_trading/strategies/examples.py:7471` (`if pd.isna(current_chop) or pd.isna(prev_chop): continue`) by adding a deterministic test in `TestChoppinessIndexStrategy` that feeds data whose CHOP values are NaN on the final two bars (e.g. constant high==low so `range_hl` becomes 0 → NaN after `replace(0, np.nan)`), asserting no signal is produced. Alternatively pick a fresh bounded task outside `examples.py`.
+- Verification: `python -m ruff check .`; `python -m black --check quant_trading tests examples`; `python -m mypy quant_trading`; `python -m pytest tests/test_strategies_examples.py -q`; coverage via `python -m coverage run --source=quant_trading -m pytest ...` then `python -m coverage report -m`.
 - Constraints: do NOT commit unless explicitly asked; preserve working baseline; do NOT change library code; exclude secrets/env/cache artifacts.
 
-(End of file - total 31 lines)
+(End of file - total 35 lines)

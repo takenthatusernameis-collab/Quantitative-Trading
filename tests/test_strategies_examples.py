@@ -993,6 +993,185 @@ def create_ppo_pvo_zero_line_data(symbol: str, direction: str, pvo: bool = False
     )
 
 
+def create_stochrsi_midline_data(symbol: str, direction: str) -> pd.DataFrame:
+    """Create deterministic data where StochRSI %K crosses the 50 midline.
+
+    The close series is tuned so that, with default parameters
+    (rsi_period=14, stoch_period=14, k_period=3, d_period=3), %K crosses
+    upward through 50 on the final bar (``direction="bullish"``) or downward
+    through 50 (``direction="bearish"``), without entering oversold/overbought
+    territory, so the ``elif self.use_midline`` arm fires instead of the
+    oversold/overbought crossover arms.
+
+    Args:
+        symbol: Symbol name (unused except for API symmetry with other
+            helpers; the returned DataFrame is keyed by the caller).
+        direction: ``"bullish"`` for a midline cross up (buy), ``"bearish"``
+            for a midline cross down (sell).
+
+    Returns:
+        A DataFrame with OHLCV columns indexed by timestamp.
+    """
+    if direction == "bullish":
+        closes = [
+            100.76,
+            99.19,
+            98.72,
+            99.00,
+            98.43,
+            98.22,
+            99.01,
+            99.32,
+            98.41,
+            98.58,
+            97.98,
+            96.80,
+            95.71,
+            95.99,
+            95.96,
+            95.96,
+            94.87,
+            94.70,
+            93.72,
+            92.85,
+            92.70,
+            91.43,
+            92.04,
+            94.36,
+            94.79,
+            93.81,
+            93.56,
+            92.11,
+            91.76,
+            92.23,
+            92.78,
+            91.82,
+            92.10,
+            93.17,
+            94.82,
+            94.16,
+            93.35,
+            93.40,
+            90.70,
+            90.22,
+            89.98,
+            89.57,
+            88.16,
+            87.94,
+            87.26,
+            87.93,
+            87.12,
+            86.88,
+            86.67,
+            87.17,
+            84.98,
+            84.69,
+            85.33,
+            85.03,
+            83.74,
+            84.01,
+            84.29,
+            84.07,
+            83.10,
+            82.48,
+            82.23,
+            81.51,
+            79.96,
+            79.35,
+            79.30,
+            78.90,
+            78.84,
+            78.90,
+            79.61,
+            81.39,
+        ]
+    else:
+        closes = [
+            100.74,
+            101.10,
+            98.74,
+            99.74,
+            99.39,
+            98.19,
+            98.78,
+            99.34,
+            98.31,
+            100.77,
+            99.56,
+            97.85,
+            96.73,
+            98.11,
+            97.94,
+            97.58,
+            97.51,
+            96.93,
+            96.27,
+            95.65,
+            96.33,
+            97.32,
+            96.30,
+            96.53,
+            97.29,
+            96.25,
+            95.76,
+            94.77,
+            93.56,
+            93.65,
+            92.97,
+            93.56,
+            93.53,
+            93.92,
+            93.64,
+            93.05,
+            92.96,
+            92.96,
+            92.31,
+            92.70,
+            93.40,
+            93.54,
+            95.16,
+            94.56,
+            95.05,
+            94.67,
+            94.89,
+            94.10,
+            95.16,
+            95.33,
+            96.47,
+            95.26,
+            94.79,
+            93.94,
+            93.45,
+            92.80,
+            92.69,
+            92.67,
+            92.64,
+            92.12,
+            92.30,
+            93.11,
+            92.27,
+            92.27,
+            92.20,
+            92.64,
+            92.58,
+            92.56,
+            91.65,
+            91.67,
+        ]
+    close = np.asarray(closes, dtype=float)
+    dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
+    return pd.DataFrame(  # type: ignore[no-any-return]
+        {
+            "open": close,
+            "high": close * 1.001,
+            "low": close * 0.999,
+            "close": close,
+            "volume": np.full(len(close), 1_000_000),
+        },
+        index=dates,
+    )
+
+
 class TestMACDStrategy:
     """Tests for MACDStrategy."""
 
@@ -4998,6 +5177,56 @@ class TestStochRSIStrategy:
         for s in signals:
             assert s.symbol in ("AAPL", "MSFT")
             assert s.action in ("buy", "sell")
+
+    def test_generate_signals_midline_cross_up(self):
+        """%K crossing up through the 50 midline emits a midline_cross_up buy.
+
+        With use_midline=True and %K below 50 on the previous bar and above
+        50 on the final bar (without entering oversold/overbought territory),
+        the ``elif self.use_midline`` arm fires.
+        """
+        strategy = StochRSIStrategy(use_midline=True, name="Test_StochRSI")
+        data = {"AAPL": create_stochrsi_midline_data("AAPL", "bullish")}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.metadata["signal_type"] == "midline_cross_up"
+        assert signal.metadata["k_percent"] == pytest.approx(56.222465388145224)
+        assert signal.metadata["d_percent"] == pytest.approx(26.935246165350108)
+        assert signal.strength == pytest.approx(0.36222465388145225)
+        assert signal.price == pytest.approx(81.39)
+
+    def test_generate_signals_midline_cross_down(self):
+        """%K crossing down through the 50 midline emits a midline_cross_down sell.
+
+        With use_midline=True and %K above 50 on the previous bar and below
+        50 on the final bar (without entering oversold/overbought territory),
+        the ``elif self.use_midline`` arm fires.
+        """
+        strategy = StochRSIStrategy(use_midline=True, name="Test_StochRSI")
+        data = {"AAPL": create_stochrsi_midline_data("AAPL", "bearish")}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.metadata["signal_type"] == "midline_cross_down"
+        assert signal.metadata["k_percent"] == pytest.approx(32.675471829529116)
+        assert signal.metadata["d_percent"] == pytest.approx(52.858133150608694)
+        assert signal.strength == pytest.approx(0.4732452817047088)
+        assert signal.price == pytest.approx(91.67)
+
+    def test_generate_signals_midline_disabled(self):
+        """When use_midline is False and no oversold/overbought crossover
+        fires, the midline arm is skipped and no signal is produced."""
+        strategy = StochRSIStrategy(use_midline=False, name="Test_StochRSI")
+        data = {"AAPL": create_stochrsi_midline_data("AAPL", "bullish")}
+        signals = strategy.generate_signals(data)
+        assert signals == []
 
 
 class TestPercentagePriceOscillatorStrategy:
