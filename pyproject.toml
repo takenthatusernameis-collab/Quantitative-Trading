@@ -45,6 +45,12 @@ markers = ["slow: marks tests as slow (smoke/subprocess); deselect with -m \"not
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+filterwarnings = [
+    "ignore:.*evaluated at point.*before.*:UserWarning:skopt.*",
+    "ignore:.*duplicate.*:UserWarning",
+    "ignore:.*Pandas4Warning.*:Warning",
+    "ignore:.*sort_index.*:FutureWarning",
+]
 
 [tool.black]
 line-length = 100
