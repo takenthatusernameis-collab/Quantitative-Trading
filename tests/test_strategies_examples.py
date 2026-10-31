@@ -5137,7 +5137,7 @@ class TestCCIStrategy:
             assert s.action in ("buy", "sell")
 
     def test_generate_signals_multi_symbol(self):
-        strategy = CCIStrategy(period=20, threshold=100)
+        strategy = AroonStrategy(period=14)
         data = {
             "AAPL": create_trending_data("AAPL", days=60),
             "MSFT": create_trending_data("MSFT", days=60),
@@ -5146,6 +5146,24 @@ class TestCCIStrategy:
         assert isinstance(signals, list)
         for s in signals:
             assert s.symbol in ("AAPL", "MSFT")
+
+    def test_generate_signals_skips_nan_values(self):
+        """NaN Aroon values trigger the guard and skip the symbol."""
+        strategy = AroonStrategy(period=25)
+        closes = [100.0] * 30
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        # Make last values produce NaN by replacing with NaN after sufficient data
+        df = data["AAPL"].copy()
+        df.iloc[-2:, [1, 2]] = float("nan")  # high/low become NaN
+        signals = strategy.generate_signals({"AAPL": df})
+        assert signals == []
+
+    def test_generate_signals_skips_nan_close(self):
+        """A NaN last close is skipped before any signal is derived."""
+        strategy = CCIStrategy(period=20, threshold=100.0)
+        closes = [100.0] * 29 + [float("nan")]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        assert strategy.generate_signals(data) == []
 
 
 class TestAroonStrategy:
