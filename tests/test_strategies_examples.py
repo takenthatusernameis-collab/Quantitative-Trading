@@ -3705,6 +3705,13 @@ class TestVolumeRateOfChangeStrategy:
         data = {"AAPL": create_vroc_data("AAPL", [1_000_000] * 25 + [float("nan")])}
         assert strategy.generate_signals(data) == []
 
+    def test_generate_signals_skips_nan_vroc_current_price(self):
+        """A NaN current close price is rejected before signal generation."""
+        strategy = VolumeRateOfChangeStrategy(period=5)
+        data = {"AAPL": create_vroc_data("AAPL", [1_000_000] * 30)}
+        data["AAPL"].loc[data["AAPL"].index[-1], "close"] = float("nan")
+        assert strategy.generate_signals(data) == []
+
 
 def create_cmo_data(symbol: str, closes: list[float]) -> pd.DataFrame:
     """Create deterministic close data for CMO tests.
