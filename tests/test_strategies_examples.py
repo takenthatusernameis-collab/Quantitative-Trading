@@ -4403,6 +4403,14 @@ class TestHullMovingAverageStrategy:
         data = {"AAPL": create_hull_moving_average_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
 
+    def test_generate_signals_skips_nan_hma(self):
+        """NaN HMA values skip signal generation."""
+        strategy = HullMovingAverageStrategy(period=16)
+        closes = [100.0] * 22
+        closes[-2] = float("nan")
+        data = {"AAPL": create_hull_moving_average_data("AAPL", closes)}
+        assert strategy.generate_signals(data) == []
+
 
 def create_ease_of_movement_data(
     symbol: str, rows: list[tuple[float, float, float]], close: float = 100.0
