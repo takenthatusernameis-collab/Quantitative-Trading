@@ -5581,6 +5581,17 @@ class TestElderRayStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
+    def test_generate_signals_skips_nan_bull_bear(self):
+        strategy = ElderRayStrategy(period=13)
+        df = create_trending_data("AAPL", days=80).copy()
+        df.loc[df.index[-1], "high"] = float("nan")
+        df.loc[df.index[-2], "high"] = float("nan")
+        df.loc[df.index[-1], "low"] = float("nan")
+        df.loc[df.index[-2], "low"] = float("nan")
+        data = {"AAPL": df}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
 
 class TestRateOfChangeStrategy:
     """Tests for RateOfChangeStrategy."""
