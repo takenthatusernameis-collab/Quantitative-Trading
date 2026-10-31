@@ -21,7 +21,15 @@ No source files were touched; changes are isolated to `tests/test_portfolio_reba
 ## 4. Approaches that failed and why
 - (none; all three target branches covered on the first attempt)
 
-## 5. One precise next task
-No further work is needed on `rebalancer.py` coverage. If continuing, run the broader test suite (`pytest tests/`) to confirm the added tests don't regress anything, then consider addressing the pre-existing out-of-scope lint/mypy items only if explicitly requested. No commit unless asked.
+## 5. Verification of broader suite
+- `pytest tests/`: 2355 passed, 44 skipped, 0 failures (260s). No regressions from the rebalancer coverage tests.
 
-Constraints: keep changes isolated to `tests/test_portfolio_rebalancer.py`; preserve working baseline; do not touch unrelated files.
+## 6. One precise next task
+No further work is needed on `rebalancer.py` coverage or test regressions. If continuing, address the pre-existing out-of-scope lint/mypy items only if explicitly requested:
+- ruff `I001` in `tests/test_portfolio_rebalancer.py`
+- ruff `F401` in `tests/test_rebalancer_extra_coverage.py`
+- black reformat wants
+- mypy errors in `quant_trading/strategies/examples.py`
+No commit unless asked.
+
+Constraints: preserve working baseline; do not touch unrelated files unless explicitly requested.
