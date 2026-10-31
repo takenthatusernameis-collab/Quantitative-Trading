@@ -1438,6 +1438,27 @@ def test_cover_can_be_smaller_than_the_open_short():
     assert result.positions["TEST"].quantity == pytest.approx(-short["quantity"] / 2)
 
 
+def test_cover_short_with_zero_cash_records_no_trade():
+    """A cover that cannot afford even a fractional share returns without trading.
+
+    Exercises the ``if quantity <= 0: return`` guard at engine.py:1030: when
+    cash is zero, the affordable cover quantity is 0, so the short is left
+    open and no trade is recorded.
+    """
+    engine = BacktestEngine(config=BacktestConfig(initial_capital=100000.0))
+    engine.portfolio.cash = 0.0
+    holding = Holding(symbol="TEST", quantity=-200.0, avg_cost=50.0, current_price=50.0)
+    engine.portfolio.holdings["TEST"] = holding
+    trades_list: list[Trade] = []
+    timestamp = datetime(2024, 1, 2)
+    signal = Signal(symbol="TEST", action="buy", strength=1.0, price=50.0)
+    engine._cover_short("TEST", signal, trades_list, timestamp, 50.0, holding)
+    assert trades_list == []
+    # The short is still open: nothing was removed and cash was not touched.
+    assert engine.portfolio.holdings["TEST"] is holding
+    assert engine.portfolio.cash == 0.0
+
+
 def test_oversized_short_is_rejected_by_the_signal_gate():
     """A short that would breach the position limit is not traded."""
     data = {"TEST": _price_frame([50.0, 50.0])}
