@@ -16,7 +16,7 @@ from .base import (
 
 try:
     from .bayesian import BayesianOptimizer
-except ImportError:
+except ImportError:  # pragma: no cover
     BayesianOptimizer = None  # type: ignore[assignment,misc]
 from .grid_search import GridSearch
 from .random_search import RandomSearch
