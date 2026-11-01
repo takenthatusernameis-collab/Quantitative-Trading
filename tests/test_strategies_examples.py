@@ -790,9 +790,7 @@ class TestBollingerBandsStrategy:
         # Seed the incremental state with a single bar.
         strategy.generate_signals({"AAPL": create_donchian_data("AAPL", [100.0])})
         # Append a bar to enter the incremental path with a one-bar window.
-        signals = strategy.generate_signals(
-            {"AAPL": create_donchian_data("AAPL", [100.0, 101.0])}
-        )
+        signals = strategy.generate_signals({"AAPL": create_donchian_data("AAPL", [100.0, 101.0])})
         assert signals == []
 
     def test_generate_signals_band_touch(self):

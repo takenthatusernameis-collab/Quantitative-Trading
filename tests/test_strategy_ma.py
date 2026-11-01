@@ -98,3 +98,9 @@ def test_incremental_slow_window_still_growing_branch():
     out = s.generate_signals({"AAPL": _df(prices)})
     assert isinstance(out, list)
     assert s._ma_state["AAPL"]["n"] == 5
+
+
+def test_generate_signals_skips_when_last_price_is_nan():
+    s = MovingAverageCrossover(fast_period=2, slow_period=4)
+    sigs = s.generate_signals({"AAPL": _df([1.0, 2.0, 3.0, 4.0, float("nan")])})
+    assert sigs == []
