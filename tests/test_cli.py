@@ -3509,7 +3509,28 @@ class TestUserErrorReporting:
         assert "step must be greater than 0" in output
         assert "Traceback" not in output
 
-    def test_single_strategy_saves_strategy_config(self, capsys, tmp_path):
+    def test_invalid_config_field_type_is_reported(self, capsys, tmp_path):
+        """A config file with a wrong field type is a message and exit code 1."""
+        bad = tmp_path / "bad_type.yaml"
+        bad.write_text("backtest:\n  initial_capital: abc\n")
+        result, output = self._run(
+            ["--config", str(bad), "--offline", "--symbols", "AAPL", "--days", "30"],
+            capsys,
+        )
+        assert result == 1
+        assert "Error:" in output
+        assert "Traceback" not in output
+
+    def test_zero_mc_simulations_is_reported(self, capsys):
+        """Zero mc simulations is a usage error at the CLI level."""
+        result, output = self._run(
+            ["--monte-carlo", "--mc-simulations", "0", "--offline", "--symbols", "AAPL", "--days", "30"],
+            capsys,
+        )
+        assert result == 1
+        assert "invalid --mc-simulations" in output
+        assert "Traceback" not in output
+
         """A single strategy run can save its configuration."""
         out = tmp_path / "strategy.yaml"
         result, output = self._run(
