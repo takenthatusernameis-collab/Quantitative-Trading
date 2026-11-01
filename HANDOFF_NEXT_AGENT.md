@@ -1,12 +1,13 @@
 # Handoff for Next Agent — 2026-11-01
 
 ## 1. What changed
-- Verified existing tests for `--combined` mode error paths and missing `--strategy-config` file handling; all pass.
+- Reviewed CLI error handling in `examples/cli.py`; one-line `Error:` reporting already consistent via `main()`/`_run_cli()`. Ran `tests/test_readme_cli_commands.py` (29 passed, 44 skipped), ruff, mypy, and full suite (2495 passed, 44 skipped).
 
 ## 2. What was actually verified
-- `python -m pytest -q --import-mode=importlib tests/test_readme_cli_commands.py`: 29 passed, 44 skipped.
+- `python -m pytest -q tests/test_readme_cli_commands.py`: 29 passed, 44 skipped.
 - `python -m ruff check .`: All checks passed.
 - `python -m mypy quant_trading`: Success.
+- `python -m pytest -q`: 2495 passed, 44 skipped, 5 warnings.
 
 ## 3. What remains unresolved
 - None.
@@ -15,4 +16,4 @@
 - None.
 
 ## 5. One precise next task
-- Review the CLI error handling in `examples/cli.py` to ensure consistent one-line error messages for all documented error cases, and add any missing coverage if discrepancies arise. Run `pytest tests/test_readme_cli_commands.py -v` to verify.
+- Investigate the 5 Pandas4Warning deprecation warnings surfaced by the full test run (yfinance inplace keyword) and determine whether they originate from project code or third-party yfinance; if project code, update to non-deprecated calls. Run `python -m pytest -q` and confirm warning count.
