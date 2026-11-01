@@ -144,3 +144,94 @@ def test_get_yf_import_error():
         p._get_yf()
     # reset
     p._yf = None
+
+
+def test_fetch_with_dates_and_interval(tmp_path):
+    p = YFinanceProvider(cache_dir=str(tmp_path))
+    p._yf = _fake_yf()
+    start = datetime(2024, 1, 1)
+    end = datetime(2024, 1, 10)
+    res = p.fetch(["AAPL"], start=start, end=end, interval="1h")
+    assert "AAPL" in res.data
+    # Verify history called with correct params
+    ticker = p._yf.Ticker.return_value
+    ticker.history.assert_called_once()
+    call_kwargs = ticker.history.call_args.kwargs
+    assert call_kwargs.get("start") == start
+    assert call_kwargs.get("end") == end
+    assert call_kwargs.get("interval") == "1h"
+
+
+def test_fetch_normalizes_columns(tmp_path):
+    p = YFinanceProvider(cache_dir=str(tmp_path))
+    p._yf = _fake_yf()
+    res = p.fetch(["AAPL"])
+    df = res.data["AAPL"].data
+    # All lowercase with underscores
+    for col in df.columns:
+        assert col == col.lower()
+        assert " " not in col
+
+
+def test_fetch_missing_data_records_in_missing(tmp_path):
+    p = YFinanceProvider(cache_dir=str(tmp_path))
+    p._yf = _fake_yf()
+    res = p.fetch(["EMPTY"])
+    assert "EMPTY" in res.missing
+    assert "EMPTY" not in res.data
+    assert "EMPTY" not in res.errors
+
+
+def test_fetch_exception_records_in_errors(tmp_path):
+    p = YFinanceProvider(cache_dir=str(tmp_path))
+    p._yf = _fake_yf()
+    res = p.fetch(["BAD"])
+    assert "BAD" in res.errors
+    assert isinstance(res.errors["BAD"], Exception)
+    assert "BAD" not in res.data
+    assert "BAD" not in res.missing
+
+
+def test_fetch_multiple_symbols_mixed(tmp_path):
+    p = YFinanceProvider(cache_dir=str(tmp_path))
+    p._yf = _fake_yf()
+    res = p.fetch(["AAPL", "MSFT", "EMPTY", "BAD"])
+    assert "AAPL" in res.data
+    assert "MSFT" in res.data
+    assert "EMPTY" in res.missing
+    assert "BAD" in res.errors
+
+
+def test_cache_expiration(tmp_path):
+    p = YFinanceProvider(cache_dir=str(tmp_path), cache_ttl_hours=0.001)  # very short TTL
+    p._yf = _fake_yf()
+    p.fetch(["AAPL"])
+    # Force cache to be old
+    import time
+    key = p._cache_key(["AAPL"], None, None, "1d")
+    path = p._cache_path(key)
+    old_time = time.time() - 3600  # 1 hour ago
+    os.utime(path, (old_time, old_time))
+    # Should not use cache
+    p2 = YFinanceProvider(cache_dir=str(tmp_path), cache_ttl_hours=0.001)
+    p2._yf = _fake_yf()
+    r2 = p2.fetch(["AAPL"])
+    assert "AAPL" in r2.data
+    # Ticker should be called again since cache expired
+    assert p2._yf.Ticker.called
+
+
+def test_fetch_without_cache_dir():
+    p = YFinanceProvider(cache_dir="")
+    p._yf = _fake_yf()
+    res = p.fetch(["AAPL"])
+    assert "AAPL" in res.data
+
+
+def test_fetch_metadata(tmp_path):
+    p = YFinanceProvider(cache_dir=str(tmp_path))
+    p._yf = _fake_yf()
+    res = p.fetch(["AAPL"])
+    md = res.data["AAPL"].metadata
+    assert md["currency"] == "USD"
+    assert md["exchange"] == "NMS"
