@@ -609,7 +609,7 @@ class TestMovingAverageCrossover:
         strategy = MovingAverageCrossover(fast_period=5, slow_period=10)
         df = create_trending_data("AAPL", days=15, trend=0.001)
         # Build state incrementally bar by bar
-        for i in range(0, len(df)):
+        for i in range(len(df)):
             strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
         # Now with full state, another call should use incremental logic
         signals = strategy.generate_signals({"AAPL": df})
@@ -661,7 +661,7 @@ class TestMovingAverageCrossover:
         """Hit growing window branch in incremental path."""
         strategy = MovingAverageCrossover(fast_period=3, slow_period=10)
         df = create_trending_data("AAPL", days=12, trend=0.005)
-        for i in range(0, 5):  # build state early
+        for i in range(5):  # build state early
             strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
         signals = strategy.generate_signals({"AAPL": df})
         assert isinstance(signals, list)
@@ -685,7 +685,7 @@ class TestMovingAverageCrossover:
         # Now manually set state so that next call takes incremental path
         # but simulate growing window case
         # Add one more bar
-        df2 = create_donchian_data("AAPL", [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0])
+        create_donchian_data("AAPL", [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0])
         # State.n should equal len(df2)-1? After first call with df (len 6), state.n was set to 6
         # So if we call with df2 of len 7, and state.n == 6 == 7-1, incremental triggers
         # At n=7 (len), fast_period=5, so (n-1)=6 >= fast_period (5) is true and fast_old might exist

@@ -10,7 +10,8 @@
 - `python -m ruff check .`: all checks passed.
 
 ## 3. What remains unresolved
-- 46 statements / 47 partial branches still uncovered in `quant_trading/strategies/examples.py` (edge cases across many strategies; see `--show-missing`).
+- 44 statements / 45 partial branches still uncovered in `quant_trading/strategies/examples.py` (edge cases across many strategies; see `--show-missing`).
+- Fixed lint (PIE808) in tests/test_strategies_examples.py.
 - 5 third-party `Pandas4Warning` warnings remain (filtered).
 - Network-gated README CLI command tests remain skipped in offline CI (137 skips).
 
