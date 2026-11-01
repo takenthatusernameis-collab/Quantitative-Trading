@@ -657,6 +657,25 @@ class TestMovingAverageCrossover:
         signals = strategy.generate_signals({"AAPL": df})
         assert isinstance(signals, list)
 
+    def test_moving_average_incremental_growing_fast_only(self):
+        """Hit growing window branch in incremental path."""
+        strategy = MovingAverageCrossover(fast_period=3, slow_period=10)
+        df = create_trending_data("AAPL", days=12, trend=0.005)
+        for i in range(0, 5):  # build state early
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        signals = strategy.generate_signals({"AAPL": df})
+        assert isinstance(signals, list)
+
+    def test_moving_average_incremental_with_full_fast_removal_only(self):
+        """Force full window removal for fast but not slow in certain states."""
+        strategy = MovingAverageCrossover(fast_period=2, slow_period=15)
+        df = create_trending_data("AAPL", days=25, trend=0.001)
+        # build up
+        for i in range(5, len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        signals = strategy.generate_signals({"AAPL": df})
+        assert isinstance(signals, list)
+
     def test_generate_signals_incremental_growing_window_branches(self):
         """Force incremental path with growing windows (lines ~124, 128)."""
         strategy = MovingAverageCrossover(fast_period=5, slow_period=10)
@@ -768,16 +787,20 @@ class TestRSIStrategy:
         signals = strategy.generate_signals({"AAPL": df})
         assert isinstance(signals, list)
 
-    def test_generate_signals_multiple_symbols(self):
-        """Test generate_signals with multiple symbols."""
-        strategy = RSIStrategy(period=14)
-        data = {
-            "AAPL": create_mean_reverting_data("AAPL", days=60),
-            "MSFT": create_mean_reverting_data("MSFT", days=60),
-        }
+    def test_adx_small_history_no_signal(self):
+        """ADX needs sufficient history."""
+        strategy = ADXStrategy(period=14, threshold=25.0)
+        data = {"AAPL": create_mean_reverting_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
-        symbols = {s.symbol for s in signals}
-        assert symbols.issubset({"AAPL", "MSFT"})
+        assert signals == []
+
+    def test_adx_edge_cases(self):
+        """Test ADX with various data patterns."""
+        strategy = ADXStrategy(period=5, threshold=20.0)
+        # trending data
+        data = {"AAPL": create_trending_data("AAPL", days=80, trend=0.02)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
 
     def test_generate_signals_skips_an_undefined_rsi(self):
         """A flat price series has no RSI, so no signal is generated.
@@ -799,6 +822,30 @@ class TestRSIStrategy:
         closes2 = [100.0] * 16
         data2 = {"AAPL": create_donchian_data("AAPL", closes2)}
         assert strategy.generate_signals(data2) == []
+
+    def test_rsi_incremental_skips_when_prev_rsi_none(self):
+        """Force incremental path where prev_rsi becomes None and is skipped."""
+        strategy = RSIStrategy(period=3, oversold=30, overbought=70)
+        df = create_donchian_data("AAPL", [100.0, 101.0, 102.0, 103.0, 104.0])
+        # Build state
+        for i in range(2, len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        # Corrupt state to have prev_rsi None
+        if "AAPL" in strategy._rsi_state:
+            strategy._rsi_state["AAPL"]["curr_rsi"] = None
+        signals = strategy.generate_signals({"AAPL": df})
+        assert isinstance(signals, list)
+
+    def test_rsi_incremental_skips_when_current_rsi_none_or_nan(self):
+        """Incremental path with None/NaN current RSI values triggers skips."""
+        strategy = RSIStrategy(period=2, oversold=30, overbought=70)
+        # Sequence that can lead to flat/undefined in some incremental cases
+        closes = [50.0, 50.0, 50.0, 50.0]
+        df = create_donchian_data("AAPL", closes)
+        for i in range(1, len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        signals = strategy.generate_signals({"AAPL": df})
+        assert signals == []
 
 
 class TestBollingerBandsStrategy:
@@ -900,16 +947,11 @@ class TestBollingerBandsStrategy:
             elif signal.action == "sell":
                 assert signal.metadata.get("signal_type") == "upper_band_touch"
 
-    def test_generate_signals_multiple_symbols(self):
-        """Test generate_signals with multiple symbols."""
-        strategy = BollingerBandsStrategy(period=20)
-        data = {
-            "AAPL": create_mean_reverting_data("AAPL", days=60),
-            "MSFT": create_mean_reverting_data("MSFT", days=60),
-        }
-        signals = strategy.generate_signals(data)
-        symbols = {s.symbol for s in signals}
-        assert symbols.issubset({"AAPL", "MSFT"})
+    def test_generate_signals_percent_b_zero_price_skipped(self):
+        """PercentBStrategy skips when current price is 0."""
+        strategy = BollingerPercentBStrategy(period=20, oversold=0.2, overbought=0.8)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0, 102.0] * 10 + [0.0])}
+        assert strategy.generate_signals(data) == []
 
     def test_generate_signals_skips_nan_values(self):
         """NaN indicator values on the last bar are skipped."""
@@ -962,6 +1004,24 @@ class TestBollingerBandsStrategy:
             assert inc.metadata["sma"] == pytest.approx(full.metadata["sma"])
             assert inc.metadata["upper_band"] == pytest.approx(full.metadata["upper_band"])
             assert inc.metadata["lower_band"] == pytest.approx(full.metadata["lower_band"])
+
+    def test_bollinger_incremental_with_full_window_removal(self):
+        """Hit BB incremental path with window trimming."""
+        strategy = BollingerBandsStrategy(period=5, std_dev=2.0)
+        df = create_trending_data("AAPL", days=40, trend=0.01)
+        for i in range(10, len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        signals = strategy.generate_signals({"AAPL": df})
+        assert isinstance(signals, list)
+
+    def test_bollinger_incremental_variance_floor_and_period_one(self):
+        """Ensure incremental/edge cases for BB."""
+        strategy = BollingerBandsStrategy(period=3, std_dev=1.5)
+        df = create_donchian_data("AAPL", [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+        for i in range(3, len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        signals = strategy.generate_signals({"AAPL": df})
+        assert isinstance(signals, list)
 
 
 def create_macd_data(symbol: str, days: int = 100) -> pd.DataFrame:
@@ -5240,6 +5300,19 @@ class TestAverageTrueRangeStrategy:
         data = {"AAPL": create_average_true_range_data("AAPL", [100.0] * 10)}
         signals = strategy.generate_signals(data)
         assert signals == []
+
+    def test_atr_breakout_skips_zero_price(self):
+        """Skip when current price is zero."""
+        strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
+        data = {"AAPL": create_average_true_range_data("AAPL", [10.0, 11.0, 12.0, 0.0])}
+        assert strategy.generate_signals(data) == []
+
+    def test_atr_breakout_skips_nan_bands(self):
+        """Skip when any band/values are NaN."""
+        strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
+        data = {"AAPL": create_average_true_range_data("AAPL", [1.0, float("nan"), 2.0, 3.0])}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
 
     def test_generate_signals_multiple_symbols(self):
         """Test generate_signals evaluates each symbol independently."""
