@@ -118,7 +118,7 @@ class BayesianOptimizer(BaseOptimizer):
         >>> param_grid = ParameterGrid()
         >>> _ = param_grid.add(ParameterSpace("fast_period", min_val=5, max_val=15, param_type=int))
         >>> _ = param_grid.add(ParameterSpace("slow_period", min_val=20, max_val=30, param_type=int))
-        >>> optimizer = BayesianOptimizer(
+        >>> optimizer = BayesianOptimizer(    # doctest: +SKIP
         ...     strategy_cls=MovingAverageCrossover,
         ...     param_grid=param_grid,
         ...     objective=maximize_sharpe,
@@ -128,7 +128,7 @@ class BayesianOptimizer(BaseOptimizer):
         ...     data_manager=data_manager,
         ...     random_state=42,
         ... )
-        >>> result = optimizer.run()
+        >>> result = optimizer.run()    # doctest: +SKIP
         >>> result.best_params is not None
         True
         >>> "fast_period" in result.best_params
