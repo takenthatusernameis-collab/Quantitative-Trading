@@ -41,6 +41,7 @@ from quant_trading.strategies.examples import (
     PositiveVolumeIndexStrategy,
     RateOfChangeStrategy,
     RSIStrategy,
+    StochasticMomentumIndexStrategy,
     StochasticOscillatorStrategy,
     StochRSIStrategy,
     SuperTrendStrategy,
@@ -6698,3 +6699,74 @@ class TestExamplesRemainingCoverage:
         )
         signals = strategy.generate_signals({"AAPL": df})
         assert isinstance(signals, list)
+
+    # --- Additional coverage for uncovered branches in examples.py ---
+    def test_rsi_incremental_nan_current_rsi(self):
+        strategy = RSIStrategy(period=3, oversold=30, overbought=70)
+        df = create_donchian_data("AAPL", [100.0, 101.0, 102.0, 103.0])
+        for i in range(2, len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        if "AAPL" in strategy._rsi_state:
+            strategy._rsi_state["AAPL"]["gain_hist"] = [0.0, 0.0, 0.0]
+            strategy._rsi_state["AAPL"]["loss_hist"] = [0.0, 0.0, 0.0]
+            strategy._rsi_state["AAPL"]["gain_sum"] = 0.0
+            strategy._rsi_state["AAPL"]["loss_sum"] = 0.0
+            strategy._rsi_state["AAPL"]["last_close"] = 103.0
+            strategy._rsi_state["AAPL"]["n"] = 3
+        signals = strategy.generate_signals({"AAPL": df})
+        assert isinstance(signals, list)
+
+    def test_bollinger_incremental_var_negative_floor(self):
+        strategy = BollingerBandsStrategy(period=3, std_dev=2.0)
+        df = create_donchian_data("AAPL", [1.0, 2.0, 3.0, 4.0])
+        for i in range(3, len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        if "AAPL" in strategy._bb_state:
+            strategy._bb_state["AAPL"]["sum"] = 100.0
+            strategy._bb_state["AAPL"]["sumsq"] = 1.0
+            strategy._bb_state["AAPL"]["n"] = 3
+        signals = strategy.generate_signals({"AAPL": df})
+        assert isinstance(signals, list)
+
+    def test_bollinger_incremental_period_one_branch(self):
+        strategy = BollingerBandsStrategy(period=1, std_dev=2.0)
+        df = create_donchian_data("AAPL", [5.0, 6.0, 7.0])
+        for i in range(len(df)):
+            signals = strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        assert isinstance(signals, list)
+
+    # --- More coverage for other uncovered branches ---
+    def test_force_index_incremental_state(self):
+        strategy = ForceIndexStrategy(period=13)
+        df = create_trending_data("AAPL", days=80, trend=0.01)
+        for i in range(30, len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        assert isinstance(strategy.generate_signals({"AAPL": df}), list)
+
+    def test_mfi_incremental_state(self):
+        strategy = MoneyFlowIndexStrategy(period=14)
+        df = create_mean_reverting_data("AAPL", days=80)
+        for i in range(30, len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        assert isinstance(strategy.generate_signals({"AAPL": df}), list)
+
+    def test_ultimate_oscillator_incremental(self):
+        strategy = UltimateOscillatorStrategy()
+        df = create_mean_reverting_data("AAPL", days=100)
+        for i in range(40, len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        assert isinstance(strategy.generate_signals({"AAPL": df}), list)
+
+    def test_stochastic_momentum_index_incremental(self):
+        strategy = StochasticMomentumIndexStrategy()
+        df = create_mean_reverting_data("AAPL", days=100)
+        for i in range(40, len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        assert isinstance(strategy.generate_signals({"AAPL": df}), list)
+
+    def test_chande_momentum_oscillator_incremental(self):
+        strategy = ChandeMomentumOscillatorStrategy(period=20)
+        df = create_trending_data("AAPL", days=80, trend=0.01)
+        for i in range(30, len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        assert isinstance(strategy.generate_signals({"AAPL": df}), list)
