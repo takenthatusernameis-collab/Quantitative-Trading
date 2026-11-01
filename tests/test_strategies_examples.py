@@ -708,6 +708,15 @@ class TestRSIStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
+    def test_generate_signals_flat_incremental_no_signal(self):
+        strategy = RSIStrategy(period=14, oversold=30, overbought=70)
+        closes = [100.0] * 15
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        assert strategy.generate_signals(data) == []
+        closes2 = [100.0] * 16
+        data2 = {"AAPL": create_donchian_data("AAPL", closes2)}
+        assert strategy.generate_signals(data2) == []
+
 
 class TestBollingerBandsStrategy:
     """Tests for BollingerBandsStrategy."""
