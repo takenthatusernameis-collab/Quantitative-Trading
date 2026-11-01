@@ -1,21 +1,20 @@
 # Handoff for Next Agent — 2026-11-01
 
 ## 1. What changed
-- Fixed ruff F841 in tests/test_strategies_examples.py (unused `signals` assignment).
-- Verified baseline: full suite 2592 passed, 44 skipped, 124 deselected; ruff clean.
-- Coverage: 98% in quant_trading/strategies/examples.py (2322 stmts, 23 miss; 882 branches, 26 partial).
+- Added one test `test_generate_signals_oversold_crossover_buy` in tests/test_strategies_examples.py (passes; did not yet hit uncovered line 373).
+- Verified baseline: 481 passed in test_strategies_examples.py; ruff clean.
 
 ## 2. What was actually verified
-- `python -m pytest -q`: 2592 passed, 44 skipped, 124 deselected.
+- `python -m pytest -q tests/test_strategies_examples.py`: 481 passed.
 - `python -m ruff check .`: all checks passed.
-- `python -m coverage run -m pytest -q` + report: 98% coverage on examples.py.
+- Coverage still 95% on examples.py (81 miss, 61 partial).
 
 ## 3. What remains unresolved
-- 23 statements / 26 partial branches still uncovered in examples.py.
+- 81 statements / 61 partial branches still uncovered in examples.py.
+- Oversold crossover buy branch (line 373) not yet triggered by added test.
 
 ## 4. Approaches that failed and why
-- N/A.
+- Declining-then-single-up-bar data did not produce buy signal; need investigate RSI threshold timing.
 
 ## 5. One precise next task
-- Add targeted unit tests for remaining uncovered branches in examples.py; run coverage to confirm; keep offline/fast; do not commit unless asked.
-"""
+- Construct data that crosses RSI from <=30 to >30 and assert buy signal with metadata signal_type; iterate using coverage to confirm line 373 hit; keep offline/fast; do not commit unless asked.
