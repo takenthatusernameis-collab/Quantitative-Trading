@@ -50,3 +50,27 @@ def test_signal_shape():
         assert sig.symbol == "AAPL"
         assert sig.action in ("buy", "sell", "hold", "short")
         assert 0.0 <= sig.strength <= 1.0
+
+
+def test_incremental_update_path_is_reached():
+    # The incremental-update branch requires a prior call whose state has
+    # ``n == current_len - 1`` for the same symbol on the same instance.
+    prices = [10.0, 10.0, 10.0, 10.0, 10.0, 15.0]
+    s = MovingAverageCrossover(fast_period=3, slow_period=5)
+
+    first = s.generate_signals({"AAPL": _df(prices[:5])})
+    assert first == []
+    assert s._ma_state["AAPL"]["n"] == 5
+
+    second = s.generate_signals({"AAPL": _df(prices[:6])})
+    assert s._ma_state["AAPL"]["n"] == 6
+    assert len(second) == 1
+    assert second[0].action == "buy"
+    assert 0.0 <= second[0].strength <= 1.0
+
+    # The incremental result must agree with a full recompute.
+    fresh = MovingAverageCrossover(fast_period=3, slow_period=5)
+    expected = fresh.generate_signals({"AAPL": _df(prices[:6])})
+    assert [(sig.action, pytest.approx(sig.strength)) for sig in second] == [
+        (sig.action, pytest.approx(sig.strength)) for sig in expected
+    ]
