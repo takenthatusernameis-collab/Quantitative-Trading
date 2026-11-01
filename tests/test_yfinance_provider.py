@@ -140,6 +140,99 @@ def test_load_cache_invalid(tmp_path):
     assert p._load_cache(path) is None
 
 
+def test_parse_download_multiindex_columns():
+    p = YFinanceProvider(cache_dir="")
+    idx = pd.date_range("2024-01-01", periods=2, freq="D")
+    # MultiIndex (Ticker, Field)
+    cols = pd.MultiIndex.from_product([["AAPL"], ["Open", "High", "Low", "Close", "Volume"]])
+    df = pd.DataFrame([[1, 2, 0.5, 1.5, 100], [2, 3, 1.5, 2.5, 200]], index=idx, columns=cols)
+    r = p._parse_download(df, ["AAPL"])
+    assert "AAPL" in r.data
+    assert list(r.data["AAPL"].data.columns) == ["open", "high", "low", "close", "volume"]
+
+
+def test_parse_download_multiindex_missing_symbol():
+    p = YFinanceProvider(cache_dir="")
+    idx = pd.date_range("2024-01-01", periods=2, freq="D")
+    cols = pd.MultiIndex.from_product([["AAPL"], ["Open", "High", "Low", "Close", "Volume"]])
+    df = pd.DataFrame([[1, 2, 0.5, 1.5, 100], [2, 3, 1.5, 2.5, 200]], index=idx, columns=cols)
+    r = p._parse_download(df, ["AAPL", "TSLA"])
+    assert "AAPL" in r.data
+    assert "TSLA" in r.missing
+
+
+def test_parse_download_multiindex_empty_after_dropna():
+    p = YFinanceProvider(cache_dir="")
+    idx = pd.date_range("2024-01-01", periods=2, freq="D")
+    cols = pd.MultiIndex.from_product([["AAPL"], ["Open", "High", "Low", "Close", "Volume"]])
+    df = pd.DataFrame([[float("nan")] * 5, [float("nan")] * 5], index=idx, columns=cols)
+    r = p._parse_download(df, ["AAPL"])
+    assert "AAPL" in r.missing
+    assert "AAPL" not in r.data
+
+
+def test_parse_download_single_empty():
+    p = YFinanceProvider(cache_dir="")
+    hist = _hist_df()
+    hist = hist * float("nan")
+    r = p._parse_download(hist, ["AAPL"])
+    assert "AAPL" in r.missing
+
+
+def test_fetch_many_via_provider(tmp_path):
+    p = YFinanceProvider(cache_dir=str(tmp_path))
+    yf = _fake_yf()
+    p._yf = yf
+
+    # Use download path
+    idx = pd.date_range("2024-01-01", periods=3, freq="D")
+    frames = {}
+    for sym in ["AAPL", "MSFT"]:
+        df = pd.DataFrame(
+            {
+                "Open": [1.0, 2.0, 3.0],
+                "High": [1.5, 2.5, 3.5],
+                "Low": [0.5, 1.5, 2.5],
+                "Close": [1.2, 2.2, 3.2],
+                "Volume": [100, 200, 300],
+            },
+            index=idx,
+        )
+        frames[sym] = df
+    # Build multiindex
+    pieces = [frames[s] for s in ["AAPL", "MSFT"]]
+    multi = pd.concat(pieces, axis=1, keys=["AAPL", "MSFT"], names=["Ticker", "Price"])
+    yf.download.return_value = multi
+
+    from datetime import datetime
+
+    start = datetime(2024, 1, 1)
+    end = datetime(2024, 1, 10)
+    reqs = [
+        {"symbols": ["AAPL"], "start": start, "end": end, "interval": "1d"},
+        {"symbols": ["MSFT"], "start": start, "end": end, "interval": "1d"},
+    ]
+    res = p.fetch_many(reqs)
+    # Each request gets its own result
+    assert len(res) == 2
+    # Should have made download call
+    assert yf.download.called
+
+
+def test_fetch_many_group_exception_records_errors(tmp_path):
+    p = YFinanceProvider(cache_dir=str(tmp_path))
+    yf = _fake_yf()
+    p._yf = yf
+
+    reqs = [{"symbols": ["AAPL", "BAD"], "start": None, "end": None, "interval": "1d"}]
+    res = p.fetch_many(reqs)
+    # Get the single result
+    result = next(iter(res.values()))
+    assert "AAPL" in result.errors
+    assert "BAD" in result.errors
+    assert isinstance(result.errors["AAPL"], ValueError)
+
+
 def test_get_yf_import_error():
     p = YFinanceProvider(cache_dir="")
     with patch("builtins.__import__", side_effect=ImportError("no")), pytest.raises(ImportError):

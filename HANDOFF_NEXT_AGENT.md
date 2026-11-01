@@ -1,19 +1,20 @@
 # Handoff for Next Agent — 2026-11-01
 
 ## 1. What changed
-- Fixed offline unit test `test_fetch_with_dates_and_interval` in `tests/test_yfinance_provider.py` (tracked yfinance `Ticker.history` call args via `FakeTicker` instead of an unrelated MagicMock `return_value`).
+- Extended `tests/test_yfinance_provider.py` with mocked coverage for `fetch_many` batching/group download, `_parse_download` (MultiIndex normalization, missing/empty cases), and group exception/error handling.
 
 ## 2. What was actually verified
 - `python -m ruff check .`: All checks passed.
 - `python -m mypy quant_trading`: Success (no issues found).
-- `python -m pytest -q --import-mode=importlib tests/test_yfinance_provider.py`: 19 passed.
+- `python -m pytest -q --import-mode=importlib tests/test_yfinance_provider.py`: 25 passed.
+- `python -m pytest -q --import-mode=importlib tests/test_yfinance_fetch_many.py`: 9 passed.
 
 ## 3. What remains unresolved
 - 5 third-party Pandas4Warning warnings remain cosmetic (yfinance/pandas).
 - Network-gated README CLI tests skipped offline.
 
 ## 4. Approaches that failed and why
-- Asserting on `p._yf.Ticker.return_value.history` failed because `_fake_yf` uses `side_effect` returning real `FakeTicker` instances, so the mock's `return_value` was never invoked.
+- None in this session.
 
 ## 5. One precise next task
-- Extend `tests/test_yfinance_provider.py` with mocked coverage for `fetch_many`/`_parse_download` normalization and error handling for missing/invalid symbols, using existing patterns; run with `--import-mode=importlib -q`.
+- Review and harden edge cases in `YFinanceProvider._parse_download` for non-standard MultiIndex column ordering or unexpected dtypes, adding targeted tests without changing public API; run focused tests with `--import-mode=importlib -q`.
