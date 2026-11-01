@@ -5495,6 +5495,18 @@ class TestChoppinessIndexStrategy:
         with pytest.raises(ValueError, match="period must be positive"):
             strategy.validate_parameters()
 
+        strategy = ChoppinessIndexStrategy(period=14, low_threshold=60.0, high_threshold=50.0)
+        with pytest.raises(ValueError, match="low_threshold must be less than high_threshold"):
+            strategy.validate_parameters()
+
+        strategy = ChoppinessIndexStrategy(period=14, low_threshold=-1.0, high_threshold=50.0)
+        with pytest.raises(ValueError, match="thresholds must be between 0 and 100"):
+            strategy.validate_parameters()
+
+        strategy = ChoppinessIndexStrategy(period=14, low_threshold=50.0, high_threshold=101.0)
+        with pytest.raises(ValueError, match="thresholds must be between 0 and 100"):
+            strategy.validate_parameters()
+
     def test_generate_signals_insufficient_data(self):
         strategy = ChoppinessIndexStrategy(period=14)
         data = {"AAPL": create_trending_data("AAPL", days=10)}

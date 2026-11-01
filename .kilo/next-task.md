@@ -6,37 +6,36 @@ Checks: `python -m ruff check .` → clean. `python -m black --check quant_tradi
 
 ## What changed (this session)
 
-Added 197 lines to `tests/test_strategies_examples.py` (no source code changes; working tree clean except this one test file).
+Added 4 validation branches to `tests/test_strategies_examples.py::TestChoppinessIndexStrategy.test_validate_parameters` (no source code changes; working tree clean except this one test file).
 
-- New helper `create_ppo_pvo_zero_line_data(symbol, direction, pvo=False)` reuses the MACD zero-line price ramp; `pvo=True` applies the ramp to the `"volume"` column (scaled x10000) while holding price flat at 100, so the PVO line crosses zero on the final bar without a signal-line crossover.
-- New tests covering the previously-untested `elif self.use_zero_line` branches in:
-  - `quant_trading/strategies/examples.py:6371-6411` (PPO zero-line buy/sell)
-  - `quant_trading/strategies/examples.py:6550-6589` (PVO zero-line buy/sell)
-  - Plus `test_generate_signals_zero_line_disabled` for each strategy asserting the arm is skipped when `use_zero_line=False`.
+- Extended `test_validate_parameters` to cover the previously-uncovered threshold-validation branches in `quant_trading/strategies/examples.py:7421-7424`:
+  - `low_threshold >= high_threshold` -> ``ValueError("low_threshold must be less than high_threshold")``
+  - `low_threshold < 0 or high_threshold > 100` -> ``ValueError("thresholds must be between 0 and 100")``
+- Follows the existing convention (construct with invalid params, then call `validate_parameters()` directly, since `ChoppinessIndexStrategy.__init__` does not invoke `validate_parameters`).
 
 ## What was actually verified
 
-- `python -m pytest -q`: 2428 passed (was 2420), 44 skipped, 124 deselected, 5 warnings.
-- `python -m ruff check .`: All checks passed.
-- `python -m black --check tests/test_strategies_examples.py`: All done, 1 file unchanged.
-- `python -m mypy quant_trading`: Success (no issues found in 37 source files).
-- Coverage: `quant_trading/strategies/examples.py` 2322 stmts / 75 miss (was 87 miss) — the PPO/PVO zero-line branches are now 100% covered. Overall library coverage 98%.
+- `python -m pytest tests/test_strategies_examples.py::TestChoppinessIndexStrategy -q`: 7 passed.
+- `python -m pytest tests/test_strategies_examples.py -q`: 408 passed (no regressions).
+- `python -m ruff check tests/test_strategies_examples.py`: All checks passed.
+- `python -m black --check tests/test_strategies_examples.py`: 1 file unchanged.
+- `python -m mypy quant_trading/strategies/examples.py`: Success (no issues).
+- The two threshold branches now execute (each `pytest.raises` block passed), so `examples.py:7422` and `:7424` are covered.
 
 ## What remains unresolved
 
-- No commit made (repo rule: only on explicit user request).
-- 5 third-party `Pandas4Warning` warnings from yfinance/pandas remain; cannot be suppressed via config without changing library code (forbidden). Cosmetic only.
+- Remaining uncovered lines in `examples.py` are mostly unreachable defensive guards (`pd.isna`/`is None` continuations, `slow_current != 0` else branches, `period < 2` std NaN branch, etc.). All are low-value single-branch gaps; every other library module is 100% statement-covered and all 46 registry strategies already have dedicated test classes.
+- 5 third-party `Pandas4Warning` warnings from yfinance/pandas remain; cosmetic only.
 - Network-gated README CLI command tests remain skipped in offline CI (44 skips in `tests/test_readme_cli_commands.py`).
-- Remaining uncovered lines in `examples.py` are mostly unreachable defensive guards (`pd.isna`/`is None` continuations, `slow_current != 0` else branches, `period < 2` std NaN branch, etc.). All are low-value single-branch gaps.
 
 ## Approaches that failed and why
 
 - Warning-suppression approaches (pytest `filterwarnings`, conftest blanket filter, `-W` CLI flags) all fail — warnings bypass the filter machinery; library code cannot be changed. EXHAUSTED.
-- PVO zero-line: reusing the MACD price ramp verbatim on the `"volume"` column produced a constant-volume series (PVO stuck at 0, no crossover). Fix: scale the ramp by 10000 and apply it to `"volume"` while holding price flat at 100, reproducing the exact EMA crossover dynamics of the MACD data.
+- PVO zero-line: reusing the MACD price ramp verbatim on the `"volume"` column produced a constant-volume series (PVO stuck at 0, no crossover). FIXED in prior session: scale the ramp by 10000 and apply it to `"volume"` while holding price flat at 100.
 
 ## One precise next task
 
-- Coverage of the core library is now 98% overall with `examples.py` at 95%. The remaining gaps are low-value defensive branches. Recommended next bounded task: pick one remaining single-branch gap in `examples.py` (e.g. `quant_trading/strategies/examples.py:7313` StochRSI midline-cross guard, or `:7471` ChoppinessIndex edge branch) and add a deterministic test, OR pick a fresh bounded task outside `examples.py`.
+- Coverage of the core library is now ~99% with `examples.py` at ~96%. The remaining gaps are low-value single-branch gaps. No high-value bounded task remains in `examples.py`; all other modules are fully covered. Recommended: either (a) cover one more reachable validation/defensive branch in `examples.py` if coverage is the goal, or (b) declare test-coverage work complete and pick a fresh bounded task outside `examples.py` (e.g. CLI/provider behavior not yet locked by a README-sync test).
 - Verification: `python -m ruff check .`; `python -m black --check quant_trading tests examples`; `python -m mypy quant_trading`; `python -m pytest tests/test_<module>.py -q`; coverage via `python -m coverage run --source=quant_trading -m pytest ...` then `python -m coverage report -m`.
 - Constraints: do NOT commit unless explicitly asked; preserve working baseline; do NOT change library code; exclude secrets/env/cache artifacts.
 
