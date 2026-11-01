@@ -759,8 +759,14 @@ class TestRSIStrategy:
         strategy.generate_signals(data)
         data = {"AAPL": create_donchian_data("AAPL", closes)}
         signals = strategy.generate_signals(data)
-        assert isinstance(signals, list)
-        assert any(s.action == "buy" and s.metadata.get("signal_type") == "oversold_bounce" for s in signals)
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.price == pytest.approx(91.0)
+        assert signal.metadata["signal_type"] == "oversold_bounce"
+        assert signal.metadata["rsi"] == pytest.approx(50.0)
 
     def test_generate_signals_insufficient_data(self):
         """Test generate_signals with insufficient data."""
