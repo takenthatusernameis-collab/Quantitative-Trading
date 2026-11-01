@@ -5863,7 +5863,7 @@ class TestTrixStrategy:
         strategy = TrixStrategy(period=14)
         dates = pd.date_range(start="2023-01-01", periods=90, freq="D")
         close = [100 + i * 0.3 for i in range(90)]
-        close[-1] = float("nan")
+        close[10] = float("nan")
         data = {
             "AAPL": pd.DataFrame(
                 {
