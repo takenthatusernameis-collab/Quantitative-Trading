@@ -222,6 +222,7 @@ def test_fetch_many_via_provider(tmp_path):
 def test_fetch_many_group_exception_records_errors(tmp_path):
     p = YFinanceProvider(cache_dir=str(tmp_path))
     yf = _fake_yf()
+    yf.download.side_effect = ValueError("boom")
     p._yf = yf
 
     reqs = [{"symbols": ["AAPL", "BAD"], "start": None, "end": None, "interval": "1d"}]
