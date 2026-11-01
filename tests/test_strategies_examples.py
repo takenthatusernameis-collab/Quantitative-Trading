@@ -5427,6 +5427,38 @@ class TestCCIStrategy:
         )
         assert strategy.generate_signals({"AAPL": df}) == []
 
+    def test_generate_signals_bullish(self):
+        """A strong upward move pushes CCI above +threshold -> buy."""
+        strategy = CCIStrategy(period=5, threshold=10.0)
+        closes = [100.0 + 2.0 * i for i in range(10)] + [200.0]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(200.0)
+        assert signal.metadata["signal_type"] == "bullish"
+        assert signal.metadata["cci"] == pytest.approx(166.66666666666669)
+
+    def test_generate_signals_bearish(self):
+        """A strong downward move pushes CCI below -threshold -> sell."""
+        strategy = CCIStrategy(period=5, threshold=10.0)
+        closes = [200.0 - 2.0 * i for i in range(10)] + [100.0]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(1.0)
+        assert signal.price == pytest.approx(100.0)
+        assert signal.metadata["signal_type"] == "bearish"
+        assert signal.metadata["cci"] == pytest.approx(-166.66666666666669)
+
 
 class TestAroonStrategy:
     """Tests for AroonStrategy."""
@@ -5472,6 +5504,49 @@ class TestAroonStrategy:
             )
         }
         assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_bullish_crossover(self):
+        """Aroon Up crosses above Aroon Down - bullish signal (buy).
+
+        A declining price sequence followed by a sharp spike makes the
+        most-recent high the highest in the window, so aroon_up jumps to
+        100 while aroon_down stays elevated, crossing above it on the final
+        bar.
+        """
+        strategy = AroonStrategy(period=14)
+        closes = [100.0 - i * 0.5 for i in range(14)] + [200.0]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(0.6428571428571428)
+        assert signal.price == pytest.approx(200.0)
+        assert signal.metadata["crossover_type"] == "bullish"
+        assert signal.metadata["aroon_up"] == pytest.approx(100.0)
+
+    def test_generate_signals_bearish_crossover(self):
+        """Aroon Down crosses above Aroon Up - bearish signal (sell).
+
+        A rising price sequence followed by a sharp drop makes the most-recent
+        low the lowest in the window, so aroon_down jumps to 100 while
+        aroon_up stays elevated, crossing above it on the final bar.
+        """
+        strategy = AroonStrategy(period=14)
+        closes = [100.0 + i * 0.5 for i in range(14)] + [50.0]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(0.6428571428571428)
+        assert signal.price == pytest.approx(50.0)
+        assert signal.metadata["crossover_type"] == "bearish"
+        assert signal.metadata["aroon_down"] == pytest.approx(100.0)
 
 
 class TestStochRSIStrategy:
