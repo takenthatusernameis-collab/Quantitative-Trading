@@ -6793,7 +6793,7 @@ class TestExamplesRemainingCoverage:
     def test_on_balance_volume_signal_zero(self):
         strategy = OBVStrategy(signal_period=10)
         df = create_trending_data("AAPL", days=80, trend=0.01)
-        signals = strategy.generate_signals({"AAPL": df})
+        strategy.generate_signals({"AAPL": df})
         import pandas as pd
 
         dates = pd.date_range("2023-01-01", periods=30)
