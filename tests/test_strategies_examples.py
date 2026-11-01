@@ -5372,8 +5372,28 @@ class TestPercentagePriceOscillatorStrategy:
         assert strategy.name == "Test_PPO"
 
     def test_validate_parameters(self):
+        """validate_parameters rejects every invalid period combination.
+
+        PPO shares the same validation contract as MACD (positive periods,
+        fast slower than slow), so every branch is covered here even though
+        the constructor invokes validate_parameters directly.
+        """
         with pytest.raises(ValueError, match="fast_period must be positive"):
             PercentagePriceOscillatorStrategy(fast_period=0)
+        with pytest.raises(ValueError, match="fast_period must be positive"):
+            PercentagePriceOscillatorStrategy(fast_period=-12)
+        with pytest.raises(ValueError, match="slow_period must be positive"):
+            PercentagePriceOscillatorStrategy(slow_period=0)
+        with pytest.raises(ValueError, match="slow_period must be positive"):
+            PercentagePriceOscillatorStrategy(slow_period=-26)
+        with pytest.raises(ValueError, match="signal_period must be positive"):
+            PercentagePriceOscillatorStrategy(signal_period=0)
+        with pytest.raises(ValueError, match="signal_period must be positive"):
+            PercentagePriceOscillatorStrategy(signal_period=-9)
+        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+            PercentagePriceOscillatorStrategy(fast_period=26, slow_period=12)
+        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+            PercentagePriceOscillatorStrategy(fast_period=12, slow_period=12)
 
     def test_generate_signals_insufficient_data(self):
         strategy = PercentagePriceOscillatorStrategy()
@@ -5955,8 +5975,28 @@ class TestPercentageVolumeOscillatorStrategy:
         assert strategy.name == "Test_PVO"
 
     def test_validate_parameters(self):
+        """validate_parameters rejects every invalid period combination.
+
+        PVO shares the same validation contract as MACD/PPO (positive
+        periods, fast slower than slow), so every branch is covered here even
+        though the constructor invokes validate_parameters directly.
+        """
         with pytest.raises(ValueError, match="fast_period must be positive"):
             PercentageVolumeOscillatorStrategy(fast_period=0)
+        with pytest.raises(ValueError, match="fast_period must be positive"):
+            PercentageVolumeOscillatorStrategy(fast_period=-12)
+        with pytest.raises(ValueError, match="slow_period must be positive"):
+            PercentageVolumeOscillatorStrategy(slow_period=0)
+        with pytest.raises(ValueError, match="slow_period must be positive"):
+            PercentageVolumeOscillatorStrategy(slow_period=-26)
+        with pytest.raises(ValueError, match="signal_period must be positive"):
+            PercentageVolumeOscillatorStrategy(signal_period=0)
+        with pytest.raises(ValueError, match="signal_period must be positive"):
+            PercentageVolumeOscillatorStrategy(signal_period=-9)
+        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+            PercentageVolumeOscillatorStrategy(fast_period=26, slow_period=12)
+        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+            PercentageVolumeOscillatorStrategy(fast_period=12, slow_period=12)
 
     def test_generate_signals_insufficient_data(self):
         strategy = PercentageVolumeOscillatorStrategy()
