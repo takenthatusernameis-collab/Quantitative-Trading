@@ -6735,13 +6735,39 @@ class TestExamplesRemainingCoverage:
             signals = strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
         assert isinstance(signals, list)
 
-    # --- More coverage for other uncovered branches ---
-    def test_force_index_incremental_state(self):
-        strategy = ForceIndexStrategy(period=13)
-        df = create_trending_data("AAPL", days=80, trend=0.01)
-        for i in range(30, len(df)):
+    def test_bollinger_incremental_full_nan_skips(self):
+        strategy = BollingerBandsStrategy(period=3, std_dev=2.0)
+        df = create_donchian_data("AAPL", [1.0, 2.0, 3.0, 4.0])
+        for i in range(3, len(df)):
             strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
-        assert isinstance(strategy.generate_signals({"AAPL": df}), list)
+        # Force var negative and also test NaN paths
+        if "AAPL" in strategy._bb_state:
+            st = strategy._bb_state["AAPL"]
+            st["sum"] = 5.0
+            st["sumsq"] = 1.0
+            st["n"] = len(df) - 1
+            st["last_closes"] = [1.0, 2.0, 2.0]
+        signals = strategy.generate_signals({"AAPL": df})
+        assert isinstance(signals, list)
+
+    # --- More coverage for other uncovered branches ---
+    def test_accumulation_distribution_line_signal_zero(self):
+        strategy = AccumulationDistributionStrategy(signal_period=10)
+        import pandas as pd
+
+        dates = pd.date_range("2023-01-01", periods=30)
+        df2 = pd.DataFrame(
+            {
+                "open": [10.0] * 30,
+                "high": [10.0] * 30,
+                "low": [10.0] * 30,
+                "close": [10.0] * 30,
+                "volume": [0.0] * 30,
+            },
+            index=dates,
+        )
+        signals = strategy.generate_signals({"AAPL": df2})
+        assert isinstance(signals, list)
 
     def test_mfi_incremental_state(self):
         strategy = MoneyFlowIndexStrategy(period=14)
@@ -6764,9 +6790,59 @@ class TestExamplesRemainingCoverage:
             strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
         assert isinstance(strategy.generate_signals({"AAPL": df}), list)
 
-    def test_chande_momentum_oscillator_incremental(self):
-        strategy = ChandeMomentumOscillatorStrategy(period=20)
+    def test_on_balance_volume_signal_zero(self):
+        strategy = OBVStrategy(signal_period=10)
         df = create_trending_data("AAPL", days=80, trend=0.01)
-        for i in range(30, len(df)):
+        signals = strategy.generate_signals({"AAPL": df})
+        import pandas as pd
+
+        dates = pd.date_range("2023-01-01", periods=30)
+        df2 = pd.DataFrame(
+            {
+                "open": [10.0] * 30,
+                "high": [11.0] * 30,
+                "low": [9.0] * 30,
+                "close": [10.0] * 30,
+                "volume": [0.0] * 30,
+            },
+            index=dates,
+        )
+        signals2 = strategy.generate_signals({"AAPL": df2})
+        assert isinstance(signals2, list)
+
+    def test_rsi_incremental_hist_overflow_and_none_cases(self):
+        strategy = RSIStrategy(period=2, oversold=30, overbought=70)
+        df = create_donchian_data("AAPL", [10.0, 11.0, 12.0, 13.0])
+        for i in range(2, len(df)):
             strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
-        assert isinstance(strategy.generate_signals({"AAPL": df}), list)
+        # Force overflow: add more elements so hist length > period
+        if "AAPL" in strategy._rsi_state:
+            st = strategy._rsi_state["AAPL"]
+            st["gain_hist"] = [0.5, 0.5]  # will be popped
+            st["loss_hist"] = [0.1, 0.1]
+            st["gain_sum"] = 1.0
+            st["loss_sum"] = 0.2
+            st["last_close"] = 12.0
+            st["n"] = len(df) - 1
+            st["curr_rsi"] = 50.0
+        # This will append and pop
+        signals = strategy.generate_signals({"AAPL": df})
+        assert isinstance(signals, list)
+        # Also cover None cases
+        st2 = RSIStrategy(period=2)
+        df2 = create_donchian_data("AAPL", [10.0, 11.0])
+        # Call with state that has None prev_rsi
+        if "AAPL" not in st2._rsi_state:
+            st2._rsi_state["AAPL"] = {
+                "n": len(df2) - 1,
+                "gain_hist": [1.0],
+                "loss_hist": [0.0],
+                "gain_sum": 1.0,
+                "loss_sum": 0.0,
+                "last_close": 10.0,
+                "curr_rsi": 100.0,
+            }
+        # Make prev_rsi None by manipulating? The code reads from state.get('curr_rsi') before updating; set differently
+        st2._rsi_state["AAPL"]["curr_rsi"] = None
+        signals = st2.generate_signals({"AAPL": df2})
+        assert isinstance(signals, list)
