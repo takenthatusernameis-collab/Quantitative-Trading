@@ -3390,6 +3390,42 @@ class TestUserErrorReporting:
         assert "could not read config file" in output
         assert "Traceback" not in output
 
+    @pytest.mark.parametrize(
+        ("filename", "content"),
+        [
+            ("invalid_indent.yaml", "just: a\n  bad: [indent\n"),
+            ("unclosed_flow.yaml", "backtest: {initial_capital: 100.0\n"),
+            ("tab_indent.yaml", "backtest:\n\tinitial_capital: 100.0\n"),
+        ],
+        ids=["invalid-indent", "unclosed-flow", "tab-indent"],
+    )
+    def test_an_invalid_yaml_config_file_is_reported(self, capsys, tmp_path, filename, content):
+        """A config file that is not valid YAML is a message, not a traceback.
+
+        The README's "Error Reporting" section documents that a config file
+        whose YAML is broken is reported the same way as a missing one:
+
+        ```
+        $ python examples/cli.py --config /tmp/cfg.yaml --offline --symbols AAPL --days 30
+        Error: ...
+        ```
+
+        The CLI catches ``yaml.YAMLError`` from ``Config.from_yaml`` and turns
+        it into a one-line message. Several malformed-YAML shapes are covered
+        here because the YAML parser reports different errors for different
+        faults (indentation, unclosed flow, tabs), and all of them have to
+        reach the user as a message instead of a traceback.
+        """
+        broken = tmp_path / filename
+        broken.write_text(content)
+        result, output = self._run(
+            ["--config", str(broken), "--offline", "--symbols", "AAPL", "--days", "30"],
+            capsys,
+        )
+        assert result == 1
+        assert "Invalid YAML" in output
+        assert "Traceback" not in output
+
     def test_missing_strategy_config_file_is_reported(self, capsys, tmp_path):
         """A strategy config that does not exist is a message and the exit code 1."""
         missing = tmp_path / "missing" / "strategy.yaml"
