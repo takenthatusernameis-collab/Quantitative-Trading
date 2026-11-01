@@ -102,41 +102,41 @@ class BayesianOptimizerConfig:
 class BayesianOptimizer(BaseOptimizer):
     """Bayesian optimizer for strategy parameters using Gaussian Processes.
 
-    Uses scikit-optimize to efficiently search parameter space by building
-    a surrogate model of the objective function and using acquisition functions
-    to balance exploration and exploitation.
+        Uses scikit-optimize to efficiently search parameter space by building
+        a surrogate model of the objective function and using acquisition functions
+        to balance exploration and exploitation.
 
-    Examples:
-        >>> from datetime import datetime, timedelta
-        >>> from quant_trading.data.providers import DataManager
-        >>> from quant_trading.data.synthetic import create_synthetic_provider
-        >>> from quant_trading.optimization import ParameterGrid, ParameterSpace, maximize_sharpe
-        >>> from quant_trading.optimization.bayesian import BayesianOptimizer
-        >>> from quant_trading.strategies.examples import MovingAverageCrossover
-        >>> provider = create_synthetic_provider(["AAPL"], days=60, seed=42)
-        >>> data_manager = DataManager([provider])
-        >>> param_grid = ParameterGrid()
-        >>> _ = param_grid.add(ParameterSpace("fast_period", min_val=5, max_val=15, param_type=int))
-        >>> _ = param_grid.add(ParameterSpace("slow_period", min_val=20, max_val=30, param_type=int))
-        >>> optimizer = BayesianOptimizer(    # doctest: +SKIP
-        ...     strategy_cls=MovingAverageCrossover,
-        ...     param_grid=param_grid,
-        ...     objective=maximize_sharpe,
-        ...     symbols=["AAPL"],
-        ...     start=datetime.now() - timedelta(days=50),
-        ...     end=datetime.now(),
-        ...     data_manager=data_manager,
-        ...     random_state=42,
-        ... )
-        >>> result = optimizer.run()    # doctest: +SKIP
-        >>> result.best_params is not None
-        True
-        >>> "fast_period" in result.best_params
-        True
-        >>> "slow_period" in result.best_params
-        True
-        >>> len(result.all_results) == optimizer.n_calls
-        True
+        Examples:
+            >>> from datetime import datetime, timedelta
+            >>> from quant_trading.data.providers import DataManager
+            >>> from quant_trading.data.synthetic import create_synthetic_provider
+            >>> from quant_trading.optimization import ParameterGrid, ParameterSpace, maximize_sharpe
+            >>> from quant_trading.optimization.bayesian import BayesianOptimizer
+            >>> from quant_trading.strategies.examples import MovingAverageCrossover
+            >>> provider = create_synthetic_provider(["AAPL"], days=60, seed=42)
+            >>> data_manager = DataManager([provider])
+            >>> param_grid = ParameterGrid()
+            >>> _ = param_grid.add(ParameterSpace("fast_period", min_val=5, max_val=15, param_type=int))
+            >>> _ = param_grid.add(ParameterSpace("slow_period", min_val=20, max_val=30, param_type=int))
+            >>> optimizer = BayesianOptimizer(    # doctest: +SKIP
+            ...     strategy_cls=MovingAverageCrossover,
+            ...     param_grid=param_grid,
+            ...     objective=maximize_sharpe,
+            ...     symbols=["AAPL"],
+            ...     start=datetime.now() - timedelta(days=50),
+            ...     end=datetime.now(),
+            ...     data_manager=data_manager,
+            ...     random_state=42,
+            ... )
+    >>> result = optimizer.run()    # doctest: +SKIP
+    >>> result.best_params is not None    # doctest: +SKIP
+    True    # doctest: +SKIP
+    >>> "fast_period" in result.best_params    # doctest: +SKIP
+    True    # doctest: +SKIP
+    >>> "slow_period" in result.best_params    # doctest: +SKIP
+    True    # doctest: +SKIP
+    >>> len(result.all_results) == optimizer.n_calls    # doctest: +SKIP
+    True    # doctest: +SKIP
 
     """
 
