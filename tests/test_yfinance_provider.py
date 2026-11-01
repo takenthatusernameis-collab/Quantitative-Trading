@@ -113,7 +113,9 @@ def test_slice_group_result():
     from quant_trading.data.providers import FetchResult, MarketData
 
     g = FetchResult()
-    g.data["AAPL"] = MarketData(symbol="AAPL", data=_hist_df(), source="yfinance", fetched_at=datetime.now())
+    g.data["AAPL"] = MarketData(
+        symbol="AAPL", data=_hist_df(), source="yfinance", fetched_at=datetime.now()
+    )
     g.errors["BAD"] = ValueError("x")
     sliced = p._slice_group_result(g, ["AAPL", "BAD", "MISS"])
     assert "AAPL" in sliced.data
@@ -303,6 +305,7 @@ def test_cache_expiration(tmp_path):
     p.fetch(["AAPL"])
     # Force cache to be old
     import time
+
     key = p._cache_key(["AAPL"], None, None, "1d")
     path = p._cache_path(key)
     old_time = time.time() - 3600  # 1 hour ago

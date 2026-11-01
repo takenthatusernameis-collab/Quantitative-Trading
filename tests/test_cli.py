@@ -3524,12 +3524,22 @@ class TestUserErrorReporting:
     def test_zero_mc_simulations_is_reported(self, capsys):
         """Zero mc simulations is a usage error at the CLI level."""
         result, output = self._run(
-            ["--monte-carlo", "--mc-simulations", "0", "--offline", "--symbols", "AAPL", "--days", "30"],
+            [
+                "--monte-carlo",
+                "--mc-simulations",
+                "0",
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ],
             capsys,
         )
         assert result == 1
         assert "invalid --mc-simulations" in output
         assert "Traceback" not in output
+
 
 if __name__ == "__main__":
     import pytest

@@ -502,7 +502,9 @@ def test_parse_download_empty_symbols():
 def test_parse_download_duplicate_symbols():
     provider = YFinanceProvider(cache_dir=None)
     idx = pd.date_range("2024-01-01", periods=3)
-    cols = pd.MultiIndex.from_tuples([("AAPL", "Open"), ("AAPL", "Close")], names=["Ticker", "Field"])
+    cols = pd.MultiIndex.from_tuples(
+        [("AAPL", "Open"), ("AAPL", "Close")], names=["Ticker", "Field"]
+    )
     df = pd.DataFrame([[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]], index=idx, columns=cols)
     result = provider._parse_download(df, ["AAPL", "AAPL"])
     assert "AAPL" in result.data

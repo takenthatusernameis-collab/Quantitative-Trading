@@ -180,9 +180,7 @@ class TestReadmeCliCommands:
 
 class TestExplicitCombinedAndStrategyConfigErrors:
     def test_combined_mc_simulations_zero(self, tmp_path):
-        rc, output = _run_cli(
-            ["--combined", "--offline", "--mc-simulations", "0"], tmp_path
-        )
+        rc, output = _run_cli(["--combined", "--offline", "--mc-simulations", "0"], tmp_path)
         assert rc == 1
         assert "Traceback" not in output
         assert "error" in output.lower()
@@ -193,6 +191,7 @@ class TestExplicitCombinedAndStrategyConfigErrors:
         import os
         import sys
         from pathlib import Path
+
         old_cwd = Path.cwd()
         old_argv = sys.argv
         output = io.StringIO()
@@ -217,6 +216,7 @@ class TestExplicitCombinedAndStrategyConfigErrors:
         import os
         import sys
         from pathlib import Path
+
         old_cwd = Path.cwd()
         old_argv = sys.argv
         output = io.StringIO()

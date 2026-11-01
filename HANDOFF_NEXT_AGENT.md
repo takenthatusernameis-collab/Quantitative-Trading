@@ -1,7 +1,8 @@
 # Handoff for Next Agent — 2026-11-01
 
 ## 1. What changed
-- No code changes made. Investigated the 5 Pandas4Warning deprecation warnings (yfinance inplace keyword) surfaced by the full test run.
+- Applied `black` formatting to 5 test files that were not compliant (conftest.py, test_readme_cli_commands.py, test_cli.py, test_yfinance_provider.py, test_yfinance_fetch_many.py).
+- Investigated the 5 Pandas4Warning deprecation warnings (yfinance inplace keyword) surfaced by the full test run (third-party, already filtered).
 
 ## 2. What was actually verified
 - `python -m pytest -q`: 2495 passed, 44 skipped, 124 deselected, 5 warnings.
