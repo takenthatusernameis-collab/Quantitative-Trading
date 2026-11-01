@@ -406,18 +406,35 @@ class YFinanceProvider(DataProvider):
 
         """
         result = FetchResult()
-        if df is None or df.empty:
+        if df is None or df.empty or not symbols:
             result.missing.extend(symbols)
             return result
 
         columns = df.columns
         if isinstance(columns, pd.MultiIndex):
-            tickers = columns.get_level_values(0)
+            # yfinance normally returns (ticker, field) columns with
+            # group_by="ticker", but some responses swap the levels so fields
+            # come first. Pick the level that carries the most requested
+            # tickers and normalize so tickers are level 0 before slicing.
+            requested = set(symbols)
+            level0 = set(columns.get_level_values(0))
+            level1 = set(columns.get_level_values(1)) if columns.nlevels > 1 else set()
+            swap = len(requested & level1) > len(requested & level0)
+
+            df = df.copy()
+            if swap:
+                df.columns = columns.swaplevel(0, 1)
+
+            tickers = [str(t) for t in df.columns.get_level_values(0)]
+            ticker_set = set(tickers)
             for symbol in symbols:
-                if symbol not in tickers:
+                if symbol not in ticker_set:
                     result.missing.append(symbol)
                     continue
-                hist = df[symbol].copy()
+                hist = df[symbol]
+                if isinstance(hist, pd.Series):
+                    hist = hist.to_frame()
+                hist = hist.copy()
                 hist.columns = [str(col).lower().replace(" ", "_") for col in hist.columns]
                 hist = hist.dropna(how="all")
                 if hist.empty:

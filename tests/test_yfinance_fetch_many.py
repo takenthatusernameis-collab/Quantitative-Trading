@@ -459,6 +459,56 @@ def test_parse_download_non_multiindex_empty_after_dropna():
     assert set(result.missing) == {"AAPL", "MSFT"}
 
 
+def test_parse_download_multiindex_swapped_levels():
+    """Fields-first MultiIndex columns are normalized so tickers are found."""
+    provider = YFinanceProvider(cache_dir=None)
+    idx = pd.date_range("2024-01-01", periods=3)
+    cols = pd.MultiIndex.from_tuples(
+        [("Open", "AAPL"), ("Close", "AAPL"), ("Open", "MSFT")],
+        names=["Field", "Ticker"],
+    )
+    df = pd.DataFrame([[1.0, 4.0, 2.0], [2.0, 5.0, 3.0], [3.0, 6.0, 4.0]], index=idx, columns=cols)
+    result = provider._parse_download(df, ["AAPL", "MSFT"])
+    assert "AAPL" in result.data
+    assert "MSFT" in result.data
+    assert not result.missing
+    assert not result.errors
+    assert list(result.data["AAPL"].data.columns) == ["open", "close"]
+    assert list(result.data["MSFT"].data.columns) == ["open"]
+
+
+def test_parse_download_multiindex_single_field_series():
+    """A ticker with a single field column (a Series) is wrapped into a frame."""
+    provider = YFinanceProvider(cache_dir=None)
+    idx = pd.date_range("2024-01-01", periods=3)
+    cols = pd.MultiIndex.from_tuples([("AAPL", "Open")], names=["Ticker", "Field"])
+    df = pd.DataFrame([[1.0], [2.0], [3.0]], index=idx, columns=cols)
+    result = provider._parse_download(df, ["AAPL"])
+    assert "AAPL" in result.data
+    assert list(result.data["AAPL"].data.columns) == ["open"]
+    assert not result.missing
+
+
+def test_parse_download_empty_symbols():
+    provider = YFinanceProvider(cache_dir=None)
+    idx = pd.date_range("2024-01-01", periods=3)
+    df = pd.DataFrame({"Open": [1.0, 2.0, 3.0]}, index=idx)
+    result = provider._parse_download(df, [])
+    assert not result.data
+    assert not result.missing
+    assert not result.errors
+
+
+def test_parse_download_duplicate_symbols():
+    provider = YFinanceProvider(cache_dir=None)
+    idx = pd.date_range("2024-01-01", periods=3)
+    cols = pd.MultiIndex.from_tuples([("AAPL", "Open"), ("AAPL", "Close")], names=["Ticker", "Field"])
+    df = pd.DataFrame([[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]], index=idx, columns=cols)
+    result = provider._parse_download(df, ["AAPL", "AAPL"])
+    assert "AAPL" in result.data
+    assert result.missing.count("AAPL") == 0
+
+
 def test_slice_group_result_partitions_data_errors_missing():
     provider = YFinanceProvider(cache_dir=None)
     group = FetchResult()
