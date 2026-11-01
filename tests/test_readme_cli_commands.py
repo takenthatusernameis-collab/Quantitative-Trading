@@ -256,7 +256,16 @@ class TestExplicitCombinedAndStrategyConfigErrors:
         output = io.StringIO()
         try:
             os.chdir(tmp_path)
-            sys.argv = ["cli.py", "--config", str(broken), "--offline", "--symbols", "AAPL", "--days", "30"]
+            sys.argv = [
+                "cli.py",
+                "--config",
+                str(broken),
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ]
             with contextlib.redirect_stdout(output):
                 try:
                     rc = main()
@@ -269,3 +278,41 @@ class TestExplicitCombinedAndStrategyConfigErrors:
         assert rc == 1
         assert "Traceback" not in out
         assert "Invalid YAML" in out
+
+    def test_invalid_yaml_strategy_config_file_reported(self, tmp_path):
+        """A strategy config file that is not valid YAML is reported as a one-line error."""
+        import contextlib
+        import io
+        import os
+        import sys
+        from pathlib import Path
+
+        broken = tmp_path / "broken.yaml"
+        broken.write_text("type: [unclosed\n  bad: : :\n")
+        old_cwd = Path.cwd()
+        old_argv = sys.argv
+        output = io.StringIO()
+        try:
+            os.chdir(tmp_path)
+            sys.argv = [
+                "cli.py",
+                "--strategy-config",
+                str(broken),
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ]
+            with contextlib.redirect_stdout(output):
+                try:
+                    rc = main()
+                except SystemExit as exc:
+                    rc = exc.code if isinstance(exc.code, int) else 1
+        finally:
+            os.chdir(old_cwd)
+            sys.argv = old_argv
+        out = output.getvalue()
+        assert rc == 1
+        assert "Traceback" not in out
+        assert "invalid YAML in strategy config" in out
