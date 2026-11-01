@@ -779,6 +779,22 @@ class TestBollingerBandsStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
+    def test_generate_signals_one_bar_window_uses_nan_std(self):
+        """A one-bar incremental window keeps the std NaN and skips the bar.
+
+        With ``period=1`` the incremental update has a single-sample window,
+        so the standard deviation is undefined; the strategy sets ``std_val``
+        to NaN and skips the bar instead of emitting a band touch.
+        """
+        strategy = BollingerBandsStrategy(period=1, std_dev=2.0)
+        # Seed the incremental state with a single bar.
+        strategy.generate_signals({"AAPL": create_donchian_data("AAPL", [100.0])})
+        # Append a bar to enter the incremental path with a one-bar window.
+        signals = strategy.generate_signals(
+            {"AAPL": create_donchian_data("AAPL", [100.0, 101.0])}
+        )
+        assert signals == []
+
     def test_generate_signals_band_touch(self):
         """Test generate_signals detects band touches."""
         strategy = BollingerBandsStrategy(period=20, std_dev=2.0)
