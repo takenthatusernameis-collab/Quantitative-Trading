@@ -5609,6 +5609,25 @@ class TestAccumulationDistributionStrategy:
         }
         assert strategy.generate_signals(data) == []
 
+    def test_generate_signals_skips_nan_adl_signal(self):
+        """NaN ADL signal line values skip signal generation."""
+        strategy = AccumulationDistributionStrategy(signal_period=21)
+        dates = pd.date_range(start="2023-01-01", periods=50, freq="D")
+        close = [100 + i * 0.5 for i in range(50)]
+        high = [c + 1 for c in close]
+        low = [c - 1 for c in close]
+        volume = [1000] * 50
+        close[-2] = float("nan")
+        high[-2] = float("nan")
+        low[-2] = float("nan")
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": volume},
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
 
 class TestAwesomeOscillatorStrategy:
     """Tests for AwesomeOscillatorStrategy."""
