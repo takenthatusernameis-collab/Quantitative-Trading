@@ -449,6 +449,11 @@ backtest:
   initial_capital: abc
 $ python examples/cli.py --config /tmp/cfg.yaml --offline --symbols AAPL --days 30
 Error: invalid config field BacktestConfig.initial_capital: expected <class 'float'>, got str ('abc')
+
+$ cat /tmp/broken.yaml
+backtest: {initial_capital: 100.0
+$ python examples/cli.py --config /tmp/broken.yaml --offline --symbols AAPL --days 30
+Error: Invalid YAML in /tmp/broken.yaml: ...
 ```
 
 The same holds for a missing `--strategy-config` file, a `--output` path whose
