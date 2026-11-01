@@ -74,3 +74,17 @@ def test_incremental_update_path_is_reached():
     assert [(sig.action, pytest.approx(sig.strength)) for sig in second] == [
         (sig.action, pytest.approx(sig.strength)) for sig in expected
     ]
+
+
+def test_incremental_slow_window_still_growing_branch():
+    # Force the incremental path's "window still growing" else-branch for the
+    # slow moving average by making the prior state look one bar shorter than
+    # the slow window, while keeping the sums consistent.
+    prices = [1.0, 2.0, 3.0, 4.0, 5.0]
+    s = MovingAverageCrossover(fast_period=3, slow_period=5)
+    s.generate_signals({"AAPL": _df(prices)})
+    assert s._ma_state["AAPL"]["n"] == 5
+    s._ma_state["AAPL"]["n"] = 4
+    out = s.generate_signals({"AAPL": _df(prices)})
+    assert isinstance(out, list)
+    assert s._ma_state["AAPL"]["n"] == 5
