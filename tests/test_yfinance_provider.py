@@ -30,6 +30,8 @@ class FakeTicker:
         self.info = {"currency": "USD", "exchange": "NMS"}
 
     def history(self, start=None, end=None, interval="1d"):
+        FakeTicker.last_history_kwargs = {"start": start, "end": end, "interval": interval}
+        FakeTicker.history_call_count = getattr(FakeTicker, "history_call_count", 0) + 1
         if self.symbol == "EMPTY":
             return pd.DataFrame()
         if self.symbol == "BAD":
@@ -154,9 +156,8 @@ def test_fetch_with_dates_and_interval(tmp_path):
     res = p.fetch(["AAPL"], start=start, end=end, interval="1h")
     assert "AAPL" in res.data
     # Verify history called with correct params
-    ticker = p._yf.Ticker.return_value
-    ticker.history.assert_called_once()
-    call_kwargs = ticker.history.call_args.kwargs
+    assert FakeTicker.history_call_count >= 1
+    call_kwargs = FakeTicker.last_history_kwargs
     assert call_kwargs.get("start") == start
     assert call_kwargs.get("end") == end
     assert call_kwargs.get("interval") == "1h"

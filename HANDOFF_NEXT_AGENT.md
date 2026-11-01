@@ -1,23 +1,19 @@
 # Handoff for Next Agent — 2026-11-01
 
 ## 1. What changed
-- No source code changes in this session.
-- Confirmed previous commits applied: synthetic tests added (`tests/test_synthetic.py`) and optimization tests fixed to use fixed dates to avoid DST issues.
+- Fixed offline unit test `test_fetch_with_dates_and_interval` in `tests/test_yfinance_provider.py` (tracked yfinance `Ticker.history` call args via `FakeTicker` instead of an unrelated MagicMock `return_value`).
 
 ## 2. What was actually verified
 - `python -m ruff check .`: All checks passed.
 - `python -m mypy quant_trading`: Success (no issues found).
-- `python -m pytest -q --import-mode=importlib tests/test_synthetic.py`: 9 passed.
-- `python -m pytest -q --import-mode=importlib tests/test_optimization.py`: 116 passed.
-- Full suite (`--import-mode=importlib -m "not slow"`): 2450 passed, 44 skipped, 124 deselected.
+- `python -m pytest -q --import-mode=importlib tests/test_yfinance_provider.py`: 19 passed.
 
 ## 3. What remains unresolved
 - 5 third-party Pandas4Warning warnings remain cosmetic (yfinance/pandas).
-- Network-gated README CLI tests skipped offline (44 skips).
-- No known failing tests in the non-slow suite.
+- Network-gated README CLI tests skipped offline.
 
 ## 4. Approaches that failed and why
-- None.
+- Asserting on `p._yf.Ticker.return_value.history` failed because `_fake_yf` uses `side_effect` returning real `FakeTicker` instances, so the mock's `return_value` was never invoked.
 
 ## 5. One precise next task
-- Add unit tests for `quant_trading/data/yfinance_provider.py` (currently no direct test file). Focus on offline/mocked behavior (yfinance calls should be mocked), error handling for missing/invalid symbols, and data normalization to OHLCV. Constraints: no network calls; use existing test patterns (see `tests/test_data_providers.py`); run with `--import-mode=importlib -q`.
+- Extend `tests/test_yfinance_provider.py` with mocked coverage for `fetch_many`/`_parse_download` normalization and error handling for missing/invalid symbols, using existing patterns; run with `--import-mode=importlib -q`.
