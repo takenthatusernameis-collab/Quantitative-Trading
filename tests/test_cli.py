@@ -2487,6 +2487,12 @@ class TestSaveStrategyConfig:
         out = tmp_path / "best.yaml"
         args = self._make_args(optimize=True, output_strategy_config=str(out), days=120)
         config = Config()
+        # Run offline against synthetic data so the test does not require the
+        # yfinance dependency (or live network access) to be available.
+        config.data.provider = "synthetic"
+        config.data.offline = True
+        config.data.synthetic_days = 120
+        config.data.synthetic_seed = 42
         from datetime import datetime, timedelta
 
         end_date = datetime.now()
@@ -2520,6 +2526,12 @@ class TestSaveStrategyConfig:
             n_jobs=1,
         )
         config = Config()
+        # Run offline against synthetic data so the test does not require the
+        # yfinance dependency (or live network access) to be available.
+        config.data.provider = "synthetic"
+        config.data.offline = True
+        config.data.synthetic_days = 120
+        config.data.synthetic_seed = 42
         from datetime import datetime, timedelta
 
         end_date = datetime.now()
