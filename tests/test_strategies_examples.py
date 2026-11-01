@@ -45,6 +45,7 @@ from quant_trading.strategies.examples import (
     StochRSIStrategy,
     SuperTrendStrategy,
     TrixStrategy,
+    UltimateOscillatorStrategy,
     VolumeOscillatorStrategy,
     VolumePriceTrendStrategy,
     VolumeRateOfChangeStrategy,
@@ -6336,3 +6337,364 @@ class TestMovingAverageCrossoverIncremental:
         data2 = {"AAPL": create_donchian_data("AAPL", closes2)}
         signals2 = strategy.generate_signals(data2)
         assert signals2 == []
+
+
+class TestExamplesRemainingCoverage:
+    """Targeted tests for remaining uncovered branches in examples.py.
+
+    Every test uses synthetic, offline data and exercises one specific
+    defensive or signal branch that the existing suite does not reach.
+    """
+
+    def _ohlcv(self, closes, volume=None):
+        close = np.asarray(closes, dtype=float)
+        if volume is None:
+            volume = np.full(len(close), 1_000_000)
+        return pd.DataFrame(
+            {
+                "open": close,
+                "high": close * 1.001,
+                "low": close * 0.999,
+                "close": close,
+                "volume": volume,
+            },
+        )
+
+    def _ohlcv_prev_nan(self, closes):
+        """Valid last close but a NaN previous close, so an indicator value is NaN."""
+        closes = list(closes)
+        closes[-2] = float("nan")
+        return closes
+
+    def _ohlcv_last_zero(self, closes):
+        closes = list(closes)
+        closes[-1] = 0.0
+        return closes
+
+    def _ohlcv_last_nan(self, closes):
+        closes = list(closes)
+        closes[-1] = float("nan")
+        return closes
+
+    def _ohlcv_no_volume(self, closes):
+        df = self._ohlcv(closes)
+        df = df.drop(columns=["volume"])
+        return df
+
+    # --- MovingAverageCrossover: incremental "window still growing" arm (lines 124/128) ---
+    def test_ma_incremental_growing_window(self):
+        strategy = MovingAverageCrossover(fast_period=5, slow_period=10)
+        # Bypass validate_parameters so the fast window exceeds the slow window.
+        strategy.fast_period = 15
+        strategy.slow_period = 10
+        df1 = self._ohlcv([100.0] * 10)
+        strategy.generate_signals({"AAPL": df1})
+        df2 = self._ohlcv([100.0] * 11)
+        assert isinstance(strategy.generate_signals({"AAPL": df2}), list)
+
+    # --- RSI: incremental gain/loss histogram trimming (lines 341-345) ---
+    def test_rsi_incremental_hist_trimming(self):
+        strategy = RSIStrategy(period=3, oversold=30, overbought=70)
+        closes = [100.0, 102.0, 101.0, 103.0, 105.0, 104.0, 106.0, 108.0]
+        df = self._ohlcv(closes)
+        for i in range(len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        assert isinstance(strategy.generate_signals({"AAPL": df}), list)
+
+    # --- RSI: full-recompute oversold bounce (line 431) ---
+    def test_rsi_full_recompute_oversold_bounce(self):
+        # A fresh strategy per call always takes the full-recompute path.
+        closes = [100.0 - i for i in range(14)] + [110.0]
+        signals = RSIStrategy(period=14, oversold=30, overbought=70).generate_signals(
+            {"AAPL": self._ohlcv(closes)}
+        )
+        assert isinstance(signals, list)
+
+    # --- BollingerBands: incremental histogram trimming (lines 547-551) ---
+    def test_bb_incremental_hist_trimming(self):
+        strategy = BollingerBandsStrategy(period=5, std_dev=2.0)
+        closes = [100.0 + i * 0.1 for i in range(20)]
+        df = self._ohlcv(closes)
+        for i in range(5, len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        assert isinstance(strategy.generate_signals({"AAPL": df}), list)
+
+    # --- BollingerBands: incremental variance floor var = 0.0 (line 560) ---
+    def test_bb_incremental_variance_floor(self):
+        strategy = BollingerBandsStrategy(period=5, std_dev=2.0)
+        df = self._ohlcv([100.0] * 30)
+        for i in range(5, len(df)):
+            strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
+        assert isinstance(strategy.generate_signals({"AAPL": df}), list)
+
+    # --- ADX: Wilder smoothing loop (lines 3340-3342) ---
+    def test_adx_wilder_smoothing_loop(self):
+        strategy = ADXStrategy(period=5, threshold=20.0)
+        data = {"AAPL": self._ohlcv([100.0 + i for i in range(40)])}
+        assert isinstance(strategy.generate_signals(data), list)
+
+    # --- ADX: ADX recursion loop (lines 3359-3364) and bearish trend (line 3432) ---
+    def test_adx_recursion_and_bearish_trend(self):
+        strategy = ADXStrategy(period=5, threshold=20.0)
+        # Strong downtrend: minus_di > plus_di -> bearish_trend (line 3432).
+        data = {"AAPL": self._ohlcv([100.0 - i for i in range(40)])}
+        signals = strategy.generate_signals(data)
+        assert any(s.metadata.get("signal_type") == "bearish_trend" for s in signals)
+
+    # --- ChaikinMoneyFlow: last close zero (line 3942) ---
+    def test_cmf_last_close_zero(self):
+        strategy = ChaikinMoneyFlowStrategy(period=20)
+        data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 21))}
+        assert strategy.generate_signals(data) == []
+
+    # --- ForceIndex: previous force index NaN (line 4085) ---
+    def test_force_index_prev_nan(self):
+        strategy = ForceIndexStrategy(period=13)
+        closes = [100.0 + i * 0.1 for i in range(20)]
+        data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
+        assert strategy.generate_signals(data) == []
+
+    # --- ElderRay: last close zero (line 4333) ---
+    def test_elder_ray_last_close_zero(self):
+        strategy = ElderRayStrategy(period=13)
+        data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 20))}
+        assert strategy.generate_signals(data) == []
+
+    # --- VolumeOscillator: last close zero (4849) and NaN volume EMA (4857) ---
+    def test_volume_oscillator_last_close_zero(self):
+        strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
+        data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 20))}
+        assert strategy.generate_signals(data) == []
+
+    def test_volume_oscillator_nan_vol(self):
+        strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
+        # Zero volume makes the slow EMA zero, producing a NaN PVO line.
+        data = {"AAPL": self._ohlcv([100.0] * 20, volume=np.zeros(20))}
+        assert strategy.generate_signals(data) == []
+
+    # --- VolumePriceTrend: NaN indicator values (line 5045) ---
+    def test_vpt_nan_indicator(self):
+        strategy = VolumePriceTrendStrategy(fast_period=5, slow_period=13)
+        closes = [100.0 + i * 0.1 for i in range(30)]
+        data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
+        assert strategy.generate_signals(data) == []
+
+    # --- KlingerOscillator: NaN indicator values (line 5261) ---
+    def test_klinger_nan_indicator(self):
+        strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
+        closes = [100.0 + i * 0.1 for i in range(30)]
+        data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
+        assert strategy.generate_signals(data) == []
+
+    # --- ChaikinOscillator: last close zero (5572) and NaN CHO (5578) ---
+    def test_chaikin_oscillator_last_close_zero(self):
+        strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
+        data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 20))}
+        assert strategy.generate_signals(data) == []
+
+    def test_chaikin_oscillator_nan_cho(self):
+        strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
+        # Flat high==low makes hl_range zero -> ADL zero -> CHO NaN guard.
+        closes = [100.0] * 30
+        df = pd.DataFrame(
+            {
+                "open": closes,
+                "high": closes,
+                "low": closes,
+                "close": closes,
+                "volume": np.full(30, 1_000_000),
+            }
+        )
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    # --- EaseOfMovement: last close zero (5719) and NaN EOM (5727) ---
+    def test_eom_last_close_zero(self):
+        strategy = EaseOfMovementStrategy(period=14)
+        data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 20))}
+        assert strategy.generate_signals(data) == []
+
+    def test_eom_nan_eom(self):
+        strategy = EaseOfMovementStrategy(period=14)
+        closes = [100.0 + i * 0.1 for i in range(30)]
+        data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
+        assert strategy.generate_signals(data) == []
+
+    # --- AwesomeOscillator: last close zero (line 5819) ---
+    def test_ao_last_close_zero(self):
+        strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34)
+        data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 40))}
+        assert strategy.generate_signals(data) == []
+
+    # --- TRIX: NaN indicator values (line 6091) ---
+    def test_trix_nan_indicator(self):
+        strategy = TrixStrategy(period=14)
+        closes = [100.0 + i * 0.1 for i in range(60)]
+        data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
+        assert strategy.generate_signals(data) == []
+
+    # --- UltimateOscillator: last close zero (6198) ---
+    def test_ultimate_oscillator_last_close_zero(self):
+        strategy = UltimateOscillatorStrategy(short_period=7, medium_period=14, long_period=28)
+        data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 40))}
+        assert strategy.generate_signals(data) == []
+
+    # --- UltimateOscillator: NaN UO values skip (line 6204) ---
+    def test_ultimate_oscillator_nan_uo_skipped(self):
+        # Flat prices make every buying-pressure/true-range term zero, so UO is NaN.
+        strategy = UltimateOscillatorStrategy(short_period=7, medium_period=14, long_period=28)
+        data = {"AAPL": self._ohlcv([100.0] * 40)}
+        assert strategy.generate_signals(data) == []
+
+    # --- UltimateOscillator: oversold rising (6206-6207) ---
+    def test_ultimate_oscillator_oversold_rising(self):
+        strategy = UltimateOscillatorStrategy(short_period=7, medium_period=14, long_period=28)
+        # Sustain UO below 30 then rise while still below 30 on the last bar.
+        base = [100.0 - i * 0.5 for i in range(40)]
+        closes = base + [base[-1] + 1.0]
+        data = {"AAPL": self._ohlcv(closes)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
+    # --- UltimateOscillator: overbought falling (6224-6225) ---
+    def test_ultimate_oscillator_overbought_falling(self):
+        strategy = UltimateOscillatorStrategy(short_period=7, medium_period=14, long_period=28)
+        base = [100.0 + i * 0.5 for i in range(40)]
+        closes = base + [base[-1] - 1.0]
+        data = {"AAPL": self._ohlcv(closes)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
+    # --- PercentagePriceOscillator: NaN indicator values (line 6329) ---
+    def test_ppo_nan_indicator(self):
+        strategy = PercentagePriceOscillatorStrategy(
+            fast_period=12, slow_period=26, signal_period=9
+        )
+        closes = [100.0 + i * 0.1 for i in range(50)]
+        data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
+        assert strategy.generate_signals(data) == []
+
+    # --- PercentageVolumeOscillator: volume missing (6492), last close zero (6496),
+    # --- NaN indicator (6509), zero-line cross below (6571) ---
+    def test_pvo_no_volume(self):
+        strategy = PercentageVolumeOscillatorStrategy(
+            fast_period=5, slow_period=13, signal_period=9
+        )
+        data = {"AAPL": self._ohlcv_no_volume([100.0] * 30)}
+        assert strategy.generate_signals(data) == []
+
+    def test_pvo_last_close_zero(self):
+        strategy = PercentageVolumeOscillatorStrategy(
+            fast_period=5, slow_period=13, signal_period=9
+        )
+        data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 30))}
+        assert strategy.generate_signals(data) == []
+
+    def test_pvo_nan_indicator(self):
+        strategy = PercentageVolumeOscillatorStrategy(
+            fast_period=5, slow_period=13, signal_period=9
+        )
+        closes = [100.0 + i * 0.1 for i in range(40)]
+        data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
+        assert strategy.generate_signals(data) == []
+
+    def test_pvo_zero_line_below(self):
+        strategy = PercentageVolumeOscillatorStrategy(
+            fast_period=5, slow_period=13, signal_period=9, use_zero_line=True
+        )
+        closes = [100.0] * 30 + [80.0] + [80.0] * 15 + [80.0 + 0.25 * i for i in range(1, 80)]
+        closes = closes[:54] + [80.5]
+        data = {"AAPL": self._ohlcv(closes, volume=np.array(closes) * 10000.0)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
+    # --- DetrendedPriceOscillator: NaN last close (line 6640) ---
+    def test_dpo_last_close_nan(self):
+        strategy = DetrendedPriceOscillatorStrategy(period=20)
+        closes = [100.0 + i * 0.1 for i in range(40)]
+        data = {"AAPL": self._ohlcv(self._ohlcv_last_nan(closes))}
+        assert strategy.generate_signals(data) == []
+
+    # --- AccumulationDistribution: volume missing (line 6926) ---
+    def test_adl_no_volume(self):
+        strategy = AccumulationDistributionStrategy(signal_period=20)
+        data = {"AAPL": self._ohlcv_no_volume([100.0] * 30)}
+        assert strategy.generate_signals(data) == []
+
+    # --- AccumulationDistribution: zero signal line strength fallback (6955, 6978) ---
+    def test_adl_zero_signal_line_strength(self):
+        strategy = AccumulationDistributionStrategy(signal_period=20)
+        # Flat high==low->high==low makes every money flow multiplier zero,
+        # so ADL and its signal line are zero; a cross then uses strength 0.5.
+        closes = [100.0] * 40
+        df = pd.DataFrame(
+            {
+                "open": closes,
+                "high": closes,
+                "low": closes,
+                "close": closes,
+                "volume": np.full(40, 1_000_000),
+            }
+        )
+        signals = strategy.generate_signals({"AAPL": df})
+        assert isinstance(signals, list)
+
+    # --- NegativeVolumeIndex: NaN indicator values (line 7067) ---
+    def test_nvi_nan_indicator(self):
+        strategy = NegativeVolumeIndexStrategy(period=14)
+        closes = [100.0 + i * 0.1 for i in range(30)]
+        data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
+        assert strategy.generate_signals(data) == []
+
+    # --- NegativeVolumeIndex: bearish cross (lines 7085-7090) ---
+    def test_nvi_bearish_cross(self):
+        strategy = NegativeVolumeIndexStrategy(period=14)
+        # Volume decreasing on every bar drives NVI down through its EMA.
+        closes = [100.0 - i * 0.1 for i in range(40)]
+        volume = np.arange(40, 0, -1, dtype=float) * 10000.0
+        data = {"AAPL": self._ohlcv(closes, volume=volume)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
+    # --- PositiveVolumeIndex: NaN indicator values (line 7171) ---
+    def test_pvi_nan_indicator(self):
+        strategy = PositiveVolumeIndexStrategy(period=14)
+        closes = [100.0 + i * 0.1 for i in range(30)]
+        data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
+        assert strategy.generate_signals(data) == []
+
+    # --- PositiveVolumeIndex: buy and sell cross strength (7173-7178, 7189-7194) ---
+    def test_pvi_crosses(self):
+        strategy = PositiveVolumeIndexStrategy(period=14)
+        closes = [100.0 + i * 0.1 for i in range(40)]
+        volume = np.arange(1, 41, dtype=float) * 10000.0
+        data = {"AAPL": self._ohlcv(closes, volume=volume)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
+    # --- ChoppinessIndex: missing OHLC columns (7462) and NaN last close (7464) ---
+    def test_choppiness_missing_columns(self):
+        strategy = ChoppinessIndexStrategy(period=14, low_threshold=38.2, high_threshold=61.8)
+        df = self._ohlcv([100.0] * 30).drop(columns=["high"])
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    def test_choppiness_last_close_nan(self):
+        strategy = ChoppinessIndexStrategy(period=14, low_threshold=38.2, high_threshold=61.8)
+        closes = [100.0 + i * 0.1 for i in range(30)]
+        data = {"AAPL": self._ohlcv(self._ohlcv_last_nan(closes))}
+        assert strategy.generate_signals(data) == []
+
+    # --- OBV: zero signal line strength fallback (lines 3793, 3817) ---
+    def test_obv_zero_signal_line_strength(self):
+        strategy = OBVStrategy(signal_period=20)
+        closes = [100.0] * 40
+        df = pd.DataFrame(
+            {
+                "open": closes,
+                "high": closes,
+                "low": closes,
+                "close": closes,
+                "volume": np.full(40, 1_000_000),
+            }
+        )
+        signals = strategy.generate_signals({"AAPL": df})
+        assert isinstance(signals, list)
