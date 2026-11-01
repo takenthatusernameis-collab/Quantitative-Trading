@@ -6128,3 +6128,55 @@ class TestPercentageVolumeOscillatorStrategy:
             )
         }
         assert strategy.generate_signals(data) == []
+
+
+class TestMovingAverageCrossoverIncremental:
+    """Tests for MovingAverageCrossover incremental update path."""
+
+    def test_incremental_path_golden_cross(self):
+        strategy = MovingAverageCrossover(fast_period=5, slow_period=15)
+        # First call initializes state
+        closes1 = [100.0] * 15 + [50.0] * 5  # ends below, no cross yet
+        data1 = {"AAPL": create_donchian_data("AAPL", closes1)}
+        signals1 = strategy.generate_signals(data1)
+        assert isinstance(signals1, list)
+        # Second call with one more bar added triggers crossover
+        closes2 = closes1 + [300.0]
+        data2 = {"AAPL": create_donchian_data("AAPL", closes2)}
+        signals2 = strategy.generate_signals(data2)
+        assert len(signals2) == 1
+        assert signals2[0].action == "buy"
+        assert signals2[0].metadata["crossover_type"] == "golden_cross"
+
+    def test_incremental_path_death_cross(self):
+        strategy = MovingAverageCrossover(fast_period=5, slow_period=15)
+        closes1 = [100.0] * 15 + [200.0] * 20
+        data1 = {"AAPL": create_donchian_data("AAPL", closes1)}
+        strategy.generate_signals(data1)
+        closes2 = closes1 + [50.0]
+        data2 = {"AAPL": create_donchian_data("AAPL", closes2)}
+        signals2 = strategy.generate_signals(data2)
+        assert len(signals2) == 1
+        assert signals2[0].action == "sell"
+        assert signals2[0].metadata["crossover_type"] == "death_cross"
+
+    def test_incremental_path_window_still_growing_fast(self):
+        strategy = MovingAverageCrossover(fast_period=10, slow_period=20)
+        # Build up gradually
+        closes1 = [100.0] * 5
+        data1 = {"AAPL": create_donchian_data("AAPL", closes1)}
+        strategy.generate_signals(data1)
+        closes2 = [100.0] * 6
+        data2 = {"AAPL": create_donchian_data("AAPL", closes2)}
+        signals2 = strategy.generate_signals(data2)
+        assert isinstance(signals2, list)
+
+    def test_incremental_path_nan_current_price_skipped(self):
+        strategy = MovingAverageCrossover(fast_period=5, slow_period=15)
+        closes1 = [100.0] * 15 + [50.0] * 5
+        data1 = {"AAPL": create_donchian_data("AAPL", closes1)}
+        strategy.generate_signals(data1)
+        closes2 = (closes1 + [300.0])[:-1] + [float("nan")]
+        data2 = {"AAPL": create_donchian_data("AAPL", closes2)}
+        signals2 = strategy.generate_signals(data2)
+        assert signals2 == []
