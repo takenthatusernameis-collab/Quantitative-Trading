@@ -768,6 +768,21 @@ class TestRSIStrategy:
         assert signal.metadata["signal_type"] == "oversold_bounce"
         assert signal.metadata["rsi"] == pytest.approx(50.0)
 
+    def test_generate_signals_oversold_crossover_buy_full_compute(self):
+        """Test generate_signals detects oversold crossover (buy signal) via full compute path."""
+        strategy = RSIStrategy(period=2, oversold=30, overbought=70)
+        closes = [100.0, 99, 98, 97, 96, 95, 94, 93, 92, 91, 90, 91]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.price == pytest.approx(91.0)
+        assert signal.metadata["signal_type"] == "oversold_bounce"
+        assert signal.metadata["rsi"] == pytest.approx(50.0)
+
     def test_generate_signals_insufficient_data(self):
         """Test generate_signals with insufficient data."""
         strategy = RSIStrategy(period=14)
