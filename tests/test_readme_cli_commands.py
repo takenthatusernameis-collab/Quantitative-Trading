@@ -234,3 +234,38 @@ class TestExplicitCombinedAndStrategyConfigErrors:
         assert rc == 1
         assert "Traceback" not in output.getvalue()
         assert "could not read strategy config" in output.getvalue()
+
+    def test_invalid_yaml_config_file_reported(self, tmp_path):
+        """A config file that is not valid YAML is reported as a one-line error.
+
+        The README's "Error Reporting" section documents that a configuration
+        file that is not valid YAML is reported the same way as a missing one
+        (exit code 1, no traceback). This test keeps that documentation in sync
+        with the CLI behavior.
+        """
+        import contextlib
+        import io
+        import os
+        import sys
+        from pathlib import Path
+
+        broken = tmp_path / "broken.yaml"
+        broken.write_text("backtest: {initial_capital: 100.0\n")
+        old_cwd = Path.cwd()
+        old_argv = sys.argv
+        output = io.StringIO()
+        try:
+            os.chdir(tmp_path)
+            sys.argv = ["cli.py", "--config", str(broken), "--offline", "--symbols", "AAPL", "--days", "30"]
+            with contextlib.redirect_stdout(output):
+                try:
+                    rc = main()
+                except SystemExit as exc:
+                    rc = exc.code if isinstance(exc.code, int) else 1
+        finally:
+            os.chdir(old_cwd)
+            sys.argv = old_argv
+        out = output.getvalue()
+        assert rc == 1
+        assert "Traceback" not in out
+        assert "Invalid YAML" in out
