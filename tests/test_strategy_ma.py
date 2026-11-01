@@ -36,6 +36,16 @@ def test_validate_params():
         MovingAverageCrossover(fast_period=20, slow_period=10)
 
 
+def test_validate_slow_period_must_be_positive():
+    # slow_period <= 0 is unreachable via the constructor because
+    # fast_period >= slow_period is checked first, so call validate_parameters
+    # directly after mutating the attribute to cover that defensive branch.
+    s = MovingAverageCrossover(fast_period=3, slow_period=5)
+    s.slow_period = 0
+    with pytest.raises(ValueError, match="slow_period must be positive"):
+        s.validate_parameters()
+
+
 def test_insufficient_data():
     s = MovingAverageCrossover(fast_period=2, slow_period=4)
     assert s.generate_signals({"AAPL": _df([1.0, 2.0, 3.0])}) == []
