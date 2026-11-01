@@ -176,3 +176,37 @@ class TestReadmeCliCommands:
                 + "`\noutput:\n"
                 + output
             )
+
+
+class TestExplicitCombinedAndStrategyConfigErrors:
+    def test_combined_mc_simulations_zero(self, tmp_path):
+        rc, output = _run_cli(
+            ["--combined", "--offline", "--mc-simulations", "0"], tmp_path
+        )
+        assert rc == 1
+        assert "Traceback" not in output
+        assert "error" in output.lower()
+
+    def test_missing_strategy_config_file(self, tmp_path):
+        import contextlib
+        import io
+        import os
+        import sys
+        from pathlib import Path
+        old_cwd = Path.cwd()
+        old_argv = sys.argv
+        output = io.StringIO()
+        try:
+            os.chdir(tmp_path)
+            sys.argv = ["cli.py", "--offline", "--strategy-config", "missing.yaml"]
+            with contextlib.redirect_stdout(output):
+                try:
+                    rc = main()
+                except SystemExit as exc:
+                    rc = exc.code if isinstance(exc.code, int) else 1
+        finally:
+            os.chdir(old_cwd)
+            sys.argv = old_argv
+        assert rc == 1
+        assert "Traceback" not in output.getvalue()
+        assert "could not read strategy config" in output.getvalue()
