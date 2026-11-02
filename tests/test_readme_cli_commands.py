@@ -28,6 +28,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.network
+
 from examples.cli import main
 
 README_PATH = Path(__file__).resolve().parent.parent / "README.md"

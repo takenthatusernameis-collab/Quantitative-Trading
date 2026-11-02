@@ -40,8 +40,11 @@ include = ["quant_trading*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "quant_trading"]
-addopts = "--doctest-modules -m \"not slow\""
-markers = ["slow: marks tests as slow (smoke/subprocess); deselect with -m \"not slow\""]
+addopts = "--doctest-modules -m \"not slow and not network\""
+markers = [
+    "slow: marks tests as slow (smoke/subprocess); deselect with -m \"not slow\"",
+    "network: marks tests that require network access (yfinance/alphavantage); deselect with -m \"not network\"",
+]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
