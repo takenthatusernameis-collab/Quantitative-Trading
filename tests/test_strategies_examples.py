@@ -5270,6 +5270,31 @@ class TestNegativeVolumeIndexStrategy:
         assert signals[0].metadata["nvi"] == pytest.approx(990.0)
         assert signals[0].metadata["ema"] == pytest.approx(996.6666666666667)
 
+    def test_generate_signals_nvi_nan_propagates_to_ema(self):
+        """NaN previous close with decreasing volume makes NVI/ema NaN (line 7067)."""
+        strategy = NegativeVolumeIndexStrategy(period=5)
+        closes = [100.0, 100.0, 100.0, 100.0, 100.0, float("nan"), 100.0]
+        volumes = [7000.0, 6000.0, 5000.0, 4000.0, 3000.0, 2000.0, 1000.0]
+        data = {"AAPL": create_negative_volume_index_data("AAPL", closes, volumes)}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_nvi_zero_last_close(self):
+        """Zero last close is skipped before NVI calculation (line 7052)."""
+        strategy = NegativeVolumeIndexStrategy(period=5)
+        closes = [100.0] * 6 + [0.0]
+        volumes = [1000.0] * 7
+        data = {"AAPL": create_negative_volume_index_data("AAPL", closes, volumes)}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_nvi_zero_previous_close(self):
+        """Zero previous close takes the unchanged-NVI branch (line 7042)."""
+        strategy = NegativeVolumeIndexStrategy(period=5)
+        closes = [100.0, 0.0, 100.0, 100.0, 100.0, 100.0, 100.0]
+        volumes = [7000.0, 6000.0, 5000.0, 4000.0, 3000.0, 2000.0, 1000.0]
+        data = {"AAPL": create_negative_volume_index_data("AAPL", closes, volumes)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
 
 def create_positive_volume_index_data(
     symbol: str, closes: list[float], volumes: list[float]
