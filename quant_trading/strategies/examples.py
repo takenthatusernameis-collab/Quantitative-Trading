@@ -7478,7 +7478,9 @@ class ChoppinessIndexStrategy(Strategy):
                 if self.low_threshold == 0:
                     strength = 0.5
                 else:
-                    strength = min(1.0, (self.low_threshold - current_chop) / self.low_threshold + 0.5)
+                    strength = min(
+                        1.0, (self.low_threshold - current_chop) / self.low_threshold + 0.5
+                    )
                 signals.append(
                     Signal(
                         symbol=symbol,
@@ -7499,7 +7501,8 @@ class ChoppinessIndexStrategy(Strategy):
                     strength = 0.5
                 else:
                     strength = min(
-                        1.0, (current_chop - self.high_threshold) / (100 - self.high_threshold) + 0.5
+                        1.0,
+                        (current_chop - self.high_threshold) / (100 - self.high_threshold) + 0.5,
                     )
                 signals.append(
                     Signal(
