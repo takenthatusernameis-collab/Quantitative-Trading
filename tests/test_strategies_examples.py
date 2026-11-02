@@ -3501,6 +3501,56 @@ class TestOBVStrategy:
         data = {"AAPL": create_obv_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
 
+    def test_obv_buy_cross_zero_signal_line_strength(self):
+        """Buy cross with current_signal == 0 uses the 0.5 strength fallback."""
+        strategy = OBVStrategy(signal_period=2)
+        close = np.array([100.0, 100.0, 100.0, 100.0, 99.0, 100.0], dtype=float)
+        dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
+        volume = np.full(len(close), 1_000_000.0)
+        volume[-1] = 2_000_000.0
+        df = pd.DataFrame(
+            {
+                "open": close,
+                "high": close * 1.001,
+                "low": close * 0.999,
+                "close": close,
+                "volume": volume,
+            },
+            index=dates,
+        )
+        signals = strategy.generate_signals({"AAPL": df})
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "buy"
+        assert signal.strength == pytest.approx(0.5)
+        assert signal.metadata["signal_type"] == "obv_cross_above"
+        assert signal.metadata["signal_line"] == pytest.approx(0.0)
+
+    def test_obv_sell_cross_zero_signal_line_strength(self):
+        """Sell cross with current_signal == 0 uses the 0.5 strength fallback."""
+        strategy = OBVStrategy(signal_period=2)
+        close = np.array([100.0, 100.0, 100.0, 100.0, 101.0, 99.0], dtype=float)
+        dates = pd.date_range(end=datetime.now(), periods=len(close), freq="D")
+        volume = np.full(len(close), 1_000_000.0)
+        volume[-1] = 2_000_000.0
+        df = pd.DataFrame(
+            {
+                "open": close,
+                "high": close * 1.001,
+                "low": close * 0.999,
+                "close": close,
+                "volume": volume,
+            },
+            index=dates,
+        )
+        signals = strategy.generate_signals({"AAPL": df})
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "sell"
+        assert signal.strength == pytest.approx(0.5)
+        assert signal.metadata["signal_type"] == "obv_cross_below"
+        assert signal.metadata["signal_line"] == pytest.approx(0.0)
+
 
 def create_cmf_data(symbol: str, bars: list[tuple[float, float, float]]) -> pd.DataFrame:
     """Create deterministic OHLCV data for CMF tests.

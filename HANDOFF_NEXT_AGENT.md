@@ -35,3 +35,16 @@
 - Tests: `PYTHONPATH=/home/runner/work/Quantitative-Trading/Quantitative-Trading python -m pytest tests/test_strategies_examples.py -q` -> 494 passed.
 - Lint: `python -m ruff check .` -> all checks passed (verified in previous state; no new lint errors introduced).
 - Remaining: coverage gaps remain in quant_trading/strategies/examples.py (large file). Next step: run coverage on examples.py to identify specific uncovered lines/branches and add minimal targeted tests for one bounded gap.
+
+## Update — 2026-11-02 (Session 3)
+- Added two tests in tests/test_strategies_examples.py (TestOBVStrategy) covering the `current_signal == 0` strength fallback branches at examples.py:3793 (buy cross) and :3817 (sell cross):
+  - test_obv_buy_cross_zero_signal_line_strength
+  - test_obv_sell_cross_zero_signal_line_strength
+- Construction: signal_period=2; OBV last three values [0, -x, x] (buy) / [0, x, -x] (sell) so the rolling signal-line mean is exactly 0 at the cross bar, triggering the `strength = 0.5` fallback.
+- Tests: `python -m pytest tests/test_strategies_examples.py -q` -> 496 passed (was 494; +2 new).
+- Coverage: `coverage report --include="quant_trading/strategies/examples.py" -m` -> statement misses 70 -> 68, branch partials 56 -> 54; lines 3793 and 3817 removed from missing list (96% overall).
+- Lint: `python -m ruff check .` -> all checks passed.
+- Remaining uncovered examples.py lines/branches (per latest coverage report): 128, 341->345, 369, 547->551, 783->731, 3336->3342, 3359->3364, 3401, 3432->3384, 4085, 4089-4090, 4106-4107, 4343-4344, 4358->4327, 4425-4426, 4440->4411, 4718->4683, 4842, 5020, 5045, 5236, 5261, 5578, 5580-5581, 5597-5598, 5727, 5827-5828, 5844-5845, 6091, 6093-6094, 6109-6110, 6204, 6329, 6332-6333, 6352-6353, 6509, 6571->6488, 6648-6649, 6664-6665, 6949-6956, 6972-6979, 7067, 7085-7090, 7171, 7173-7178, 7189-7194, 7263, 7265, 7267, 7315-7316, 7331-7332, 7363->7300, 7479, 7499. Map each line to its strategy class via `grep -n "^class " quant_trading/strategies/examples.py` before writing tests.
+
+## One precise next task
+- Run `python -m coverage run --branch --source=quant_trading -m pytest tests/test_strategies_examples.py -q` then `python -m coverage report --include="quant_trading/strategies/examples.py" -m` to refresh the gap list. Pick ONE bounded uncovered strategy area (e.g. a single class with few uncovered lines such as RateOfChangeStrategy around lines 4425-4440, or TrixStrategy around 6091-6110), add minimal targeted tests to hit those branches, verify with pytest + ruff, and prepare the next handoff. Do not commit unless asked.
