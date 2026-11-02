@@ -6181,6 +6181,46 @@ class TestAccumulationDistributionStrategy:
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
 
+    def test_generate_signals_adl_buy_cross_signal_line_zero(self):
+        """ADL crosses above signal line at zero uses strength 0.5."""
+        strategy = AccumulationDistributionStrategy(signal_period=2)
+        dates = pd.date_range(start="2023-01-01", periods=3, freq="D")
+        close = [100.0, 100.0, 101.0]
+        high = [100.0, 101.0, 101.0]
+        low = [100.0, 100.0, 100.0]
+        volume = [0.0, 5.0, 10.0]
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": volume},
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "buy"
+        assert signals[0].strength == 0.5
+        assert signals[0].metadata["signal_type"] == "adl_cross_above"
+
+    def test_generate_signals_adl_sell_cross_signal_line_zero(self):
+        """ADL crosses below signal line at zero uses strength 0.5."""
+        strategy = AccumulationDistributionStrategy(signal_period=2)
+        dates = pd.date_range(start="2023-01-01", periods=3, freq="D")
+        close = [100.0, 101.0, 100.0]
+        high = [100.0, 101.0, 101.0]
+        low = [100.0, 100.0, 100.0]
+        volume = [0.0, 5.0, 10.0]
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": volume},
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].strength == 0.5
+        assert signals[0].metadata["signal_type"] == "adl_cross_below"
+
 
 class TestAwesomeOscillatorStrategy:
     """Tests for AwesomeOscillatorStrategy."""
