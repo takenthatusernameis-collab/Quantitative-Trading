@@ -6271,6 +6271,52 @@ class TestRateOfChangeStrategy:
         assert strategy.generate_signals(data) == []
 
 
+
+
+
+    def test_generate_signals_buy_cross(self):
+        """ROC crosses above zero emits a buy signal."""
+        strategy = RateOfChangeStrategy(period=2)
+        dates = pd.date_range(start="2023-01-01", periods=4, freq="D")
+        close = [100.0, 100.0, 90.0, 110.0]
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": [c + 1 for c in close],
+                    "low": [c - 1 for c in close],
+                    "close": close,
+                    "volume": [1000] * 4,
+                },
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "buy"
+        assert signals[0].metadata["signal_type"] == "roc_cross_above_zero"
+
+    def test_generate_signals_sell_cross(self):
+        """ROC crosses below zero emits a sell signal."""
+        strategy = RateOfChangeStrategy(period=2)
+        dates = pd.date_range(start="2023-01-01", periods=4, freq="D")
+        close = [100.0, 100.0, 110.0, 90.0]
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": [c + 1 for c in close],
+                    "low": [c - 1 for c in close],
+                    "close": close,
+                    "volume": [1000] * 4,
+                },
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].metadata["signal_type"] == "roc_cross_below_zero"
 class TestTrixStrategy:
     """Tests for TrixStrategy."""
 
