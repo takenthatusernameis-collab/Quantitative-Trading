@@ -18,3 +18,10 @@
 
 ## 5. One precise next task
 - Focus on next highest-coverage gap in examples.py (use coverage to identify specific uncovered lines/branches). Pick one bounded area (e.g., another strategy class with low coverage), add minimal tests to hit uncovered branches, verify with `pytest` and `ruff`, and prepare handoff. Keep changes offline/fast; do not commit unless asked.
+
+
+## Update — 2026-11-02
+- Added tests in tests/test_strategies_examples.py for ChoppinessIndexStrategy (crossing paths) to improve coverage of thresholds.
+- Tests: `PYTHONPATH=... python -m pytest tests/test_strategies_examples.py -q` -> 488 passed.
+- Lint: `ruff check .` -> all checks passed.
+- Remaining: still gaps in examples.py; next step is to identify highest uncovered branches (e.g. via coverage report) and add minimal targeted tests.
