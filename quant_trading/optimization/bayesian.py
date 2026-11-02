@@ -107,6 +107,11 @@ class BayesianOptimizer(BaseOptimizer):
     to balance exploration and exploitation.
 
     Examples:
+        >>> try:
+        ...     import skopt  # noqa
+        ... except Exception:
+        ...     import pytest
+        ...     pytest.skip("skopt not installed")
         >>> from datetime import datetime, timedelta
         >>> from quant_trading.data.providers import DataManager
         >>> from quant_trading.data.synthetic import create_synthetic_provider
