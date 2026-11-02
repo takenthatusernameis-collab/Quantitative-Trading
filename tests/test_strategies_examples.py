@@ -1394,6 +1394,27 @@ def create_stochrsi_flat_data(symbol: str, days: int = 40) -> pd.DataFrame:
     )
 
 
+def create_stochrsi_ohlcv(closes: list[float]) -> pd.DataFrame:
+    """Build an OHLCV DataFrame from an arbitrary close series.
+
+    Highs/lows are derived from the closes so the returned frame is usable
+    by any indicator that needs OHLC columns. The close series itself is
+    the only thing that matters for StochRSI signal generation.
+    """
+    closes_arr = np.asarray(closes, dtype=float)
+    dates = pd.date_range(end=datetime.now(), periods=len(closes_arr), freq="D")
+    return pd.DataFrame(  # type: ignore[no-any-return]
+        {
+            "open": closes_arr,
+            "high": closes_arr * 1.005,
+            "low": closes_arr * 0.995,
+            "close": closes_arr,
+            "volume": np.full(len(closes_arr), 1_000_000),
+        },
+        index=dates,
+    )
+
+
 class TestMACDStrategy:
     """Tests for MACDStrategy."""
 
@@ -5801,6 +5822,59 @@ class TestStochRSIStrategy:
         data = {"AAPL": create_stochrsi_flat_data("AAPL", days=40)}
         signals = strategy.generate_signals(data)
         assert signals == []
+
+    def test_generate_signals_oversold_crossover_strength_branch(self):
+        """%K crosses up through %D below the oversold threshold with a
+        non-capped strength (the ``strength = min(1.0, ...)`` expression at
+        examples.py:7315-7316 is exercised with a value strictly between 0.5
+        and 1.0 rather than the 1.0 cap)."""
+        closes = [100.0]
+        for _ in range(50):
+            closes.append(closes[-1] * 1.012)  # sustained rise -> RSI high
+        for step in [
+            0.998, 1.004, 0.997, 1.005, 0.996, 1.006, 0.995, 1.007,
+            0.994, 1.008, 0.993, 1.009, 0.992, 1.01, 0.991, 1.011,
+            0.99, 1.012, 0.989, 1.013, 0.988, 1.014,
+        ]:
+            closes.append(closes[-1] * step)
+        df = create_stochrsi_ohlcv(closes)
+        strategy = StochRSIStrategy(
+            rsi_period=14, stoch_period=14, k_period=3, d_period=3,
+            oversold=20, overbought=80, use_midline=True, name="Test_StochRSI",
+        )
+        signals = strategy.generate_signals({"AAPL": df})
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "buy"
+        assert signal.metadata["signal_type"] == "oversold_crossover"
+        assert 0.5 < signal.strength < 1.0
+
+    def test_generate_signals_overbought_crossover_strength_branch(self):
+        """%K crosses down through %D above the overbought threshold with a
+        non-capped strength (the ``strength = min(1.0, ...)`` expression at
+        examples.py:7331-7332 is exercised with a value strictly between 0.5
+        and 1.0 rather than the 1.0 cap)."""
+        closes = [100.0]
+        for _ in range(50):
+            closes.append(closes[-1] * 0.988)  # sustained decline -> RSI low
+        for step in [
+            1.001, 0.999, 1.0015, 0.9985, 1.002, 0.998, 1.0025, 0.9975,
+            1.003, 0.997, 1.0035, 0.9965, 1.004, 0.996, 1.0045, 0.9955,
+        ]:
+            closes.append(closes[-1] * step)
+        df = create_stochrsi_ohlcv(closes)
+        strategy = StochRSIStrategy(
+            rsi_period=7, stoch_period=7, k_period=3, d_period=3,
+            oversold=20, overbought=80, use_midline=True, name="Test_StochRSI",
+        )
+        signals = strategy.generate_signals({"AAPL": df})
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "sell"
+        assert signal.metadata["signal_type"] == "overbought_crossover"
+        assert 0.5 < signal.strength < 1.0
 
 
 class TestPercentagePriceOscillatorStrategy:
