@@ -2337,6 +2337,12 @@ class TestStochasticOscillatorStrategy:
         ]
         assert midline_signals == []
 
+    def test_generate_signals_trending_crossovers(self):
+        strategy = StochRSIStrategy(oversold=20, overbought=80, use_midline=True, name="Test_StochRSI")
+        data = {"AAPL": create_trending_data("AAPL", days=120)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
     def test_generate_signals_skips_nan_k_d(self):
         """Flat prices make the Stochastic %K/%D NaN, skipping signals."""
         dates = pd.date_range(end=datetime.now(), periods=30, freq="D")
