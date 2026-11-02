@@ -3721,16 +3721,28 @@ class TestForceIndexStrategy:
         assert strategy.generate_signals(data) == []
 
     def test_cross_above_zero_buy(self):
+        """Force Index crosses above zero emits a buy signal."""
         strategy = ForceIndexStrategy(period=2)
-        dates = pd.date_range("2023-01-01", periods=10)
-        # Create pattern: first give some negative FI, then cross above zero
-        closes = [100, 99, 98, 97, 96, 95, 94, 93, 95, 96]  # big jump up at end
-        volumes = [1000] * 10
-        data = {"AAPL": pd.DataFrame({"close": closes, "volume": volumes}, index=dates)}
+        dates = pd.date_range("2023-01-01", periods=6, freq="D")
+        close = [100.0, 100.0, 100.0, 100.0, 100.0, 110.0]
+        volumes = [1000.0] * 6
+        data = {"AAPL": pd.DataFrame({"close": close, "volume": volumes}, index=dates)}
         signals = strategy.generate_signals(data)
-        # Should generate a buy signal on zero crossing
-        buy_signals = [s for s in signals if s.action == "buy"]
-        assert len(buy_signals) >= 0  # May or may not trigger depending on calculation
+        assert len(signals) == 1
+        assert signals[0].action == "buy"
+        assert signals[0].metadata["signal_type"] == "force_index_cross_above_zero"
+
+    def test_cross_below_zero_sell(self):
+        """Force Index crosses below zero emits a sell signal."""
+        strategy = ForceIndexStrategy(period=2)
+        dates = pd.date_range("2023-01-01", periods=6, freq="D")
+        close = [100.0, 100.0, 100.0, 100.0, 100.0, 90.0]
+        volumes = [1000.0] * 6
+        data = {"AAPL": pd.DataFrame({"close": close, "volume": volumes}, index=dates)}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].metadata["signal_type"] == "force_index_cross_below_zero"
 
     def test_generate_signals_skips_nan_close(self):
         strategy = ForceIndexStrategy(period=2)
@@ -4475,7 +4487,7 @@ class TestKlingerOscillatorStrategy:
     def test_generate_signals_insufficient_data(self):
         """Test generate_signals with fewer bars than slow_period + 2."""
         strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
-        data = {"AAPL": create_klinger_oscillator_data("AAPL", [100.0] * 15)}
+        data = {"AAPL": create_klinger_oscillator_data("AAPL", [100.0] * 14)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
@@ -5217,15 +5229,16 @@ class TestNegativeVolumeIndexStrategy:
 
     def test_generate_signals_nvi_bullish_crossover(self):
         strategy = NegativeVolumeIndexStrategy(period=5)
-        # Create data where NVI was below EMA and crosses above at end
-        # Build up so NVI stays flat, then volume drops sharply with price up
+        # 6 flat bars keep NVI at 1000 (= EMA); the final bar drops volume
+        # (1500 < 2000) and rises to 101, so NVI crosses above its EMA (buy).
         closes = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 101.0]
-        volumes = [1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 2000.0, 1500.0]  # vol drops at last step
+        volumes = [1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 2000.0, 1500.0]
         data = {"AAPL": create_negative_volume_index_data("AAPL", closes, volumes)}
         signals = strategy.generate_signals(data)
-        assert len(signals) >= 1
-        assert signals[0].symbol == "AAPL"
+        assert len(signals) == 1
         assert signals[0].action == "buy"
+        assert signals[0].metadata["nvi"] == pytest.approx(1010.0)
+        assert signals[0].metadata["ema"] == pytest.approx(1003.3333333333334)
 
     def test_generate_signals_multiple_symbols(self):
         strategy = NegativeVolumeIndexStrategy(period=5)
@@ -5244,6 +5257,18 @@ class TestNegativeVolumeIndexStrategy:
         volumes = [1000.0] * 7
         data = {"AAPL": create_negative_volume_index_data("AAPL", closes, volumes)}
         assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_nvi_bearish_crossover(self):
+        """NVI crosses below its EMA emits a sell signal."""
+        strategy = NegativeVolumeIndexStrategy(period=5)
+        closes = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 99.0]
+        volumes = [1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 2000.0, 1500.0]
+        data = {"AAPL": create_negative_volume_index_data("AAPL", closes, volumes)}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].metadata["nvi"] == pytest.approx(990.0)
+        assert signals[0].metadata["ema"] == pytest.approx(996.6666666666667)
 
 
 def create_positive_volume_index_data(
@@ -5283,11 +5308,28 @@ class TestPositiveVolumeIndexStrategy:
 
     def test_generate_signals_pvi_bullish_crossover(self):
         strategy = PositiveVolumeIndexStrategy(period=5)
-        closes = [100.0, 100.0, 101.0, 101.0, 101.0, 101.0, 102.0]
+        # 5 flat bars keep PVI at 1000 (= EMA); the final bar rises volume
+        # (1100 > 1000) and price to 101, so PVI crosses above its EMA (buy).
+        closes = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 101.0]
         volumes = [1000.0, 900.0, 1000.0, 1000.0, 1000.0, 1000.0, 1100.0]
         data = {"AAPL": create_positive_volume_index_data("AAPL", closes, volumes)}
         signals = strategy.generate_signals(data)
-        assert isinstance(signals, list)
+        assert len(signals) == 1
+        assert signals[0].action == "buy"
+        assert signals[0].metadata["pvi"] == pytest.approx(1010.0)
+        assert signals[0].metadata["ema"] == pytest.approx(1003.3333333333334)
+
+    def test_generate_signals_pvi_bearish_crossover(self):
+        """PVI crosses below its EMA emits a sell signal."""
+        strategy = PositiveVolumeIndexStrategy(period=5)
+        closes = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 99.0]
+        volumes = [1000.0, 900.0, 1000.0, 1000.0, 1000.0, 1000.0, 1100.0]
+        data = {"AAPL": create_positive_volume_index_data("AAPL", closes, volumes)}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].metadata["pvi"] == pytest.approx(990.0)
+        assert signals[0].metadata["ema"] == pytest.approx(996.6666666666667)
 
     def test_generate_signals_multiple_symbols(self):
         strategy = PositiveVolumeIndexStrategy(period=5)
@@ -6014,6 +6056,42 @@ class TestAccumulationDistributionStrategy:
         }
         assert strategy.generate_signals(data) == []
 
+    def test_generate_signals_adl_buy_cross(self):
+        """ADL crosses above its signal line emits a buy signal."""
+        strategy = AccumulationDistributionStrategy(signal_period=2)
+        dates = pd.date_range(start="2023-01-01", periods=6, freq="D")
+        close = [100.0] * 5 + [101.0]
+        high = [101.0] * 6
+        low = [99.0] * 6
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": [1000.0] * 6},
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "buy"
+        assert signals[0].metadata["signal_type"] == "adl_cross_above"
+
+    def test_generate_signals_adl_sell_cross(self):
+        """ADL crosses below its signal line emits a sell signal."""
+        strategy = AccumulationDistributionStrategy(signal_period=2)
+        dates = pd.date_range(start="2023-01-01", periods=6, freq="D")
+        close = [100.0] * 5 + [99.0]
+        high = [101.0] * 6
+        low = [99.0] * 6
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": [1000.0] * 6},
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].metadata["signal_type"] == "adl_cross_below"
+
 
 class TestAwesomeOscillatorStrategy:
     """Tests for AwesomeOscillatorStrategy."""
@@ -6116,6 +6194,42 @@ class TestChaikinOscillatorStrategy:
         }
         assert strategy.generate_signals(data) == []
 
+    def test_generate_signals_buy_cross(self):
+        """CHO crosses above zero emits a buy signal."""
+        strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
+        dates = pd.date_range(start="2023-01-01", periods=14, freq="D")
+        close = [100.0] * 13 + [101.0]
+        high = [101.0] * 14
+        low = [99.0] * 14
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": [1000.0] * 14},
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "buy"
+        assert signals[0].metadata["signal_type"] == "cho_cross_above_zero"
+
+    def test_generate_signals_sell_cross(self):
+        """CHO crosses below zero emits a sell signal."""
+        strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
+        dates = pd.date_range(start="2023-01-01", periods=14, freq="D")
+        close = [100.0] * 13 + [99.0]
+        high = [101.0] * 14
+        low = [99.0] * 14
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": [1000.0] * 14},
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].metadata["signal_type"] == "cho_cross_below_zero"
+
 
 class TestDetrendedPriceOscillatorStrategy:
     """Tests for DetrendedPriceOscillatorStrategy."""
@@ -6163,6 +6277,38 @@ class TestDetrendedPriceOscillatorStrategy:
         }
         assert strategy.generate_signals(data) == []
 
+    def test_generate_signals_buy_cross(self):
+        """DPO crosses above zero emits a buy signal."""
+        strategy = DetrendedPriceOscillatorStrategy(period=2)
+        dates = pd.date_range(start="2023-01-01", periods=8, freq="D")
+        close = [100.0] * 7 + [110.0]
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": close, "low": close, "close": close, "volume": [1000] * 8},
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "buy"
+        assert signals[0].metadata["signal_type"] == "dpo_cross_above_zero"
+
+    def test_generate_signals_sell_cross(self):
+        """DPO crosses below zero emits a sell signal."""
+        strategy = DetrendedPriceOscillatorStrategy(period=2)
+        dates = pd.date_range(start="2023-01-01", periods=8, freq="D")
+        close = [100.0] * 7 + [90.0]
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": close, "low": close, "close": close, "volume": [1000] * 8},
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].metadata["signal_type"] == "dpo_cross_below_zero"
+
 
 class TestElderRayStrategy:
     """Tests for ElderRayStrategy."""
@@ -6201,6 +6347,54 @@ class TestElderRayStrategy:
         data = {"AAPL": df}
         signals = strategy.generate_signals(data)
         assert signals == []
+
+    def test_generate_signals_buy_cross(self):
+        """Bull Power crosses above zero emits a buy signal."""
+        strategy = ElderRayStrategy(period=2)
+        dates = pd.date_range(start="2023-01-01", periods=4, freq="D")
+        close = [100.0, 100.0, 100.0, 101.0]
+        high = [100.0, 100.0, 100.0, 103.0]
+        low = [99.0, 99.0, 99.0, 100.0]
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": high,
+                    "low": low,
+                    "close": close,
+                    "volume": [1000] * 4,
+                },
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "buy"
+        assert signals[0].metadata["signal_type"] == "elder_ray_bull_cross"
+
+    def test_generate_signals_sell_cross(self):
+        """Bear Power crosses below zero emits a sell signal."""
+        strategy = ElderRayStrategy(period=2)
+        dates = pd.date_range(start="2023-01-01", periods=4, freq="D")
+        close = [100.0, 100.0, 100.0, 99.0]
+        high = [101.0, 101.0, 101.0, 100.0]
+        low = [100.0, 100.0, 100.0, 98.0]
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": high,
+                    "low": low,
+                    "close": close,
+                    "volume": [1000] * 4,
+                },
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].metadata["signal_type"] == "elder_ray_bear_cross"
 
 
 class TestRateOfChangeStrategy:
@@ -6363,6 +6557,50 @@ class TestTrixStrategy:
             )
         }
         assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_buy_cross(self):
+        """TRIX crosses above zero emits a buy signal."""
+        strategy = TrixStrategy(period=1)
+        dates = pd.date_range(start="2023-01-01", periods=5, freq="D")
+        close = [100.0, 100.0, 100.0, 100.0, 101.0]
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": [c + 1 for c in close],
+                    "low": [c - 1 for c in close],
+                    "close": close,
+                    "volume": [1000] * 5,
+                },
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "buy"
+        assert signals[0].metadata["signal_type"] == "trix_cross_above_zero"
+
+    def test_generate_signals_sell_cross(self):
+        """TRIX crosses below zero emits a sell signal."""
+        strategy = TrixStrategy(period=1)
+        dates = pd.date_range(start="2023-01-01", periods=5, freq="D")
+        close = [100.0, 100.0, 100.0, 101.0, 100.0]
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": [c + 1 for c in close],
+                    "low": [c - 1 for c in close],
+                    "close": close,
+                    "volume": [1000] * 5,
+                },
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].metadata["signal_type"] == "trix_cross_below_zero"
 
 
 class TestPercentageVolumeOscillatorStrategy:
