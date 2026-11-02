@@ -111,7 +111,7 @@ class BayesianOptimizer(BaseOptimizer):
         ...     import skopt  # noqa
         ... except Exception:
         ...     import pytest
-        ...     pytest.skip("skopt not installed")
+        ...     _ = pytest.importorskip("skopt")
         >>> from datetime import datetime, timedelta
         >>> from quant_trading.data.providers import DataManager
         >>> from quant_trading.data.synthetic import create_synthetic_provider
