@@ -292,6 +292,13 @@ class TestDonchianChannelStrategy:
         assert signal.metadata["upper_band"] == pytest.approx(100.0 * 1.001)
         assert signal.metadata["lower_band"] == pytest.approx(100.0 * 0.999)
 
+    def test_generate_signals_no_cross_no_signal(self):
+        """Steady trend keeps %B between thresholds, so no signal fires."""
+        strategy = BollingerPercentBStrategy(period=5, oversold=0.2, overbought=0.8)
+        closes = [100.0 + i for i in range(20)]
+        data = {"AAPL": create_bollinger_percent_b_data("AAPL", closes)}
+        assert strategy.generate_signals(data) == []
+
     def test_generate_signals_multiple_symbols(self):
         """Test generate_signals with multiple symbols."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
