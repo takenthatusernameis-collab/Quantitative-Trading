@@ -7124,6 +7124,32 @@ class TestMovingAverageCrossoverIncremental:
         signals2 = strategy.generate_signals(data2)
         assert signals2 == []
 
+    def test_incremental_path_window_still_growing_slow(self):
+        strategy = MovingAverageCrossover(fast_period=3, slow_period=10)
+        # Initialize via rolling path
+        closes1 = [100.0] * 10
+        data1 = {"AAPL": create_donchian_data("AAPL", closes1)}
+        strategy.generate_signals(data1)
+        # Add one more bar; slow window still growing relative to incremental logic
+        closes2 = closes1 + [100.0]
+        data2 = {"AAPL": create_donchian_data("AAPL", closes2)}
+        signals2 = strategy.generate_signals(data2)
+        assert isinstance(signals2, list)
+
+    def test_incremental_path_window_still_growing_both(self):
+        strategy = MovingAverageCrossover(fast_period=10, slow_period=20)
+        strategy._ma_state["AAPL"] = {
+            "n": 5,
+            "fast_sum": 500.0,
+            "slow_sum": 1000.0,
+            "fast_current": 100.0,
+            "slow_current": 100.0,
+        }
+        closes = [100.0] * 6
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
 
 class TestExamplesRemainingCoverage:
     """Targeted tests for remaining uncovered branches in examples.py.
