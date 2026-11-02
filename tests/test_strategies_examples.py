@@ -5374,6 +5374,14 @@ class TestPositiveVolumeIndexStrategy:
         data = {"AAPL": create_positive_volume_index_data("AAPL", closes, volumes)}
         assert strategy.generate_signals(data) == []
 
+    def test_generate_signals_pvi_nan_propagates_to_ema(self):
+        """NaN previous close with increasing volume makes PVI/ema NaN (line 7171)."""
+        strategy = PositiveVolumeIndexStrategy(period=5)
+        closes = [100.0, 100.0, 100.0, 100.0, 100.0, float("nan"), 100.0]
+        volumes = [1000.0, 1100.0, 1200.0, 1300.0, 1400.0, 1500.0, 1600.0]
+        data = {"AAPL": create_positive_volume_index_data("AAPL", closes, volumes)}
+        assert strategy.generate_signals(data) == []
+
 
 def create_average_true_range_data(
     symbol: str,
