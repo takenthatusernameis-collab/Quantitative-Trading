@@ -700,6 +700,19 @@ class TestMovingAverageCrossover:
         signals = strategy2.generate_signals({"AAPL": df_small2})
         assert isinstance(signals, list)
 
+    def test_generate_signals_incremental_slow_growing_fast_full(self):
+        """Hit slow growing window while fast window is full in incremental path."""
+        strategy = MovingAverageCrossover(fast_period=3, slow_period=10)
+        df = create_donchian_data("AAPL", [1.0, 2.0, 3.0, 4.0, 5.0])  # len 5
+        strategy.generate_signals({"AAPL": df})
+        # state.n == 5, (n-1)=4. fast_period=3 so 4 >= 3 and fast_old exists (n-1-fast_period = 1 >=0).
+        # slow_period=10, 4 >= 10 is false -> slow_old will be None branch going to else? Let us check:
+        # slow_old is set if n-1 - slow_period >=0? n=5, n-1-slow_period = 4-10 = -6 < 0, so slow_old becomes None.
+        # Also the if is (slow_old is not None and (n-1) >= self.slow_period) -> both false, goes to else adding curr_close. That's line 128.
+        df2 = create_donchian_data("AAPL", [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+        signals = strategy.generate_signals({"AAPL": df2})
+        assert isinstance(signals, list)
+
 
 class TestRSIStrategy:
     """Tests for RSIStrategy."""
