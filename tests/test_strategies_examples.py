@@ -617,6 +617,19 @@ class TestMovingAverageCrossover:
         signals = strategy.generate_signals({"AAPL": df})
         assert isinstance(signals, list)
 
+    def test_generate_signals_incremental_slow_window_still_growing(self):
+        """Incremental path when slow window is still growing (covers line 128)."""
+        strategy = MovingAverageCrossover(fast_period=2, slow_period=10)
+        closes = [100.0 + i * 0.1 for i in range(20)]
+        df = create_donchian_data("AAPL", closes)
+        strategy._ma_state["AAPL"] = {
+            "n": 5,
+            "fast_sum": sum(closes[:5]),
+            "slow_sum": sum(closes[:5]),
+        }
+        signals = strategy.generate_signals({"AAPL": df.iloc[:6]})
+        assert isinstance(signals, list)
+
     def test_generate_signals_incremental_matches_full_compute(self):
         """Bar by bar incremental should match full computation."""
         closes = [100.0] * 15 + [50.0] * 5 + [300.0]
