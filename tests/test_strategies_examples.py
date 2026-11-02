@@ -5703,6 +5703,12 @@ class TestStochRSIStrategy:
     def test_validate_parameters(self):
         with pytest.raises(ValueError, match="rsi_period must be positive"):
             StochRSIStrategy(rsi_period=0)
+        with pytest.raises(ValueError, match="stoch_period must be positive"):
+            StochRSIStrategy(stoch_period=0)
+        with pytest.raises(ValueError, match="k_period must be positive"):
+            StochRSIStrategy(k_period=0)
+        with pytest.raises(ValueError, match="d_period must be positive"):
+            StochRSIStrategy(d_period=0)
         with pytest.raises(ValueError, match="oversold must be between"):
             StochRSIStrategy(oversold=0)
         with pytest.raises(ValueError, match="overbought must be between"):
