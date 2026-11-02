@@ -8,11 +8,11 @@
 - Coverage on `quant_trading/strategies/examples.py`: branch partials improved 30 -> 27; the `4358->4327`, `4440->4411`, `4718->4683` arc misses are gone.
 
 ## What was actually verified
-- `python -m pytest tests/test_strategies_examples.py -q` → 525 passed (was 522; +3 new).
+- `python -m pytest tests/test_strategies_examples.py -q` → 531 passed (was 530; +1 new).
 - `python -m pytest -q` (full suite) → 2637 passed, 44 skipped, 124 deselected (green).
 - `python -m ruff check .` → All checks passed.
 - `python -m black --check tests/test_strategies_examples.py` → clean.
-- `python -m coverage run -m pytest tests/test_strategies_examples.py -q` + `coverage report -m` → examples.py 98%, missing 24 entries (down from 27 branch arcs).
+- `python -m coverage run -m pytest tests/test_strategies_examples.py -q` + `coverage report -m` → examples.py 98%, missing 23 entries (down from 24).
 
 ## What remains unresolved
 - `quant_trading/strategies/examples.py` still has 24 uncovered statement/branch entries:

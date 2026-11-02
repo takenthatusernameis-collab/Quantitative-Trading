@@ -7297,6 +7297,11 @@ class TestExamplesRemainingCoverage:
         data = {"AAPL": self._ohlcv([100.0] * 20, volume=np.zeros(20))}
         assert strategy.generate_signals(data) == []
 
+    def test_volume_oscillator_insufficient_data(self):
+        strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
+        data = {"AAPL": self._ohlcv([100.0] * 5)}
+        assert strategy.generate_signals(data) == []
+
     # --- VolumePriceTrend: NaN indicator values (line 5045) ---
     def test_vpt_nan_indicator(self):
         strategy = VolumePriceTrendStrategy(fast_period=5, slow_period=13)
