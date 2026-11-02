@@ -3794,6 +3794,14 @@ class TestForceIndexStrategy:
         data = {"AAPL": pd.DataFrame({"close": closes, "volume": volumes}, index=dates)}
         assert strategy.generate_signals(data) == []
 
+    def test_generate_signals_skips_nan_prev_force_index(self):
+        strategy = ForceIndexStrategy(period=2)
+        dates = pd.date_range("2023-01-01", periods=10)
+        closes = [100, float("nan"), 98, 97, 96, 95, 94, 93, 95, 96]
+        volumes = [1000] * 10
+        data = {"AAPL": pd.DataFrame({"close": closes, "volume": volumes}, index=dates)}
+        assert strategy.generate_signals(data) == []
+
 
 class TestMoneyFlowIndexStrategy:
     """Tests for the Money Flow Index (MFI) strategy."""
