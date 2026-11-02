@@ -5031,6 +5031,22 @@ class TestStochasticMomentumIndexStrategy:
         }
         assert strategy.generate_signals(data) == []
 
+    def test_generate_signals_skips_zero_price(self):
+        from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
+
+        strategy = StochasticMomentumIndexStrategy(k_period=2, signal_period=2)
+        dates = pd.date_range(start="2023-01-01", periods=10, freq="D")
+        close = [7, 7, 7, 7, 7, 7, 8.5, 10, 11.5, 0.0]
+        high = [10, 10, 10, 10, 10, 10, 11, 12, 13, 14]
+        low = [5, 5, 5, 5, 5, 5, 6, 7, 8, 9]
+        data = {
+            "AAPL": pd.DataFrame(
+                {"open": close, "high": high, "low": low, "close": close, "volume": [1000] * 10},
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
 
 class TestUltimateOscillatorStrategy:
     """Tests for UltimateOscillatorStrategy."""
@@ -6794,52 +6810,95 @@ class TestExamplesRemainingCoverage:
     def test_choppiness_cross_below_low_threshold_buy(self):
         """Test buy signal when CHOP crosses below low threshold."""
         strategy = ChoppinessIndexStrategy(period=14, low_threshold=38.2, high_threshold=61.8)
-        dates = pd.date_range("2023-01-01", periods=50)
-        prices = np.ones(50) * 100.0
-        df = pd.DataFrame(
-            {
-                "open": prices,
-                "high": prices + 10,
-                "low": prices - 10,
-                "close": prices,
-                "volume": np.ones(50) * 1000,
-            },
-            index=dates,
-        )
-        # Create transition from wide ranges to very tight ranges (trending)
-        for i in range(25, 50):
-            r = 10 * (1 - (i - 25) / 25)
-            r = max(r, 0.001)
+        dates = pd.date_range('2023-01-01', periods=90)
+        df = pd.DataFrame(index=dates)
+        closes = []; highs = []; lows = []
+        for i in range(90):
+            if i < 55:
+                c = 100
+                closes.append(c)
+                highs.append(c + 7)
+                lows.append(c - 7)
+            elif i < 60:
+                c = 100 + (i-55)*0.1
+                closes.append(c)
+                highs.append(c + 3)
+                lows.append(c - 3)
+            elif i < 70:
+                c = 100 + 0.5 + (i-60)*0.3
+                closes.append(c)
+                highs.append(c + 0.5)
+                lows.append(c - 0.5)
+            else:
+                c = 100 + 3.5 + (i-70)*0.4
+                closes.append(c)
+                highs.append(c + 0.1)
+                lows.append(c - 0.1)
+        df['open'] = closes; df['high'] = highs; df['low'] = lows; df['close'] = closes; df['volume'] = np.ones(90)*1000
+        signals = strategy.generate_signals({'AAPL': df.iloc[:73]})
+        assert isinstance(signals, list)
+        assert any(s.action == "buy" for s in signals)
+
+    def test_choppiness_zero_low_threshold_strength(self):
+        strategy = ChoppinessIndexStrategy(period=14, low_threshold=0.0, high_threshold=50.0)
+        dates = pd.date_range('2023-01-01', periods=90)
+        df = pd.DataFrame(index=dates)
+        closes = []; highs = []; lows = []
+        for i in range(90):
+            if i < 55:
+                c = 100
+                closes.append(c); highs.append(c + 7); lows.append(c - 7)
+            elif i < 60:
+                c = 100 + (i-55)*0.1
+                closes.append(c); highs.append(c + 3); lows.append(c - 3)
+            elif i < 70:
+                c = 100 + 0.5 + (i-60)*0.3
+                closes.append(c); highs.append(c + 0.5); lows.append(c - 0.5)
+            else:
+                c = 100 + 3.5 + (i-70)*0.4
+                closes.append(c); highs.append(c + 0.1); lows.append(c - 0.1)
+        df['open'] = closes; df['high'] = highs; df['low'] = lows; df['close'] = closes; df['volume'] = np.ones(90)*1000
+        res = strategy.generate_signals({'AAPL': df.iloc[:73]})
+        assert isinstance(res, list)
+
+    def test_choppiness_high_threshold_100_strength(self):
+        strategy = ChoppinessIndexStrategy(period=14, low_threshold=10.0, high_threshold=100.0)
+        dates = pd.date_range("2023-01-01", periods=80)
+        prices = np.ones(80) * 100.0
+        df = pd.DataFrame({"open": prices, "high": prices + 0.2, "low": prices - 0.2, "close": prices, "volume": np.ones(80) * 1000}, index=dates)
+        for i in range(50, 80):
+            r = 0.2 + (i - 50) * 0.5
             df.at[df.index[i], "high"] = 100 + r
             df.at[df.index[i], "low"] = 100 - r
-            df.at[df.index[i], "close"] = 100 + (i - 25) * 0.2
-        signals = strategy.generate_signals({"AAPL": df})
-        # May or may not trigger depending on exact values, but test should run
-        assert isinstance(signals, list)
+            df.at[df.index[i], "close"] = 100
+        res = strategy.generate_signals({"AAPL": df.iloc[:60]})
+        assert isinstance(res, list)
 
     def test_choppiness_cross_above_high_threshold_sell(self):
         """Test sell signal when CHOP crosses above high threshold."""
         strategy = ChoppinessIndexStrategy(period=14, low_threshold=38.2, high_threshold=61.8)
-        dates = pd.date_range("2023-01-01", periods=50)
-        prices = np.ones(50) * 100.0
+        dates = pd.date_range("2023-01-01", periods=80)
+        prices = np.ones(80) * 100.0
         df = pd.DataFrame(
             {
                 "open": prices,
-                "high": prices + 1,
-                "low": prices - 1,
+                "high": prices + 0.2,
+                "low": prices - 0.2,
                 "close": prices,
-                "volume": np.ones(50) * 1000,
+                "volume": np.ones(80) * 1000,
             },
             index=dates,
         )
         # Create transition from tight ranges to wide ranges (choppy)
-        for i in range(30, 50):
-            r = 1 + (i - 30) * 0.3
+        for i in range(50, 80):
+            r = 0.2 + (i - 50) * 0.5
             df.at[df.index[i], "high"] = 100 + r
             df.at[df.index[i], "low"] = 100 - r
             df.at[df.index[i], "close"] = 100
-        signals = strategy.generate_signals({"AAPL": df})
+        signals = strategy.generate_signals({"AAPL": df.iloc[:60]})
         assert isinstance(signals, list)
+        assert len(signals) >= 1
+        assert signals[0].action == "sell"
 
     # --- OBV: zero signal line strength fallback (lines 3793, 3817) ---
     def test_obv_zero_signal_line_strength(self):

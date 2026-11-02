@@ -7475,7 +7475,10 @@ class ChoppinessIndexStrategy(Strategy):
 
             # Cross below low threshold - trending market (buy)
             if prev_chop >= self.low_threshold and current_chop < self.low_threshold:
-                strength = min(1.0, (self.low_threshold - current_chop) / self.low_threshold + 0.5)
+                if self.low_threshold == 0:
+                    strength = 0.5
+                else:
+                    strength = min(1.0, (self.low_threshold - current_chop) / self.low_threshold + 0.5)
                 signals.append(
                     Signal(
                         symbol=symbol,
@@ -7492,9 +7495,12 @@ class ChoppinessIndexStrategy(Strategy):
                 )
             # Cross above high threshold - choppy market (sell)
             elif prev_chop <= self.high_threshold and current_chop > self.high_threshold:
-                strength = min(
-                    1.0, (current_chop - self.high_threshold) / (100 - self.high_threshold) + 0.5
-                )
+                if self.high_threshold >= 100:
+                    strength = 0.5
+                else:
+                    strength = min(
+                        1.0, (current_chop - self.high_threshold) / (100 - self.high_threshold) + 0.5
+                    )
                 signals.append(
                     Signal(
                         symbol=symbol,
