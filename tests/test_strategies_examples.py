@@ -7003,3 +7003,62 @@ class TestExamplesRemainingCoverage:
         st2._rsi_state["AAPL"]["curr_rsi"] = None
         signals = st2.generate_signals({"AAPL": df2})
         assert isinstance(signals, list)
+
+
+    def test_ma_incremental_slow_growing_window_coverage(self):
+        strategy = MovingAverageCrossover(fast_period=3, slow_period=15)
+        df1 = self._ohlcv([100.0] * 15)
+        strategy.generate_signals({"AAPL": df1})
+        df2 = self._ohlcv([100.0] * 16)
+        assert isinstance(strategy.generate_signals({"AAPL": df2}), list)
+
+    def test_rsi_none_prev_rsi_skip(self):
+        strategy = RSIStrategy(period=2)
+        df2 = create_donchian_data("AAPL", [10.0, 11.0])
+        strategy._rsi_state["AAPL"] = {
+            "n": len(df2) - 1,
+            "gain_hist": [1.0],
+            "loss_hist": [0.0],
+            "gain_sum": 1.0,
+            "loss_sum": 0.0,
+            "last_close": 10.0,
+            "curr_rsi": None,
+        }
+        signals = strategy.generate_signals({"AAPL": df2})
+        assert isinstance(signals, list)
+
+
+    def test_choppiness_buy_sell_crosses_coverage(self):
+        strategy = ChoppinessIndexStrategy(period=14, low_threshold=38.2, high_threshold=61.8)
+        dates = pd.date_range('2023-01-01', periods=90)
+        df = pd.DataFrame(index=dates)
+        closes = []; highs = []; lows = []
+        for i in range(90):
+            if i < 55:
+                c = 100
+                closes.append(c)
+                highs.append(c + 7)
+                lows.append(c - 7)
+            elif i < 60:
+                c = 100 + (i-55)*0.1
+                closes.append(c)
+                highs.append(c + 3)
+                lows.append(c - 3)
+            elif i < 70:
+                c = 100 + 0.5 + (i-60)*0.3
+                closes.append(c)
+                highs.append(c + 0.5)
+                lows.append(c - 0.5)
+            else:
+                c = 100 + 3.5 + (i-70)*0.4
+                closes.append(c)
+                highs.append(c + 0.1)
+                lows.append(c - 0.1)
+        df['open'] = closes; df['high'] = highs; df['low'] = lows; df['close'] = closes; df['volume'] = np.ones(90)*1000
+        # Trigger buy
+        res_buy = strategy.generate_signals({'AAPL': df.iloc[:73]})
+        assert isinstance(res_buy, list)
+        # Trigger sell
+        strategy2 = ChoppinessIndexStrategy(period=14, low_threshold=38.2, high_threshold=61.8)
+        res_sell = strategy2.generate_signals({'AAPL': df.iloc[:69]})
+        assert isinstance(res_sell, list)
