@@ -4113,6 +4113,13 @@ class TestChandeMomentumOscillatorStrategy:
         data = {"AAPL": create_cmo_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
 
+    def test_generate_signals_no_cross_no_signal(self):
+        """No signal when CMO stays on the same side of zero."""
+        strategy = ChandeMomentumOscillatorStrategy(period=5)
+        closes = [100.0] * 25 + [110.0, 115.0, 120.0, 125.0, 130.0]
+        data = {"AAPL": create_cmo_data("AAPL", closes)}
+        assert strategy.generate_signals(data) == []
+
 
 def create_volume_oscillator_data(
     symbol: str, volumes: list[float], close: float = 100.0
@@ -6658,6 +6665,27 @@ class TestElderRayStrategy:
         assert signals[0].action == "sell"
         assert signals[0].metadata["signal_type"] == "elder_ray_bear_cross"
 
+    def test_generate_signals_no_cross_no_signal(self):
+        """No signal when neither bull nor bear power crosses zero."""
+        strategy = ElderRayStrategy(period=2)
+        dates = pd.date_range(start="2023-01-01", periods=4, freq="D")
+        close = [100.0, 101.0, 102.0, 103.0]
+        high = [101.0, 102.0, 103.0, 104.0]
+        low = [99.0, 100.0, 101.0, 102.0]
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": high,
+                    "low": low,
+                    "close": close,
+                    "volume": [1000] * 4,
+                },
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
+
 
 class TestRateOfChangeStrategy:
     """Tests for RateOfChangeStrategy."""
@@ -6769,6 +6797,25 @@ class TestRateOfChangeStrategy:
         assert len(signals) == 1
         assert signals[0].action == "sell"
         assert signals[0].metadata["signal_type"] == "roc_cross_below_zero"
+
+    def test_generate_signals_no_cross_no_signal(self):
+        """No signal when ROC stays on the same side of zero."""
+        strategy = RateOfChangeStrategy(period=2)
+        dates = pd.date_range(start="2023-01-01", periods=4, freq="D")
+        close = [100.0, 101.0, 102.0, 103.0]
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": [c + 1 for c in close],
+                    "low": [c - 1 for c in close],
+                    "close": close,
+                    "volume": [1000] * 4,
+                },
+                index=dates,
+            )
+        }
+        assert strategy.generate_signals(data) == []
 
 
 class TestTrixStrategy:
