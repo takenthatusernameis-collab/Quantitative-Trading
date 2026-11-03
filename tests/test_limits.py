@@ -494,3 +494,71 @@ class TestPortfolioLimitEdgeCases:
     def test_gross_exposure_short(self):
         pos = Position(symbol="AAPL", quantity=-5, avg_price=100.0, current_price=100.0)
         assert gross_exposure(pos) == 500.0
+
+
+class TestPositionLimitEdgeCases:
+    def test_check_with_zero_portfolio_value_still_checks_max_value(self):
+        limit = PositionLimit(max_size=0.1, max_value=10000.0)
+        position = Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0)
+        violations = limit.check(position, 0.0)
+        assert len(violations) == 1
+        assert "exceeds max" in violations[0]
+        assert "$15,000.00" in violations[0]
+
+    def test_check_with_negative_portfolio_value_still_checks_max_value(self):
+        limit = PositionLimit(max_size=0.1, max_value=10000.0)
+        position = Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0)
+        violations = limit.check(position, -1000.0)
+        assert len(violations) == 1
+        assert "exceeds max" in violations[0]
+
+
+class TestPortfolioLimitAdditionalEdgeCases:
+    def test_position_risk_with_avg_price_zero_uses_current_price_positive(self):
+        pl = PortfolioLimit(stop_loss_pct=0.05)
+        pos = Position(symbol="AAPL", quantity=100, avg_price=0.0, current_price=200.0)
+        assert pl.position_risk(pos) == 1000.0
+
+    def test_position_risk_with_avg_price_positive_uses_avg_price(self):
+        pl = PortfolioLimit(stop_loss_pct=0.05)
+        pos = Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=300.0)
+        assert pl.position_risk(pos) == 750.0
+
+    def test_portfolio_risk_pct_with_zero_portfolio_value(self):
+        pl = PortfolioLimit(max_portfolio_risk=0.02)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0)
+        }
+        assert pl.portfolio_risk_pct(positions, 0.0) == 0.0
+
+    def test_leverage_with_zero_portfolio_value(self):
+        pl = PortfolioLimit(max_leverage=1.0)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0)
+        }
+        assert pl.leverage(positions, 0.0) == 0.0
+
+    def test_check_skips_zero_quantity_in_portfolio_loop(self):
+        pl = PortfolioLimit(max_position_size=0.1, max_portfolio_risk=1.0, max_leverage=10.0)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=200, avg_price=150.0, current_price=155.0),
+            "MSFT": Position(symbol="MSFT", quantity=0, avg_price=300.0, current_price=310.0),
+        }
+        violations = pl.check(positions, 100000.0, 100000.0)
+        assert any("AAPL" in v for v in violations)
+
+    def test_check_position_size_violation_in_portfolio_loop(self):
+        pl = PortfolioLimit(max_position_size=0.1, max_portfolio_risk=1.0, max_leverage=10.0)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=200, avg_price=150.0, current_price=155.0),
+        }
+        violations = pl.check(positions, 100000.0, 100000.0)
+        assert len(violations) == 1
+        assert "AAPL" in violations[0]
+        assert "exceeds max" in violations[0]
+
+    def test_check_result_ok_property(self):
+        result = CheckResult(passed=True)
+        assert result.ok is True
+        result2 = CheckResult(passed=False)
+        assert result2.ok is False

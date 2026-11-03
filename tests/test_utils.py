@@ -172,7 +172,6 @@ def test_format_duration_days_weeks_months_years_edge_cases():
     assert format_duration_days(-7) == "-1 week"
     assert format_duration_days(365.25) == "1 year"
 
-
     def test_clear_loggers_named_and_root():
         name = "_test_utils_clear_loggers"
         logger = setup_logger(name=name, level="INFO")
