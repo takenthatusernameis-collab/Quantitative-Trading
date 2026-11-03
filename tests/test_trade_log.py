@@ -627,3 +627,130 @@ class TestMetricsAndAnalysisAgreeExtra:
         assert analysis.total_pnl == pytest.approx(
             float(analysis.symbol_stats["AAPL"]["total_pnl"])
         )
+
+
+class TestTradeLogGaps:
+    def test_sell_without_open_long_not_counted_as_trade(self):
+        """A sell with no open long should not create a round trip row."""
+        trades = pd.DataFrame(
+            [
+                {
+                    "symbol": "AAPL",
+                    "action": "sell",
+                    "quantity": 10,
+                    "price": 160.0,
+                    "timestamp": datetime(2024, 1, 6),
+                    "commission": 0.0,
+                    "slippage": 0.0,
+                    "cost": 1600.0,
+                    "pnl": 95.0,
+                },
+            ]
+        )
+        log = split_trade_log(trades)
+        assert len(log.round_trips) == 0
+
+    def test_partial_sell_of_long_keeps_queue_remainder(self):
+        """Selling part of a long position should leave remainder in queue."""
+        trades = pd.DataFrame(
+            [
+                {
+                    "symbol": "AAPL",
+                    "action": "buy",
+                    "quantity": 10,
+                    "price": 150.0,
+                    "timestamp": datetime(2024, 1, 5),
+                    "commission": 0.0,
+                    "slippage": 0.0,
+                    "cost": 1500.0,
+                    "pnl": 0.0,
+                },
+                {
+                    "symbol": "AAPL",
+                    "action": "sell",
+                    "quantity": 3,
+                    "price": 160.0,
+                    "timestamp": datetime(2024, 1, 6),
+                    "commission": 0.0,
+                    "slippage": 0.0,
+                    "cost": 480.0,
+                    "pnl": 30.0,
+                },
+                {
+                    "symbol": "AAPL",
+                    "action": "sell",
+                    "quantity": 7,
+                    "price": 170.0,
+                    "timestamp": datetime(2024, 1, 7),
+                    "commission": 0.0,
+                    "slippage": 0.0,
+                    "cost": 1190.0,
+                    "pnl": 140.0,
+                },
+            ]
+        )
+        log = split_trade_log(trades)
+        assert len(log.round_trips) == 2
+
+    def test_cover_without_open_short_not_counted_as_trade(self):
+        """A cover with no open short should not create a round trip row."""
+        trades = pd.DataFrame(
+            [
+                {
+                    "symbol": "MSFT",
+                    "action": "cover",
+                    "quantity": 10,
+                    "price": 50.0,
+                    "timestamp": datetime(2024, 1, 6),
+                    "commission": 0.0,
+                    "slippage": 0.0,
+                    "cost": -500.0,
+                    "pnl": -50.0,
+                },
+            ]
+        )
+        log = split_trade_log(trades)
+        assert len(log.round_trips) == 0
+
+    def test_partial_cover_of_short_keeps_queue_remainder(self):
+        """Covering part of a short position should leave remainder in queue."""
+        trades = pd.DataFrame(
+            [
+                {
+                    "symbol": "MSFT",
+                    "action": "short",
+                    "quantity": 10,
+                    "price": 50.0,
+                    "timestamp": datetime(2024, 1, 5),
+                    "commission": 0.0,
+                    "slippage": 0.0,
+                    "cost": -500.0,
+                    "pnl": -5.0,
+                },
+                {
+                    "symbol": "MSFT",
+                    "action": "cover",
+                    "quantity": 3,
+                    "price": 40.0,
+                    "timestamp": datetime(2024, 1, 6),
+                    "commission": 0.0,
+                    "slippage": 0.0,
+                    "cost": 120.0,
+                    "pnl": -100.0,
+                },
+                {
+                    "symbol": "MSFT",
+                    "action": "cover",
+                    "quantity": 7,
+                    "price": 30.0,
+                    "timestamp": datetime(2024, 1, 7),
+                    "commission": 0.0,
+                    "slippage": 0.0,
+                    "cost": 210.0,
+                    "pnl": -200.0,
+                },
+            ]
+        )
+        log = split_trade_log(trades)
+        assert len(log.round_trips) == 2
+        assert log.open_pnl == pytest.approx(0.0)
