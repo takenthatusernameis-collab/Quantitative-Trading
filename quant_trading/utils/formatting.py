@@ -82,3 +82,88 @@ def format_basis_points(bps: float, decimals: int = 1) -> str:
 
     """
     return f"{bps / 10000 * 100:.{decimals}f}%"
+
+
+def format_shares(quantity: float, decimals: int = 0) -> str:
+    """Format a share quantity with appropriate decimal places.
+
+    Args:
+        quantity: Number of shares/units.
+        decimals: Number of decimal places for fractional shares.
+
+    Returns:
+        Formatted share quantity string.
+
+    >>> format_shares(100)
+    '100'
+    >>> format_shares(10.5)
+    '10.5'
+    >>> format_shares(100, decimals=2)
+    '100.00'
+
+    """
+    # Check if it's a whole number
+    if abs(quantity - round(quantity)) < 1e-9:
+        if decimals == 0:
+            return f"{int(round(quantity)):,}"
+        else:
+            return f"{round(quantity):,.{decimals}f}"
+    else:
+        # Has fractional part
+        if decimals == 0:
+            # Use reasonable precision for fractional shares
+            return f"{quantity:g}"
+        else:
+            return f"{quantity:,.{decimals}f}"
+
+
+def format_duration_days(days: float) -> str:
+    """Format a duration in days as a human-readable string.
+
+    Args:
+        days: Number of days.
+
+    Returns:
+        Formatted duration string.
+
+    >>> format_duration_days(1)
+    '1 day'
+    >>> format_duration_days(7)
+    '1 week'
+    >>> format_duration_days(30)
+    '1 month'
+    >>> format_duration_days(365)
+    '1 year'
+    >>> format_duration_days(3)
+    '3 days'
+
+    """
+    if days < 0:
+        return f"-{format_duration_days(abs(days))}"
+    if days == 0:
+        return "0 days"
+    if days < 7:
+        if days == 1:
+            return "1 day"
+        return f"{int(days) if days == int(days) else days} days"
+    elif days < 30:
+        weeks = days / 7
+        if weeks == 1:
+            return "1 week"
+        if weeks == int(weeks):
+            return f"{int(weeks)} weeks"
+        return f"{weeks:.1f} weeks"
+    elif days < 365:
+        months = days / 30.44
+        if months == 1:
+            return "1 month"
+        if months == int(months):
+            return f"{int(months)} months"
+        return f"{months:.1f} months"
+    else:
+        years = days / 365.25
+        if years == 1:
+            return "1 year"
+        if years == int(years):
+            return f"{int(years)} years"
+        return f"{years:.1f} years"
