@@ -468,3 +468,29 @@ class TestCheckResult:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestPortfolioLimitEdgeCases:
+    def test_portfolio_value_nonpositive_returns_zero_risk_and_leverage(self):
+        pl = PortfolioLimit()
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=10, avg_price=100.0, current_price=100.0)
+        }
+        assert pl.portfolio_risk_pct(positions, 0.0) == 0.0
+        assert pl.leverage(positions, -5.0) == 0.0
+
+    def test_position_risk_zero_basis_returns_zero(self):
+        pl = PortfolioLimit()
+        pos = Position(symbol="AAPL", quantity=10, avg_price=0.0, current_price=0.0)
+        assert pl.position_risk(pos) == 0.0
+
+    def test_check_flat_position_skipped(self):
+        pl = PortfolioLimit()
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=0, avg_price=100.0, current_price=100.0)
+        }
+        assert pl.check(positions, 100000.0, 100000.0) == []
+
+    def test_gross_exposure_short(self):
+        pos = Position(symbol="AAPL", quantity=-5, avg_price=100.0, current_price=100.0)
+        assert gross_exposure(pos) == 500.0
