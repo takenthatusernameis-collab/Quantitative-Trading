@@ -6111,6 +6111,50 @@ class TestPercentagePriceOscillatorStrategy:
         }
         assert strategy.generate_signals(data) == []
 
+    def test_generate_signals_signal_line_cross_above(self):
+        """PPO line crossing above its signal line emits a buy signal."""
+        strategy = PercentagePriceOscillatorStrategy(fast_period=5, slow_period=13, signal_period=5)
+        close = [100.0] * 59 + [110.0]
+        dates = pd.date_range(start="2023-01-01", periods=len(close), freq="D")
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": [c + 1 for c in close],
+                    "low": [c - 1 for c in close],
+                    "close": close,
+                    "volume": [1000] * len(close),
+                },
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "buy"
+        assert signals[0].metadata["signal_type"] == "ppo_signal_cross_above"
+
+    def test_generate_signals_signal_line_cross_below(self):
+        """PPO line crossing below its signal line emits a sell signal."""
+        strategy = PercentagePriceOscillatorStrategy(fast_period=5, slow_period=13, signal_period=5)
+        close = [100.0] * 59 + [90.0]
+        dates = pd.date_range(start="2023-01-01", periods=len(close), freq="D")
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": [c + 1 for c in close],
+                    "low": [c - 1 for c in close],
+                    "close": close,
+                    "volume": [1000] * len(close),
+                },
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].metadata["signal_type"] == "ppo_signal_cross_below"
+
 
 class TestChoppinessIndexStrategy:
     """Tests for ChoppinessIndexStrategy."""
@@ -6453,6 +6497,50 @@ class TestAwesomeOscillatorStrategy:
             )
         }
         assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_buy_cross(self):
+        """AO crosses above zero emits a buy signal."""
+        strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34)
+        close = [100.0] * 84 + [115.0]
+        dates = pd.date_range(start="2023-01-01", periods=len(close), freq="D")
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": [c + 1 for c in close],
+                    "low": [c - 1 for c in close],
+                    "close": close,
+                    "volume": [1000] * len(close),
+                },
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "buy"
+        assert signals[0].metadata["signal_type"] == "ao_cross_above_zero"
+
+    def test_generate_signals_sell_cross(self):
+        """AO crosses below zero emits a sell signal."""
+        strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34)
+        close = [100.0] * 84 + [85.0]
+        dates = pd.date_range(start="2023-01-01", periods=len(close), freq="D")
+        data = {
+            "AAPL": pd.DataFrame(
+                {
+                    "open": close,
+                    "high": [c + 1 for c in close],
+                    "low": [c - 1 for c in close],
+                    "close": close,
+                    "volume": [1000] * len(close),
+                },
+                index=dates,
+            )
+        }
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        assert signals[0].action == "sell"
+        assert signals[0].metadata["signal_type"] == "ao_cross_below_zero"
 
 
 class TestChaikinOscillatorStrategy:
@@ -7067,6 +7155,28 @@ class TestPercentageVolumeOscillatorStrategy:
             fast_period=12, slow_period=26, signal_period=9, use_zero_line=False
         )
         data = {"AAPL": create_ppo_pvo_zero_line_data("AAPL", "bullish", pvo=True)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_zero_line_no_cross(self):
+        """use_zero_line=True with no zero-line cross on the final bar yields no signal."""
+        strategy = PercentageVolumeOscillatorStrategy(
+            fast_period=5, slow_period=13, signal_period=5, use_zero_line=True
+        )
+        close = [100.0] * 60
+        volume = [1000.0] * 60
+        dates = pd.date_range(start="2023-01-01", periods=len(close), freq="D")
+        frame = pd.DataFrame(
+            {
+                "open": close,
+                "high": [c + 1 for c in close],
+                "low": [c - 1 for c in close],
+                "close": close,
+                "volume": volume,
+            },
+            index=dates,
+        )
+        data = {"AAPL": frame.copy(), "MSFT": frame.copy()}
         signals = strategy.generate_signals(data)
         assert signals == []
 

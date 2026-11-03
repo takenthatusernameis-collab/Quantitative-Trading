@@ -1,17 +1,25 @@
 # Handoff to next agent
 
 ## What changed
-- Marked Klinger NaN-indicator guard (examples.py:5261) unreachable with `# pragma: no cover`; Klinger uses no division and EWM never produces NaN.
-- Marked Chaikin NaN-CHO guard (examples.py:5578) unreachable with `# pragma: no cover`. Note: the prior claim that test_chaikin_oscillator_nan_cho covers 5578 was incorrect — that test makes CHO = 0.0, not NaN. CHO can never be NaN because `_calculate_adl` replaces hl_range == 0 with NaN then `fillna(0.0)`, and EWM never produces NaN, so the `continue` at 5578 is genuinely unreachable (same situation as 5261).
+- Added 5 tests to tests/test_strategies_examples.py (all offline, no network):
+  - TestAwesomeOscillatorStrategy: `test_generate_signals_buy_cross` (ao_cross_above_zero) and `test_generate_signals_sell_cross` (ao_cross_below_zero) — covers examples.py:5827-5828 and :5844-5845.
+  - TestPercentagePriceOscillatorStrategy: `test_generate_signals_signal_line_cross_above` and `test_generate_signals_signal_line_cross_below` — covers examples.py:6332-6333 and :6352-6353.
+  - TestPercentageVolumeOscillatorStrategy: `test_generate_signals_zero_line_no_cross` (use_zero_line=True, no cross) — covers branch arc 6571->6488.
+- `black` reformatted tests/test_strategies_examples.py.
+- quant_trading/strategies/examples.py was NOT modified; coverage improved purely via tests.
 
 ## What was actually verified
-- tests/test_strategies_examples.py: 537 passed (`-m "not slow and not network"`).
-- Coverage on examples.py: 5578 removed from missing (19 -> 18 missing statements; 99%).
-- `ruff check`, `black --check`, `mypy` all clean on examples.py.
+- tests/test_strategies_examples.py: 542 passed (`-m "not slow and not network"`).
+- Full suite `pytest`: 2642 passed, 56 skipped (bayesian/scikit-optimize), 124 deselected (slow/network).
+- Coverage quant_trading/strategies/examples.py: 100% (0 missing statements, 0 partial branches; was 8 missing).
+- `ruff check .`, `black --check quant_trading/ tests/`, `mypy quant_trading/` all clean.
 
 ## What remains unresolved
-- Next missing coverage entry after 5578: 5727 (EaseOfMovement NaN-EOM guard, examples.py:5727).
+- Package coverage is 99% overall; remaining gaps are environment-gated, not logic gaps:
+  - quant_trading/data/yfinance_provider.py:436 (`hist = hist.to_frame()` single-symbol Series shape, network-dependent).
+  - quant_trading/optimization/walk_forward.py:517-519 (`elif self.optimizer_type == "bayesian"` branch, needs scikit-optimize which is not installed).
+  - quant_trading/optimization/bayesian.py: 37% coverage (54 missing statements) for the same optional-dependency reason.
 
 ## One precise next task
-- Target missing coverage entry 5727: mark the EOM NaN guard unreachable with `# pragma: no cover` (EOM divides by volume; volume 0 is guarded earlier at line ~5719 last-close-zero, and `_calculate_eom` produces no NaN otherwise) OR add a test that triggers it. Follow the 5261/5578 precedent: if genuinely unreachable, add `# pragma: no cover`; only add a test if NaN is provably reachable.
-- Remaining missing entries after 5727: 5827-5828, 5844-5845 (AwesomeOscillator), 6091, 6204, 6329, 6332-6333, 6352-6353, 6509, 6571->6488, 7479, 7501.
+- Close the two small coverage gaps: cover walk_forward.py:517-519 and yfinance_provider.py:436. walk_forward bayesian branch likely requires installing scikit-optimize (`pip install scikit-optimize`) then adding/running a walk-forward test with optimizer_type="bayesian"; yfinance_provider.py:436 needs a single-symbol download returning a Series (network or an offline fixture monkeypatching yfinance). If neither is feasible in this environment, document them as environment-gated and stop — do not weaken coverage config or delete validation to force coverage up.
+- Precedent: only add `# pragma: no cover` when a branch is genuinely unreachable; these two are reachable but gated behind optional deps/network.
