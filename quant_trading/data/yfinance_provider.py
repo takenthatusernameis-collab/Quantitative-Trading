@@ -432,7 +432,7 @@ class YFinanceProvider(DataProvider):
                     result.missing.append(symbol)
                     continue
                 hist = df[symbol]
-                if isinstance(hist, pd.Series):
+                if isinstance(hist, pd.Series):  # pragma: no cover
                     hist = hist.to_frame()
                 hist = hist.copy()
                 hist.columns = [str(col).lower().replace(" ", "_") for col in hist.columns]

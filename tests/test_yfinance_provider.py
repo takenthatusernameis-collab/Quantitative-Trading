@@ -343,3 +343,13 @@ def test_parse_download_multiindex_single_field_series():
     r = p._parse_download(df, ["AAPL"])
     assert "AAPL" in r.data
     assert list(r.data["AAPL"].data.columns) == ["close"]
+
+
+def test_parse_download_multiindex_single_field_series():
+    p = YFinanceProvider(cache_dir="")
+    idx = pd.date_range("2024-01-01", periods=2, freq="D")
+    cols = pd.MultiIndex.from_product([["AAPL"], ["Close"]])
+    df = pd.DataFrame([[1.5], [2.5]], index=idx, columns=cols)
+    r = p._parse_download(df, ["AAPL"])
+    assert "AAPL" in r.data
+    assert list(r.data["AAPL"].data.columns) == ["close"]
