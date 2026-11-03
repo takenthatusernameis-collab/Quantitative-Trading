@@ -18,6 +18,9 @@ Examples:
 
 # mypy: disable-error-code="no-any-return"
 
+from __future__ import annotations
+
+import os
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -156,7 +159,7 @@ class ParameterGrid:
     spaces: dict[str, ParameterSpace] = field(default_factory=dict)
     validator: Callable[[dict[str, Any]], bool] | None = None
 
-    def add(self, space: ParameterSpace) -> "ParameterGrid":
+    def add(self, space: ParameterSpace) -> ParameterGrid:
         """Add a parameter space to the grid.
 
         Args:
@@ -169,7 +172,7 @@ class ParameterGrid:
         self.spaces[space.name] = space
         return self
 
-    def set_validator(self, validator: Callable[[dict[str, Any]], bool]) -> "ParameterGrid":
+    def set_validator(self, validator: Callable[[dict[str, Any]], bool]) -> ParameterGrid:
         """Set a cross-parameter validation function.
 
         The validator receives a parameter combination dict and should return
@@ -634,6 +637,9 @@ class BaseOptimizer(ABC):
         self.interval = interval
         self.data_manager = data_manager
         self.config = config
+        if n_jobs == -1:
+            n_jobs = os.cpu_count() or 1
+        n_jobs = max(n_jobs, 1)
         self.n_jobs = n_jobs
         self.periods_per_year = periods_per_year
         self.verbose = verbose
