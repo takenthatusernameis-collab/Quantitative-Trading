@@ -7379,6 +7379,12 @@ class TestExamplesRemainingCoverage:
         data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
         assert strategy.generate_signals(data) == []
 
+    # --- VolumePriceTrend: insufficient data (line 5020) ---
+    def test_vpt_insufficient_data(self):
+        strategy = VolumePriceTrendStrategy(fast_period=5, slow_period=13)
+        data = {"AAPL": self._ohlcv([100.0] * 10)}
+        assert strategy.generate_signals(data) == []
+
     # --- KlingerOscillator: NaN indicator values (line 5261) ---
     def test_klinger_nan_indicator(self):
         strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
