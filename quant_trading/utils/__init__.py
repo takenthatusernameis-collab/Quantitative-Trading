@@ -8,9 +8,10 @@ from .formatting import (
     format_percent,
     format_shares,
 )
-from .logging import get_logger, setup_logger
+from .logging import clear_loggers, get_logger, setup_logger
 
 __all__ = [
+    "clear_loggers",
     "format_basis_points",
     "format_currency",
     "format_duration_days",

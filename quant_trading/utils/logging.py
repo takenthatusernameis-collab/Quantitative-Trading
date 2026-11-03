@@ -74,3 +74,36 @@ def get_logger(name: str = "quant_trading") -> logging.Logger:
     if not logger.handlers:
         logger = setup_logger(name)
     return logger
+
+
+def clear_loggers(*names: str) -> None:
+    """Remove all handlers from the specified loggers.
+
+    This is primarily useful in tests to ensure a clean logging state
+    between test cases.
+
+    Args:
+        *names: Logger names to clear. If none are provided, clears the
+            root logger handlers.
+
+    Examples:
+        >>> import logging
+        >>> logger = setup_logger("quant_trading.doctest.clear")
+        >>> len(logger.handlers) >= 1
+        True
+        >>> clear_loggers("quant_trading.doctest.clear")
+        >>> len(logging.getLogger("quant_trading.doctest.clear").handlers)
+        0
+
+    """
+    if not names:
+        names = ("",)
+    for name in names:
+        logger = logging.getLogger(name)
+        for handler in list(logger.handlers):
+            logger.removeHandler(handler)
+            try:
+                handler.close()
+            except (OSError, ValueError):
+                pass
+        logger.handlers.clear()
