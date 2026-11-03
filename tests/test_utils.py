@@ -46,6 +46,7 @@ def test_format_shares():
     assert format_shares(10.5) == "10.5"
     assert format_shares(100, decimals=2) == "100.00"
     assert format_shares(100, decimals=0) == "100"
+    assert format_shares(10.5, decimals=2) == "10.50"
     assert format_shares(-100) == "-100"
     assert format_shares(-10.5) == "-10.5"
 
@@ -58,8 +59,12 @@ def test_format_duration_days():
     assert format_duration_days(15) == "2.1 weeks"
     assert format_duration_days(30) == "1 month"
     assert format_duration_days(30.44) == "1 month"
+    assert format_duration_days(59) == "1.9 months"
+    assert format_duration_days(60.88) == "2 months"
     assert format_duration_days(365) == "1 year"
     assert format_duration_days(365.25) == "1 year"
+    assert format_duration_days(730.5) == "2 years"
+    assert format_duration_days(800) == "2.2 years"
     assert format_duration_days(0) == "0 days"
     assert format_duration_days(-3) == "-3 days"
 
