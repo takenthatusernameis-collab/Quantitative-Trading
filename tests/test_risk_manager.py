@@ -1299,6 +1299,22 @@ class TestTrailingStop:
         rm.update_portfolio_value({}, 50000.0)
         assert rm.get_trailing_stop("AAPL") is None
 
+    def test_portfolio_update_keeps_the_trailing_stop_of_a_position_that_stays(self):
+        """A position that stays in the portfolio keeps its trailing state.
+
+        Calling :meth:`update_portfolio_value` twice with the same symbol leaves
+        the symbol in ``positions`` while it still carries trailing stop state,
+        so the clearing branch of the trailing-stop loop is not taken and the
+        stop keeps following the market.
+        """
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
+        positions = {"AAPL": Position("AAPL", 100, 100.0, 120.0)}
+        rm.update_portfolio_value(positions, 50000.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(114.0)
+        positions = {"AAPL": Position("AAPL", 100, 100.0, 130.0)}
+        rm.update_portfolio_value(positions, 50000.0)
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(123.5)
+
     def test_flipping_the_direction_clears_the_trailing_stop(self):
         rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
         rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
