@@ -105,7 +105,7 @@ def format_shares(quantity: float, decimals: int = 0) -> str:
     # Check if it's a whole number
     if abs(quantity - round(quantity)) < 1e-9:
         if decimals == 0:
-            return f"{int(round(quantity)):,}"
+            return f"{round(quantity):,}"
         else:
             return f"{round(quantity):,.{decimals}f}"
     else:

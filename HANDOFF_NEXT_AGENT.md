@@ -1,27 +1,39 @@
 # Handoff to next agent
 
 ## What changed
-- `quant_trading/utils/formatting.py`: fixed `format_duration_days` singular-plural formatting so `30` days -> `"1 month"` and `365` days -> `"1 year"` instead of `"1.0 months"` / `"1.0 years"`.
-  - Root cause: the code computed `months = days / 30.44` and `years = days / 365.25`, then compared the float directly to `1` and to `int(...)`. `30/30.44 == 0.9855...` is never `== 1`, and `365/365.25 == 0.9993...` is never `== 1`, so the singular branches were unreachable and the `int(...)` equality branch also failed on non-integer floats, always falling through to the `:.1f` branch.
-  - Fix: round first (`rounded_months = round(months)`, `rounded_years = round(years)`), test the rounded value against `1` for the singular form, and use `abs(x - rounded) < 1e-9` for the whole-number plural form. Same pattern already used in the days/weeks branches.
-  - No other code changed; no callers affected (function is only exported in `quant_trading/utils/__init__.py` and has no non-doctest usages).
+- `quant_trading/utils/formatting.py:108`: removed redundant `int()` cast in `format_shares` (`f"{int(round(quantity)):,}"` → `f"{round(quantity):,}"`), clearing `RUF046` ("Value being cast to `int` is already an integer"). `round(quantity)` with no `ndigits` already returns an `int`; for non-numeric input `round()` raises `TypeError` before `int()` is reached, so behavior is identical for all inputs.
 
 ## What was actually verified
-- `python -m pytest --doctest-modules quant_trading/utils/formatting.py`: 6 passed.
-- `python -m pytest -q`: **2666 passed, 0 failed, 0 skipped, 124 deselected** (was 2665 passed, 1 failed, 124 deselected before the fix). The single failing doctest was the only suite failure.
+- `python -m ruff check quant_trading/utils/formatting.py`: clean ("All checks passed!").
 - `python -m black --check quant_trading/utils/formatting.py`: clean.
 - `python -m mypy quant_trading/utils/formatting.py`: Success, no issues.
-- `python -m ruff check quant_trading/utils/formatting.py`: only pre-existing `RUF046` on `format_shares` line 108 (`int(round(quantity))` cast) remains; confirmed present on `main` before this change via `git stash`, so it is out of scope and untouched.
+- `python -m pytest --doctest-modules quant_trading/utils/formatting.py`: 6 passed.
+- `python -m ruff check .`: clean (whole project).
+- `python -m mypy quant_trading/`: clean (37 source files).
+- `python -m black --check quant_trading/`: clean (37 files).
+- `python -m pytest -q`: **2666 passed, 124 deselected, 0 failed**.
+- `python -m pytest -m slow`: **124 passed, 2666 deselected, 0 failed** (~3 min).
+→ Entire suite (2790 tests) green, 0 failed.
 
 ## What remains unresolved
-- Pre-existing `RUF046` in `format_shares` (line 108): `int(round(quantity))` where `round()` already returns an int when no `ndigits` is given. Cosmetic; flagged as an unsafe fix by ruff because it could change behavior for non-numeric inputs. Left untouched per "smallest reversible change" rule.
-- 124 slow-marked smoke tests remain deselected by default (`addopts = -m "not slow and not network"`); pass when run with `-m slow` (~5.5 min).
-- `.kilo/next-task.md` is stale (describes a pre-scikit-optimize/yfinance environment); both `skopt 0.10.2` and `yfinance 1.7.0` are installed now, so the bayesian doctest and the network-gated README CLI tests are no longer blocked the way that file describes.
+- None — all lint/type/format checks clean, full suite (default + slow) green.
+- Coverage gap: `format_shares` and `format_duration_days` are covered only by doctests, not by unit tests in `tests/test_utils.py` (the other formatting functions have unit tests there). Not a bug, but a durable improvement opportunity.
 
 ## Approaches that failed
-- None for this task. The failure was a straightforward logic bug in a pure function; reproduced directly via `format_duration_days(30)` returning `'1.0 months'`, fixed, and re-verified.
+- None.
 
 ## One precise next task
-- None assigned. The suite is fully green offline (2666 passed, 0 skipped, 124 deselected). If new work is desired, the lowest-hanging verified improvement is the pre-existing `RUF046` in `format_shares` (remove the redundant `int()` cast at `quant_trading/utils/formatting.py:108`), but it is cosmetic and changes no observable behavior for numeric inputs.
+Add unit tests for `format_shares` and `format_duration_days` to `tests/test_utils.py`, following the existing assert-based style (import both from `quant_trading.utils`; add `test_format_shares` and `test_format_duration_days`).
 
-(End of file - total 40 lines)
+Cover:
+- `format_shares`: whole (`100` → `'100'`), fractional (`10.5` → `'10.5'`), `decimals=0` vs `decimals=2` (`100` → `'100.00'`), negative whole and negative fractional.
+- `format_duration_days`: days (`3` → `'3 days'`, `1` → `'1 day'`), weeks (`7` → `'1 week'`, `14` → `'2 weeks'`, `15` → `'2.1 weeks'`), months (`30` → `'1 month'`, `30.44` → `'1 month'`), years (`365` → `'1 year'`, `365.25` → `'1 year'`), zero (`'0 days'`), negatives (`-3` → `'-3 days'`).
+
+Verification commands:
+- `python -m pytest tests/test_utils.py -q` (new tests must pass)
+- `python -m pytest -q` (full default suite: expect 2666 passed + new tests, 0 failed)
+- `python -m ruff check .`, `python -m black --check quant_trading/`, `python -m mypy quant_trading/` (all clean)
+
+Constraints: keep the change minimal and reversible; do not modify `formatting.py` behavior; only add tests.
+
+(End of file)
