@@ -7322,6 +7322,20 @@ class TestExamplesRemainingCoverage:
         signals = strategy.generate_signals(data)
         assert any(s.metadata.get("signal_type") == "bearish_trend" for s in signals)
 
+    # --- ADX: series shorter than the period (arcs 3336->3342, 3359->3364) ---
+    def test_adx_series_shorter_than_period(self):
+        strategy = ADXStrategy(period=5, threshold=20.0)
+        # Fewer bars than the period: Wilder smoothing never starts
+        # (3336->3342) and the ADX recursion never begins (3359->3364).
+        # generate_signals requires len(df) >= 2 * period, so call the
+        # calculation helper directly for this otherwise unreachable arc.
+        high = pd.Series([100.0 + i for i in range(3)])
+        low = pd.Series([99.0 + i for i in range(3)])
+        close = pd.Series([100.0 + i for i in range(3)])
+        adx, plus_di, minus_di = strategy._calculate_adx(high, low, close)
+        assert len(adx) == 3
+        assert (plus_di == 0.0).all() and (minus_di == 0.0).all()
+
     # --- ChaikinMoneyFlow: last close zero (line 3942) ---
     def test_cmf_last_close_zero(self):
         strategy = ChaikinMoneyFlowStrategy(period=20)
