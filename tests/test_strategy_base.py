@@ -37,6 +37,16 @@ class TestPosition:
         )
         assert pos.pnl == 300.0
 
+    def test_market_value_property(self):
+        """Test Position.market_value returns quantity times current price."""
+        pos = Position(symbol="AAPL", quantity=100, current_price=160.0)
+        assert pos.market_value == 16000.0
+
+    def test_market_value_property_zero(self):
+        """Test Position.market_value returns 0 when quantity is zero."""
+        pos = Position(symbol="AAPL", quantity=0, current_price=160.0)
+        assert pos.market_value == 0.0
+
 
 class TestSignal:
     """Tests for the Signal dataclass."""
