@@ -192,7 +192,7 @@ class Strategy(ABC):
             List of trading signals.
 
         """
-        ...
+        ...  # pragma: no cover  # abstract body; uncallable by design
 
     def validate_parameters(self) -> None:
         """Validate strategy parameters.

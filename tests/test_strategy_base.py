@@ -1,9 +1,11 @@
 """Tests for the strategy base classes."""
 
+from datetime import datetime
+
 import pandas as pd
 import pytest
 
-from quant_trading.strategies.base import Position, Strategy, StrategyManager
+from quant_trading.strategies.base import Position, Signal, Strategy, StrategyManager
 
 
 class TestPosition:
@@ -34,6 +36,21 @@ class TestPosition:
             realized_pnl=500.0,
         )
         assert pos.pnl == 300.0
+
+
+class TestSignal:
+    """Tests for the Signal dataclass."""
+
+    def test_timestamp_defaults_to_now(self):
+        """A signal created without a timestamp gets the current time."""
+        signal = Signal(symbol="AAPL", action="buy", price=150.0)
+        assert signal.timestamp is not None
+
+    def test_explicit_timestamp_is_preserved(self):
+        """An explicitly given timestamp is not overridden by __post_init__."""
+        fixed = datetime(2024, 1, 1, 12, 0, 0)
+        signal = Signal(symbol="AAPL", action="buy", price=150.0, timestamp=fixed)
+        assert signal.timestamp == fixed
 
 
 class StrategyWithValidation(Strategy):
@@ -331,5 +348,59 @@ class TestStrategyDescriptionDerivation:
         assert strategy.description is None
 
 
+class TestStrategyUpdatePositions:
+    """Tests for Strategy.update_positions."""
+
+    def test_update_positions_replaces_tracking(self):
+        """update_positions stores the supplied positions dict."""
+        strategy = StrategyWithValidation(name="Test", threshold=10.0)
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=160.0),
+        }
+        strategy.update_positions(positions)
+        assert strategy.positions is positions
+        assert strategy.positions["AAPL"].quantity == 100
+
+
+class TestStrategyGetParameters:
+    """Tests for Strategy.get_parameters."""
+
+    def test_get_parameters_returns_a_copy(self):
+        """get_parameters returns a shallow copy of the parameters dict."""
+        strategy = StrategyWithValidation(name="Test", threshold=10.0)
+        params = strategy.get_parameters()
+        assert params == {"threshold": 10.0}
+        assert params is not strategy.parameters
+        params["threshold"] = 999.0
+        assert strategy.parameters["threshold"] == 10.0
+
+
+class TestStrategyFromConfig:
+    """Tests for Strategy.from_config."""
+
+    def test_from_config_creates_strategy(self):
+        """from_config builds a registered strategy from name, type, parameters."""
+        strategy = Strategy.from_config(
+            {
+                "type": "ma",
+                "name": "MyMA",
+                "parameters": {"fast_period": 5, "slow_period": 20},
+            }
+        )
+        from quant_trading.strategies.examples import MovingAverageCrossover
+
+        assert isinstance(strategy, MovingAverageCrossover)
+        assert strategy.name == "MyMA"
+        assert strategy.fast_period == 5
+        assert strategy.slow_period == 20
+
+    def test_from_config_without_type_raises(self):
+        """from_config raises ValueError when the config lacks a 'type' key."""
+        with pytest.raises(ValueError, match="must contain 'type' key"):
+            Strategy.from_config({"name": "NoType", "parameters": {}})
+
+
 if __name__ == "__main__":
+    import pytest
+
     pytest.main([__file__, "-v"])
