@@ -359,8 +359,8 @@ class RegimeDetector:
         if len(prices) < 2:
             return RegimeResult()
 
-        returns = prices.pct_change().dropna()
-        if len(returns) < 1:
+        returns = prices.pct_change(fill_method=None).dropna()
+        if len(returns) < 1 or returns.isna().all():
             return RegimeResult()
 
         rolling_vol = returns.rolling(self.window).std() * np.sqrt(self.periods_per_year)
