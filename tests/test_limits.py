@@ -582,7 +582,9 @@ class TestLimitsCoverageGaps:
         # position_pct becomes 0, so size violation won't trigger; value violation will
         assert any("exceeds max" in v and "$" in v for v in violations)
 
-    def test_position_limit_check_portfolio_value_negative_skips_pct_violation_but_checks_value(self):
+    def test_position_limit_check_portfolio_value_negative_skips_pct_violation_but_checks_value(
+        self,
+    ):
         """Covers branch where portfolio_value > 0 is false (negative)."""
         limit = PositionLimit(max_size=0.01, max_value=5000)
         pos = Position(symbol="AAPL", quantity=100, avg_price=100, current_price=100)
@@ -626,7 +628,9 @@ class TestLimitsCoverageGaps:
     def test_portfolio_limit_check_position_size_violation_message(self):
         """Covers line ~281."""
         pl = PortfolioLimit(max_position_size=0.05)
-        positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=100, current_price=100)}  # 10% of 100k
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=100, current_price=100)
+        }  # 10% of 100k
         violations = pl.check(positions, 100000, 100000)
         assert any("exceeds max" in v and "AAPL" in v for v in violations)
 
@@ -647,13 +651,17 @@ class TestLimitsCoverageGaps:
     def test_portfolio_risk_pct_with_positive_portfolio(self):
         """Cover portfolio_risk_pct when portfolio_value > 0."""
         pl = PortfolioLimit(max_portfolio_risk=0.05)
-        positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=150)}
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=150)
+        }
         pct = pl.portfolio_risk_pct(positions, 100000.0)
         assert pct > 0
 
     def test_leverage_with_positive_portfolio(self):
         """Cover leverage when portfolio_value > 0."""
         pl = PortfolioLimit(max_leverage=2.0)
-        positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=150)}
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=150)
+        }
         lev = pl.leverage(positions, 100000.0)
         assert lev > 0
