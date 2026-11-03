@@ -70,6 +70,37 @@ def test_format_duration_days():
     assert format_duration_days(-3) == "-3 days"
 
 
+def test_format_currency_negative_and_zero_decimals():
+    assert format_currency(-1234.5) == "-$1,234.50"
+    assert format_currency(1234.5, decimals=0) == "$1,234"
+
+
+def test_format_percent_negative_and_zero_decimals():
+    assert format_percent(-0.05) == "-5.00%"
+    assert format_percent(0.5, decimals=0) == "50%"
+
+
+def test_format_number_negative_and_zero_decimals():
+    assert format_number(-1234.5) == "-1,234"
+    assert format_number(1234.5, decimals=0) == "1,234"
+
+
+def test_format_basis_points_negative_zero_and_zero_decimals():
+    assert format_basis_points(-100) == "-1.0%"
+    assert format_basis_points(0) == "0.0%"
+    assert format_basis_points(100, decimals=0) == "1%"
+
+
+def test_format_shares_whole_with_decimals_and_negative():
+    assert format_shares(100, decimals=2) == "100.00"
+    assert format_shares(-100, decimals=2) == "-100.00"
+
+
+def test_format_duration_days_fractional_and_negative_fractional():
+    assert format_duration_days(2.5) == "2.5 days"
+    assert format_duration_days(-2.5) == "-2.5 days"
+
+
 def test_setup_logger_console_only(tmp_path):
     name = "_test_utils_console_logger"
     logger = setup_logger(name=name, level="WARNING")
