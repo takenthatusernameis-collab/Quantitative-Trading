@@ -8,11 +8,12 @@ advertised there exists on the parser; this module guards that the documented
 documented error-reporting examples, exit with code 1 and a one-line message
 instead of a traceback.
 
-Only commands that need no network are executed: offline runs (``--offline``
+Only commands that need no network are executed directly: offline runs (``--offline``
 or ``--provider synthetic``) and the info commands (``--list-strategies``,
 ``--list-providers``, ``--init-config``, ``--validate-config``). Commands that
-default to Yahoo Finance or Alpha Vantage are skipped because they require
-network access.
+default to Yahoo Finance or Alpha Vantage are executed too, with the providers
+mocked to return deterministic synthetic OHLCV data, so every documented CLI
+invocation runs without network access.
 
 Commands are extracted from the README's ``## Command Line Interface`` bash
 code blocks, so a newly documented command is covered automatically and a
@@ -24,11 +25,15 @@ import io
 import os
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from examples.cli import main
+from quant_trading.data.providers import DataProvider, FetchResult, MarketData
+from quant_trading.data.yfinance_provider import AlphaVantageProvider, YFinanceProvider
 
 README_PATH = Path(__file__).resolve().parent.parent / "README.md"
 
@@ -84,15 +89,64 @@ def _expects_failure(args: list[str]) -> bool:
     )
 
 
-def _is_offline_command(args: list[str]) -> bool:
-    """Whether a command runs without network access."""
-    text = " ".join(args)
-    return (
-        "--offline" in text
-        or "--provider synthetic" in text
-        or text in {"--list-strategies", "--list-providers"}
-        or text.startswith(("--init-config ", "--validate-config "))
+def _make_ohlcv_frame(symbol: str, start: datetime | None, end: datetime | None) -> pd.DataFrame:
+    """Return deterministic daily OHLCV data covering ``[start, end]``.
+
+    The window defaults to ~400 days ending today when bounds are omitted, so
+    any documented ``--days`` span is covered. Columns mirror the synthetic
+    provider (lowercase OHLCV) so strategies compute without error.
+    """
+    start_ts = pd.Timestamp(start) if start else pd.Timestamp.now() - pd.Timedelta(days=400)
+    end_ts = pd.Timestamp(end) if end else pd.Timestamp.now()
+    idx = pd.date_range(start=start_ts, end=end_ts, freq="D")
+    n = len(idx)
+    base = [100.0 + i * 0.25 for i in range(n)]
+    return pd.DataFrame(
+        {
+            "open": base,
+            "high": [b + 1.0 for b in base],
+            "low": [b - 1.0 for b in base],
+            "close": [b + 0.5 for b in base],
+            "volume": [1000] * n,
+        },
+        index=idx,
     )
+
+
+def _mock_fetch(self, symbols, start=None, end=None, interval="1d"):
+    """Stand-in for provider.fetch that returns synthetic OHLCV for every symbol."""
+    result = FetchResult()
+    for symbol in symbols:
+        df = _make_ohlcv_frame(symbol, start, end)
+        result.data[symbol] = MarketData(
+            symbol=symbol,
+            data=df,
+            source="mock",
+            fetched_at=end if end else pd.Timestamp.now(),
+        )
+    return result
+
+
+def _mock_fetch_many(self, requests):
+    """Stand-in for provider.fetch_many that delegates to ``_mock_fetch``."""
+    out: dict[str, FetchResult] = {}
+    for req in requests:
+        symbols = req.get("symbols", [])
+        start = req.get("start")
+        end = req.get("end")
+        interval = req.get("interval", "1d")
+        key = DataProvider._request_key(symbols, start, end, interval)
+        out[key] = _mock_fetch(self, symbols, start, end, interval)
+    return out
+
+
+@pytest.fixture(autouse=True)
+def mocked_network_providers(monkeypatch: pytest.MonkeyPatch):
+    """Mock YFinance/AlphaVantage fetch so network README commands run offline."""
+    monkeypatch.setattr(YFinanceProvider, "fetch", _mock_fetch)
+    monkeypatch.setattr(YFinanceProvider, "fetch_many", _mock_fetch_many)
+    monkeypatch.setattr(AlphaVantageProvider, "fetch", _mock_fetch)
+    monkeypatch.setattr(AlphaVantageProvider, "fetch_many", _mock_fetch_many)
 
 
 def _run_cli(args: list[str], tmp_path: Path) -> tuple[int, str]:
@@ -104,6 +158,16 @@ def _run_cli(args: list[str], tmp_path: Path) -> tuple[int, str]:
     ``--validate-config`` command.
     """
     for index, arg in enumerate(args):
+        if arg == "--config" and index + 1 < len(args):
+            target_path = tmp_path / args[index + 1]
+            if not target_path.exists() and Path(args[index + 1]).name != "missing.yaml":
+                # The README ``--config config.yaml`` example assumes a config
+                # file exists in the working directory; create a valid one so
+                # the command runs offline in the temporary directory.
+                target_path.write_text(
+                    "data:\n  provider: synthetic\n  offline: true\n",
+                    encoding="utf-8",
+                )
         if arg in {"--validate-config", "--strategy-config"} and index + 1 < len(args):
             target_path = tmp_path / args[index + 1]
             if not target_path.exists():
@@ -140,21 +204,17 @@ _COMMANDS = _readme_commands()
 
 @pytest.mark.parametrize("args", _COMMANDS, ids=lambda a: " ".join(a)[:70])
 class TestReadmeCliCommands:
-    """Every offline-capable README CLI command must run as documented."""
+    """Every documented README CLI command runs end-to-end.
 
-    def test_network_commands_are_skipped(self, args):
-        """Commands that need Yahoo Finance / Alpha Vantage are not executed here."""
-        if not _is_offline_command(args) and not _expects_failure(args):
-            pytest.skip("requires network access (yfinance/alphavantage)")
+    Offline/error commands execute as documented (exit 0 / exit 1). Network
+    commands (Yahoo Finance / Alpha Vantage defaults) run with the providers
+    mocked to deterministic synthetic OHLCV data, so they also exit 0 without
+    any network access.
+    """
 
     def test_command_runs_with_documented_exit_code(self, args, tmp_path):
-        """Offline/error README commands exit with the documented code, no traceback."""
-        if _expects_failure(args):
-            expected_rc = 1
-        elif _is_offline_command(args):
-            expected_rc = 0
-        else:
-            pytest.skip("requires network access (yfinance/alphavantage)")
+        """Every README CLI command exits with the documented code, no traceback."""
+        expected_rc = 1 if _expects_failure(args) else 0
 
         rc, output = _run_cli(args, tmp_path)
         assert rc == expected_rc, (

@@ -417,7 +417,7 @@ def _create_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--bb-period",
-        type=float,
+        type=int,
         default=CLI_ARG_DEFAULTS["bb_period"],
         help="Bollinger Bands period (default: 20)",
     )
