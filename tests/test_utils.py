@@ -1,6 +1,7 @@
 """Tests for utility helpers."""
 
 import logging
+from unittest.mock import patch
 
 from quant_trading.utils import (
     clear_loggers,
@@ -172,21 +173,41 @@ def test_format_duration_days_weeks_months_years_edge_cases():
     assert format_duration_days(365.25) == "1 year"
 
 
-def test_clear_loggers_named_and_root():
-    name = "_test_utils_clear_loggers"
-    logger = setup_logger(name=name, level="INFO")
-    assert len(logger.handlers) >= 1
-    clear_loggers(name)
-    assert len(logging.getLogger(name).handlers) == 0
+    def test_clear_loggers_named_and_root():
+        name = "_test_utils_clear_loggers"
+        logger = setup_logger(name=name, level="INFO")
+        assert len(logger.handlers) >= 1
+        clear_loggers(name)
+        assert len(logging.getLogger(name).handlers) == 0
 
-    root = logging.getLogger()
-    root.addHandler(logging.StreamHandler())
-    try:
-        assert len(root.handlers) >= 1
-        clear_loggers()
-        assert len(root.handlers) == 0
-    finally:
-        root.handlers.clear()
+        root = logging.getLogger()
+        root.addHandler(logging.StreamHandler())
+        try:
+            assert len(root.handlers) >= 1
+            clear_loggers()
+            assert len(root.handlers) == 0
+        finally:
+            root.handlers.clear()
+
+
+def test_clear_loggers_swallow_handler_close_error():
+    """clear_loggers must not propagate an error raised by handler.close().
+
+    A handler whose close() raises OSError (or ValueError) is still removed
+    from the logger; the exception is swallowed (logging.py:107-108).
+    """
+    import pytest
+
+    for exc in (OSError, ValueError):
+        name = "_test_utils_clear_close_error"
+        logger = setup_logger(name=name, level="INFO")
+        handler = logger.handlers[0]
+        try:
+            with patch.object(handler, "close", side_effect=exc("boom")):
+                clear_loggers(name)
+            assert len(logging.getLogger(name).handlers) == 0
+        finally:
+            logging.getLogger(name).handlers.clear()
 
 
 if __name__ == "__main__":
