@@ -5,8 +5,10 @@ import logging
 from quant_trading.utils import (
     format_basis_points,
     format_currency,
+    format_duration_days,
     format_number,
     format_percent,
+    format_shares,
     get_logger,
     setup_logger,
 )
@@ -37,6 +39,29 @@ def test_format_basis_points():
     assert format_basis_points(100) == "1.0%"
     assert format_basis_points(25, decimals=2) == "0.25%"
     assert format_basis_points(150) == "1.5%"
+
+
+def test_format_shares():
+    assert format_shares(100) == "100"
+    assert format_shares(10.5) == "10.5"
+    assert format_shares(100, decimals=2) == "100.00"
+    assert format_shares(100, decimals=0) == "100"
+    assert format_shares(-100) == "-100"
+    assert format_shares(-10.5) == "-10.5"
+
+
+def test_format_duration_days():
+    assert format_duration_days(3) == "3 days"
+    assert format_duration_days(1) == "1 day"
+    assert format_duration_days(7) == "1 week"
+    assert format_duration_days(14) == "2 weeks"
+    assert format_duration_days(15) == "2.1 weeks"
+    assert format_duration_days(30) == "1 month"
+    assert format_duration_days(30.44) == "1 month"
+    assert format_duration_days(365) == "1 year"
+    assert format_duration_days(365.25) == "1 year"
+    assert format_duration_days(0) == "0 days"
+    assert format_duration_days(-3) == "-3 days"
 
 
 def test_setup_logger_console_only(tmp_path):
