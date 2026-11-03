@@ -155,15 +155,17 @@ def format_duration_days(days: float) -> str:
         return f"{weeks:.1f} weeks"
     elif days < 365:
         months = days / 30.44
-        if months == 1:
+        rounded_months = round(months)
+        if rounded_months == 1:
             return "1 month"
-        if months == int(months):
-            return f"{int(months)} months"
+        if abs(months - rounded_months) < 1e-9:
+            return f"{rounded_months} months"
         return f"{months:.1f} months"
     else:
         years = days / 365.25
-        if years == 1:
+        rounded_years = round(years)
+        if rounded_years == 1:
             return "1 year"
-        if years == int(years):
-            return f"{int(years)} years"
+        if abs(years - rounded_years) < 1e-9:
+            return f"{rounded_years} years"
         return f"{years:.1f} years"

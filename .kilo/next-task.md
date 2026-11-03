@@ -1,46 +1,40 @@
 # Next Task
 
-## Repository state
+## Repository state (post-fix)
 
-Checks: `python -m ruff check .` → clean. `python -m black --check quant_trading tests examples` → clean. `python -m mypy quant_trading` → clean, 0 errors across 37 source files. `python -m pytest -q` → 2416 passed, 148 skipped, 124 deselected; only failure is a pre-existing doctest in `quant_trading/optimization/bayesian.py` (`ImportError: BayesianOptimizer requires scikit-optimize`) — unrelated to recent work.
+Checks: `python -m pytest -q` → **2666 passed, 0 failed, 0 skipped, 124 deselected** (exit 0). `python -m ruff check .` → clean except one pre-existing `RUF046` in `format_shares` (cosmetic, out of scope). `python -m black --check quant_trading tests examples` → clean. `python -m mypy quant_trading` → clean.
 
 ## What changed (this session)
 
-Fixed two failing CLI tests that required the unavailable `yfinance` dependency:
-- `tests/test_cli.py::TestSaveStrategyConfig::test_optimize_saves_best_params_config` and `...::test_walk_forward_saves_last_window_params_config` previously used the default `Config()` (provider=yfinance, online) and failed with `ImportError: yfinance is not installed`.
-- Both tests now configure an offline/synthetic data provider before calling `run_optimization` / `run_walk_forward`:
-  - `config.data.provider = "synthetic"`
-  - `config.data.offline = True`
-  - `config.data.synthetic_days = 120`
-  - `config.data.synthetic_seed = 42`
-- No library code changed; only the two tests were modified.
+Fixed the only failing doctest in the suite — `format_duration_days` singular-plural formatting in `quant_trading/utils/formatting.py`:
+
+- `format_duration_days(30)` now returns `'1 month'` (was `'1.0 months'`).
+- `format_duration_days(365)` now returns `'1 year'` (was `'1.0 years'`).
+
+Root cause: the months/years branches computed `days / 30.44` and `days / 365.25` and compared the raw float to `1` and `int(...)`. `30/30.44 == 0.9855` is never `== 1`, and `365/365.25 == 0.9993` is never `== 1`, so the singular branches were unreachable and the whole-number plural branch also failed, always falling through to the `:.1f` formatter.
+
+Fix: round first, then test the rounded value against `1` for the singular form and `abs(x - rounded) < 1e-9` for the whole-number plural form — mirroring the existing days/weeks branches.
 
 ## What was actually verified
 
-- `python -m pytest tests/test_cli.py::TestSaveStrategyConfig -q`: 3 passed.
-- `python -m pytest tests/test_cli.py -q`: 170 passed (no regressions).
-- `python -m pytest -q`: 2416 passed, 148 skipped, 124 deselected. Confirmed via `git stash` that the bayesian doctest failure predates this change.
-- `python -m ruff check tests/test_cli.py`: All checks passed.
-- `python -m black --check tests/test_cli.py`: 1 file unchanged.
-- `python -m mypy tests/test_cli.py`: Success (no issues).
-- Verified offline execution works: both `run_optimization` and `run_walk_forward` complete with `result == 0` and write the expected `--output-strategy-config` YAML (`type == "ma"`, `fast_period`/`slow_period` present).
+- `python -m pytest --doctest-modules quant_trading/utils/formatting.py`: 6 passed.
+- `python -m pytest -q`: 2666 passed, 0 failed, 0 skipped, 124 deselected (was 2665 passed + 1 failed before the fix).
+- `python -m black --check quant_trading/utils/formatting.py`: clean.
+- `python -m mypy quant_trading/utils/formatting.py`: Success, no issues.
+- `python -m ruff check quant_trading/utils/formatting.py`: only pre-existing `RUF046` remains (confirmed present on `main` via `git stash`).
 
 ## What remains unresolved
 
-- `quant_trading/optimization/bayesian.py` doctest fails because `scikit-optimize` is not installed (`quant-trading[bayesian]` extra). Pre-existing; not caused by this session.
-- `quant_trading/strategies/examples.py` still has ~108 uncovered statements (mostly low-value defensive branches).
-- 5 third-party `Pandas4Warning` warnings from yfinance/pandas remain; cosmetic only.
-- Network-gated README CLI command tests remain skipped in offline CI (148 skips).
+- Pre-existing `RUF046` in `format_shares` line 108 (`int(round(quantity))` redundant cast). Cosmetic; ruff flags it as an unsafe fix. Left untouched.
+- 124 slow-marked smoke tests remain deselected by default; pass with `-m slow` (~5.5 min).
+- `skopt 0.10.2` and `yfinance 1.7.0` are now installed, so the previously-cited blockers (bayesian doctest ImportError, network-gated README CLI skips) are no longer applicable.
 
 ## Approaches that failed and why
 
-- Installing `yfinance` was rejected: unavailable in this environment, and the tests should not depend on live network/data availability.
-- Marking the tests `@pytest.mark.skipif` was rejected in favor of making them self-contained offline, since the `--output-strategy-config` behavior is exactly what should be locked by a deterministic test.
+- None. The failure was a deterministic logic bug in a pure function; reproduced directly, fixed minimally, and re-verified.
 
 ## One precise next task
 
-- The full suite is now green except the pre-existing scikit-optimize doctest. Recommended: either install/mock `scikit-optimize` so the `BayesianOptimizer` doctest passes, or add a `pytest.importorskip("skopt")` guard to the doctest module so the suite is fully green offline.
-- Verification: `python -m pytest -q`; `python -m ruff check .`; `python -m black --check quant_trading tests examples`; `python -m mypy quant_trading`.
-- Constraints: do NOT commit unless explicitly asked; preserve working baseline; do NOT change library code unless the task explicitly requires it; exclude secrets/env/cache artifacts.
+- None assigned. Suite is fully green offline. Optional cosmetic improvement: remove the redundant `int()` cast at `quant_trading/utils/formatting.py:108` to clear `RUF046`.
 
-(End of file - total 47 lines)
+(End of file - total 41 lines)
