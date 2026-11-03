@@ -18,3 +18,5 @@
 
 ## One precise next task
 If no explicit user assignment exists, **do not** start new feature work. If desired, quickly verify aggregate coverage in one process using the isolated venv (note pytest-cov args may need to match env/plugins), but per-module results already show 100%. Alternatively, scan for any TODO/FIXME that are trivial and backed by failing tests - there are none evident. Best: wait for a concrete user task; if forced to pick one, only investigate the cross-process optimization flake if it reproduces deterministically.
+
+- Aggregate single-process coverage run timed out at 120s before optimization module fully exercised; partial report 99% (67 lines/21 branches in optimization/base.py unhit). Per-module prior results remain 100%.
