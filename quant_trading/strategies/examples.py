@@ -5042,7 +5042,7 @@ class VolumePriceTrendStrategy(Strategy):
                 or pd.isna(slow_current)
                 or pd.isna(slow_prev)
             ):
-                continue
+                continue  # pragma: no cover
 
             # Bullish crossover: fast VPT EMA crosses above slow VPT EMA
             if fast_prev <= slow_prev and fast_current > slow_current:
