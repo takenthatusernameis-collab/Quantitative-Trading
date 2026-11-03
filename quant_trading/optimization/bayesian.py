@@ -1,13 +1,15 @@
 """Bayesian parameter optimization using scikit-optimize.
 
 Examples:
+    >>> try:
+    ...     import skopt  # noqa
+    ... except Exception:
+    ...     import pytest
+    ...     _ = pytest.importorskip("skopt")
     >>> from quant_trading.optimization import (
-    ...     BayesianOptimizer,
     ...     ParameterGrid,
     ...     ParameterSpace,
-    ...     maximize_sharpe,
     ... )
-    >>> from quant_trading.strategies.examples import MovingAverageCrossover
     >>> from quant_trading.optimization.bayesian import BayesianOptimizerConfig
     >>> cfg = BayesianOptimizerConfig(n_calls=10, random_state=123)
     >>> cfg.n_calls == 10
