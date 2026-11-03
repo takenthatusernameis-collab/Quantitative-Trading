@@ -3,31 +3,33 @@
 ## Repository state (post-fix)
 
 All checks clean:
-- `python -m pytest -q` → **2666 passed, 124 deselected, 0 failed** (exit 0)
-- `python -m pytest -m slow` → **124 passed, 2666 deselected, 0 failed** (~3 min) → entire suite green
-- `python -m ruff check .` → clean
-- `python -m mypy quant_trading/` → clean (37 source files)
-- `python -m black --check quant_trading/` → clean (37 files)
-- `python -m pytest --doctest-modules quant_trading/utils/formatting.py` → 6 passed
+- `python -m pytest tests/test_utils.py -q` → **21 passed** (was 20)
+- `python -m pytest --doctest-modules quant_trading/utils/ -q` → 9 passed
+- `python -m ruff check tests/test_utils.py` → clean
+- `python -m mypy tests/test_utils.py` → clean
+- `python -m black --check tests/test_utils.py` → clean
+- `quant_trading/utils/formatting.py` → 100% coverage
+- `quant_trading/utils/logging.py` → 100% coverage (was 97%, missing line 100)
 
 ## What changed (this session)
 
-Fixed the only remaining project-wide lint issue — `RUF046` in `format_shares` at `quant_trading/utils/formatting.py:108`:
-- `f"{int(round(quantity)):,}"` → `f"{round(quantity):,}"`
-- `round(quantity)` (no `ndigits`) already returns an `int`; behavior identical for all inputs (non-numeric input raises `TypeError` at `round()` before `int()` is reached).
+Fixed a real coverage gap found by inspecting the actual coverage report (the prior handoff's suggested task — unit tests for `format_shares`/`format_duration_days` — was already complete):
+
+- `tests/test_utils.py`: hoisted the previously-nested `test_clear_loggers_named_and_root` (it was defined inside `test_format_duration_days_weeks_months_years_edge_cases` and therefore never ran as a top-level test) to module scope, so it actually executes and covers `logging.py:100` (the `if not names: names = ("",)` branch).
+- Removed a dead `import pytest` inside `test_clear_loggers_swallow_handler_close_error` (ruff F401).
 
 ## What was verified (this session)
 
-All checks above; no regressions vs. the prior 2666-passed baseline.
+All checks above; `test_repository_integrity.py` still passes (37 passed combined). No source/test behavior changes beyond the test file.
 
 ## What remains unresolved
 
-- Coverage gap: `format_shares` and `format_duration_days` are doctest-only; `tests/test_utils.py` unit-tests the other formatting functions but not these two.
+- Coverage gaps elsewhere in the repo (full-suite coverage run times out >10 min; only module-level coverage was checked). Next lowest-hanging gaps should be found by running `pytest --cov` per-module on `quant_trading/risk`, `quant_trading/regime`, `quant_trading/strategies`, etc.
 
 ## Approaches that failed and why
 
-- None.
+- Blindly following the prior handoff's suggested task would have added duplicate tests to an already-100%-covered module. Inspecting the actual coverage report surfaced the real gap: a nested test function that never ran.
 
 ## One precise next task
 
-Add unit tests for `format_shares` and `format_duration_days` to `tests/test_utils.py` (assert-based style, matching existing tests there). Cover whole/fractional shares, decimals=0/2, negatives; and days/weeks/months/years boundaries incl. 30→'1 month', 365→'1 year', zero, negatives, non-integer week/month fallthrough. Then verify with `python -m pytest tests/test_utils.py -q`, re-run `python -m pytest -q`, and confirm `ruff check .` / `black --check` / `mypy quant_trading/` stay clean. Constraints: minimal, reversible, tests only (no `formatting.py` behavior change).
+Find the next module with <100% coverage (run `PYTHONPATH=. python -m pytest tests/<module>_tests.py --cov=quant_trading.<module> --cov-report=term-missing` per module) and add focused tests to close gaps, verifying with `pytest`, `ruff check .`, `black --check`, and `mypy quant_trading/` per project conventions.
