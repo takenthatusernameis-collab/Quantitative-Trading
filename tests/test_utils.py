@@ -152,6 +152,26 @@ def test_get_logger_creates_or_returns_existing():
         logging.getLogger(name).handlers.clear()
 
 
+def test_format_shares_fractional_and_edge_cases():
+    assert format_shares(10.5, decimals=0) == "10.5"
+    assert format_shares(1000.25, decimals=0) == "1000.25"
+    assert format_shares(0) == "0"
+    assert format_shares(0, decimals=2) == "0.00"
+    assert format_shares(-10.5, decimals=0) == "-10.5"
+
+
+def test_format_duration_days_weeks_months_years_edge_cases():
+    assert format_duration_days(2) == "2 days"
+    assert format_duration_days(2.5) == "2.5 days"
+    assert format_duration_days(14) == "2 weeks"
+    assert format_duration_days(10.5) == "1.5 weeks"
+    assert format_duration_days(60) == "2.0 months"
+    assert format_duration_days(90) == "3.0 months"
+    assert format_duration_days(730) == "2.0 years"
+    assert format_duration_days(-7) == "-1 week"
+    assert format_duration_days(365.25) == "1 year"
+
+
 def test_clear_loggers_named_and_root():
     name = "_test_utils_clear_loggers"
     logger = setup_logger(name=name, level="INFO")

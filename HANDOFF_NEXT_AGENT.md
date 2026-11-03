@@ -1,10 +1,10 @@
 # Handoff to next agent
 
 ## What changed
-- Added test `test_clear_loggers_named_and_root` in `tests/test_utils.py` covering `clear_loggers` for both named and root (no-arg) paths.
+- Added focused edge-case tests in `tests/test_utils.py`: `test_format_shares_fractional_and_edge_cases` and `test_format_duration_days_weeks_months_years_edge_cases`.
 
 ## What was actually verified
-- `python -m pytest tests/test_utils.py`: 12 passed.
+- `python -m pytest tests/test_utils.py`: 20 passed.
 - `python -m ruff check .`: clean.
 - `python -m black --check quant_trading/ tests/`: 86 files unchanged.
 - `python -m mypy quant_trading/`: success, 37 source files.
@@ -16,4 +16,4 @@
 - None.
 
 ## One precise next task
-- Pick another bounded coverage gap (e.g. `quant_trading/utils/formatting.py` edge cases or `quant_trading/optimization/*`) and add focused tests, verifying with `pytest` + ruff/black/mypy.
+- Pick another bounded coverage gap (e.g. `quant_trading/optimization/*` or `quant_trading/risk/*`) and add focused tests, verifying with `pytest` + ruff/black/mypy.
