@@ -636,3 +636,24 @@ class TestLimitsCoverageGaps:
         assert result.ok is True
         result2 = CheckResult(passed=False)
         assert result2.ok is False
+
+    def test_position_limit_both_violations_exact(self):
+        """Ensure both violations are reported."""
+        limit = PositionLimit(max_size=0.1, max_value=10000.0)
+        position = Position(symbol="AAPL", quantity=200, avg_price=100.0, current_price=100.0)
+        violations = limit.check(position, 100000.0)
+        assert len(violations) == 2
+
+    def test_portfolio_risk_pct_with_positive_portfolio(self):
+        """Cover portfolio_risk_pct when portfolio_value > 0."""
+        pl = PortfolioLimit(max_portfolio_risk=0.05)
+        positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=150)}
+        pct = pl.portfolio_risk_pct(positions, 100000.0)
+        assert pct > 0
+
+    def test_leverage_with_positive_portfolio(self):
+        """Cover leverage when portfolio_value > 0."""
+        pl = PortfolioLimit(max_leverage=2.0)
+        positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=150)}
+        lev = pl.leverage(positions, 100000.0)
+        assert lev > 0
