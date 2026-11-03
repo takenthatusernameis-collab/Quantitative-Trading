@@ -3,6 +3,7 @@
 import logging
 
 from quant_trading.utils import (
+    clear_loggers,
     format_basis_points,
     format_currency,
     format_duration_days,
@@ -118,6 +119,23 @@ def test_get_logger_creates_or_returns_existing():
         assert again is fresh
     finally:
         logging.getLogger(name).handlers.clear()
+
+
+def test_clear_loggers_named_and_root():
+    name = "_test_utils_clear_loggers"
+    logger = setup_logger(name=name, level="INFO")
+    assert len(logger.handlers) >= 1
+    clear_loggers(name)
+    assert len(logging.getLogger(name).handlers) == 0
+
+    root = logging.getLogger()
+    root.addHandler(logging.StreamHandler())
+    try:
+        assert len(root.handlers) >= 1
+        clear_loggers()
+        assert len(root.handlers) == 0
+    finally:
+        root.handlers.clear()
 
 
 if __name__ == "__main__":
