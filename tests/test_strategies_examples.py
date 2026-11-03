@@ -7224,6 +7224,21 @@ class TestExamplesRemainingCoverage:
         df2 = self._ohlcv([100.0] * 11)
         assert isinstance(strategy.generate_signals({"AAPL": df2}), list)
 
+    # --- MovingAverageCrossover: incremental slow window still growing (line 128) ---
+    def test_ma_incremental_slow_window_still_growing(self):
+        strategy = MovingAverageCrossover(fast_period=5, slow_period=10)
+        # Pre-seed state with n = slow_period - 1. The next call has n =
+        # slow_period, passes the length guard, is incremental, and slow_old is
+        # None, so line 128 (slow window still growing) runs.
+        strategy._ma_state["AAPL"] = {
+            "n": 9,
+            "fast_sum": 450.0,
+            "slow_sum": 900.0,
+            "fast_current": 100.0,
+            "slow_current": 100.0,
+        }
+        assert isinstance(strategy.generate_signals({"AAPL": self._ohlcv([100.0] * 10)}), list)
+
     # --- RSI: incremental gain/loss histogram trimming (lines 341-345) ---
     def test_rsi_incremental_hist_trimming(self):
         strategy = RSIStrategy(period=3, oversold=30, overbought=70)
@@ -7232,6 +7247,26 @@ class TestExamplesRemainingCoverage:
         for i in range(len(df)):
             strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
         assert isinstance(strategy.generate_signals({"AAPL": df}), list)
+
+    # --- RSI: incremental histogram below period (line 341->345, no-trim arc) ---
+    def test_rsi_incremental_hist_below_period(self):
+        strategy = RSIStrategy(period=3, oversold=30, overbought=70)
+        # Pre-seed state with n = period and a gain_hist shorter than the
+        # period so the incremental step reaches line 341 with
+        # len(gain_hist) <= period (the no-trim arc).
+        strategy._rsi_state["AAPL"] = {
+            "n": 3,
+            "gain_hist": [1.0, 2.0],
+            "loss_hist": [0.5, 0.5],
+            "gain_sum": 3.0,
+            "loss_sum": 1.0,
+            "last_close": 100.0,
+            "curr_rsi": 50.0,
+        }
+        assert isinstance(
+            strategy.generate_signals({"AAPL": self._ohlcv([100.0, 101.0, 102.0, 103.0])}),
+            list,
+        )
 
     # --- RSI: full-recompute oversold bounce (line 431) ---
     def test_rsi_full_recompute_oversold_bounce(self):
@@ -7250,6 +7285,20 @@ class TestExamplesRemainingCoverage:
         for i in range(5, len(df)):
             strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
         assert isinstance(strategy.generate_signals({"AAPL": df}), list)
+
+    # --- BollingerBands: incremental window below period (line 547->551, no-trim arc) ---
+    def test_bb_incremental_window_below_period(self):
+        strategy = BollingerBandsStrategy(period=5, std_dev=2.0)
+        # Pre-seed state with n = period - 1 and a last_closes shorter than the
+        # period so the incremental step reaches line 547 with
+        # len(last_closes) <= period (the no-trim arc).
+        strategy._bb_state["AAPL"] = {
+            "n": 4,
+            "last_closes": [100.0, 100.0, 100.0, 100.0],
+            "sum": 400.0,
+            "sumsq": 40000.0,
+        }
+        assert isinstance(strategy.generate_signals({"AAPL": self._ohlcv([100.0] * 5)}), list)
 
     # --- BollingerBands: incremental variance floor var = 0.0 (line 560) ---
     def test_bb_incremental_variance_floor(self):
