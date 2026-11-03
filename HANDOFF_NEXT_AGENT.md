@@ -21,5 +21,14 @@
 ## Approaches that failed
 - None for this task. (The prior-agent's optional yfinance Series-branch task was deemed non-viable and deliberately left untouched.)
 
+## What was verified this session
+- `pytest -m slow tests/test_examples_smoke.py tests/test_run_optimization_smoke.py`: **124 passed in 175.44s** (exit 0). The previously deselected slow smoke/subprocess tests pass to completion.
+
+## Decision on CI gating
+- `.github/workflows/main.yml` runs the Kilo controller, not pytest; there is no test step to gate slow tests behind. Slow tests remain deselected by default (`addopts = -m "not slow and not network"`) and run explicitly via `pytest -m slow ...`. No code or CI change made.
+
+## What remains unresolved
+- Nothing. Repo is fully green: `2664 passed, 0 skipped, 124 deselected` (default), plus 124 slow passed. No TODOs/FIXMEs, no failing tests.
+
 ## One precise next task
-- Run `pytest -m slow tests/test_examples_smoke.py tests/test_run_optimization_smoke.py` to confirm the 124 deselected slow smoke tests pass to completion, and decide whether to gate them in CI. The repo is otherwise fully green with no TODOs/FIXMEs and no failing tests, so only select new feature work when there's a demonstrated need.
+- None. No assigned task remains; select new feature work only when there's a demonstrated need.
