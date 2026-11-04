@@ -1,7 +1,7 @@
-"""Offline PositiveVolumeIndex backtest example using synthetic data.
+"""Offline Positive Volume Index (PVI) backtest example using synthetic data.
 
-Runs the PositiveVolumeIndexStrategy against deterministic synthetic price data, so it needs no
-network access and produces the same output on every run.
+Runs the ``PositiveVolumeIndexStrategy`` against deterministic synthetic price data,
+so it needs no network access and produces the same output on every run.
 """
 
 import sys
@@ -47,7 +47,7 @@ def main() -> None:
         slippage=0.0005,
     )
 
-    strategy = PositiveVolumeIndexStrategy(period=255, name="Positive_Volume_Index_255")
+    strategy = PositiveVolumeIndexStrategy(period=255, name="PVI_255")
 
     engine = BacktestEngine(config=config, data_manager=data_manager)
     engine.add_strategy(strategy)

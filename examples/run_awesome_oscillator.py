@@ -1,10 +1,7 @@
-"""Offline Awesome Oscillator backtest example using synthetic data.
+"""Offline Awesome Oscillator (AO) backtest example using synthetic data.
 
-Runs the ``AwesomeOscillatorStrategy`` against deterministic synthetic price
-data, so it needs no network access and produces the same output on every run.
-
-The Awesome Oscillator (AO) measures market momentum by comparing the
-34-period and 5-period simple moving averages of the midpoints.
+Runs the ``AwesomeOscillatorStrategy`` against deterministic synthetic price data,
+so it needs no network access and produces the same output on every run.
 """
 
 import sys
@@ -50,9 +47,7 @@ def main() -> None:
         slippage=0.0005,
     )
 
-    strategy = AwesomeOscillatorStrategy(
-        short_period=5, long_period=34, name="Awesome_Oscillator_5_34"
-    )
+    strategy = AwesomeOscillatorStrategy(name="Awesome_Oscillator")
 
     engine = BacktestEngine(config=config, data_manager=data_manager)
     engine.add_strategy(strategy)

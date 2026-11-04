@@ -1,7 +1,7 @@
-"""Offline VolumeRateOfChange backtest example using synthetic data.
+"""Offline Volume Rate of Change (VROC) backtest example using synthetic data.
 
-Runs the VolumeRateOfChangeStrategy against deterministic synthetic price data, so it needs no
-network access and produces the same output on every run.
+Runs the ``VolumeRateOfChangeStrategy`` against deterministic synthetic price data,
+so it needs no network access and produces the same output on every run.
 """
 
 import sys
@@ -47,7 +47,7 @@ def main() -> None:
         slippage=0.0005,
     )
 
-    strategy = VolumeRateOfChangeStrategy(period=14, name="Volume_Rate_Of_Change_14")
+    strategy = VolumeRateOfChangeStrategy(period=12, name="Volume_Rate_Of_Change_12")
 
     engine = BacktestEngine(config=config, data_manager=data_manager)
     engine.add_strategy(strategy)

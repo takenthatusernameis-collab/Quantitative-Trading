@@ -1,7 +1,7 @@
-"""Offline HullMovingAverage backtest example using synthetic data.
+"""Offline Hull Moving Average (HMA) backtest example using synthetic data.
 
-Runs the HullMovingAverageStrategy against deterministic synthetic price data, so it needs no
-network access and produces the same output on every run.
+Runs the ``HullMovingAverageStrategy`` against deterministic synthetic price data,
+so it needs no network access and produces the same output on every run.
 """
 
 import sys
@@ -47,7 +47,7 @@ def main() -> None:
         slippage=0.0005,
     )
 
-    strategy = HullMovingAverageStrategy(period=16, name="Hull_Moving_Average_16")
+    strategy = HullMovingAverageStrategy(period=20, name="Hull_MA_20")
 
     engine = BacktestEngine(config=config, data_manager=data_manager)
     engine.add_strategy(strategy)

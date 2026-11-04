@@ -1,7 +1,7 @@
-"""Offline RateOfChange backtest example using synthetic data.
+"""Offline Rate of Change (ROC) backtest example using synthetic data.
 
-Runs the RateOfChangeStrategy against deterministic synthetic price data, so it needs no
-network access and produces the same output on every run.
+Runs the ``RateOfChangeStrategy`` against deterministic synthetic price data,
+so it needs no network access and produces the same output on every run.
 """
 
 import sys

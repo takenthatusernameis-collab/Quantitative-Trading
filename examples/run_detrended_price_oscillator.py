@@ -1,7 +1,7 @@
-"""Offline DetrendedPriceOscillator backtest example using synthetic data.
+"""Offline Detrended Price Oscillator (DPO) backtest example using synthetic data.
 
-Runs the DetrendedPriceOscillatorStrategy against deterministic synthetic price data, so it needs no
-network access and produces the same output on every run.
+Runs the ``DetrendedPriceOscillatorStrategy`` against deterministic synthetic price data,
+so it needs no network access and produces the same output on every run.
 """
 
 import sys
@@ -47,7 +47,7 @@ def main() -> None:
         slippage=0.0005,
     )
 
-    strategy = DetrendedPriceOscillatorStrategy(period=20, name="Detrended_Price_Oscillator_20")
+    strategy = DetrendedPriceOscillatorStrategy(period=20, name="DPO_20")
 
     engine = BacktestEngine(config=config, data_manager=data_manager)
     engine.add_strategy(strategy)

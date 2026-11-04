@@ -1,20 +1,13 @@
-"""Offline Ease of Movement backtest example using synthetic data.
+"""Offline Ease of Movement (EOM) backtest example using synthetic data.
 
 Runs the ``EaseOfMovementStrategy`` against deterministic synthetic price data,
 so it needs no network access and produces the same output on every run.
-
-Ease of Movement relates price change to volume to show how easily price can
-move. The strategy generates buy signals when EOM crosses above zero and sell
-signals when EOM crosses below zero.
 """
-
-from __future__ import annotations
 
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 
 from datetime import datetime, timedelta
 
@@ -54,7 +47,7 @@ def main() -> None:
         slippage=0.0005,
     )
 
-    strategy = EaseOfMovementStrategy(name="EaseOfMovement")
+    strategy = EaseOfMovementStrategy(period=14, name="EOM_14")
 
     engine = BacktestEngine(config=config, data_manager=data_manager)
     engine.add_strategy(strategy)

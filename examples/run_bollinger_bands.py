@@ -1,21 +1,13 @@
 """Offline Bollinger Bands backtest example using synthetic data.
 
-Runs the ``BollingerBandsStrategy`` against deterministic synthetic price data, so it
-needs no network access and produces the same output on every run.
-
-The Bollinger Bands consist of a simple moving average (middle band) plus an
-upper and lower band set at a configurable number of standard deviations away
-from the SMA. The strategy is a mean-reversion approach: it buys when price
-touches the lower band and sells when price touches the upper band.
+Runs the ``BollingerBandsStrategy`` against deterministic synthetic price data,
+so it needs no network access and produces the same output on every run.
 """
-
-from __future__ import annotations
 
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 
 from datetime import datetime, timedelta
 
@@ -55,7 +47,7 @@ def main() -> None:
         slippage=0.0005,
     )
 
-    strategy = BollingerBandsStrategy(name="Bollinger_Bands")
+    strategy = BollingerBandsStrategy(period=20, std_dev=2.0, name="Bollinger_Bands_20_2")
 
     engine = BacktestEngine(config=config, data_manager=data_manager)
     engine.add_strategy(strategy)

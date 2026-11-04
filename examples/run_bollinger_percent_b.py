@@ -1,9 +1,7 @@
 """Offline Bollinger %B backtest example using synthetic data.
 
-Runs the ``BollingerPercentBStrategy`` against deterministic synthetic price
-data, so it needs no network access and produces the same output on every run.
-
-Bollinger %B measures where price is in relation to the Bollinger Bands.
+Runs the ``BollingerPercentBStrategy`` against deterministic synthetic price data,
+so it needs no network access and produces the same output on every run.
 """
 
 import sys
@@ -49,9 +47,7 @@ def main() -> None:
         slippage=0.0005,
     )
 
-    strategy = BollingerPercentBStrategy(
-        period=20, std_dev=2.0, oversold=0.2, overbought=0.8, name="Bollinger_Percent_B_20_2.0"
-    )
+    strategy = BollingerPercentBStrategy(period=20, std_dev=2.0, name="Bollinger_%B_20_2")
 
     engine = BacktestEngine(config=config, data_manager=data_manager)
     engine.add_strategy(strategy)

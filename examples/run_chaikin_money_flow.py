@@ -1,4 +1,4 @@
-"""Offline Chaikin Money Flow backtest example using synthetic data.
+"""Offline Chaikin Money Flow (CMF) backtest example using synthetic data.
 
 Runs the ``ChaikinMoneyFlowStrategy`` against deterministic synthetic price data,
 so it needs no network access and produces the same output on every run.
@@ -47,7 +47,7 @@ def main() -> None:
         slippage=0.0005,
     )
 
-    strategy = ChaikinMoneyFlowStrategy(period=20, name="Chaikin_Money_Flow_20")
+    strategy = ChaikinMoneyFlowStrategy(period=21, name="Chaikin_Money_Flow_21")
 
     engine = BacktestEngine(config=config, data_manager=data_manager)
     engine.add_strategy(strategy)

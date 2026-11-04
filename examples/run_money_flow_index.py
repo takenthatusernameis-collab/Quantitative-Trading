@@ -1,7 +1,7 @@
-"""Offline MoneyFlowIndex backtest example using synthetic data.
+"""Offline Money Flow Index (MFI) backtest example using synthetic data.
 
-Runs the MoneyFlowIndexStrategy against deterministic synthetic price data, so it needs no
-network access and produces the same output on every run.
+Runs the ``MoneyFlowIndexStrategy`` against deterministic synthetic price data,
+so it needs no network access and produces the same output on every run.
 """
 
 import sys

@@ -1,7 +1,7 @@
-"""Offline NegativeVolumeIndex backtest example using synthetic data.
+"""Offline Negative Volume Index (NVI) backtest example using synthetic data.
 
-Runs the NegativeVolumeIndexStrategy against deterministic synthetic price data, so it needs no
-network access and produces the same output on every run.
+Runs the ``NegativeVolumeIndexStrategy`` against deterministic synthetic price data,
+so it needs no network access and produces the same output on every run.
 """
 
 import sys
@@ -47,7 +47,7 @@ def main() -> None:
         slippage=0.0005,
     )
 
-    strategy = NegativeVolumeIndexStrategy(period=255, name="Negative_Volume_Index_255")
+    strategy = NegativeVolumeIndexStrategy(period=255, name="NVI_255")
 
     engine = BacktestEngine(config=config, data_manager=data_manager)
     engine.add_strategy(strategy)

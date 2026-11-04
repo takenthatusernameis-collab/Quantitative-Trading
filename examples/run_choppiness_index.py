@@ -1,7 +1,7 @@
-"""Offline ChoppinessIndex backtest example using synthetic data.
+"""Offline Choppiness Index (CHOP) backtest example using synthetic data.
 
-Runs the ChoppinessIndexStrategy against deterministic synthetic price data, so it needs no
-network access and produces the same output on every run.
+Runs the ``ChoppinessIndexStrategy`` against deterministic synthetic price data,
+so it needs no network access and produces the same output on every run.
 """
 
 import sys
@@ -47,9 +47,7 @@ def main() -> None:
         slippage=0.0005,
     )
 
-    strategy = ChoppinessIndexStrategy(
-        period=14, low_threshold=38.2, high_threshold=61.8, name="Choppiness_Index_14"
-    )
+    strategy = ChoppinessIndexStrategy(period=14, name="Choppiness_Index_14")
 
     engine = BacktestEngine(config=config, data_manager=data_manager)
     engine.add_strategy(strategy)
