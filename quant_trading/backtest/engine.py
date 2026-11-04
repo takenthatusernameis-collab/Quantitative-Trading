@@ -323,10 +323,43 @@ class BacktestResult:
         return float(getattr(self.metrics, "sharpe_ratio", 0.0) or 0.0)
 
     @property
+    def sortino_ratio(self) -> float:
+        """Annualized Sortino ratio."""
+
+        return float(getattr(self.metrics, "sortino_ratio", 0.0) or 0.0)
+
+    @property
+    def calmar_ratio(self) -> float:
+        """Calmar ratio."""
+
+        return float(getattr(self.metrics, "calmar_ratio", 0.0) or 0.0)
+
+    @property
+    def profit_factor(self) -> float:
+        """Profit factor."""
+
+        return float(getattr(self.metrics, "profit_factor", 0.0) or 0.0)
+
+    @property
     def max_drawdown_pct(self) -> float:
         """Maximum drawdown as a percentage."""
 
         return float(getattr(self.metrics, "max_drawdown_pct", 0.0) or 0.0)
+
+    @property
+    def max_drawdown(self) -> float:
+        """Maximum drawdown as a decimal."""
+
+        return float(getattr(self.metrics, "max_drawdown", 0.0) or 0.0)
+
+    @property
+    def total_pnl(self) -> float:
+        """Total realized PnL."""
+
+        metrics = getattr(self, "metrics")
+        if metrics is None:
+            return 0.0
+        return float(getattr(metrics, "total_pnl", 0.0) or 0.0)
 
     def to_dataframe(self) -> pd.DataFrame:
         """Convert key results to a DataFrame.
