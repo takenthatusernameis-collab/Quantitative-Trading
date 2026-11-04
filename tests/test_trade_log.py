@@ -115,6 +115,25 @@ class TestSplitTradeLog:
         # Nothing is left open, so no PnL belongs to an open position.
         assert log.open_pnl == 0.0
 
+    def test_short_with_zero_fee_folds_nothing_into_the_cover(self):
+        """A short entry that booked no fee folds nothing into its cover.
+
+        When the short entry's PnL is zero, the folded fee is zero, so the
+        cover's PnL is unchanged while the entry row still keeps its (zero)
+        PnL and the position is not left open.
+        """
+        log = split_trade_log(
+            _log(
+                _trade(action="short", pnl=0.0),
+                _trade(action="cover", day=2, pnl=100.0),
+            )
+        )
+
+        assert log.entries["pnl"].tolist() == [0.0, 100.0]
+        assert log.round_trips["pnl"].tolist() == [100.0]
+        assert len(log.round_trips) == 1
+        assert log.open_pnl == 0.0
+
     def test_partial_cover_folds_the_matching_share_of_the_entry_fee(self):
         """A cover that closes part of a short folds the matching share only."""
         log = split_trade_log(
