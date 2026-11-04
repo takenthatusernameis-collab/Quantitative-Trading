@@ -1,27 +1,31 @@
 # Handoff to next agent
 
 ## What changed
-- Removed two stale, unreferenced tracked artifacts: `subdir/out.csv` and `subdir/out.json` (and the now-empty `subdir/` directory).
-- These files were committed in the initial commit `ce09b3a` but are referenced by no source, test, doc, config, or workflow file anywhere in the repository (verified with an exhaustive `grep -rIn` over the whole tree, excluding `.git`). The only `subdir`/`out.csv`/`out.json` matches are unrelated: a `missing_subdir` path in `tests/test_yfinance_fetch_many.py:415,688` and `result.to_csv(path="out.csv")` / `result.to_json(path="out.json")` in `tests/test_backtest_engine.py:412,436`, both of which write into `tmp_path`, not `subdir/`.
-- No source, test, doc, or config behavior changed.
+- Added a README "Example Scripts" entry for `examples/run_cmo.py` (Chande Momentum Oscillator), placed immediately after the existing `run_chande_momentum_oscillator.py` entry in the C-section of the example scripts list.
+- This repairs a deterministic test failure introduced by the prior session's commit `58a351b`, which created `examples/run_cmo.py` (mode 600 in the working tree, tracked as 100644) but did not document it in the README.
+- No source, test, doc config, or workflow behavior changed; the README is the only file modified.
 
 ## What was actually verified
-- Full test suite: `pytest -q` → **2749 passed, 127 deselected** (slow/network deselected by default), same as the pre-change baseline.
+- `tests/test_readme.py::TestReadmeExampleScripts` (both guard tests) now pass — previously `test_every_example_script_is_documented` failed with `['run_cmo.py']`.
+- Full test suite: `pytest -q` → **2749 passed, 129 deselected** (slow/network deselected by default), same as the pre-change baseline.
+- `run_cmo.py` smoke tests (`test_example_script_imports_cleanly[run_cmo.py]` and `test_example_script_runs_offline[run_cmo.py]`) pass explicitly under `-m slow`.
 - Static checks all clean after the change:
-  - `ruff check .` → All checks passed.
-  - `black --check .` → 138 files unchanged.
-  - `mypy quant_trading/` → Success: no issues found in 37 source files.
-- Full coverage re-run before the change confirmed **100% coverage** across all 37 modules (6944 stmts, 0 miss, 2372 branches, 0 partial), so this task was a repository-hygiene change, not a coverage task.
-- The deletion is staged (`git status` shows `D subdir/out.csv`, `D subdir/out.json`); the empty `subdir/` directory is gone.
+  - `python -m ruff check .` → All checks passed.
+  - `python -m black --check .` → 139 files unchanged.
+  - `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
+- The README edit is whitespace-clean (verified by re-reading the region and by `black --check`).
 
 ## What remains unresolved
-- No functional gaps found. The repository is clean: tests pass, lint/type/format clean, 100% coverage, README/CLI/registry all in sync with their guards.
-- The only remaining loose end is whether the deletion should be committed/pushed; per the "never commit unless explicitly asked" rule, the staged deletion is left for the controller to checkpoint, not committed by this session.
+- Nothing functional. The repository is clean: tests pass, lint/type/format clean.
+- The only remaining loose end is whether the README change should be committed/pushed; per the "never commit unless explicitly asked" rule, the change is left unstaged for the controller to checkpoint.
+- Note: `examples/run_cmo.py` has working-tree mode 600 (owner-only) while sibling example scripts are 644. Git tracks it as 100644, so this does not affect tracking or the smoke tests, but it is an inconsistency left over from the prior session. Not changed in this session; fix only if it causes an access problem.
 
 ## Approaches that failed and why
-- Following the prior handoff's literal suggestion ("find the next module with <100% coverage") would have been wasted effort: a full `pytest --cov` run showed every module already at 100%. Inspecting the repo state directly surfaced the real, bounded, safe task instead: two dead tracked artifacts.
+- The prior handoff's literal suggestion ("find the next module with <100% coverage") is still a dead end: all 37 modules are already at 100% coverage.
+- Inspecting the repo state directly (rather than hunting coverage gaps) surfaced the real defect: the previous session's commit added `examples/run_cmo.py` without updating the README, which broke the existing `tests/test_readme.py::TestReadmeExampleScripts::test_every_example_script_is_documented` guard. That guard is a deterministic, repo-level invariant, so repairing the README is the minimal, safe fix.
 
 ## Next task (precise)
-- No new code task is queued. If the controller requests another session, re-run `pytest -q`, `ruff check .`, `black --check .`, and `mypy quant_trading/` to confirm the tree is still green before selecting any new bounded task. Candidate high-value directions if green: add a missing example script for one of the 26 primary keys that lack a `examples/run_*.py` (e.g. `klinger`, `chop`, `dpo`, `cmo`, `nvi`, `pvi`, `sar`, `stoch`, `stochrsi`, `supertrend`, `vol`, `vpt`, `vroc`, `williamsr`, `ao`, `cho`, `cmf`, `ema`, `eom`, `hma`, `mfi`, `roc`, `bb`, `bbpct`, `adl`), or extend CLI/README coverage for an under-documented feature.
+- No new code task is queued. If the controller requests another session, re-run `pytest -q`, `python -m ruff check .`, `python -m black --check .`, and `python -m mypy quant_trading/` to confirm the tree is still green before selecting any new bounded task.
+- Candidate high-value directions if green: add a missing `examples/run_*.py` for one of the 25 primary keys that still lack one (`klinger`, `chop`, `dpo`, `nvi`, `pvi`, `sar`, `stoch`, `stochrsi`, `supertrend`, `vol`, `vpt`, `vroc`, `williamsr`, `ao`, `cho`, `cmf`, `ema`, `eom`, `hma`, `mfi`, `roc`, `bb`, `bbpct`, `adl`) — each new script MUST also get a README entry or it will break the same `TestReadmeExampleScripts` guard, or extend CLI/README coverage for an under-documented feature.
 
 (End of file)
