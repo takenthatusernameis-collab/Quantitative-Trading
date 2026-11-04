@@ -440,10 +440,12 @@ def test_backtest_result_metric_passthrough_zero_values():
     assert result.max_drawdown_pct == 0.0
 
 
-def test_backtest_result_metric_passthrough_missing_attrs_explicit():
-    """Metrics lacking attributes fall back via getattr(..., 0) or 0."""
+def test_backtest_result_metric_passthrough_remaining_attrs():
+    """Remaining metric passthrough properties fall back when missing."""
     result = _result(SimpleNamespace())
-    assert result.num_trades == 0
-    assert result.win_rate == 0.0
-    assert result.sharpe_ratio == 0.0
-    assert result.max_drawdown_pct == 0.0
+    assert result.sortino_ratio == 0.0
+    assert result.calmar_ratio == 0.0
+    assert result.profit_factor == 0.0
+    assert result.max_drawdown == 0.0
+    assert result.total_pnl == 0.0
+    assert result.unrealized_pnl == 0.0

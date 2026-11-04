@@ -296,7 +296,7 @@ class BacktestResult:
             The unrealized PnL of the open positions.
 
         """
-        return self.metrics.unrealized_pnl
+        return float(getattr(self.metrics, "unrealized_pnl", 0.0) or 0.0)
 
     @property
     def num_trades(self) -> int:
@@ -356,7 +356,7 @@ class BacktestResult:
     def total_pnl(self) -> float:
         """Total realized PnL."""
 
-        metrics = getattr(self, "metrics")
+        metrics = self.metrics
         if metrics is None:
             return 0.0
         return float(getattr(metrics, "total_pnl", 0.0) or 0.0)
