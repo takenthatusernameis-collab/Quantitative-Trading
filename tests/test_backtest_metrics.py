@@ -417,3 +417,24 @@ class TestBacktestResultMetricPassthrough:
         result = _result(SimpleNamespace())
 
         assert result.trade_count == result.num_trades == 0
+
+
+def test_backtest_result_metric_passthrough_fallback():
+    """BacktestResult metric passthrough returns 0 when metrics lacks attrs."""
+    result = _result(SimpleNamespace())
+    assert result.num_trades == 0
+    assert result.trade_count == 0
+    assert result.win_rate == 0.0
+    assert result.sharpe_ratio == 0.0
+    assert result.max_drawdown_pct == 0.0
+
+
+def test_backtest_result_metric_passthrough_zero_values():
+    """Fallback also covers falsy attribute values."""
+    result = _result(
+        SimpleNamespace(num_trades=0, win_rate=0.0, sharpe_ratio=0.0, max_drawdown_pct=0.0)
+    )
+    assert result.num_trades == 0
+    assert result.win_rate == 0.0
+    assert result.sharpe_ratio == 0.0
+    assert result.max_drawdown_pct == 0.0
