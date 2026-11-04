@@ -1344,5 +1344,84 @@ class TestTrailingStop:
         assert rm.get_trailing_stop("AAPL") == pytest.approx(114.0)
 
 
+class TestLimitsCoverage:
+    def test_position_limit_size_exceeds_only(self):
+        from quant_trading.risk.limits import PositionLimit
+        from quant_trading.strategies.base import Position
+
+        pl = PositionLimit(max_size=0.01, max_value=1000000.0)
+        pos = Position(symbol="AAPL", quantity=10, avg_price=100.0, current_price=100.0)
+        pl.check(pos, portfolio_value=50000.0)
+        from quant_trading.risk.limits import PositionLimit
+        from quant_trading.strategies.base import Position
+
+        pl = PositionLimit()
+        pos = Position(symbol="AAPL", quantity=0, avg_price=100.0, current_price=100.0)
+        assert pl.check(pos, portfolio_value=100000.0) == []
+
+    def test_position_limit_value_exceeds(self):
+        from quant_trading.risk.limits import PositionLimit
+        from quant_trading.strategies.base import Position
+
+        pl = PositionLimit(max_size=0.01, max_value=10.0)
+        pos = Position(symbol="AAPL", quantity=10, avg_price=100.0, current_price=100.0)
+        violations = pl.check(pos, portfolio_value=100000.0)
+        assert any("Position value" in v for v in violations)
+
+    def test_position_risk_zero_and_no_basis(self):
+        from quant_trading.risk.limits import PortfolioLimit
+        from quant_trading.strategies.base import Position
+
+        pl = PortfolioLimit()
+        assert (
+            pl.position_risk(
+                Position(symbol="AAPL", quantity=0, avg_price=100.0, current_price=100.0)
+            )
+            == 0.0
+        )
+        assert (
+            pl.position_risk(Position(symbol="AAPL", quantity=5, avg_price=0.0, current_price=0.0))
+            == 0.0
+        )
+
+    def test_portfolio_risk_pct_nonpositive(self):
+        from quant_trading.risk.limits import PortfolioLimit
+        from quant_trading.strategies.base import Position
+
+        pl = PortfolioLimit()
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=5, avg_price=100.0, current_price=100.0)
+        }
+        assert pl.portfolio_risk_pct(positions, 0.0) == 0.0
+        assert pl.leverage(positions, 0.0) == 0.0
+
+    def test_portfolio_check_branches(self):
+        from quant_trading.risk.limits import PortfolioLimit
+        from quant_trading.strategies.base import Position
+
+        pl = PortfolioLimit(
+            max_positions=0,
+            max_position_size=0.01,
+            max_portfolio_risk=0.0,
+            max_drawdown=0.1,
+            max_leverage=0.01,
+        )
+        positions = {
+            "AAPL": Position(symbol="AAPL", quantity=10, avg_price=100.0, current_price=100.0),
+            "MSFT": Position(symbol="MSFT", quantity=0, avg_price=100.0, current_price=100.0),
+        }
+        violations = pl.check(positions, portfolio_value=1000.0, peak_value=2000.0)
+        assert len(violations) > 0
+
+    def test_check_result(self):
+        from quant_trading.risk.limits import CheckResult
+
+        res = CheckResult(passed=True)
+        assert res.ok is True
+        res.add_violation("boom")
+        assert res.passed is False
+        assert "boom" in res.violations
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
