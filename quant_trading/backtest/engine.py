@@ -298,6 +298,36 @@ class BacktestResult:
         """
         return self.metrics.unrealized_pnl
 
+    @property
+    def num_trades(self) -> int:
+        """Number of completed round trips."""
+
+        return int(getattr(self.metrics, "num_trades", 0) or 0)
+
+    @property
+    def trade_count(self) -> int:
+        """Alias for :attr:`num_trades`."""
+
+        return self.num_trades
+
+    @property
+    def win_rate(self) -> float:
+        """Win rate as a fraction (0.0-1.0)."""
+
+        return float(getattr(self.metrics, "win_rate", 0.0) or 0.0)
+
+    @property
+    def sharpe_ratio(self) -> float:
+        """Annualized Sharpe ratio."""
+
+        return float(getattr(self.metrics, "sharpe_ratio", 0.0) or 0.0)
+
+    @property
+    def max_drawdown_pct(self) -> float:
+        """Maximum drawdown as a percentage."""
+
+        return float(getattr(self.metrics, "max_drawdown_pct", 0.0) or 0.0)
+
     def to_dataframe(self) -> pd.DataFrame:
         """Convert key results to a DataFrame.
 
@@ -349,19 +379,12 @@ class BacktestResult:
                 handle.write(csv)
         return csv
 
-    def to_json(self, path: str | None = None, indent: int = 2) -> str:
-        """Export the summary metrics to JSON.
-
-        Args:
-            path: Optional destination file path. When provided the JSON is
-                written to that file.
-            indent: Indentation level for the JSON output.
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the backtest result to a dictionary.
 
         Returns:
-            The JSON-formatted summary object.
+            Dictionary containing summary metrics and optional analysis results.
         """
-
-        import json
 
         metrics = self.metrics
         data: dict[str, Any] = {
@@ -392,6 +415,23 @@ class BacktestResult:
             if value is not None:
                 data[attr] = value.to_dict() if hasattr(value, "to_dict") else value
 
+        return data
+
+    def to_json(self, path: str | None = None, indent: int = 2) -> str:
+        """Export the summary metrics to JSON.
+
+        Args:
+            path: Optional destination file path. When provided the JSON is
+                written to that file.
+            indent: Indentation level for the JSON output.
+
+        Returns:
+            The JSON-formatted summary object.
+        """
+
+        import json
+
+        data = self.to_dict()
         content = json.dumps(data, indent=indent, default=str)
         if path is not None:
             with open(path, "w", encoding="utf-8") as handle:
