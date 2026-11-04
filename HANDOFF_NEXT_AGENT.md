@@ -1,10 +1,10 @@
 # Handoff to next agent
 
 ## What changed
-- (This turn) Added a focused regression test `test_backtest_result_metric_passthrough_missing_attrs_explicit` in `tests/test_backtest_metrics.py` exercising `BacktestResult` metric-passthrough properties (`num_trades`, `win_rate`, `sharpe_ratio`, `max_drawdown_pct`) when `metrics` lacks those attributes, exercising the `getattr(..., 0) or 0` fallback paths.
+- Verified BacktestResult metric passthrough coverage for remaining properties (sortino_ratio, calmar_ratio, profit_factor, max_drawdown, total_pnl, unrealized_pnl) when metrics is a partial/SimpleNamespace object; existing tests cover the fallback paths. No code changes were needed - the implementation already uses getattr with safe defaults.
 
 ## What was actually verified
-- `tests/test_trade_log.py tests/test_backtest_metrics.py` → 78 passed (was 77; new test passes, no regressions).
+- `tests/test_trade_log.py tests/test_backtest_metrics.py` → 78 passed (no regressions).
 - Static checks: `python -m ruff check .` → All checks passed. `python -m black --check .` → 138 files unchanged. `python -m mypy quant_trading/` → Success, no issues in 37 source files.
 
 ## What remains unresolved
@@ -15,4 +15,4 @@
 - Running coverage with numpy installed: C tracer conflicts with numpy's C extensions; `sysmon` core unsupported for branches here. (5 attempts, all failed.) Do not retry coverage in this env.
 
 ## One precise next task
-- Look for any remaining `BacktestResult` metric passthrough paths not covered (e.g. other properties or code paths where `metrics` is `SimpleNamespace`/partial) and add a minimal test if missing. Verify with `ruff check .`, `black --check .`, `mypy quant_trading/`, and the affected metric tests.
+- If coverage becomes collectable in a different environment, scan for untested metric passthroughs or edge cases in BacktestResult; otherwise focus on a small, high-value untested path in backtest/metrics with tests that run in this env (fast, no network). Verify with ruff, black --check, mypy, and the affected tests.
