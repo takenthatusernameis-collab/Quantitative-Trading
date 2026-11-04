@@ -1,31 +1,24 @@
 # Handoff to next agent
 
 ## What changed
-- Added a README "Example Scripts" entry for `examples/run_cmo.py` (Chande Momentum Oscillator), placed immediately after the existing `run_chande_momentum_oscillator.py` entry in the C-section of the example scripts list.
-- This repairs a deterministic test failure introduced by the prior session's commit `58a351b`, which created `examples/run_cmo.py` (mode 600 in the working tree, tracked as 100644) but did not document it in the README.
-- No source, test, doc config, or workflow behavior changed; the README is the only file modified.
+- No code changes made this session. The previous fix (README updated to document `examples/run_cmo.py`) was already applied and committed in history; working tree was clean at start.
+- Verified current state is green across tests/lint/format/type checks.
 
 ## What was actually verified
-- `tests/test_readme.py::TestReadmeExampleScripts` (both guard tests) now pass — previously `test_every_example_script_is_documented` failed with `['run_cmo.py']`.
-- Full test suite: `pytest -q` → **2749 passed, 129 deselected** (slow/network deselected by default), same as the pre-change baseline.
-- `run_cmo.py` smoke tests (`test_example_script_imports_cleanly[run_cmo.py]` and `test_example_script_runs_offline[run_cmo.py]`) pass explicitly under `-m slow`.
-- Static checks all clean after the change:
-  - `python -m ruff check .` → All checks passed.
-  - `python -m black --check .` → 139 files unchanged.
-  - `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
-- The README edit is whitespace-clean (verified by re-reading the region and by `black --check`).
+- `pytest -q` → **2749 passed, 129 deselected** (slow/network deselected by default).
+- `python -m ruff check .` → All checks passed.
+- `python -m black --check .` → 139 files unchanged.
+- `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
+- Confirmed README already documents `examples/run_cmo.py` and `tests/test_readme.py::TestReadmeExampleScripts` passes.
 
 ## What remains unresolved
-- Nothing functional. The repository is clean: tests pass, lint/type/format clean.
-- The only remaining loose end is whether the README change should be committed/pushed; per the "never commit unless explicitly asked" rule, the change is left unstaged for the controller to checkpoint.
-- Note: `examples/run_cmo.py` has working-tree mode 600 (owner-only) while sibling example scripts are 644. Git tracks it as 100644, so this does not affect tracking or the smoke tests, but it is an inconsistency left over from the prior session. Not changed in this session; fix only if it causes an access problem.
+- Nothing functional. Repository is clean and all checks pass.
+- No uncommitted changes.
 
 ## Approaches that failed and why
-- The prior handoff's literal suggestion ("find the next module with <100% coverage") is still a dead end: all 37 modules are already at 100% coverage.
-- Inspecting the repo state directly (rather than hunting coverage gaps) surfaced the real defect: the previous session's commit added `examples/run_cmo.py` without updating the README, which broke the existing `tests/test_readme.py::TestReadmeExampleScripts::test_every_example_script_is_documented` guard. That guard is a deterministic, repo-level invariant, so repairing the README is the minimal, safe fix.
+- None this session. Previous session's issue (missing README entry for `run_cmo.py`) was already resolved.
 
 ## Next task (precise)
-- No new code task is queued. If the controller requests another session, re-run `pytest -q`, `python -m ruff check .`, `python -m black --check .`, and `python -m mypy quant_trading/` to confirm the tree is still green before selecting any new bounded task.
-- Candidate high-value directions if green: add a missing `examples/run_*.py` for one of the 25 primary keys that still lack one (`klinger`, `chop`, `dpo`, `nvi`, `pvi`, `sar`, `stoch`, `stochrsi`, `supertrend`, `vol`, `vpt`, `vroc`, `williamsr`, `ao`, `cho`, `cmf`, `ema`, `eom`, `hma`, `mfi`, `roc`, `bb`, `bbpct`, `adl`) — each new script MUST also get a README entry or it will break the same `TestReadmeExampleScripts` guard, or extend CLI/README coverage for an under-documented feature.
-
-(End of file)
+- **Task:** Add missing example script for one strategy that lacks coverage, or improve docs/tests. Specifically: audit all primary strategies from the registry against `examples/run_*.py` and ensure every primary strategy has a corresponding example script documented in README. If any gap exists, create `examples/run_<name>.py` following existing patterns (e.g., `examples/run_rsi.py`, `examples/run_cmo.py`), add README entry in the appropriate section, and verify with `tests/test_readme.py`.
+- **Constraints:** Follow existing style, keep changes minimal and reversible, don't modify tests to make them pass. Run `pytest -q` and lint/format/type checks after changes. Ensure new script is executable/importable and documented (README guard will fail otherwise).
+- **Evidence:** All 2749 tests pass currently; `tests/test_readme.py` enforces bidirectional consistency between `examples/run_*.py` and README entries.
