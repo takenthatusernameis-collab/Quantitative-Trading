@@ -736,6 +736,15 @@ Power crosses below zero (bears take control):
 python examples/run_elder_ray.py
 ```
 
+For a Klinger Oscillator demonstration, see `examples/run_klinger.py`. It runs the
+`KlingerOscillatorStrategy` against seeded synthetic data, generating a buy signal
+when the fast Klinger EMA crosses above the slow Klinger EMA and a sell signal
+when it crosses below:
+
+```bash
+python examples/run_klinger.py
+```
+
 
 ## Data fetching
 
