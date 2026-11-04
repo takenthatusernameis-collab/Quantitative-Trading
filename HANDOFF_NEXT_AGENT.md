@@ -1,19 +1,20 @@
 # Handoff to next agent
 
 ## What changed
-- No source/test changes in this session (clean repo state). Previous session already fixed the utils nested test issue and reached full coverage across modules as documented.
+- Added one test to tests/test_optimization.py: `test_base_optimizer_n_jobs_minus_one_uses_cpu_count`, which constructs the BaseOptimizer test double with `n_jobs=-1` to cover the `os.cpu_count()` fallback at quant_trading/optimization/base.py:640-641.
+- No source changes; working tree contains only the 32-line test addition.
 
 ## What was actually verified
-- Full test suite: `PYTHONPATH=. python -m pytest -q` → **2718 passed, 124 deselected** (all tests pass, ~3m 09s).
+- Coverage investigation (environment required preloading numpy via sitecustomize because coverage's C tracer conflicts with numpy import): quant_trading/data/yfinance_provider.py is NOT low coverage — it is 100% line/branch covered by existing tests (only `pragma: no cover` blocks excluded). The prior handoff's premise was outdated.
+- Whole-package coverage before change: 99%, single gap at optimization/base.py:641 (statement + branch 640->641). After change: every module 100% (TOTAL 6900 stmts, 0 miss).
+- New test passes; full suite `PYTHONPATH=. python -m pytest -q` → **2719 passed, 124 deselected** (~3m 11s).
 - Static/type checks: `python -m ruff check .` → All checks passed. `python -m black --check .` → All files pass formatting. `python -m mypy quant_trading/` → Success (37 source files).
-- Per-module coverage spot checks with coverage installed: `config` 100%, `data/synthetic` 100% (with full tests), `data/providers` 100%, `utils` 100%, `risk/*` tests all pass. Full aggregated coverage not fully captured in one pass due to environment constraints noted earlier but all tests pass.
 
 ## What remains unresolved
-- `quant_trading/data/yfinance_provider.py` is large (1552+ stmts) with low coverage; tests exist but it may rely on cached data/network behavior. `synthetic.py` and `providers.py` are well covered. The repo is in a passing, clean state.
-- `test_optimization.py` had noted cross-process flake in history; it passes in isolation (116 passed) and as part of full suite.
+- Nothing. Repo is in a fully passing, clean state with 100% module coverage.
 
 ## Approaches that failed
-- None this session. Followed handoff guidance to inspect state rather than blindly adding tests - all tests already pass.
+- Coverage measurement via `python -m coverage run -m pytest` and `COVERAGE_CORE=sysmon` failed (numpy ImportError "cannot load module more than once per process" / collection errors). Workaround that worked: preload numpy/pandas with a `sitecustomize.py` on PYTHONPATH, then run coverage against a small pytest driver script invoking `pytest.main()` per test file. Not needed further since the gap is closed.
 
 ## One precise next task
-Wait for an explicit user assignment. If none is given and you must pick a bounded task, focus on `quant_trading/data/yfinance_provider.py`: inspect its tests and add targeted unit tests using fixtures/mocks to cover specific untested branches without hitting network, keeping changes small and reversible. Verify with `pytest`, `ruff`, `black`, `mypy` after changes.
+Wait for an explicit user assignment. The repo is fully green (tests, lint, format, types, coverage all pass), so there is no remaining bounded task; if one is given, inspect git status/diff first and preserve the passing baseline.

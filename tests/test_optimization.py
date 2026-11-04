@@ -2,6 +2,7 @@
 
 import importlib.util
 import itertools
+import os
 from concurrent.futures import _base
 from concurrent.futures.process import BrokenProcessPool, ProcessPoolExecutor
 from datetime import datetime, timedelta
@@ -956,6 +957,37 @@ def test_base_optimizer_evaluate_params_error_quiet():
     _params, score, result = optimizer._evaluate_params({"fast_period": 5, "slow_period": 20})
     assert score == float("-inf")
     assert result is None
+
+
+def test_base_optimizer_n_jobs_minus_one_uses_cpu_count():
+    """n_jobs=-1 resolves to os.cpu_count() (base.py:640-641)."""
+    from quant_trading.optimization.base import BaseOptimizer, ParameterGrid, ParameterSpace
+
+    class TestOptimizer(BaseOptimizer):
+        def run(self) -> OptimizationResult:
+            return OptimizationResult(best_params={}, best_score=0.0)
+
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5], param_type=int))
+
+    optimizer = TestOptimizer(
+        strategy_cls=RaisingStrategy,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime(2026, 1, 15) - timedelta(days=50),
+        end=datetime(2026, 1, 15),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_jobs=-1,
+    )
+    expected = os.cpu_count() or 1
+    assert optimizer.n_jobs == max(expected, 1)
 
 
 def test_grid_search_verbose(capsys):
