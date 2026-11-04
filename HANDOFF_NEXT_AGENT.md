@@ -1,22 +1,19 @@
 # Handoff to next agent
 
 ## What changed
-- `tests/test_readme_cli_commands.py`: marked the 3 `--combined` README CLI commands as `pytest.mark.slow` (they run every builtin strategy; the largest takes ~51s alone, exceeding the session timeout and appearing as a hang). Refactored `_readme_commands()` to return `pytest.param` objects with explicit ids and slow marks; removed the now-unneeded `ids` callable. 1 file changed.
+- No source/test code changes this session; only ran verification (coverage group I + per-module coverage re-confirmation).
+- Working tree is clean (`git status --short` empty, `git diff --stat` empty).
 
 ## What was actually verified
-- `pytest tests/test_readme_cli_commands.py -o addopts="" -m "not slow"` → 37 passed, 3 deselected, 1.89s (no timeout/hang).
-- `pytest tests/test_readme_cli_commands.py -o addopts="" -m "slow"` → 3 passed (all `--combined` cases still pass when run explicitly).
-- `python -m ruff check tests/test_readme_cli_commands.py` → All checks passed.
-- `python -m black --check tests/test_readme_cli_commands.py` → 1 file unchanged (clean).
-- `python -m mypy quant_trading` → Success: no issues found in 37 source files.
-- Sibling readme files `tests/test_readme_cli.py`, `tests/test_readme.py` → 13 passed.
+- Coverage group I (integration/cli/readme): `pytest tests/test_readme_cli_commands.py tests/test_readme_cli.py tests/test_readme.py --cov=quant_trading --cov-report=term-missing` → 50 passed, 3 deselected (slow `--combined`), 6.76s, no hang. The previously-hanging `test_readme_cli_commands.py` now completes under default addopts (`-m "not slow and not network"`).
+- Per-module 100% coverage re-confirmed via `pytest tests/test_utils.py --cov=quant_trading --cov-report=term-missing`: `quant_trading/utils/__init__.py` 100%, `quant_trading/utils/formatting.py` 100% (49 stmts, 0 miss), `quant_trading/utils/logging.py` 100% (36 stmts, 0 miss). 21 passed in 2.85s.
 
 ## What remains unresolved
-- Working tree has 1 uncommitted change (this fix). Not committed per policy (no explicit commit request).
-- The `--combined` tests remain slow (~103s total for all 3) but are now correctly skipped by default via `-m "not slow"` (already in pyproject addopts), so the readme CLI test file completes and coverage group I can run.
+- Next module below 100% coverage not yet identified; per the project's coverage push, the next step is to find and close the next gap.
+- Per-module coverage with a specific submodule `--cov` target is broken in this environment (see "Approaches that failed"); use whole-package `--cov=quant_trading` and read the target module's row instead.
 
-## Approaches that failed
-- None in this session. Prior approach (full file under 25s timeout) failed because `--combined` is ~51s; fixed by marking slow.
+## Approaches that failed and why
+- `--cov=quant_trading.utils.formatting` / `--cov=quant_trading.utils` / `--cov=quant_trading.utils.logging` with `tests/test_utils.py`: deterministic `ImportError: Unable to import required dependency numpy` at collection, even though `import numpy`/`import quant_trading` work directly and whole-package `--cov=quant_trading` works. It's a coverage module-pre-import / numpy load-order quirk in this env, not a code defect. Avoid submodule `--cov` targets.
 
 ## Next task (precise)
-Run coverage group I (integration/cli/readme) now that `test_readme_cli_commands.py` no longer hangs, to confirm the readme-cli module completes and re-confirm per-module 100% coverage. Constraint: use the existing parallel per-module coverage approach (groups A–H) plus group I; do NOT run a single full-suite coverage run (exceeds the ~120s timeout). Do not commit unless explicitly requested.
+Find the next quant_trading module below 100% coverage and close its gap: run per-module coverage module-by-module using whole-package coverage (`pytest tests/<module>_tests.py --cov=quant_trading --cov-report=term-missing`, read the target module's row; do NOT use submodule `--cov` targets — they fail on numpy), starting with small/high-value modules (e.g. `quant_trading/config`, `quant_trading/data`, `quant_trading/regime`, `quant_trading/risk`), add focused tests for the first gap found, then verify with `pytest`, `ruff check .`, `black --check`, `mypy quant_trading/`. Do not commit unless explicitly requested. Constraint: per-module runs only; no single full-suite coverage run (>120s timeout).
