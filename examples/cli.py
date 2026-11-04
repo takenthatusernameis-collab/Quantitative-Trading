@@ -1173,6 +1173,9 @@ def _save_strategy_config(path: str, strategy_cls: type, parameters: dict) -> No
         "parameters": {k: v for k, v in parameters.items() if k != "name"},
     }
 
+    from pathlib import Path
+
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         yaml.dump(config, f, default_flow_style=False)
     print(f"Strategy configuration saved to {path}")
@@ -1196,6 +1199,9 @@ def _save_json_output(path: str, output_data: dict, output_format: str | None = 
         fmt = "csv" if path.lower().endswith(".csv") else "json"
 
     try:
+        from pathlib import Path
+
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         if fmt == "csv":
             import csv
 
@@ -2120,6 +2126,9 @@ def _run_cli() -> int:
             "parameters": strategy.get_parameters(),
         }
 
+        from pathlib import Path
+
+        Path(args.output_strategy_config).parent.mkdir(parents=True, exist_ok=True)
         with open(args.output_strategy_config, "w") as f:
             yaml.dump(strategy_config, f, default_flow_style=False)
         print(f"Strategy configuration saved to {args.output_strategy_config}")
