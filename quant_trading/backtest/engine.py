@@ -406,9 +406,14 @@ class BacktestResult:
             The CSV-formatted summary string.
         """
 
+        from pathlib import Path
+
         csv = str(self.to_dataframe().to_csv(index=False))
         if path is not None:
-            with open(path, "w", encoding="utf-8") as handle:
+            output_path = Path(path)
+            if output_path.parent != Path("."):
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, "w", encoding="utf-8") as handle:
                 handle.write(csv)
         return csv
 
@@ -463,11 +468,15 @@ class BacktestResult:
         """
 
         import json
+        from pathlib import Path
 
         data = self.to_dict()
         content = json.dumps(data, indent=indent, default=str)
         if path is not None:
-            with open(path, "w", encoding="utf-8") as handle:
+            output_path = Path(path)
+            if output_path.parent != Path("."):
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, "w", encoding="utf-8") as handle:
                 handle.write(content)
         return content
 
