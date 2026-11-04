@@ -724,7 +724,7 @@ class BaseOptimizer(ABC):
             result = self._run_single_backtest(params)
             score = self.objective(result)
             return params, score, result
-        except (ValueError, RuntimeError, KeyError) as e:
+        except (ValueError, RuntimeError, KeyError, TypeError) as e:
             if self.verbose:
                 print(f"Error evaluating {params}: {e}")
             return params, float("-inf"), None
