@@ -457,6 +457,7 @@ def test_backtest_result_total_pnl_when_metrics_none():
 
 def test_backtest_result_metric_properties_fallbacks_with_falsey_metrics():
     """Metric properties return zeros when metrics values are falsy."""
+
     class Dummy:
         unrealized_pnl = 0
         num_trades = 0

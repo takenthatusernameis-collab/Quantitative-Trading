@@ -1,23 +1,26 @@
 # Handoff to next agent
 
 ## What changed
-- Added coverage tests to `tests/test_yfinance_provider.py` (+68 lines) and `tests/test_alphavantage_provider.py` (+81 lines). No source changes.
-- `tests/test_yfinance_provider.py`: `test_get_yf_success` (covers `_get_yf` import-success path), `test_load_cache_invalid_data_type`, `test_save_cache_swallows_errors`, `test_parse_download_swapped_multiindex_columns`, `test_fetch_many_no_cache_dir`, `test_fetch_many_cache_hit`.
-- `tests/test_alphavantage_provider.py`: parse-method edge-case tests for intraday/daily/weekly/weekly-adjusted (empty data, bad date, before-start, after-end, empty-records branches) plus `test_load_cache_invalid_data_type` and `test_load_cache_corrupt`.
-- Formatted with black, lint-clean with ruff.
+- Formatting: applied `black` to `tests/test_backtest_engine.py` — added 1 blank line after the docstring in `test_backtest_result_metric_properties_fallbacks_with_falsey_metrics` (tests/test_backtest_engine.py:460). 1 file changed, 1 insertion.
+- Coverage verification: re-confirmed per-module 100% coverage across ALL source modules by combining 8 parallel coverage runs (groups A–H). TOTAL: 6944 statements, 0 misses, 2372 branches, 0 partial → 100%. Modules: __init__, backtest, config, data (providers/synthetic/yfinance), monte_carlo, optimization, portfolio, regime, risk, strategies, utils.
 
 ## What was actually verified
-- `python -m coverage run --source quant_trading/data -m pytest tests/test_yfinance_provider.py tests/test_alphavantage_provider.py -o addopts=""` -> 341 passed.
-- `python -m coverage report -m quant_trading/data/yfinance_provider.py` -> 100% coverage (1552 stmts, 560 branches, 0 miss, 0 partial).
-- Combined regression subset `tests/test_yfinance_provider.py tests/test_alphavantage_provider.py tests/test_portfolio.py tests/test_rebalancer.py` -o addopts="" -> 445 passed.
-- All source modules now at 100% coverage: portfolio, rebalancer, risk, backtest, data (providers/synthetic/yfinance), strategies, optimization, monte_carlo, regime, utils, config, `__init__`.
+- `python -m ruff check quant_trading tests` → All checks passed.
+- `python -m black --check quant_trading tests` → 86 files unchanged (clean).
+- `python -m mypy quant_trading` → Success: no issues found in 37 source files.
+- `pytest tests/test_backtest_engine.py` → 104 passed.
+- Combined coverage (groups A–H) → every source module at 100% (see above).
+- Full test suite still exceeds the ~120s tool timeout (previously noted); group I (integration/cli/readme) does NOT complete because one file hangs.
 
 ## What remains unresolved
-- Full test suite / full-coverage runs exceed the 120s tool timeout.
-- `numpy` import breaks under the `--cov` + `--doctest-modules` combination in this environment (pyproject addopts enables both), so a single full coverage run isn't currently possible; per-module runs without `--doctest-modules` (`-o addopts=""`) work.
+- `tests/test_readme_cli_commands.py` hangs: exits 124 (timeout) after ~28 passed tests. This is what blocked coverage group I and blocks any full-suite run. Other group-I files pass individually: test_cli (170 passed), test_integration (5), test_readme (12), test_readme_cli (1), test_repository_integrity (16).
+- Working tree has 1 uncommitted change (the black formatting fix). Not committed per policy (no explicit commit request).
 
 ## Approaches that failed
-- Running the full suite / full coverage within the 120s timeout (already noted by the prior agent).
+- Full single-run `python -m coverage run -m pytest` / full suite: exceeds 120s timeout (confirmed; killed at 29% earlier). Per-module parallel coverage runs (this session) work and reached 100%.
 
-## Status
-- Coverage verification gap resolved via option (b): per-module 100% coverage already confirmed for all source modules (portfolio, rebalancer, risk, backtest, data, strategies, optimization, monte_carlo, regime, utils, config). Full single-run `python -m coverage run -m pytest` exceeds the 120s tool timeout in this environment; doctest-only and test-only subsets pass. No source changes needed.
+## Next task (precise)
+Identify and fix the hanging test in `tests/test_readme_cli_commands.py`.
+- Evidence: `timeout 25 python -m pytest tests/test_readme_cli_commands.py -o addopts="" -m "not slow" -q` → exit 124 after ~28 passing dots; the hang is in the trailing test(s).
+- Approach: run `python -m pytest tests/test_readme_cli_commands.py -o addopts="" -v` (or `--co` then binary-search individual tests) to find the hanging test, then either fix it (likely a subprocess/long-running CLI invocation) or mark it `slow` so it's deselected by default and excluded from coverage runs.
+- Constraint: keep change minimal and reversible; do not weaken safety controls. After fixing, re-run `pytest tests/test_readme_cli_commands.py -o addopts="" -m "not slow"` and confirm it completes without timeout.
