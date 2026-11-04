@@ -1,35 +1,42 @@
 # Next Task
 
-## Repository state (post-fix)
+## Repository state (post-cleanup)
 
 All checks clean:
-- `python -m pytest tests/test_utils.py -q` → **21 passed** (was 20)
-- `python -m pytest --doctest-modules quant_trading/utils/ -q` → 9 passed
-- `python -m ruff check tests/test_utils.py` → clean
-- `python -m mypy tests/test_utils.py` → clean
-- `python -m black --check tests/test_utils.py` → clean
-- `quant_trading/utils/formatting.py` → 100% coverage
-- `quant_trading/utils/logging.py` → 100% coverage (was 97%, missing line 100)
+- `pytest -q` → **2749 passed, 127 deselected** (slow/network deselected by default).
+- `ruff check .` → All checks passed.
+- `black --check .` → 138 files unchanged.
+- `mypy quant_trading/` → Success: no issues found in 37 source files.
+- Full coverage: **100%** across all 37 modules (6944 stmts, 0 miss, 2372 branches, 0 partial).
 
 ## What changed (this session)
 
-Fixed a real coverage gap found by inspecting the actual coverage report (the prior handoff's suggested task — unit tests for `format_shares`/`format_duration_days` — was already complete):
+Removed two stale, unreferenced tracked artifacts committed in the initial commit `ce09b3a`:
 
-- `tests/test_utils.py`: hoisted the previously-nested `test_clear_loggers_named_and_root` (it was defined inside `test_format_duration_days_weeks_months_years_edge_cases` and therefore never ran as a top-level test) to module scope, so it actually executes and covers `logging.py:100` (the `if not names: names = ("",)` branch).
-- Removed a dead `import pytest` inside `test_clear_loggers_swallow_handler_close_error` (ruff F401).
+- `subdir/out.csv` — a 1-row CSV with placeholder values (`initial_capital=1`, `final_value=1.01`, all-zero metrics).
+- `subdir/out.json` — the same placeholder data as JSON.
+
+An exhaustive `grep -rIn "subdir"` / `grep -rIn "out\.csv\|out\.json"` over the whole tree (excluding `.git`) confirmed no source, test, doc, config, or workflow references them. The only `out.csv`/`out.json` matches are `result.to_csv(path="out.csv")` and `result.to_json(path="out.json")` in `tests/test_backtest_engine.py:412,436`, which write into `tmp_path`, not `subdir/`. The `missing_subdir` paths in `tests/test_yfinance_fetch_many.py:415,688` are unrelated test fixtures.
+
+The empty `subdir/` directory was removed with the last file. The deletion is staged in git; it was not committed (per the "never commit unless explicitly asked" rule).
 
 ## What was verified (this session)
 
-All checks above; `test_repository_integrity.py` still passes (37 passed combined). No source/test behavior changes beyond the test file.
+- Full test suite before and after the change: 2749 passed both times.
+- `ruff check .`, `black --check .`, `mypy quant_trading/` all clean before and after.
+- Full `pytest --cov` run confirmed every module is already at 100%, so no coverage work was needed.
 
 ## What remains unresolved
 
-- Coverage gaps elsewhere in the repo (full-suite coverage run times out >10 min; only module-level coverage was checked). Next lowest-hanging gaps should be found by running `pytest --cov` per-module on `quant_trading/risk`, `quant_trading/regime`, `quant_trading/strategies`, etc.
+- Nothing functional. The tree is green and the only loose end is whether the controller checkpoints the staged deletion.
+- Candidate next bounded tasks if a session is requested: add a missing `examples/run_*.py` for one of the 26 primary keys that lack one (`klinger`, `chop`, `dpo`, `cmo`, `nvi`, `pvi`, `sar`, `stoch`, `stochrsi`, `supertrend`, `vol`, `vpt`, `vroc`, `williamsr`, `ao`, `cho`, `cmf`, `ema`, `eom`, `hma`, `mfi`, `roc`, `bb`, `bbpct`, `adl`), or extend CLI/README coverage for an under-documented feature.
 
 ## Approaches that failed and why
 
-- Blindly following the prior handoff's suggested task would have added duplicate tests to an already-100%-covered module. Inspecting the actual coverage report surfaced the real gap: a nested test function that never ran.
+- The prior handoff's literal next task ("find the next module with <100% coverage") was a dead end: a full coverage run showed all 37 modules already at 100%. Inspecting the repo state directly (tracked-but-unreferenced files) surfaced the real, safe, bounded task instead.
 
 ## One precise next task
 
-Find the next module with <100% coverage (run `PYTHONPATH=. python -m pytest tests/<module>_tests.py --cov=quant_trading.<module> --cov-report=term-missing` per module) and add focused tests to close gaps, verifying with `pytest`, `ruff check .`, `black --check`, and `mypy quant_trading/` per project conventions.
+- If another session is requested, first re-run `pytest -q`, `ruff check .`, `black --check .`, and `mypy quant_trading/` to confirm the tree is still green, then select a new bounded task from the candidates above. Do not re-run coverage hunting for gaps — there are none.
+
+(End of file)
