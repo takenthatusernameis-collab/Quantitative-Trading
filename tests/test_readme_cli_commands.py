@@ -50,13 +50,18 @@ def _cli_section() -> str:
     return remainder if end == -1 else remainder[:end]
 
 
-def _readme_commands() -> list[list[str]]:
+def _readme_commands() -> list[pytest.param]:
     """Extract the ``examples/cli.py`` argument lists documented in the README.
 
     Backslash-continued command lines are joined into a single command.
     Comment lines (``# ...``) are ignored.
+
+    Commands that run every builtin strategy (``--combined``) are slow; they are
+    marked ``slow`` so they are deselected by default (``-m "not slow"``) and
+    excluded from the default coverage run, which otherwise exceeds the session
+    timeout on these long-running invocations.
     """
-    commands: list[list[str]] = []
+    params: list[pytest.param] = []
     section = _cli_section()
     for block in _CODE_BLOCK.finditer(section):
         logical_lines: list[str] = []
@@ -74,8 +79,11 @@ def _readme_commands() -> list[list[str]]:
                 line = raw_line.strip()
             match = _COMMAND.match(line)
             if match:
-                commands.append(match.group("args").strip().split())
-    return commands
+                args = match.group("args").strip().split()
+                test_id = " ".join(args)[:70]
+                marks = [pytest.mark.slow] if "--combined" in args else []
+                params.append(pytest.param(args, marks=marks, id=test_id))
+    return params
 
 
 def _expects_failure(args: list[str]) -> bool:
@@ -202,7 +210,7 @@ def _run_cli(args: list[str], tmp_path: Path) -> tuple[int, str]:
 _COMMANDS = _readme_commands()
 
 
-@pytest.mark.parametrize("args", _COMMANDS, ids=lambda a: " ".join(a)[:70])
+@pytest.mark.parametrize("args", _COMMANDS)
 class TestReadmeCliCommands:
     """Every documented README CLI command runs end-to-end.
 
