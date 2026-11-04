@@ -417,3 +417,16 @@ class TestBacktestResultMetricPassthrough:
         result = _result(SimpleNamespace())
 
         assert result.trade_count == result.num_trades == 0
+
+    def test_unrealized_pnl_passes_through(self):
+        """``unrealized_pnl`` forwards the value stored on ``metrics``."""
+        metrics = BacktestMetrics(unrealized_pnl=42.5)
+        result = _result(metrics)
+
+        assert result.unrealized_pnl == pytest.approx(42.5)
+
+    def test_unrealized_pnl_defaults_to_zero(self):
+        """A bare metrics object reports no unrealized PnL on the result."""
+        result = _result(BacktestMetrics())
+
+        assert result.unrealized_pnl == 0.0
