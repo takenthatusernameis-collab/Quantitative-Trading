@@ -1,5 +1,6 @@
 """Tests for AlphaVantageProvider."""
 
+import pickle
 from datetime import datetime
 from unittest.mock import patch
 
@@ -910,6 +911,20 @@ class TestAlphaVantageProvider:
         )
         assert key1 == key2
 
+    def test_load_cache_invalid_data_type(self, provider, tmp_path):
+        """_load_cache returns None when the cache holds a non-FetchResult."""
+        path = tmp_path / "invalid.pkl"
+        with open(path, "wb") as f:
+            pickle.dump({"not": "a result"}, f)
+        assert provider._load_cache(str(path)) is None
+
+    def test_load_cache_corrupt(self, provider, tmp_path):
+        """_load_cache returns None when the cache file is unreadable."""
+        path = tmp_path / "corrupt.pkl"
+        with open(path, "wb") as f:
+            f.write(b"not pickle")
+        assert provider._load_cache(str(path)) is None
+
     def test_cache_key_includes_interval(self, provider):
         """Test cache key includes interval."""
         key1 = provider._cache_key(["AAPL"], datetime(2024, 1, 1), datetime(2024, 1, 15), "1d")
@@ -1275,6 +1290,72 @@ class TestAlphaVantageProvider:
         ]
         assert df.index.name == "date"
         assert df.index.is_monotonic_increasing
+
+    def _ohlcv_record(self, open_="1", high="2", low="3", close="4", volume="5"):
+        return {
+            "1. open": open_,
+            "2. high": high,
+            "3. low": low,
+            "4. close": close,
+            "5. volume": volume,
+        }
+
+    # -- Parse-method edge cases (missing statements/branches) --------------
+
+    def test_parse_intraday_response_missing_paths(self, provider):
+        # No time series key at all; and a key that is not a time series
+        assert provider._parse_intraday_response("AAPL", {}, None, None) is None
+        assert provider._parse_intraday_response("AAPL", {"Meta Data": {}}, None, None) is None
+        # Unparseable date, before start, after end -> no records -> None
+        response = {
+            "Time Series (5min)": {
+                "not-a-date": self._ohlcv_record(),
+                "2024-01-15 18:00:00": self._ohlcv_record(),
+                "2024-01-15 22:00:00": self._ohlcv_record(),
+            }
+        }
+        start = datetime(2024, 1, 15, 19, 0)
+        end = datetime(2024, 1, 15, 21, 0)
+        assert provider._parse_intraday_response("AAPL", response, start, end) is None
+
+    def test_parse_daily_response_missing_paths(self, provider):
+        assert provider._parse_daily_response("AAPL", {}, None, None) is None
+        response = {
+            "Time Series (Daily)": {
+                "not-a-date": self._ohlcv_record(),
+                "2024-01-10": self._ohlcv_record(),
+                "2024-01-30": self._ohlcv_record(),
+            }
+        }
+        start = datetime(2024, 1, 15)
+        end = datetime(2024, 1, 20)
+        assert provider._parse_daily_response("AAPL", response, start, end) is None
+
+    def test_parse_weekly_response_missing_paths(self, provider):
+        assert provider._parse_weekly_response("AAPL", {}, None, None) is None
+        response = {
+            "Weekly Time Series": {
+                "not-a-date": self._ohlcv_record(),
+                "2024-01-10": self._ohlcv_record(),
+                "2024-01-30": self._ohlcv_record(),
+            }
+        }
+        start = datetime(2024, 1, 15)
+        end = datetime(2024, 1, 20)
+        assert provider._parse_weekly_response("AAPL", response, start, end) is None
+
+    def test_parse_weekly_adjusted_response_missing_paths(self, provider):
+        assert provider._parse_weekly_adjusted_response("AAPL", {}, None, None) is None
+        response = {
+            "Weekly Adjusted Time Series": {
+                "not-a-date": self._ohlcv_record(),
+                "2024-01-10": self._ohlcv_record(),
+                "2024-01-30": self._ohlcv_record(),
+            }
+        }
+        start = datetime(2024, 1, 15)
+        end = datetime(2024, 1, 20)
+        assert provider._parse_weekly_adjusted_response("AAPL", response, start, end) is None
 
     # Monthly tests
     def test_fetch_monthly(self, provider):

@@ -1,12 +1,14 @@
 """Offline unit tests for YFinanceProvider (yfinance calls mocked)."""
 
 import os
+import pickle
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
+from quant_trading.data.providers import FetchResult
 from quant_trading.data.yfinance_provider import YFinanceProvider
 
 
@@ -343,3 +345,69 @@ def test_parse_download_multiindex_single_field_series():
     r = p._parse_download(df, ["AAPL"])
     assert "AAPL" in r.data
     assert list(r.data["AAPL"].data.columns) == ["close"]
+
+
+def test_get_yf_success(tmp_path):
+    """_get_yf imports and caches yfinance on first use."""
+    p = YFinanceProvider(cache_dir=str(tmp_path))
+    assert p._yf is None
+    yf = p._get_yf()
+    assert yf is not None
+    assert p._yf is yf
+
+
+def test_load_cache_invalid_data_type(tmp_path):
+    """_load_cache returns None when the cache holds a non-FetchResult."""
+    import pickle
+
+    p = YFinanceProvider(cache_dir=str(tmp_path))
+    path = os.path.join(str(tmp_path), "invalid.pkl")
+    with open(path, "wb") as f:
+        pickle.dump({"not": "a result"}, f)
+    assert p._load_cache(path) is None
+
+
+def test_save_cache_swallows_errors(tmp_path):
+    """_save_cache does not propagate pickle/OS errors."""
+    p = YFinanceProvider(cache_dir=str(tmp_path))
+    path = os.path.join(str(tmp_path), "save.pkl")
+    with patch("quant_trading.data.yfinance_provider.pickle.dump", side_effect=OSError("disk")):
+        p._save_cache(path, FetchResult())
+
+
+def test_parse_download_swapped_multiindex_columns():
+    """_parse_download swaps levels when tickers live in level 1."""
+    p = YFinanceProvider(cache_dir="")
+    idx = pd.date_range("2024-01-01", periods=2, freq="D")
+    cols = pd.MultiIndex.from_product([["Open", "Close"], ["AAPL", "MSFT"]])
+    df = pd.DataFrame(
+        [[1.0, 2.0, 3.0, 4.0], [2.0, 3.0, 4.0, 5.0]],
+        index=idx,
+        columns=cols,
+    )
+    r = p._parse_download(df, ["AAPL", "MSFT"])
+    assert "AAPL" in r.data
+    assert "MSFT" in r.data
+
+
+def test_fetch_many_no_cache_dir(tmp_path):
+    """fetch_many with no cache_dir skips the group cache block."""
+    p = YFinanceProvider(cache_dir="")
+    yf = _fake_yf()
+    yf.download.return_value = None
+    p._yf = yf
+    res = p.fetch_many([{"symbols": ["AAPL"], "start": None, "end": None, "interval": "1d"}])
+    assert "AAPL" in res[next(iter(res))].missing
+    yf.download.assert_called_once()
+
+
+def test_fetch_many_cache_hit(tmp_path):
+    """fetch_many returns a cached group result without calling yfinance."""
+    p = YFinanceProvider(cache_dir=str(tmp_path))
+    p._yf = MagicMock()
+    key = p._group_cache_key(["AAPL"], None, None, "1d")
+    with open(p._cache_path(key), "wb") as f:
+        pickle.dump(FetchResult(), f)
+    res = p.fetch_many([{"symbols": ["AAPL"], "start": None, "end": None, "interval": "1d"}])
+    p._yf.download.assert_not_called()
+    assert next(iter(res.values())) is not None
