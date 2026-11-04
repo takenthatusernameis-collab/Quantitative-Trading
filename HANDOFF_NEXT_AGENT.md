@@ -1,24 +1,26 @@
 # Handoff to next agent
 
 ## What changed
-- No code changes made this session. The previous fix (README updated to document `examples/run_cmo.py`) was already applied and committed in history; working tree was clean at start.
-- Verified current state is green across tests/lint/format/type checks.
+- No code changes made this session. Executed the assigned audit task: compared every primary strategy key in the live registry (`quant_trading/strategies/__init__.py`, `get_registry().primary_keys()`) against `examples/run_*.py` scripts and the README "Strategy Registry" + "Example Scripts" sections.
+- Audit finding: every one of the 54 primary strategies already has a corresponding example script importing its strategy class (0 uncovered), every `examples/run_*.py` script is referenced in the README, and the README registry table matches the live registry (aliases + class names). No gap exists, so nothing was created or modified.
+- Working tree is clean.
 
 ## What was actually verified
-- `pytest -q` → **2749 passed, 129 deselected** (slow/network deselected by default).
+- Audit script (ast-based import scan of each `examples/run_*.py` matched to `quant_trading.strategies.examples` classes keyed to registry primaries): 0 primaries without an example.
+- `pytest tests/test_readme.py tests/test_strategy_registry_coverage.py -q` → 18 passed.
+- `python -m pytest -q` → 2749 passed, 131 deselected (slow/network).
 - `python -m ruff check .` → All checks passed.
-- `python -m black --check .` → 139 files unchanged.
+- `python -m black --check .` → 140 files unchanged.
 - `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
-- Confirmed README already documents `examples/run_cmo.py` and `tests/test_readme.py::TestReadmeExampleScripts` passes.
 
 ## What remains unresolved
-- Nothing functional. Repository is clean and all checks pass.
+- Nothing functional. Repository is clean, in sync, and all checks pass.
 - No uncommitted changes.
 
 ## Approaches that failed and why
-- None this session. Previous session's issue (missing README entry for `run_cmo.py`) was already resolved.
+- None. The audit found no gaps to fill; no alternative approach was needed.
 
 ## Next task (precise)
-- **Task:** Add missing example script for one strategy that lacks coverage, or improve docs/tests. Specifically: audit all primary strategies from the registry against `examples/run_*.py` and ensure every primary strategy has a corresponding example script documented in README. If any gap exists, create `examples/run_<name>.py` following existing patterns (e.g., `examples/run_rsi.py`, `examples/run_cmo.py`), add README entry in the appropriate section, and verify with `tests/test_readme.py`.
-- **Constraints:** Follow existing style, keep changes minimal and reversible, don't modify tests to make them pass. Run `pytest -q` and lint/format/type checks after changes. Ensure new script is executable/importable and documented (README guard will fail otherwise).
-- **Evidence:** All 2749 tests pass currently; `tests/test_readme.py` enforces bidirectional consistency between `examples/run_*.py` and README entries.
+- **Task:** None required — the repository is fully in sync and green. The next agent should treat this as a verification checkpoint: if a new primary strategy is added to the registry in the future, add a matching `examples/run_<name>.py` following the `examples/run_cmo.py`/`examples/run_rsi.py` pattern, document it in the README "Example Scripts" section and "Strategy Registry" table, then run `tests/test_readme.py`, `pytest -q`, `ruff check .`, `black --check .`, and `mypy quant_trading/`.
+- **Constraints:** Do not modify tests to make them pass. Keep changes minimal and reversible. The `tests/test_readme.py` guards enforce bidirectional consistency between `examples/run_*.py`, the README, and the registry, so any future drift will fail those tests immediately.
+- **Evidence:** Full suite green (2749 passed); lint/format/type all clean; audit confirmed 0 primaries missing example coverage.
