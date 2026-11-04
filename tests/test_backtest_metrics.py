@@ -1,12 +1,34 @@
 """Tests for backtest metrics calculation."""
 
 import warnings
+from datetime import datetime
+from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from quant_trading.backtest.engine import BacktestResult
 from quant_trading.backtest.metrics import BacktestMetrics, calculate_backtest_metrics
+
+
+def _result(metrics: Any) -> BacktestResult:
+    """Build a BacktestResult carrying the given metrics object."""
+    dates = pd.date_range("2024-01-01", periods=10, freq="D")
+    equity = pd.Series([100000.0 + step * 10.0 for step in range(10)], index=dates)
+    return BacktestResult(
+        equity_curve=equity,
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=datetime(2024, 1, 1),
+        end_date=datetime(2024, 1, 10),
+        initial_capital=100000.0,
+        final_value=100090.0,
+        total_return=90.0,
+        total_return_pct=0.09,
+    )
 
 
 def test_calculate_metrics_no_trades_empty():
@@ -328,3 +350,70 @@ class TestBacktestMetricsUnrealizedPnl:
         metrics = calculate_backtest_metrics(self.EQUITY, positions=positions)
 
         assert metrics.unrealized_pnl == 0.0
+
+
+class TestBacktestResultMetricPassthrough:
+    """``BacktestResult`` exposes metrics through ``getattr``-guarded properties.
+
+    The properties fall back to ``0`` when the wrapped ``metrics`` object does
+    not carry the attribute, so a result built from a partial metrics object
+    never raises ``AttributeError``. The fallback also tolerates falsy values
+    such as ``None``.
+    """
+
+    def test_defaults_when_metrics_is_empty(self):
+        """A bare ``BacktestMetrics()`` reports zero for every passthrough."""
+        result = _result(BacktestMetrics())
+
+        assert result.num_trades == 0
+        assert result.trade_count == 0
+        assert result.win_rate == 0.0
+        assert result.sharpe_ratio == 0.0
+        assert result.max_drawdown_pct == 0.0
+
+    def test_passes_through_real_values(self):
+        """The properties forward the values stored on ``metrics``."""
+        metrics = BacktestMetrics(
+            num_trades=7,
+            win_rate=0.5714285714285714,
+            sharpe_ratio=1.25,
+            max_drawdown_pct=-12.5,
+        )
+        result = _result(metrics)
+
+        assert result.num_trades == 7
+        assert result.trade_count == 7
+        assert result.win_rate == pytest.approx(0.5714285714285714)
+        assert result.sharpe_ratio == 1.25
+        assert result.max_drawdown_pct == -12.5
+
+    def test_falls_back_when_metrics_lacks_the_attribute(self):
+        """A metrics object missing an attribute is treated as zero."""
+        partial = SimpleNamespace(num_trades=4, win_rate=0.5)
+        result = _result(partial)
+
+        assert result.num_trades == 4
+        assert result.win_rate == 0.5
+        assert result.sharpe_ratio == 0.0
+        assert result.max_drawdown_pct == 0.0
+
+    def test_tolerates_falsy_attribute_values(self):
+        """``None`` and ``0`` on the metrics object both map to zero."""
+        partial = SimpleNamespace(
+            num_trades=None,
+            win_rate=None,
+            sharpe_ratio=None,
+            max_drawdown_pct=None,
+        )
+        result = _result(partial)
+
+        assert result.num_trades == 0
+        assert result.win_rate == 0.0
+        assert result.sharpe_ratio == 0.0
+        assert result.max_drawdown_pct == 0.0
+
+    def test_trade_count_aliases_num_trades(self):
+        """``trade_count`` mirrors ``num_trades`` even when the source is missing."""
+        result = _result(SimpleNamespace())
+
+        assert result.trade_count == result.num_trades == 0
