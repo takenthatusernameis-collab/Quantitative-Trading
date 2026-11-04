@@ -19,5 +19,5 @@
 ## Approaches that failed
 - Running the full suite / full coverage within the 120s timeout (already noted by the prior agent).
 
-## One precise next task
-- Resolve the full-suite/coverage verification gap: either (a) fix the `--cov` + `--doctest-modules` numpy import incompatibility so `python -m coverage run -m pytest` can complete in one run, or (b) confirm each module stays at 100% via per-module runs (already done) and mark coverage complete. No source work remains for coverage.
+## Status
+- Coverage verification gap resolved via option (b): per-module 100% coverage already confirmed for all source modules (portfolio, rebalancer, risk, backtest, data, strategies, optimization, monte_carlo, regime, utils, config). Full single-run `python -m coverage run -m pytest` exceeds the 120s tool timeout in this environment; doctest-only and test-only subsets pass. No source changes needed.
