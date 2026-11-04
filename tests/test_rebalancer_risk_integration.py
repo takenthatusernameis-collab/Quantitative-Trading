@@ -81,3 +81,19 @@ def test_drawdown_breach_stops_buys_allows_sells():
     assert portfolio.cash >= 0.0
     assert "AAPL" not in portfolio.holdings
     _assert_solvency(portfolio, rm)
+
+
+def test_drawdown_breach_blocks_buys():
+    """Drawdown breach blocks buys even when rebalancing requires increasing a position."""
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    portfolio.add_holding("AAPL", 10, 100.0)
+    rm = RiskManager(initial_capital=100000.0, max_position_size=0.5, max_drawdown=0.05)
+    rm.portfolio_risk.current_drawdown = -0.5  # breach the loss limit
+    rebalancer = Rebalancer(
+        portfolio, target_allocation={"AAPL": 0.8, "MSFT": 0.2}, risk_manager=rm
+    )
+    prices = {"AAPL": 100.0, "MSFT": 100.0}
+    actions = rebalancer.generate_rebalance_actions(prices=prices)
+    buys = [a for a in actions if a.action == "buy"]
+    assert buys == []  # drawdown halt blocks all buying
+    _assert_solvency(portfolio, rm)
