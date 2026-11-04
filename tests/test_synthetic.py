@@ -105,6 +105,14 @@ def test_create_synthetic_provider_convenience_wrapper():
     assert not result.errors
 
 
+def test_synthetic_provider_fetch_latest():
+    """fetch_latest uses fetch without a window."""
+    provider = create_synthetic_provider(["AAPL"], days=10)
+    result = provider.fetch_latest(["AAPL"])
+    assert result.is_success
+    assert "AAPL" in result.data
+
+
 def test_default_seed_constant():
     """DEFAULT_SEED is the documented default of 42."""
     assert DEFAULT_SEED == 42

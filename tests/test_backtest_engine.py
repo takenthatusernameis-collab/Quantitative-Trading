@@ -389,6 +389,111 @@ def test_backtest_result_to_csv_writes_file(tmp_path):
     assert out_path.read_text(encoding="utf-8") == csv_text
 
 
+def test_backtest_result_to_csv_writes_to_current_dir(tmp_path, monkeypatch):
+    """to_csv() writes to files in current directory (no parent mkdir)."""
+    from quant_trading.backtest.metrics import BacktestMetrics
+
+    metrics = BacktestMetrics(total_pnl=100.0)
+    result = BacktestResult(
+        equity_curve=pd.Series([100000.0, 100100.0]),
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=datetime(2023, 1, 1),
+        end_date=datetime(2023, 1, 2),
+        initial_capital=100000.0,
+        final_value=100100.0,
+        total_return=100.0,
+        total_return_pct=0.1,
+    )
+
+    monkeypatch.chdir(tmp_path)
+    out_path = tmp_path / "out.csv"
+    returned = result.to_csv(path="out.csv")
+    assert out_path.exists()
+    assert returned == result.to_csv()
+
+
+def test_backtest_result_to_json_writes_to_current_dir(tmp_path, monkeypatch):
+    """to_json() writes to files in current directory (no parent mkdir)."""
+    from quant_trading.backtest.metrics import BacktestMetrics
+
+    metrics = BacktestMetrics(total_pnl=100.0)
+    result = BacktestResult(
+        equity_curve=pd.Series([100000.0, 100100.0]),
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=datetime(2023, 1, 1),
+        end_date=datetime(2023, 1, 2),
+        initial_capital=100000.0,
+        final_value=100100.0,
+        total_return=100.0,
+        total_return_pct=0.1,
+    )
+
+    monkeypatch.chdir(tmp_path)
+    returned = result.to_json(path="out.json")
+    assert (tmp_path / "out.json").exists()
+    assert isinstance(json.loads(returned), dict)
+
+
+def test_backtest_result_total_pnl_when_metrics_none():
+    """total_pnl returns 0.0 when metrics is None."""
+    result = BacktestResult(
+        equity_curve=pd.Series([100000.0]),
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=None,
+        start_date=datetime(2023, 1, 1),
+        end_date=datetime(2023, 1, 1),
+        initial_capital=100000.0,
+        final_value=100000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+    )
+    assert result.total_pnl == 0.0
+
+
+def test_backtest_result_metric_properties_fallbacks_with_falsey_metrics():
+    """Metric properties return zeros when metrics values are falsy."""
+    class Dummy:
+        unrealized_pnl = 0
+        num_trades = 0
+        win_rate = 0.0
+        sharpe_ratio = 0.0
+        sortino_ratio = 0.0
+        calmar_ratio = 0.0
+        profit_factor = 0.0
+        max_drawdown_pct = 0.0
+        max_drawdown = 0.0
+        total_pnl = 0
+
+    result = BacktestResult(
+        equity_curve=pd.Series([100000.0]),
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=Dummy(),
+        start_date=datetime(2023, 1, 1),
+        end_date=datetime(2023, 1, 1),
+        initial_capital=100000.0,
+        final_value=100000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+    )
+    assert result.unrealized_pnl == 0.0
+    assert result.num_trades == 0
+    assert result.trade_count == 0
+    assert result.win_rate == 0.0
+    assert result.sharpe_ratio == 0.0
+    assert result.sortino_ratio == 0.0
+    assert result.calmar_ratio == 0.0
+    assert result.profit_factor == 0.0
+    assert result.max_drawdown_pct == 0.0
+    assert result.max_drawdown == 0.0
+    assert result.total_pnl == 0.0
+
+
 def test_backtest_result_to_json_writes_file(tmp_path):
     """to_json() writes the serialized object to ``path`` and returns the same text."""
     from quant_trading.backtest.metrics import BacktestMetrics
