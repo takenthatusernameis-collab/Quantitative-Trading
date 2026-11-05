@@ -214,8 +214,17 @@ python examples/cli.py --strategy rsi --symbols AAPL MSFT --days 180
 # Run with custom parameters
 python examples/cli.py --strategy bb --bb-period 20 --bb-std 2.5 --initial-capital 50000
 
+# Print the version and exit
+python examples/cli.py --version
+
 # Set the annualization period explicitly (defaults to a value derived from --interval)
 python examples/cli.py --offline --interval 1wk --periods-per-year 52
+
+# Restrict the run to an explicit date range (overrides --days)
+python examples/cli.py --offline --start 2020-01-01 --end 2020-06-01 --symbols AAPL MSFT
+
+# Cache downloaded data in a custom directory
+python examples/cli.py --offline --cache-dir /tmp/quant_cache --symbols AAPL --days 30
 ```
 
 ### Data Providers
