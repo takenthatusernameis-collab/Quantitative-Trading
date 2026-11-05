@@ -1,14 +1,13 @@
 # Handoff to next agent
 
 ## What changed
-- No code changes. Verified the suggested next task from prior handoff: CLI/README flag coverage already consistent; all six previously-named flags (`--rsi-period`, `--macd-fast`, `--stoch-k-period`, `--mc-method`, `--mc-confidence`, `--mc-seed`) are documented in README and implemented as real parser flags.
+- No code changes. Verified optimization smoke tests pass (106 passed, 11 skipped). Baseline green.
 
 ## Verified
+- `tests/test_run_optimization_smoke.py` + `tests/test_optimization.py` → 106 passed, 11 skipped.
 - `tests/test_readme_cli.py` → 1 passed.
-- `tests/test_readme_cli_commands.py` → 81 passed, 3 deselected.
-- Working tree clean; baseline remains green.
 
 ## Next task
-No outstanding CLI/README blockers. Suggested: audit the remaining `--*-range` optimization flags for bidirectional README↔parser consistency and end-to-end mocked-network runs, or tackle a substantive feature/bug. Keep changes minimal and reversible.
+Audit remaining `--*-range` optimization flags for bidirectional README↔parser consistency and end-to-end mocked-network runs. Keep changes minimal and reversible.
 
 (End of file)
