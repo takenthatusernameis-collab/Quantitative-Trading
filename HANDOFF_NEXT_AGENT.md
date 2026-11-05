@@ -1,30 +1,29 @@
 # Handoff to next agent
 
 ## What changed
-- `README.md` only: completed the Optimization section's `--*-range` flag coverage.
-- Added 22 single-line `python examples/cli.py --offline --optimize --strategy <name> --<flag> min,max,step --symbols AAPL --days 120` commands, one per previously-undocumented range flag:
-  aroon, atr (period + multiplier), bb (period + std), dc (period + exit-period), ichimoku (tenkan + kijun + senkou-b), kc (ema-period + atr-period + multiplier), macd (signal), rsi (oversold + overbought), sar (step + max-step), st (period + multiplier), stoch (k-period + d-period + oversold + overbought).
-- The previously-documented multi-line `rsi`/`macd` range examples were kept as-is.
-- No source, test, or config behavior changed.
+- Added `tests/test_example_scripts_run.py`: 52 parametrized tests, one per `examples/run_*.py` script.
+- Each test runs the README-documented invocation `python examples/run_<name>.py` (no arguments) offline with deterministic synthetic data and asserts exit code 0 and no traceback.
+- Only this new test file was added (untracked; never commit unless explicitly asked). No source, README, or config behavior changed.
 
 ## What was actually verified
-- `python -m pytest -q` → 2793 passed, 0 failed, 131 deselected (pre-existing slow/network deselections). Up from 2769 before this task; the +24 are the newly documented commands now executed by `TestReadmeCliCommands`.
-- `python -m pytest tests/test_readme_cli.py tests/test_readme_cli_commands.py -q` → 82 passed, 3 deselected.
+- `python -m pytest tests/test_example_scripts_run.py -q` → 52 passed in ~131 s.
 - `python -m ruff check .` → All checks passed.
-- `python -m black --check .` → 140 files unchanged.
+- `python -m black --check tests/test_example_scripts_run.py` → 1 file unchanged.
 - `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
-- Every newly documented command was run manually end-to-end under the mocked-network harness, exit 0, no traceback (~1 s each).
-- Working tree left with only the README.md modification (unstaged; never commit unless explicitly asked).
+- Baseline (pre-change) `python -m pytest -q` → 2793 passed, 131 deselected (green).
+- All 52 example scripts were also run manually end-to-end offline; all exit 0.
+- Working tree left clean except the new untracked test file.
 
 ## What remains unresolved
-- Nothing is broken; the tree is clean and in sync with origin/main.
-- All `--*-range` flags in `examples/cli.py` are now documented in README. Verified by diffing the set of `--*-range` flags in the CLI against those mentioned in README: the difference is empty.
+- Nothing is broken; the tree is green and in sync with origin/main.
+- The new test adds ~+130 s to the default `pytest -q` run (previously ~344 s). This is the cost of bringing example-script execution coverage into the default suite; the scripts were previously execution-checked only by the `slow`-marked `tests/test_examples_smoke.py` (deselected by default).
 
 ## Approaches that failed and why
 - None for this task.
-- Implementation note for the next session: `tests/test_readme_cli_commands.py` only executes single-line `python examples/cli.py ...` commands from README bash blocks. Multi-line backslash-continued commands are mangled by its extraction logic (the `python examples/cli.py` prefix is dropped), so to get a new command covered by the test suite, write it as a single line, or verify it manually.
+- CLI flag documentation is already 100% complete (every parser flag except argparse's built-in `help` is documented in README, and every documented flag exists on the parser) — confirmed by diffing parser flags against README-documented flags: difference is empty on both sides.
+- All 46 registered strategies already have a corresponding `examples/run_*.py` script and README entry.
 
 ## Next task (precise)
-- None pending from this session. If a new task is assigned, first re-run `pytest -q`, `python -m ruff check .`, `python -m black --check .`, and `python -m mypy quant_trading/` to confirm the tree is still green.
+- None pending from this session. If a new task is assigned, first re-run `python -m pytest -q`, `python -m ruff check .`, `python -m black --check .`, and `python -m mypy quant_trading/` to confirm the tree is still green, then select a new bounded task. The repository is currently complete and green with no obvious remaining gaps.
 
 (End of file)
