@@ -348,8 +348,8 @@ class CheckResult:
 
 
 __all__ = [
-    'CheckResult',
-    'PortfolioLimit',
-    'PositionLimit',
-    'gross_exposure',
+    "CheckResult",
+    "PortfolioLimit",
+    "PositionLimit",
+    "gross_exposure",
 ]

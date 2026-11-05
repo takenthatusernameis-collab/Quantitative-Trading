@@ -530,6 +530,6 @@ class Portfolio:
 
 
 __all__ = [
-    'Holding',
-    'Portfolio',
+    "Holding",
+    "Portfolio",
 ]

@@ -924,6 +924,6 @@ class RiskManager:
 
 
 __all__ = [
-    'PortfolioRisk',
-    'RiskManager',
+    "PortfolioRisk",
+    "RiskManager",
 ]

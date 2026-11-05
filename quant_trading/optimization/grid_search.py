@@ -483,5 +483,5 @@ class GridSearch(BaseOptimizer):
 
 
 __all__ = [
-    'GridSearch',
+    "GridSearch",
 ]

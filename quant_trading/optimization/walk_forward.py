@@ -846,7 +846,7 @@ class WalkForwardOptimizer:
 
 
 __all__ = [
-    'WalkForwardOptimizer',
-    'WalkForwardResult',
-    'WalkForwardWindow',
+    "WalkForwardOptimizer",
+    "WalkForwardResult",
+    "WalkForwardWindow",
 ]

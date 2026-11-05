@@ -495,5 +495,5 @@ class RandomSearch(BaseOptimizer):
 
 
 __all__ = [
-    'RandomSearch',
+    "RandomSearch",
 ]

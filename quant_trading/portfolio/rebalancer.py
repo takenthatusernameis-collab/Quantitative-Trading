@@ -909,7 +909,7 @@ class Rebalancer:
 
 
 __all__ = [
-    'RebalanceAction',
-    'RebalanceExecution',
-    'Rebalancer',
+    "RebalanceAction",
+    "RebalanceExecution",
+    "Rebalancer",
 ]

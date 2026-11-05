@@ -293,6 +293,6 @@ def calculate_backtest_metrics(
 
 
 __all__ = [
-    'BacktestMetrics',
-    'calculate_backtest_metrics',
+    "BacktestMetrics",
+    "calculate_backtest_metrics",
 ]

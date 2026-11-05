@@ -410,9 +410,9 @@ DEFAULT_CONFIG = Config()
 
 
 __all__ = [
-    'BacktestConfig',
-    'Config',
-    'DataConfig',
-    'PortfolioConfig',
-    'RiskConfig',
+    "BacktestConfig",
+    "Config",
+    "DataConfig",
+    "PortfolioConfig",
+    "RiskConfig",
 ]

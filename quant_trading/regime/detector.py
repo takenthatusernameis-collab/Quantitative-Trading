@@ -630,9 +630,9 @@ def detect_regimes(
 
 
 __all__ = [
-    'Regime',
-    'RegimeDetector',
-    'RegimeResult',
-    'RegimeSegment',
-    'detect_regimes',
+    "Regime",
+    "RegimeDetector",
+    "RegimeResult",
+    "RegimeSegment",
+    "detect_regimes",
 ]
