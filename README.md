@@ -239,6 +239,9 @@ python examples/cli.py --offline --strategy macd --macd-fast 12 --macd-slow 26 -
 # Override the RSI period (default: 14)
 python examples/cli.py --offline --strategy rsi --rsi-period 14 --symbols AAPL --days 90
 
+# Override the RSI overbought threshold (default: 70)
+python examples/cli.py --offline --strategy rsi --rsi-overbought 75 --symbols AAPL --days 90
+
 # Tune the Stochastic Oscillator %K and %D periods
 python examples/cli.py --offline --strategy stoch --stoch-k-period 14 --stoch-d-period 3 --symbols MSFT --days 90
 ```
