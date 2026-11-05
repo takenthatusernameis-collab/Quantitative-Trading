@@ -244,6 +244,24 @@ python examples/cli.py --offline --strategy rsi --rsi-overbought 75 --symbols AA
 
 # Tune the Stochastic Oscillator %K and %D periods
 python examples/cli.py --offline --strategy stoch --stoch-k-period 14 --stoch-d-period 3 --symbols MSFT --days 90
+
+# Override the fast/slow periods of the default MA crossover strategy
+python examples/cli.py --offline --fast-period 5 --slow-period 20 --symbols AAPL --days 90
+
+# Override the RSI oversold threshold (default: 30)
+python examples/cli.py --offline --strategy rsi --rsi-period 14 --rsi-oversold 25 --symbols AAPL --days 90
+
+# Use the MACD zero line for crossovers
+python examples/cli.py --offline --strategy macd --macd-fast 12 --macd-slow 26 --macd-signal 9 --macd-zero-line --symbols AAPL --days 90
+
+# Override the SuperTrend period and multiplier
+python examples/cli.py --offline --strategy supertrend --st-period 10 --st-multiplier 3.0 --symbols AAPL --days 90
+
+# Override the Stochastic oversold/overbought levels
+python examples/cli.py --offline --strategy stoch --stoch-k-period 14 --stoch-d-period 3 --stoch-oversold 20 --stoch-overbought 80 --symbols AAPL --days 90
+
+# Override the ATR period and multiplier
+python examples/cli.py --offline --strategy atr --atr-period 14 --atr-multiplier 2.0 --symbols AAPL --days 90
 ```
 
 ### Data Providers
