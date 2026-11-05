@@ -723,3 +723,19 @@ def test_readme_code_block_language_tags_are_supported():
         if tag and tag not in _SUPPORTED_CODE_BLOCK_LANGUAGES
     ]
     assert not offenders, "unsupported README code-block language tags:\n" + "\n".join(offenders)
+
+
+def test_readme_backtick_quant_trading_names_resolve():
+    """Every ``quant_trading.*`` dotted name in README backticks must resolve."""
+    import importlib
+
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    failures: list[str] = []
+    for span in re.finditer(r"`[^`]*`", readme):
+        for match in re.finditer(r"quant_trading(?:\.[A-Za-z_][A-Za-z0-9_]*)+", span.group(0)):
+            dotted = match.group(0)
+            try:
+                importlib.import_module(dotted)
+            except (ImportError, AttributeError) as exc:
+                failures.append(f"{dotted}: {exc!r}")
+    assert not failures, "README backtick quant_trading names unresolvable:\n" + "\n".join(failures)
