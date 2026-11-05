@@ -224,6 +224,9 @@ python examples/cli.py --strategy bb --bb-period 20 --bb-std 2.5 --initial-capit
 # Print the version and exit
 python examples/cli.py --version
 
+# Print the help message and exit
+python examples/cli.py --help
+
 # Set the annualization period explicitly (defaults to a value derived from --interval)
 python examples/cli.py --offline --interval 1wk --periods-per-year 52
 
