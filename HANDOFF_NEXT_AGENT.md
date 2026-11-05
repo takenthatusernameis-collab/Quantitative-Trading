@@ -1,32 +1,33 @@
 # Handoff to next agent
 
 ## What changed
-- Added three previously-undocumented CLI flags to the README "Basic Usage" section:
-  - `--version` (prints `quant-trading 0.1.0` and exits)
-  - `--start` / `--end` (explicit date range, overrides `--days`)
-  - `--cache-dir` (custom cache directory for downloaded data)
-- Only `README.md` was modified (9 insertions). No source, test, or config behavior changed.
+- `README.md` only: extended the Optimization section of the "Command Line Interface" chapter.
+- Documented that every strategy parameter flag (`--*-period`, `--*-multiplier`, `--*-std`, …) has a matching `--*-range min,max,step` form for grid optimization (step must be > 0; the grid evaluates the cartesian product of all ranges given).
+- Added two verified example commands:
+  - `python examples/cli.py --offline --optimize --strategy rsi --rsi-period-range 10,18,4 --symbols AAPL --days 120`
+  - `python examples/cli.py --offline --optimize --strategy macd --macd-fast-range 8,12,4 --macd-slow-range 16,24,8 --symbols MSFT --days 120`
+- No source, test, or config behavior changed.
 
 ## What was actually verified
-- `python -m pytest tests/test_readme_cli.py tests/test_readme_cli_commands.py tests/test_readme.py tests/test_strategy_registry_coverage.py -q` → 59 passed, 3 deselected.
-- Full `python -m pytest -q` → **2752 passed, 131 deselected** (baseline was 2749; the +3 are the three newly documented commands, each now covered by `TestReadmeCliCommands`).
+- `python -m pytest -q` → 2769 passed, 0 failed, 131 deselected (pre-existing slow/network deselections).
+- `python -m pytest tests/test_readme_cli.py tests/test_readme_cli_commands.py -q` → 58 passed, 3 deselected (README flag->parser sync + documented-command execution guards).
 - `python -m ruff check .` → All checks passed.
 - `python -m black --check .` → 140 files unchanged.
 - `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
-- Manually ran all three documented commands: `--version`, `--offline --start 2020-01-01 --end 2020-06-01 --symbols AAPL MSFT`, `--offline --cache-dir /tmp/quant_cache --symbols AAPL --days 30` — each exits 0 with no traceback. Temp cache dirs cleaned up.
+- Both new commands run end-to-end under the mocked-network harness, exit 0, no traceback (~1 s each).
+- Working tree left with only the README.md modification (unstaged; never commit unless explicitly asked).
 
 ## What remains unresolved
-- Nothing functional. Repository is clean, in sync with origin/main, and all checks pass.
-- The README change is left unstaged for the controller to checkpoint (never commit unless explicitly asked).
+- The remaining per-strategy `--*-range` flags are still undocumented: `aroon-period-range`, `atr-multiplier-range`, `atr-period-range`, `bb-period-range`, `dc-exit-period-range`, `dc-period-range`, `ichimoku-kijun-period-range`, `ichimoku-senkou-b-period-range`, `ichimoku-tenkan-period-range`, `kc-atr-period-range`, `kc-ema-period-range`, `kc-multiplier-range`, `macd-signal-range`, `rsi-overbought-range`, `rsi-oversold-range`, `sar-max-step-range`, `sar-step-range`, `st-multiplier-range`, `st-period-range`, `stoch-d-period-range`, `stoch-overbought-range`, `stoch-oversold-range` (plus argparse `--help`, intentionally undocumented).
+- Nothing is broken; the tree is clean and in sync with origin/main.
 
 ## Approaches that failed and why
-- Coverage-gap hunting is a dead end: all 37 modules are at 100% coverage.
-- Adding a new `examples/run_*.py` script is unnecessary: all 46 primary registry keys already have a corresponding example script and README entry.
-- The real gap was found by comparing the README's documented CLI flags against the live parser: 47 flags are documented but the parser accepts 112. Most undocumented flags are per-strategy parameter overrides (already covered by `--strategy-config` docs) and argparse auto-generated flags (`--help`, `--start`, `--end`, `--cache-dir`, `--version`). The three added flags are the user-facing ones with no other documentation home.
+- None for this task.
+- Implementation note for the next session: `tests/test_readme_cli_commands.py` only executes single-line `python examples/cli.py ...` commands from README bash blocks. Multi-line backslash-continued commands are mangled by its extraction logic (the `python examples/cli.py` prefix is dropped), so pre-existing `--optimize`/`--walk-forward` examples are documented but not executed by that suite. To get a new command covered by the test suite, write it as a single line, or verify it manually (as done here).
 
 ## Next task (precise)
-- If another session is requested, first re-run `pytest -q`, `python -m ruff check .`, `python -m black --check .`, and `python -m mypy quant_trading/` to confirm the tree is still green, then select a new bounded task.
-- Candidate directions: document more of the remaining undocumented but user-facing CLI flags (e.g. `--rsi-period`, `--macd-fast`, `--stoch-k-period`, `--mc-method`, `--mc-confidence`, `--mc-seed`), each verified to run end-to-end under the mocked-network harness; or extend README/CLI coverage for an under-documented feature.
-- Constraints: Do not modify tests to make them pass. Keep changes minimal and reversible. The `tests/test_readme_cli.py` and `tests/test_readme_cli_commands.py` guards enforce bidirectional consistency between the README CLI section and the live parser; any newly documented flag must be a real parser flag and its command must exit 0 (or 1 for documented error cases) with no traceback.
+1. First re-run `pytest -q`, `python -m ruff check .`, `python -m black --check .`, and `python -m mypy quant_trading/` to confirm the tree is still green.
+2. Document the remaining `--*-range` flags above in the Optimization section, preferably as single-line `python examples/cli.py --offline --optimize --strategy <name> --<flag> min,max,step --symbols ... --days ...` commands so they are executed by `TestReadmeCliCommands`. Keep ranges tiny (2-3 values) so each command runs in ~1 s.
+3. Constraints: do not modify tests to make them pass; keep changes minimal and reversible; any newly documented flag must be a real parser flag and its command must exit 0 (or 1 for documented error cases) with no traceback.
 
-(End of file - total 40 lines)
+(End of file)

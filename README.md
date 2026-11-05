@@ -429,6 +429,23 @@ python examples/cli.py --offline --optimize --strategy ma \
     --symbols AAPL --days 120
 ```
 
+Every strategy parameter that can be overridden with a `--*-period`,
+`--*-multiplier`, `--*-std`, or similar single-value flag can also be searched
+with a matching `--*-range min,max,step` flag (for example `--rsi-period-range`,
+`--macd-fast-range`, `--bb-std-range`). A range is `min,max,step` and the step
+must be greater than zero; the grid optimizer evaluates the cartesian product of
+all ranges given on the command line:
+
+```bash
+python examples/cli.py --offline --optimize --strategy rsi \
+    --rsi-period-range 10,18,4 \
+    --symbols AAPL --days 120
+
+python examples/cli.py --offline --optimize --strategy macd \
+    --macd-fast-range 8,12,4 --macd-slow-range 16,24,8 \
+    --symbols MSFT --days 120
+```
+
 The `random` and `bayesian` optimizers evaluate a fixed number of parameter
 combinations, set with `--n-iter` (default 50). The number of parallel jobs is
 controlled with `--n-jobs` (default 1). The Bayesian optimizer additionally
