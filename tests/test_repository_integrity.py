@@ -15,6 +15,7 @@ the invariants that would have caught those regressions.
 import ast
 import importlib
 import pkgutil
+import re
 from pathlib import Path
 
 import pytest
@@ -479,3 +480,140 @@ def test_cli_quant_trading_imports_exist():
             if not hasattr(mod, alias.name):
                 failures.append(f"{path.name}: {alias.name} missing from {node.module}")
     assert not failures, "CLI imports missing:\n" + "\n".join(failures)
+
+
+# Matches a backtick-quoted example-script path such as
+# ``examples/run_rsi.py``. Kept in sync with ``test_readme.py``'s pattern.
+_EXAMPLE_SCRIPT_REF = re.compile(r"`(?P<path>examples/run_[a-z_]+\.py)`")
+# Matches a runnable example-script line inside a bash code block, e.g.
+# ``python examples/run_rsi.py``.
+_EXAMPLE_SCRIPT_RUN = re.compile(r"python examples/run_[a-z_]+\.py")
+
+
+def _readme_sections() -> list[tuple[int, int, str]]:
+    """Return ``(header_line, level, title)`` for every README section header.
+
+    ``level`` is the number of ``#`` characters (2 for ``##``, 3 for ``###``).
+    """
+    text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    sections: list[tuple[int, int, str]] = []
+    for index, line in enumerate(text.splitlines()):
+        match = re.match(r"^(#+)\s+(?P<title>.+?)\s*$", line)
+        if match:
+            sections.append((index + 1, len(match.group(1)), match.group("title")))
+    return sections
+
+
+def _example_scripts_section_bounds() -> tuple[int, int]:
+    """Return the 1-indexed start and end line of the "Example Scripts" section.
+
+    The section starts at its ``###`` header and ends just before the next
+    ``##`` (or end of file). Raises ``AssertionError`` if the section is absent.
+    """
+    sections = _readme_sections()
+    start = end = None
+    for index, (line, level, title) in enumerate(sections):
+        if title == "Example Scripts":
+            start = line
+            if index + 1 < len(sections):
+                end = sections[index + 1][0] - 1
+            else:
+                end = (REPO_ROOT / "README.md").read_text(encoding="utf-8").count("\n")
+            break
+    assert start is not None, "README has no 'Example Scripts' section"
+    assert end is not None, "README 'Example Scripts' section has no end"
+    return start, end
+
+
+def test_no_duplicate_example_script_demos():
+    """Every example script must be documented at most once in the Example Scripts section.
+
+    A script advertised twice (once in prose and once in a stray duplicate block,
+    or twice in prose) is a documentation defect: the second occurrence is dead
+    text that drifts out of sync with the first. This guard collapses the
+    references inside the section to a set and fails on any duplicate.
+    """
+    start, end = _example_scripts_section_bounds()
+    lines = (REPO_ROOT / "README.md").read_text(encoding="utf-8").splitlines()[start - 1 : end]
+    section = "\n".join(lines)
+    seen: dict[str, int] = {}
+    for match in _EXAMPLE_SCRIPT_REF.finditer(section):
+        name = Path(match.group("path")).name
+        seen[name] = seen.get(name, 0) + 1
+    duplicates = sorted(name for name, count in seen.items() if count > 1)
+    assert not duplicates, "example scripts documented more than once:\n" + "\n".join(duplicates)
+
+
+def test_no_example_script_refs_outside_example_scripts_section():
+    """Every ``examples/run_*.py`` reference must live in the Example Scripts section.
+
+    References that appear in other sections (or in a trailing orphaned block
+    past the final section) are invisible to readers and drift out of sync with
+    the curated list. This guard fails if any reference sits outside the section.
+    """
+    start, end = _example_scripts_section_bounds()
+    text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    section = "\n".join(text.splitlines()[start - 1 : end])
+    section_names = {Path(m.group("path")).name for m in _EXAMPLE_SCRIPT_REF.finditer(section)}
+    outside: list[str] = []
+    for match in _EXAMPLE_SCRIPT_REF.finditer(text):
+        name = Path(match.group("path")).name
+        if name not in section_names:
+            outside.append(name)
+    assert (
+        not outside
+    ), "example-script references outside the Example Scripts section:\n" + "\n".join(
+        sorted(set(outside))
+    )
+
+
+def test_example_scripts_section_has_code_block_for_every_ref():
+    """Every example script referenced after the section lead must have a runnable code block.
+
+    A prose mention without a ``python examples/run_*.py`` line gives readers no
+    copy-pasteable invocation, so the reference is incomplete. The section's
+    lead paragraph (the text before the first `````bash`` block) is exempt: it
+    is an overview that legitimately names scripts without invoking them, as
+    with ``run_backtest.py`` (a networked example that is not part of the
+    offline demo set). Every script referenced after the first code block must
+    carry its own runnable line.
+    """
+    start, end = _example_scripts_section_bounds()
+    section = "\n".join(
+        (REPO_ROOT / "README.md").read_text(encoding="utf-8").splitlines()[start - 1 : end]
+    )
+    first_code = section.find("```bash")
+    if first_code == -1:
+        lead, body = section, ""
+    else:
+        lead, body = section[:first_code], section[first_code:]
+    lead_names = {Path(m.group("path")).name for m in _EXAMPLE_SCRIPT_REF.finditer(lead)}
+    prose = {Path(m.group("path")).name for m in _EXAMPLE_SCRIPT_REF.finditer(body)}
+    runnable = {Path(m).name for m in _EXAMPLE_SCRIPT_RUN.findall(body)}
+    missing = sorted((prose - lead_names) - runnable)
+    assert not missing, "example scripts referenced in prose without a code block:\n" + "\n".join(
+        missing
+    )
+
+
+def test_readme_license_is_the_final_section():
+    """The README must end with the License section and nothing after it.
+
+    A trailing block of orphaned example-script demos past the final section is
+    invisible to readers and duplicates the curated list. The last section header
+    in the file must be ``## License`` (two hashes), and no header of any level
+    may appear after it (which is what an orphaned block would reintroduce).
+    """
+    sections = _readme_sections()
+    assert sections, "README has no section headers"
+    last_line, last_level, last_title = sections[-1]
+    assert last_title == "License", f"last README section is {last_title!r}, expected 'License'"
+    assert last_level == 2, f"License header is h{last_level}, expected h2"
+    text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    lines = text.splitlines()
+    # No header of any level may appear after the License header.
+    for index in range(last_line, len(lines)):
+        assert not re.match(r"^#+\s+", lines[index]), (
+            f"header found at line {index + 1} after the License header at line {last_line}; "
+            "an orphaned block follows the final section"
+        )

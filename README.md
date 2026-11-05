@@ -1053,6 +1053,99 @@ contracting):
 python examples/run_volume_rate_of_change.py
 ```
 
+For a SuperTrend demonstration, see `examples/run_super_trend.py`. It runs the
+`SuperTrendStrategy` against seeded synthetic data, generating buy signals when
+price crosses above the SuperTrend line (trend turns bullish) and sell signals
+when price crosses below it (trend turns bearish):
+
+```bash
+python examples/run_super_trend.py
+```
+
+For a TRIX demonstration, see `examples/run_trix.py`. It runs the `TrixStrategy`
+against seeded synthetic data, generating buy signals when TRIX crosses above
+zero (momentum turning positive) and sell signals when TRIX crosses below zero
+(momentum turning negative):
+
+```bash
+python examples/run_trix.py
+```
+
+For a momentum demonstration, see `examples/run_momentum.py`. It runs the
+`MomentumStrategy` against seeded synthetic data, generating buy signals when
+momentum is positive and above the threshold and sell signals when momentum is
+negative and below the negative threshold:
+
+```bash
+python examples/run_momentum.py
+```
+
+For an Accumulation/Distribution demonstration, see
+`examples/run_accumulation_distribution.py`. It runs the
+`AccumulationDistributionStrategy` against seeded synthetic data, generating buy
+signals when ADL crosses above its signal line (accumulation) and sell signals
+when ADL crosses below it (distribution):
+
+```bash
+python examples/run_accumulation_distribution.py
+```
+
+For an Awesome Oscillator demonstration, see
+`examples/run_awesome_oscillator.py`. It runs the `AwesomeOscillatorStrategy`
+against seeded synthetic data, generating buy signals when the AO crosses above
+the zero line (bullish momentum) and sell signals when it crosses below it
+(bearish momentum):
+
+```bash
+python examples/run_awesome_oscillator.py
+```
+
+For a Bollinger %B demonstration, see `examples/run_bollinger_percent_b.py`.
+It runs the `BollingerPercentBStrategy` against seeded synthetic data, generating
+buy signals when %B crosses below the oversold threshold (price at or below the
+lower band) and sell signals when it crosses above the overbought threshold (price
+at or above the upper band):
+
+```bash
+python examples/run_bollinger_percent_b.py
+```
+
+For an Aroon demonstration, see `examples/run_aroon.py`. It runs the
+`AroonStrategy` against seeded synthetic data, generating buy signals when Aroon
+Up crosses above Aroon Down and sell signals when Aroon Down crosses above Aroon
+Up:
+
+```bash
+python examples/run_aroon.py
+```
+
+For a Keltner Channel demonstration, see `examples/run_keltner.py`. It runs the
+`KeltnerChannelStrategy` against seeded synthetic data, generating buy signals when
+price breaks above the upper channel and sell signals when price breaks below the
+lower channel:
+
+```bash
+python examples/run_keltner.py
+```
+
+For an Average True Range Channel Breakout demonstration, see
+`examples/run_atr.py`. It runs the `AverageTrueRangeStrategy`, which builds an ATR
+channel anchored on the previous close and generates buy signals on upside
+breakouts and sell signals on downside breakouts:
+
+```bash
+python examples/run_atr.py
+```
+
+For a Moving Average Crossover demonstration, see `examples/run_ma_crossover.py`.
+It runs the `MovingAverageCrossover` strategy against seeded synthetic data,
+generating buy signals on golden crosses (fast MA crosses above slow MA) and sell
+signals on death crosses (fast MA crosses below slow MA):
+
+```bash
+python examples/run_ma_crossover.py
+```
+
 
 ## Data fetching
 
@@ -1804,167 +1897,3 @@ python examples/run_ema_crossover.py
 ## License
 
 MIT License
-
-For a stochastic oscillator demonstration using the Stochastic indicator, see
-`examples/run_stochastic.py`. It runs the `StochasticOscillatorStrategy`
-against seeded synthetic data, generating buy signals when %K crosses above %D
-in oversold territory (< 20) and sell signals when %K crosses below %D in
-overbought territory (> 80):
-
-```bash
-python examples/run_stochastic.py
-```
-
-For a SuperTrend demonstration using the ATR-based SuperTrend indicator, see
-`examples/run_super_trend.py`. It runs the `SuperTrendStrategy` against
-seeded synthetic data, generating buy signals when price crosses above the
-SuperTrend line (trend turns bullish) and sell signals when price crosses
-below it (trend turns bearish):
-
-```bash
-python examples/run_super_trend.py
-```
-
-For a TRIX demonstration, see `examples/run_trix.py`.
-```bash
-python examples/run_trix.py
-```
-For a Donchian Channel demonstration using the highest high/lowest low over a
-lookback period, see `examples/run_donchian.py`. It runs the
-`DonchianChannelStrategy` against seeded synthetic data, generating buy signals
-when price breaks above the upper band and sell signals when price breaks below
-the lower band:
-
-```bash
-python examples/run_donchian.py
-```
-
-For a momentum demonstration using the Momentum indicator, see
-`examples/run_momentum.py`. It runs the `MomentumStrategy` against seeded
-synthetic data, generating buy signals when price momentum over the lookback
-period is positive and above a threshold, and sell signals when momentum is
-negative and below the negative threshold:
-
-```bash
-python examples/run_momentum.py
-```
-
-For an Accumulation/Distribution demonstration, see `examples/run_accumulation_distribution.py`. It runs the `AccumulationDistributionStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_accumulation_distribution.py
-```
-
-For an Awesome Oscillator demonstration, see `examples/run_awesome_oscillator.py`. It runs the `AwesomeOscillatorStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_awesome_oscillator.py
-```
-
-For a Bollinger %B demonstration, see `examples/run_bollinger_percent_b.py`. It runs the `BollingerPercentBStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_bollinger_percent_b.py
-```
-
-For a Chaikin Money Flow demonstration, see `examples/run_chaikin_money_flow.py`. It runs the `ChaikinMoneyFlowStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_chaikin_money_flow.py
-```
-
-For a Chaikin Oscillator demonstration, see `examples/run_chaikin_oscillator.py`. It runs the `ChaikinOscillatorStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_chaikin_oscillator.py
-```
-
-For a Chande Momentum Oscillator demonstration, see `examples/run_chande_momentum_oscillator.py`. It runs the `ChandeMomentumOscillatorStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_chande_momentum_oscillator.py
-```
-
-For a Chande Momentum Oscillator (CMO) demonstration, see `examples/run_cmo.py`. It runs the `ChandeMomentumOscillatorStrategy` against seeded synthetic data, generating buy signals when CMO crosses above zero (momentum turns positive) and sell signals when CMO crosses below zero (momentum turns negative):
-
-```bash
-python examples/run_cmo.py
-```
-
-For a Choppiness Index demonstration, see `examples/run_choppiness_index.py`. It runs the `ChoppinessIndexStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_choppiness_index.py
-```
-
-For a Detrended Price Oscillator demonstration, see `examples/run_detrended_price_oscillator.py`. It runs the `DetrendedPriceOscillatorStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_detrended_price_oscillator.py
-```
-
-For a Force Index demonstration, see `examples/run_force_index.py`. It runs the `ForceIndexStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_force_index.py
-```
-
-For a Hull Moving Average demonstration, see `examples/run_hull_moving_average.py`. It runs the `HullMovingAverageStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_hull_moving_average.py
-```
-
-For a Klinger Oscillator demonstration, see `examples/run_klinger_oscillator.py`. It runs the `KlingerOscillatorStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_klinger_oscillator.py
-```
-
-For a Money Flow Index demonstration, see `examples/run_money_flow_index.py`. It runs the `MoneyFlowIndexStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_money_flow_index.py
-```
-
-For a Negative Volume Index demonstration, see `examples/run_negative_volume_index.py`. It runs the `NegativeVolumeIndexStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_negative_volume_index.py
-```
-
-For a Positive Volume Index demonstration, see `examples/run_positive_volume_index.py`. It runs the `PositiveVolumeIndexStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_positive_volume_index.py
-```
-
-For a Rate of Change demonstration, see `examples/run_rate_of_change.py`. It runs the `RateOfChangeStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_rate_of_change.py
-```
-
-For a Stochastic RSI demonstration, see `examples/run_stochastic_rsi.py`. It runs the `StochRSIStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_stochastic_rsi.py
-```
-
-For a Volume Oscillator demonstration, see `examples/run_volume_oscillator.py`. It runs the `VolumeOscillatorStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_volume_oscillator.py
-```
-
-For a Volume Price Trend demonstration, see `examples/run_volume_price_trend.py`. It runs the `VolumePriceTrendStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_volume_price_trend.py
-```
-
-For a Volume Rate of Change demonstration, see `examples/run_volume_rate_of_change.py`. It runs the `VolumeRateOfChangeStrategy` against seeded synthetic data:
-
-```bash
-python examples/run_volume_rate_of_change.py
-```
