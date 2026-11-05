@@ -238,7 +238,7 @@ def create_synthetic_provider(
 
 
 __all__ = [
-    'create_synthetic_data',
     'SyntheticDataProvider',
+    'create_synthetic_data',
     'create_synthetic_provider',
 ]

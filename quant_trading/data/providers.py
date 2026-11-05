@@ -32,10 +32,10 @@ Examples:
 """
 
 __all__ = [
-    "MarketData",
-    "FetchResult",
-    "DataProvider",
     "DataManager",
+    "DataProvider",
+    "FetchResult",
+    "MarketData",
     "create_data_manager_from_config",
 ]
 

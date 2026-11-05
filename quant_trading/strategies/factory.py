@@ -28,15 +28,14 @@ from typing import Any
 
 from .base import Strategy
 
-
 __all__ = [
     "StrategyRegistry",
-    "register_strategy",
-    "get_strategy",
     "create_strategy",
-    "list_strategies",
-    "strategy_keys",
     "get_registry",
+    "get_strategy",
+    "list_strategies",
+    "register_strategy",
+    "strategy_keys",
 ]
 
 

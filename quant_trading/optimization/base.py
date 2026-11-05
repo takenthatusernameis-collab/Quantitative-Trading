@@ -731,15 +731,15 @@ class BaseOptimizer(ABC):
 
 
 __all__ = [
-    'ParameterSpace',
-    'ParameterGrid',
-    'maximize_sharpe',
-    'maximize_total_return',
-    'maximize_calmar',
-    'maximize_sortino',
-    'minimize_max_drawdown',
-    'maximize_profit_factor',
-    'maximize_win_rate',
-    'OptimizationResult',
     'BaseOptimizer',
+    'OptimizationResult',
+    'ParameterGrid',
+    'ParameterSpace',
+    'maximize_calmar',
+    'maximize_profit_factor',
+    'maximize_sharpe',
+    'maximize_sortino',
+    'maximize_total_return',
+    'maximize_win_rate',
+    'minimize_max_drawdown',
 ]

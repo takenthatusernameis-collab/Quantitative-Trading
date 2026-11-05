@@ -369,6 +369,6 @@ class BayesianOptimizer(BaseOptimizer):
 
 
 __all__ = [
-    'BayesianOptimizerConfig',
     'BayesianOptimizer',
+    'BayesianOptimizerConfig',
 ]

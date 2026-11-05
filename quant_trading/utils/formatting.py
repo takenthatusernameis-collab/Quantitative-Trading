@@ -172,10 +172,10 @@ def format_duration_days(days: float) -> str:
 
 
 __all__ = [
-    'format_currency',
-    'format_percent',
-    'format_number',
     'format_basis_points',
-    'format_shares',
+    'format_currency',
     'format_duration_days',
+    'format_number',
+    'format_percent',
+    'format_shares',
 ]

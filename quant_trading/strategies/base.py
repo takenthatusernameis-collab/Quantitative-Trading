@@ -7,8 +7,7 @@ from typing import Any
 
 import pandas as pd
 
-
-__all__ = ["Signal", "Position", "Strategy", "StrategyManager"]
+__all__ = ["Position", "Signal", "Strategy", "StrategyManager"]
 
 
 @dataclass

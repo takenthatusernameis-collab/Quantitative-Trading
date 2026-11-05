@@ -49,11 +49,11 @@ Examples:
 """
 
 __all__ = [
+    "BacktestEngine",
+    "BacktestResult",
+    "Trade",
     "get_default_data_manager",
     "reset_default_data_manager",
-    "Trade",
-    "BacktestResult",
-    "BacktestEngine",
     "run_backtest",
 ]
 

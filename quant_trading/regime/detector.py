@@ -631,8 +631,8 @@ def detect_regimes(
 
 __all__ = [
     'Regime',
-    'RegimeSegment',
-    'RegimeResult',
     'RegimeDetector',
+    'RegimeResult',
+    'RegimeSegment',
     'detect_regimes',
 ]

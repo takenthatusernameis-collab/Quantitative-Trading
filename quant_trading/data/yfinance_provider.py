@@ -4153,6 +4153,6 @@ class AlphaVantageProvider(DataProvider):
 
 
 __all__ = [
-    'YFinanceProvider',
     'AlphaVantageProvider',
+    'YFinanceProvider',
 ]

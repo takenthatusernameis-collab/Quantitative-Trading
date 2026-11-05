@@ -110,7 +110,7 @@ def clear_loggers(*names: str) -> None:
 
 
 __all__ = [
-    'setup_logger',
-    'get_logger',
     'clear_loggers',
+    'get_logger',
+    'setup_logger',
 ]
