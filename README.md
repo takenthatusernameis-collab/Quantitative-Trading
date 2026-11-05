@@ -446,6 +446,39 @@ python examples/cli.py --offline --optimize --strategy macd \
     --symbols MSFT --days 120
 ```
 
+Every remaining strategy parameter has a matching `--*-range min,max,step` flag as
+well (step must be > 0; the grid evaluates the cartesian product of all ranges
+given). Each is shown below as a single-line command so it is executed by the
+README command test suite; ranges are kept tiny (2-3 values) so each runs in
+about a second:
+
+```bash
+python examples/cli.py --offline --optimize --strategy aroon --aroon-period-range 10,20,5 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy atr --atr-period-range 5,15,2 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy atr --atr-multiplier-range 1.0,2.0,0.5 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy bb --bb-period-range 10,20,5 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy bb --bb-std-range 1.5,2.5,0.5 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy dc --dc-period-range 10,20,5 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy dc --dc-exit-period-range 5,10,2 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy ichimoku --ichimoku-tenkan-period-range 5,10,2 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy ichimoku --ichimoku-kijun-period-range 10,20,5 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy ichimoku --ichimoku-senkou-b-period-range 20,40,10 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy kc --kc-ema-period-range 10,20,5 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy kc --kc-atr-period-range 5,15,2 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy kc --kc-multiplier-range 1.0,2.0,0.5 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy macd --macd-signal-range 5,9,2 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy rsi --rsi-oversold-range 20,30,5 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy rsi --rsi-overbought-range 70,80,5 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy sar --sar-step-range 0.01,0.03,0.01 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy sar --sar-max-step-range 0.10,0.15,0.05 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy st --st-period-range 7,15,2 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy st --st-multiplier-range 2.0,3.0,0.5 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy stoch --stoch-k-period-range 10,20,5 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy stoch --stoch-d-period-range 2,5,1 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy stoch --stoch-oversold-range 10,20,5 --symbols AAPL --days 120
+python examples/cli.py --offline --optimize --strategy stoch --stoch-overbought-range 70,80,5 --symbols AAPL --days 120
+```
+
 The `random` and `bayesian` optimizers evaluate a fixed number of parameter
 combinations, set with `--n-iter` (default 50). The number of parallel jobs is
 controlled with `--n-jobs` (default 1). The Bayesian optimizer additionally
