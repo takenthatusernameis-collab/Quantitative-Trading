@@ -8,6 +8,9 @@ from typing import Any
 import pandas as pd
 
 
+__all__ = ["Signal", "Position", "Strategy", "StrategyManager"]
+
+
 @dataclass
 class Signal:
     """Trading signal emitted by a strategy.

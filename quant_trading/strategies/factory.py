@@ -29,6 +29,17 @@ from typing import Any
 from .base import Strategy
 
 
+__all__ = [
+    "StrategyRegistry",
+    "register_strategy",
+    "get_strategy",
+    "create_strategy",
+    "list_strategies",
+    "strategy_keys",
+    "get_registry",
+]
+
+
 class StrategyRegistry:
     """Registry mapping string keys to strategy classes.
 
