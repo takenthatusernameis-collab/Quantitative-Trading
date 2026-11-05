@@ -259,9 +259,10 @@ class RandomSearch(BaseOptimizer):
         import os
 
         n_iter = self.n_iter
-        if os.environ.get("PYTEST_CURRENT_TEST") and n_iter > 30:
-            n_iter = 30
-            self.n_iter = 30
+        _cap = int(os.environ.get("QT_TEST_MAX_RANDOM_ITERATIONS", "30"))
+        if os.environ.get("PYTEST_CURRENT_TEST") and n_iter > _cap:
+            n_iter = _cap
+            self.n_iter = _cap
         combinations = self.param_grid.sample_random(n_iter, self._rng)
 
         if self.verbose:

@@ -243,7 +243,8 @@ class GridSearch(BaseOptimizer):
         import os
 
         combinations = self._combinations
-        if os.environ.get("PYTEST_CURRENT_TEST") and len(combinations) > 60:
+        _cap = int(os.environ.get("QT_TEST_MAX_GRID_COMBINATIONS", "60"))
+        if os.environ.get("PYTEST_CURRENT_TEST") and len(combinations) > _cap:
             import random
 
             random.seed(12345)
