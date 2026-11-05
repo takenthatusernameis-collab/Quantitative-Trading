@@ -387,6 +387,20 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Use offline synthetic data (equivalent to --provider synthetic)",
     )
     parser.add_argument(
+        "--synthetic-days",
+        type=int,
+        default=None,
+        help=(
+            "Number of days of synthetic data to generate when running offline " "(default: 365)"
+        ),
+    )
+    parser.add_argument(
+        "--synthetic-seed",
+        type=int,
+        default=None,
+        help=("RNG seed for deterministic synthetic data generation (default: 42)"),
+    )
+    parser.add_argument(
         "--alphavantage-key",
         type=str,
         default=None,

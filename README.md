@@ -330,7 +330,11 @@ python examples/cli.py --offline --strategy stoch --stoch-use-midline --symbols 
  python examples/cli.py --offline
  # or
  python examples/cli.py --provider synthetic
- ```
+
+ # Control the synthetic data span and seed with ``--synthetic-days`` and
+ # ``--synthetic-seed``
+ python examples/cli.py --offline --synthetic-days 120 --synthetic-seed 7 --symbols AAPL --days 30
+```
 
 ### Utility Commands
 
