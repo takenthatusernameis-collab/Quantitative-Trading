@@ -225,6 +225,9 @@ python examples/cli.py --offline --start 2020-01-01 --end 2020-06-01 --symbols A
 
 # Cache downloaded data in a custom directory
 python examples/cli.py --offline --cache-dir /tmp/quant_cache --symbols AAPL --days 30
+
+# Override strategy parameters and run a Monte Carlo simulation
+python examples/cli.py --offline --strategy macd --macd-fast 12 --macd-slow 26 --macd-signal 9 --monte-carlo --mc-method bootstrap --mc-confidence 0.95 --mc-seed 42
 ```
 
 ### Data Providers
