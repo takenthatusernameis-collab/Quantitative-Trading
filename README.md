@@ -745,6 +745,193 @@ when it crosses below:
 python examples/run_klinger.py
 ```
 
+For a Klinger Oscillator demonstration with explicit fast/slow periods, see
+`examples/run_klinger_oscillator.py`. It runs the `KlingerOscillatorStrategy`
+against seeded synthetic data, generating a buy signal when the fast Klinger EMA
+crosses above the slow Klinger EMA and a sell signal when it crosses below:
+
+```bash
+python examples/run_klinger_oscillator.py
+```
+
+For a Hull Moving Average demonstration, see `examples/run_hull_moving_average.py`.
+It runs the `HullMovingAverageStrategy` against seeded synthetic data, generating
+buy signals when the close crosses above the HMA and sell signals when the close
+crosses below the HMA:
+
+```bash
+python examples/run_hull_moving_average.py
+```
+
+For a Chaikin Money Flow demonstration, see `examples/run_chaikin_money_flow.py`.
+It runs the `ChaikinMoneyFlowStrategy` against seeded synthetic data, generating
+buy signals when CMF crosses above zero (positive money flow) and sell signals
+when CMF crosses below zero (negative money flow):
+
+```bash
+python examples/run_chaikin_money_flow.py
+```
+
+For a Chaikin Oscillator demonstration, see `examples/run_chaikin_oscillator.py`.
+It runs the `ChaikinOscillatorStrategy` against seeded synthetic data, generating
+buy signals when CHO crosses above zero (accumulation momentum) and sell signals
+when CHO crosses below zero (distribution momentum):
+
+```bash
+python examples/run_chaikin_oscillator.py
+```
+
+For a Chande Momentum Oscillator demonstration, see `examples/run_chande_momentum_oscillator.py`.
+It runs the `ChandeMomentumOscillatorStrategy` against seeded synthetic data,
+generating buy signals when CMO crosses above zero (positive momentum) and sell
+signals when CMO crosses below zero (negative momentum):
+
+```bash
+python examples/run_chande_momentum_oscillator.py
+```
+
+For a Chande Momentum Oscillator demonstration, see `examples/run_cmo.py`. It runs
+the `ChandeMomentumOscillatorStrategy` against seeded synthetic data, generating
+buy signals when CMO crosses above zero and sell signals when CMO crosses below
+zero:
+
+```bash
+python examples/run_cmo.py
+```
+
+For a Choppiness Index demonstration, see `examples/run_choppiness_index.py`. It
+runs the `ChoppinessIndexStrategy` against seeded synthetic data, generating buy
+signals when CHOP crosses below the low threshold (trending environment) and sell
+signals when CHOP crosses above the high threshold (choppy/consolidating
+environment):
+
+```bash
+python examples/run_choppiness_index.py
+```
+
+For a Detrended Price Oscillator demonstration, see
+`examples/run_detrended_price_oscillator.py`. It runs the
+`DetrendedPriceOscillatorStrategy` against seeded synthetic data, generating buy
+signals when DPO crosses above zero (price above the displaced moving average)
+and sell signals when DPO crosses below zero (price below the displaced moving
+average):
+
+```bash
+python examples/run_detrended_price_oscillator.py
+```
+
+For a Donchian Channel demonstration, see `examples/run_donchian.py`. It runs the
+`DonchianChannelStrategy` against seeded synthetic data, generating buy signals
+when price breaks above the upper channel (highest high over the lookback
+period) and sell signals when price breaks below the lower channel (lowest low
+over the lookback period):
+
+```bash
+python examples/run_donchian.py
+```
+
+For an Exponential Moving Average Crossover demonstration, see
+`examples/run_ema_crossover.py`. It runs the `EMACrossover` strategy against
+seeded synthetic data, generating buy signals on bullish crosses (fast EMA
+crosses above slow EMA) and sell signals on bearish crosses (fast EMA crosses
+below slow EMA). EMAs weight recent prices more heavily, which makes the
+strategy more responsive to recent price changes than the simple MA crossover:
+
+```bash
+python examples/run_ema_crossover.py
+```
+
+For a Force Index demonstration, see `examples/run_force_index.py`. It runs the
+`ForceIndexStrategy` against seeded synthetic data, generating buy signals when
+the smoothed Force Index crosses above zero (bullish pressure) and sell signals
+when it crosses below zero (bearish pressure):
+
+```bash
+python examples/run_force_index.py
+```
+
+For a Money Flow Index demonstration, see `examples/run_money_flow_index.py`. It
+runs the `MoneyFlowIndexStrategy` against seeded synthetic data, generating buy
+signals when MFI crosses below the oversold level and sell signals when MFI
+crosses above the overbought level:
+
+```bash
+python examples/run_money_flow_index.py
+```
+
+For a Negative Volume Index demonstration, see
+`examples/run_negative_volume_index.py`. It runs the `NegativeVolumeIndexStrategy`
+against seeded synthetic data, generating buy signals when NVI crosses above its
+EMA (bullish) and sell signals when NVI crosses below its EMA (bearish):
+
+```bash
+python examples/run_negative_volume_index.py
+```
+
+For a Positive Volume Index demonstration, see
+`examples/run_positive_volume_index.py`. It runs the `PositiveVolumeIndexStrategy`
+against seeded synthetic data, generating buy signals when PVI crosses above its
+EMA (bullish) and sell signals when PVI crosses below its EMA (bearish):
+
+```bash
+python examples/run_positive_volume_index.py
+```
+
+For a Rate of Change demonstration, see `examples/run_rate_of_change.py`. It runs
+the `RateOfChangeStrategy` against seeded synthetic data, generating buy signals
+when ROC crosses above zero (momentum turns positive) and sell signals when ROC
+crosses below zero (momentum turns negative):
+
+```bash
+python examples/run_rate_of_change.py
+```
+
+For a Stochastic Oscillator demonstration, see `examples/run_stochastic.py`. It
+runs the `StochasticOscillatorStrategy` against seeded synthetic data, generating
+buy signals when %K crosses above %D in oversold territory (< 20) and sell
+signals when %K crosses below %D in overbought territory (> 80):
+
+```bash
+python examples/run_stochastic.py
+```
+
+For a StochRSI demonstration, see `examples/run_stochastic_rsi.py`. It runs the
+`StochRSIStrategy` against seeded synthetic data, generating buy signals when %K
+crosses above %D in oversold territory (< 20) and sell signals when %K crosses
+below %D in overbought territory (> 80):
+
+```bash
+python examples/run_stochastic_rsi.py
+```
+
+For a Volume Oscillator demonstration, see `examples/run_volume_oscillator.py`. It
+runs the `VolumeOscillatorStrategy` against seeded synthetic data, generating buy
+signals when the volume oscillator crosses above its signal line and sell signals
+when it crosses below:
+
+```bash
+python examples/run_volume_oscillator.py
+```
+
+For a Volume Price Trend demonstration, see `examples/run_volume_price_trend.py`. It
+runs the `VolumePriceTrendStrategy` against seeded synthetic data, generating buy
+signals when VPT crosses above its signal line (bullish) and sell signals when it
+crosses below (bearish):
+
+```bash
+python examples/run_volume_price_trend.py
+```
+
+For a Volume Rate of Change demonstration, see
+`examples/run_volume_rate_of_change.py`. It runs the `VolumeRateOfChangeStrategy`
+against seeded synthetic data, generating buy signals when VROC crosses above
+zero (volume expanding) and sell signals when VROC crosses below zero (volume
+contracting):
+
+```bash
+python examples/run_volume_rate_of_change.py
+```
+
 
 ## Data fetching
 
