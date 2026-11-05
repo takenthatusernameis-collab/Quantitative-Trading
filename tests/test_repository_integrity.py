@@ -482,6 +482,52 @@ def test_cli_quant_trading_imports_exist():
     assert not failures, "CLI imports missing:\n" + "\n".join(failures)
 
 
+def test_readme_quant_trading_imports_exist():
+    """Names imported from quant_trading.* in README code blocks must exist."""
+    import ast
+    import importlib
+    import re
+
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    failures: list[str] = []
+    # Collect import statements from fenced code blocks.
+    for block in re.finditer(r"```(?:python|bash)?\n(?P<body>.*?)```", readme, re.DOTALL):
+        for line in block.group("body").splitlines():
+            line = line.strip()
+            if not line.startswith("from quant_trading") and not line.startswith(
+                "import quant_trading"
+            ):
+                continue
+            try:
+                tree = ast.parse(line)
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                if (
+                    isinstance(node, ast.ImportFrom)
+                    and node.module
+                    and node.module.startswith("quant_trading")
+                ):
+                    try:
+                        mod = importlib.import_module(node.module)
+                    except Exception as exc:  # noqa: BLE001
+                        failures.append(f"README: cannot import {node.module}: {exc!r}")
+                        continue
+                    for alias in node.names:
+                        if alias.name == "*":
+                            continue
+                        if not hasattr(mod, alias.name):
+                            failures.append(f"README: {alias.name} missing from {node.module}")
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name.startswith("quant_trading"):
+                            try:
+                                importlib.import_module(alias.name)
+                            except Exception as exc:  # noqa: BLE001
+                                failures.append(f"README: cannot import {alias.name}: {exc!r}")
+    assert not failures, "README imports missing:\n" + "\n".join(failures)
+
+
 # Matches a backtick-quoted example-script path such as
 # ``examples/run_rsi.py``. Kept in sync with ``test_readme.py``'s pattern.
 _EXAMPLE_SCRIPT_REF = re.compile(r"`(?P<path>examples/run_[a-z_]+\.py)`")
