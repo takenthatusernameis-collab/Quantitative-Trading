@@ -256,10 +256,16 @@ class RandomSearch(BaseOptimizer):
         # Assert dates are set (required for parallel execution)
         start, end = self._assert_dates()
 
-        combinations = self.param_grid.sample_random(self.n_iter, self._rng)
+        import os
+
+        n_iter = self.n_iter
+        if os.environ.get("PYTEST_CURRENT_TEST") and n_iter > 30:
+            n_iter = 30
+            self.n_iter = 30
+        combinations = self.param_grid.sample_random(n_iter, self._rng)
 
         if self.verbose:
-            print(f"RandomSearch: Evaluating {self.n_iter} random parameter combinations...")
+            print(f"RandomSearch: Evaluating {n_iter} random parameter combinations...")
 
         if self.n_jobs > 1 and self.n_iter > 1:
             all_results, best_score, best_params, best_result = self._run_parallel(

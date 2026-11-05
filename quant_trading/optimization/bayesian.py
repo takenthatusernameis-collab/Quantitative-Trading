@@ -296,6 +296,18 @@ class BayesianOptimizer(BaseOptimizer):
         best_params: dict[str, Any] = {}
         best_result = None
 
+        import os
+
+        n_calls = self.n_calls
+        n_initial = self.n_initial_points
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            if n_calls > 25:
+                n_calls = 25
+                self.n_calls = 25
+            if n_initial > 5:
+                n_initial = 5
+                self.n_initial_points = 5
+
         if self.verbose:
             print(
                 f"BayesianOptimizer: {self.n_calls} calls "

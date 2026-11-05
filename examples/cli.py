@@ -641,8 +641,8 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--n-jobs",
         type=int,
-        default=1,
-        help="Number of parallel jobs (default: 1)",
+        default=4,
+        help="Number of parallel jobs (default: 4)",
     )
     parser.add_argument(
         "--bayesian-n-initial",

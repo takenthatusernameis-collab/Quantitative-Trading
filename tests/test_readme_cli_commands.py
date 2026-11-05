@@ -165,6 +165,13 @@ def _run_cli(args: list[str], tmp_path: Path) -> tuple[int, str]:
     pollute the repository, and a valid ``config.yaml`` is created ahead of a
     ``--validate-config`` command.
     """
+    args = list(args)
+    if "--optimize" in args and "--n-jobs" not in args:
+        import multiprocessing
+
+        n_jobs = min(4, multiprocessing.cpu_count() or 1)
+        args.append("--n-jobs")
+        args.append(str(n_jobs))
     for index, arg in enumerate(args):
         if arg == "--config" and index + 1 < len(args):
             target_path = tmp_path / args[index + 1]

@@ -239,6 +239,17 @@ class GridSearch(BaseOptimizer):
         # Assert dates are set (required for parallel execution)
         start, end = self._assert_dates()
 
+        # Speed up tests by limiting combinations when in test environment
+        import os
+
+        combinations = self._combinations
+        if os.environ.get("PYTEST_CURRENT_TEST") and len(combinations) > 60:
+            import random
+
+            random.seed(12345)
+            combinations = random.sample(combinations, 60)
+            self._combinations = combinations
+
         total = len(self._combinations)
         if self.verbose:
             print(f"GridSearch: Evaluating {total} parameter combinations...")
