@@ -371,7 +371,7 @@ python examples/cli.py --combined --offline --regime --symbols AAPL --days 120
 The JSON output of a combined run carries the analysis under the same keys as
 a single run, next to the `best_strategy` it belongs to.
 
-### Configuration
+### CLI Configuration
 
 Load settings from a YAML config file:
 
@@ -610,7 +610,7 @@ $ python examples/cli.py --monte-carlo --mc-simulations 0 --offline --symbols AA
 Error: invalid --mc-simulations: the value must be at least 1 (got 0)
 ```
 
-### Market Regime Analysis
+### CLI Market Regime Analysis
 
 Annotate a backtest's equity curve with market-regime labels
 (bull/bear/sideways x low/high volatility):
@@ -630,7 +630,7 @@ The regime volatility and the regime return are annualized with the same
 `periods_per_year` as the rest of the run, and the block reports the value it
 used.
 
-### Trade Analysis
+### CLI Trade Analysis
 
 Detailed trade-level analysis including PnL statistics, holding periods, streaks, and per-symbol breakdowns:
 

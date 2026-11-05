@@ -617,3 +617,22 @@ def test_readme_license_is_the_final_section():
             f"header found at line {index + 1} after the License header at line {last_line}; "
             "an orphaned block follows the final section"
         )
+
+
+def test_no_duplicate_section_titles():
+    """Every README section title must appear exactly once, at any level.
+
+    The same title used at two different heading levels (for example a ``###``
+    subsection nested under the CLI section and a top-level ``##`` section) is
+    a structural defect: a reader following the title lands on an ambiguous or
+    wrong section, and the duplicate can drift out of sync. This guard folds
+    all section titles into a single set and fails on any repeat, regardless
+    of heading level.
+    """
+    seen: dict[str, list[tuple[int, int]]] = {}
+    for line, level, title in _readme_sections():
+        seen.setdefault(title, []).append((line, level))
+    offenders = sorted(
+        f"{title} at {occurrences}" for title, occurrences in seen.items() if len(occurrences) > 1
+    )
+    assert not offenders, "duplicate README section titles:\n" + "\n".join(offenders)
