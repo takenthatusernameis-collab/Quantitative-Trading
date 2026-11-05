@@ -393,6 +393,14 @@ A flag that is given on the command line wins over the file, so
 configuration. The flags that have no value of their own (`--initial-capital`,
 `--commission`, `--slippage` and `--risk-free-rate`) default to the value of
 the configuration file, or to the built-in default when no file is given.
+
+For example, the per-trade costs and the risk-free rate can be overridden on
+the command line without touching the config file:
+
+```bash
+python examples/cli.py --offline --commission 0.001 --slippage 0.0005 --risk-free-rate 0.02 --symbols AAPL --days 30
+```
+
 `--interval` works the same way: it overrides the `data.default_interval` of
 the file, and defaults to the configured value, or to `"1d"` when no file is
 given.
@@ -501,6 +509,19 @@ python examples/cli.py --offline --optimize --strategy ma \
     --symbols AAPL --days 120
 ```
 
+The Bayesian optimizer additionally accepts `--bayesian-n-initial` (initial
+random points, default 10), `--bayesian-acq-func` (acquisition function:
+`EI`, `PI`, `LCB`, `gp_hedge`; default `EI`), and
+`--bayesian-acq-optimizer` (`auto`, `sampling`, `lbfgs`; default `auto`):
+
+```bash
+python examples/cli.py --offline --optimize --strategy ma \
+    --optimizer bayesian --bayesian-n-initial 3 --bayesian-acq-func PI \
+    --bayesian-acq-optimizer lbfgs \
+    --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
+    --symbols AAPL --days 60
+```
+
 The objective that the optimizer maximizes (or minimizes, for drawdown) is
 selected with `--objective`, which accepts `sharpe` (default), `sortino`,
 `return`, `calmar`, `drawdown`, `profit_factor`, and `win_rate`:
@@ -538,6 +559,25 @@ python examples/cli.py --offline --walk-forward --strategy ma \
     --wf-windows 5 --wf-train-size 0.7 \
     --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
     --symbols AAPL --days 365
+```
+
+`--wf-anchored` (expanding windows, the default) and `--wf-rolling`
+(sliding windows) select the window shape, and `--wf-optimizer` picks the
+optimizer used inside each window:
+
+```bash
+python examples/cli.py --offline --walk-forward --wf-anchored \
+    --wf-windows 3 --wf-train-size 0.7 \
+    --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
+    --symbols AAPL --days 120
+python examples/cli.py --offline --walk-forward --wf-rolling \
+    --wf-windows 3 --wf-train-size 0.7 \
+    --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
+    --symbols AAPL --days 120
+python examples/cli.py --offline --walk-forward \
+    --wf-windows 3 --wf-train-size 0.7 --wf-optimizer random \
+    --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
+    --symbols AAPL --days 120
 ```
 
 The windows are controlled with `--wf-windows` (number of windows, default 5),
