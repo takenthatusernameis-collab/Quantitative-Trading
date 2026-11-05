@@ -1,21 +1,20 @@
 # Handoff to next agent
 
 ## What changed
-- No code changes in this session. Executed the requested verification for `tests/test_readme_cli_commands.py` (excluding `slow`).
+- No source code changes. Updated this handoff with completed verification evidence.
 
 ## Verified (evidence)
-- `python -m pytest tests/test_readme_cli_commands.py -v -m "not slow" -k "not optimize" --tb=line` → **57 passed, 27 deselected in 4.44s**.
-- Optimize (non-slow) cases collected: 24 (`--collect-only -m "not slow" -k optimize`). Sampled/verified passing:
-  - `-k "optimize and (rsi or ma or bb)"` batch (includes kc/atr/multiplier/macd/rsi/sar/st/stoch cases) → **PASSED** through stoch-oversold (observed in run output).
-  - `test_command_runs_with_documented_exit_code[--offline --optimize --strategy stoch --stoch-overbought-range 70,80,5]` → **1 passed in 29.87s**.
-- Fast subset sanity: `-k "list-strategies or init-config or validate-config"` → **3 passed**.
-- Environment note: running all 24 optimize cases in one invocation is very slow in this environment (timed out >120s/300s shells while still running, process active); no failures observed in the cases exercised. A full `-m "not slow"` optimize sweep may require a longer uninterrupted run (`--timeout` per test not configured here; use external timeout/wait).
+- Full non-slow README CLI command suite (uninterrupted): `python -m pytest tests/test_readme_cli_commands.py -v -m "not slow" --tb=short` → **81 passed, 3 deselected in 162.43s (0:02:42)**. Includes all 24 optimize (non-slow) cases.
+- Lint/type (repo health, no code changes): `python -m ruff check .` → All checks passed; `python -m mypy quant_trading` → Success, no issues found in 37 source files.
+- Default fast test collection: `pytest --co -q -m "not slow and not network"` → 2845 collected, 131 deselected (0.64s).
+- Environment: Python 3.12.3, pytest 9.2.0, ruff 0.17.3, mypy 2.4.1 (compiled).
 
 ## Unresolved
-- Full single-invocation confirmation of all 24 non-slow optimize README CLI commands in one run was not completed within shell timeouts here (long runtime, no failures seen). If needed, run: `python -m pytest tests/test_readme_cli_commands.py -v -m "not slow" -k "optimize" --tb=short` in an environment allowing ~15+ minutes.
+- None for the prior handoff’s requested task.
+- Broader fast suite (`-m "not slow and not network"`) has not been executed in full this session (only collection/count checked); prior sessions did not report a current full-run baseline in this handoff.
 
 ## Approaches that failed / constraints
-- None (verification task). Do not treat shell timeout as a test failure; check process/output evidence.
+- None. Previous session noted shell timeouts for a single-invocation optimize sweep; this session completed the full run with sufficient timeout (~30 min allocated, finished in ~2m42s).
 
 ## Next task (precise)
-Complete a full uninterrupted run of `python -m pytest tests/test_readme_cli_commands.py -v -m "not slow"` (including all 24 optimize cases) and record pass/fail counts + runtime. If any failure occurs, fix the smallest root cause (CLI/README/doc-test mismatch or test harness), re-verify the focused failing case, then rerun the full non-slow README CLI command suite.
+Run the full default fast test suite and record results: `python -m pytest -v -m "not slow and not network" --tb=short` (from repo root). If all pass, record pass/deselected counts and runtime in `HANDOFF_NEXT_AGENT.md`. If any fail, fix the smallest root cause with a focused reproducer (`pytest <failing>::<test> -v --tb=long`), re-verify the focused case, rerun any directly affected module tests, then rerun the full fast suite. Do not weaken markers/safety checks to hide failures.
