@@ -204,6 +204,13 @@ The framework includes a CLI for running backtests with configurable data provid
 
 ### Basic Usage
 
+Individual strategy parameters can be overridden on the command line. Each
+strategy exposes its own period/level flags (for example ``--rsi-period`` for
+RSI, ``--macd-fast``/``--macd-slow``/``--macd-signal`` for MACD, and
+``--bb-period``/``--bb-std`` for Bollinger Bands); run
+``python examples/cli.py --list-strategies`` to see the full strategy list and
+defaults.
+
 ```bash
 # Run a backtest with default settings (MA crossover, Yahoo Finance, 1 year daily data)
 python examples/cli.py
@@ -228,6 +235,12 @@ python examples/cli.py --offline --cache-dir /tmp/quant_cache --symbols AAPL --d
 
 # Override strategy parameters and run a Monte Carlo simulation
 python examples/cli.py --offline --strategy macd --macd-fast 12 --macd-slow 26 --macd-signal 9 --monte-carlo --mc-method bootstrap --mc-confidence 0.95 --mc-seed 42
+
+# Override the RSI period (default: 14)
+python examples/cli.py --offline --strategy rsi --rsi-period 14 --symbols AAPL --days 90
+
+# Tune the Stochastic Oscillator %K and %D periods
+python examples/cli.py --offline --strategy stoch --stoch-k-period 14 --stoch-d-period 3 --symbols MSFT --days 90
 ```
 
 ### Data Providers
