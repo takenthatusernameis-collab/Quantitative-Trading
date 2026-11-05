@@ -636,3 +636,44 @@ def test_no_duplicate_section_titles():
         f"{title} at {occurrences}" for title, occurrences in seen.items() if len(occurrences) > 1
     )
     assert not offenders, "duplicate README section titles:\n" + "\n".join(offenders)
+
+
+_CODE_BLOCK_LANGUAGE = re.compile(r"^\s*```(?P<lang>\w*)")
+_SUPPORTED_CODE_BLOCK_LANGUAGES: frozenset[str] = frozenset({"", "bash", "python", "yaml"})
+
+
+def _readme_opening_fences() -> list[tuple[int, str]]:
+    """Return ``(line_number, language)`` for each opening fenced code block.
+
+    Closing fences are ignored by tracking whether a block is currently open,
+    so a block's own closing fence (which carries no language) is not mistaken
+    for an untagged opening block.
+    """
+    text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    fences: list[tuple[int, str]] = []
+    in_block = False
+    for index, line in enumerate(text.splitlines(), 1):
+        match = _CODE_BLOCK_LANGUAGE.match(line)
+        if not match:
+            continue
+        if in_block:
+            in_block = False
+            continue
+        fences.append((index, match.group("lang")))
+        in_block = True
+    return fences
+
+
+def test_readme_code_block_language_tags_are_supported():
+    """Every fenced code block must use a supported language tag.
+
+    Supported tags are ``bash``, ``python``, ``yaml`` and an untagged block
+    (console output, tree diagrams). A misspelled or unsupported tag renders
+    the block as plain text and hides syntax highlighting from readers.
+    """
+    offenders = [
+        f"README:{line}: unsupported code-block language {tag!r}"
+        for line, tag in _readme_opening_fences()
+        if tag and tag not in _SUPPORTED_CODE_BLOCK_LANGUAGES
+    ]
+    assert not offenders, "unsupported README code-block language tags:\n" + "\n".join(offenders)
