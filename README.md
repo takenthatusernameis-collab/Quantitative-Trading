@@ -262,6 +262,27 @@ python examples/cli.py --offline --strategy stoch --stoch-k-period 14 --stoch-d-
 
 # Override the ATR period and multiplier
 python examples/cli.py --offline --strategy atr --atr-period 14 --atr-multiplier 2.0 --symbols AAPL --days 90
+
+# Override the Aroon period
+python examples/cli.py --offline --strategy aroon --aroon-period 25 --symbols AAPL --days 90
+
+# Override the Donchian channel periods
+python examples/cli.py --offline --strategy donchian --dc-period 20 --dc-exit-period 10 --symbols AAPL --days 90
+
+# Override the Keltner Channel parameters
+python examples/cli.py --offline --strategy keltner --kc-ema-period 20 --kc-atr-period 10 --kc-multiplier 2.0 --symbols AAPL --days 90
+
+# Use the Keltner middle cross
+python examples/cli.py --offline --strategy keltner --kc-use-middle-cross --symbols AAPL --days 90
+
+# Override the Parabolic SAR step and max step
+python examples/cli.py --offline --strategy sar --sar-step 0.02 --sar-max-step 0.2 --symbols AAPL --days 90
+
+# Override the Ichimoku periods
+python examples/cli.py --offline --strategy ichimoku --tenkan-period 9 --kijun-period 26 --senkou-b-period 52 --symbols AAPL --days 90
+
+# Use the Stochastic midline filter
+python examples/cli.py --offline --strategy stoch --stoch-use-midline --symbols AAPL --days 90
 ```
 
 ### Data Providers
