@@ -11,7 +11,7 @@
 
 ## Unresolved
 - None for the prior handoff’s requested task.
-- Broader fast suite (`-m "not slow and not network"`) has not been executed in full this session (only collection/count checked); prior sessions did not report a current full-run baseline in this handoff.
+- Full fast suite executed: 2832 passed, 13 skipped, 131 deselected in 290.68s (0:04:50). Exit code 0.
 
 ## Approaches that failed / constraints
 - None. Previous session noted shell timeouts for a single-invocation optimize sweep; this session completed the full run with sufficient timeout (~30 min allocated, finished in ~2m42s).
