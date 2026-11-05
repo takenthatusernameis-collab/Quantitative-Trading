@@ -1,10 +1,10 @@
 # Handoff to next agent
 
 ## What changed
-- Added `__all__` to `quant_trading/backtest/engine.py` (6 public names) and `quant_trading/data/providers.py` (5 public names), matching existing style.
+- Audit complete: all modules in quant_trading/ now define __all__ (risk/, portfolio/, optimization/, monte_carlo/, regime/, config/, utils/, data including synthetic/yfinance, backtest, strategies). No code changes needed this session.
 
 ## Verified
-- Doctests for both modules: 13 passed.
+- Full non-slow/non-network suite: 2832 passed, 13 skipped, 131 deselected in 292.29s.
 
 ## Next task
-Continue audit of remaining modules lacking `__all__` (risk/, portfolio/, optimization/, monte_carlo/, regime/, config/, utils/, data synthetic/yfinance). Add only where clarifies intent; verify doctests.
+No remaining __all__ audit work. Suggested next: review package __init__.py exports consistency or run mypy/ruff if desired.
