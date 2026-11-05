@@ -502,3 +502,18 @@ def calculate_all_metrics(
         )
 
     return metrics
+
+
+__all__ = [
+    'RiskMetrics',
+    'calculate_returns',
+    'calculate_volatility',
+    'calculate_max_drawdown',
+    'calculate_sharpe_ratio',
+    'calculate_sortino_ratio',
+    'calculate_var',
+    'calculate_beta',
+    'calculate_alpha',
+    'calculate_calmar_ratio',
+    'calculate_all_metrics',
+]

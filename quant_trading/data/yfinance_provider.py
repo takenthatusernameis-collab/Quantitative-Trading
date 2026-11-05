@@ -4150,3 +4150,9 @@ class AlphaVantageProvider(DataProvider):
 
         """
         return self._fetch_batch(symbols, None, None, "1m")
+
+
+__all__ = [
+    'YFinanceProvider',
+    'AlphaVantageProvider',
+]

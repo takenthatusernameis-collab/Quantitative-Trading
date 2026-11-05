@@ -843,3 +843,10 @@ class WalkForwardOptimizer:
             total_return_pct=(combined_equity.iloc[-1] / initial_capital - 1) * 100,
             total_costs=combined_costs,
         )
+
+
+__all__ = [
+    'WalkForwardWindow',
+    'WalkForwardResult',
+    'WalkForwardOptimizer',
+]

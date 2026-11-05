@@ -290,3 +290,9 @@ def calculate_backtest_metrics(
         metrics.profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0
 
     return metrics
+
+
+__all__ = [
+    'BacktestMetrics',
+    'calculate_backtest_metrics',
+]

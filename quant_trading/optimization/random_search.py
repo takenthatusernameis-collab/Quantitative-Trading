@@ -492,3 +492,8 @@ class RandomSearch(BaseOptimizer):
                 record(params, score, result)
 
         return all_results, best_score, best_params, best_result
+
+
+__all__ = [
+    'RandomSearch',
+]

@@ -527,3 +527,9 @@ class Portfolio:
             holding = Holding.from_dict(hdata)
             portfolio.holdings[sym] = holding
         return portfolio
+
+
+__all__ = [
+    'Holding',
+    'Portfolio',
+]

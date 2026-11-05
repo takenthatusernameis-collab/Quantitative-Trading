@@ -921,3 +921,9 @@ class RiskManager:
 
         """
         self.risk_enabled = False
+
+
+__all__ = [
+    'PortfolioRisk',
+    'RiskManager',
+]

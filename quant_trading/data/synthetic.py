@@ -235,3 +235,10 @@ def create_synthetic_provider(
     """
     data = create_synthetic_data(symbols, days=days, seed=seed, end_date=end_date)
     return SyntheticDataProvider(data)
+
+
+__all__ = [
+    'create_synthetic_data',
+    'SyntheticDataProvider',
+    'create_synthetic_provider',
+]

@@ -480,3 +480,8 @@ class GridSearch(BaseOptimizer):
     def n_combinations(self) -> int:
         """Total number of parameter combinations."""
         return len(self._combinations)
+
+
+__all__ = [
+    'GridSearch',
+]

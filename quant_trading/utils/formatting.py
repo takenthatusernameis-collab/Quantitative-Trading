@@ -169,3 +169,13 @@ def format_duration_days(days: float) -> str:
         if abs(years - rounded_years) < 1e-9:
             return f"{rounded_years} years"
         return f"{years:.1f} years"
+
+
+__all__ = [
+    'format_currency',
+    'format_percent',
+    'format_number',
+    'format_basis_points',
+    'format_shares',
+    'format_duration_days',
+]

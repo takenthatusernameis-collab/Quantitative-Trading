@@ -1,14 +1,7 @@
 """Backtest engine for strategy validation.
 
 The engine fetches market data for a set of symbols over a date range,
-generates trading signals __all__ = [
-    "get_default_data_manager",
-    "reset_default_data_manager",
-    "Trade",
-    "BacktestResult",
-    "BacktestEngine",
-    "run_backtest",
-]
+generates trading signals.
 
 from registered strategies on each bar, executes
 the signals against a :class:`~quant_trading.portfolio.portfolio.Portfolio`,
@@ -54,6 +47,15 @@ Examples:
     True
 
 """
+
+__all__ = [
+    "get_default_data_manager",
+    "reset_default_data_manager",
+    "Trade",
+    "BacktestResult",
+    "BacktestEngine",
+    "run_backtest",
+]
 
 from dataclasses import dataclass, field, replace
 from datetime import datetime

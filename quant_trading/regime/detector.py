@@ -627,3 +627,12 @@ def detect_regimes(
         periods_per_year=periods_per_year,
     )
     return detector.detect(prices)
+
+
+__all__ = [
+    'Regime',
+    'RegimeSegment',
+    'RegimeResult',
+    'RegimeDetector',
+    'detect_regimes',
+]

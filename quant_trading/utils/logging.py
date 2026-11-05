@@ -107,3 +107,10 @@ def clear_loggers(*names: str) -> None:
             except (OSError, ValueError):
                 pass
         logger.handlers.clear()
+
+
+__all__ = [
+    'setup_logger',
+    'get_logger',
+    'clear_loggers',
+]

@@ -728,3 +728,18 @@ class BaseOptimizer(ABC):
             if self.verbose:
                 print(f"Error evaluating {params}: {e}")
             return params, float("-inf"), None
+
+
+__all__ = [
+    'ParameterSpace',
+    'ParameterGrid',
+    'maximize_sharpe',
+    'maximize_total_return',
+    'maximize_calmar',
+    'maximize_sortino',
+    'minimize_max_drawdown',
+    'maximize_profit_factor',
+    'maximize_win_rate',
+    'OptimizationResult',
+    'BaseOptimizer',
+]
