@@ -1,7 +1,16 @@
 """Backtest engine for strategy validation.
 
 The engine fetches market data for a set of symbols over a date range,
-generates trading signals from registered strategies on each bar, executes
+generates trading signals __all__ = [
+    "get_default_data_manager",
+    "reset_default_data_manager",
+    "Trade",
+    "BacktestResult",
+    "BacktestEngine",
+    "run_backtest",
+]
+
+from registered strategies on each bar, executes
 the signals against a :class:`~quant_trading.portfolio.portfolio.Portfolio`,
 and records the resulting equity curve and trades. It is the core entry
 point for offline backtesting and is exercised by the test suite with
