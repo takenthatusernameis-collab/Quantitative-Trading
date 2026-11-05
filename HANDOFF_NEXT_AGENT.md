@@ -2,20 +2,16 @@
 
 ## What changed
 
-No code changes this session. Re-ran the verification suite required by the previous
-handoff and confirmed the tree is green:
+No code changes this session. Re-ran the verification suite:
 
 - `python -m ruff check .` → All checks passed.
 - `python -m black --check .` → 141 files unchanged.
 - `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
-- `python -m pytest tests/test_repository_integrity.py -q` → 22 passed.
-
-The README structural invariants already guarded (duplicate section titles,
-supported code-block language tags, example-script confinement) remain green.
+- `python -m pytest tests/test_repository_integrity.py -q` → 23 passed.
 
 ## Verified (evidence)
 
-- ruff/black/mypy all pass; integrity suite 22/22.
+- ruff/black/mypy all pass; integrity suite 23/23.
 
 ## Unresolved
 
