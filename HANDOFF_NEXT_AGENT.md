@@ -2,51 +2,66 @@
 
 ## What changed
 
-Added fast unit tests in `tests/test_cli.py` for two CLI user-error
-validations that existed in `parse_args()` (examples/cli.py:970-1013) but were
-only covered by slow subprocess smoke tests in `tests/test_examples_smoke.py`,
-not by the fast default suite:
+The assigned task from the prior handoff (add fast CLI validation unit tests for
+`--wf-step-size`, `--initial-capital`, `--commission`, `--slippage` in
+`tests/test_cli.py`) was ALREADY complete in the committed baseline
+(tests/test_cli.py:290-322), verified here: all 32 `TestParseArgs` tests pass.
 
-- `test_mc_confidence_above_one_is_rejected` — `--mc-confidence 1.5` raises
-  `ValueError` matching `invalid --mc-confidence`.
-- `test_mc_confidence_zero_is_rejected` — `--mc-confidence 0` raises the same.
-- `test_wf_train_size_at_or_above_one_is_rejected` — `--wf-train-size 1.5`
-  raises `ValueError` matching `invalid --wf-train-size`.
-- `test_wf_train_size_zero_is_rejected` — `--wf-train-size 0` raises the same.
+I extended the same coverage to the one remaining `parse_args()` validation
+that lacked a fast unit test: `--interval` with an unsupported value raises
+`invalid --interval` (examples/cli.py:979-984). Added, mirroring the existing
+style (patch("sys.argv", [...]) + pytest.raises(ValueError, match=...)):
 
-Style mirrors the existing `test_mc_simulations_*` tests
-(tests/test_cli.py:227-252). No production code was modified.
+- `test_unsupported_interval_is_rejected` — `--interval 3x` → ValueError
+  matching `invalid --interval`.
+- `test_supported_interval_is_accepted` — `--interval 1wk` accepted.
+
+No production code was modified. Working tree contains only the two new tests
+in tests/test_cli.py.
 
 ## Verified (evidence)
 
-- `python -m pytest tests/test_cli.py -q` → 179 passed (was 172; +4 new
-  tests), 0 failed.
+- `python -m pytest "tests/test_cli.py::TestParseArgs" -q` → 32 passed (was
+  30; +2 new interval tests), 0 failed, 0.57s.
 - `python -m ruff check .` → All checks passed.
-- `python -m black --check .` → 141 files unchanged.
+- `python -m black --check tests/test_cli.py` → 1 file unchanged.
 - `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
-- Working tree contains only the test_cli.py addition; production code untouched.
 
 ## Unresolved
 
-- None from this task.
+- `tests/test_cli.py` full run HANGS (>180s, no completion) even though every
+  test class passes in isolation. Root cause located: test-order pollution.
+  `TestCombinedAnalysis → TestUnrealizedPnlReporting` hangs; reversed order
+  passes; each class alone passes. `TestCombinedAnalysis` (runs `main()`
+  backtests) leaks global state that poisons `TestUnrealizedPnlReporting`'s
+  real offline backtest (tests/test_cli.py:3427 runs `main()` with
+  `--offline --symbols AAPL --days 120`). Last test before the hang:
+  `TestCombinedAnalysis::test_main_combined_monte_carlo_uses_the_configured_risk_free_rate`
+  (~87%). Precise repro for the next agent:
+    `python -m pytest "tests/test_cli.py::TestCombinedAnalysis" "tests/test_cli.py::TestUnrealizedPnlReporting" -q`  → hangs after CombinedAnalysis's 4 tests.
+  Fix likely: restore whatever global/module state `TestCombinedAnalysis`
+  mutates (e.g. a patched attribute, registry entry, or env var) via a fixture
+  or finalizer, so later real-backtest tests are not affected.
 
 ## Approaches already tried
 
-- Broad repository inspection for a code bug or doc/code mismatch
-  (CLI validation, risk_free_rate/periods_per_year wiring, example-script vs
-  README parity, strategy registry coverage, regime/monte-carlo/trade-analysis
-  forwarding): all found complete and correct; no production change needed.
-  This is a negative result with evidence, not a failure.
+- Ran each test class in isolation with a 60s timeout — all pass
+  (TestRunCombined 12s, TestCsvOutput 8s, rest ≤1s).
+- Bisected classes: tail classes (UnrealizedPnl + CsvOutput + UserError)
+  pass together (21 passed, 8.23s); `CombinedAnalysis → UnrealizedPnl` hangs;
+  `UnrealizedPnl → CombinedAnalysis` passes. Confirms order-dependent leak
+  originating in TestCombinedAnalysis.
+- Did NOT attempt the fix (rabbit-hole risk); handed off with exact repro.
 
 ## Next task
 
-Precise: extend the fast CLI validation test coverage in
-`tests/test_cli.py` to the remaining `parse_args()` validations that still
-lack fast unit tests: `--wf-step-size` (<= 0), `--initial-capital` (<= 0),
-`--commission` (< 0), and `--slippage` (< 0). Each test should use
-`patch("sys.argv", [...])` + `pytest.raises(ValueError, match="invalid
---<flag>")`, mirroring the tests just added and the existing
-`test_mc_simulations_*` style (tests/test_cli.py:227-252). Run
-`tests/test_cli.py` plus `ruff`/`black`/`mypy` to verify.
+Precise: find and fix the test-order-dependent hang in `tests/test_cli.py`
+where `TestCombinedAnalysis` leaks global state that poisons
+`TestUnrealizedPnlReporting` (and possibly later classes). Inspect
+`TestCombinedAnalysis` (tests/test_cli.py:3123) for module/global/patch state it
+leaks (e.g. a `patch` that isn't scoped, a mutated registry, an env var), restore
+it, then verify the full `python -m pytest tests/test_cli.py -q` completes
+(rather than hanging >180s). Also re-run `ruff check .`, `black --check .`,
+`mypy quant_trading/` after the fix.
 
 (End of file)

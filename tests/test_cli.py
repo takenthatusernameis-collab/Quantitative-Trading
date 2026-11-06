@@ -321,6 +321,20 @@ class TestParseArgs:
         ):
             parse_args()
 
+    def test_unsupported_interval_is_rejected(self):
+        """An unsupported ``--interval`` is a usage error naming the flag."""
+        with (
+            patch("sys.argv", ["cli.py", "--interval", "3x"]),
+            pytest.raises(ValueError, match="invalid --interval"),
+        ):
+            parse_args()
+
+    def test_supported_interval_is_accepted(self):
+        """A documented interval is accepted by the parser."""
+        with patch("sys.argv", ["cli.py", "--interval", "1wk"]):
+            args = parse_args()
+        assert args.interval == "1wk"
+
     def test_optimization_range_with_a_minimum_above_the_maximum_is_rejected(self):
         """An inverted range is rejected before the run starts and names the flag."""
         with (
