@@ -7,19 +7,22 @@ All checks clean:
 - `python -m black --check .` → 141 files unchanged.
 - `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
 - `python -m pytest tests/test_cli.py -q` → 172 passed.
-- `python -m pytest tests/test_optimization.py -q` → 108 passed, 13 skipped.
-- `python -m pytest tests/test_readme_cli.py tests/test_readme_cli_commands.py -q`
-  → 85 passed, 3 deselected.
-- Full suite previously reported 2860 passed, 131 deselected.
+- Full suite previously reported 2847 passed, 15 skipped, 131 deselected.
+
+## Completed audit (this session)
+
+Audited all user-facing analysis flags for the "parsed/set but not forwarded"
+pattern across single-strategy, walk-forward, and combined modes, plus every
+engine consuming `config.backtest.*`:
+
+- Combined mode regime/monte-carlo/trade-analysis outlets (examples/cli.py:2392-2411): all fields forwarded; regime detector consumes no `risk_free_rate`.
+- Single-strategy outlets (cli.py:2216-2238): all forwarded.
+- Walk-forward outlet (cli.py:1859): `risk_free_rate` forwarded.
+- Engine (quant_trading/backtest/engine.py:737): `risk_free_rate` read from config, populated from `--risk-free-rate` at cli.py:1336.
+- End-to-end offline combined run with `--regime --monte-carlo --trade-analysis --risk-free-rate` exited 0 with no traceback.
+
+Result: no forwarding gap found; no code changes made. Working tree clean at HEAD 6b5501d.
 
 ## One precise next task
 
-The walk-forward `risk_free_rate` gap and the combined-mode Monte Carlo
-`risk_free_rate` gap are both closed. Audit the remaining user-facing analysis
-flags for the same "parsed/set but not forwarded" pattern — specifically the
-regime and trade-analysis outlets in combined mode and any other engine that
-consumes `config.backtest.*` — and verify any candidate end-to-end under the
-mocked-network harness (`--offline`) before changing. Keep changes minimal and
-reversible; do not modify tests to make them pass. Any newly documented flag
-must be a real parser flag and its command must exit 0 (or 1 for documented
-error cases) with no traceback.
+None — this task is complete. Select a new bounded, high-value task only when one is identified; do not re-audit this area without a concrete new symptom.

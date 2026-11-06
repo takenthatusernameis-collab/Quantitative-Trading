@@ -2,52 +2,46 @@
 
 ## What changed
 
-Closed a real behavior gap in the CLI combined-mode path: `run_combined`
-constructed the Monte Carlo analysis via `_get_monte_carlo_analysis(...)`
-with `periods_per_year` from config but **not** `risk_free_rate`. The
-`MonteCarloSimulator` uses `self.risk_free_rate` when computing the simulated
-Sharpe/Sortino metrics (`simulator.py:479`), so a configured/CLI
-`--risk-free-rate` was silently ignored by `--combined --monte-carlo` runs and
-the library default `0.02` was always used. The single-strategy and
-walk-forward paths already forwarded the rate; combined mode was the only
-outlet left.
+No code changes. This session performed the bounded audit assigned in
+`.kilo/next-task.md`: every user-facing analysis flag for the
+"parsed/set but not forwarded" pattern in single-strategy, walk-forward, and
+combined CLI modes, plus every engine consuming `config.backtest.*`.
 
-Files touched:
-- `examples/cli.py`:
-  - `_get_monte_carlo_analysis` now accepts `risk_free_rate: float = 0.02`
-    and forwards it to `run_monte_carlo(..., risk_free_rate=risk_free_rate)`.
-  - Single-strategy mode (`run_backtest` analysis block) calls
-    `_get_monte_carlo_analysis(..., risk_free_rate=config.backtest.risk_free_rate)`.
-  - Combined mode (`run_combined`) calls
-    `_get_monte_carlo_analysis(..., risk_free_rate=config.backtest.risk_free_rate)`.
-- `tests/test_cli.py`: added
-  `TestCombinedAnalysis.test_main_combined_monte_carlo_uses_the_configured_risk_free_rate`
-  (offline, `--mc-simulations 20 --mc-seed 42`, runs `--combined --monte-carlo`
-  with `--risk-free-rate 0.0` and `0.05`, asserts the printed simulated
-  `sharpe_ratio` Mean column differs).
-- `README.md`: documented that the Monte Carlo simulated Sharpe/Sortino use
-  the run's risk-free rate and that `--risk-free-rate` moves them together,
-  mirroring the existing Trade Analysis note.
+Finding: **no remaining forwarding gap**. All outlets are wired end-to-end:
 
-## Verified (evidence) — full CI-equivalent checks complete (this session)
+- Combined mode (`run_combined`, examples/cli.py:2332-2411):
+  - `_get_regime_analysis` (cli.py:2392) forwards `periods_per_year`,
+    `args.regime_window`, `args.regime_vol_threshold`,
+    `args.regime_return_threshold`. Regime detection (`quant_trading/regime/detector.py`)
+    consumes no `risk_free_rate`, so nothing is missing.
+  - `_get_monte_carlo_analysis` (cli.py:2397) forwards `risk_free_rate`,
+    `periods_per_year`, `mc_simulations`, `mc_confidence`, `mc_method`, `mc_seed`
+    (the `risk_free_rate` gap was closed by the previous agent at cli.py:2401).
+  - `_get_trade_analysis` (cli.py:2405) forwards `risk_free_rate` and
+    `periods_per_year`.
+- Single-strategy mode (cli.py:2216-2238): same three outlets, all forwarded.
+- Walk-forward mode (cli.py:1680-1724): `risk_free_rate` forwarded at cli.py:1859.
+- Engine: `run_backtest` (quant_trading/backtest/engine.py:737) reads
+  `risk_free_rate` from the passed `config`; cli.py:1336 writes
+  `args.risk_free_rate` into `config.backtest.risk_free_rate`, so the CLI flag
+  reaches the engine's Sharpe/Sortino metrics in all modes.
 
-- `python -m ruff check .` → All checks passed.
-- `python -m black --check .` → 141 files left unchanged.
-- `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
-- `python -m pytest -q` → 2847 passed, 15 skipped, 131 deselected in ~5:16 (full suite, green).
-- `python -m coverage run -m pytest tests/test_cli.py -q` + `coverage report` → runs clean (56% on CLI subset; no `fail_under` threshold configured in pyproject, so no gate to fail).
-- Wiring re-verified end-to-end in `examples/cli.py`:
-  - `_get_monte_carlo_analysis` accepts and forwards `risk_free_rate` to `run_monte_carlo` (cli.py:1979-1999).
-  - Single-strategy mode forwards `config.backtest.risk_free_rate` (cli.py:2221).
-  - Combined mode forwards `config.backtest.risk_free_rate` (cli.py:2392).
-- Focused test `tests/test_cli.py::TestCombinedAnalysis::test_main_combined_monte_carlo_uses_the_configured_risk_free_rate` passes.
+## Verified (evidence)
+
+- `python examples/cli.py --offline --synthetic-days 60 --strategy sma --combined --regime --regime-window 10 --regime-vol-threshold 0.15 --regime-return-threshold 0.05 --monte-carlo --mc-simulations 30 --mc-seed 7 --trade-analysis --risk-free-rate 0.03 --days 60` → exit code 0, regime / Monte Carlo / trade analysis sections all print, no traceback.
+- All parser flags audited exist: `--regime`, `--regime-window`, `--regime-vol-threshold`, `--regime-return-threshold`, `--monte-carlo`, `--mc-simulations`, `--mc-method`, `--mc-confidence`, `--mc-seed`, `--trade-analysis`, `--risk-free-rate`, `--offline`.
+- Working tree is clean at HEAD 6b5501d; no files modified.
 
 ## Unresolved
 
-- None. The assigned task (re-run full CI-equivalent checks and confirm no remaining CLI→library wiring gaps) is complete. No code changes were made in this session; working tree is clean at HEAD 6099b2e.
+- None.
 
-## Next task (precise)
+## Approaches already tried
 
-No assigned work remains. Select a new bounded, high-value task (e.g. continue the `.kilo/next-task.md` audit of regime/trade-analysis outlets in combined mode, only if a concrete forwarded-field gap is found end-to-end under `--offline`). Do not modify tests to make them pass; keep changes minimal and reversible; commit/push only if explicitly requested.
+- Audit of regime/trade-analysis/monte-carlo outlets in combined mode under `--offline`: found no gap (nothing to fix). Not a failure — a negative result with evidence.
 
-(End of file - total 86 lines)
+## Next task
+
+Precise: none. The audit task is complete with zero changes required. Select a new bounded, high-value task only if one presents itself; do not re-audit this same area without a concrete new symptom.
+
+(End of file)
