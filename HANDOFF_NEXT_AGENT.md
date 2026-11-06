@@ -2,24 +2,33 @@
 
 ## What changed
 
-- No code changes in this session. The prior session's cap-wiring fixes
-  (1654c4c) were inspected and the tree was verified green.
+- No code or doc changes in this session. Inspected README walk-forward CLI
+  examples (`--wf-anchored`, `--wf-rolling`, `--wf-windows`,
+  `--wf-train-size`, `--wf-optimizer`) and verified coverage.
 
 ## Verified (evidence)
 
-- `python -m pytest -q` → 2860 passed, 131 deselected (112.62s).
 - `python -m ruff check .` → All checks passed.
 - `python -m black --check .` → 141 files would be left unchanged.
 - `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
+- `python -m pytest -q` → 2860 passed, 131 deselected (111.60s).
 - `python -m pytest --cov=quant_trading --cov-report=term-missing -q` →
   6993 stmts, 0 miss, 2382 branches, 0 partial → **100%** coverage (2860
-  passed, 131 deselected, 162.82s).
-- Git state: `main...origin/main`, clean working tree (no staged/unstaged
-  changes). HEAD 1654c4c.
+  passed, 131 deselected, 165.02s).
+- WF README commands (README.md CLI section, blocks with `--wf-*`) are
+  extracted by `tests/test_readme_cli_commands.py` (`_cli_section` /
+  `_readme_commands`) and executed under the mocked-network harness:
+  `python -m pytest tests/test_readme_cli.py tests/test_readme_cli_commands.py -q`
+  → 85 passed, 3 deselected (12.45s).
+- Parser acceptance spot-check: `examples.cli.parse_args` accepts
+  `--wf-anchored`/`--wf-rolling`/`--wf-windows`/`--wf-train-size`/
+  `--wf-optimizer` combinations shown in README.
+- Git state: `main...origin/main`, working tree changes only this handoff
+  file (session artifact; commit/push not requested).
 
 ## Unresolved
 
-- None observed. CI-equivalent checks are green.
+- None observed. No README/CLI gap found for documented WF flags.
 
 ## Approaches that failed / not applicable
 
@@ -27,23 +36,18 @@
 
 ## Next task (precise)
 
-1. Re-run the CI-equivalent checks to confirm the tree is still green:
-   `python -m pytest -q`, `python -m ruff check .`, `python -m black --check .`,
-   `python -m mypy quant_trading/`, and
+1. Re-run CI-equivalent checks to confirm green: `python -m ruff check .`,
+   `python -m black --check .`, `python -m mypy quant_trading/`,
+   `python -m pytest -q`, and
    `python -m pytest --cov=quant_trading --cov-report=term-missing -q`.
-2. If green, select one bounded, user-facing improvement. Viable candidates:
-   - Add a small, end-to-end-verified CLI/README example for an under-documented
-     but supported workflow (e.g., `--wf-anchored`/`--wf-rolling` are present in
-     README text; confirm `tests/test_readme_cli.py` and
-     `tests/test_readme_cli_commands.py` cover them and that every documented
-     command runs without traceback under the mocked-network harness). Only
-     change docs if a real gap is found.
-   - Extend CLI/README coverage for a feature with thin documentation, but only
-     if the flag/command is verified to run end-to-end.
+2. If green, select one bounded, high-value, user-facing improvement only if a
+   **real, verified gap** exists. Candidate: audit README CLI section for any
+   other documented commands/flags not exercised by
+   `tests/test_readme_cli_commands.py` (or with parser/test mismatches), and
+   fix docs/tests minimally while preserving bidirectional consistency enforced
+   by `tests/test_readme_cli.py`/`tests/test_readme_cli_commands.py`. Do not
+   invent features; verify each candidate command runs end-to-end under the
+   mocked-network harness before changing docs.
 3. Constraints: Do not modify tests to make them pass. Keep changes minimal and
-   reversible. `tests/test_readme_cli.py` and `tests/test_readme_cli_commands.py`
-   enforce bidirectional/command consistency for the README CLI section; any
-   newly documented flag must be accepted by the parser and its command must
-   exit 0 (or 1 for documented error cases) with no traceback. Exclude secrets,
-   caches, and generated runtime data from commits. Commit/push only if
-   explicitly part of the task.
+   reversible. Exclude secrets/caches/generated runtime data. Commit/push only
+   if explicitly part of the task.
