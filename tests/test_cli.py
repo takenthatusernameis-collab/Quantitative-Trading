@@ -3137,6 +3137,48 @@ class TestTradeAnalysisRiskFreeRate:
         # and only the risk-free rate differs.
         assert _trade_sharpe(outputs[0]) != _trade_sharpe(outputs[1])
 
+    def test_get_trade_analysis_uses_the_given_periods_per_year(self):
+        """The helper annualizes the trade metrics with the periods it is given."""
+        from examples.cli import _get_trade_analysis
+
+        result = self._make_result()
+        args = argparse.Namespace()
+
+        daily = _get_trade_analysis(result, args, risk_free_rate=0.02, periods_per_year=252)
+        weekly = _get_trade_analysis(result, args, risk_free_rate=0.02, periods_per_year=52)
+
+        assert daily.total_trades == 2
+        assert daily.sharpe_ratio != weekly.sharpe_ratio
+
+    def test_main_trade_analysis_uses_the_configured_periods_per_year(self, capsys):
+        """The printed trade Sharpe follows the annualization period of the run."""
+        outputs = []
+        for periods in ([], ["--periods-per-year", "52"]):
+            args = [
+                "--offline",
+                "--trade-analysis",
+                "--risk-free-rate",
+                "0.02",
+                "--symbols",
+                "AAPL",
+                "MSFT",
+                "GOOGL",
+                "--days",
+                "200",
+            ] + periods
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 0
+            outputs.append(capsys.readouterr().out)
+
+        def _trade_sharpe(output: str) -> float:
+            for line in output.splitlines():
+                if line.startswith("Trade Sharpe:"):
+                    return float(line.split(":", 1)[1].strip())
+            raise AssertionError("no trade Sharpe in the output")
+
+        assert _trade_sharpe(outputs[0]) != _trade_sharpe(outputs[1])
+
 
 class TestCombinedAnalysis:
     """The analysis flags work in combined mode too.
@@ -3258,6 +3300,37 @@ class TestCombinedAnalysis:
             raise AssertionError("no simulated sharpe_ratio in the output")
 
         assert _mc_sharpe_mean(outputs[0]) != _mc_sharpe_mean(outputs[1])
+
+    def test_main_combined_trade_analysis_uses_the_configured_periods_per_year(self, capsys):
+        """In combined mode the trade Sharpe follows the annualization period."""
+        outputs = []
+        for periods in ([], ["--periods-per-year", "52"]):
+            args = [
+                "--combined",
+                "--offline",
+                "--trade-analysis",
+                "--risk-free-rate",
+                "0.02",
+                "--symbols",
+                "AAPL",
+                "MSFT",
+                "GOOGL",
+                "--days",
+                "200",
+            ] + periods
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 0
+            outputs.append(capsys.readouterr().out)
+
+        def _trade_sharpe(output: str) -> float:
+            for line in output.splitlines():
+                if line.startswith("Trade Sharpe:"):
+                    return float(line.split(":", 1)[1].strip())
+            raise AssertionError("no trade Sharpe in the output")
+
+        assert "Analysis of the best strategy:" in outputs[0]
+        assert _trade_sharpe(outputs[0]) != _trade_sharpe(outputs[1])
 
 
 class TestUnrealizedPnlReporting:

@@ -2042,7 +2042,9 @@ def _print_monte_carlo_analysis(mc) -> None:
     print(f"\nExpected Shortfall (95%): {summary['total_return_pct_ci_lower']:.4f}")
 
 
-def _get_trade_analysis(result, args: argparse.Namespace, risk_free_rate: float = 0.02):
+def _get_trade_analysis(
+    result, args: argparse.Namespace, risk_free_rate: float = 0.02, periods_per_year: int = 252
+):
     """Get detailed trade analysis for a backtest result.
 
     Args:
@@ -2050,11 +2052,15 @@ def _get_trade_analysis(result, args: argparse.Namespace, risk_free_rate: float 
         args: Parsed CLI arguments.
         risk_free_rate: Annual risk-free rate of the run, used for the
             trade-level Sharpe and Sortino ratios.
+        periods_per_year: Trading periods per year of the run, used to
+            annualize the trade-level Sharpe and Sortino ratios.
 
     """
     from quant_trading.backtest import analyze_trades
 
-    analysis = analyze_trades(result, risk_free_rate=risk_free_rate)
+    analysis = analyze_trades(
+        result, risk_free_rate=risk_free_rate, periods_per_year=periods_per_year
+    )
     return analysis
 
 
@@ -2224,7 +2230,10 @@ def _run_cli() -> int:
 
         if args.trade_analysis:
             trade_analysis = _get_trade_analysis(
-                result, args, risk_free_rate=config.backtest.risk_free_rate
+                result,
+                args,
+                risk_free_rate=config.backtest.risk_free_rate,
+                periods_per_year=config.backtest.periods_per_year,
             )
             _print_trade_analysis(trade_analysis)
 
@@ -2394,7 +2403,10 @@ def run_combined(
             _print_monte_carlo_analysis(mc_analysis)
         if wants_trade_analysis:
             trade_analysis = _get_trade_analysis(
-                best_result, args, risk_free_rate=config.backtest.risk_free_rate
+                best_result,
+                args,
+                risk_free_rate=config.backtest.risk_free_rate,
+                periods_per_year=config.backtest.periods_per_year,
             )
             _print_trade_analysis(trade_analysis)
 
