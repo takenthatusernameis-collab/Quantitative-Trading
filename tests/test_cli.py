@@ -3919,6 +3919,28 @@ class TestUserErrorReporting:
         assert "invalid --mc-simulations" in output
         assert "Traceback" not in output
 
+    def test_n_iter_zero_is_invalid(self):
+        with patch("sys.argv", ["cli.py", "--n-iter", "0"]), pytest.raises(ValueError) as exc:
+            parse_args()
+        assert "invalid --n-iter" in str(exc.value)
+
+    def test_n_iter_negative_is_invalid(self):
+        with patch("sys.argv", ["cli.py", "--n-iter", "-1"]), pytest.raises(ValueError) as exc:
+            parse_args()
+        assert "invalid --n-iter" in str(exc.value)
+
+    def test_bayesian_n_initial_zero_is_invalid(self):
+        with patch("sys.argv", ["cli.py", "--bayesian-n-initial", "0"]), pytest.raises(ValueError) as exc:
+            parse_args()
+        assert "invalid --bayesian-n-initial" in str(exc.value)
+
+    def test_bayesian_n_initial_negative_is_invalid(self):
+        with patch(
+            "sys.argv", ["cli.py", "--bayesian-n-initial", "-5"]
+        ), pytest.raises(ValueError) as exc:
+            parse_args()
+        assert "invalid --bayesian-n-initial" in str(exc.value)
+
 
 if __name__ == "__main__":
     import pytest
