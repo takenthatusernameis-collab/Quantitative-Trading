@@ -287,11 +287,37 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_wf_train_size_zero_is_rejected(self):
-        """A ``--wf-train-size`` of zero is rejected the same way as above one."""
+    def test_wf_step_size_non_positive_is_rejected(self):
+        """A ``--wf-step-size`` of zero or below is a usage error naming the flag."""
+        for value in ("0", "-1"):
+            with (
+                patch("sys.argv", ["cli.py", "--walk-forward", "--wf-step-size", value]),
+                pytest.raises(ValueError, match="invalid --wf-step-size"),
+            ):
+                parse_args()
+
+    def test_initial_capital_non_positive_is_rejected(self):
+        """A ``--initial-capital`` of zero or below is a usage error naming the flag."""
+        for value in ("0", "-1"):
+            with (
+                patch("sys.argv", ["cli.py", "--initial-capital", value]),
+                pytest.raises(ValueError, match="invalid --initial-capital"),
+            ):
+                parse_args()
+
+    def test_commission_negative_is_rejected(self):
+        """A negative ``--commission`` is a usage error naming the flag."""
         with (
-            patch("sys.argv", ["cli.py", "--walk-forward", "--wf-train-size", "0"]),
-            pytest.raises(ValueError, match="invalid --wf-train-size"),
+            patch("sys.argv", ["cli.py", "--commission", "-0.1"]),
+            pytest.raises(ValueError, match="invalid --commission"),
+        ):
+            parse_args()
+
+    def test_slippage_negative_is_rejected(self):
+        """A negative ``--slippage`` is a usage error naming the flag."""
+        with (
+            patch("sys.argv", ["cli.py", "--slippage", "-0.1"]),
+            pytest.raises(ValueError, match="invalid --slippage"),
         ):
             parse_args()
 
