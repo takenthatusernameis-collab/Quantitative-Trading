@@ -320,6 +320,24 @@ class TestParseArgs:
             ):
                 parse_args()
 
+    def test_wf_train_size_below_one_is_accepted(self):
+        """A ``--wf-train-size`` just below 1.0 (valid (0,1) boundary) is accepted."""
+        with patch("sys.argv", ["cli.py", "--walk-forward", "--wf-train-size", "0.99"]):
+            args = parse_args()
+        assert args.wf_train_size == 0.99
+
+    def test_wf_step_size_positive_is_accepted(self):
+        """A small positive ``--wf-step-size`` is accepted."""
+        with patch("sys.argv", ["cli.py", "--walk-forward", "--wf-step-size", "5"]):
+            args = parse_args()
+        assert args.wf_step_size == 5
+
+    def test_initial_capital_positive_is_accepted(self):
+        """A positive ``--initial-capital`` is accepted."""
+        with patch("sys.argv", ["cli.py", "--initial-capital", "1000"]):
+            args = parse_args()
+        assert args.initial_capital == 1000.0
+
     def test_commission_negative_is_rejected(self):
         """A negative ``--commission`` is a usage error naming the flag."""
         with (
