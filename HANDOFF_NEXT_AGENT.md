@@ -30,52 +30,33 @@ No production code modified.
   `network`) → **2 failed, 2765 passed, 108 skipped, 131 deselected**
   in **226.10s (0:03:46)**, exit code 1. Output captured to `/tmp/full_suite.out`.
 
-## Unresolved
+## Resolved (this session)
 
-- The 2 full-suite failures are **pre-existing environmental failures**, not
-  regressions (working tree was clean; no code changed in this session). Both
-  root-cause to `yfinance` not being installed, although `yfinance` is a listed
-  core dependency (`requirements.txt`, `pyproject.toml`):
-  1. `tests/test_example_scripts_run.py::test_example_script_runs_documented_invocation[run_backtest.py]`
-     — `run_backtest.py` exits 1 because `yfinance` is missing (ImportError
-     raised in `quant_trading/data/yfinance_provider.py:87`).
-  2. `tests/test_yfinance_provider.py::test_get_yf_success` — `ImportError:
-     yfinance is not installed`.
-- Neither test is marked `slow`/`network`, so both run in the default suite.
-  Installing `yfinance` speculatively is NOT a safe fix: `run_backtest.py`
-  fetches live Yahoo data, which would introduce network-dependent hangs/slowness
-  without guaranteeing a green suite. Do not install it without first confirming
-  network availability and assessing hang risk.
-- Prior handoff reported a test-order-dependent hang
-  (`TestCombinedAnalysis` → `TestUnrealizedPnlReporting`). **Not reproducible
-  in this session**: the exact repro pair and the full `tests/test_cli.py` both
-  pass (see evidence above). If it reappears, reproduce with
-  `python -m pytest "tests/test_cli.py::TestCombinedAnalysis" "tests/test_cli.py::TestUnrealizedPnlReporting" -q`
-  and inspect `TestCombinedAnalysis` (`tests/test_cli.py:3267`) for leaked
-  module/global/patch state and restore it via fixture/finalizer.
+The 2 pre-existing `yfinance` failures were **environmental (missing core dependency)**, not regressions. Disposition: install `yfinance` and keep it installed.
+
+- Confirmed network availability; `pip install yfinance` succeeded (yfinance 1.8.0, plus dependencies). `yfinance` is a listed core dependency in `requirements.txt` and `pyproject.toml`.
+- `tests/test_yfinance_provider.py::test_get_yf_success` → **passed** (0.18s).
+- `tests/test_example_scripts_run.py::test_example_script_runs_documented_invocation[run_backtest.py]` → **passed** (3.86s, no hang on live Yahoo fetch).
+- Full fast suite `python -m pytest -q` → **2860 passed, 0 failed, 15 skipped, 131 deselected** in 226.34s (exit code 0). Output captured to `/tmp/full_suite.out`.
+- `python -m ruff check .`, `python -m black --check .`, `python -m mypy quant_trading/` → all pass (unchanged from prior session).
+
+No code was changed; working tree is clean. The install was an environment change only (no repo modification, nothing to commit).
+
+Prior handoff's test-order-dependent hang (`TestCombinedAnalysis` → `TestUnrealizedPnlReporting`) remains **not reproducible**: the repro pair and full `tests/test_cli.py` pass. If it reappears, reproduce with `python -m pytest "tests/test_cli.py::TestCombinedAnalysis" "tests/test_cli.py::TestUnrealizedPnlReporting" -q` and inspect `TestCombinedAnalysis` (`tests/test_cli.py:3267`) for leaked module/global/patch state, restoring it via fixture/finalizer.
 
 ## Approaches already tried (this session)
 
-- Ran full fast suite `python -m pytest -q` to completion (226.10s). Bisected
-  the 2 failures to missing `yfinance` (environmental). Did NOT install `yfinance`
-  (speculative; network/hang risk). Did not make speculative state-restoration
-  changes to `TestCombinedAnalysis` without a reproducible failure.
+- Ran full fast suite `python -m pytest -q` to completion (226.10s). Bisected the 2 failures to missing `yfinance` (environmental).
+- Installed `yfinance` (not speculative: network confirmed available, it is a listed core dependency). Re-ran the 2 failing tests and the full suite; `run_backtest.py` did not hang, so the install is kept.
+- Did not make speculative state-restoration changes to `TestCombinedAnalysis` without a reproducible failure.
 
 ## Next task
 
-Precise, bounded: decide the disposition of the 2 pre-existing environmental
-`yfinance` failures and record the decision:
+No critical failures remain. The suite is green and all lint/format/type checks pass.
 
-1. Confirm whether `yfinance` can/should be installed in this environment (it is
-   a listed core dependency). If installed, re-run the 2 failing tests AND the
-   full suite; if `run_backtest.py` then hangs or fails on live network fetches,
-   revert the install and document the failure as an acceptable pre-existing
-   env limitation rather than a code regression.
-2. If `yfinance` is not installed, document the 2 failures as acceptable
-   pre-existing environmental failures (missing optional dependency), not
-   regressions, and confirm no regressions beyond `tests/test_cli.py` (2765
-   passed).
+One precise, bounded next task: **verify the `yfinance` install is durable across a fresh interpreter and document it**, then close out. Specifically:
 
-Constraint: preserve the baseline; do not introduce network-dependent hangs or
-weakened safety controls merely to make the suite green. After 5 consecutive
-failures on the same root cause, change approach per the reliability rules.
+1. Re-run the 2 previously failing tests plus the full fast suite one more time in a fresh interpreter to confirm the green result is stable (not a one-off network fluke): `python -m pytest -q` (expect 2860 passed, 0 failed, ~226s).
+2. If green, mark this session complete and record the final evidence in HANDOFF_NEXT_AGENT.md (working tree stays clean; nothing to commit).
+
+Constraint: preserve the baseline; do not introduce network-dependent hangs or weakened safety controls. Do not commit unless explicitly asked.
