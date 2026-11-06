@@ -355,6 +355,28 @@ class TestParseArgs:
         ):
             parse_args()
 
+    def test_optimization_range_with_step_zero_is_rejected(self):
+        """A range with step zero is rejected and names the flag."""
+        with (
+            patch(
+                "sys.argv",
+                ["cli.py", "--optimize", "--ma-fast-range", "1,2,0", "--offline"],
+            ),
+            pytest.raises(ValueError, match="invalid --ma-fast-range"),
+        ):
+            parse_args()
+
+    def test_optimization_range_with_negative_step_is_rejected(self):
+        """A range with negative step is rejected and names the flag."""
+        with (
+            patch(
+                "sys.argv",
+                ["cli.py", "--optimize", "--rsi-period-range", "10,20,-1", "--offline"],
+            ),
+            pytest.raises(ValueError, match="invalid --rsi-period-range"),
+        ):
+            parse_args()
+
 
 class TestIsSupportedInterval:
     """Tests for ``_is_supported_interval``."""
