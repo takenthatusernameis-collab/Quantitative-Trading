@@ -1012,6 +1012,11 @@ def parse_args() -> argparse.Namespace:
             f"invalid --bayesian-n-initial: the value must be at least 1 "
             f"(got {args.bayesian_n_initial})"
         )
+    if args.bayesian_n_initial > args.n_iter:
+        raise ValueError(
+            f"invalid --bayesian-n-initial: must be <= --n-iter "
+            f"(got {args.bayesian_n_initial} > {args.n_iter})"
+        )
     if args.n_jobs < 1 and args.n_jobs != -1:
         raise ValueError(
             f"invalid --n-jobs: the value must be at least 1, or -1 for all "
