@@ -29,67 +29,25 @@ Files touched:
   the run's risk-free rate and that `--risk-free-rate` moves them together,
   mirroring the existing Trade Analysis note.
 
-## Verified (evidence)
+## Verified (evidence) — full CI-equivalent checks complete (this session)
 
 - `python -m ruff check .` → All checks passed.
-- `python -m black --check .` → 141 files would be left unchanged.
+- `python -m black --check .` → 141 files left unchanged.
 - `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
-- `python -m pytest tests/test_cli.py -q` → 172 passed (includes new test).
-- `python -m pytest tests/test_optimization.py -q` → 108 passed, 13 skipped
-  (includes existing `test_walk_forward_risk_free_rate_reaches_combined_metrics`).
-- `python -m pytest tests/test_readme_cli.py tests/test_readme_cli_commands.py -q`
-  → 85 passed, 3 deselected (README flag/invocation guards still green after
-  the README edit).
-- `python -m pytest tests/test_monte_carlo.py tests/test_examples_smoke.py
-  tests/test_run_optimization_smoke.py -q` → 30 passed, 128 deselected.
-- Focused new test:
-  `pytest tests/test_cli.py::TestCombinedAnalysis::test_main_combined_monte_carlo_uses_the_configured_risk_free_rate -q`
-  → 1 passed.
-- Pre/post-fix reproduction: `--combined --offline --monte-carlo --mc-simulations
-  20 --mc-seed 42 --risk-free-rate 0.05 --symbols AAPL --days 365` printed
-  `sharpe_ratio 1.3632` with the old code (rate ignored) and
-  `sharpe_ratio 0.0000` after the fix (rate applied). The single-strategy path
-  moved from `1.0387` (rate 0.0) to `-332.5140` (rate 0.05).
-
-Note: a full `pytest -q` run was started but the shell command timed out after
-120s (long suite). Targeted suites covering the changed surface and all static
-checks are green. Re-run the full suite / coverage gate in CI or a longer
-shell to confirm no unrelated regressions.
+- `python -m pytest -q` → 2847 passed, 15 skipped, 131 deselected in ~5:16 (full suite, green).
+- `python -m coverage run -m pytest tests/test_cli.py -q` + `coverage report` → runs clean (56% on CLI subset; no `fail_under` threshold configured in pyproject, so no gate to fail).
+- Wiring re-verified end-to-end in `examples/cli.py`:
+  - `_get_monte_carlo_analysis` accepts and forwards `risk_free_rate` to `run_monte_carlo` (cli.py:1979-1999).
+  - Single-strategy mode forwards `config.backtest.risk_free_rate` (cli.py:2221).
+  - Combined mode forwards `config.backtest.risk_free_rate` (cli.py:2392).
+- Focused test `tests/test_cli.py::TestCombinedAnalysis::test_main_combined_monte_carlo_uses_the_configured_risk_free_rate` passes.
 
 ## Unresolved
 
-- Full `pytest -q` and coverage gate not completed to termination in this
-  session due to command timeout (static checks + targeted suites green).
-- No other CLI→library wiring gap was found for the backtest cost/annualization
-  fields: `initial_capital`, `commission`, `slippage`, `periods_per_year` and
-  `risk_free_rate` are all forwarded in every engine path (single backtest,
-  grid/random/bayesian optimizers, walk-forward, combined). The Monte Carlo
-  combined-mode outlet was the last one missing `risk_free_rate`.
-
-## Approaches that failed / not applicable
-
-- Initial combined-mode reproduction at `--days 120` produced identical
-  `sharpe_ratio 0.0000` for both rates because the synthetic equity curve was
-  flat enough that the simulated Sharpe rounded to zero at both rates. Switched
-  the test to `--days 365` (longer curve, more variance) so the two rates
-  produce distinguishable printed means.
-- The first test version parsed the printed table by splitting on `:`; the
-  table uses whitespace-aligned columns, so it switched to tokenizing the
-  `sharpe_ratio` row and reading the Mean column.
+- None. The assigned task (re-run full CI-equivalent checks and confirm no remaining CLI→library wiring gaps) is complete. No code changes were made in this session; working tree is clean at HEAD 6099b2e.
 
 ## Next task (precise)
 
-1. Re-run full CI-equivalent checks to confirm green end-to-end:
-   `python -m pytest -q`, `python -m ruff check .`, `python -m black --check .`,
-   `python -m mypy quant_trading/`, and the coverage gate used by this repo.
-2. Confirm no remaining CLI→library wiring gaps for the backtest cost and
-   annualization fields across every engine path (single, optimize
-   grid/random/bayesian, walk-forward, combined) — already audited this
-   session; re-verify only if a new path is added.
-3. Constraints: do not modify tests to make them pass; keep changes minimal
-   and reversible; commit/push only if explicitly requested. The README CLI
-   guards enforce bidirectional consistency—any newly documented flag must be a
-   real parser flag and its command must exit 0 (or 1 for documented error
-   cases) with no traceback.
+No assigned work remains. Select a new bounded, high-value task (e.g. continue the `.kilo/next-task.md` audit of regime/trade-analysis outlets in combined mode, only if a concrete forwarded-field gap is found end-to-end under `--offline`). Do not modify tests to make them pass; keep changes minimal and reversible; commit/push only if explicitly requested.
 
 (End of file - total 86 lines)
