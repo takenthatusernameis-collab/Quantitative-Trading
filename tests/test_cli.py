@@ -251,6 +251,50 @@ class TestParseArgs:
             args = parse_args()
         assert args.mc_simulations == 1
 
+    def test_mc_confidence_above_one_is_rejected(self):
+        """A ``--mc-confidence`` above 1 is a usage error naming the flag.
+
+        The Monte Carlo module derives percentile ranks from the confidence
+        level, so an out-of-range value surfaces deep in NumPy as
+        ``Percentiles must be in the range [0, 100]``. The check belongs in
+        the CLI and has to name the offending flag instead.
+        """
+        with (
+            patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-confidence", "1.5"]),
+            pytest.raises(ValueError, match="invalid --mc-confidence"),
+        ):
+            parse_args()
+
+    def test_mc_confidence_zero_is_rejected(self):
+        """A ``--mc-confidence`` of zero is rejected the same way as above one."""
+        with (
+            patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-confidence", "0"]),
+            pytest.raises(ValueError, match="invalid --mc-confidence"),
+        ):
+            parse_args()
+
+    def test_wf_train_size_at_or_above_one_is_rejected(self):
+        """A ``--wf-train-size`` at or above 1 is a usage error naming the flag.
+
+        Walk-forward computes ``train_days = int(window_days * train_size)``,
+        so a train size of one or above yields degenerate windows and wrong
+        results instead of an error. The check belongs in the CLI and has to
+        name the offending flag before the run starts.
+        """
+        with (
+            patch("sys.argv", ["cli.py", "--walk-forward", "--wf-train-size", "1.5"]),
+            pytest.raises(ValueError, match="invalid --wf-train-size"),
+        ):
+            parse_args()
+
+    def test_wf_train_size_zero_is_rejected(self):
+        """A ``--wf-train-size`` of zero is rejected the same way as above one."""
+        with (
+            patch("sys.argv", ["cli.py", "--walk-forward", "--wf-train-size", "0"]),
+            pytest.raises(ValueError, match="invalid --wf-train-size"),
+        ):
+            parse_args()
+
     def test_optimization_range_with_a_minimum_above_the_maximum_is_rejected(self):
         """An inverted range is rejected before the run starts and names the flag."""
         with (

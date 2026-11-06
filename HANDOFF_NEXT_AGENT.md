@@ -2,46 +2,51 @@
 
 ## What changed
 
-No code changes. This session performed the bounded audit assigned in
-`.kilo/next-task.md`: every user-facing analysis flag for the
-"parsed/set but not forwarded" pattern in single-strategy, walk-forward, and
-combined CLI modes, plus every engine consuming `config.backtest.*`.
+Added fast unit tests in `tests/test_cli.py` for two CLI user-error
+validations that existed in `parse_args()` (examples/cli.py:970-1013) but were
+only covered by slow subprocess smoke tests in `tests/test_examples_smoke.py`,
+not by the fast default suite:
 
-Finding: **no remaining forwarding gap**. All outlets are wired end-to-end:
+- `test_mc_confidence_above_one_is_rejected` — `--mc-confidence 1.5` raises
+  `ValueError` matching `invalid --mc-confidence`.
+- `test_mc_confidence_zero_is_rejected` — `--mc-confidence 0` raises the same.
+- `test_wf_train_size_at_or_above_one_is_rejected` — `--wf-train-size 1.5`
+  raises `ValueError` matching `invalid --wf-train-size`.
+- `test_wf_train_size_zero_is_rejected` — `--wf-train-size 0` raises the same.
 
-- Combined mode (`run_combined`, examples/cli.py:2332-2411):
-  - `_get_regime_analysis` (cli.py:2392) forwards `periods_per_year`,
-    `args.regime_window`, `args.regime_vol_threshold`,
-    `args.regime_return_threshold`. Regime detection (`quant_trading/regime/detector.py`)
-    consumes no `risk_free_rate`, so nothing is missing.
-  - `_get_monte_carlo_analysis` (cli.py:2397) forwards `risk_free_rate`,
-    `periods_per_year`, `mc_simulations`, `mc_confidence`, `mc_method`, `mc_seed`
-    (the `risk_free_rate` gap was closed by the previous agent at cli.py:2401).
-  - `_get_trade_analysis` (cli.py:2405) forwards `risk_free_rate` and
-    `periods_per_year`.
-- Single-strategy mode (cli.py:2216-2238): same three outlets, all forwarded.
-- Walk-forward mode (cli.py:1680-1724): `risk_free_rate` forwarded at cli.py:1859.
-- Engine: `run_backtest` (quant_trading/backtest/engine.py:737) reads
-  `risk_free_rate` from the passed `config`; cli.py:1336 writes
-  `args.risk_free_rate` into `config.backtest.risk_free_rate`, so the CLI flag
-  reaches the engine's Sharpe/Sortino metrics in all modes.
+Style mirrors the existing `test_mc_simulations_*` tests
+(tests/test_cli.py:227-252). No production code was modified.
 
 ## Verified (evidence)
 
-- `python examples/cli.py --offline --synthetic-days 60 --strategy sma --combined --regime --regime-window 10 --regime-vol-threshold 0.15 --regime-return-threshold 0.05 --monte-carlo --mc-simulations 30 --mc-seed 7 --trade-analysis --risk-free-rate 0.03 --days 60` → exit code 0, regime / Monte Carlo / trade analysis sections all print, no traceback.
-- All parser flags audited exist: `--regime`, `--regime-window`, `--regime-vol-threshold`, `--regime-return-threshold`, `--monte-carlo`, `--mc-simulations`, `--mc-method`, `--mc-confidence`, `--mc-seed`, `--trade-analysis`, `--risk-free-rate`, `--offline`.
-- Working tree is clean at HEAD 6b5501d; no files modified.
+- `python -m pytest tests/test_cli.py -q` → 179 passed (was 172; +4 new
+  tests), 0 failed.
+- `python -m ruff check .` → All checks passed.
+- `python -m black --check .` → 141 files unchanged.
+- `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
+- Working tree contains only the test_cli.py addition; production code untouched.
 
 ## Unresolved
 
-- None.
+- None from this task.
 
 ## Approaches already tried
 
-- Audit of regime/trade-analysis/monte-carlo outlets in combined mode under `--offline`: found no gap (nothing to fix). Not a failure — a negative result with evidence.
+- Broad repository inspection for a code bug or doc/code mismatch
+  (CLI validation, risk_free_rate/periods_per_year wiring, example-script vs
+  README parity, strategy registry coverage, regime/monte-carlo/trade-analysis
+  forwarding): all found complete and correct; no production change needed.
+  This is a negative result with evidence, not a failure.
 
 ## Next task
 
-Precise: none. The audit task is complete with zero changes required. Select a new bounded, high-value task only if one presents itself; do not re-audit this same area without a concrete new symptom.
+Precise: extend the fast CLI validation test coverage in
+`tests/test_cli.py` to the remaining `parse_args()` validations that still
+lack fast unit tests: `--wf-step-size` (<= 0), `--initial-capital` (<= 0),
+`--commission` (< 0), and `--slippage` (< 0). Each test should use
+`patch("sys.argv", [...])` + `pytest.raises(ValueError, match="invalid
+--<flag>")`, mirroring the tests just added and the existing
+`test_mc_simulations_*` style (tests/test_cli.py:227-252). Run
+`tests/test_cli.py` plus `ruff`/`black`/`mypy` to verify.
 
 (End of file)
