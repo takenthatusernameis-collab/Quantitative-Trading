@@ -1856,6 +1856,7 @@ def run_walk_forward(
         optimizer=args.wf_optimizer,
         optimizer_kwargs=optimizer_kwargs,
         periods_per_year=config.backtest.periods_per_year,
+        risk_free_rate=config.backtest.risk_free_rate,
         verbose=True,
     )
 

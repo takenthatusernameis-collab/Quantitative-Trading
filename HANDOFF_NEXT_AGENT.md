@@ -2,72 +2,75 @@
 
 ## What changed
 
-Closed a genuine user-facing gap: `WalkForwardOptimizer.step_size` was a
-documented constructor parameter (with its own test, `test_walk_forward_step_size_override`)
-but had no CLI flag, so users could not control the step between walk-forward
-windows from the command line. Added `--wf-step-size` end to end.
+Closed a real behavior gap in the CLI walk-forward path: `run_walk_forward`
+constructed `WalkForwardOptimizer` with `periods_per_year` from config but
+**not** `risk_free_rate`. The optimizer uses `self.risk_free_rate` when
+calculating combined walk-forward test metrics (`calculate_backtest_metrics`,
+`walk_forward.py:829`), so a configured/CLI `--risk-free-rate` (parsed and
+stored in `config.backtest.risk_free_rate`) was silently ignored by
+walk-forward runs and the library default `0.02` was always used.
 
 Files touched:
-- `examples/cli.py`: new `--wf-step-size` flag (default `None` → library
-  default `1.0`), validation rejecting values `<= 0`, printed in the
-  walk-forward summary, forwarded to `WalkForwardOptimizer(step_size=...)`,
-  and serialized as `step_size` in the JSON output.
-- `README.md`: documented `--wf-step-size` in the "Walk-Forward Optimization"
-  section with a runnable command, and added an error-reporting example
-  (`--wf-step-size 0` → exit 1, one-line message) to the "Error Reporting"
-  section.
-- `tests/test_readme_cli_commands.py`: registered the new error example in
-  `_expects_failure` so the auto-extracted README command suite exercises it.
-- `tests/test_cli.py`: added `wf_step_size: None` to the `TestSaveStrategyConfig`
-  namespace mirror (the helper builds a hand-rolled `argparse.Namespace` that
-  must match the parser's attributes).
+- `examples/cli.py`: forward `risk_free_rate=config.backtest.risk_free_rate`
+  to `WalkForwardOptimizer(...)`.
+- `tests/test_cli.py`: added
+  `TestSaveStrategyConfig.test_run_walk_forward_passes_risk_free_rate_to_optimizer`
+  (synthetic/offline, patched optimizer init to capture kwargs) asserting the
+  configured rate is passed. Test cleaned up for ruff (no unused imports/vars).
 
 ## Verified (evidence)
 
 - `python -m ruff check .` → All checks passed.
 - `python -m black --check .` → 141 files would be left unchanged.
 - `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
-- `python -m pytest -q` → 2860 passed, 131 deselected.
-- `python -m pytest --cov=quant_trading --cov-report=term-missing -q` →
-  6993 stmts, 0 miss, 2382 branches, 0 partial → 100% coverage.
-- `python examples/cli.py --offline --walk-forward --wf-windows 3
-  --wf-train-size 0.7 --wf-step-size 0.5 ...` → prints `Step size: 0.50`,
-  completes with exit 0.
-- `python examples/cli.py --offline --walk-forward --wf-step-size 0 ...` →
-  `Error: invalid --wf-step-size: the value must be greater than 0 (got 0.0)`,
-  exit 1, no traceback.
-- `tests/test_readme_cli.py` + `tests/test_readme_cli_commands.py` → 85 passed,
-  3 deselected (the new flag is now both parser-verified and run end-to-end).
-- Git state: `main...origin/main`, working tree clean except this handoff file
-  and the unstaged change set above.
+- `python -m pytest tests/test_cli.py -q` → 171 passed.
+- `python -m pytest tests/test_optimization.py -q` → 108 passed, 13 skipped
+  (includes existing `test_walk_forward_risk_free_rate_reaches_combined_metrics`).
+- `python -m pytest tests/test_readme_cli.py tests/test_readme_cli_commands.py -q`
+  → 85 passed, 3 deselected.
+- Focused new test:
+  `pytest tests/test_cli.py::TestSaveStrategyConfig::test_run_walk_forward_passes_risk_free_rate_to_optimizer -q`
+  → 1 passed.
+- Quick reproduction (pre-fix logic): spying `WalkForwardOptimizer.__init__`
+  during `run_walk_forward` with `config.backtest.risk_free_rate=0.05` showed
+  `risk_free_rate` absent from captured kwargs; after fix it is passed as `0.05`.
+
+Note: a full `pytest -q` run was started earlier in this environment but the
+shell command timed out after 120s (long suite). Targeted suites covering the
+changed surface and all static checks are green. Re-run the full suite /
+coverage gate in CI or a longer shell to confirm no unrelated regressions.
 
 ## Unresolved
 
-- None. The tree is green on pytest, ruff, black, mypy, and coverage.
+- Full `pytest -q` and coverage gate not completed to termination in this
+  session due to command timeout (static checks + targeted suites green).
+- No README change was required: `--risk-free-rate` is already documented and
+  README CLI↔parser guards pass.
 
 ## Approaches that failed / not applicable
 
-- The initial full-suite run surfaced one regression: `tests/test_cli.py`
-  `TestSaveStrategyConfig.test_walk_forward_saves_last_window_params_config`
-  failed with `AttributeError: 'Namespace' object has no attribute 'wf_step_size'`.
-  The test builds a hand-rolled namespace (not the real parser), so it had to
-  be mirrored explicitly. Fixed by adding the attribute to the helper's base
-  dict; this is the same pattern already used for `wf_windows`, `wf_train_size`,
-  etc.
-- No approach was retried: the fix was deterministic and the rerun was green.
+- Initial attempt to reproduce the gap with a hand-rolled `argparse.Namespace`
+  failed with `AttributeError` (`ma_fast_range` missing) because
+  `create_param_grid` reads range args; switched to `parse_args()` with
+  patched `sys.argv`, which matched real CLI behavior.
+- Mocking `WalkForwardOptimizer.run` for the spy script hit MagicMock
+  formatting in result printing; switched to raising after `__init__` capture.
+- New test initially had unused imports/`real_init` and missing `datetime`
+  import; fixed with ruff `--fix --unsafe-fixes` and explicit import.
 
 ## Next task (precise)
 
-1. Re-run CI-equivalent checks to confirm green: `pytest -q`, `ruff check .`,
-   `black --check .`, `mypy quant_trading/`, and the coverage gate.
-2. Look outside the walk-forward surface for the next under-documented user
-   facing flag or behavior gap; verify any candidate end-to-end under the
-   mocked-network harness before changing.
+1. Re-run full CI-equivalent checks to confirm green end-to-end:
+   `python -m pytest -q`, `python -m ruff check .`, `python -m black --check .`,
+   `python -m mypy quant_trading/`, and the coverage gate used by this repo.
+2. Inspect other CLI→library wiring for config fields that are parsed/set but
+   not forwarded in analogous paths (e.g., confirm optimization/grid/random/
+   bayesian CLI paths and any other engines forward `risk_free_rate`,
+   `commission`, `slippage`, `initial_capital`, `periods_per_year` as
+   appropriate). Verify any candidate gap with a focused test under the
+   mocked-network/synthetic harness before changing.
 3. Constraints: do not modify tests to make them pass; keep changes minimal
-   and reversible; commit/push only if explicitly requested. The
-   `tests/test_readme_cli.py` and `tests/test_readme_cli_commands.py` guards
-   enforce bidirectional consistency between the README CLI section and the
-   live parser; any newly documented flag must be a real parser flag and its
-   command must exit 0 (or 1 for documented error cases) with no traceback.
-
-(End of file)
+   and reversible; commit/push only if explicitly requested. The README CLI
+   guards enforce bidirectional consistency—any newly documented flag must be a
+   real parser flag and its command must exit 0 (or 1 for documented error
+   cases) with no traceback.

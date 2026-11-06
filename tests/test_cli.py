@@ -2550,6 +2550,56 @@ class TestSaveStrategyConfig:
         assert "fast_period" in saved["parameters"]
         assert "slow_period" in saved["parameters"]
 
+    def test_run_walk_forward_passes_risk_free_rate_to_optimizer(self):
+        """CLI walk-forward must forward config.backtest.risk_free_rate."""
+        from unittest.mock import patch
+
+        from examples.cli import parse_args, run_walk_forward
+        from quant_trading.optimization.walk_forward import WalkForwardOptimizer
+
+        with patch(
+            "sys.argv",
+            [
+                "cli.py",
+                "--walk-forward",
+                "--offline",
+                "--strategy",
+                "ma",
+                "--days",
+                "120",
+                "--wf-windows",
+                "2",
+                "--risk-free-rate",
+                "0.05",
+            ],
+        ):
+            args = parse_args()
+
+        config = Config()
+        config.data.provider = "synthetic"
+        config.data.offline = True
+        config.data.synthetic_days = 120
+        config.data.synthetic_seed = 42
+        config.backtest.risk_free_rate = 0.05
+
+        from datetime import datetime, timedelta
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=120)
+        captured: dict = {}
+
+        def spy(self, *a, **k):
+            captured.update(k)
+            raise RuntimeError("stop-after-init")
+
+        with patch.object(WalkForwardOptimizer, "__init__", spy):
+            try:
+                run_walk_forward(args, config, start_date, end_date)
+            except RuntimeError:
+                pass
+
+        assert captured.get("risk_free_rate") == 0.05
+
     def test_save_strategy_config_helper_round_trip(self, tmp_path):
         from examples.cli import _save_strategy_config
         from quant_trading.strategies.examples import MovingAverageCrossover
