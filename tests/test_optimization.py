@@ -1039,6 +1039,161 @@ def test_grid_search_n_combinations():
     assert optimizer.n_combinations == 4
 
 
+def test_grid_search_pytest_time_cap_respects_env(monkeypatch):
+    """The pytest-time combination cap is read from ``QT_TEST_MAX_GRID_COMBINATIONS``.
+
+    The grid cap is only applied when ``PYTEST_CURRENT_TEST`` is set (i.e. under
+    pytest) and the grid is larger than the cap. When the env var overrides the
+    default, the sampled combination count matches the override rather than the
+    built-in default of 60.
+    """
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_grid_search_pytest_time_cap_respects_env")
+    monkeypatch.setenv("QT_TEST_MAX_GRID_COMBINATIONS", "7")
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("a", values=[1, 2, 3, 4, 5]))
+    param_grid.add(ParameterSpace("b", values=[10, 20, 30, 40, 50]))
+    param_grid.add(ParameterSpace("c", values=[100, 200, 300, 400, 500]))
+    optimizer = GridSearch(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=["AAPL"],
+        start=datetime(2026, 1, 15) - timedelta(days=10),
+        end=datetime(2026, 1, 15),
+        initial_capital=100000.0,
+        data_manager=DataManager([MockDataProvider({"AAPL": create_test_data("AAPL", 20)})]),
+        verbose=False,
+    )
+    assert optimizer.n_combinations == 125
+    optimizer.run()
+    assert optimizer.n_combinations == 7
+
+
+def test_random_search_pytest_time_cap_respects_env(monkeypatch):
+    """The pytest-time iteration cap is read from ``QT_TEST_MAX_RANDOM_ITERATIONS``.
+
+    The random-search cap is only applied under pytest (``PYTEST_CURRENT_TEST``
+    set) and only when the requested iteration count exceeds the cap. The
+    override env var lowers the effective iteration count below the built-in
+    default of 30.
+    """
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_random_search_pytest_time_cap_respects_env")
+    monkeypatch.setenv("QT_TEST_MAX_RANDOM_ITERATIONS", "5")
+
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", min_val=5, max_val=15, param_type=int))
+    param_grid.add(ParameterSpace("slow_period", min_val=20, max_val=30, param_type=int))
+
+    optimizer = RandomSearch(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime(2026, 1, 15) - timedelta(days=50),
+        end=datetime(2026, 1, 15),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_iter=200,
+        verbose=False,
+    )
+    assert optimizer.n_iter == 200
+    optimizer.run()
+    assert optimizer.n_iter == 5
+
+
+@skip_if_no_skopt
+def test_bayesian_pytest_time_cap_respects_env(monkeypatch):
+    """The pytest-time Bayesian caps are read from the env vars.
+
+    Both ``QT_TEST_MAX_BAYESIAN_CALLS`` and ``QT_TEST_MAX_BAYESIAN_INIT`` are
+    honored when ``PYTEST_CURRENT_TEST`` is set and the requested values exceed
+    the caps, so a run configured with large values still evaluates only the
+    capped number of combinations.
+    """
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_bayesian_pytest_time_cap_respects_env")
+    monkeypatch.setenv("QT_TEST_MAX_BAYESIAN_CALLS", "6")
+    monkeypatch.setenv("QT_TEST_MAX_BAYESIAN_INIT", "2")
+
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", min_val=5, max_val=15, param_type=int))
+    param_grid.add(ParameterSpace("slow_period", min_val=20, max_val=30, param_type=int))
+
+    optimizer = BayesianOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime(2026, 1, 15) - timedelta(days=50),
+        end=datetime(2026, 1, 15),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_initial_points=50,
+        n_calls=200,
+        random_state=42,
+        verbose=False,
+    )
+    assert optimizer.n_calls == 200
+    assert optimizer.n_initial_points == 50
+    result = optimizer.run()
+    assert optimizer.n_calls == 6
+    assert optimizer.n_initial_points == 2
+    assert len(result.all_results) == 6
+
+
+@skip_if_no_skopt
+def test_bayesian_pytest_time_cap_disabled_outside_pytest(monkeypatch):
+    """When ``PYTEST_CURRENT_TEST`` is unset the caps are not applied.
+
+    pytest itself sets ``PYTEST_CURRENT_TEST`` for every test, so the
+    cap-ignoring branch (``if os.environ.get("PYTEST_CURRENT_TEST"):``
+    False path) is never hit during a normal pytest run. Unsetting the var
+    explicitly exercises that branch and confirms a non-pytest invocation
+    honors the full requested ``n_calls`` / ``n_initial_points``.
+    """
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", min_val=5, max_val=15, param_type=int))
+    param_grid.add(ParameterSpace("slow_period", min_val=20, max_val=30, param_type=int))
+
+    optimizer = BayesianOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=maximize_sharpe,
+        symbols=symbols,
+        start=datetime(2026, 1, 15) - timedelta(days=50),
+        end=datetime(2026, 1, 15),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_initial_points=3,
+        n_calls=8,
+        random_state=42,
+        verbose=False,
+    )
+    assert optimizer.n_calls == 8
+    assert optimizer.n_initial_points == 3
+    result = optimizer.run()
+    assert optimizer.n_calls == 8
+    assert optimizer.n_initial_points == 3
+    assert len(result.all_results) == 8
+
+
 def test_random_search_verbose(capsys):
     """Test RandomSearch verbose prints progress."""
     symbols = ["AAPL"]

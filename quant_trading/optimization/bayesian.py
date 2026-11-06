@@ -300,15 +300,15 @@ class BayesianOptimizer(BaseOptimizer):
 
         n_calls = self.n_calls
         n_initial = self.n_initial_points
-        _n_calls_cap = int(os.environ.get("QT_TEST_MAX_BAYESIAN_CALLS", "50"))
-        _n_init_cap = int(os.environ.get("QT_TEST_MAX_BAYESIAN_INIT", "30"))
+        n_calls_cap = int(os.environ.get("QT_TEST_MAX_BAYESIAN_CALLS", "50"))
+        n_init_cap = int(os.environ.get("QT_TEST_MAX_BAYESIAN_INIT", "30"))
         if os.environ.get("PYTEST_CURRENT_TEST"):
-            if n_calls > 25:
-                n_calls = 25
-                self.n_calls = 25
-            if n_initial > 5:
-                n_initial = 5
-                self.n_initial_points = 5
+            if n_calls > n_calls_cap:
+                n_calls = n_calls_cap
+                self.n_calls = n_calls_cap
+            if n_initial > n_init_cap:
+                n_initial = n_init_cap
+                self.n_initial_points = n_init_cap
 
         if self.verbose:
             print(

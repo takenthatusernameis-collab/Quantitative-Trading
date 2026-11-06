@@ -248,7 +248,7 @@ class GridSearch(BaseOptimizer):
             import random
 
             random.seed(12345)
-            combinations = random.sample(combinations, 60)
+            combinations = random.sample(combinations, _cap)
             self._combinations = combinations
 
         total = len(self._combinations)
