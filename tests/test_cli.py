@@ -311,6 +311,21 @@ class TestParseArgs:
             ):
                 parse_args()
 
+    def test_wf_windows_below_one_is_rejected(self):
+        """A ``--wf-windows`` of zero or below is a usage error naming the flag."""
+        for value in ("0", "-1"):
+            with (
+                patch("sys.argv", ["cli.py", "--walk-forward", "--wf-windows", value]),
+                pytest.raises(ValueError, match="invalid --wf-windows"),
+            ):
+                parse_args()
+
+    def test_wf_windows_one_is_accepted(self):
+        """A ``--wf-windows`` of one is accepted."""
+        with patch("sys.argv", ["cli.py", "--walk-forward", "--wf-windows", "1"]):
+            args = parse_args()
+        assert args.wf_windows == 1
+
     def test_initial_capital_non_positive_is_rejected(self):
         """A ``--initial-capital`` of zero or below is a usage error naming the flag."""
         for value in ("0", "-1"):

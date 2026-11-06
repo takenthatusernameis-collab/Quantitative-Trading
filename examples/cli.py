@@ -997,6 +997,10 @@ def parse_args() -> argparse.Namespace:
             f"invalid --wf-step-size: the value must be greater than 0 "
             f"(got {args.wf_step_size})"
         )
+    if args.wf_windows < 1:
+        raise ValueError(
+            f"invalid --wf-windows: the value must be at least 1 " f"(got {args.wf_windows})"
+        )
     if args.initial_capital is not None and args.initial_capital <= 0:
         raise ValueError(
             f"invalid --initial-capital: the value must be greater than 0 "
