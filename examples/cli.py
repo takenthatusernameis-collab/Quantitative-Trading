@@ -642,7 +642,11 @@ def _create_parser() -> argparse.ArgumentParser:
         "--n-jobs",
         type=int,
         default=4,
-        help="Number of parallel jobs (default: 4)",
+        help=(
+            "Number of parallel jobs (default: 4). Use -1 for all CPU cores. "
+            "Values below 1 other than -1 are rejected; 0 is rejected because "
+            "it has no meaning for joblib."
+        ),
     )
     parser.add_argument(
         "--bayesian-n-initial",
@@ -1009,6 +1013,11 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             f"invalid --bayesian-n-initial: the value must be at least 1 "
             f"(got {args.bayesian_n_initial})"
+        )
+    if args.n_jobs < 1 and args.n_jobs != -1:
+        raise ValueError(
+            f"invalid --n-jobs: the value must be at least 1, or -1 for all "
+            f"CPU cores (got {args.n_jobs})"
         )
     if args.initial_capital is not None and args.initial_capital <= 0:
         raise ValueError(

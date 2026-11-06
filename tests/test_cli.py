@@ -428,6 +428,46 @@ class TestParseArgs:
         ):
             parse_args()
 
+    def test_n_jobs_zero_is_rejected(self):
+        """A ``--n-jobs`` of zero is a usage error naming the flag.
+
+        The library coerces ``n_jobs=0`` to ``1`` (joblib convention), so the
+        value is silently accepted and the user gets a single core instead of
+        the parallelism they asked for. The check belongs in the CLI and has
+        to name the offending flag before the run starts.
+        """
+        with (
+            patch("sys.argv", ["cli.py", "--n-jobs", "0"]),
+            pytest.raises(ValueError, match="invalid --n-jobs"),
+        ):
+            parse_args()
+
+    def test_n_jobs_below_one_except_minus_one_is_rejected(self):
+        """A ``--n-jobs`` below 1 (other than -1) is a usage error.
+
+        ``-1`` is the documented joblib shorthand for "all CPU cores". Values
+        such as ``-2`` are not meaningful and would be coerced to ``1`` by the
+        library, so they are rejected up front.
+        """
+        for value in ("-2", "-5"):
+            with (
+                patch("sys.argv", ["cli.py", "--n-jobs", value]),
+                pytest.raises(ValueError, match="invalid --n-jobs"),
+            ):
+                parse_args()
+
+    def test_n_jobs_minus_one_is_accepted(self):
+        """The documented ``-1`` shorthand for all CPU cores is accepted."""
+        with patch("sys.argv", ["cli.py", "--n-jobs", "-1"]):
+            args = parse_args()
+        assert args.n_jobs == -1
+
+    def test_n_jobs_positive_is_accepted(self):
+        """A positive ``--n-jobs`` is accepted."""
+        with patch("sys.argv", ["cli.py", "--n-jobs", "4"]):
+            args = parse_args()
+        assert args.n_jobs == 4
+
 
 class TestIsSupportedInterval:
     """Tests for ``_is_supported_interval``."""
@@ -3940,6 +3980,55 @@ class TestUserErrorReporting:
         ), pytest.raises(ValueError) as exc:
             parse_args()
         assert "invalid --bayesian-n-initial" in str(exc.value)
+
+    def test_zero_n_jobs_is_reported(self, capsys):
+        """Zero ``--n-jobs`` is a usage error at the CLI level.
+
+        The library coerces ``n_jobs=0`` to ``1`` (joblib convention), so the
+        value is silently accepted and the user gets a single core instead of
+        the parallelism they asked for. The check belongs in the CLI and has
+        to name the offending flag before the run starts.
+        """
+        result, output = self._run(
+            [
+                "--optimize",
+                "--n-jobs",
+                "0",
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ],
+            capsys,
+        )
+        assert result == 1
+        assert "invalid --n-jobs" in output
+        assert "Traceback" not in output
+
+    def test_n_jobs_below_one_except_minus_one_is_reported(self, capsys):
+        """A ``--n-jobs`` below 1 (other than -1) is a usage error at the CLI level.
+
+        ``-1`` is the documented joblib shorthand for "all CPU cores". Values
+        such as ``-2`` are not meaningful and would be coerced to ``1`` by the
+        library, so they are rejected up front.
+        """
+        result, output = self._run(
+            [
+                "--optimize",
+                "--n-jobs",
+                "-2",
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ],
+            capsys,
+        )
+        assert result == 1
+        assert "invalid --n-jobs" in output
+        assert "Traceback" not in output
 
 
 if __name__ == "__main__":

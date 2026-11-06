@@ -1,19 +1,23 @@
 # Handoff to next agent
 
 ## What changed
-- `examples/cli.py` (`parse_args`): added CLI validation rejecting `--n-iter < 1` and `--bayesian-n-initial < 1` with clear usage errors naming the flags. This prevents confusing empty optimization runs (`Best score: -inf`) and invalid Bayesian initial-point counts.
+- `examples/cli.py` (`parse_args`): added CLI validation rejecting `--n-jobs < 1` (except the documented `-1` shorthand for all CPU cores) with a clear usage error naming the flag. This closes the gap flagged in the previous handoff: `--n-jobs 0` and `--n-jobs -2` were silently coerced to `1` by the library, unlike every sibling count flag (`--n-iter`, `--mc-simulations`, `--wf-windows`) which rejects `< 1`.
+- `examples/cli.py` (`--n-jobs` help): documented the `-1` shorthand and the rejection of values below 1 other than `-1`.
+- `tests/test_cli.py`: added 6 tests (4 in `TestParseArgs`, 2 in `TestUserErrorReporting`) mirroring the existing `--n-iter`/`--mc-simulations` parse/validation style.
 
 ## Verified (evidence)
-- `--n-iter 0` now exits with `Error: invalid --n-iter: the value must be at least 1 (got 0)`.
-- `ruff check examples/cli.py tests/test_cli.py` → All checks passed.
-- `mypy quant_trading/` → Success: no issues found in 37 source files.
-- `pytest tests/test_cli.py::TestParseArgs` → 43 passed.
+- `--n-jobs 0` and `--n-jobs -2` now exit with `Error: invalid --n-jobs: the value must be at least 1, or -1 for all CPU cores (got 0)` / `(got -2)`.
+- `--n-jobs -1` and `--n-jobs 4` still accepted.
+- `python -m pytest tests/test_cli.py` → 205 passed (118s).
+- `python -m pytest tests/test_readme_cli_commands.py` → 84 passed, 3 deselected (18s); README commands that inject `--n-jobs` still work.
+- `python -m ruff check examples/cli.py tests/test_cli.py` → All checks passed.
+- `python -m mypy examples/cli.py tests/test_cli.py` → Success: no issues found.
+- `python -m black --diff` shows no violations in the added code. Pre-existing black violations in untouched blocks (e.g. `--n-iter` message folding, `--bayesian-n-initial` `with` wrapping) are unchanged from the clean baseline and not part of this change.
 
 ## Unresolved
-- Bayesian optimizer unavailable in this environment (scikit-optimize not installed), so `--bayesian-n-initial` rejection was verified by parse-level behavior only.
-- `--n-jobs` still accepts 0/negative values; joblib treats -1 as all cores. Not changed; evaluate separately if needed.
+- Pre-existing black formatting violations in `examples/cli.py` and `tests/test_cli.py` exist on the clean baseline (verified via `git stash` + `black --check`) and are outside the scope of this change. Do not reformat unrelated blocks unless the project's lint gate requires it.
+- Bayesian optimizer unavailable in this environment (scikit-optimize not installed).
+- `--n-jobs` validation now mirrors the other count flags; no remaining CLI count-flag gaps identified.
 
 ## One precise next task
-Consider adding fast `TestParseArgs` tests for the new `--n-iter` and `--bayesian-n-initial` validations mirroring existing parse/validation style, then rerun targeted pytest + ruff/black/mypy.
-" filePath">
-/home/runner/work/Quantitative-Trading/Quantitative-Trading/HANDOFF_NEXT_AGENT.md
+If the project's CI enforces `black --check` on these files, run `black examples/cli.py tests/test_cli.py` and commit the resulting reformatting; then rerun `ruff`, `mypy`, and `pytest tests/test_cli.py` to confirm no regressions. Otherwise, no further action is required.
