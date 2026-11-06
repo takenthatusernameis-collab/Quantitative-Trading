@@ -3970,14 +3970,18 @@ class TestUserErrorReporting:
         assert "invalid --n-iter" in str(exc.value)
 
     def test_bayesian_n_initial_zero_is_invalid(self):
-        with patch("sys.argv", ["cli.py", "--bayesian-n-initial", "0"]), pytest.raises(ValueError) as exc:
+        with (
+            patch("sys.argv", ["cli.py", "--bayesian-n-initial", "0"]),
+            pytest.raises(ValueError) as exc,
+        ):
             parse_args()
         assert "invalid --bayesian-n-initial" in str(exc.value)
 
     def test_bayesian_n_initial_negative_is_invalid(self):
-        with patch(
-            "sys.argv", ["cli.py", "--bayesian-n-initial", "-5"]
-        ), pytest.raises(ValueError) as exc:
+        with (
+            patch("sys.argv", ["cli.py", "--bayesian-n-initial", "-5"]),
+            pytest.raises(ValueError) as exc,
+        ):
             parse_args()
         assert "invalid --bayesian-n-initial" in str(exc.value)
 
