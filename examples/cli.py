@@ -1001,6 +1001,15 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             f"invalid --wf-windows: the value must be at least 1 " f"(got {args.wf_windows})"
         )
+    if args.n_iter < 1:
+        raise ValueError(
+            f"invalid --n-iter: the value must be at least 1 " f"(got {args.n_iter})"
+        )
+    if args.bayesian_n_initial < 1:
+        raise ValueError(
+            f"invalid --bayesian-n-initial: the value must be at least 1 "
+            f"(got {args.bayesian_n_initial})"
+        )
     if args.initial_capital is not None and args.initial_capital <= 0:
         raise ValueError(
             f"invalid --initial-capital: the value must be greater than 0 "
