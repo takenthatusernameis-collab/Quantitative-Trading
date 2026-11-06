@@ -2,28 +2,31 @@
 
 ## Repository state (verified this session)
 
-All checks clean:
-- `python -m ruff check .` → All checks passed.
-- `python -m black --check .` → 141 files unchanged.
-- `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
-- `python -m pytest tests/test_cli.py -q` → 207 passed (120s).
-- `python -m pytest -q` (full suite) → 2880 passed, 15 skipped, 131 deselected.
+- `python -m pytest -q` (full suite) → 2896 passed, 1 skipped, 131 deselected.
+- `python -m pytest tests/test_cli.py -q` → 206 passed, 1 skipped.
+- `python -m ruff check tests/test_cli.py` → All checks passed.
+- `python -m black --check tests/test_cli.py` → 1 file unchanged.
 
 ## Completed this session
 
-Fixed the one user-error path in `examples/cli.py` that still produced a raw
-traceback instead of a one-line message: `ImportError` raised by an optional
-dependency (scikit-optimize for `--optimizer bayesian`) was not caught by the
-top-level `main()` handler, which only caught `OSError`/`ValueError`.
+Fixed a regression introduced by commit `ba4b9b5` (HEAD): that commit added a
+`bayesian_n_initial > n_iter` validation in `examples/cli.py:1015`, which broke
+two existing CSV-output CLI tests that pass `--n-iter 2`/`--n-iter 1` while
+leaving `--bayesian-n-initial` at its default of 10.
 
-- `examples/cli.py` (`main`): added `ImportError` to the caught exception tuple.
-- `tests/test_cli.py` (`TestUserErrorReporting`): added `test_import_error_is_reported`
-  (fast, deterministic, patches `_run_cli`) and
-  `test_bayesian_optimizer_without_skopt_is_reported` (skipped when skopt is
-  installed, runs the real `--optimizer bayesian` path).
+- `tests/test_cli.py`: added `--bayesian-n-initial 1` to
+  `test_main_optimize_output_csv` and `test_main_walk_forward_output_csv`,
+  keeping the tests fast and compatible with the new validation.
+- The validation itself was intentionally preserved (defaults `n-iter=50`,
+  `bayesian-n-initial=10`, so normal usage is unaffected).
 
 ## One precise next task
 
-No further action required unless the project's CI enforces `black --check` on
-these files, in which case run `black examples/cli.py tests/test_cli.py` and
-re-run `ruff`, `mypy`, and `pytest tests/test_cli.py` to confirm no regressions.
+No code changes are required; the repository is green. If committing is desired,
+stage `tests/test_cli.py`, re-run `ruff check .`, `black --check .`,
+`mypy quant_trading/`, and `python -m pytest -q` to confirm no regressions,
+then commit. Otherwise, mark this session complete.
+
+Note: scikit-optimize is not installed here, so the Bayesian optimizer path is
+not exercised end-to-end (its error-reporting test is skipped when skopt is
+present).

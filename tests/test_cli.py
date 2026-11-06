@@ -3683,6 +3683,8 @@ class TestCsvOutput:
                 "20,30,1",
                 "--n-iter",
                 "2",
+                "--bayesian-n-initial",
+                "1",
             ]
             with patch("sys.argv", ["cli.py"] + args):
                 result = main()
@@ -3723,6 +3725,8 @@ class TestCsvOutput:
                 "--wf-train-size",
                 "0.6",
                 "--n-iter",
+                "1",
+                "--bayesian-n-initial",
                 "1",
             ]
             with patch("sys.argv", ["cli.py"] + args):
