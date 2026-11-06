@@ -51,3 +51,6 @@ data/cache/
 
 # Kilo agent runtime and generated caches
 node_modules/
+
+# Test data caches (committed artifacts)
+tests/data/cache/
