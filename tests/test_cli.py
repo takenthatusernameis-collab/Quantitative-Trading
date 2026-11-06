@@ -2449,6 +2449,7 @@ class TestSaveStrategyConfig:
             "wf_train_size": 0.6,
             "wf_anchored": False,
             "wf_optimizer": "grid",
+            "wf_step_size": None,
             # parameter ranges consumed by create_param_grid
             "ma_fast_range": "5,20,5",
             "ma_slow_range": "20,50,5",

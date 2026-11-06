@@ -586,6 +586,19 @@ The windows are controlled with `--wf-windows` (number of windows, default 5),
 optimizer used inside each window is selected with `--wf-optimizer`
 (`grid`, `random`, or `bayesian`; default `grid`).
 
+The step between consecutive windows is controlled with `--wf-step-size`, given
+as a fraction of a window's span. It defaults to `1.0`, so the windows tile the
+requested period exactly and every sub-interval is used once. A smaller step
+overlaps the training spans of consecutive windows, which re-optimizes more
+often over the same data:
+
+```bash
+python examples/cli.py --offline --walk-forward \
+    --wf-windows 3 --wf-train-size 0.7 --wf-step-size 0.5 \
+    --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
+    --symbols AAPL --days 120
+```
+
 ### Output
 
 Save results to JSON or CSV:
@@ -651,6 +664,15 @@ simulation set and a confusing downstream failure:
 ```bash
 $ python examples/cli.py --monte-carlo --mc-simulations 0 --offline --symbols AAPL --days 30
 Error: invalid --mc-simulations: the value must be at least 1 (got 0)
+```
+
+The `--wf-step-size` argument of the walk-forward mode is checked before the
+run starts. It is a fraction of a window's span and has to be greater than
+zero, because a step of zero would keep the windows from advancing:
+
+```bash
+$ python examples/cli.py --offline --walk-forward --wf-step-size 0 --symbols AAPL --days 30
+Error: invalid --wf-step-size: the value must be greater than 0 (got 0.0)
 ```
 
 ### CLI Market Regime Analysis

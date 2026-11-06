@@ -11,31 +11,41 @@ All checks clean:
 
 ## What changed (this session)
 
-Fixed a deterministic regression left by the prior `QT_TEST_MAX_*`
-configurability commit (53847b8): the env-var overrides were read into
-locals but never wired into the cap logic, so the caps stayed hardcoded at
-`25`/`5` (Bayesian) and `60` (GridSearch) regardless of the env vars.
+Closed a genuine user-facing gap: `WalkForwardOptimizer.step_size` was a
+documented constructor parameter (with its own test,
+`test_walk_forward_step_size_override`) but had no CLI flag, so users could
+not control the step between walk-forward windows from the command line.
+Added `--wf-step-size` end to end.
 
-Files touched (logic fix only, no behavior change for non-test invocations):
-- `quant_trading/optimization/grid_search.py`: `random.sample(combinations, 60)`
-  → `random.sample(combinations, _cap)` so `QT_TEST_MAX_GRID_COMBINATIONS` is honored.
-- `quant_trading/optimization/bayesian.py`: `_n_calls_cap`/`_n_init_cap` were dead
-  locals; the cap branches hardcoded `25`/`5`. Rewired to use the env vars
-  (`n_calls_cap`/`n_init_cap`), so `QT_TEST_MAX_BAYESIAN_CALLS` and
-  `QT_TEST_MAX_BAYESIAN_INIT` are honored.
-- `tests/test_optimization.py`: added four cap tests (one per env var override)
-  plus one that unsets `PYTEST_CURRENT_TEST` to cover the non-pytest branch
-  (`305->313`), restoring 100% branch coverage.
+Files touched (logic + docs + test-mirror only):
+- `examples/cli.py`: new `--wf-step-size` flag (default `None` → library
+  default `1.0`), validation rejecting values `<= 0`, printed in the
+  walk-forward summary, forwarded to `WalkForwardOptimizer(step_size=...)`,
+  and serialized as `step_size` in the JSON output.
+- `README.md`: documented `--wf-step-size` in the "Walk-Forward Optimization"
+  section with a runnable command, and added an error-reporting example
+  (`--wf-step-size 0` → exit 1, one-line message) to the "Error Reporting"
+  section.
+- `tests/test_readme_cli_commands.py`: registered the new error example in
+  `_expects_failure` so the auto-extracted README command suite exercises it.
+- `tests/test_cli.py`: added `wf_step_size: None` to the `TestSaveStrategyConfig`
+  namespace mirror (the helper builds a hand-rolled `argparse.Namespace` that
+  must match the parser's attributes).
 
 ## What was verified (this session)
 
-- `python -m pytest tests/test_optimization.py -q` → 120 passed (6.05s).
-- `python -m pytest -q` → 2860 passed, 131 deselected in 166.22s.
+- `python -m pytest tests/test_readme_cli.py tests/test_readme_cli_commands.py
+  tests/test_optimization.py -q` → 206 passed, 3 deselected.
+- `python -m pytest -q` → 2860 passed, 131 deselected in 112.48s.
 - `python -m pytest --cov=quant_trading --cov-report=term-missing -q` →
   6993 stmts, 0 miss, 2382 branches, 0 partial → 100% coverage.
 - `python -m ruff check .` → All checks passed.
 - `python -m black --check .` → 141 files unchanged.
 - `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
+- Manual end-to-end: `--walk-forward --wf-step-size 0.5` prints
+  `Step size: 0.50` and completes exit 0; `--wf-step-size 0` exits 1 with
+  `Error: invalid --wf-step-size: the value must be greater than 0 (got 0.0)`
+  and no traceback.
 - `.github/scripts/test_kilo_progress.sh` → smoke + non-fatal state-write OK;
   `bash -n` clean on `kilo-controller.sh`, `kilo-progress.sh`,
   `test_kilo_progress.sh`.
@@ -48,15 +58,15 @@ Files touched (logic fix only, no behavior change for non-test invocations):
 
 ## Approaches that failed and why
 
-- Trusting the prior session's claim that the env-var configurability was
-  wired in: `python -m pytest --cov=quant_trading --cov-report=term-missing -q`
-  dropped coverage to 99% (6 miss, 4 partial branches) and revealed the dead
-  locals in `bayesian.py` and the hardcoded `60` in `grid_search.py`. Lesson:
-  run the coverage gate after any change that adds env-var reads; dead locals
-  are invisible to ruff/black/mypy but obvious to coverage.
-- Covering the `PYTEST_CURRENT_TEST` False branch is impossible while pytest
-  itself sets the var, so the test must `monkeypatch.delenv("PYTEST_CURRENT_TEST")`
-  to exercise it.
+- The first full-suite run surfaced one regression: `tests/test_cli.py`
+  `TestSaveStrategyConfig.test_walk_forward_saves_last_window_params_config`
+  failed with `AttributeError: 'Namespace' object has no attribute 'wf_step_size'`.
+  The test builds a hand-rolled namespace (not the real parser), so it had to
+  be mirrored explicitly. Fixed by adding the attribute to the helper's base
+  dict; this is the same pattern already used for `wf_windows`, `wf_train_size`,
+  etc. Lesson: when adding a parser attribute, check every hand-rolled
+  `argparse.Namespace` mirror in the tests, not just the parser itself.
+- No approach was retried: the fix was deterministic and the rerun was green.
 
 ## One precise next task
 
@@ -64,15 +74,15 @@ Files touched (logic fix only, no behavior change for non-test invocations):
   `python -m black --check .`, `python -m mypy quant_trading/`, and
   `python -m pytest --cov=quant_trading --cov-report=term-missing -q` to confirm
   the tree is still green, then select a new bounded task.
-- Candidate directions: document more of the remaining undocumented but
-  user-facing CLI flags (e.g. `--rsi-period`, `--macd-fast`, `--stoch-k-period`,
-  `--mc-method`, `--mc-confidence`, `--mc-seed`), each verified to run
-  end-to-end under the mocked-network harness; or extend CLI/README coverage
-  for an under-documented feature.
+- Candidate directions: look outside the walk-forward surface for the next
+  under-documented user-facing flag or behavior gap (e.g. other optimizer,
+  regime, or trade-analysis parameters that exist in code but not in the
+  README); verify any candidate end-to-end under the mocked-network harness
+  before changing.
 - Constraints: Do not modify tests to make them pass. Keep changes minimal and
   reversible. The `tests/test_readme_cli.py` and `tests/test_readme_cli_commands.py`
   guards enforce bidirectional consistency between the README CLI section and
   the live parser; any newly documented flag must be a real parser flag and
   its command must exit 0 (or 1 for documented error cases) with no traceback.
 
-(End of file - total 104 lines)
+(End of file - total 108 lines)

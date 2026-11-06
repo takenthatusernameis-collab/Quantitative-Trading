@@ -778,6 +778,15 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Inner walk-forward optimizer: grid, random, or bayesian",
     )
     parser.add_argument(
+        "--wf-step-size",
+        type=float,
+        default=None,
+        help=(
+            "Step size between windows as a fraction of a window's span "
+            "(default: 1.0, so the windows tile the requested period)"
+        ),
+    )
+    parser.add_argument(
         "--fast-period",
         type=int,
         default=CLI_ARG_DEFAULTS["fast_period"],
@@ -982,6 +991,11 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             f"invalid --wf-train-size: the value must be in the range (0, 1) "
             f"(got {args.wf_train_size})"
+        )
+    if args.wf_step_size is not None and args.wf_step_size <= 0:
+        raise ValueError(
+            f"invalid --wf-step-size: the value must be greater than 0 "
+            f"(got {args.wf_step_size})"
         )
     if args.initial_capital is not None and args.initial_capital <= 0:
         raise ValueError(
@@ -1803,6 +1817,9 @@ def run_walk_forward(
     print(f"Train size: {args.wf_train_size:.0%}")
     print(f"Anchored: {args.wf_anchored}")
     print(f"Inner optimizer: {args.wf_optimizer}")
+    step_size = args.wf_step_size
+    if step_size is not None:
+        print(f"Step size: {step_size:.2f}")
     print(f"Objective: {args.objective}")
     if config.data.offline:
         print("Mode: OFFLINE (synthetic data)")
@@ -1834,6 +1851,7 @@ def run_walk_forward(
         config=config,
         n_windows=args.wf_windows,
         train_size=args.wf_train_size,
+        step_size=args.wf_step_size,
         anchored=args.wf_anchored,
         optimizer=args.wf_optimizer,
         optimizer_kwargs=optimizer_kwargs,
@@ -1884,6 +1902,7 @@ def run_walk_forward(
             "walk_forward": {
                 "n_windows": args.wf_windows,
                 "train_size": args.wf_train_size,
+                "step_size": args.wf_step_size,
                 "anchored": args.wf_anchored,
             },
             "objective": args.objective,

@@ -94,6 +94,7 @@ def _expects_failure(args: list[str]) -> bool:
         or "--mc-simulations 0" in text
         or "--ma-fast-range 5,20,0" in text
         or "--config missing.yaml" in text
+        or "--wf-step-size 0" in text
     )
 
 
