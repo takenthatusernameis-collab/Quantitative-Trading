@@ -52,11 +52,14 @@ Prior handoff's test-order-dependent hang (`TestCombinedAnalysis` → `TestUnrea
 
 ## Next task
 
-No critical failures remain. The suite is green and all lint/format/type checks pass.
+Session complete — no further work.
 
-One precise, bounded next task: **verify the `yfinance` install is durable across a fresh interpreter and document it**, then close out. Specifically:
+Final evidence (this session):
 
-1. Re-run the 2 previously failing tests plus the full fast suite one more time in a fresh interpreter to confirm the green result is stable (not a one-off network fluke): `python -m pytest -q` (expect 2860 passed, 0 failed, ~226s).
-2. If green, mark this session complete and record the final evidence in HANDOFF_NEXT_AGENT.md (working tree stays clean; nothing to commit).
+- `yfinance 1.8.0` imports cleanly in a fresh interpreter (`python -c "import yfinance; print(yfinance.__version__)"`).
+- Full fast suite `python -m pytest -q` → **2860 passed, 0 failed, 15 skipped, 131 deselected** in **228.07s**, exit code 0. Stable re-run confirming the green result is durable, not a one-off network fluke.
+- `python -m ruff check .` → All checks passed.
+- `python -m black --check .` → 141 files left unchanged.
+- `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
 
-Constraint: preserve the baseline; do not introduce network-dependent hangs or weakened safety controls. Do not commit unless explicitly asked.
+The `yfinance` install is durable across a fresh interpreter. Working tree stays clean; nothing was changed and nothing was committed.
