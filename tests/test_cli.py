@@ -3218,6 +3218,47 @@ class TestCombinedAnalysis:
         assert data["regime_analysis"]["periods_per_year"] == 252
         assert data["regime_analysis"]["segments"] is not None
 
+    def test_main_combined_monte_carlo_uses_the_configured_risk_free_rate(self, capsys):
+        """The combined Monte Carlo block follows the risk-free rate of the run.
+
+        The Monte Carlo simulator computes the Sharpe/Sortino of the simulated
+        curves with the rate it is given, so a run that overrides
+        ``--risk-free-rate`` must reach the combined Monte Carlo block too.
+        """
+        outputs = []
+        for rate in ("0.0", "0.05"):
+            args = [
+                "--combined",
+                "--offline",
+                "--monte-carlo",
+                "--mc-simulations",
+                "20",
+                "--mc-seed",
+                "42",
+                "--risk-free-rate",
+                rate,
+                "--symbols",
+                "AAPL",
+                "--days",
+                "365",
+            ]
+            with patch("sys.argv", ["cli.py"] + args):
+                result = main()
+            assert result == 0
+            outputs.append(capsys.readouterr().out)
+
+        def _mc_sharpe_mean(output: str) -> float:
+            """Return the Mean column of the simulated sharpe_ratio row."""
+            for line in output.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("sharpe_ratio"):
+                    tokens = stripped.split()
+                    if len(tokens) >= 2:
+                        return float(tokens[1])
+            raise AssertionError("no simulated sharpe_ratio in the output")
+
+        assert _mc_sharpe_mean(outputs[0]) != _mc_sharpe_mean(outputs[1])
+
 
 class TestUnrealizedPnlReporting:
     """The CLI reports the realized and the unrealized PnL of the run.

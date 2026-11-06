@@ -1975,14 +1975,18 @@ def _print_regime_analysis(analysis) -> None:
             )
 
 
-def _get_monte_carlo_analysis(result, args: argparse.Namespace, periods_per_year: int = 252):
+def _get_monte_carlo_analysis(
+    result, args: argparse.Namespace, periods_per_year: int = 252, risk_free_rate: float = 0.02
+):
     """Get Monte Carlo simulation results for a backtest's equity curve.
 
     Args:
-        result: Backtest result whose equity curve is resampled.
+        result: BacktestResult whose equity curve is resampled.
         args: Parsed CLI arguments.
         periods_per_year: Trading periods per year of the resampled returns,
             used to annualize the simulated metrics.
+        risk_free_rate: Annual risk-free rate used for the simulated
+            Sharpe/Sortino metrics (default 0.02).
 
     """
     mc = run_monte_carlo(
@@ -1992,6 +1996,7 @@ def _get_monte_carlo_analysis(result, args: argparse.Namespace, periods_per_year
         method=args.mc_method,
         random_state=args.mc_seed,
         periods_per_year=periods_per_year,
+        risk_free_rate=risk_free_rate,
     )
     # Store method for printing
     try:
@@ -2210,7 +2215,10 @@ def _run_cli() -> int:
 
         if args.monte_carlo:
             mc_analysis = _get_monte_carlo_analysis(
-                result, args, periods_per_year=config.backtest.periods_per_year
+                result,
+                args,
+                periods_per_year=config.backtest.periods_per_year,
+                risk_free_rate=config.backtest.risk_free_rate,
             )
             _print_monte_carlo_analysis(mc_analysis)
 
@@ -2378,7 +2386,10 @@ def run_combined(
             _print_regime_analysis(regime_analysis)
         if wants_monte_carlo:
             mc_analysis = _get_monte_carlo_analysis(
-                best_result, args, periods_per_year=config.backtest.periods_per_year
+                best_result,
+                args,
+                periods_per_year=config.backtest.periods_per_year,
+                risk_free_rate=config.backtest.risk_free_rate,
             )
             _print_monte_carlo_analysis(mc_analysis)
         if wants_trade_analysis:

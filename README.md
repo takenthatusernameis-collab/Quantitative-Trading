@@ -1483,6 +1483,17 @@ Override the simulation parameters:
 python examples/cli.py --offline --monte-carlo --mc-simulations 500 --mc-method parametric --mc-confidence 0.99 --mc-seed 7
 ```
 
+The simulated Sharpe and Sortino are computed with the risk-free rate of the
+run, so they are consistent with the Sharpe of the backtest itself. Pass the
+rate explicitly to compute them with a different one:
+
+```python
+mc = run_monte_carlo(result, risk_free_rate=0.05)
+```
+
+The CLI takes the rate from the run, so `--risk-free-rate` moves the backtest
+Sharpe and the simulated Sharpe together.
+
 ## Trade Analysis
 
 Detailed trade-level analysis including PnL statistics, holding periods, consecutive win/loss streaks, monthly/weekly returns, and per-symbol breakdowns.
