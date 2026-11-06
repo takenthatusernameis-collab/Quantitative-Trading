@@ -273,6 +273,12 @@ class TestParseArgs:
         ):
             parse_args()
 
+    def test_mc_confidence_one_is_accepted(self):
+        """The upper boundary ``--mc-confidence`` of 1.0 is accepted."""
+        with patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-confidence", "1.0"]):
+            args = parse_args()
+        assert args.mc_confidence == 1.0
+
     def test_wf_train_size_at_or_above_one_is_rejected(self):
         """A ``--wf-train-size`` at or above 1 is a usage error naming the flag.
 
@@ -322,6 +328,12 @@ class TestParseArgs:
         ):
             parse_args()
 
+    def test_commission_zero_is_accepted(self):
+        """A ``--commission`` of zero (no commission) is accepted."""
+        with patch("sys.argv", ["cli.py", "--commission", "0"]):
+            args = parse_args()
+        assert args.commission == 0.0
+
     def test_slippage_negative_is_rejected(self):
         """A negative ``--slippage`` is a usage error naming the flag."""
         with (
@@ -329,6 +341,12 @@ class TestParseArgs:
             pytest.raises(ValueError, match="invalid --slippage"),
         ):
             parse_args()
+
+    def test_slippage_zero_is_accepted(self):
+        """A ``--slippage`` of zero (no slippage) is accepted."""
+        with patch("sys.argv", ["cli.py", "--slippage", "0"]):
+            args = parse_args()
+        assert args.slippage == 0.0
 
     def test_unsupported_interval_is_rejected(self):
         """An unsupported ``--interval`` is a usage error naming the flag."""
