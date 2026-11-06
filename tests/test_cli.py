@@ -287,6 +287,15 @@ class TestParseArgs:
         ):
             parse_args()
 
+    def test_wf_train_size_zero_or_negative_is_rejected(self):
+        """A ``--wf-train-size`` of zero or below is a usage error naming the flag."""
+        for value in ("0", "-0.1"):
+            with (
+                patch("sys.argv", ["cli.py", "--walk-forward", "--wf-train-size", value]),
+                pytest.raises(ValueError, match="invalid --wf-train-size"),
+            ):
+                parse_args()
+
     def test_wf_step_size_non_positive_is_rejected(self):
         """A ``--wf-step-size`` of zero or below is a usage error naming the flag."""
         for value in ("0", "-1"):

@@ -2,66 +2,56 @@
 
 ## What changed
 
-The assigned task from the prior handoff (add fast CLI validation unit tests for
-`--wf-step-size`, `--initial-capital`, `--commission`, `--slippage` in
-`tests/test_cli.py`) was ALREADY complete in the committed baseline
-(tests/test_cli.py:290-322), verified here: all 32 `TestParseArgs` tests pass.
+Extended fast CLI validation coverage in `tests/test_cli.py::TestParseArgs`
+(mirroring existing `patch("sys.argv", ...)` + `pytest.raises(ValueError,
+match="invalid --<flag>")` style):
 
-I extended the same coverage to the one remaining `parse_args()` validation
-that lacked a fast unit test: `--interval` with an unsupported value raises
-`invalid --interval` (examples/cli.py:979-984). Added, mirroring the existing
-style (patch("sys.argv", [...]) + pytest.raises(ValueError, match=...)):
+- `test_wf_train_size_zero_or_negative_is_rejected` — `--wf-train-size 0` and
+  `-0.1` → `ValueError` matching `invalid --wf-train-size`
+  (covers the lower-bound branch of the existing `(0, 1)` check at
+  `examples/cli.py:990-994`).
 
-- `test_unsupported_interval_is_rejected` — `--interval 3x` → ValueError
-  matching `invalid --interval`.
-- `test_supported_interval_is_accepted` — `--interval 1wk` accepted.
-
-No production code was modified. Working tree contains only the two new tests
-in tests/test_cli.py.
+No production code modified.
 
 ## Verified (evidence)
 
-- `python -m pytest "tests/test_cli.py::TestParseArgs" -q` → 32 passed (was
-  30; +2 new interval tests), 0 failed, 0.57s.
+- `python -m pytest "tests/test_cli.py::TestParseArgs" -q` → **33 passed**
+  (was 32), 0 failed, 0.40s.
+- `python -m pytest "tests/test_cli.py::TestCombinedAnalysis" "tests/test_cli.py::TestUnrealizedPnlReporting" -q`
+  → **8 passed**, 106.92s (no hang; the pair reported as hanging in the prior
+  handoff completed here).
+- `python -m pytest tests/test_cli.py -q` → **184 passed**, 118.79s (no hang).
 - `python -m ruff check .` → All checks passed.
-- `python -m black --check tests/test_cli.py` → 1 file unchanged.
+- `python -m black --check .` → 141 files would be left unchanged.
 - `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
 
 ## Unresolved
 
-- `tests/test_cli.py` full run HANGS (>180s, no completion) even though every
-  test class passes in isolation. Root cause located: test-order pollution.
-  `TestCombinedAnalysis → TestUnrealizedPnlReporting` hangs; reversed order
-  passes; each class alone passes. `TestCombinedAnalysis` (runs `main()`
-  backtests) leaks global state that poisons `TestUnrealizedPnlReporting`'s
-  real offline backtest (tests/test_cli.py:3427 runs `main()` with
-  `--offline --symbols AAPL --days 120`). Last test before the hang:
-  `TestCombinedAnalysis::test_main_combined_monte_carlo_uses_the_configured_risk_free_rate`
-  (~87%). Precise repro for the next agent:
-    `python -m pytest "tests/test_cli.py::TestCombinedAnalysis" "tests/test_cli.py::TestUnrealizedPnlReporting" -q`  → hangs after CombinedAnalysis's 4 tests.
-  Fix likely: restore whatever global/module state `TestCombinedAnalysis`
-  mutates (e.g. a patched attribute, registry entry, or env var) via a fixture
-  or finalizer, so later real-backtest tests are not affected.
+- Prior handoff reported a test-order-dependent hang:
+  `TestCombinedAnalysis` leaking global state that poisons
+  `TestUnrealizedPnlReporting` (full `tests/test_cli.py` >180s). **Not
+  reproducible in this session**: the exact repro pair and the full file both
+  pass (see evidence above). If this reappears, reproduce with
+  `python -m pytest "tests/test_cli.py::TestCombinedAnalysis" "tests/test_cli.py::TestUnrealizedPnlReporting" -q`
+  and inspect `TestCombinedAnalysis` (`tests/test_cli.py:3267`) for leaked
+  module/global/patch state (registry, env vars, unscoped `patch`, logging,
+  matplotlib, random seeds) and restore it via fixture/finalizer.
+- Full fast suite (`python -m pytest -q`, ~2874 collected) was not
+  re-run to completion in this session (long-running; partial runs timed out
+  at shell/tool limits). `tests/test_cli.py` and static checks are green.
 
-## Approaches already tried
+## Approaches already tried (this session)
 
-- Ran each test class in isolation with a 60s timeout — all pass
-  (TestRunCombined 12s, TestCsvOutput 8s, rest ≤1s).
-- Bisected classes: tail classes (UnrealizedPnl + CsvOutput + UserError)
-  pass together (21 passed, 8.23s); `CombinedAnalysis → UnrealizedPnl` hangs;
-  `UnrealizedPnl → CombinedAnalysis` passes. Confirms order-dependent leak
-  originating in TestCombinedAnalysis.
-- Did NOT attempt the fix (rabbit-hole risk); handed off with exact repro.
+- Ran `TestParseArgs`, the reported hang pair, and full `tests/test_cli.py` —
+  all passed; no hang observed. Did not make speculative state-restoration
+  changes to `TestCombinedAnalysis` without a reproducible failure.
 
 ## Next task
 
-Precise: find and fix the test-order-dependent hang in `tests/test_cli.py`
-where `TestCombinedAnalysis` leaks global state that poisons
-`TestUnrealizedPnlReporting` (and possibly later classes). Inspect
-`TestCombinedAnalysis` (tests/test_cli.py:3123) for module/global/patch state it
-leaks (e.g. a `patch` that isn't scoped, a mutated registry, an env var), restore
-it, then verify the full `python -m pytest tests/test_cli.py -q` completes
-(rather than hanging >180s). Also re-run `ruff check .`, `black --check .`,
-`mypy quant_trading/` after the fix.
-
-(End of file)
+Precise, bounded: run the full fast test suite to confirm no regressions
+beyond `tests/test_cli.py`:
+`python -m pytest -q` (default config deselects `slow`/`network`; expect
+~2874 tests). If it hangs or fails, bisect to the offending module/test and
+fix with the smallest verifiable change (preserve baseline; after 5
+consecutive failures on the same root cause, change approach per rules).
+Record evidence (pass count/time or failure/hang repro) in the handoff.
