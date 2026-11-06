@@ -4078,6 +4078,45 @@ class TestUserErrorReporting:
         assert "scikit-optimize" in output
         assert "Traceback" not in output
 
+    @pytest.mark.skipif(
+        not _module_available("skopt"),
+        reason="scikit-optimize (skopt) is required to run the bayesian optimizer",
+    )
+    def test_bayesian_optimizer_runs_cleanly_with_skopt(self, capsys):
+        """``--optimizer bayesian`` with scikit-optimize installed completes cleanly.
+
+        The end-to-end path (optimizer constructor, search loop, result
+        reporting) must exit 0 with no traceback when scikit-optimize is
+        available. Ranges and iteration counts are kept tiny so the test runs
+        in a few seconds.
+        """
+        result, output = self._run(
+            [
+                "--optimize",
+                "--strategy",
+                "ma",
+                "--optimizer",
+                "bayesian",
+                "--ma-fast-range",
+                "5,15,5",
+                "--ma-slow-range",
+                "20,30,10",
+                "--bayesian-n-initial",
+                "3",
+                "--n-iter",
+                "6",
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ],
+            capsys,
+        )
+        assert result == 0
+        assert "Optimization Complete" in output
+        assert "Traceback" not in output
+
     def test_import_error_is_reported(self, capsys):
         """An ``ImportError`` raised while running is a one-line message.
 

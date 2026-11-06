@@ -2,28 +2,41 @@
 
 ## Repository state (verified this session)
 
-All checks clean:
-- `python -m ruff check .` → All checks passed.
-- `python -m black --check .` → 141 files unchanged.
-- `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
-- `python -m pytest tests/test_cli.py -q` → 207 passed (120s).
-- `python -m pytest -q` (full suite) → 2880 passed, 15 skipped, 131 deselected.
+- scikit-optimize 0.10.2 IS installed (resolves the prior handoff's "unresolved"
+  item: the Bayesian optimizer was untested end-to-end only because skopt was
+  missing).
+- `examples/cli.py` is unchanged from the prior handoff (the `ImportError`
+  → one-line-message guard is already in place).
+- `tests/test_cli.py`: added `test_bayesian_optimizer_runs_cleanly_with_skopt`
+  (end-to-end real `--optimizer bayesian` path, guarded for skopt). It passes.
+- `tests/test_optimization.py -k bayesian` → 14 passed.
+- End-to-end CLI `--optimizer bayesian` → exit 0, no traceback.
+- `ruff check` / `black --check` / `mypy` on changed files → clean.
 
-## Completed this session
-
-Fixed the one user-error path in `examples/cli.py` that still produced a raw
-traceback instead of a one-line message: `ImportError` raised by an optional
-dependency (scikit-optimize for `--optimizer bayesian`) was not caught by the
-top-level `main()` handler, which only caught `OSError`/`ValueError`.
-
-- `examples/cli.py` (`main`): added `ImportError` to the caught exception tuple.
-- `tests/test_cli.py` (`TestUserErrorReporting`): added `test_import_error_is_reported`
-  (fast, deterministic, patches `_run_cli`) and
-  `test_bayesian_optimizer_without_skopt_is_reported` (skipped when skopt is
-  installed, runs the real `--optimizer bayesian` path).
+## Pre-existing failures (not caused by this session; on clean baseline too)
+- `tests/test_cli.py::TestCsvOutput::test_main_optimize_output_csv`
+- `tests/test_cli.py::TestCsvOutput::test_main_walk_forward_output_csv`
+Both pass `--n-iter 1` with the default `--bayesian-n-initial` of 10, tripping
+the `bayesian_n_initial <= n_iter` validation at `examples/cli.py:1015`
+("got 10 > 1"). Confirmed pre-existing via `git stash`.
+- Full `pytest tests/test_cli.py`: 205 passed, 1 skipped, 2 failed (the two
+  above).
 
 ## One precise next task
 
-No further action required unless the project's CI enforces `black --check` on
-these files, in which case run `black examples/cli.py tests/test_cli.py` and
-re-run `ruff`, `mypy`, and `pytest tests/test_cli.py` to confirm no regressions.
+Fix the 2 pre-existing `TestCsvOutput` failures so the CLI suite is green:
+- `tests/test_cli.py::TestCsvOutput::test_main_optimize_output_csv`
+- `tests/test_cli.py::TestCsvOutput::test_main_walk_forward_output_csv`
+
+Smallest fix: add `--bayesian-n-initial 1` to those two test invocations
+(valid since `--n-iter 1` and `n_initial <= n_iter`). Do not modify the
+`examples/cli.py` validation unless evidence shows the test invocations are
+intentional.
+
+After fixing, verify:
+- `pytest tests/test_cli.py` → green
+- `ruff check examples/cli.py tests/test_cli.py`
+- `black --check examples/cli.py tests/test_cli.py`
+- `mypy examples/cli.py tests/test_cli.py`
+
+Then prepare the next handoff.
