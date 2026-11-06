@@ -6,26 +6,24 @@ All checks clean:
 - `python -m ruff check .` → All checks passed.
 - `python -m black --check .` → 141 files unchanged.
 - `python -m mypy quant_trading/` → Success: no issues found in 37 source files.
-- `python -m pytest tests/test_cli.py -q` → 179 passed.
+- `python -m pytest tests/test_cli.py -q` → 207 passed (120s).
+- `python -m pytest -q` (full suite) → 2880 passed, 15 skipped, 131 deselected.
 
 ## Completed this session
 
-Added fast unit tests in tests/test_cli.py for CLI user-error validations
-that existed in parse_args() (examples/cli.py:970-1013) but were only covered
-by slow subprocess smoke tests:
+Fixed the one user-error path in `examples/cli.py` that still produced a raw
+traceback instead of a one-line message: `ImportError` raised by an optional
+dependency (scikit-optimize for `--optimizer bayesian`) was not caught by the
+top-level `main()` handler, which only caught `OSError`/`ValueError`.
 
-- --mc-confidence above 1 or equal to 0 → "invalid --mc-confidence"
-- --wf-train-size at/above 1 or equal to 0 → "invalid --wf-train-size"
-
-No production code changed. Working tree contains only the tests/test_cli.py
-addition.
+- `examples/cli.py` (`main`): added `ImportError` to the caught exception tuple.
+- `tests/test_cli.py` (`TestUserErrorReporting`): added `test_import_error_is_reported`
+  (fast, deterministic, patches `_run_cli`) and
+  `test_bayesian_optimizer_without_skopt_is_reported` (skipped when skopt is
+  installed, runs the real `--optimizer bayesian` path).
 
 ## One precise next task
 
-Extend the fast CLI validation test coverage in tests/test_cli.py to the
-remaining parse_args() validations that still lack fast unit tests:
---wf-step-size (<= 0), --initial-capital (<= 0), --commission (< 0), and
---slippage (< 0). Each test should use patch("sys.argv", [...]) +
-pytest.raises(ValueError, match="invalid --<flag>"), mirroring the tests just
-added and the existing test_mc_simulations_* style. Verify with
-tests/test_cli.py plus ruff/black/mypy.
+No further action required unless the project's CI enforces `black --check` on
+these files, in which case run `black examples/cli.py tests/test_cli.py` and
+re-run `ruff`, `mypy`, and `pytest tests/test_cli.py` to confirm no regressions.

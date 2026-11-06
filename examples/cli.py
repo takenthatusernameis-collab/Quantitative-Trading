@@ -2103,7 +2103,7 @@ def main() -> int:
     """
     try:
         return _run_cli()
-    except (OSError, ValueError) as e:
+    except (ImportError, OSError, ValueError) as e:
         print(f"Error: {e}")
         return 1
     except SystemExit as e:

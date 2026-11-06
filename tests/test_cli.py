@@ -1,6 +1,7 @@
 """Tests for CLI functionality."""
 
 import argparse
+import importlib.util
 import json
 import tempfile
 from unittest.mock import MagicMock, patch
@@ -33,6 +34,14 @@ from quant_trading.strategies.examples import (
     SuperTrendStrategy,
     VWAPStrategy,
 )
+
+
+def _module_available(name: str) -> bool:
+    """Return True if a top-level module can be imported."""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
 
 
 class TestParseArgs:
@@ -4032,6 +4041,60 @@ class TestUserErrorReporting:
         )
         assert result == 1
         assert "invalid --n-jobs" in output
+        assert "Traceback" not in output
+
+    @pytest.mark.skipif(
+        _module_available("skopt"),
+        reason="only relevant when scikit-optimize is not installed",
+    )
+    def test_bayesian_optimizer_without_skopt_is_reported(self, capsys):
+        """``--optimizer bayesian`` without scikit-optimize is a clean message.
+
+        The library raises ``ImportError`` from the optimizer constructor with
+        an install hint. The CLI must surface that as a one-line error and exit
+        code 1 instead of a traceback, matching how every other user error is
+        reported.
+        """
+        result, output = self._run(
+            [
+                "--optimize",
+                "--strategy",
+                "ma",
+                "--optimizer",
+                "bayesian",
+                "--ma-fast-range",
+                "5,15,5",
+                "--ma-slow-range",
+                "20,30,10",
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ],
+            capsys,
+        )
+        assert result == 1
+        assert "scikit-optimize" in output
+        assert "Traceback" not in output
+
+    def test_import_error_is_reported(self, capsys):
+        """An ``ImportError`` raised while running is a one-line message.
+
+        An optional dependency that is not installed (for example
+        scikit-optimize for ``--optimizer bayesian``) raises ``ImportError``
+        deep in the optimizer constructor. Without this guard the user gets a
+        raw traceback instead of the install hint the library already prints.
+        """
+        from examples import cli as cli_module
+
+        def _raise_import_error():
+            raise ImportError("BayesianOptimizer requires scikit-optimize")
+
+        with patch.object(cli_module, "_run_cli", _raise_import_error):
+            result, output = self._run(["--offline", "--symbols", "AAPL", "--days", "30"], capsys)
+        assert result == 1
+        assert "scikit-optimize" in output
         assert "Traceback" not in output
 
 
