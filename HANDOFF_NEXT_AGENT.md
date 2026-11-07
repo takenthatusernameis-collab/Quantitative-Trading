@@ -3,12 +3,12 @@
 ## What changed (this session)
 - No source or test changes. Working tree is clean; the prior agent's
   `tests/test_packaging.py` (committed at HEAD `8a35893`) remains in place.
-- This session was independent verification/inspection only. No speculative
-  change was made.
+- This session was independent verification only. No speculative change was
+  made.
 
 ## Verified (this session)
-- `git status` → clean; `git log -1 --oneline` → `d739d45`; branch `main`
-  up to date with `origin/main`. No open issues or PRs on the remote.
+- `git status` → clean; branch `main` up to date with `origin/main`; HEAD
+  commit `a2ccd13`. No open issues or PRs on the remote.
 - `python3 -m ruff check .` → **All checks passed**.
 - `python3 -m mypy quant_trading/` → **Success: no issues found in 37 source
   files**.
@@ -16,22 +16,10 @@
   `python3 -m pytest tests/test_packaging.py tests/test_strategy_factory.py
   tests/test_strategy_registry_coverage.py tests/test_readme.py
   tests/test_readme_cli.py tests/test_readme_cli_commands.py -q` →
-  **146 passed, 3 deselected** (~37s).
-- Strategy registry ↔ README ↔ examples ↔ test classes all stay in sync:
-  46 primary keys, 108 total keys (with aliases); README registry table,
-  aliases, example-script references, and `Test<ClassName>` coverage all
-  reconcile with the live registry.
-- Probed `--output-strategy-config` roundtrip: a regular backtest, an
-  optimization, and a `--strategy-config` run all write a YAML that
-  re-creates the same strategy (verified `type`/`name`/`parameters` round
-  trip). The README's claim that it writes "the configuration of the
-  strategy that was run" holds.
-- Probed combined-mode JSON shape: `--combined` alone emits
-  `{best_strategy, comparison}`; adding `--regime --monte-carlo` adds
-  `monte_carlo` and `regime_analysis` at the top level. Matches the README.
-- Probed `--strategy-config` precedence: it overrides `--strategy` and every
-  individual `--*-period`/`--*-multiplier` flag for the same parameter, as
-  the README documents.
+  **146 passed, 3 deselected** (~36s).
+- Previously probed README claims (registry ↔ README ↔ examples sync,
+  `--output-strategy-config` roundtrip, combined-mode JSON shape,
+  `--strategy-config` precedence) remain valid; no drift found.
 
 ## Unresolved
 - No user-assigned feature/bug/refactor request was provided in this session.
@@ -53,7 +41,7 @@
   (`python3 -m pytest tests/test_packaging.py tests/test_strategy_factory.py
   tests/test_strategy_registry_coverage.py tests/test_readme.py
   tests/test_readme_cli.py tests/test_readme_cli_commands.py -q`; 146 passed,
-  37s) as a smoke check and only open a new task if a concrete gap/bug is
+  ~36s) as a smoke check and only open a new task if a concrete gap/bug is
   reported. Do not refactor speculatively.
 
 Notes for the next session:
