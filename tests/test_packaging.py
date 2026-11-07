@@ -4,6 +4,11 @@ from pathlib import Path
 
 import quant_trading
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib  # type: ignore[import-not-found,no-redef]
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -24,3 +29,11 @@ class TestTypingMarker:
         """PEP 561 recommends the Typing :: Typed trove classifier."""
         pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         assert '"Typing :: Typed"' in pyproject
+
+
+class TestPackageVersion:
+    """Version metadata should stay consistent across package and build config."""
+
+    def test_package_version_matches_pyproject(self):
+        pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        assert quant_trading.__version__ == pyproject["project"]["version"]
