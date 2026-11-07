@@ -38,6 +38,9 @@ bayesian = [
 where = ["."]
 include = ["quant_trading*"]
 
+[tool.setuptools.package-data]
+quant_trading = ["py.typed"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests", "quant_trading"]
 addopts = "--doctest-modules -m \"not slow and not network\""
