@@ -1930,53 +1930,6 @@ python examples/cli.py --offline --interval 1wk
 python examples/cli.py --offline --interval 1wk --periods-per-year 52
 ```
 
-
-For an Aroon demonstration using the Aroon indicator (Aroon Up and Aroon Down),
-see `examples/run_aroon.py`. It runs the `AroonStrategy` against seeded
-synthetic data, generating buy signals when Aroon Up crosses above Aroon Down
-and sell signals when Aroon Down crosses above Aroon Up:
-
-```bash
-python examples/run_aroon.py
-```
-
-For a Keltner Channel demonstration using EMA and ATR volatility-based channels,
-see `examples/run_keltner.py`. It runs the `KeltnerChannelStrategy` against
-seeded synthetic data, generating buy signals when price breaks above the upper
-channel and sell signals when price breaks below the lower channel:
-
-```bash
-python examples/run_keltner.py
-```
-
-For an Average True Range Channel Breakout demonstration using seeded synthetic data,
-see `examples/run_atr.py`. It runs the `AverageTrueRangeStrategy`, which builds an ATR
-channel anchored on the previous close and generates buy signals on upside breakouts
-and sell signals on downside breakouts:
-
-```bash
-python examples/run_atr.py
-```
-
-For a Moving Average Crossover demonstration using fast/slow moving averages,
-see `examples/run_ma_crossover.py`. It runs the `MovingAverageCrossover`
-strategy against seeded synthetic data, generating buy signals on golden
-crosses (fast MA crosses above slow MA) and sell signals on death crosses
-(fast MA crosses below slow MA):
-
-```bash
-python examples/run_ma_crossover.py
-```
-
-For an Exponential Moving Average (EMA) Crossover demonstration using fast/slow EMAs,
-see `examples/run_ema_crossover.py`. It runs the `EMACrossover` strategy against
-seeded synthetic data, generating buy signals on bullish crosses (fast EMA crosses
-above slow EMA) and sell signals on bearish crosses (fast EMA crosses below slow EMA):
-
-```bash
-python examples/run_ema_crossover.py
-```
-
 ## License
 
 MIT License
