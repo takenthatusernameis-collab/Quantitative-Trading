@@ -8,6 +8,7 @@ Additional feature:
 """
 
 import argparse
+import inspect
 import re
 import sys
 from datetime import datetime, timedelta
@@ -24,6 +25,7 @@ from quant_trading.optimization import (
     BayesianOptimizer,
     GridSearch,
     ParameterGrid,
+    ParameterSpace,
     RandomSearch,
     WalkForwardOptimizer,
     maximize_calmar,
@@ -1420,6 +1422,62 @@ def parse_range(range_str: str) -> tuple[float, float, float]:
     return minimum, maximum, step
 
 
+def _default_param_grid(strategy_cls: type) -> "ParameterGrid":
+    """Build a sensible default parameter grid from a strategy constructor.
+
+    Used by :func:`create_param_grid` for strategies that do not have
+    dedicated ``--*-range`` CLI flags. Each constructor parameter (except
+    ``self`` and ``name``) that has a default value is turned into a
+    :class:`ParameterSpace` centred on that default, so ``--optimize``
+    searches a non-empty space for every registered strategy instead of
+    producing a meaningless empty grid.
+
+    Invalid combinations (for example ``fast_period >= slow_period``) are
+    harmless: the optimizer scores them as ``-inf`` and skips them.
+
+    Args:
+        strategy_cls: Strategy class whose constructor defines the space.
+
+    Returns:
+        A grid with one space per tunable constructor parameter, or an empty
+        grid when the constructor cannot be introspected.
+    """
+    grid = ParameterGrid()
+    try:
+        signature = inspect.signature(strategy_cls.__init__)
+    except (TypeError, ValueError):
+        return grid
+
+    for name, param in signature.parameters.items():
+        if name in {"self", "name", "parameters"}:
+            continue
+        if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
+            continue
+        if param.default is inspect.Parameter.empty or param.default is None:
+            continue
+        default = param.default
+
+        if isinstance(default, bool):
+            grid.add(ParameterSpace(name, values=[False, True], param_type=bool))
+            continue
+
+        if isinstance(default, int):
+            value = int(default)
+            candidates = sorted({max(1, value - 1), value, value + 1})
+            grid.add(ParameterSpace(name, values=candidates, param_type=int))
+            continue
+
+        if isinstance(default, float):
+            value = float(default)
+            candidates = sorted({round(value * 0.75, 6), value, round(value * 1.25, 6)})
+            grid.add(ParameterSpace(name, values=candidates, param_type=float))
+            continue
+
+        grid.add(ParameterSpace(name, values=[default], param_type=type(default)))
+
+    return grid
+
+
 def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
     """Create parameter grid for optimization based on strategy and args."""
     from quant_trading.optimization import ParameterGrid, ParameterSpace
@@ -1668,6 +1726,14 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
                 param_type=float,
             )
         )
+
+    else:
+        # Strategies without dedicated ``--*-range`` CLI flags still get a
+        # meaningful default search space built from their constructor
+        # parameters, so ``--optimize`` works for every registered strategy.
+        strategy_cls = get_strategy(args.strategy)
+        if strategy_cls is not None:
+            grid = _default_param_grid(strategy_cls)
 
     return grid
 
