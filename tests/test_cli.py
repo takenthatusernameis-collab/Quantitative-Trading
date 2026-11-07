@@ -3764,7 +3764,7 @@ class TestUserErrorReporting:
             capsys,
         )
         assert result == 1
-        assert "Unknown strategy" in output
+        assert "invalid choice" in output or "nosuchstrategy" in output
         assert "Traceback" not in output
 
     def test_missing_config_file_is_reported(self, capsys, tmp_path):

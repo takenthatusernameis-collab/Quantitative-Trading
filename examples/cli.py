@@ -423,7 +423,12 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--strategy",
         default="ma",
-        help="Strategy to run (default: ma)",
+        choices=sorted(get_registry().keys()),
+        help=(
+            "Strategy to run (default: ma). Accepts any registered strategy key "
+            "or alias (e.g. 'dc' for Donchian, 'st' for SuperTrend, 'psar' for "
+            "Parabolic SAR). Run --list-strategies for the full list."
+        ),
     )
     parser.add_argument(
         "--strategy-config",
@@ -1745,7 +1750,9 @@ def run_optimization(
 
     strategy_cls = get_strategy(args.strategy)
     if strategy_cls is None:
-        raise ValueError(f"Unknown strategy: {args.strategy}. Available: {BUILTIN_STRATEGY_KEYS}")
+        raise ValueError(
+            f"Unknown strategy: {args.strategy}. Available: {sorted(get_registry().keys())}"
+        )
     param_grid = create_param_grid(args)
     objective = OBJECTIVES[args.objective]
 
@@ -1896,7 +1903,9 @@ def run_walk_forward(
 
     strategy_cls = get_strategy(args.strategy)
     if strategy_cls is None:
-        raise ValueError(f"Unknown strategy: {args.strategy}. Available: {BUILTIN_STRATEGY_KEYS}")
+        raise ValueError(
+            f"Unknown strategy: {args.strategy}. Available: {sorted(get_registry().keys())}"
+        )
     param_grid = create_param_grid(args)
     objective = OBJECTIVES[args.objective]
 

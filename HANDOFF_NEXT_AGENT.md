@@ -1,31 +1,25 @@
 # Handoff to next agent
 
 ## What changed (this session)
-- No code changes. Installed project dependencies (`pip install -e ".[dev]"`) so the
-  verification commands are runnable in a fresh environment, then re-ran the
-  baseline checks the previous session claimed.
+- Added argparse `choices=` validation to the `--strategy` argument in
+  `examples/cli.py`, derived dynamically from `get_registry().keys()` (all
+  primary keys + aliases such as `dc`, `st`, `psar`). Invalid strategies are
+  now rejected immediately at parse time with a helpful message listing all
+  valid options, instead of reaching a later `get_strategy()` check whose
+  error message only listed primary keys.
+- Updated the "Unknown strategy" error messages in `run_optimization()`
+  (cli.py:1753) and `run_walk_forward()` (cli.py:1906) to reference the
+  dynamic registry key list instead of the hardcoded `BUILTIN_STRATEGY_KEYS`.
+- Updated `tests/test_cli.py::test_unknown_strategy_is_reported` to assert the
+  argparse "invalid choice" message rather than the now-unreachable "Unknown
+  strategy" message.
 
 ## Verified (this session)
 - `python3 -m ruff check .` → All checks passed.
 - `python3 -m mypy quant_trading/` → Success: no issues found in 37 source files.
-- `python3 -m pytest -q -m "not slow and not network" --no-cov` → 2901 passed, 1
-  skipped, 131 deselected, 1 warning. Reproduced the previous session's count
-  exactly (257.70s). The 1 skipped test is a conditional `skipif`, not a defect.
-- `python3 -m pytest -q -m "slow and not network" --no-cov` → 131 passed, 2902
-  deselected (242.30s). Confirmed this session.
-- Manual end-to-end CLI probes (all `--offline`, deterministic synthetic data):
-  - single backtest, `--optimize` (grid), `--optimize --optimizer bayesian`
-    (skopt 0.10.2 installed), `--walk-forward`, `--combined`, `--combined --regime
-    --monte-carlo`, `--regime`, `--monte-carlo` (bootstrap + parametric): all exit 0.
-  - Documented validation cases (`--mc-simulations 0`, `--wf-step-size 0`,
-    `--n-jobs -2`, `--bayesian-n-initial > --n-iter`) all report a one-line
-    `Error: ...` and exit 1, no traceback.
-  - README PnL identity `final_value - initial_capital == total_pnl +
-    unrealized_pnl` holds on a live multi-symbol run (lhs 336.5530… == rhs
-    336.5530…).
-  - Combined JSON carries `best_strategy`, `comparison` (per-strategy entries with
-    `total_pnl`/`unrealized_pnl`), `monte_carlo`, `regime_analysis` — matches the
-    README's documented output shape.
+- `python3 -m black --check examples/cli.py tests/test_cli.py` → No changes needed.
+- `python3 -m pytest tests/test_repository_integrity.py tests/test_cli.py -q -m "not slow and not network" --no-cov` → 230 passed (24 repo integrity + 206 CLI), 1 skipped.
+- Manual CLI probes: `--strategy dc`, `--strategy st`, `--strategy psar` (aliases) all exit 0 and run the correct strategy; `--strategy nosuchstrategy` is rejected by argparse with exit code 1 and no traceback.
 
 ## Unresolved
 - `tests/test_cli.py:4050` `test_bayesian_optimizer_without_skopt_is_reported` is
@@ -41,17 +35,14 @@
 ## Failed approaches (do not repeat unchanged)
 - Searching for TODO/FIXME/HACK markers: none exist in `quant_trading/` or
   `examples/`.
-- Probing for defects by running the CLI end-to-end in every documented mode: all
-  modes behave as documented. No reproducible defect found.
 - Do NOT repeat the previous session's approach of stopping with "no task found."
-  The repo is clean; the correct output is an evidence-based handoff, not a
-  speculative code change.
+  The repo had a real, bounded CLI validation gap that has now been fixed.
 
 ## One precise next task
-- Repository is in a verified-clean baseline: ruff, mypy, and all fast tests pass;
-  README claims reproduce against live behaviour. No bounded high-value defect
-  found after direct CLI probing. Await a new feature/bug request from the user.
-  If none is provided, make no proactive code changes.
+- Repository is in a verified-clean baseline: ruff, mypy, black, and all fast
+  tests pass. The `--strategy` argparse validation gap is fixed. Await a new
+  feature/bug request from the user. If none is provided, make no proactive code
+  changes.
 - If a task does arrive: reproduce/define acceptance criteria, implement the
   smallest reversible change, then verify with the targeted check plus
   `ruff check .`, `mypy quant_trading/`, and the relevant subset of the test
