@@ -37,3 +37,14 @@ class TestPackageVersion:
     def test_package_version_matches_pyproject(self):
         pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
         assert quant_trading.__version__ == pyproject["project"]["version"]
+
+
+class TestPackageExports:
+    """Public API surface declared in __all__ must resolve to attributes."""
+
+    def test_all_exports_resolve(self):
+        import quant_trading
+
+        for name in quant_trading.__all__:
+            assert hasattr(quant_trading, name), f"Missing public export: {name}"
+            assert getattr(quant_trading, name) is not None, f"Null public export: {name}"
