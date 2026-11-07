@@ -51,3 +51,6 @@ data/cache/
 
 # Kilo agent runtime and generated caches
 node_modules/
+
+# Test data cache (yfinance fixtures/caches; do not commit)
+tests/data/cache/
