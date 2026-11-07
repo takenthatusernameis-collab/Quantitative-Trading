@@ -38,6 +38,14 @@ class TestPackageVersion:
         pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
         assert quant_trading.__version__ == pyproject["project"]["version"]
 
+    def test_package_version_is_semver_like(self):
+        """Version should follow a simple MAJOR.MINOR.PATCH numeric form."""
+        import re
+
+        assert re.fullmatch(r"\d+\.\d+\.\d+", quant_trading.__version__), (
+            f"Expected MAJOR.MINOR.PATCH version, got: {quant_trading.__version__!r}"
+        )
+
 
 class TestPackageExports:
     """Public API surface declared in __all__ must resolve to attributes."""
@@ -48,3 +56,14 @@ class TestPackageExports:
         for name in quant_trading.__all__:
             assert hasattr(quant_trading, name), f"Missing public export: {name}"
             assert getattr(quant_trading, name) is not None, f"Null public export: {name}"
+
+    def test_factory_exports_roundtrip(self):
+        """Factory functions exported at package root should behave as documented."""
+        strategies = quant_trading.list_strategies()
+        assert isinstance(strategies, dict)
+        assert "ma" in strategies
+
+        strategy = quant_trading.create_strategy("ma", fast_period=5, slow_period=20)
+        assert isinstance(strategy, quant_trading.BaseStrategy)
+        assert strategy.parameters["fast_period"] == 5
+        assert strategy.parameters["slow_period"] == 20
