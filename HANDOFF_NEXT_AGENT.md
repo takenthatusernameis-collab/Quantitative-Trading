@@ -12,7 +12,7 @@ Prior uncommitted work already present at session start (per previous handoff): 
 - `python -m black --check .` → 142 files would be left unchanged.
 - `python -m mypy quant_trading --ignore-missing-imports` → Success, no issues (37 source files).
 - `python -m pytest --co -q` → 2902/3033 tests collected (131 deselected), +1 from prior handoff (+3 packaging tests total now).
-- Full suite not re-run this session; change is packaging metadata/tests only.
+- `python -m pytest -q --maxfail=5` → 2901 passed, 1 skipped, 131 deselected (193.83s). Full suite green.
 
 ## Unresolved
 - Working tree has uncommitted changes (packaging + handoff): includes `pyproject.toml`, `quant_trading/py.typed`, `tests/test_packaging.py`, `HANDOFF_NEXT_AGENT.md`. Do **not** commit unless explicitly requested by the user/workflow.
