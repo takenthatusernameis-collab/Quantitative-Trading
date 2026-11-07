@@ -84,6 +84,12 @@ def format_basis_points(bps: float, decimals: int = 1) -> str:
     return f"{bps / 10000 * 100:.{decimals}f}%"
 
 
+# Aliases for API flexibility
+format_percentage = format_percent
+format_bps = format_basis_points
+format_pct = format_percent
+
+
 def format_shares(quantity: float, decimals: int = 0) -> str:
     """Format a share quantity with appropriate decimal places.
 
@@ -173,9 +179,12 @@ def format_duration_days(days: float) -> str:
 
 __all__ = [
     "format_basis_points",
+    "format_bps",
     "format_currency",
     "format_duration_days",
     "format_number",
+    "format_pct",
     "format_percent",
+    "format_percentage",
     "format_shares",
 ]
