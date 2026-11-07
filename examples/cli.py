@@ -423,7 +423,6 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--strategy",
         default="ma",
-        choices=sorted(get_registry().keys()),
         help=(
             "Strategy to run (default: ma). Accepts any registered strategy key "
             "or alias (e.g. 'dc' for Donchian, 'st' for SuperTrend, 'psar' for "
