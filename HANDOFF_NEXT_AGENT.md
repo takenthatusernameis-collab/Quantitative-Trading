@@ -1,10 +1,9 @@
 # Handoff to next agent
 
 ## What changed (this session)
-- No source or test changes. Working tree is clean; the prior agent's
-  `tests/test_packaging.py` (committed at HEAD `8a35893`) remains in place.
-- This session was independent verification only. No speculative change was
-  made.
+- No source or test changes. Working tree is clean; HEAD remains `a2ccd13`.
+- This session executed the prior session's assigned smoke check and refreshed
+  this handoff. No speculative change was made.
 
 ## Verified (this session)
 - `git status` → clean; branch `main` up to date with `origin/main`; HEAD
