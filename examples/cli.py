@@ -1073,7 +1073,7 @@ def create_strategy(args: argparse.Namespace):
         import yaml
 
         try:
-            with open(strategy_config_path, "r") as f:
+            with open(strategy_config_path) as f:
                 strategy_config = yaml.safe_load(f)
         except OSError as e:
             raise ValueError(

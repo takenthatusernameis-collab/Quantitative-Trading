@@ -323,7 +323,7 @@ class Config:
 
         """
         try:
-            with open(path, "r") as f:
+            with open(path) as f:
                 data = yaml.safe_load(f)
         except yaml.YAMLError as exc:
             raise ValueError(f"Invalid YAML in {path}: {exc}") from exc
