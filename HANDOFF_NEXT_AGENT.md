@@ -1,20 +1,20 @@
 # Handoff to next agent
 
 ## What changed (this session)
-- Untracked committed yfinance test cache artifacts: added `tests/data/cache/` to `.gitignore` and ran `git rm --cached tests/data/cache/*.pkl` (24 files). Local cache files remain on disk; index now deletes them from tracking. **Not committed** (no commit requested).
+- `README.md`: corrected the "Built-in Strategies" feature bullet (line 8) to be accurate/maintainable: it claimed "Average True Range Channel Breakout" as if separate and ended with "Volume Weighted Average Price (VWAP) variations/others present as implemented". The bullet now states 46 registered strategies and points to the Strategy Registry, listing representative examples (including ATR channel breakout via the ATR strategy). No code behavior changed.
 
 ## Verified (this session)
-- `python -m ruff check .` → all checks passed.
-- `python -m pytest tests/test_yfinance_provider.py tests/test_yfinance_fetch_many.py tests/test_config.py -q` → 137 passed, 1 warning.
-- `python -m pytest tests/test_repository_integrity.py -q` → 24 passed.
-- `python -m pytest -m "not slow and not network" -q` (full fast suite, 600s timeout) → 2901 passed, 1 skipped, 131 deselected, 1 warning in 186.19s.
-- `git status` shows staged deletions of 24 cache files + staged `.gitignore` update.
+- `python3 -m ruff check .` → all checks passed (before and after README edit).
+- `python3 -m pytest tests/test_repository_integrity.py tests/test_yfinance_provider.py -q` → 56 passed, 1 warning.
+- Registry sanity (inline): `len(list_strategies()) == 46`, `len(strategy_keys()) == 108`, `atr`/`AverageTrueRangeStrategy` present, no `atr_channel_breakout` key, `examples/run_atr.py` exists.
+- `git status`: clean at session start (`HEAD=0877965` == `origin/main`); now only `README.md` modified (unstaged). The prior hygiene commit described in older handoff context (`.gitignore` + untrack `tests/data/cache/*.pkl`) is already present in `HEAD`/`origin/main`.
 
 ## Unresolved
-- Staged changes not committed/pushed (await explicit instruction if persistence via commit is desired).
+- `README.md` edit is **not committed/pushed** (no explicit commit request). Commit/push only if policy permits and explicitly requested.
+- README contains other long, potentially drift-prone strategy/example lists; not audited in full this session.
 
 ## Failed approaches (do not repeat unchanged)
 - None.
 
 ## One precise next task
-- If policy permits commits, commit the staged hygiene change (`.gitignore` + untrack `tests/data/cache/` artifacts) with a clear message, verify `git status` clean and fast checks still green, then push/verify as appropriate for the repo workflow. If commits are not desired, leave staged state as-is and await an external issue/feature request.
+- Run a focused README-accuracy check against the registry/examples and fix only demonstrably incorrect claims: e.g., confirm every strategy name mentioned in the top feature bullets/registry prose maps to `strategy_keys()`/`list_strategies()` and referenced `examples/run_*.py` files exist; avoid speculative rewrites. Verify with `ruff check .` and the repo's fast checks (or `pytest -m "not slow and not network" -q` if time permits), then prepare a commit only if explicitly requested.
