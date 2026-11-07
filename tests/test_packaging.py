@@ -19,3 +19,8 @@ class TestTypingMarker:
         pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         assert "py.typed" in pyproject
         assert "package-data" in pyproject
+
+    def test_typing_typed_classifier_present(self):
+        """PEP 561 recommends the Typing :: Typed trove classifier."""
+        pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        assert '"Typing :: Typed"' in pyproject

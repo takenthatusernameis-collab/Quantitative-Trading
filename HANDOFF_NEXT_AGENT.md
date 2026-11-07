@@ -1,25 +1,26 @@
 # Handoff to next agent
 
-## What changed
-- Added PEP 561 typing marker `quant_trading/py.typed` (empty file) so type checkers (mypy/pyright) recognize the package’s inline type annotations when installed.
-- Added `[tool.setuptools.package-data] quant_trading = ["py.typed"]` to `pyproject.toml`.
-- Added `tests/test_packaging.py` (2 tests) verifying the marker exists in the package and is declared in `pyproject.toml`.
+## What changed (this session)
+- Added PEP 561 `Typing :: Typed` trove classifier and supporting classifiers to `pyproject.toml` (`[project].classifiers`: MIT, Python 3 / 3.10-3.12, Typing :: Typed).
+- Extended `tests/test_packaging.py::TestTypingMarker` with `test_typing_typed_classifier_present()` verifying the classifier is present in `pyproject.toml`.
+
+Prior uncommitted work already present at session start (per previous handoff): `quant_trading/py.typed` marker, `[tool.setuptools.package-data]` entry for `py.typed`, and base packaging tests.
 
 ## Verified (this session)
+- `python -m pytest tests/test_packaging.py -v` → 3 passed.
 - `python -m ruff check .` → All checks passed.
 - `python -m black --check .` → 142 files would be left unchanged.
 - `python -m mypy quant_trading --ignore-missing-imports` → Success, no issues (37 source files).
-- `python -m pytest tests/test_packaging.py -v` → 2 passed.
-- `python -m pytest --co -q` → 2901/3032 tests collected (131 deselected), up from 2899/3030 baseline (+2 new tests).
-- Baseline was green at session start (working tree clean on `main`, `origin/main` at `0a8f23b`); full suite not re-run end-to-end in this session (prior handoff reported green; change is packaging-only + isolated tests).
+- `python -m pytest --co -q` → 2902/3033 tests collected (131 deselected), +1 from prior handoff (+3 packaging tests total now).
+- Full suite not re-run this session; change is packaging metadata/tests only.
 
 ## Unresolved
-- None for this change.
-- Working tree has uncommitted changes (`pyproject.toml`, `quant_trading/py.typed`, `tests/test_packaging.py`). The agent system rules prohibit committing unless explicitly requested; commit if the workflow/user expects durable commits.
+- Working tree has uncommitted changes (packaging + handoff): includes `pyproject.toml`, `quant_trading/py.typed`, `tests/test_packaging.py`, `HANDOFF_NEXT_AGENT.md`. Do **not** commit unless explicitly requested by the user/workflow.
+- `git status --short` was clean before handoff file update; after update, handoff file will appear modified/untracked as applicable.
 
 ## Approaches that failed
-- None.
+- None. (Initial edit to `tests/test_packaging.py` failed once due to mismatched `oldString` vs actual file content; fixed by reading the file and applying the correct patch.)
 
 ## One precise next task
-- **Commit/persist the PEP 561 packaging changes (if authorized)** and run `python -m pytest tests/test_packaging.py -q` plus `python -m ruff check . && python -m black --check . && python -m mypy quant_trading --ignore-missing-imports` as the focused checkpoint; then run a broader `python -m pytest -q --maxfail=5` if time allows to confirm no regressions.
-- If the working tree is already committed/clean in a later session, pick a genuinely new bounded improvement: e.g. add a `py.typed`/typing smoke check to CI workflow validation (only if evidence shows CI runs packaging/type checks) or add `Typing :: Typed` classifier to `pyproject.toml` and extend `tests/test_packaging.py` — verify against PyPI classifier list before adding.
+- **If authorized to persist**: commit the packaging changes (`pyproject.toml`, `quant_trading/py.typed`, `tests/test_packaging.py`) with a clear message (e.g., "Add PEP 561 typing marker and classifiers") and run the focused checkpoint `python -m pytest tests/test_packaging.py -q && python -m ruff check . && python -m black --check . && python -m mypy quant_trading --ignore-missing-imports`; if time allows run `python -m pytest -q --maxfail=5`.
+- **If not authorized to commit** (tree remains uncommitted): pick a new bounded, evidence-based improvement unrelated to control markers — e.g., run `python -m pytest -q --maxfail=5` to confirm the current tree is green and record the result in the handoff, or add a small test asserting `pyproject.toml` declares `requires-python >=3.10` matches README/tooling claims (verify README first to avoid speculation).
