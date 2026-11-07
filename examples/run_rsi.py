@@ -23,7 +23,7 @@ from quant_trading.backtest.engine import BacktestEngine
 from quant_trading.config.settings import BacktestConfig
 from quant_trading.data.providers import DataManager
 from quant_trading.data.synthetic import create_synthetic_provider
-# import removed
+from quant_trading.strategies.examples import RSIStrategy
 
 
 def _print_summary(name: str, result) -> None:
