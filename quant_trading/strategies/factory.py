@@ -63,6 +63,12 @@ class StrategyRegistry:
         ['ma']
         >>> registry.keys()
         ['ma', 'moving_average']
+        >>> registry.aliases_for('ma')
+        ['moving_average']
+        >>> registry.aliases_for('moving_average')
+        ['moving_average']
+        >>> registry.aliases_for('nope')
+        []
 
     """
 
@@ -160,6 +166,24 @@ class StrategyRegistry:
 
         """
         return list(self._strategies.keys())
+
+    def aliases_for(self, key: str) -> list[str]:
+        """Get the aliases registered for a primary strategy key.
+
+        Args:
+            key: Primary strategy key (e.g. ``"ma"``). Aliases are accepted
+                too and resolved through :meth:`get` first, so callers may
+                pass either form.
+
+        Returns:
+            Sorted list of alias keys that resolve to ``key``. Returns an
+            empty list when ``key`` is not registered or has no aliases.
+
+        """
+        actual_key = self._aliases.get(key, key)
+        if actual_key not in self._strategies:
+            return []
+        return sorted(alias for alias, primary in self._aliases.items() if primary == actual_key)
 
     def create(self, key: str, **kwargs: Any) -> Strategy:
         """Create a strategy instance from a key and parameters.

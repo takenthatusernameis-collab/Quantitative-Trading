@@ -97,6 +97,26 @@ def test_strategy_keys_include_aliases():
     assert len(keys) >= len(registry.primary_keys())
 
 
+def test_aliases_for_returns_sorted_alias_list():
+    """aliases_for() returns the aliases registered for a primary key.
+
+    The accessor accepts either the primary key or an alias (resolved
+    through the registry first) and returns an empty list for unknown
+    keys, so the CLI can annotate ``--list-strategies`` output without
+    duplicating the registry's internal alias map.
+    """
+    registry = get_registry()
+    assert registry.aliases_for("ma") == ["ma_crossover", "moving_average"]
+    # An alias is resolved to its primary key first.
+    assert registry.aliases_for("dc") == ["dc", "donchian_channel"]
+    assert registry.aliases_for("psar") == ["parabolic_sar", "psar"]
+    # Strategies without aliases return an empty list.
+    assert registry.aliases_for("vwap") == []
+    assert registry.aliases_for("trix") == []
+    # Unknown keys return an empty list rather than raising.
+    assert registry.aliases_for("does_not_exist") == []
+
+
 def test_aliases_resolve_to_primary_class():
     """Each alias resolves to the same class as its primary key."""
     registry = get_registry()

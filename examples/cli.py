@@ -1285,7 +1285,16 @@ def _save_json_output(path: str, output_data: dict, output_format: str | None = 
 
 
 def list_strategies() -> int:
-    """Print available strategies and exit."""
+    """Print available strategies and exit.
+
+    Every registered strategy is listed with its primary key, class name,
+    description, and default parameters. Aliases that resolve to the same
+    strategy are shown in parentheses next to the primary key, so the output
+    stays in one-to-one correspondence with the registry (one entry per
+    strategy, aliases as annotations) rather than repeating each alias as a
+    separate row.
+    """
+    registry = get_registry()
     strategies = factory_list_strategies()
     print("Available strategies:")
     for key, cls in strategies.items():
@@ -1299,10 +1308,12 @@ def list_strategies() -> int:
         params = instance.get_parameters()
         param_str = ", ".join(f"{k}={v}" for k, v in params.items())
         desc = getattr(instance, "description", None) or getattr(cls, "description", None)
+        aliases = registry.aliases_for(key)
+        alias_str = f" (aliases: {', '.join(aliases)})" if aliases else ""
         if desc:
-            print(f"  {key}: {cls.__name__} - {desc} ({param_str})")
+            print(f"  {key}: {cls.__name__} - {desc} ({param_str}){alias_str}")
         else:
-            print(f"  {key}: {cls.__name__} ({param_str})")
+            print(f"  {key}: {cls.__name__} ({param_str}){alias_str}")
     return 0
 
 

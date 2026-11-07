@@ -208,8 +208,9 @@ Individual strategy parameters can be overridden on the command line. Each
 strategy exposes its own period/level flags (for example ``--rsi-period`` for
 RSI, ``--macd-fast``/``--macd-slow``/``--macd-signal`` for MACD, and
 ``--bb-period``/``--bb-std`` for Bollinger Bands); run
-``python examples/cli.py --list-strategies`` to see the full strategy list and
-defaults.
+``python examples/cli.py --list-strategies`` to see the full strategy list,
+its defaults, and the aliases that resolve to each strategy (for example
+``dc`` for Donchian, ``st`` for SuperTrend, ``psar`` for Parabolic SAR).
 
 ```bash
 # Run a backtest with default settings (MA crossover, Yahoo Finance, 1 year daily data)

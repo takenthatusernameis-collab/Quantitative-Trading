@@ -526,6 +526,66 @@ class TestListStrategies:
         assert "RSIStrategy" in captured.out
         assert "BollingerBandsStrategy" in captured.out
 
+    def test_list_strategies_reports_aliases(self, capsys):
+        """``--list-strategies`` annotates every strategy with its aliases.
+
+        The CLI's ``--strategy`` argument accepts every registered key,
+        primary *and* alias, but the list command previously only showed
+        primary keys, so users had no way to discover the aliases the
+        registry and the README reference. Each strategy with aliases must
+        appear exactly once, annotated with its alias list, and strategies
+        without aliases (``vwap``, ``trix``) must not carry an annotation.
+        """
+        from quant_trading.strategies import get_registry
+
+        result = list_strategies()
+        assert result == 0
+        captured = capsys.readouterr()
+        out = captured.out
+        registry = get_registry()
+
+        # One line per primary key, no more.
+        primary_lines = [line for line in out.splitlines() if line.startswith("  ")]
+        assert len(primary_lines) == len(registry.primary_keys())
+
+        for key in registry.primary_keys():
+            aliases = registry.aliases_for(key)
+            line = next(ln for ln in primary_lines if ln.startswith(f"  {key}:"))
+            if aliases:
+                assert f"(aliases: {', '.join(aliases)})" in line, (
+                    f"{key} aliases missing from list output: {line!r}"
+                )
+            else:
+                assert "aliases:" not in line, (
+                    f"{key} should not report aliases but line says: {line!r}"
+                )
+
+    def test_list_strategies_alias_annotation_matches_registry(self, capsys):
+        """The alias annotation on each line matches the live registry exactly."""
+        import re
+
+        from quant_trading.strategies import get_registry
+
+        result = list_strategies()
+        assert result == 0
+        captured = capsys.readouterr()
+        out = captured.out
+        registry = get_registry()
+
+        alias_re = re.compile(r"\(aliases: ([^)]*)\)")
+        for line in out.splitlines():
+            if not line.startswith("  "):
+                continue
+            key = line[2:].split(":", 1)[0]
+            match = alias_re.search(line)
+            reported = (
+                [a.strip() for a in match.group(1).split(",")] if match else []
+            )
+            assert reported == registry.aliases_for(key), (
+                f"{key}: list output reports {reported!r}, "
+                f"registry has {registry.aliases_for(key)!r}"
+            )
+
 
 class TestListProviders:
     """Tests for list_providers function."""
