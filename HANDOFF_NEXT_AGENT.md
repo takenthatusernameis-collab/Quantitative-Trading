@@ -15,4 +15,4 @@
 - None.
 
 ## One precise next task
-- No bounded task pending. Act only on a new external issue/feature request with concrete requirements.
+- No bounded task pending. Baseline verified (ruff clean, mypy clean, focused tests pass). Act only on a new external issue/feature request with concrete requirements.
