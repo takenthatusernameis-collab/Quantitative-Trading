@@ -1897,6 +1897,13 @@ metrics = calculate_backtest_metrics(equity_curve, periods_per_year=52)
 It is configurable at every layer:
 
 ```python
+from quant_trading.backtest.analysis import analyze_regimes, regime_for_backtest
+from quant_trading.backtest.engine import BacktestEngine, run_backtest
+from quant_trading.config.settings import BacktestConfig
+from quant_trading.monte_carlo import run_monte_carlo
+from quant_trading.optimization.grid_search import GridSearch
+from quant_trading.optimization.walk_forward import WalkForwardOptimizer
+
 # Configuration file / dataclass
 config.backtest.periods_per_year = 52
 
