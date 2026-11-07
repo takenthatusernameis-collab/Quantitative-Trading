@@ -1951,6 +1951,69 @@ class TestCreateConfig:
         assert len(combos) > 0
         assert all(c["oversold"] < c["overbought"] for c in combos)
 
+    def test_create_param_grid_every_strategy_has_search_space(self):
+        """Every registered strategy gets a non-empty optimization grid.
+
+        Strategies with dedicated ``--*-range`` flags are covered
+        individually; every other strategy falls back to
+        ``_default_param_grid`` built from its constructor parameters.
+        VWAP is the single exception: it has no configurable parameters,
+        so its grid is empty by design and --optimize evaluates one
+        default-parameter combination.
+        """
+        from examples.cli import create_param_grid
+        from quant_trading.strategies.factory import get_registry
+
+        range_defaults = {
+            "ma_fast_range": "5,20,5",
+            "ma_slow_range": "20,50,5",
+            "rsi_period_range": "10,20,2",
+            "rsi_oversold_range": "20,35,5",
+            "rsi_overbought_range": "65,80,5",
+            "bb_period_range": "10,30,5",
+            "bb_std_range": "1.5,3.0,0.5",
+            "macd_fast_range": "8,16,2",
+            "macd_slow_range": "20,30,2",
+            "macd_signal_range": "7,12,1",
+            "st_period_range": "7,20,1",
+            "st_multiplier_range": "2.0,4.0,0.5",
+            "dc_period_range": "10,40,5",
+            "dc_exit_period_range": "5,20,5",
+            "aroon_period_range": "10,50,5",
+            "kc_ema_period_range": "10,30,5",
+            "kc_atr_period_range": "5,20,2",
+            "kc_multiplier_range": "1.0,3.0,0.5",
+            "stoch_k_period_range": "10,20,2",
+            "stoch_d_period_range": "2,5,1",
+            "stoch_oversold_range": "10,30,5",
+            "stoch_overbought_range": "70,90,5",
+            "ichimoku_tenkan_period_range": "5,15,2",
+            "ichimoku_kijun_period_range": "10,30,5",
+            "ichimoku_senkou_b_period_range": "20,60,10",
+            "sar_step_range": "0.01,0.05,0.01",
+            "sar_max_step_range": "0.10,0.20,0.05",
+            "atr_period_range": "10,30,5",
+            "atr_multiplier_range": "1.0,3.0,0.5",
+        }
+        registry = get_registry()
+        empty = []
+        for key in registry.primary_keys():
+            args = argparse.Namespace(strategy=key, **range_defaults)
+            grid = create_param_grid(args)
+            combos = grid.generate_combinations()
+            if key == "vwap":
+                assert len(grid.spaces) == 0
+                assert len(combos) == 1
+                assert combos[0] == {}
+                continue
+            if len(grid.spaces) == 0 or len(combos) == 0:
+                empty.append(key)
+        assert not empty, (
+            "strategies with no optimization search space: "
+            f"{sorted(empty)}. Every strategy except vwap needs at least one "
+            "tunable parameter so --optimize never runs an empty grid."
+        )
+
 
 class TestRunCombined:
     """Tests for run_combined function."""
