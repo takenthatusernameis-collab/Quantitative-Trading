@@ -25,6 +25,7 @@ Fixed a real, pre-existing regression that the prior handoff incorrectly reporte
 
 ## One precise next task
 
-No code changes are required; the repository is green and committed. Any future task
-must come from outside this fix — there are no outstanding TODO/FIXME markers in
-`quant_trading/` or `examples/`, and all green checks pass.
+The only outstanding item is persistence: local `main` is one commit ahead of
+`origin/main` (fe5263e). Push the commit to publish the fix and verify with
+`git status`/`git log origin/main..HEAD` empty. No code changes required; all
+checks green.
