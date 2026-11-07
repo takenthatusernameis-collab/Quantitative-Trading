@@ -6,7 +6,7 @@
 ## Verified (this session)
 - `ruff check .` → all checks passed.
 - `mypy quant_trading/` → no issues.
-- `pytest tests/test_examples_smoke.py tests/test_example_scripts_run.py` → 52 passed.
+- Broad pytest groups (strategies, backtest, data providers, portfolio, risk, optimization, monte carlo, regime, CLI, repository integrity) → all passed.
 
 ## Unresolved
 - None. No pending bounded bug fix or cleanup.
