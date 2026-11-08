@@ -1,5 +1,89 @@
 # Handoff to next agent
 
+## What changed (this session, 2026-11-08, thirty-third entry)
+
+No code, README, or test changes. Executed and verified the prior agent's
+completed task (flat-portfolio Sortino fix already committed at `5d388ab`),
+then probed the remaining runtime outputs for the same class of
+zero-variance / degenerate-division artifact the handoff flagged.
+
+## Verified (this session, thirty-third entry)
+
+- `git status --short`: clean at session start; HEAD `5d388ab`, branch `main`,
+  up to date with `origin/main`.
+- Prior fix re-confirmed live: `python3 examples/cli.py --offline --provider
+  synthetic --strategy ma --days 10 --symbols AAPL` → `Sortino Ratio: 0.00`
+  (was `-15.87` pre-fix); Sharpe `0.00`; all other metrics `0.00`.
+- `python3 -m ruff check .` → **All checks passed**.
+- `python3 -m mypy quant_trading/` → **Success: no issues found in 37 source
+  files**.
+- `python3 -m pytest -q tests/test_risk_metrics.py tests/test_readme.py
+  tests/test_repository_integrity.py` → **119 passed** in 6.50s.
+
+### Zero-variance guard audit (the handoff's suggested next probe)
+
+Every ratio/division site in `quant_trading/risk/metrics.py` was inspected for
+a missing `std == 0` / `var == 0` / divisor-zero guard. All are guarded:
+
+| Function | Guard | Line |
+|---|---|---|
+| `calculate_volatility` | `len(returns) < 2` → 0.0 | 144 |
+| `calculate_max_drawdown` | empty → 0.0; `running_max.eq(0).all()` → 0.0 | 173, 176 |
+| `calculate_sharpe_ratio` | `len==0`; `not np.isfinite(std) or std == 0` | 213, 216 |
+| `calculate_sortino_ratio` | `len==0`; `returns.std() == 0`; `downside_deviation == 0` | 265, 273, 279 |
+| `calculate_var` | `len(returns) == 0` → 0.0 | 309 |
+| `calculate_beta` | `len < 2`; `var == 0` | 366, 373 |
+| `calculate_alpha` | `beta == 0` → 0.0 | 402 |
+| `calculate_calmar_ratio` | `len==0`; `max_dd == 0` → 0.0 | 446, 450 |
+
+No missing guard found in `risk/metrics.py`. `backtest/metrics.py` delegates
+to these same functions, so it inherits the guards.
+
+### Trade-level Sharpe/Sortino in `examples/run_analysis.py` is NOT a defect
+
+`run_analysis.py` prints `Trade Sharpe: -51.79` / `Trade Sortino: -15.20`.
+This was investigated because it looks like the Sortino artifact. It is not:
+the per-trade return series has non-zero variance (std ≈ 2.02e-05) with a
+positive but tiny mean (≈ 1.13e-06) against a 2%/252 ≈ 7.94e-05 per-period
+risk-free rate, so excess is negative and the ratio is legitimately large and
+negative. Reproduced deterministically with a matching synthetic series
+(Sharpe ≈ -61.6, Sortino ≈ -15.4 annualized). The `std_pnl` of `$2.27` over
+31 trades confirms non-zero dispersion. No guard is applicable; the value is
+mathematically correct, merely unintuitive. The daily-equity Sharpe/Sortino
+in the same run are `0.00` because the synthetic equity curve is essentially
+flat (zero trades). Not changed.
+
+## Unresolved / not completed
+
+- None. No reproducible defect or bounded high-value task identified after
+  the guard audit and runtime output probing.
+
+## Failed approaches (do not repeat unchanged)
+
+- None this session. Prior constraints still apply: full fast suite needs
+  timeout > 300000 ms (~400s+); `rg` unavailable (use grep/Python); do not
+  refactor speculatively or weaken safety/permissions; commit/push only if
+  explicitly requested.
+
+## One precise next task
+
+- **On a concrete external issue/feature request:** reproduce/define acceptance
+  criteria, implement the smallest reversible change, and verify:
+  1. `python3 -m ruff check .`
+  2. `python3 -m mypy quant_trading/`
+  3. Focused `pytest` module(s) for the changed area
+  4. For cross-cutting changes, `python3 -m pytest -q -m "not slow and not
+     network"` with timeout > 300000 ms
+  Record evidence and `git status`/diff summary in this handoff; commit/push
+  only if explicitly requested.
+- **If still unassigned:** re-run baseline checks (ruff + mypy + fast suite,
+  or at minimum ruff + mypy + collection + README/integrity tests) before
+  acting on any report. The zero-variance guard pattern is now confirmed
+  present across all ratio functions in `risk/metrics.py`; the remaining
+  unintuitive-but-correct values (e.g. trade-level negative Sharpe on a
+  near-flat synthetic curve) are expected, not defects. No bounded task
+  pending.
+
 ## What changed (this session, 2026-11-08, twenty-ninth entry)
 
 Fixed a real, reproducible, user-visible metric defect and added regression
