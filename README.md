@@ -395,6 +395,19 @@ configuration. The flags that have no value of their own (`--initial-capital`,
 `--commission`, `--slippage` and `--risk-free-rate`) default to the value of
 the configuration file, or to the built-in default when no file is given.
 
+The stop-exit switches follow the same rule. `--enable-stop-exits` turns the
+exits on, and `--stop-loss-pct`, `--take-profit-pct`, `--trailing-stop-pct`
+and `--trailing-stop-activation-pct` set the distances of the risk manager,
+defaulting to the `risk` section of the file (or to the built-in defaults when
+no file is given):
+
+```bash
+python examples/cli.py --offline --enable-stop-exits \
+    --stop-loss-pct 0.05 --take-profit-pct 0.15 \
+    --trailing-stop-pct 0.05 --trailing-stop-activation-pct 0.02 \
+    --symbols AAPL --days 30
+```
+
 For example, the per-trade costs and the risk-free rate can be overridden on
 the command line without touching the config file:
 
@@ -1878,6 +1891,19 @@ position once, at that bar's close.
 The exits are off by default, so a backtest that does not ask for them behaves
 exactly as before. Note that a `stop_loss_pct` of `0.0` puts the stop of a
 long at its entry price, so every close below the entry closes the position.
+
+The same switches are available on the command line, so a run does not need a
+`config.yaml` to enable them:
+
+```bash
+python examples/cli.py --offline --enable-stop-exits \
+    --stop-loss-pct 0.05 --take-profit-pct 0.15 \
+    --trailing-stop-pct 0.05 --trailing-stop-activation-pct 0.02
+```
+
+The flags default to the values of the `backtest` and `risk` sections of the
+configuration, so a `config.yaml` that sets them is honoured when the flags are
+omitted, and a flag that is passed wins over the configured value.
 
 ## Annualization Periods
 

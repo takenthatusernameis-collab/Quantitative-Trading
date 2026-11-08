@@ -354,6 +354,52 @@ def _create_parser() -> argparse.ArgumentParser:
         help=("Slippage fraction (defaults to config value, or 0.0005 if not set)"),
     )
     parser.add_argument(
+        "--enable-stop-exits",
+        action="store_true",
+        default=False,
+        help=(
+            "Close a position when its stop loss, take profit or trailing stop "
+            "is hit at a bar's close (defaults to config value, or False)"
+        ),
+    )
+    parser.add_argument(
+        "--stop-loss-pct",
+        type=float,
+        default=None,
+        help=(
+            "Stop-loss distance as a fraction of the entry price "
+            "(defaults to config value, or 0.05)"
+        ),
+    )
+    parser.add_argument(
+        "--take-profit-pct",
+        type=float,
+        default=None,
+        help=(
+            "Take-profit distance as a fraction of the entry price "
+            "(defaults to config value, or 0.15)"
+        ),
+    )
+    parser.add_argument(
+        "--trailing-stop-pct",
+        type=float,
+        default=None,
+        help=(
+            "Trailing-stop distance as a fraction of the best price a position "
+            "has reached, 0.0 disables it (defaults to config value, or 0.0)"
+        ),
+    )
+    parser.add_argument(
+        "--trailing-stop-activation-pct",
+        type=float,
+        default=None,
+        help=(
+            "How far a position must move in its favour, as a fraction of its "
+            "entry price, before its trailing stop starts to trail "
+            "(defaults to config value, or 0.0)"
+        ),
+    )
+    parser.add_argument(
         "--risk-free-rate",
         type=float,
         default=None,
@@ -1041,6 +1087,16 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             f"invalid --slippage: the value must be non-negative " f"(got {args.slippage})"
         )
+    # A negative stop-loss, take-profit or trailing-stop distance would put a
+    # stop on the wrong side of the entry price, so it is rejected up front.
+    for name in ("stop_loss_pct", "take_profit_pct", "trailing_stop_pct",
+                 "trailing_stop_activation_pct"):
+        value = getattr(args, name, None)
+        if value is not None and value < 0:
+            raise ValueError(
+                f"invalid --{name.replace('_', '-')}: the value must be "
+                f"non-negative (got {value})"
+            )
     return args
 
 
@@ -1385,6 +1441,22 @@ def create_config(args: argparse.Namespace) -> Config:
 
     if getattr(args, "slippage", None) is not None:
         config.backtest.slippage = args.slippage
+
+    # The stop-loss, take-profit and trailing-stop settings are documented in
+    # the README but had no CLI flags, so a user who did not want to write a
+    # YAML config file could not enable stop exits from the command line. The
+    # flags default to None so that a config file's values are preserved when
+    # they are not given, matching the precedence of every other flag.
+    if getattr(args, "enable_stop_exits", None):
+        config.backtest.enable_stop_exits = True
+    if getattr(args, "stop_loss_pct", None) is not None:
+        config.risk.stop_loss_pct = args.stop_loss_pct
+    if getattr(args, "take_profit_pct", None) is not None:
+        config.risk.take_profit_pct = args.take_profit_pct
+    if getattr(args, "trailing_stop_pct", None) is not None:
+        config.risk.trailing_stop_pct = args.trailing_stop_pct
+    if getattr(args, "trailing_stop_activation_pct", None) is not None:
+        config.risk.trailing_stop_activation_pct = args.trailing_stop_activation_pct
 
     # The --interval flag configures the data layer: it is applied to the
     # configured default_interval so the rule stays in one place. When the

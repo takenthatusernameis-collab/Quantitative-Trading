@@ -72,6 +72,13 @@ class TestParseArgs:
         assert args.alphavantage_key is None
         assert args.combined is False
         assert args.strategy_config is None
+        # The stop-loss, take-profit and trailing-stop flags default to None so
+        # that a config file's values are preserved when they are not given.
+        assert args.enable_stop_exits is False
+        assert args.stop_loss_pct is None
+        assert args.take_profit_pct is None
+        assert args.trailing_stop_pct is None
+        assert args.trailing_stop_activation_pct is None
 
     def test_cost_flags_are_parsed(self):
         with patch(
@@ -476,6 +483,167 @@ class TestParseArgs:
         with patch("sys.argv", ["cli.py", "--n-jobs", "4"]):
             args = parse_args()
         assert args.n_jobs == 4
+
+
+class TestStopExitFlags:
+    """Tests for the stop-loss, take-profit and trailing-stop CLI flags.
+
+    The README documents ``enable_stop_exits``, ``stop_loss_pct``,
+    ``take_profit_pct``, ``trailing_stop_pct`` and
+    ``trailing_stop_activation_pct`` as first-class configuration, but until
+    these flags existed a user who did not want to write a YAML config file
+    could not enable stop exits from the command line. The flags default to
+    ``None`` so that a config file's values are preserved when they are not
+    given, matching the precedence of every other flag.
+    """
+
+    def test_stop_exit_flags_default_to_none(self):
+        with patch("sys.argv", ["cli.py"]):
+            args = parse_args()
+        assert args.enable_stop_exits is False
+        assert args.stop_loss_pct is None
+        assert args.take_profit_pct is None
+        assert args.trailing_stop_pct is None
+        assert args.trailing_stop_activation_pct is None
+
+    def test_stop_exit_flags_are_parsed(self):
+        with patch(
+            "sys.argv",
+            [
+                "cli.py",
+                "--enable-stop-exits",
+                "--stop-loss-pct",
+                "0.10",
+                "--take-profit-pct",
+                "0.20",
+                "--trailing-stop-pct",
+                "0.05",
+                "--trailing-stop-activation-pct",
+                "0.03",
+            ],
+        ):
+            args = parse_args()
+        assert args.enable_stop_exits is True
+        assert args.stop_loss_pct == 0.10
+        assert args.take_profit_pct == 0.20
+        assert args.trailing_stop_pct == 0.05
+        assert args.trailing_stop_activation_pct == 0.03
+
+    def test_stop_exit_flags_disabled_by_default(self):
+        """``--enable-stop-exits`` is opt-in; omitting it leaves it False."""
+        with patch("sys.argv", ["cli.py", "--stop-loss-pct", "0.10"]):
+            args = parse_args()
+        assert args.enable_stop_exits is False
+        assert args.stop_loss_pct == 0.10
+
+    def test_negative_stop_pct_is_rejected(self):
+        with (
+            patch("sys.argv", ["cli.py", "--stop-loss-pct", "-0.1"]),
+            pytest.raises(ValueError, match="invalid --stop-loss-pct"),
+        ):
+            parse_args()
+
+    def test_negative_trailing_stop_pct_is_rejected(self):
+        with (
+            patch("sys.argv", ["cli.py", "--trailing-stop-pct", "-0.05"]),
+            pytest.raises(ValueError, match="invalid --trailing-stop-pct"),
+        ):
+            parse_args()
+
+
+class TestStopExitsCreateConfig:
+    """Tests that ``create_config`` wires the stop-exit flags into the config.
+
+    The flags must respect the same precedence as every other flag: a value
+    that is passed explicitly wins over the configured one, and a flag that is
+    not given leaves the config file's value untouched.
+    """
+
+    def _base_args(self, **overrides):
+        base = {
+            "config": None,
+            "offline": False,
+            "provider": None,
+            "cache_dir": None,
+            "synthetic_days": None,
+            "synthetic_seed": None,
+            "alphavantage_key": None,
+            "risk_free_rate": None,
+            "enable_stop_exits": False,
+            "stop_loss_pct": None,
+            "take_profit_pct": None,
+            "trailing_stop_pct": None,
+            "trailing_stop_activation_pct": None,
+        }
+        base.update(overrides)
+        return argparse.Namespace(**base)
+
+    def test_flags_leave_config_defaults_untouched(self):
+        config = create_config(self._base_args())
+        assert config.backtest.enable_stop_exits is False
+        assert config.risk.stop_loss_pct == 0.05
+        assert config.risk.take_profit_pct == 0.15
+        assert config.risk.trailing_stop_pct == 0.0
+        assert config.risk.trailing_stop_activation_pct == 0.0
+
+    def test_enable_stop_exits_flag_enables_exits(self):
+        config = create_config(self._base_args(enable_stop_exits=True))
+        assert config.backtest.enable_stop_exits is True
+
+    def test_stop_loss_pct_flag_overrides_default(self):
+        config = create_config(self._base_args(stop_loss_pct=0.10))
+        assert config.risk.stop_loss_pct == 0.10
+
+    def test_take_profit_pct_flag_overrides_default(self):
+        config = create_config(self._base_args(take_profit_pct=0.25))
+        assert config.risk.take_profit_pct == 0.25
+
+    def test_trailing_stop_pct_flag_enables_trailing_stop(self):
+        config = create_config(self._base_args(trailing_stop_pct=0.05))
+        assert config.risk.trailing_stop_pct == 0.05
+
+    def test_trailing_stop_activation_pct_flag(self):
+        config = create_config(self._base_args(trailing_stop_activation_pct=0.02))
+        assert config.risk.trailing_stop_activation_pct == 0.02
+
+    def test_flags_win_over_config_file(self, tmp_path):
+        """An explicit flag overrides the value in a config YAML file."""
+        cfg = tmp_path / "config.yaml"
+        cfg.write_text(
+            "backtest:\n  enable_stop_exits: false\n"
+            "risk:\n  stop_loss_pct: 0.05\n  take_profit_pct: 0.15\n"
+            "  trailing_stop_pct: 0.0\n  trailing_stop_activation_pct: 0.0\n"
+        )
+        config = create_config(
+            self._base_args(
+                config=str(cfg),
+                enable_stop_exits=True,
+                stop_loss_pct=0.10,
+                take_profit_pct=0.20,
+                trailing_stop_pct=0.05,
+                trailing_stop_activation_pct=0.03,
+            )
+        )
+        assert config.backtest.enable_stop_exits is True
+        assert config.risk.stop_loss_pct == 0.10
+        assert config.risk.take_profit_pct == 0.20
+        assert config.risk.trailing_stop_pct == 0.05
+        assert config.risk.trailing_stop_activation_pct == 0.03
+
+    def test_config_file_values_used_when_flags_unset(self, tmp_path):
+        """When the flags are not given, the config file's values are kept."""
+        cfg = tmp_path / "config.yaml"
+        cfg.write_text(
+            "backtest:\n  enable_stop_exits: true\n"
+            "risk:\n  stop_loss_pct: 0.08\n  take_profit_pct: 0.18\n"
+            "  trailing_stop_pct: 0.04\n  trailing_stop_activation_pct: 0.02\n"
+        )
+        config = create_config(self._base_args(config=str(cfg)))
+        assert config.backtest.enable_stop_exits is True
+        assert config.risk.stop_loss_pct == 0.08
+        assert config.risk.take_profit_pct == 0.18
+        assert config.risk.trailing_stop_pct == 0.04
+        assert config.risk.trailing_stop_activation_pct == 0.02
 
 
 class TestIsSupportedInterval:
