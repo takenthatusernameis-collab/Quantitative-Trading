@@ -259,6 +259,28 @@ class TestCalculateSortinoRatio:
         assert result == pytest.approx(expected)
         assert result < 0.0
 
+    def test_constant_returns_zero_not_degenerate(self):
+        """A constant return series must not produce a degenerate +/-1 ratio.
+
+        A flat portfolio (zero trades, zero variance) has no downside to
+        measure, yet every observation falls on one side of the MAR, so the
+        downside deviation is non-zero and the raw ratio collapses to
+        +/-1 times the annualization factor (-15.87 for daily data). This is
+        the same zero-variance guard calculate_sharpe_ratio already applies,
+        so the Sortino must report 0.0 for a flat portfolio rather than a
+        meaningless negative number.
+        """
+        flat = pd.Series([0.0] * 10)
+        assert flat.std() == 0.0
+        assert calculate_sortino_ratio(flat) == pytest.approx(0.0)
+        assert not np.isnan(calculate_sortino_ratio(flat))
+
+    def test_constant_negative_returns_zero(self):
+        """A constant losing series (zero variance) must also report 0.0."""
+        constant_loss = pd.Series([-0.01] * 5)
+        assert constant_loss.std() == 0.0
+        assert calculate_sortino_ratio(constant_loss) == pytest.approx(0.0)
+
     def test_non_annualized(self):
         """annualize=False skips the sqrt(252) scaling (risk/metrics.py:90->92)."""
         non_annual = calculate_sortino_ratio(RETURNS, risk_free_rate=0.02, annualize=False)
