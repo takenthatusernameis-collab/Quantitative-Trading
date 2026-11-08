@@ -497,7 +497,7 @@ python examples/cli.py --offline --optimize --strategy stoch --stoch-overbought-
 
 The `random` and `bayesian` optimizers evaluate a fixed number of parameter
 combinations, set with `--n-iter` (default 50). The number of parallel jobs is
-controlled with `--n-jobs` (default 1). The Bayesian optimizer additionally
+controlled with `--n-jobs` (default 4). The Bayesian optimizer additionally
 accepts `--bayesian-n-initial` (initial random points, default 10),
 `--bayesian-acq-func` (acquisition function: `EI`, `PI`, `LCB`, `gp_hedge`;
 default `EI`), and `--bayesian-acq-optimizer` (`auto`, `sampling`, `lbfgs`;
