@@ -756,3 +756,46 @@ speculative refactor or tested-behavior change was made.
 - If still unassigned at the start of a future session, re-run the baseline
   checks (ruff + mypy + fast suite, or at minimum ruff + mypy + collection)
   before acting on any report.
+
+# What changed (this session, 2026-11-08, twenty-first entry)
+
+No code, README, or test changes. Independently re-verified the working baseline
+from a clean working tree (no prior agent assignment/handoff task was actionable;
+inspected repository for a bounded, high-value task and found none).
+
+## Verified (this session, twenty-first entry)
+
+- `git status --short`: clean at session start; HEAD `3de572e`, branch `main`.
+- `python3 -m ruff check .` → **All checks passed**.
+- `python3 -m mypy quant_trading/` → **Success: no issues found in 37 source files**.
+- `python3 -m pytest -q -m "not slow and not network" --co` → **2912/3041 collected (129 deselected)**.
+- `python3 examples/cli.py --version` → `quant-trading 0.1.0`; matches `quant_trading.__version__` and `pyproject.toml` `0.1.0`.
+- Grep for TODO/FIXME/XXX/HACK/BUG under `quant_trading/` → no defect markers (hits in `settings.py` are doctest `config.update(...)` lines, not markers).
+- `.kilo/next-task.md` confirms no bounded task pending; existing README↔code/CLI/packaging guards remain the source of truth for drift.
+
+Per "preserve the working baseline" / "prioritize results over activity", no
+speculative refactor or tested-behavior change was made.
+
+## Unresolved / not completed
+
+- None. No reproducible defect or bounded high-value task identified.
+
+## Failed approaches (do not repeat unchanged)
+
+- None this session. Prior constraints still apply: full fast suite needs
+  timeout > 300000 ms (~400s+); `rg` unavailable (use grep/Python); `uv` not on
+  PATH here (use `python3 -m ...`); do not refactor speculatively or weaken
+  safety/permissions; commit/push only if explicitly requested.
+
+## One precise next task
+
+- Wait for a new external issue or feature request with concrete requirements.
+- On arrival: reproduce/define acceptance criteria, implement the smallest
+  reversible change, and verify `python3 -m ruff check .`,
+  `python3 -m mypy quant_trading/`, focused `pytest` module(s), and for
+  cross-cutting changes `python3 -m pytest -q -m "not slow and not network"`
+  with timeout > 300000 ms. Record evidence in this handoff; commit/push only
+  if explicitly requested.
+- If still unassigned at the start of a future session, re-run the baseline
+  checks (ruff + mypy + fast suite, or at minimum ruff + mypy + collection)
+  before acting on any report.
