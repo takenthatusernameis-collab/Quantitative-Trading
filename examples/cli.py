@@ -391,7 +391,7 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--synthetic-days",
         type=int,
-        default=None,
+        default=365,
         help=(
             "Number of days of synthetic data to generate when running offline " "(default: 365)"
         ),
@@ -399,7 +399,7 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--synthetic-seed",
         type=int,
-        default=None,
+        default=42,
         help=("RNG seed for deterministic synthetic data generation (default: 42)"),
     )
     parser.add_argument(

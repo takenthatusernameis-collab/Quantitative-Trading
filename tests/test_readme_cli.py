@@ -132,6 +132,42 @@ def _documented_defaults() -> dict[str, str]:
     return claims
 
 
+# A CLI help-string default claim is a parenthesised ``(default: <value>)``
+# annotation inside an ``add_argument`` help string. It must match the parser's
+# declared default. Prose values such as ``inferred from extension`` or
+# ``nondeterministic`` describe behaviour rather than pin a literal and are
+# skipped.
+_HELP_DEFAULT_CLAIM = re.compile(r"\(default:\s*(?P<value>[^)\s]+)")
+
+# Help-string default claims whose value is prose rather than a pinned literal.
+# They are not comparable to a parser default, so they are excluded.
+_CLI_HELP_PROSE = {"inferred", "nondeterministic"}
+
+
+def _cli_help_default_claims() -> list[tuple[str, str]]:
+    """Return ``(flag, claimed_default)`` for every literal default claimed in cli.py help strings.
+
+    Scans the live parser's actions and extracts each help string's
+    ``(default: X)`` annotation, keyed by flag. Only literal claims are
+    returned; prose claims are skipped.
+    """
+    parser = cli._create_parser()
+    claims: list[tuple[str, str]] = []
+    for action in parser._actions:
+        if not action.option_strings or not action.help:
+            continue
+        match = _HELP_DEFAULT_CLAIM.search(action.help)
+        if not match:
+            continue
+        claimed = match.group("value").strip("`\"'").rstrip(".,")
+        if claimed in _CLI_HELP_PROSE:
+            continue
+        for option in action.option_strings:
+            if option.startswith("--"):
+                claims.append((option.lstrip("-"), claimed))
+    return claims
+
+
 def _coerce_default(actual: object, claimed: str) -> bool:
     """Return whether ``claimed`` matches the parser's ``actual`` default."""
     if isinstance(actual, bool):
@@ -185,5 +221,29 @@ class TestReadmeCliFlags:
                     f"parser default is {actual[flag]!r}"
                 )
         assert not offenders, "README default claims out of sync with the parser:\n" + "\n".join(
+            offenders
+        )
+
+    def test_cli_help_default_claims_match_the_parser(self):
+        """Every ``(default: X)`` claim in a cli.py help string must match the parser default.
+
+        Mirrors :meth:`test_documented_defaults_match_the_parser`, but checks
+        the help strings declared next to the parser in ``examples/cli.py``
+        instead of the README. This catches the same class of default drift
+        (for example a parser default of ``None`` documented as ``365``) at the
+        source rather than only in the rendered docs.
+        """
+        documented = _cli_help_default_claims()
+        actual = _parser_defaults()
+        offenders: list[str] = []
+        for flag, claimed in sorted(documented):
+            if flag not in actual:
+                continue
+            if not _coerce_default(actual[flag], claimed):
+                offenders.append(
+                    f"{flag}: help string claims default {claimed!r}, "
+                    f"parser default is {actual[flag]!r}"
+                )
+        assert not offenders, "CLI help-string default claims out of sync with the parser:\n" + "\n".join(
             offenders
         )

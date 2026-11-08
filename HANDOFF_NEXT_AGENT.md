@@ -86,4 +86,38 @@ matches the value `walk_forward.py` already used internally).
 - `rg` unavailable.
 - Commit/push only when explicitly requested.
 
+## What changed (this session, 2026-11-08, second entry)
+
+- **`examples/cli.py`** — `--synthetic-days` parser default `None -> 365` and `--synthetic-seed` `None -> 42`. The help strings already advertised `(default: 365)` / `(default: 42)`, and `quant_trading/config/settings.py:69-70` default both to 365/42, so the declared parser default did not match the documented/effective default. Same bug class as the previously fixed `--wf-step-size` / `--n-jobs`. Behavior is unchanged: the CLI only overwrote the config value when the flag was passed, and the config already defaulted to 365/42.
+- **`tests/test_readme_cli.py`** — added `TestReadmeCliFlags.test_cli_help_default_claims_match_the_parser`, which parses every `(default: X)` claim in `cli.py` help strings and compares it against the live `parse_args()` default. Prose claims ("inferred from extension", "nondeterministic") are skipped. Proven to **fail** on the pre-fix parser defaults (`None` vs claimed `365`/`42`) and to **pass** after the fix.
+
+## Verified (this session, second entry)
+
+- `python3 -m ruff check .` → **All checks passed**.
+- `python3 -m mypy quant_trading/` → **Success: no issues found in 37 source files**.
+- `python3 -m pytest -q tests/test_readme_cli.py` → **3 passed**.
+- `python3 -m pytest -q tests/test_cli.py` → **209 passed, 1 skipped** (~3:10).
+- `python3 -m pytest -q -m "not slow and not network"` (full fast suite) → **2911 passed, 1 skipped, 131 deselected** (~6:44).
+
+## Unresolved / not completed
+
+- None.
+
+## One precise next task
+
+- **If the user provides a concrete request (failing test, documented API drift, reproducible CLI/data/dependency issue):** implement the smallest reversible change, then verify:
+  1. `python3 -m ruff check .`
+  2. `python3 -m mypy quant_trading/`
+  3. Focused `pytest` module(s) for the changed area
+  4. For cross-cutting changes, `python3 -m pytest -q -m "not slow and not network"` with timeout > 300000 ms
+  Record evidence and `git status`/diff summary in this handoff; commit/push only if explicitly requested.
+- **If still unassigned:** no default-drift remains in this session. Two guards now cover both drift directions: README `default <value>` claims -> parser and cli.py help-string `(default: X)` claims -> parser (both in `tests/test_readme_cli.py`). Re-run the baseline checks (ruff + mypy + fast suite) before acting on any future report. Commit/push only if explicitly requested.
+
+## Environment notes
+
+- Use `python3 -m pytest|ruff|mypy`.
+- `data/` gitignored; do not commit runtime data/secrets.
+- `rg` unavailable.
+- Commit/push only when explicitly requested.
+
 (End of file)
