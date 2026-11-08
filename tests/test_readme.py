@@ -622,4 +622,67 @@ class TestReadmeCodeBlockOutputs:
                     f"README block {block_index}: {code!r} produced {actual!r}, "
                     f"README claims {expected!r}"
                 )
-        assert not offenders, "README code-block outputs out of sync:\n" + "\n".join(offenders)
+
+
+# Matches a tree entry line such as:
+#   │   └── trade_log.py    # Trade log interpretation ...
+#   ├── random_search.py# Randomized search
+# The filename is the first ``*.py`` token on the line; the trailing comment
+# is ignored.
+_STRUCTURE_FILE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*\.py)")
+
+
+def _structure_section() -> str:
+    """Return the body of the README "Project Structure" section."""
+    text = README_PATH.read_text(encoding="utf-8")
+    start = text.index("## Project Structure")
+    remainder = text[start + 1 :]
+    end = remainder.find("\n## ")
+    return remainder if end == -1 else remainder[:end]
+
+
+def _documented_structure_files() -> list[tuple[str, str]]:
+    """Return ``(subpackage, filename)`` pairs listed in the README tree.
+
+    The tree's directory lines (``├── strategies/``) set the current
+    subpackage; every subsequent ``*.py`` token is attributed to it. The
+    root-level ``quant_trading/__init__.py`` is not part of the diagram and is
+    excluded.
+    """
+    current_dir: str | None = None
+    entries: list[tuple[str, str]] = []
+    for line in _structure_section().splitlines():
+        stripped = line.strip()
+        dir_match = re.match(r"[│├└]──\s+([A-Za-z_][A-Za-z0-9_]*/)\s", stripped)
+        if dir_match:
+            current_dir = dir_match.group(1).rstrip("/")
+            continue
+        file_match = _STRUCTURE_FILE.search(line)
+        if file_match and current_dir is not None:
+            entries.append((current_dir, file_match.group(1)))
+    return entries
+
+
+class TestReadmeProjectStructure:
+    """The README "Project Structure" tree must list every source file."""
+
+    def test_every_documented_file_exists_on_disk(self):
+        """No tree entry may reference a file that does not exist."""
+        documented = _documented_structure_files()
+        missing = [
+            f"{d}/{f}"
+            for d, f in documented
+            if not (README_PATH.parent / "quant_trading" / d / f).exists()
+        ]
+        assert missing == [], f"README tree lists files not on disk: {missing}"
+
+    def test_every_source_file_is_documented(self):
+        """No non-``__init__`` source file may be absent from the tree."""
+        documented = {f"{d}/{f}" for d, f in _documented_structure_files()}
+        actual = {
+            str(p.relative_to(README_PATH.parent / "quant_trading"))
+            for p in (README_PATH.parent / "quant_trading").rglob("*.py")
+            if p.name != "__init__.py"
+        }
+        missing = sorted(actual - documented)
+        assert missing == [], f"Files on disk missing from the README tree: {missing}"

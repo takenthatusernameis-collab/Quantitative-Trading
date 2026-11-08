@@ -1,5 +1,71 @@
 # Handoff to next agent
 
+## What changed (this session, 2026-11-08, twenty-sixth entry)
+
+No code, README, or behavior changes. Added a regression guard for a class of
+README↔code drift that had previously been fixed by hand but had no test:
+
+- **`tests/test_readme.py`** — added `TestReadmeProjectStructure`, two tests
+  that reconcile the README "Project Structure" tree against the files on
+  disk:
+  - `test_every_documented_file_exists_on_disk` — every `*.py` token in the
+    tree must exist under `quant_trading/<subpkg>/`.
+  - `test_every_source_file_is_documented` — every non-`__init__.py` source
+    file under `quant_trading/` must appear in the tree.
+  This is the same guard pattern already used for the strategy registry, CLI
+  flags/defaults, example scripts, and imports. It exists because
+  `trade_log.py` was at one point missing from the diagram (fixed manually in
+  an earlier session) with no automated check to prevent recurrence.
+
+Verified to **fail** in both directions:
+- planted phantom `backtest/DOES_NOT_EXIST.py` in the tree →
+  `test_every_documented_file_exists_on_disk` fails.
+- removed the `trade_log.py` line from the tree →
+  `test_every_source_file_is_documented` fails
+  (`Files on disk missing from the README tree: ['backtest/trade_log.py']`).
+
+## Verified (this session, twenty-sixth entry)
+
+- `git status --short`: clean before work; 1 file modified after
+  (`tests/test_readme.py`). No unrelated changes.
+- `python3 -m ruff check .` → **All checks passed**.
+- `python3 -m mypy quant_trading/` → **Success: no issues found in 37 source
+  files**.
+- `python3 -m pytest -q tests/test_readme.py` → **15 passed** (13 prior + 2
+  new).
+- `python3 -m pytest -q tests/test_readme.py tests/test_repository_integrity.py
+  tests/test_readme_cli.py tests/test_readme_cli_commands.py` → **127 passed,
+  3 deselected** (~1:01).
+
+## Unresolved / not completed
+
+- None. The guard is in place and the tree currently reconciles 26/26 files.
+
+## Failed approaches (do not repeat unchanged)
+
+- None this session. Prior constraints still apply: full fast suite needs
+  timeout > 300000 ms (~400s+); `rg` unavailable (use grep/Python); do not
+  refactor speculatively or weaken safety/permissions; commit/push only if
+  explicitly requested.
+
+## One precise next task
+
+- **If the user provides a concrete request (failing test, documented API
+  drift, reproducible CLI/data/dependency issue):** implement the smallest
+  reversible change, then verify:
+  1. `python3 -m ruff check .`
+  2. `python3 -m mypy quant_trading/`
+  3. Focused `pytest` module(s) for the changed area
+  4. For cross-cutting changes, `python3 -m pytest -q -m "not slow and not
+     network"` with timeout > 300000 ms
+  Record evidence and `git status`/diff summary in this handoff; commit/push
+  only if explicitly requested.
+- **If still unassigned:** re-run the baseline checks (ruff + mypy + fast
+  suite) before acting on any future report. All README↔code drift guards now
+  cover the strategy registry, CLI flags/defaults (both directions), example
+  scripts, imports, pinned code-block outputs, and the project-structure tree.
+  Commit/push only if explicitly requested.
+
 ## What changed (this session, 2026-11-08)
 
 Fixed a real, reproducible README/CLI drift and added a regression guard so it
