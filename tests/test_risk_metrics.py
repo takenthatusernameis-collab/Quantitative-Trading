@@ -6,14 +6,19 @@ import pytest
 
 from quant_trading.risk.metrics import (
     RiskMetrics,
+    _align_series,
     calculate_all_metrics,
     calculate_alpha,
     calculate_beta,
     calculate_calmar_ratio,
+    calculate_cvar,
+    calculate_information_ratio,
     calculate_max_drawdown,
+    calculate_omega_ratio,
     calculate_returns,
     calculate_sharpe_ratio,
     calculate_sortino_ratio,
+    calculate_treynor_ratio,
     calculate_var,
     calculate_volatility,
 )
@@ -436,9 +441,14 @@ class TestRiskMetricsDataclass:
             volatility=0.2,
             var_95=-0.05,
             var_99=-0.08,
+            cvar_95=-0.06,
+            cvar_99=-0.10,
             beta=1.1,
             alpha=0.02,
             calmar_ratio=2.3,
+            treynor_ratio=0.03,
+            information_ratio=0.5,
+            omega_ratio=1.8,
         )
         data = metrics.to_dict()
         assert set(data.keys()) == {
@@ -448,9 +458,14 @@ class TestRiskMetricsDataclass:
             "volatility",
             "var_95",
             "var_99",
+            "cvar_95",
+            "cvar_99",
             "beta",
             "alpha",
             "calmar_ratio",
+            "treynor_ratio",
+            "information_ratio",
+            "omega_ratio",
         }
         assert data["sharpe_ratio"] == pytest.approx(1.5)
         assert data["calmar_ratio"] == pytest.approx(2.3)
@@ -754,112 +769,232 @@ class TestAlphaAlignment:
         assert result == pytest.approx(expected)
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+class TestCalculateTreynorRatio:
+    """Tests for calculate_treynor_ratio."""
 
-    def test_var_single_value(self):
-        """Single value returns: percentile behavior should not produce NaN."""
-        result = calculate_var(pd.Series([0.01]), confidence=0.95)
-        assert not np.isnan(result)
-        assert result == pytest.approx(0.01)
+    def test_treynor_basic(self):
+        treynor = calculate_treynor_ratio(RETURNS, MARKET_RETURNS, risk_free_rate=0.02)
+        beta = calculate_beta(RETURNS, MARKET_RETURNS)
+        expected = (RETURNS.mean() - 0.02 / 252) / beta * 252
+        assert treynor == pytest.approx(expected)
 
-    def test_var_single_value_high_confidence(self):
-        """Single value with high confidence."""
-        result = calculate_var(pd.Series([-0.05]), confidence=0.99)
-        assert not np.isnan(result)
+    def test_treynor_zero_beta(self):
+        constant = pd.Series([1.0, 1.0, 1.0, 1.0, 1.0])
+        assert calculate_treynor_ratio(RETURNS, constant) == pytest.approx(0.0)
+
+    def test_treynor_insufficient_returns(self):
+        small = pd.Series([0.01])
+        assert calculate_treynor_ratio(small, MARKET_RETURNS) == pytest.approx(0.0)
+
+    def test_treynor_periods_per_year_scales(self):
+        daily = calculate_treynor_ratio(RETURNS, MARKET_RETURNS, risk_free_rate=0.02)
+        monthly = calculate_treynor_ratio(
+            RETURNS, MARKET_RETURNS, risk_free_rate=0.02, periods_per_year=12
+        )
+        assert monthly != pytest.approx(daily)
+
+
+class TestCalculateInformationRatio:
+    """Tests for calculate_information_ratio."""
+
+    def test_information_ratio_basic(self):
+        info = calculate_information_ratio(RETURNS, MARKET_RETURNS)
+        aligned = _align_series(RETURNS, MARKET_RETURNS)
+        active = aligned.iloc[:, 0] - aligned.iloc[:, 1]
+        expected = active.mean() / active.std() * np.sqrt(252)
+        assert info == pytest.approx(expected)
+
+    def test_information_ratio_identical_series(self):
+        assert calculate_information_ratio(RETURNS, RETURNS) == pytest.approx(0.0)
+
+    def test_information_ratio_zero_tracking_error(self):
+        constant = pd.Series([0.01, 0.01, 0.01, 0.01, 0.01])
+        assert calculate_information_ratio(RETURNS, constant) == pytest.approx(0.0)
+
+    def test_information_ratio_insufficient_aligned(self):
+        small = pd.Series([0.01])
+        assert calculate_information_ratio(small, MARKET_RETURNS) == pytest.approx(0.0)
+
+    def test_information_ratio_periods_per_year_scales(self):
+        daily = calculate_information_ratio(RETURNS, MARKET_RETURNS)
+        monthly = calculate_information_ratio(
+            RETURNS, MARKET_RETURNS, periods_per_year=12
+        )
+        assert monthly == pytest.approx(daily * np.sqrt(12 / 252))
+
+
+class TestCalculateCVaR:
+    """Tests for calculate_cvar (Conditional VaR / Expected Shortfall)."""
+
+    def test_cvar_95(self):
+        cvar = calculate_cvar(RETURNS, confidence=0.95)
+        var_95 = np.percentile(RETURNS, 5)
+        tail = RETURNS[RETURNS <= var_95]
+        expected = tail.mean()
+        assert cvar == pytest.approx(expected)
+        assert cvar <= var_95  # CVaR should be <= VaR (more negative)
+
+    def test_cvar_99(self):
+        cvar = calculate_cvar(RETURNS, confidence=0.99)
+        var_99 = np.percentile(RETURNS, 1)
+        tail = RETURNS[RETURNS <= var_99]
+        expected = tail.mean()
+        assert cvar == pytest.approx(expected)
+        assert cvar <= var_99
+
+    def test_cvar_empty_returns_zero(self):
+        assert calculate_cvar(pd.Series([], dtype=float)) == pytest.approx(0.0)
+
+    def test_cvar_single_value(self):
+        result = calculate_cvar(pd.Series([-0.05]), confidence=0.95)
         assert result == pytest.approx(-0.05)
 
-    def test_beta_market_single_value(self):
-        """Market with single value paired with returns < 2 aligned should give 0."""
-        returns = pd.Series([0.01, 0.02, 0.03])
-        market = pd.Series([0.01])  # only 1 value
-        assert calculate_beta(returns, market) == pytest.approx(0.0)
+    def test_cvar_all_same_returns(self):
+        flat = pd.Series([0.01] * 10)
+        cvar = calculate_cvar(flat, confidence=0.95)
+        assert cvar == pytest.approx(0.01)
 
-    def test_beta_both_single_values(self):
-        returns = pd.Series([0.01])
-        market = pd.Series([0.02])
-        assert calculate_beta(returns, market) == pytest.approx(0.0)
 
-    def test_beta_market_constant_after_alignment(self):
-        returns = pd.Series([0.01, 0.02, 0.03])
-        market = pd.Series([0.05, 0.05, 0.05])
-        assert calculate_beta(returns, market) == pytest.approx(0.0)
+class TestCalculateOmegaRatio:
+    """Tests for calculate_omega_ratio."""
 
-    def test_alpha_insufficient_returns(self):
-        small = pd.Series([0.01])
-        market = pd.Series([0.01, 0.02, 0.03])
-        assert calculate_alpha(small, market) == pytest.approx(0.0)
+    def test_omega_basic(self):
+        returns = pd.Series([0.01, 0.02, -0.005, 0.015, -0.01])
+        omega = calculate_omega_ratio(returns, threshold=0.0)
+        gains = np.sum(np.maximum(returns - 0.0, 0.0))
+        losses = np.sum(np.maximum(0.0 - returns, 0.0))
+        expected = gains / losses
+        assert omega == pytest.approx(expected)
 
-    def test_alpha_insufficient_market(self):
-        returns = pd.Series([0.01, 0.02, 0.03])
-        small = pd.Series([0.01])
-        assert calculate_alpha(returns, small) == pytest.approx(0.0)
+    def test_omega_custom_threshold(self):
+        returns = pd.Series([0.01, 0.02, -0.005, 0.015, -0.01])
+        omega = calculate_omega_ratio(returns, threshold=0.01)
+        gains = np.sum(np.maximum(returns - 0.01, 0.0))
+        losses = np.sum(np.maximum(0.01 - returns, 0.0))
+        expected = gains / losses
+        assert omega == pytest.approx(expected)
 
-    def test_returns_with_nan_dropped(self):
-        prices = pd.Series([1.0, float("nan"), 2.0, 3.0])
-        res = calculate_returns(prices)
-        assert res.isna().sum() == 0
+    def test_omega_no_losses(self):
+        positive = pd.Series([0.01, 0.02, 0.03])
+        assert calculate_omega_ratio(positive, threshold=0.0) == pytest.approx(0.0)
 
-    def test_returns_all_same_extra(self):
-        prices = pd.Series([1.0, 1.0, 1.0])
-        res = calculate_returns(prices)
-        assert all(v == 0.0 for v in res)
+    def test_omega_empty_returns_zero(self):
+        assert calculate_omega_ratio(pd.Series([], dtype=float)) == pytest.approx(0.0)
 
-    def test_returns_two_points_extra(self):
-        prices = pd.Series([1.0, 2.0])
-        res = calculate_returns(prices)
-        assert len(res) == 1
-        assert res.iloc[0] == pytest.approx(1.0)
+    def test_omega_all_losses(self):
+        negative = pd.Series([-0.01, -0.02, -0.03])
+        omega = calculate_omega_ratio(negative, threshold=0.0)
+        gains = np.sum(np.maximum(negative - 0.0, 0.0))
+        losses = np.sum(np.maximum(0.0 - negative, 0.0))
+        expected = gains / losses
+        assert omega == pytest.approx(expected)
 
-    def test_var_with_nans(self):
-        r = pd.Series([0.01, float("nan"), 0.02, -0.01])
-        res = calculate_var(r)
-        assert not np.isnan(res)
-        assert res < 0
 
-    def test_volatility_with_nans(self):
-        r = pd.Series([0.01, float("nan"), 0.02, -0.01])
-        res = calculate_volatility(r)
-        assert not np.isnan(res)
-        assert res > 0
+class TestRiskMetricsDataclassExtended:
+    """Tests for RiskMetrics container with new fields."""
 
-    def test_sharpe_ratio_with_nans(self):
-        r = pd.Series([0.01, float("nan"), 0.02, -0.01, 0.03])
-        res = calculate_sharpe_ratio(r)
-        assert not np.isnan(res)
+    def test_to_dict_includes_new_fields(self):
+        metrics = RiskMetrics(
+            sharpe_ratio=1.5,
+            sortino_ratio=0.8,
+            max_drawdown=-0.1,
+            volatility=0.2,
+            var_95=-0.05,
+            var_99=-0.08,
+            cvar_95=-0.06,
+            cvar_99=-0.10,
+            beta=1.1,
+            alpha=0.02,
+            calmar_ratio=2.3,
+            treynor_ratio=0.03,
+            information_ratio=0.5,
+            omega_ratio=1.8,
+        )
+        data = metrics.to_dict()
+        assert "cvar_95" in data
+        assert "cvar_99" in data
+        assert "treynor_ratio" in data
+        assert "information_ratio" in data
+        assert "omega_ratio" in data
+        assert data["cvar_95"] == pytest.approx(-0.06)
+        assert data["cvar_99"] == pytest.approx(-0.10)
+        assert data["treynor_ratio"] == pytest.approx(0.03)
+        assert data["information_ratio"] == pytest.approx(0.5)
+        assert data["omega_ratio"] == pytest.approx(1.8)
 
-    def test_sortino_ratio_with_nans(self):
-        r = pd.Series([0.01, float("nan"), 0.02, -0.01, -0.02])
-        res = calculate_sortino_ratio(r)
-        assert not np.isnan(res)
+    def test_from_dict_round_trip_new_fields(self):
+        metrics = RiskMetrics(
+            cvar_95=-0.06,
+            cvar_99=-0.10,
+            treynor_ratio=0.03,
+            information_ratio=0.5,
+            omega_ratio=1.8,
+        )
+        restored = RiskMetrics.from_dict(metrics.to_dict())
+        assert restored.cvar_95 == pytest.approx(-0.06)
+        assert restored.cvar_99 == pytest.approx(-0.10)
+        assert restored.treynor_ratio == pytest.approx(0.03)
+        assert restored.information_ratio == pytest.approx(0.5)
+        assert restored.omega_ratio == pytest.approx(1.8)
 
-    def test_max_drawdown_with_nans(self):
-        eq = pd.Series([100.0, float("nan"), 110.0, 105.0, 100.0])
-        res = calculate_max_drawdown(eq)
-        assert not np.isnan(res)
+    def test_from_dict_defaults_new_fields(self):
+        restored = RiskMetrics.from_dict({"sharpe_ratio": 1.5})
+        assert restored.cvar_95 == 0.0
+        assert restored.cvar_99 == 0.0
+        assert restored.treynor_ratio == 0.0
+        assert restored.information_ratio == 0.0
+        assert restored.omega_ratio == 0.0
 
-    def test_beta_with_nans(self):
-        r = pd.Series([0.01, float("nan"), 0.02, -0.01])
-        m = pd.Series([0.005, 0.01, float("nan"), -0.005])
-        res = calculate_beta(r, m)
-        assert not np.isnan(res)
 
-    def test_alpha_with_nans(self):
-        r = pd.Series([0.01, float("nan"), 0.02, -0.01])
-        m = pd.Series([0.005, 0.01, float("nan"), -0.005])
-        res = calculate_alpha(r, m)
-        assert not np.isnan(res)
+class TestCalculateAllMetricsExtended:
+    """Tests for calculate_all_metrics with new fields."""
 
-    def test_calmar_ratio_with_nans(self):
-        eq = pd.Series([100.0, float("nan"), 110.0, 105.0, 90.0])
-        r = calculate_returns(eq)
-        res = calculate_calmar_ratio(r, eq)
-        assert not np.isnan(res)
+    def test_without_market_returns_includes_cvar_omega(self):
+        equity = pd.Series([100.0, 105.0, 110.0, 108.0, 115.0])
+        metrics = calculate_all_metrics(equity, risk_free_rate=0.02)
+        assert metrics.beta == pytest.approx(0.0)
+        assert metrics.alpha == pytest.approx(0.0)
+        assert metrics.treynor_ratio == pytest.approx(0.0)
+        assert metrics.information_ratio == pytest.approx(0.0)
+        assert isinstance(metrics.cvar_95, float)
+        assert isinstance(metrics.cvar_99, float)
+        assert isinstance(metrics.omega_ratio, float)
+        assert metrics.cvar_95 <= metrics.var_95
+        assert metrics.cvar_99 <= metrics.var_99
 
-    def test_all_metrics_with_nans_in_equity(self):
-        eq = pd.Series([100.0, float("nan"), 110.0, 105.0, 100.0, 95.0])
-        m = pd.Series([0.01, float("nan"), 0.02, 0.01, 0.0, -0.01])
-        res = calculate_all_metrics(eq, market_returns=m)
-        assert not np.isnan(res.sharpe_ratio)
-        assert not np.isnan(res.volatility)
-        assert not np.isnan(res.var_95)
+    def test_with_market_returns_includes_treynor_info(self):
+        equity = pd.Series([100.0, 105.0, 110.0, 108.0, 112.0, 118.0])
+        market = calculate_returns(equity)
+        metrics = calculate_all_metrics(equity, market_returns=market, risk_free_rate=0.02)
+        assert metrics.beta == pytest.approx(1.0)
+        assert metrics.treynor_ratio != 0.0
+        assert metrics.information_ratio == pytest.approx(0.0)
+
+    def test_periods_per_year_threaded_to_new_metrics(self):
+        equity = pd.Series([100.0, 105.0, 110.0, 108.0, 115.0, 112.0, 120.0])
+        market = pd.Series([100.0, 102.0, 104.0, 103.0, 107.0, 109.0, 111.0])
+        metrics = calculate_all_metrics(
+            equity,
+            market_returns=calculate_returns(market),
+            risk_free_rate=0.02,
+            periods_per_year=52,
+        )
+        assert metrics.treynor_ratio == pytest.approx(
+            calculate_treynor_ratio(
+                calculate_returns(equity),
+                calculate_returns(market),
+                risk_free_rate=0.02,
+                periods_per_year=52,
+            )
+        )
+        assert metrics.information_ratio == pytest.approx(
+            calculate_information_ratio(
+                calculate_returns(equity),
+                calculate_returns(market),
+                periods_per_year=52,
+            )
+        )
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

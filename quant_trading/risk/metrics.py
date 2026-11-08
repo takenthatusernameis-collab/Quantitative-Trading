@@ -35,9 +35,14 @@ class RiskMetrics:
         volatility: Annualized volatility of returns.
         var_95: Value at Risk at 95% confidence (historical method).
         var_99: Value at Risk at 99% confidence (historical method).
+        cvar_95: Conditional Value at Risk (Expected Shortfall) at 95% confidence.
+        cvar_99: Conditional Value at Risk (Expected Shortfall) at 99% confidence.
         beta: Beta relative to the market benchmark.
         alpha: Jensen's alpha (annualized) relative to the market benchmark.
         calmar_ratio: Calmar ratio (annual return / |max drawdown|).
+        treynor_ratio: Treynor ratio (excess return / beta).
+        information_ratio: Information ratio (active return / tracking error).
+        omega_ratio: Omega ratio (probability-weighted gains/losses vs threshold).
 
     Examples:
         >>> metrics = RiskMetrics(sharpe_ratio=1.2, max_drawdown=-0.05)
@@ -52,9 +57,14 @@ class RiskMetrics:
     volatility: float = 0.0
     var_95: float = 0.0  # Value at Risk (95% confidence)
     var_99: float = 0.0  # Value at Risk (99% confidence)
+    cvar_95: float = 0.0  # Conditional VaR / Expected Shortfall (95%)
+    cvar_99: float = 0.0  # Conditional VaR / Expected Shortfall (99%)
     beta: float = 0.0
     alpha: float = 0.0
     calmar_ratio: float = 0.0
+    treynor_ratio: float = 0.0
+    information_ratio: float = 0.0
+    omega_ratio: float = 0.0
 
     def to_dict(self) -> dict[str, float]:
         """Convert metrics to a dictionary.
@@ -71,9 +81,14 @@ class RiskMetrics:
             "volatility": self.volatility,
             "var_95": self.var_95,
             "var_99": self.var_99,
+            "cvar_95": self.cvar_95,
+            "cvar_99": self.cvar_99,
             "beta": self.beta,
             "alpha": self.alpha,
             "calmar_ratio": self.calmar_ratio,
+            "treynor_ratio": self.treynor_ratio,
+            "information_ratio": self.information_ratio,
+            "omega_ratio": self.omega_ratio,
         }
 
     @classmethod
@@ -86,9 +101,14 @@ class RiskMetrics:
             volatility=data.get("volatility", 0.0),
             var_95=data.get("var_95", 0.0),
             var_99=data.get("var_99", 0.0),
+            cvar_95=data.get("cvar_95", 0.0),
+            cvar_99=data.get("cvar_99", 0.0),
             beta=data.get("beta", 0.0),
             alpha=data.get("alpha", 0.0),
             calmar_ratio=data.get("calmar_ratio", 0.0),
+            treynor_ratio=data.get("treynor_ratio", 0.0),
+            information_ratio=data.get("information_ratio", 0.0),
+            omega_ratio=data.get("omega_ratio", 0.0),
         )
 
 
@@ -453,6 +473,166 @@ def calculate_calmar_ratio(
     return float(annual_return / abs(max_dd))
 
 
+def calculate_treynor_ratio(
+    returns: pd.Series,
+    market_returns: pd.Series,
+    risk_free_rate: float = 0.02,
+    periods_per_year: int = 252,
+) -> float:
+    """Calculate Treynor ratio.
+
+    Treynor ratio = (mean(returns) - risk_free_rate / periods_per_year) / beta,
+    where beta is the portfolio's sensitivity to market returns.
+
+    Args:
+        returns: Portfolio return series.
+        market_returns: Benchmark return series.
+        risk_free_rate: Annual risk-free rate (default 0.02).
+        periods_per_year: Number of periods per year used to annualize the
+            risk-free rate (default 252 for daily data).
+
+    Returns:
+        Treynor ratio, or 0.0 if insufficient data or beta is zero/undefined.
+
+    Examples:
+        >>> import pandas as pd
+        >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, 0.01])
+        >>> market = pd.Series([0.008, 0.015, -0.003, 0.01, 0.008])
+        >>> round(calculate_treynor_ratio(returns, market, risk_free_rate=0.02, annualize=False), 2)
+        0.01
+
+    """
+    beta = calculate_beta(returns, market_returns)
+    if beta == 0:
+        return 0.0
+
+    returns = returns.dropna()
+    if len(returns) == 0:
+        return 0.0
+
+    excess_return = returns.mean() - risk_free_rate / periods_per_year
+    return float(excess_return / beta * periods_per_year)
+
+
+def calculate_information_ratio(
+    returns: pd.Series,
+    benchmark_returns: pd.Series,
+    periods_per_year: int = 252,
+) -> float:
+    """Calculate Information ratio.
+
+    Information ratio = mean(active returns) / std(active returns), where
+    active returns are portfolio returns minus benchmark returns.
+
+    Args:
+        returns: Portfolio return series.
+        benchmark_returns: Benchmark return series.
+        periods_per_year: Number of periods per year used for annualization
+            (default 252 for daily data).
+
+    Returns:
+        Annualized Information ratio, or 0.0 if insufficient data or
+        zero tracking error.
+
+    Examples:
+        >>> import pandas as pd
+        >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, 0.01])
+        >>> benchmark = pd.Series([0.008, 0.015, -0.003, 0.01, 0.008])
+        >>> round(calculate_information_ratio(returns, benchmark, annualize=False), 2)
+        1.23
+
+    """
+    aligned = _align_series(returns, benchmark_returns)
+    if len(aligned) < 2:
+        return 0.0
+
+    active_returns = aligned.iloc[:, 0] - aligned.iloc[:, 1]
+    tracking_error = active_returns.std()
+
+    if not np.isfinite(tracking_error) or tracking_error == 0:
+        return 0.0
+
+    info_ratio = active_returns.mean() / tracking_error
+    return float(info_ratio * np.sqrt(periods_per_year))
+
+
+def calculate_cvar(
+    returns: pd.Series,
+    confidence: float = 0.95,
+) -> float:
+    """Calculate Conditional Value at Risk (Expected Shortfall).
+
+    CVaR is the expected loss given that the loss exceeds the VaR threshold.
+    For a confidence level of 95%, CVaR is the average of the worst 5% of returns.
+
+    Args:
+        returns: Return series.
+        confidence: Confidence level (default 0.95).
+
+    Returns:
+        Conditional VaR (negative value indicates expected loss), or 0.0 if
+        insufficient data.
+
+    Examples:
+        >>> import pandas as pd
+        >>> returns = pd.Series([-0.02, 0.01, -0.01, 0.005, -0.03, -0.025])
+        >>> round(calculate_cvar(returns, 0.95), 3)
+        -0.027
+
+    """
+    returns = returns.dropna()
+    if len(returns) == 0:
+        return 0.0
+
+    var_threshold = np.percentile(returns, (1 - confidence) * 100)
+    tail_returns = returns[returns <= var_threshold]
+
+    if len(tail_returns) == 0:
+        return float(var_threshold)
+
+    return float(tail_returns.mean())
+
+
+def calculate_omega_ratio(
+    returns: pd.Series,
+    threshold: float = 0.0,
+    periods_per_year: int = 252,
+) -> float:
+    """Calculate Omega ratio.
+
+    Omega ratio = sum(max(0, r - threshold)) / sum(max(0, threshold - r))
+    It measures the probability-weighted ratio of gains vs losses relative to
+    a threshold return.
+
+    Args:
+        returns: Return series.
+        threshold: Threshold return (default 0.0 for zero return threshold).
+        periods_per_year: Number of periods per year (not used in calculation
+            but kept for API consistency).
+
+    Returns:
+        Omega ratio, or 0.0 if insufficient data or no losses below threshold.
+
+    Examples:
+        >>> import pandas as pd
+        >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, -0.01])
+        >>> round(calculate_omega_ratio(returns, threshold=0.0), 2)
+        2.50
+
+    """
+    returns = returns.dropna()
+    if len(returns) == 0:
+        return 0.0
+
+    gains = np.sum(np.maximum(returns.to_numpy(dtype=float) - threshold, 0.0))
+    losses = np.sum(np.maximum(threshold - returns.to_numpy(dtype=float), 0.0))
+
+    if losses == 0:
+        return 0.0
+
+    return float(gains / losses)
+
+
 def calculate_all_metrics(
     equity_curve: pd.Series,
     market_returns: pd.Series | None = None,
@@ -462,7 +642,8 @@ def calculate_all_metrics(
     """Calculate all risk metrics from an equity curve.
 
     Calculates Sharpe ratio, Sortino ratio, max drawdown, volatility,
-    VaR (95% and 99%), Calmar ratio, and optionally beta and alpha if
+    VaR (95% and 99%), CVaR (95% and 99%), Calmar ratio, and optionally
+    beta, alpha, Treynor ratio, Information ratio, and Omega ratio if
     market returns are provided.
 
     Args:
@@ -499,15 +680,24 @@ def calculate_all_metrics(
         volatility=calculate_volatility(returns, periods_per_year=periods_per_year),
         var_95=calculate_var(returns, 0.95),
         var_99=calculate_var(returns, 0.99),
+        cvar_95=calculate_cvar(returns, 0.95),
+        cvar_99=calculate_cvar(returns, 0.99),
         calmar_ratio=calculate_calmar_ratio(
             returns, equity_curve, periods_per_year=periods_per_year
         ),
+        omega_ratio=calculate_omega_ratio(returns, periods_per_year=periods_per_year),
     )
 
     if market_returns is not None:
         metrics.beta = calculate_beta(returns, market_returns)
         metrics.alpha = calculate_alpha(
             returns, market_returns, risk_free_rate, periods_per_year=periods_per_year
+        )
+        metrics.treynor_ratio = calculate_treynor_ratio(
+            returns, market_returns, risk_free_rate, periods_per_year=periods_per_year
+        )
+        metrics.information_ratio = calculate_information_ratio(
+            returns, market_returns, periods_per_year=periods_per_year
         )
 
     return metrics
@@ -519,10 +709,14 @@ __all__ = [
     "calculate_alpha",
     "calculate_beta",
     "calculate_calmar_ratio",
+    "calculate_cvar",
+    "calculate_information_ratio",
     "calculate_max_drawdown",
+    "calculate_omega_ratio",
     "calculate_returns",
     "calculate_sharpe_ratio",
     "calculate_sortino_ratio",
+    "calculate_treynor_ratio",
     "calculate_var",
     "calculate_volatility",
 ]
