@@ -1,21 +1,26 @@
 # Handoff to next agent
 
-## What changed (this session, 2026-11-08, thirty-seventh entry)
+## What changed (this session, 2026-11-08, thirty-eighth entry)
 
-No code, README, or test changes. Independently re-verified the working baseline from a clean working tree; no prior agent assignment or handoff task was actionable.
+Fixed a reproducible, bounded degenerate-ratio edge case in `calculate_sortino_ratio` and added a regression guard.
 
-## Verified (this session, thirty-seventh entry)
+- **`quant_trading/risk/metrics.py:268-277`** — `calculate_sortino_ratio`'s zero-variance guard checked only `returns.std() == 0`. For a length-1 return series (or an equity path that collapses to a single return after NaN dropping, e.g. `[100, NaN, 100, 100]`), `std()` is `NaN` (undefined variance), so the guard did not trigger and the function produced the same degenerate annualized ratio as the pre-29th-entry flat-portfolio bug (`-15.87` daily). `calculate_sharpe_ratio` already guards with `not np.isfinite(std) or std == 0`; Sortino now uses the same guard, returning `0.0` for undefined/non-finite or zero variance.
+- **`tests/test_risk_metrics.py`** — added `test_single_or_nan_std_returns_zero_not_degenerate` covering a single-observation series (NaN std) and the NaN-gapped equity path via `calculate_all_metrics` (both Sharpe and Sortino must be `0.0`).
 
-- `git status --short`: clean at session start; branch `main` up to date with `origin/main`; HEAD `ab94076`.
+No behavior change for any series with finite, non-zero variance.
+
+## Verified (this session, thirty-eighth entry)
+
+- `git status --short`: clean before work; 2 files modified after (`quant_trading/risk/metrics.py`, `tests/test_risk_metrics.py`). No unrelated changes.
 - `python3 -m ruff check .` → **All checks passed**.
 - `python3 -m mypy quant_trading/` → **Success: no issues found in 37 source files**.
-- No TODO/FIXME/XXX/HACK/BUG markers in `quant_trading/`; `.kilo/next-task.md` reports no bounded task pending.
-
-Per "preserve the working baseline" / "prioritize results over activity", no speculative refactor or tested-behavior change was made.
+- `python3 -m pytest -q tests/test_risk_metrics.py` → **80 passed** (79 prior + 1 new) in 0.38s.
+- `python3 -m pytest -q tests/test_readme.py tests/test_repository_integrity.py` → **40 passed** in 6.42s.
+- Baseline at session start (independent re-verification): ruff/mypy green, HEAD `cb82780` on `main` up to date with `origin/main`.
 
 ## Unresolved / not completed
 
-- None. No reproducible defect or bounded high-value task identified.
+- None. The NaN-std/length-1 Sortino degenerate case is fixed and guarded.
 
 ## Failed approaches (do not repeat unchanged)
 
@@ -24,7 +29,9 @@ Per "preserve the working baseline" / "prioritize results over activity", no spe
 ## One precise next task
 
 - Wait for a new external issue or feature request with concrete requirements. On arrival: reproduce/define acceptance criteria, implement the smallest reversible change, and verify `python3 -m ruff check .`, `python3 -m mypy quant_trading/`, focused `pytest` module(s), and for cross-cutting changes `python3 -m pytest -q -m "not slow and not network"` with timeout > 300000 ms. Record evidence; commit/push only if explicitly requested.
-- If still unassigned: re-run baseline checks (ruff + mypy + fast suite) before acting on any report.
+- If still unassigned: re-run baseline checks (ruff + mypy + focused risk/readme/integrity tests, or fast suite) before acting on any report. The zero-variance guards in `risk/metrics.py` now cover zero std and NaN/undefined std for Sharpe and Sortino; other ratio sites were audited in the 33rd entry and remain guarded. No bounded task pending.
+
+
 
 # Handoff to next agent
 

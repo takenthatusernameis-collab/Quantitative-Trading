@@ -281,6 +281,26 @@ class TestCalculateSortinoRatio:
         assert constant_loss.std() == 0.0
         assert calculate_sortino_ratio(constant_loss) == pytest.approx(0.0)
 
+    def test_single_or_nan_std_returns_zero_not_degenerate(self):
+        """A single observation (NaN std) must not produce a degenerate ratio.
+
+        After dropping NaNs, an equity path can collapse to a single return
+        observation; returns.std() is NaN for a length-1 series, so the
+        zero-variance guard must treat non-finite std as undefined variance
+        and return 0.0 (matching calculate_sharpe_ratio), not -15.87.
+        """
+        single = pd.Series([0.0])
+        assert not np.isfinite(single.std())
+        assert calculate_sortino_ratio(single) == pytest.approx(0.0)
+        assert not np.isnan(calculate_sortino_ratio(single))
+
+        # NaN-gapped equity that yields a single flat return via
+        # calculate_all_metrics.
+        equity = pd.Series([100.0, np.nan, 100.0, 100.0])
+        metrics = calculate_all_metrics(equity)
+        assert metrics.sortino_ratio == pytest.approx(0.0)
+        assert metrics.sharpe_ratio == pytest.approx(0.0)
+
     def test_non_annualized(self):
         """annualize=False skips the sqrt(252) scaling (risk/metrics.py:90->92)."""
         non_annual = calculate_sortino_ratio(RETURNS, risk_free_rate=0.02, annualize=False)

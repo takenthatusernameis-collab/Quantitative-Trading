@@ -264,13 +264,14 @@ def calculate_sortino_ratio(
     returns = returns.dropna()
     if len(returns) == 0:
         return 0.0
-    # A constant return series (zero variance) has no downside to measure:
-    # every observation falls on the same side of the MAR, so the downside
-    # deviation is non-zero and the ratio collapses to a degenerate
-    # excess/downside_dev of +/-1 times the annualization factor. Guard on
-    # zero variance the same way calculate_sharpe_ratio does, so a flat
-    # portfolio (zero trades) reports 0.0 instead of -15.87.
-    if returns.std() == 0:
+    # A constant or undefined-variance return series has no downside to
+    # measure: with every observation on the same side of the MAR (or with
+    # fewer than two observations, so std is NaN), the downside deviation is
+    # non-zero and the ratio collapses to a degenerate annualized value.
+    # Guard the same way calculate_sharpe_ratio does, so a flat/single-
+    # observation portfolio reports 0.0 instead of a spurious ratio.
+    std = returns.std()
+    if not np.isfinite(std) or std == 0:
         return 0.0
     mar = risk_free_rate / periods_per_year
     excess = float(returns.mean()) - mar
