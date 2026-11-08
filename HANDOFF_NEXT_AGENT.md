@@ -549,3 +549,32 @@ speculative refactor or tested-behavior change was made.
 - If still unassigned at the start of a future session, re-run the baseline
   checks (ruff + mypy + fast suite, or at minimum ruff + mypy + collection)
   before acting on any report.
+
+# What changed (this session, 2026-11-08, fifteenth entry)
+
+- **`README.md`** — removed a duplicated Chande Momentum Oscillator demo entry
+  (the `examples/run_cmo.py` block that verbatim repeated the
+  `examples/run_chande_momentum_oscillator.py` entry directly above it). Both
+  files ran `ChandeMomentumOscillatorStrategy` with identical behavior.
+- **`examples/run_cmo.py`** — deleted the now-orphaned duplicate script.
+  The test suite enforces a 1:1 mapping between `examples/run_*.py` files and
+  README references (`tests/test_readme.py:260`, `:267`), so the orphaned file
+  had to be removed together with its now-removed README entry. No behavior
+  change: `run_chande_momentum_oscillator.py` remains the single CMO demo.
+
+## Verified (this session, fifteenth entry)
+
+- `git status --short`: clean before work; 2 changes after (` M README.md`,
+  ` D examples/run_cmo.py`). No unrelated changes.
+- `python3 -m ruff check .` → **All checks passed**.
+- `python3 -m mypy quant_trading/` → **Success: no issues found in 37 source
+  files**.
+- `python3 -m pytest -q tests/test_readme.py` → **13 passed**.
+- `python3 -m pytest -q tests/test_example_scripts_run.py
+  tests/test_examples_smoke.py` → **51 passed**.
+- `python3 -m pytest -q -m "not slow and not network"` (full fast suite,
+  600000 ms timeout) → **2911 passed, 1 skipped, 129 deselected** (~6:44).
+
+## Unresolved / not completed
+
+- None. The duplicate CMO demo entry is resolved and verified.

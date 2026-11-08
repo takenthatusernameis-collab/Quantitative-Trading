@@ -977,14 +977,6 @@ signals when CMO crosses below zero (negative momentum):
 python examples/run_chande_momentum_oscillator.py
 ```
 
-For a Chande Momentum Oscillator demonstration, see `examples/run_cmo.py`. It runs
-the `ChandeMomentumOscillatorStrategy` against seeded synthetic data, generating
-buy signals when CMO crosses above zero and sell signals when CMO crosses below
-zero:
-
-```bash
-python examples/run_cmo.py
-```
 
 For a Choppiness Index demonstration, see `examples/run_choppiness_index.py`. It
 runs the `ChoppinessIndexStrategy` against seeded synthetic data, generating buy
