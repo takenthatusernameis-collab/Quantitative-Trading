@@ -1172,3 +1172,34 @@ is already present and committed/clean in the current state.
 - If still unassigned at the start of a future session, re-run the baseline
   checks (ruff + mypy + fast suite, or at minimum ruff + mypy + collection)
   before acting on any report.
+
+# What changed (this session, 2026-11-08, twenty-seventh entry)
+
+- **`tests/test_repository_integrity.py`** — added `test_all_package_all_exports_resolve`, which imports every package under `quant_trading/` (root plus all 9 subpackages) and asserts every name listed in each package's `__all__` is bound to a module attribute (`hasattr`). This generalizes the existing `test_strategies_init_all_exports_exist` (which covered only `strategies`) to all packages, closing a silent export-hole regression risk: a future `__all__` entry for an undefined/imported name would otherwise make `from package import name` raise `AttributeError` despite being advertised.
+
+- Verified all 10 package `__all__` lists resolve (root + backtest, config, data, monte_carlo, optimization, portfolio, regime, risk, strategies, utils). The optimization package's `BayesianOptimizer` is intentionally bound to `None` when `scikit-optimize` is absent, so it is correctly covered.
+
+## Verified (this session, twenty-seventh entry)
+
+- `python3 -m ruff check .` → **All checks passed**.
+- `python3 -m mypy quant_trading/` → **Success: no issues found in 37 source files**.
+- `python3 -m pytest -q tests/test_repository_integrity.py` → **25 passed** (was 24; new test included).
+- Positive control: temporarily added a bogus `DoesNotExist` to `quant_trading/config/__init__.py`'s `__all__` → test **failed** as expected (`unbound __all__ names: DoesNotExist`); reverted afterward. `git status` shows only ` M tests/test_repository_integrity.py`.
+
+## Unresolved / not completed
+
+- None. The change is complete and verified.
+
+## Failed approaches (do not repeat unchanged)
+
+- None this session. Prior constraints still apply: full fast suite needs timeout > 300000 ms (~400s+); `rg` unavailable (use grep/Python); do not refactor speculatively or weaken safety/permissions; commit/push only if explicitly requested.
+
+## One precise next task
+
+- **If the user provides a concrete request (failing test, documented API drift, reproducible CLI/data/dependency issue):** implement the smallest reversible change, then verify:
+  1. `python3 -m ruff check .`
+  2. `python3 -m mypy quant_trading/`
+  3. Focused `pytest` module(s) for the changed area
+  4. For cross-cutting changes, `python3 -m pytest -q -m "not slow and not network"` with timeout > 300000 ms
+  Record evidence and `git status`/diff summary in this handoff; commit/push only if explicitly requested.
+- **If still unassigned:** re-run baseline checks (ruff + mypy + fast suite, or at minimum ruff + mypy + collection) before acting on any future report. All README↔code drift guards remain in place and passing; no bounded task pending.

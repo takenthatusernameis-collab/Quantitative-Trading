@@ -385,6 +385,31 @@ def test_strategies_init_all_exports_exist():
     assert not missing, "strategies.__all__ names missing from module: " + ", ".join(missing)
 
 
+def test_all_package_all_exports_resolve():
+    """Every name in every package's __all__ must be bound to a module attribute.
+
+    A name listed in ``__all__`` that is not defined or imported in the package
+    __init__ is a silent export hole: ``from package import name`` raises
+    AttributeError even though the package advertises the name.
+    """
+    failures: list[str] = []
+    for init in sorted((REPO_ROOT / "quant_trading").rglob("__init__.py")):
+        rel = init.relative_to(REPO_ROOT)
+        pkg = init.parent.relative_to(REPO_ROOT / "quant_trading").as_posix().replace("/", ".")
+        if pkg == ".":
+            pkg = ""
+        modname = "quant_trading" + (f".{pkg}" if pkg else "")
+        try:
+            mod = importlib.import_module(modname)
+        except Exception as exc:  # noqa: BLE001 - report any import-time failure
+            failures.append(f"{modname}: cannot import: {exc!r}")
+            continue
+        missing = [name for name in getattr(mod, "__all__", []) if not hasattr(mod, name)]
+        if missing:
+            failures.append(f"{rel}: unbound __all__ names: {', '.join(missing)}")
+    assert not failures, "package __all__ exports not bound:\n" + "\n".join(failures)
+
+
 def test_cli_strategy_imports_exist():
     """Names imported from quant_trading.strategies by examples/cli.py must exist."""
     import ast
