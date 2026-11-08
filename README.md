@@ -65,7 +65,8 @@ quant_trading/
 │   ├── engine.py       # Main backtest engine
 │   ├── metrics.py      # Performance metrics
 │   ├── analysis.py     # Regime and trade analysis helpers
-│   └── trade_analysis.py # Detailed trade-level analysis
+│   ├── trade_analysis.py # Detailed trade-level analysis
+│   └── trade_log.py    # Trade log interpretation and round-trip pairing
 ├── data/               # Data providers
 │   ├── providers.py    # Base interfaces
 │   ├── synthetic.py    # Deterministic synthetic data generator

@@ -533,9 +533,9 @@ speculative refactor or tested-behavior change was made.
 ## Failed approaches (do not repeat unchanged)
 
 - None this session. Prior constraints still apply: full fast suite needs
-  timeout > 300000 ms; `rg` unavailable (use grep/Python); do not refactor
-  speculatively or weaken safety/permissions; commit/push only if explicitly
-  requested.
+  timeout > 300000 ms (~400s+); `rg` unavailable (use grep/Python); do not
+  refactor speculatively or weaken safety/permissions; commit/push only if
+  explicitly requested.
 
 ## One precise next task
 
@@ -549,6 +549,38 @@ speculative refactor or tested-behavior change was made.
 - If still unassigned at the start of a future session, re-run the baseline
   checks (ruff + mypy + fast suite, or at minimum ruff + mypy + collection)
   before acting on any report.
+
+# What changed (this session, 2026-11-08, twenty-sixth entry)
+
+- **`quant_trading/backtest/__init__.py`** — added `TradeLog` and `split_trade_log` to the package's public exports (import + `__all__`). The `trade_log.py` module is used internally by `metrics.py` and `trade_analysis.py` and has its own public API with doctests, but was the only `backtest/` submodule not re-exported from the package `__init__.py`. Every other backtest submodule (analysis, engine, metrics, trade_analysis) already re-exports its public API; this makes `trade_log` consistent with that pattern.
+- **`README.md`** — added `trade_log.py` to the "Project Structure" diagram under `backtest/`, where it was missing while every other backtest module was listed.
+
+## Verified (this session, twenty-sixth entry)
+
+- `git status --short`: clean before work; 2 files modified after (`README.md`, `quant_trading/backtest/__init__.py`). No unrelated changes.
+- `python3 -m ruff check .` → **All checks passed**.
+- `python3 -m mypy quant_trading/` → **Success: no issues found in 37 source files**.
+- `python3 -m pytest -q tests/test_trade_log.py tests/test_backtest_engine.py tests/test_backtest_metrics.py tests/test_backtest_analysis.py tests/test_trade_analysis.py` → **245 passed** (~1.5s).
+- `python3 -m pytest -q tests/test_repository_integrity.py --doctest-modules quant_trading/backtest/__init__.py quant_trading/backtest/trade_log.py` → **25 passed**.
+- `from quant_trading.backtest import TradeLog, split_trade_log` → imports successfully; both names resolve.
+
+## Unresolved / not completed
+
+- None. The change is complete and verified.
+
+## Failed approaches (do not repeat unchanged)
+
+- None this session. Prior constraints still apply: full fast suite needs timeout > 300000 ms (~400s+); `rg` unavailable (use grep/Python); do not refactor speculatively or weaken safety/permissions; commit/push only if explicitly requested.
+
+## One precise next task
+
+- **If the user provides a concrete request (failing test, documented API drift, reproducible CLI/data/dependency issue):** implement the smallest reversible change, then verify:
+  1. `python3 -m ruff check .`
+  2. `python3 -m mypy quant_trading/`
+  3. Focused `pytest` module(s) for the changed area
+  4. For cross-cutting changes, `python3 -m pytest -q -m "not slow and not network"` with timeout > 300000 ms
+  Record evidence and `git status`/diff summary in this handoff; commit/push only if explicitly requested.
+- **If still unassigned:** re-run the baseline checks (ruff + mypy + fast suite) before acting on any future report. All README↔code drift guards remain in place and passing; no bounded task pending.
 
 # What changed (this session, 2026-11-08, fifteenth entry)
 
