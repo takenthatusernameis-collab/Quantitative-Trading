@@ -9,7 +9,7 @@
 - `python3 -m ruff check .` → exit 0, all checks passed.
 - `python3 -m mypy quant_trading/` → **Success: no issues found in 37 source files**.
 - `python3 -m pytest tests/test_cli.py -q -k "param_grid"` → **7 passed** (includes the new cross-strategy grid test), 203 deselected.
-- Prior full-fast evidence from previous session still valid: `python3 -m pytest -q -m "not slow and not network"` → **2908 passed, 1 skipped, 131 deselected**; `pytest tests/test_readme.py -q` → **12 passed**; ruff/mypy/README CLI command tests green.
+- Prior full-fast evidence from previous session still valid: `python3 -m pytest -q -m "not slow and not network"` → **2909 passed, 1 skipped, 131 deselected**; `pytest tests/test_readme.py -q` → **12 passed**; ruff/mypy/README CLI command tests green.
 - No `TODO`/`FIXME`/`XXX` markers in `quant_trading/`, `tests/`, `examples/`.
 
 ## Unresolved / not completed
