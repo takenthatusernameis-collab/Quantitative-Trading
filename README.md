@@ -587,8 +587,8 @@ The windows are controlled with `--wf-windows` (number of windows, default 5),
 optimizer used inside each window is selected with `--wf-optimizer`
 (`grid`, `random`, or `bayesian`; default `grid`).
 
-The step between consecutive windows is controlled with `--wf-step-size`, given
-as a fraction of a window's span. It defaults to `1.0`, so the windows tile the
+The step between consecutive windows is controlled with `--wf-step-size`
+(default `1.0`), given as a fraction of a window's span. The windows tile the
 requested period exactly and every sub-interval is used once. A smaller step
 overlaps the training spans of consecutive windows, which re-optimizes more
 often over the same data:

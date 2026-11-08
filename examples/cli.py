@@ -790,7 +790,7 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--wf-step-size",
         type=float,
-        default=None,
+        default=1.0,
         help=(
             "Step size between windows as a fraction of a window's span "
             "(default: 1.0, so the windows tile the requested period)"

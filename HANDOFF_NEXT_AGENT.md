@@ -16,29 +16,33 @@ cannot recur silently.
   on the old README (`n-jobs: README claims default '1', parser default is 4`)
   and to **pass** after the fix.
 
-No code, dependency, or behavior changes. The parser default was left at `4`
-(the README was wrong, not the code).
+- **`examples/cli.py:793`** — `--wf-step-size` had parser `default=None`, but its
+  help text (`(default: 1.0, ...)`) and the README both documented default `1.0`,
+  and `walk_forward.py` normalizes `None -> 1.0`. Changed the parser default to
+  `1.0` so the declared default matches the documented/effective default (same
+  class of bug as the `--n-jobs` fix above).
+- **`README.md:590-591`** — rephrased the `--wf-step-size` default claim into the
+  backtick-quoted `` `--wf-step-size` (default `1.0`) `` form so it is now
+  covered by the existing `tests/test_readme_cli.py` default-claim guard
+  (previously the prose "It defaults to `1.0`" slipped past the regex).
+
+No code, dependency, or behavior changes beyond the parser default (which now
+matches the value `walk_forward.py` already used internally).
 
 ## Verified (this session, 2026-11-08)
 
 - `git status --short`: clean before work; 2 files modified after (`README.md`,
-  `tests/test_readme_cli.py`). No unrelated changes.
+  `examples/cli.py`). No unrelated changes.
 - `python3 -m ruff check .` → **All checks passed**.
 - `python3 -m mypy quant_trading/` → **Success: no issues found in 37 source
-  files**. (`tests/test_readme_cli.py` is not type-checked by the project's
-  mypy invocation; the 4 errors in `examples/cli.py` are pre-existing and
-  untouched — confirmed by `git stash` reproducing them on the clean baseline.)
-- `python3 -m pytest -q tests/test_readme_cli.py tests/test_readme_cli_commands.py
-  tests/test_readme.py tests/test_strategy_registry_coverage.py` → **107 passed,
-  3 deselected** (~57s).
-- New regression guard proven to fail on the unfixed README and pass after the
-  fix (see "What changed").
-- Full fast suite: `python3 -m pytest -q -m "not slow and not network"
-  --cov=quant_trading --cov-report=term` → **2910 passed, 1 skipped, 131
-  deselected, TOTAL coverage 100%** (~410s; timeout > 300000 ms).
-- All 54 `examples/run_*.py` scripts executed end to end with no failures
-  (background run completed; the only noise was a `kilo` shell artifact
-  unrelated to the repo).
+  files**. (`examples/cli.py` is not type-checked by the project's mypy
+  invocation.)
+- `python3 -m pytest -q tests/test_cli.py tests/test_readme_cli.py
+  tests/test_readme_cli_commands.py tests/test_readme.py` → **307 passed,
+  1 skipped, 3 deselected** (~4:10).
+- The `--wf-step-size` default-claim guard proven to catch drift: confirmed
+  `_coerce_default(None, '1.0')` is `False` (the old parser default would have
+  failed the test) and `_coerce_default(1.0, '1.0')` is `True` after the fix.
 
 ## Unresolved / not completed
 
