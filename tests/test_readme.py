@@ -136,6 +136,19 @@ class TestReadmeStrategyRegistry:
         ), "README strategy aliases out of sync with the registry:\n" + "\n".join(offenders)
 
 
+
+    def test_feature_bullet_strategy_count_matches_registry(self):
+        """The README feature bullet's 'N registered strategies' must match the live registry."""
+        readme = README_PATH.read_text(encoding="utf-8")
+        match = re.search(r"(\d+)\s+registered strategies", readme)
+        assert match is not None, "README missing 'N registered strategies' feature claim"
+        claimed = int(match.group(1))
+        actual = len(list_strategies())
+        assert claimed == actual, (
+            f"README claims {claimed} registered strategies, registry has {actual}"
+        )
+
+
 # Names imported from ``quant_trading.data`` in the README's DataManager example.
 # The snippet must stay in sync with ``quant_trading.data.__all__``; a future
 # export change must not silently desync the docs.

@@ -111,7 +111,7 @@ matches the value `walk_forward.py` already used internally).
   3. Focused `pytest` module(s) for the changed area
   4. For cross-cutting changes, `python3 -m pytest -q -m "not slow and not network"` with timeout > 300000 ms
   Record evidence and `git status`/diff summary in this handoff; commit/push only if explicitly requested.
-- **If still unassigned:** no default-drift remains in this session. Two guards now cover both drift directions: README `default <value>` claims -> parser and cli.py help-string `(default: X)` claims -> parser (both in `tests/test_readme_cli.py`). Re-run the baseline checks (ruff + mypy + fast suite) before acting on any future report. Commit/push only if explicitly requested.
+- **If still unassigned:** no default-drift or strategy-registry drift detected this session. Regression guards now cover README/CLI default claims (both directions) and README strategy registry/count. Re-run the baseline checks (ruff + mypy + fast suite) before acting on any future report. Commit/push only if explicitly requested.
 
 ## Environment notes
 
@@ -119,5 +119,36 @@ matches the value `walk_forward.py` already used internally).
 - `data/` gitignored; do not commit runtime data/secrets.
 - `rg` unavailable.
 - Commit/push only when explicitly requested.
+
+## What changed (this session, 2026-11-08, third entry)
+
+- **`tests/test_readme.py`** — added `TestReadmeStrategyRegistry.test_feature_bullet_strategy_count_matches_registry`. It parses the README feature bullet's ``N registered strategies`` claim and compares it to `len(list_strategies())` (live registry). The table-sync tests already existed, but the hardcoded feature-bullet count (`46`) could drift silently when strategies are added/removed. No production code or README content changed (the claim is currently correct: 46 == 46).
+
+## Verified (this session, third entry)
+
+- No prior agent assignment/handoff task was actionable (previous entries marked unresolved as none). Inspected repo and selected this bounded, high-value guard.
+- `git status --short` before work: clean (aside from untracked runtime dirs not in scope); after: ` M tests/test_readme.py`, ` M HANDOFF_NEXT_AGENT.md`.
+- `python3 -m ruff check .` → **All checks passed**.
+- `python3 -m mypy quant_trading/` → **Success: no issues found in 37 source files**.
+- `python3 -m pytest -q tests/test_readme.py` → **13 passed** (includes new test).
+- `python3 -m pytest -q -m "not slow and not network"` (full fast suite, timeout 500000 ms) → **2912 passed, 1 skipped, 131 deselected, 1 warning** in ~403s.
+
+## Unresolved / not completed
+
+- None.
+
+## Failed approaches (do not repeat unchanged)
+
+- None this session. Prior constraints still apply: full fast suite needs timeout > 300000 ms; `rg` unavailable; do not refactor speculatively or weaken safety/permissions.
+
+## One precise next task
+
+- **If the user provides a concrete request (failing test, documented API drift, reproducible CLI/data/dependency issue):** implement the smallest reversible change, then verify:
+  1. `python3 -m ruff check .`
+  2. `python3 -m mypy quant_trading/`
+  3. Focused `pytest` module(s) for the changed area
+  4. For cross-cutting changes, `python3 -m pytest -q -m "not slow and not network"` with timeout > 300000 ms
+  Record evidence and `git status`/diff summary in this handoff; commit/push only if explicitly requested.
+- **If still unassigned:** re-run baseline checks (ruff + mypy + fast suite) before acting on any future report; look for other hardcoded counts/claims in docs (e.g., "37 source files" appears in prior handoffs as evidence only, not a README claim) or any reproducible bug. Commit/push only if explicitly requested.
 
 (End of file)
