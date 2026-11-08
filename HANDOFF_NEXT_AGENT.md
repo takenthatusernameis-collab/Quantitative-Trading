@@ -302,3 +302,60 @@ working tree:
   if explicitly requested.
 - If still unassigned at the start of a future session, re-run the baseline
   checks (ruff + mypy + fast suite) before acting on any report.
+
+## What changed (this session, 2026-11-08, eighth entry)
+
+No code, README, or test changes. Independently re-verified the working baseline
+from a clean working tree (did not rely on prior handoff claims):
+
+- `git status --short`: clean at session start; HEAD `34309eb`, branch `main`.
+- `python3 -m ruff check .` → All checks passed.
+- `python3 -m mypy quant_trading/` → Success: no issues found in 37 source
+  files.
+- `python3 -m pytest -q -m "not slow and not network"` (timeout 600000 ms) →
+  **2912 passed, 1 skipped, 131 deselected, 1 warning** in ~405s.
+
+Repository inspection (no bounded, high-value task found):
+- No actionable assignment/handoff task (`.kilo/next-task.md` also reports none).
+- No TODO/FIXME/XXX/HACK/BUG markers in `quant_trading/`.
+- Strategy registry: 46 primary keys / 108 total keys; README table rows
+  reconcile (46/46) and existing guards cover table/aliases/feature-bullet
+  count, CLI flags/defaults/help defaults (both directions, 115 parser flags all
+  mentioned), Alpha Vantage intervals/methods, example scripts (52 claimed, all
+  present, no extras), data imports, pinned CLI outputs, and `--version`.
+- Version consistent: `quant_trading.__version__` / installed dist / `pyproject`
+  / `cli --version` all `0.1.0`; guarded by `tests/test_packaging.py`.
+- The 7 `# type: ignore[...]` comments in source are narrow, targeted
+  annotations (not defect markers); 1 skipped fast test is the expected
+  conditional skopt-absent skipif.
+
+Per "preserve the working baseline" / "prioritize results over activity", no
+speculative refactor or tested-behavior change was made.
+
+## Verified (this session, eighth entry)
+
+- Baseline green (ruff, mypy, full fast suite). No reproducible defect or
+  bounded high-value task identified.
+
+## Unresolved / not completed
+
+- None.
+
+## Failed approaches (do not repeat unchanged)
+
+- None this session. Prior constraints still apply: full fast suite needs
+  timeout > 300000 ms (ran ~405s); `rg` unavailable (use grep/Python); do not
+  refactor speculatively or weaken safety/permissions; commit/push only if
+  explicitly requested.
+
+## One precise next task
+
+- Wait for a new external issue or feature request with concrete requirements.
+- On arrival: reproduce/define acceptance criteria, implement the smallest
+  reversible change, and verify `python3 -m ruff check .`,
+  `python3 -m mypy quant_trading/`, focused `pytest` module(s), and for
+  cross-cutting changes `python3 -m pytest -q -m "not slow and not network"`
+  with timeout > 300000 ms. Record evidence in this handoff; commit/push only
+  if explicitly requested.
+- If still unassigned at the start of a future session, re-run the baseline
+  checks (ruff + mypy + fast suite) before acting on any report.
