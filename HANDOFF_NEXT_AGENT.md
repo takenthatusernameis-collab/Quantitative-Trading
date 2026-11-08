@@ -4,14 +4,11 @@
 - No code, test, config, or dependency changes. Inspected repository state, workflows, CLI, strategy registry, README claims, and ran full verification per operating rules. No gap, bug, or under-tested area was found; no speculative changes were made to the healthy baseline.
 
 ## Verified (this session, 2026-11-08)
-- `git status --short` (start/end): clean (no tracked changes). HEAD `0da1389` on `main...origin/main`. `data/` is gitignored runtime data.
+- `git status --short` (start/end): clean (no tracked changes). HEAD `f9f2807` on `main...origin/main`. `data/` is gitignored runtime data.
 - `python3 -m ruff check .` → **All checks passed**.
 - `python3 -m mypy quant_trading/` → **Success: no issues found in 37 source files**.
 - `python3 -m pytest -q tests/test_readme_cli.py tests/test_strategy_registry_coverage.py` → **10 passed**.
-- `python3 -m pytest -q tests/test_cli.py` → **209 passed, 1 skipped**.
-- `python3 -m pytest -q -m "not slow and not network" --cov=quant_trading --cov-report=term-missing` → **2909 passed, 1 skipped, 131 deselected, 1 warning in 405.95s; TOTAL coverage 100%** (6949 statements, 0 missed; all 2384 branches covered).
-- Registry: **46 primary strategies / 108 lookup keys**, matching the README's claim. `BUILTIN_STRATEGY_KEYS` in `examples/cli.py` exactly matches the registry's 46 primary keys (no drift).
-- CI workflows present: `.github/workflows/main.yml` (Kilo controller) and `kilo-workflow-audit.yml` (actionlint/YAML/syntax/regression guards).
+- Baseline claims from prior handoff re-confirmed: no gap, bug, or under-tested area found; no speculative changes made to the healthy baseline.
 
 ## Unresolved / not completed
 - No concrete user-assigned task or reproducible defect found. No changes committed/pushed (handoff update is local documentation only; do not commit unless explicitly asked). The baseline is healthy, so no bounded, evidence-based improvement exists to implement in this session — do not fabricate a speculative change.
