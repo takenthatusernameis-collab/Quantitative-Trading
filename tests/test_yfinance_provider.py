@@ -349,6 +349,7 @@ def test_parse_download_multiindex_single_field_series():
 
 def test_get_yf_success(tmp_path):
     """_get_yf imports and caches yfinance on first use."""
+    pytest.importorskip("yfinance", reason="test requires the yfinance package")
     p = YFinanceProvider(cache_dir=str(tmp_path))
     assert p._yf is None
     yf = p._get_yf()

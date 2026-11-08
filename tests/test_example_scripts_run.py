@@ -28,6 +28,15 @@ def _example_scripts() -> list[Path]:
 @pytest.mark.parametrize("script", _example_scripts(), ids=lambda p: p.name)
 def test_example_script_runs_documented_invocation(script: Path) -> None:
     """The README-documented ``python examples/run_<name>.py`` exits 0 cleanly."""
+    # ``run_backtest.py`` is the repo's networked yfinance example (not part of
+    # the offline demo set, see tests/test_repository_integrity.py). It cannot
+    # run without the yfinance package, so skip it here instead of red-flagging
+    # environments that simply lack that declared runtime dependency.
+    if script.name == "run_backtest.py":
+        pytest.importorskip(
+            "yfinance",
+            reason="run_backtest.py requires yfinance (networked example, not offline demo set)",
+        )
     completed = subprocess.run(
         [sys.executable, str(script)],
         check=False,
