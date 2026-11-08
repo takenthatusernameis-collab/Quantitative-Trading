@@ -1112,3 +1112,63 @@ up to date with `origin/main`).
 - If still unassigned at the start of a future session, re-run the baseline
   checks (ruff + mypy + fast suite, or at minimum ruff + mypy + collection)
   before acting on any report.
+
+# What changed (this session, 2026-11-08, twenty-seventh entry)
+
+No code or README changes. Independently inspected the repository from a clean
+working tree. The 26th-entry task (re-export `TradeLog`/`split_trade_log` from
+`quant_trading.backtest` and add `trade_log.py` to the README structure diagram)
+is already present and committed/clean in the current state.
+
+## Verified (this session, twenty-seventh entry)
+
+- `git status --short`: clean at session start (aside from this handoff append);
+  HEAD `bb3f1f7`, branch `main`.
+- Static verification of the 26th-entry changes:
+  - `quant_trading/backtest/__init__.py` imports `TradeLog, split_trade_log` from
+    `.trade_log` and includes both in `__all__` (AST-verified: 12 exports total;
+    both names present). `git blame` shows the import line at `def854c`.
+  - `README.md:69` lists `trade_log.py` in the `backtest/` structure diagram.
+  - `python3 -m py_compile quant_trading/backtest/__init__.py
+    quant_trading/backtest/trade_log.py` → **OK**.
+- No TODO/FIXME/XXX/HACK/BUG defect markers in `quant_trading/` (grep). All
+  6 `backtest/*.py` submodules are now represented by re-exports or listed in
+  the README diagram; `trade_log` is consistent with the package pattern.
+- No bounded, reproducible defect or high-value task identified. Per "preserve
+  the working baseline" / "prioritize results over activity", no speculative
+  change was made.
+
+## Not re-verified (environment constraint)
+
+- `ruff`, `mypy`, `pytest`, and runtime deps (`pandas`, `numpy`, etc.) are not
+  installed in this environment (`/usr/bin/python3` has no modules; no
+  site-packages/tool binaries found). The 26th-entry claims (ruff/mypy/focused
+  pytest/doctest passing) could not be re-run here; the prior handoff recorded
+  that evidence. Re-run baseline checks in an environment with project deps.
+
+## Unresolved / not completed
+
+- None. No reproducible defect or bounded high-value task identified.
+
+## Failed approaches (do not repeat unchanged)
+
+- None this session. Do not attempt to run `ruff`/`mypy`/`pytest` via
+  `/usr/bin/python3 -m ...` in this environment without installing deps; it
+  fails with `No module named ...`. Prior constraints still apply: full fast
+  suite needs timeout > 300000 ms (~400s+); `rg` unavailable (use grep/Python);
+  do not refactor speculatively or weaken safety/permissions; commit/push only
+  if explicitly requested.
+
+## One precise next task
+
+- Wait for a new external issue or feature request with concrete requirements.
+- On arrival (in an environment with project deps installed): reproduce/define
+  acceptance criteria, implement the smallest reversible change, and verify
+  `python3 -m ruff check .`, `python3 -m mypy quant_trading/`, focused `pytest`
+  module(s), and for cross-cutting changes `python3 -m pytest -q -m "not slow
+  and not network"` with timeout > 300000 ms. Record evidence and
+  `git status`/diff summary in this handoff; commit/push only if explicitly
+  requested.
+- If still unassigned at the start of a future session, re-run the baseline
+  checks (ruff + mypy + fast suite, or at minimum ruff + mypy + collection)
+  before acting on any report.
