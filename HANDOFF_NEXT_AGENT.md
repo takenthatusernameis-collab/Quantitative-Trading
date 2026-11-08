@@ -996,3 +996,55 @@ speculative refactor or tested-behavior change was made.
 - If still unassigned at the start of a future session, re-run the baseline
   checks (ruff + mypy + fast suite, or at minimum ruff + mypy + collection)
   before acting on any report.
+
+## What changed (this session, 2026-11-08, fifteenth entry)
+
+No code, README, or test changes. Inspected the repository from a clean working
+tree; no prior actionable assignment exists and no bounded, reproducible defect
+was identified via static inspection. No speculative refactor made.
+
+## Verified (this session, fifteenth entry)
+
+- `git status --short`: clean at session start; HEAD `8ea97b5`, branch `main`,
+  up to date with `origin/main`.
+- `python3 -m py_compile $(find quant_trading examples tests -name '*.py')` →
+  **OK** (all 88+ Python files compile).
+- `grep -rn 'TODO|FIXME|XXX|HACK|BUG' quant_trading/` (excluding doctest `>>>`)
+  → **no defect markers**.
+- `python3 examples/cli.py --help` / package imports fail in this environment
+  because runtime deps (`pandas`, `numpy`, `yfinance`, `PyYAML`, `requests`) are
+  not installed in `/usr/bin/python3` (Python 3.14, system site-packages only).
+  **Not a code defect**; environment dependency availability issue.
+
+## Not verified (environment constraints)
+
+- `ruff`, `mypy`, and `pytest` are **not installed/available** in this
+  environment (`python3 -m ruff/mypy/pytest` missing; no binaries on PATH).
+  Prior handoff entries' lint/typecheck/test claims could not be re-verified
+  here. Per reliability rules, this entry does **not** claim they passed.
+- Full fast suite (`python3 -m pytest -q -m "not slow and not network"`,
+  timeout > 300000 ms) not run.
+
+## Unresolved / not completed
+
+- No code defect found. Baseline lint/typecheck/test re-verification blocked by
+  missing dev/runtime dependencies in this environment.
+
+## Failed approaches (do not repeat unchanged)
+
+- None this session. Do not attempt to claim ruff/mypy/pytest passed without
+  evidence; do not install system-wide dependencies as a speculative "fix"
+  unless explicitly requested and appropriate for the environment.
+
+## One precise next task
+
+- In an environment with project dependencies installed (see `pyproject.toml`:
+  runtime deps + `[project.optional-dependencies].dev`), re-run baseline checks:
+  1. `python3 -m ruff check .`
+  2. `python3 -m mypy quant_trading/`
+  3. `python3 -m pytest -q -m "not slow and not network"` (timeout > 300000 ms)
+  Record evidence in this handoff.
+- If checks are green and no external issue exists, no code change is needed.
+- On a concrete external issue/feature request: reproduce/define acceptance
+  criteria, implement the smallest reversible change, verify the focused area
+  plus baseline checks above; commit/push only if explicitly requested.
