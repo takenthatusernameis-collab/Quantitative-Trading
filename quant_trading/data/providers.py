@@ -188,17 +188,19 @@ class MarketData:
         rows = payload.get("data") or []
         index = payload.get("index") or []
         dt_index = payload.get("datetime_index")
-        if index:
-            if dt_index is True or (
+        if index and (
+            dt_index is True
+            or (
                 dt_index is None
                 and len(index) > 0
                 and isinstance(index[0], str)
                 and ("-" in index[0] or "T" in index[0] or ":" in index[0])
-            ):
-                try:
-                    index = pd.to_datetime(index)
-                except (ValueError, TypeError):
-                    pass
+            )
+        ):
+            try:
+                index = pd.to_datetime(index)
+            except (ValueError, TypeError):
+                pass
         frame = pd.DataFrame(rows, index=index, columns=columns)
         return cls(
             symbol=str(data.get("symbol", "")),
