@@ -1,35 +1,36 @@
 ## What changed (2026-11-09, this session)
 
-- **Type-hygiene / root-cause fixes (small, reversible):**
-  - `quant_trading/backtest/engine.py`: added explicit optional analysis fields on `BacktestResult` (`regime_analysis`, `monte_carlo`, `trade_analysis` with `TYPE_CHECKING` imports); removed `type: ignore[attr-defined]` assignments in `from_dict` and `type: ignore[no-any-return]` in `to_dataframe`; cleaned unused `cast` import and removed quoted return annotation (ruff UP037). Kept serialization behavior compatible (attrs still optional, `to_dict` emits them when present).
-  - `quant_trading/optimization/base.py`: fixed `OptimizationResult.from_dict` best_result parsing (preserves pass-through for non-dict/legacy sentinel values as covered by tests); `_coerce_datetime` now returns `None` for unsupported types (removes ignore; still accepts `None`/`datetime`/ISO strings).
-  - `quant_trading/optimization/__init__.py`: removed unused `Any` import; kept optional `BayesianOptimizer` import fallback pattern but reduced ignores (mypy clean).
-  - `quant_trading/strategies/examples.py`: removed `type: ignore[no-any-return]` in NVI/PVI helpers by returning typed series directly (no behavior change; indexes preserved). For RSI/Choppiness helpers, removed ignores with minimal numeric-stability guards (`avg_loss` zero -> NaN/RSI fillna 100; CHOP inf/-inf -> NaN) consistent with existing NaN-safe handling patterns; targeted strategy/backtest tests passed.
+- **Handoff reconciled with committed state:** Prior agent’s type-hygiene work is committed as `dcc0d04` (`quant_trading/backtest/engine.py`, `quant_trading/optimization/__init__.py`, `quant_trading/optimization/base.py`, `quant_trading/optimization/bayesian.py`, `quant_trading/strategies/examples.py`). Working tree was clean at inspection.
+- **Bayesian typing (verified, skopt present):** `quant_trading/optimization/bayesian.py` no longer contains `type: ignore`; objective decorator uses `@cast(Any, self._use_named_args)` (committed). `skopt==0.10.2` is installed in this environment.
+- **No additional code changes required this session** beyond durable handoff update; baseline remained green.
 
-## Verified (this session)
+## Verified (this session, evidence)
 
-- `python -m pytest -q --tb=line` (default suite/markers) → **3015 passed, 110 skipped, 129 deselected** (~398s).
-- `python -m ruff check .` → **All checks passed**.
-- `python -m mypy quant_trading --ignore-missing-imports` → **Success, no issues (37 files)**.
-- Focused: `pytest tests/test_backtest_engine.py tests/test_strategies*.py -q` → **652 passed**.
-- Focused: `pytest tests/test_optimization.py -q` → **110 passed, 30 skipped** (Bayesian tests skipped where deps absent).
+- `python3 -c "import skopt; print(skopt.__version__)"` → `0.10.2`.
+- `python3 -m pytest tests/test_optimization.py -q` → **140 passed** in 9.90s (Bayesian tests executed; no skips reported in that run).
+- `python3 -m pytest tests/test_portfolio_rebalancer.py -q` → **97 passed**.
+- `python3 -m ruff check .` → **All checks passed**.
+- `python3 -m mypy quant_trading --ignore-missing-imports` → **Success: no issues found in 37 source files**.
+- `grep -rn 'type: ignore' quant_trading` → **no matches**.
+- Default full suite was not rerun to completion this session (previous handoff reported **3015 passed, 110 skipped, 129 deselected**; a `-x` attempt exceeded the 120s tool timeout while still running). Treat full-suite pass as prior evidence, not reverified now.
 
 ## Unresolved / not completed
 
-- `quant_trading/optimization/bayesian.py:376` still has `@self._use_named_args  # type: ignore[untyped-decorator]`. `skopt` is not installed in this environment (Bayesian tests skipped), so changing decorator typing without evidence/running skopt-dependent checks risks breakage. Leave unless task requires Bayesian typing refactor + skopt installed/verified.
-- Remaining `type: ignore` count in `quant_trading/` reduced to **1** (bayesian decorator). Prior count was 12.
+- **Full default-suite rerun not completed this session** due to runtime (>120s timeout during `pytest -q --tb=no -x`); no failures observed before timeout, but not a completed pass claim.
 - `_RebalancePlan` (private, `quant_trading/portfolio/rebalancer.py`) still lacks `to_dict`/`from_dict` (intentionally uncovered; no demonstrated need).
+- No known reproducible failures from this session.
 
 ## Failed approaches (do not repeat unchanged)
 
-- I briefly changed `OptimizationResult.from_dict` to coerce non-`BacktestResult`/non-dict `best_result` values to `None`. This broke `tests/test_optimization.py::TestOptimizationResultSerialization::test_from_dict_passes_through_non_dict_best_result` (expects non-dict sentinel pass-through). Reverted to pass-through semantics while keeping mypy clean via explicit `Any`-permissive local typing.
+- None this session. (Prior session note preserved in git history/dcc0d04 context: changing `OptimizationResult.from_dict` to coerce non-dict `best_result` to `None` broke pass-through test; fixed by preserving pass-through semantics.)
 
 ## One precise next task
 
-- **Trigger:** If `scikit-optimize`/`skopt` is available in the environment or added as a dev dependency for verification.
-- **Action:** Remove `type: ignore[untyped-decorator]` in `quant_trading/optimization/bayesian.py` by adding a narrowly-scoped typing-safe wrapper/protocol or `cast(Callable[..., Callable[[Callable[..., Any]], Callable[..., Any]]], use_named_args)`-style pattern (only if verified), without changing runtime behavior.
-- **Constraints:** Smallest reversible change; no API/safety weakening; verify with `python -m pytest tests/test_optimization.py -q` (including Bayesian tests when skopt present), `python -m ruff check .`, `python -m mypy quant_trading --ignore-missing-imports`. Do not claim Bayesian tests passed if skopt remains unavailable—state evidence.
+- **Trigger:** Confidence gap from incomplete full-suite rerun this session.
+- **Action:** Run the default suite with sufficient timeout and capture the final summary: `python3 -m pytest -q --tb=no` (or the project’s standard invocation/markers if documented). If it passes, update this handoff with the exact counts/duration. If any failure appears, fix the **smallest demonstrated root cause** only (no redesign/safety weakening), rerun the focused test + affected neighbors, then rerun full suite or document remaining blockers with evidence.
+- **Constraints:** Preserve working baseline; do not add parallel test orchestration; do not claim pass without captured summary; exclude caches/artifacts from commits; verify before/after with evidence.
 
 ## Git state
 
-- Working tree has **4 modified source files** (no commit made this session): `quant_trading/backtest/engine.py`, `quant_trading/optimization/__init__.py`, `quant_trading/optimization/base.py`, `quant_trading/strategies/examples.py`. No secrets/caches added.
+- Branch `main` up to date with `origin/main` at inspection.
+- Working tree clean before this handoff edit; this session modifies only `HANDOFF_NEXT_AGENT.md` (durable progress record). No secrets/caches added.
