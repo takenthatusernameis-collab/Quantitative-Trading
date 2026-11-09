@@ -21,7 +21,7 @@ Examples:
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from .base import (
     BaseOptimizer,
@@ -373,7 +373,7 @@ class BayesianOptimizer(BaseOptimizer):
                 f"{self.n_calls - self.n_initial_points} guided)"
             )
 
-        @self._use_named_args  # type: ignore[untyped-decorator]
+        @cast(Any, self._use_named_args)
         def objective_func(**params: Any) -> float:
             nonlocal best_score, best_params, best_result
             params_cast = {k: v for k, v in params.items()}

@@ -16,13 +16,15 @@ from .base import (
     minimize_max_drawdown,
 )
 
+_BayesianOptimizer: type | None
 if TYPE_CHECKING:
     from .bayesian import BayesianOptimizer as BayesianOptimizer
 else:
     try:
-        from .bayesian import BayesianOptimizer
+        from .bayesian import BayesianOptimizer as _BayesianOptimizer
     except ImportError:  # pragma: no cover
-        BayesianOptimizer = None  # type: ignore[assignment]
+        _BayesianOptimizer = None
+    BayesianOptimizer = _BayesianOptimizer
 from .grid_search import GridSearch
 from .random_search import RandomSearch
 from .walk_forward import WalkForwardOptimizer
