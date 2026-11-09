@@ -117,10 +117,10 @@ class WalkForwardWindow:
         The four date boundaries are serialized as ISO-8601 strings so the
         result can be passed directly to :func:`json.dumps` (or any other
         JSON encoder) without a ``default`` hook. ``best_params`` is copied
-        as-is; ``train_result`` and ``test_result`` are included as-is (they
-        are :class:`BacktestResult` objects and are not recursively serialized
-        here — callers that need JSON-safe output should call
-        :meth:`BacktestResult.to_dict` on them).
+        as-is. ``train_result`` and ``test_result`` are serialized via
+        :meth:`BacktestResult.to_dict` when present (``None`` otherwise), so
+        the full output is JSON-safe — consistent with every other
+        ``to_dict`` in the codebase.
 
         Returns:
             Dictionary with keys ``train_start``, ``train_end``,
@@ -144,6 +144,8 @@ class WalkForwardWindow:
             '2024-02-01T00:00:00'
             >>> d["best_params"]
             {'fast_period': 5}
+            >>> d["train_result"] is None
+            True
 
         """
         return {
@@ -152,8 +154,8 @@ class WalkForwardWindow:
             "test_start": _iso(self.test_start),
             "test_end": _iso(self.test_end),
             "best_params": self.best_params,
-            "train_result": self.train_result,
-            "test_result": self.test_result,
+            "train_result": self.train_result.to_dict() if self.train_result is not None else None,
+            "test_result": self.test_result.to_dict() if self.test_result is not None else None,
         }
 
     @classmethod
@@ -163,14 +165,24 @@ class WalkForwardWindow:
         train_end = _coerce_datetime(data.get("train_end"))
         test_start = _coerce_datetime(data.get("test_start"))
         test_end = _coerce_datetime(data.get("test_end"))
+
+        def _restore_result(value: Any) -> "BacktestResult | None":
+            if value is None:
+                return None
+            if isinstance(value, BacktestResult):
+                return value
+            if isinstance(value, dict):
+                return BacktestResult.from_dict(value)
+            return None
+
         return cls(
             train_start=train_start,
             train_end=train_end,
             test_start=test_start,
             test_end=test_end,
             best_params=data.get("best_params"),
-            train_result=data.get("train_result"),
-            test_result=data.get("test_result"),
+            train_result=_restore_result(data.get("train_result")),
+            test_result=_restore_result(data.get("test_result")),
         )
 
 
@@ -212,10 +224,41 @@ class WalkForwardResult:
     anchored: bool = True
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert result to a dictionary."""
+        """Convert result to a plain, JSON-safe dictionary.
+
+        Each window is serialized via :meth:`WalkForwardWindow.to_dict` and
+        ``combined_test_result`` via :meth:`BacktestResult.to_dict` when
+        present (``None`` otherwise), so the full output is JSON-safe —
+        consistent with every other ``to_dict`` in the codebase.
+
+        Returns:
+            Dictionary with keys ``windows``, ``combined_test_result``,
+            and ``anchored``.
+
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.optimization.walk_forward import WalkForwardResult, WalkForwardWindow
+            >>> w = WalkForwardWindow(
+            ...     train_start=datetime(2024, 1, 1),
+            ...     train_end=datetime(2024, 2, 1),
+            ...     test_start=datetime(2024, 2, 1),
+            ...     test_end=datetime(2024, 3, 1),
+            ... )
+            >>> r = WalkForwardResult(windows=[w], combined_test_result=None, anchored=True)
+            >>> r.anchored
+            True
+            >>> r.summary()["n_windows"]
+            1
+            >>> import json
+            >>> json.dumps(r.to_dict()) is None  # doctest: +SKIP
+            False
+
+        """
         return {
             "windows": [w.to_dict() for w in self.windows],
-            "combined_test_result": self.combined_test_result,
+            "combined_test_result": self.combined_test_result.to_dict()
+            if self.combined_test_result is not None
+            else None,
             "anchored": self.anchored,
         }
 
@@ -229,9 +272,14 @@ class WalkForwardResult:
                 windows.append(WalkForwardWindow.from_dict(wdata))
             elif isinstance(wdata, WalkForwardWindow):
                 windows.append(wdata)
+        combined = data.get("combined_test_result")
+        if isinstance(combined, dict):
+            combined = BacktestResult.from_dict(combined)
+        elif combined is not None and not isinstance(combined, BacktestResult):
+            combined = None
         return cls(
             windows=windows,
-            combined_test_result=data.get("combined_test_result"),
+            combined_test_result=combined,
             anchored=bool(data.get("anchored", True)),
         )
 
