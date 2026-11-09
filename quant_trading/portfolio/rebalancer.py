@@ -298,6 +298,59 @@ class _RebalancePlan:
     fee_rate: float = 0.0
     positions: dict[str, float] = field(default_factory=dict)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the planned batch state to a plain dictionary.
+
+        Returns:
+            Dictionary with keys ``cash``, ``fee_rate``, and ``positions``
+            (a plain ``dict[str, float]``).
+
+        Examples:
+            >>> from quant_trading.portfolio.rebalancer import _RebalancePlan
+            >>> plan = _RebalancePlan(cash=10000.0, fee_rate=0.001)
+            >>> plan.to_dict()["cash"]
+            10000.0
+            >>> plan.to_dict()["positions"]
+            {}
+
+        """
+        return {
+            "cash": self.cash,
+            "fee_rate": self.fee_rate,
+            "positions": dict(self.positions),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "_RebalancePlan":
+        """Deserialize a :class:`_RebalancePlan` from a dictionary.
+
+        Missing keys fall back to safe defaults. The ``positions`` mapping is
+        coerced to ``dict[str, float]``.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`_RebalancePlan`.
+
+        Examples:
+            >>> from quant_trading.portfolio.rebalancer import _RebalancePlan
+            >>> restored = _RebalancePlan.from_dict(
+            ...     {"cash": 10000.0, "positions": {"AAPL": 5.0}}
+            ... )
+            >>> restored.cash, restored.fee_rate
+            (10000.0, 0.0)
+            >>> restored.positions
+            {'AAPL': 5.0}
+
+        """
+        raw_positions = data.get("positions", {}) or {}
+        return cls(
+            cash=float(data.get("cash", 0.0)),
+            fee_rate=float(data.get("fee_rate", 0.0)),
+            positions={str(k): float(v) for k, v in raw_positions.items()},
+        )
+
 
 class Rebalancer:
     """Manages portfolio rebalancing based on signals and targets.

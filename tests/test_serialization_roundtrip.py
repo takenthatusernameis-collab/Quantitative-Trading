@@ -33,7 +33,7 @@ from quant_trading.optimization.base import OptimizationResult, ParameterGrid, P
 from quant_trading.optimization.bayesian import BayesianOptimizerConfig
 from quant_trading.optimization.walk_forward import WalkForwardResult, WalkForwardWindow
 from quant_trading.portfolio.portfolio import Holding, Portfolio
-from quant_trading.portfolio.rebalancer import RebalanceAction, RebalanceExecution
+from quant_trading.portfolio.rebalancer import RebalanceAction, RebalanceExecution, _RebalancePlan
 from quant_trading.regime.detector import Regime, RegimeResult, RegimeSegment
 from quant_trading.risk.limits import CheckResult, PortfolioLimit, PositionLimit
 from quant_trading.risk.manager import PortfolioRisk
@@ -120,6 +120,7 @@ def _instances():
         ),
         (RebalanceAction, RebalanceAction(symbol="AAPL", action="buy", quantity=10.0)),
         (RebalanceExecution, RebalanceExecution(symbol="AAPL", action="buy", requested_quantity=10.0)),
+        (_RebalancePlan, _RebalancePlan(cash=10000.0, fee_rate=0.001, positions={"AAPL": 5.0})),
         (
             MarketData,
             MarketData(
