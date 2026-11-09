@@ -298,6 +298,80 @@ def test_backtest_regime_analysis_records_periods_per_year():
     assert analysis.to_dict()["periods_per_year"] == 52
 
 
+class TestBacktestRegimeAnalysisFromDict:
+    """Tests for BacktestRegimeAnalysis.from_dict deserialization."""
+
+    def test_from_dict_round_trips_to_dict(self):
+        """from_dict must reconstruct an analysis from its to_dict output."""
+        result = _make_result()
+        analysis = analyze_regimes(result, window=20, vol_threshold=0.15, return_threshold=0.05, periods_per_year=252)
+        data = analysis.to_dict()
+        reconstructed = BacktestRegimeAnalysis.from_dict(data)
+
+        assert reconstructed.window == analysis.window
+        assert reconstructed.vol_threshold == analysis.vol_threshold
+        assert reconstructed.return_threshold == analysis.return_threshold
+        assert reconstructed.periods_per_year == analysis.periods_per_year
+        assert reconstructed.current_regime == analysis.current_regime
+        assert reconstructed.result.total_volatility == pytest.approx(analysis.result.total_volatility)
+        assert reconstructed.result.total_return_pct == pytest.approx(analysis.result.total_return_pct)
+        assert reconstructed.n_segments == analysis.n_segments
+        for orig_seg, recon_seg in zip(analysis.segments, reconstructed.segments):
+            assert recon_seg.regime == orig_seg.regime
+            assert recon_seg.volatility == pytest.approx(orig_seg.volatility)
+            assert recon_seg.return_pct == pytest.approx(orig_seg.return_pct)
+
+    def test_from_dict_defaults_missing_keys(self):
+        """Missing keys must fall back to defaults."""
+        data = {
+            "window": 15,
+            "vol_threshold": 0.2,
+            "return_threshold": 0.03,
+            "periods_per_year": 52,
+            "current_regime": "bull_low_vol",
+            "total_volatility": 0.18,
+            "total_return_pct": 5.5,
+            "segments": [],
+        }
+        reconstructed = BacktestRegimeAnalysis.from_dict(data)
+
+        assert reconstructed.window == 15
+        assert reconstructed.vol_threshold == 0.2
+        assert reconstructed.return_threshold == 0.03
+        assert reconstructed.periods_per_year == 52
+        assert reconstructed.current_regime.value == "bull_low_vol"
+        assert reconstructed.result.total_volatility == 0.18
+        assert reconstructed.result.total_return_pct == 5.5
+        assert reconstructed.n_segments == 0
+
+    def test_from_dict_ignores_extra_keys(self):
+        """Extra keys in the dictionary must not raise."""
+        result = _make_result()
+        analysis = analyze_regimes(result, window=20)
+        data = analysis.to_dict()
+        data["unknown_field"] = 42.0
+        data["another_extra"] = "not-a-number"
+        reconstructed = BacktestRegimeAnalysis.from_dict(data)
+        assert reconstructed.window == analysis.window
+
+    def test_from_dict_empty_segments(self):
+        """Empty segments list must be handled correctly."""
+        data = {
+            "window": 20,
+            "vol_threshold": 0.0,
+            "return_threshold": 0.0,
+            "periods_per_year": 252,
+            "current_regime": "unknown",
+            "total_volatility": 0.0,
+            "total_return_pct": 0.0,
+            "segments": [],
+        }
+        reconstructed = BacktestRegimeAnalysis.from_dict(data)
+        assert reconstructed.n_segments == 0
+        assert reconstructed.segments == []
+        assert reconstructed.current_regime.value == "unknown"
+
+
 if __name__ == "__main__":
     import pytest
 

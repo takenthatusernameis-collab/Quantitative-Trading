@@ -251,6 +251,59 @@ class BacktestRegimeAnalysis:
             "segments": [s.to_dict() for s in self.result.segments],
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "BacktestRegimeAnalysis":
+        """Deserialize regime analysis from a dictionary.
+
+        Missing keys fall back to the dataclass defaults. Extra keys are ignored.
+
+        Args:
+            data: Dictionary whose keys match regime analysis attribute names.
+
+        Returns:
+            BacktestRegimeAnalysis object populated from the dictionary.
+
+        """
+        # Import here to avoid circular import at module load time
+        from quant_trading.regime import Regime, RegimeResult, RegimeSegment
+
+        # Reconstruct RegimeSegment objects from their dict representation
+        segments = []
+        regimes = []
+        for seg_data in data.get("segments", []):
+            regime = Regime(seg_data.get("regime", "unknown"))
+            segments.append(
+                RegimeSegment(
+                    regime=regime,
+                    start=pd.Timestamp(seg_data.get("start", pd.Timestamp.now())),
+                    end=pd.Timestamp(seg_data.get("end", pd.Timestamp.now())),
+                    start_index=seg_data.get("start_index", 0),
+                    end_index=seg_data.get("end_index", 0),
+                    volatility=seg_data.get("volatility", 0.0),
+                    return_pct=seg_data.get("return_pct", 0.0),
+                )
+            )
+            regimes.append(regime)
+
+        # Reconstruct RegimeResult
+        result = RegimeResult(
+            segments=segments,
+            regimes=regimes,
+            n_segments=len(segments),
+            current_regime=Regime(data.get("current_regime", "unknown")),
+            total_volatility=data.get("total_volatility", 0.0),
+            total_return_pct=data.get("total_return_pct", 0.0),
+        )
+
+        return cls(
+            result=result,
+            equity_curve=pd.Series(dtype=float),  # Placeholder, not serialized
+            window=data.get("window", 20),
+            vol_threshold=data.get("vol_threshold", 0.0),
+            return_threshold=data.get("return_threshold", 0.0),
+            periods_per_year=data.get("periods_per_year", 252),
+        )
+
     def to_dataframe(self) -> pd.DataFrame:
         """Return regime segments as a DataFrame.
 

@@ -191,6 +191,52 @@ class TradeAnalysis:
             "sortino_ratio": self.sortino_ratio,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TradeAnalysis":
+        """Deserialize trade analysis from a dictionary.
+
+        Missing keys fall back to the dataclass defaults, so a dictionary
+        produced by :meth:`to_dict` (for example after a JSON round-trip) can
+        be reconstructed without carrying every field. Extra keys are ignored.
+
+        Args:
+            data: Dictionary whose keys match trade analysis attribute names.
+
+        Returns:
+            TradeAnalysis object populated from the dictionary.
+
+        """
+        return cls(
+            total_trades=data.get("total_trades", 0),
+            winning_trades=data.get("winning_trades", 0),
+            losing_trades=data.get("losing_trades", 0),
+            win_rate=data.get("win_rate", 0.0),
+            total_pnl=data.get("total_pnl", 0.0),
+            open_position_pnl=data.get("open_position_pnl", 0.0),
+            avg_pnl=data.get("avg_pnl", 0.0),
+            median_pnl=data.get("median_pnl", 0.0),
+            std_pnl=data.get("std_pnl", 0.0),
+            avg_win=data.get("avg_win", 0.0),
+            avg_loss=data.get("avg_loss", 0.0),
+            largest_win=data.get("largest_win", 0.0),
+            largest_loss=data.get("largest_loss", 0.0),
+            profit_factor=data.get("profit_factor", 0.0),
+            avg_holding_period=data.get("avg_holding_period", 0.0),
+            median_holding_period=data.get("median_holding_period", 0.0),
+            min_holding_period=data.get("min_holding_period", 0.0),
+            max_holding_period=data.get("max_holding_period", 0.0),
+            max_consecutive_wins=data.get("max_consecutive_wins", 0),
+            max_consecutive_losses=data.get("max_consecutive_losses", 0),
+            current_streak=data.get("current_streak", 0),
+            current_streak_type=data.get("current_streak_type", ""),
+            monthly_returns=data.get("monthly_returns"),
+            weekly_returns=data.get("weekly_returns"),
+            symbol_stats=data.get("symbol_stats"),
+            expectancy=data.get("expectancy", 0.0),
+            sharpe_ratio=data.get("sharpe_ratio", 0.0),
+            sortino_ratio=data.get("sortino_ratio", 0.0),
+        )
+
 
 def _calculate_holding_periods(trades: pd.DataFrame) -> list[float]:
     """Calculate holding periods in days for each completed round trip.

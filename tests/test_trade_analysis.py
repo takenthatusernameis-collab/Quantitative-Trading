@@ -1192,3 +1192,124 @@ def test_analyze_trades_without_an_action_column():
     assert analysis.total_pnl == 15.0
     assert analysis.avg_holding_period == 0.0
     assert analysis.max_holding_period == 0.0
+
+
+class TestTradeAnalysisFromDict:
+    """Tests for TradeAnalysis.from_dict deserialization."""
+
+    def test_from_dict_round_trips_to_dict(self):
+        """from_dict must reconstruct a metrics object equal to its to_dict output."""
+        analysis = TradeAnalysis(
+            total_trades=4,
+            winning_trades=3,
+            losing_trades=1,
+            win_rate=0.75,
+            total_pnl=140.0,
+            open_position_pnl=0.0,
+            avg_pnl=35.0,
+            median_pnl=50.0,
+            std_pnl=62.0,
+            avg_win=65.0,
+            avg_loss=-55.0,
+            largest_win=95.0,
+            largest_loss=-55.0,
+            profit_factor=3.545,
+            avg_holding_period=13.0,
+            median_holding_period=12.0,
+            min_holding_period=9.0,
+            max_holding_period=19.0,
+            max_consecutive_wins=2,
+            max_consecutive_losses=1,
+            current_streak=2,
+            current_streak_type="win",
+            monthly_returns={"2024-01-31": 1.5, "2024-02-29": -0.5},
+            weekly_returns={"2024-01-07": 0.5, "2024-01-14": -0.2},
+            symbol_stats={
+                "AAPL": {"total_trades": 2, "winning_trades": 2, "losing_trades": 0, "win_rate": 1.0, "total_pnl": 167.0, "avg_pnl": 83.5, "avg_win": 83.5, "avg_loss": 0.0, "largest_win": 95.0, "largest_loss": 0.0},
+                "MSFT": {"total_trades": 1, "winning_trades": 0, "losing_trades": 1, "win_rate": 0.0, "total_pnl": -55.0, "avg_pnl": -55.0, "avg_win": 0.0, "avg_loss": -55.0, "largest_win": 0.0, "largest_loss": -55.0},
+            },
+            expectancy=35.0,
+            sharpe_ratio=1.2,
+            sortino_ratio=1.5,
+        )
+        reconstructed = TradeAnalysis.from_dict(analysis.to_dict())
+        assert reconstructed.total_trades == analysis.total_trades
+        assert reconstructed.winning_trades == analysis.winning_trades
+        assert reconstructed.losing_trades == analysis.losing_trades
+        assert reconstructed.win_rate == analysis.win_rate
+        assert reconstructed.total_pnl == analysis.total_pnl
+        assert reconstructed.open_position_pnl == analysis.open_position_pnl
+        assert reconstructed.avg_pnl == analysis.avg_pnl
+        assert reconstructed.median_pnl == analysis.median_pnl
+        assert reconstructed.std_pnl == analysis.std_pnl
+        assert reconstructed.avg_win == analysis.avg_win
+        assert reconstructed.avg_loss == analysis.avg_loss
+        assert reconstructed.largest_win == analysis.largest_win
+        assert reconstructed.largest_loss == analysis.largest_loss
+        assert reconstructed.profit_factor == pytest.approx(analysis.profit_factor)
+        assert reconstructed.avg_holding_period == analysis.avg_holding_period
+        assert reconstructed.median_holding_period == analysis.median_holding_period
+        assert reconstructed.min_holding_period == analysis.min_holding_period
+        assert reconstructed.max_holding_period == analysis.max_holding_period
+        assert reconstructed.max_consecutive_wins == analysis.max_consecutive_wins
+        assert reconstructed.max_consecutive_losses == analysis.max_consecutive_losses
+        assert reconstructed.current_streak == analysis.current_streak
+        assert reconstructed.current_streak_type == analysis.current_streak_type
+        assert reconstructed.monthly_returns == analysis.monthly_returns
+        assert reconstructed.weekly_returns == analysis.weekly_returns
+        assert reconstructed.symbol_stats == analysis.symbol_stats
+        assert reconstructed.expectancy == analysis.expectancy
+        assert reconstructed.sharpe_ratio == analysis.sharpe_ratio
+        assert reconstructed.sortino_ratio == analysis.sortino_ratio
+
+    def test_from_dict_defaults_missing_keys_to_zero(self):
+        """Missing keys must fall back to the dataclass defaults."""
+        analysis = TradeAnalysis.from_dict({"total_trades": 5, "sharpe_ratio": 1.5})
+
+        assert analysis.total_trades == 5
+        assert analysis.winning_trades == 0
+        assert analysis.losing_trades == 0
+        assert analysis.win_rate == 0.0
+        assert analysis.total_pnl == 0.0
+        assert analysis.open_position_pnl == 0.0
+        assert analysis.avg_pnl == 0.0
+        assert analysis.median_pnl == 0.0
+        assert analysis.std_pnl == 0.0
+        assert analysis.avg_win == 0.0
+        assert analysis.avg_loss == 0.0
+        assert analysis.largest_win == 0.0
+        assert analysis.largest_loss == 0.0
+        assert analysis.profit_factor == 0.0
+        assert analysis.avg_holding_period == 0.0
+        assert analysis.median_holding_period == 0.0
+        assert analysis.min_holding_period == 0.0
+        assert analysis.max_holding_period == 0.0
+        assert analysis.max_consecutive_wins == 0
+        assert analysis.max_consecutive_losses == 0
+        assert analysis.current_streak == 0
+        assert analysis.current_streak_type == ""
+        assert analysis.monthly_returns is None
+        assert analysis.weekly_returns is None
+        assert analysis.symbol_stats is None
+        assert analysis.expectancy == 0.0
+        assert analysis.sharpe_ratio == 1.5
+        assert analysis.sortino_ratio == 0.0
+
+    def test_from_dict_ignores_extra_keys(self):
+        """Extra keys in the dictionary must not raise."""
+        data = TradeAnalysis(total_trades=3).to_dict()
+        data["unknown_metric"] = 42.0
+        data["another_extra"] = "not-a-number"
+        analysis = TradeAnalysis.from_dict(data)
+        assert analysis.total_trades == 3
+
+    def test_from_dict_preserves_integer_trade_counts(self):
+        """Integer trade-count fields must survive a dictionary round-trip."""
+        analysis = TradeAnalysis(total_trades=7, winning_trades=4, losing_trades=3)
+        reconstructed = TradeAnalysis.from_dict(analysis.to_dict())
+        assert reconstructed.total_trades == 7
+        assert reconstructed.winning_trades == 4
+        assert reconstructed.losing_trades == 3
+        assert isinstance(reconstructed.total_trades, int)
+        assert isinstance(reconstructed.winning_trades, int)
+        assert isinstance(reconstructed.losing_trades, int)
