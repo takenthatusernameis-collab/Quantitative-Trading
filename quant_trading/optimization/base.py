@@ -32,6 +32,8 @@ import pandas as pd
 from quant_trading.backtest.engine import BacktestResult
 from quant_trading.strategies.base import Strategy
 
+_PARAM_TYPE_BY_NAME: dict[str, type] = {"float": float, "int": int, "bool": bool}
+
 
 @dataclass
 class ParameterSpace:
@@ -137,6 +139,65 @@ class ParameterSpace:
             return [self.param_type(v) for v in rng.uniform(self.min_val, self.max_val, n)]
         return []
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the space to a plain, JSON-safe dictionary.
+
+        ``param_type`` is serialized by name (``"float"``/``"int"``/``"bool"``)
+        and restored by :meth:`from_dict`.
+
+        Returns:
+            Dictionary with keys ``name``, ``values``, ``min_val``, ``max_val``,
+            ``step``, ``distribution``, and ``param_type``.
+
+        Examples:
+            >>> from quant_trading.optimization.base import ParameterSpace
+            >>> space = ParameterSpace(name="x", values=[1, 2, 3])
+            >>> space.to_dict()["param_type"]
+            'float'
+
+        """
+        return {
+            "name": self.name,
+            "values": list(self.values) if self.values is not None else None,
+            "min_val": self.min_val,
+            "max_val": self.max_val,
+            "step": self.step,
+            "distribution": self.distribution,
+            "param_type": self.param_type.__name__,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ParameterSpace:
+        """Deserialize a :class:`ParameterSpace` from a dictionary.
+
+        Missing keys fall back to safe defaults. ``param_type`` is accepted by
+        name (``"float"``/``"int"``/``"bool"``).
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`ParameterSpace`.
+
+        Examples:
+            >>> from quant_trading.optimization.base import ParameterSpace
+            >>> restored = ParameterSpace.from_dict(
+            ...     {"name": "x", "values": [1, 2, 3], "param_type": "int"}
+            ... )
+            >>> restored.param_type
+            <class 'int'>
+
+        """
+        return cls(
+            name=str(data.get("name", "")),
+            values=list(data["values"]) if data.get("values") is not None else None,
+            min_val=data.get("min_val"),
+            max_val=data.get("max_val"),
+            step=data.get("step"),
+            distribution=data.get("distribution"),
+            param_type=_PARAM_TYPE_BY_NAME.get(data.get("param_type", "float"), float),
+        )
+
 
 @dataclass
 class ParameterGrid:
@@ -238,6 +299,60 @@ class ParameterGrid:
                 combo[k] = samples[0] if samples else None
             combinations.append(combo)
         return combinations
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the grid to a plain, JSON-safe dictionary.
+
+        Each :class:`ParameterSpace` is serialized via its
+        :meth:`ParameterSpace.to_dict`. The ``validator`` callable is not
+        serialized and is not restored by :meth:`from_dict`; rebuild it on the
+        deserialized grid when needed.
+
+        Returns:
+            Dictionary with key ``spaces`` mapping parameter names to their
+            serialized :class:`ParameterSpace` forms.
+
+        Examples:
+            >>> from quant_trading.optimization.base import ParameterGrid, ParameterSpace
+            >>> grid = ParameterGrid().add(ParameterSpace(name="x", values=[1, 2]))
+            >>> grid.to_dict()["spaces"]["x"]["name"]
+            'x'
+
+        """
+        return {
+            "spaces": {
+                name: space.to_dict() for name, space in self.spaces.items()
+            },
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ParameterGrid:
+        """Deserialize a :class:`ParameterGrid` from a dictionary.
+
+        Missing keys fall back to safe defaults. The ``validator`` callable is
+        not serialized and is not restored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`ParameterGrid`.
+
+        Examples:
+            >>> from quant_trading.optimization.base import ParameterGrid, ParameterSpace
+            >>> grid = ParameterGrid().add(ParameterSpace(name="x", values=[1, 2]))
+            >>> restored = ParameterGrid.from_dict(grid.to_dict())
+            >>> restored.spaces["x"].name
+            'x'
+            >>> restored.generate_combinations()
+            [{'x': 1.0}, {'x': 2.0}]
+
+        """
+        spaces = {
+            name: ParameterSpace.from_dict(space_data)
+            for name, space_data in (data.get("spaces") or {}).items()
+        }
+        return cls(spaces=spaces)
 
 
 ObjectiveFunction = Callable[[BacktestResult], float]

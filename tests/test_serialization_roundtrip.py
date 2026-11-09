@@ -28,7 +28,7 @@ from quant_trading.config.settings import (
     RiskConfig,
 )
 from quant_trading.monte_carlo.simulator import MonteCarloResult
-from quant_trading.optimization.base import OptimizationResult
+from quant_trading.optimization.base import OptimizationResult, ParameterGrid, ParameterSpace
 from quant_trading.optimization.bayesian import BayesianOptimizerConfig
 from quant_trading.optimization.walk_forward import WalkForwardResult, WalkForwardWindow
 from quant_trading.portfolio.portfolio import Holding, Portfolio
@@ -108,6 +108,14 @@ def _instances():
         (WalkForwardResult, WalkForwardResult(windows=[window])),
         (OptimizationResult, OptimizationResult(best_params={"x": 1}, best_score=1.0)),
         (BayesianOptimizerConfig, BayesianOptimizerConfig()),
+        (
+            ParameterSpace,
+            ParameterSpace(name="fast", values=[5, 10, 15]),
+        ),
+        (
+            ParameterGrid,
+            ParameterGrid().add(ParameterSpace(name="fast", values=[5, 10, 15])),
+        ),
         (RebalanceAction, RebalanceAction(symbol="AAPL", action="buy", quantity=10.0)),
         (RebalanceExecution, RebalanceExecution(symbol="AAPL", action="buy", requested_quantity=10.0)),
         (RegimeSegment, segment),
