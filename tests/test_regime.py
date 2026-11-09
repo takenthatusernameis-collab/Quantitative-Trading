@@ -143,6 +143,53 @@ def test_regime_segment_to_dict():
     assert d["return_pct"] == 5.0
 
 
+def test_regime_segment_from_dict_round_trip():
+    seg = RegimeSegment(
+        regime=Regime.BEAR_HIGH_VOL,
+        start=pd.Timestamp("2024-02-01"),
+        end=pd.Timestamp("2024-02-28"),
+        start_index=5,
+        end_index=12,
+        volatility=0.25,
+        return_pct=-4.5,
+    )
+    restored = RegimeSegment.from_dict(seg.to_dict())
+    assert restored == seg
+    assert restored.regime == Regime.BEAR_HIGH_VOL
+    assert restored.start == pd.Timestamp("2024-02-01")
+    assert restored.end == pd.Timestamp("2024-02-28")
+    assert restored.start_index == 5
+    assert restored.end_index == 12
+    assert restored.volatility == 0.25
+    assert restored.return_pct == -4.5
+
+
+def test_regime_segment_from_dict_defaults_for_missing_keys():
+    seg = RegimeSegment.from_dict({})
+    assert seg.regime == Regime.UNKNOWN
+    assert seg.start_index == 0
+    assert seg.end_index == 0
+    assert seg.volatility == 0.0
+    assert seg.return_pct == 0.0
+
+
+def test_regime_segment_from_dict_ignores_extra_keys():
+    seg = RegimeSegment.from_dict(
+        {
+            "regime": "bull_low_vol",
+            "start": "2024-01-01",
+            "end": "2024-01-31",
+            "start_index": 0,
+            "end_index": 20,
+            "volatility": 0.1,
+            "return_pct": 5.0,
+            "extra_key": "ignored",
+        }
+    )
+    assert seg.regime == Regime.BULL_LOW_VOL
+    assert seg.return_pct == 5.0
+
+
 def test_regime_result_to_dataframe_has_rows():
     prices = _make_series(n=100, trend=0.001, vol=0.01, seed=8)
     result = detect_regimes(prices, window=20)
@@ -185,6 +232,66 @@ def test_regime_result_empty_to_dict_and_to_dataframe():
 
     df = result.to_dataframe()
     assert df.empty
+
+
+def test_regime_result_from_dict_round_trip():
+    prices = _make_series(n=100, trend=0.001, vol=0.01, seed=10)
+    result = detect_regimes(prices, window=20)
+    restored = RegimeResult.from_dict(result.to_dict())
+    assert restored == result
+    assert restored.n_segments == result.n_segments
+    assert restored.current_regime == result.current_regime
+    assert restored.total_volatility == result.total_volatility
+    assert restored.total_return_pct == result.total_return_pct
+    assert restored.regimes == result.regimes
+    assert len(restored.segments) == len(result.segments)
+    for orig, recon in zip(result.segments, restored.segments):
+        assert recon == orig
+
+
+def test_regime_result_from_dict_defaults_for_missing_keys():
+    result = RegimeResult.from_dict({})
+    assert result.n_segments == 0
+    assert result.segments == []
+    assert result.regimes == []
+    assert result.current_regime == Regime.UNKNOWN
+    assert result.total_volatility == 0.0
+    assert result.total_return_pct == 0.0
+
+
+def test_regime_result_from_dict_ignores_extra_keys():
+    seg = RegimeSegment(
+        regime=Regime.BULL_LOW_VOL,
+        start=pd.Timestamp("2024-01-01"),
+        end=pd.Timestamp("2024-01-31"),
+        start_index=0,
+        end_index=20,
+        volatility=0.1,
+        return_pct=5.0,
+    )
+    result = RegimeResult.from_dict(
+        {
+            "segments": [seg.to_dict()],
+            "regimes": ["bull_low_vol"],
+            "n_segments": 1,
+            "current_regime": "bull_low_vol",
+            "total_volatility": 0.1,
+            "total_return_pct": 5.0,
+            "extra_key": "ignored",
+        }
+    )
+    assert result.n_segments == 1
+    assert result.current_regime == Regime.BULL_LOW_VOL
+    assert result.total_return_pct == 5.0
+    assert result.segments[0] == seg
+
+
+def test_regime_result_from_dict_empty_segments():
+    result = RegimeResult.from_dict({"segments": []})
+    assert result.n_segments == 0
+    assert result.segments == []
+    assert result.regimes == []
+    assert result.current_regime == Regime.UNKNOWN
 
 
 def test_detect_regimes_non_series_input_list():

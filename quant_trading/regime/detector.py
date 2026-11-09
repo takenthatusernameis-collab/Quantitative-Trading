@@ -137,6 +137,31 @@ class RegimeSegment:
             "return_pct": self.return_pct,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RegimeSegment":
+        """Deserialize a regime segment from a dictionary.
+
+        Missing keys fall back to the dataclass defaults. Extra keys are
+        ignored. The ``regime`` value is rebuilt from its serialized string
+        form, and ``start``/``end`` are parsed back into timestamps.
+
+        Args:
+            data: Dictionary whose keys match segment attribute names.
+
+        Returns:
+            RegimeSegment object populated from the dictionary.
+
+        """
+        return cls(
+            regime=Regime(data.get("regime", Regime.UNKNOWN.value)),
+            start=pd.Timestamp(data.get("start", pd.Timestamp.now())),
+            end=pd.Timestamp(data.get("end", pd.Timestamp.now())),
+            start_index=data.get("start_index", 0),
+            end_index=data.get("end_index", 0),
+            volatility=data.get("volatility", 0.0),
+            return_pct=data.get("return_pct", 0.0),
+        )
+
 
 @dataclass
 class RegimeResult:
@@ -198,6 +223,35 @@ class RegimeResult:
             "total_volatility": self.total_volatility,
             "total_return_pct": self.total_return_pct,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RegimeResult":
+        """Deserialize a regime result from a dictionary.
+
+        Missing keys fall back to the dataclass defaults. Extra keys are
+        ignored. Segments are rebuilt from their serialized form and the
+        ``regimes`` list and ``n_segments`` are computed from them.
+
+        Args:
+            data: Dictionary whose keys match result attribute names.
+
+        Returns:
+            RegimeResult object populated from the dictionary.
+
+        """
+        segments = [
+            RegimeSegment.from_dict(seg_data) for seg_data in data.get("segments", [])
+        ]
+        regimes = [seg.regime for seg in segments]
+
+        return cls(
+            segments=segments,
+            regimes=regimes,
+            n_segments=len(segments),
+            current_regime=Regime(data.get("current_regime", Regime.UNKNOWN.value)),
+            total_volatility=data.get("total_volatility", 0.0),
+            total_return_pct=data.get("total_return_pct", 0.0),
+        )
 
     def to_dataframe(self) -> pd.DataFrame:
         """Convert the segments to a DataFrame.
