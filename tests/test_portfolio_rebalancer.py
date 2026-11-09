@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from quant_trading.portfolio.portfolio import Portfolio
-from quant_trading.portfolio.rebalancer import RebalanceAction, Rebalancer
+from quant_trading.portfolio.rebalancer import RebalanceAction, RebalanceExecution, Rebalancer
 from quant_trading.risk.manager import RiskManager
 from quant_trading.strategies.base import Signal
 
@@ -46,6 +46,158 @@ class TestRebalanceAction:
         assert action.quantity == 25.0
         assert action.reason == "target_allocation"
         assert action.timestamp == timestamp
+
+
+class TestRebalanceActionSerialization:
+    """Tests for RebalanceAction.to_dict / from_dict round-trips."""
+
+    def test_all_fields(self):
+        """Every field is serialized and reconstructed."""
+        timestamp = datetime(2026, 1, 1, 12, 0, 0)
+        action = RebalanceAction(
+            symbol="MSFT",
+            action="sell",
+            quantity=25.0,
+            reason="target_allocation",
+            timestamp=timestamp,
+        )
+        data = action.to_dict()
+        assert data == {
+            "symbol": "MSFT",
+            "action": "sell",
+            "quantity": 25.0,
+            "reason": "target_allocation",
+            "timestamp": "2026-01-01T12:00:00",
+        }
+
+    def test_round_trip(self):
+        """to_dict followed by from_dict reproduces the action."""
+        timestamp = datetime(2026, 1, 1, 12, 0, 0)
+        action = RebalanceAction(
+            symbol="AAPL", action="buy", quantity=400.0, reason="target_allocation", timestamp=timestamp
+        )
+        restored = RebalanceAction.from_dict(action.to_dict())
+        assert restored == action
+        assert restored.timestamp == timestamp
+
+    def test_json_round_trip(self):
+        """The dict survives a JSON serialization round-trip."""
+        import json
+
+        action = RebalanceAction(symbol="GOOGL", action="sell", quantity=50.0)
+        restored = RebalanceAction.from_dict(json.loads(json.dumps(action.to_dict())))
+        assert restored.symbol == "GOOGL"
+        assert restored.action == "sell"
+        assert restored.quantity == pytest.approx(50.0)
+
+    def test_defaults_and_empty_dict(self):
+        """Missing keys fall back to safe defaults."""
+        restored = RebalanceAction.from_dict({})
+        assert restored.symbol == ""
+        assert restored.action == "hold"
+        assert restored.quantity == 0.0
+        assert restored.reason == ""
+        assert isinstance(restored.timestamp, datetime)
+
+    def test_extra_keys_ignored(self):
+        """Extra keys in the dict are ignored."""
+        restored = RebalanceAction.from_dict(
+            {"symbol": "AAPL", "action": "buy", "quantity": 10.0, "extra": "ignored"}
+        )
+        assert restored.symbol == "AAPL"
+        assert restored.action == "buy"
+        assert restored.quantity == pytest.approx(10.0)
+
+    def test_iso_string_timestamp(self):
+        """An ISO-8601 timestamp string is coerced back to a datetime."""
+        restored = RebalanceAction.from_dict(
+            {"symbol": "AAPL", "action": "buy", "timestamp": "2026-01-01T12:00:00"}
+        )
+        assert restored.timestamp == datetime(2026, 1, 1, 12, 0, 0)
+
+
+class TestRebalanceExecutionSerialization:
+    """Tests for RebalanceExecution.to_dict / from_dict round-trips."""
+
+    def test_all_fields(self):
+        """Every field is serialized and reconstructed."""
+        timestamp = datetime(2026, 1, 1, 12, 0, 0)
+        execution = RebalanceExecution(
+            symbol="AAPL",
+            action="buy",
+            requested_quantity=10.0,
+            executed_quantity=10.0,
+            price=150.0,
+            cash_effect=-1500.0,
+            reason="target_allocation",
+            timestamp=timestamp,
+        )
+        data = execution.to_dict()
+        assert data == {
+            "symbol": "AAPL",
+            "action": "buy",
+            "requested_quantity": 10.0,
+            "executed_quantity": 10.0,
+            "price": 150.0,
+            "cash_effect": -1500.0,
+            "reason": "target_allocation",
+            "timestamp": "2026-01-01T12:00:00",
+        }
+
+    def test_round_trip(self):
+        """to_dict followed by from_dict reproduces the execution."""
+        timestamp = datetime(2026, 1, 1, 12, 0, 0)
+        execution = RebalanceExecution(
+            symbol="MSFT",
+            action="sell",
+            requested_quantity=25.0,
+            executed_quantity=25.0,
+            price=300.0,
+            cash_effect=7500.0,
+            reason="signal_sell",
+            timestamp=timestamp,
+        )
+        restored = RebalanceExecution.from_dict(execution.to_dict())
+        assert restored == execution
+        assert restored.timestamp == timestamp
+
+    def test_json_round_trip(self):
+        """The dict survives a JSON serialization round-trip."""
+        import json
+
+        execution = RebalanceExecution(symbol="GOOGL", action="hold", price=100.0)
+        restored = RebalanceExecution.from_dict(json.loads(json.dumps(execution.to_dict())))
+        assert restored.symbol == "GOOGL"
+        assert restored.action == "hold"
+        assert restored.price == pytest.approx(100.0)
+
+    def test_defaults_and_empty_dict(self):
+        """Missing keys fall back to safe defaults."""
+        restored = RebalanceExecution.from_dict({})
+        assert restored.symbol == ""
+        assert restored.action == "hold"
+        assert restored.requested_quantity == 0.0
+        assert restored.executed_quantity == 0.0
+        assert restored.price == 0.0
+        assert restored.cash_effect == 0.0
+        assert restored.reason == ""
+        assert isinstance(restored.timestamp, datetime)
+
+    def test_extra_keys_ignored(self):
+        """Extra keys in the dict are ignored."""
+        restored = RebalanceExecution.from_dict(
+            {"symbol": "AAPL", "action": "buy", "price": 150.0, "extra": "ignored"}
+        )
+        assert restored.symbol == "AAPL"
+        assert restored.action == "buy"
+        assert restored.price == pytest.approx(150.0)
+
+    def test_iso_string_timestamp(self):
+        """An ISO-8601 timestamp string is coerced back to a datetime."""
+        restored = RebalanceExecution.from_dict(
+            {"symbol": "AAPL", "action": "buy", "timestamp": "2026-01-01T12:00:00"}
+        )
+        assert restored.timestamp == datetime(2026, 1, 1, 12, 0, 0)
 
 
 class TestRebalancerInit:

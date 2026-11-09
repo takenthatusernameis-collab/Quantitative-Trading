@@ -36,6 +36,25 @@ from quant_trading.portfolio.portfolio import Portfolio
 from quant_trading.risk.manager import RiskManager
 from quant_trading.strategies.base import Signal
 
+
+def _iso(value: datetime | None) -> str | None:
+    """Return ISO-8601 string for a datetime, or None for None."""
+    if value is None:
+        return None
+    return value.isoformat()
+
+
+def _coerce_datetime(value: Any) -> datetime | None:
+    """Coerce a value to a datetime, accepting ISO-8601 strings."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    return None  # fallback for unexpected types
+
+
 # Relative cushion kept when a buy is sized against the available cash.  It
 # keeps floating point rounding from pushing the cash balance below zero.
 _CASH_SAFETY_MARGIN = 1e-9
@@ -75,6 +94,68 @@ class RebalanceAction:
     quantity: float = 0.0
     reason: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the rebalance action to a plain dictionary.
+
+        Returns:
+            Dictionary with keys ``symbol``, ``action``, ``quantity``,
+            ``reason``, and ``timestamp`` (as ISO-8601 string).
+
+        Examples:
+            >>> from quant_trading.portfolio.rebalancer import RebalanceAction
+            >>> from datetime import datetime
+            >>> action = RebalanceAction(
+            ...     symbol="AAPL", action="buy", quantity=10.0,
+            ...     reason="target_allocation",
+            ...     timestamp=datetime(2026, 1, 1, 12, 0, 0),
+            ... )
+            >>> d = action.to_dict()
+            >>> d["symbol"], d["action"], d["quantity"], d["reason"]
+            ('AAPL', 'buy', 10.0, 'target_allocation')
+            >>> d["timestamp"]
+            '2026-01-01T12:00:00'
+
+        """
+        return {
+            "symbol": self.symbol,
+            "action": self.action,
+            "quantity": self.quantity,
+            "reason": self.reason,
+            "timestamp": _iso(self.timestamp),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RebalanceAction":
+        """Deserialize a :class:`RebalanceAction` from a dictionary.
+
+        Missing keys fall back to safe defaults. ISO-8601 timestamps are
+        accepted.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`RebalanceAction`.
+
+        Examples:
+            >>> from quant_trading.portfolio.rebalancer import RebalanceAction
+            >>> restored = RebalanceAction.from_dict(
+            ...     {"symbol": "AAPL", "action": "buy", "quantity": 10.0}
+            ... )
+            >>> restored.symbol, restored.action, restored.quantity
+            ('AAPL', 'buy', 10.0)
+            >>> restored.reason
+            ''
+
+        """
+        return cls(
+            symbol=str(data.get("symbol", "")),
+            action=str(data.get("action", "hold")),
+            quantity=float(data.get("quantity", 0.0)),
+            reason=str(data.get("reason", "")),
+            timestamp=_coerce_datetime(data.get("timestamp")) or datetime.now(),
+        )
 
 
 @dataclass
@@ -121,6 +202,80 @@ class RebalanceExecution:
     cash_effect: float = 0.0
     reason: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the rebalance execution to a plain dictionary.
+
+        Returns:
+            Dictionary with keys ``symbol``, ``action``,
+            ``requested_quantity``, ``executed_quantity``, ``price``,
+            ``cash_effect``, ``reason``, and ``timestamp`` (as ISO-8601
+            string).
+
+        Examples:
+            >>> from quant_trading.portfolio.rebalancer import RebalanceExecution
+            >>> from datetime import datetime
+            >>> execution = RebalanceExecution(
+            ...     symbol="AAPL",
+            ...     action="buy",
+            ...     requested_quantity=10.0,
+            ...     executed_quantity=10.0,
+            ...     price=150.0,
+            ...     cash_effect=-1500.0,
+            ...     timestamp=datetime(2026, 1, 1, 12, 0, 0),
+            ... )
+            >>> d = execution.to_dict()
+            >>> d["symbol"], d["action"], d["price"], d["cash_effect"]
+            ('AAPL', 'buy', 150.0, -1500.0)
+            >>> d["timestamp"]
+            '2026-01-01T12:00:00'
+
+        """
+        return {
+            "symbol": self.symbol,
+            "action": self.action,
+            "requested_quantity": self.requested_quantity,
+            "executed_quantity": self.executed_quantity,
+            "price": self.price,
+            "cash_effect": self.cash_effect,
+            "reason": self.reason,
+            "timestamp": _iso(self.timestamp),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RebalanceExecution":
+        """Deserialize a :class:`RebalanceExecution` from a dictionary.
+
+        Missing keys fall back to safe defaults. ISO-8601 timestamps are
+        accepted.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`RebalanceExecution`.
+
+        Examples:
+            >>> from quant_trading.portfolio.rebalancer import RebalanceExecution
+            >>> restored = RebalanceExecution.from_dict(
+            ...     {"symbol": "AAPL", "action": "buy", "price": 150.0}
+            ... )
+            >>> restored.symbol, restored.action, restored.price
+            ('AAPL', 'buy', 150.0)
+            >>> restored.executed_quantity
+            0.0
+
+        """
+        return cls(
+            symbol=str(data.get("symbol", "")),
+            action=str(data.get("action", "hold")),
+            requested_quantity=float(data.get("requested_quantity", 0.0)),
+            executed_quantity=float(data.get("executed_quantity", 0.0)),
+            price=float(data.get("price", 0.0)),
+            cash_effect=float(data.get("cash_effect", 0.0)),
+            reason=str(data.get("reason", "")),
+            timestamp=_coerce_datetime(data.get("timestamp")) or datetime.now(),
+        )
 
 
 @dataclass
