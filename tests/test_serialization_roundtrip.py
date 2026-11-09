@@ -17,7 +17,7 @@ import pandas as pd
 import pytest
 
 from quant_trading.backtest.analysis import BacktestRegimeAnalysis
-from quant_trading.backtest.engine import BacktestResult
+from quant_trading.backtest.engine import BacktestResult, Trade
 from quant_trading.backtest.metrics import BacktestMetrics
 from quant_trading.backtest.trade_analysis import TradeAnalysis
 from quant_trading.config.settings import (
@@ -103,6 +103,7 @@ def _instances():
         ),
         (Signal, Signal(symbol="AAPL", action="buy", timestamp=ts, metadata={"key": "value"})),
         (Position, Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=160.0)),
+        (Trade, Trade(symbol="AAPL", action="buy", quantity=100, price=150.0, timestamp=ts)),
         (WalkForwardWindow, window),
         (WalkForwardResult, WalkForwardResult(windows=[window])),
         (OptimizationResult, OptimizationResult(best_params={"x": 1}, best_score=1.0)),

@@ -200,6 +200,85 @@ class Trade:
         """
         return self.realized_pnl
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the trade to a plain, JSON-safe dictionary.
+
+        The ``timestamp`` is serialized as an ISO 8601 string; all numeric
+        fields are passed through unchanged. The computed ``cost``, ``fee``,
+        and ``pnl`` properties are derived and are not included.
+
+        Returns:
+            Dictionary with keys ``symbol``, ``action``, ``quantity``,
+            ``price``, ``timestamp``, ``commission``, ``slippage``, and
+            ``realized_pnl``.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import Trade
+            >>> from datetime import datetime
+            >>> ts = datetime(2024, 1, 1, 12, 0, 0)
+            >>> trade = Trade(
+            ...     symbol="AAPL", action="buy", quantity=100, price=150.0,
+            ...     timestamp=ts, commission=0.001, slippage=0.0005,
+            ... )
+            >>> d = trade.to_dict()
+            >>> d["symbol"], d["action"], d["quantity"]
+            ('AAPL', 'buy', 100)
+            >>> d["timestamp"]
+            '2024-01-01T12:00:00'
+
+        """
+        return {
+            "symbol": self.symbol,
+            "action": self.action,
+            "quantity": self.quantity,
+            "price": self.price,
+            "timestamp": self.timestamp.isoformat(),
+            "commission": self.commission,
+            "slippage": self.slippage,
+            "realized_pnl": self.realized_pnl,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Trade":
+        """Deserialize a :class:`Trade` from a dictionary.
+
+        Missing optional keys fall back to the field defaults. Extra keys are
+        ignored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`Trade`.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import Trade
+            >>> restored = Trade.from_dict({
+            ...     "symbol": "AAPL", "action": "sell", "quantity": 100,
+            ...     "price": 155.0,
+            ...     "timestamp": "2024-01-02T12:00:00",
+            ... })
+            >>> restored.symbol, restored.action, restored.quantity
+            ('AAPL', 'sell', 100)
+            >>> restored.commission, restored.slippage
+            (0.0, 0.0)
+            >>> restored.timestamp.isoformat()
+            '2024-01-02T12:00:00'
+
+        """
+        timestamp_raw = data["timestamp"]
+        timestamp = datetime.fromisoformat(timestamp_raw)
+        return cls(
+            symbol=data["symbol"],
+            action=data["action"],
+            quantity=data["quantity"],
+            price=data["price"],
+            timestamp=timestamp,
+            commission=data.get("commission", 0.0),
+            slippage=data.get("slippage", 0.0),
+            realized_pnl=data.get("realized_pnl", 0.0),
+        )
+
 
 @dataclass
 class BacktestResult:
