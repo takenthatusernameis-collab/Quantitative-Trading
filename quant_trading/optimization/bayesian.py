@@ -100,6 +100,62 @@ class BayesianOptimizerConfig:
     random_state: int | None = None
     noise: float = 1e-6
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the optimizer config to a plain, JSON-safe dictionary.
+
+        Returns:
+            Dictionary with keys ``n_initial_points``, ``n_calls``,
+            ``acq_func``, ``acq_optimizer``, ``random_state``, and ``noise``.
+
+        Examples:
+            >>> from quant_trading.optimization.bayesian import BayesianOptimizerConfig
+            >>> cfg = BayesianOptimizerConfig(n_calls=20, random_state=42)
+            >>> d = cfg.to_dict()
+            >>> d["n_calls"], d["random_state"]
+            (20, 42)
+
+        """
+        return {
+            "n_initial_points": self.n_initial_points,
+            "n_calls": self.n_calls,
+            "acq_func": self.acq_func,
+            "acq_optimizer": self.acq_optimizer,
+            "random_state": self.random_state,
+            "noise": self.noise,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "BayesianOptimizerConfig":
+        """Deserialize a :class:`BayesianOptimizerConfig` from a dictionary.
+
+        Missing keys fall back to the class defaults. Extra keys are ignored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`BayesianOptimizerConfig`.
+
+        Examples:
+            >>> from quant_trading.optimization.bayesian import BayesianOptimizerConfig
+            >>> restored = BayesianOptimizerConfig.from_dict(
+            ...     {"n_calls": 20, "random_state": 42}
+            ... )
+            >>> restored.n_calls, restored.random_state
+            (20, 42)
+            >>> restored.acq_func
+            'EI'
+
+        """
+        return cls(
+            n_initial_points=int(data.get("n_initial_points", 10)),
+            n_calls=int(data.get("n_calls", 50)),
+            acq_func=str(data.get("acq_func", "EI")),
+            acq_optimizer=str(data.get("acq_optimizer", "auto")),
+            random_state=data.get("random_state"),
+            noise=float(data.get("noise", 1e-6)),
+        )
+
 
 class BayesianOptimizer(BaseOptimizer):
     """Bayesian optimizer for strategy parameters using Gaussian Processes.

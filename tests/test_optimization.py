@@ -35,6 +35,10 @@ try:
     from quant_trading.optimization import BayesianOptimizer
 except ImportError:
     BayesianOptimizer: Any = None  # type: ignore[no-redef]
+try:
+    from quant_trading.optimization.bayesian import BayesianOptimizerConfig
+except ImportError:
+    BayesianOptimizerConfig: Any = None  # type: ignore[no-redef]
 from quant_trading.strategies.base import Signal, Strategy
 from quant_trading.strategies.examples import MovingAverageCrossover, RSIStrategy
 
@@ -3750,3 +3754,99 @@ class TestOptimizationResultSerialization:
         data = result.to_dict()
         data["all_results"][0]["score"] = 999.0
         assert result.all_results[0]["score"] == 0.5
+
+
+class TestBayesianOptimizerConfigSerialization:
+    """Round-trip tests for BayesianOptimizerConfig.to_dict / from_dict.
+
+    ``BayesianOptimizerConfig`` shipped no ``to_dict``/``from_dict`` pair, so a
+    consumer wanting to persist a Bayesian optimizer setup (e.g. alongside an
+    :class:`~quant_trading.optimization.OptimizationResult`) had no supported
+    path. These tests guard the round trip.
+    """
+
+    def test_to_dict_contains_all_fields(self):
+        """to_dict exposes every BayesianOptimizerConfig field."""
+        cfg = BayesianOptimizerConfig(
+            n_initial_points=5,
+            n_calls=20,
+            acq_func="PI",
+            acq_optimizer="batch",
+            random_state=42,
+            noise=1e-5,
+        )
+        data = cfg.to_dict()
+
+        assert data["n_initial_points"] == 5
+        assert data["n_calls"] == 20
+        assert data["acq_func"] == "PI"
+        assert data["acq_optimizer"] == "batch"
+        assert data["random_state"] == 42
+        assert data["noise"] == 1e-5
+
+    def test_to_dict_none_random_state(self):
+        """to_dict emits None for random_state when absent."""
+        cfg = BayesianOptimizerConfig()
+        assert cfg.to_dict()["random_state"] is None
+
+    def test_round_trip_restores_fields(self):
+        """from_dict(to_dict(cfg)) restores every scalar field."""
+        cfg = BayesianOptimizerConfig(
+            n_initial_points=5,
+            n_calls=20,
+            acq_func="PI",
+            acq_optimizer="batch",
+            random_state=42,
+            noise=1e-5,
+        )
+        restored = BayesianOptimizerConfig.from_dict(cfg.to_dict())
+
+        assert restored.n_initial_points == 5
+        assert restored.n_calls == 20
+        assert restored.acq_func == "PI"
+        assert restored.acq_optimizer == "batch"
+        assert restored.random_state == 42
+        assert restored.noise == 1e-5
+
+    def test_round_trip_json_safe(self):
+        """to_dict output is JSON-serializable and from_dict accepts it."""
+        cfg = BayesianOptimizerConfig(n_calls=20, random_state=42, noise=1e-5)
+        data = json.loads(json.dumps(cfg.to_dict()))
+        restored = BayesianOptimizerConfig.from_dict(data)
+
+        assert restored.n_calls == 20
+        assert restored.random_state == 42
+        assert restored.noise == 1e-5
+
+    def test_from_dict_defaults_missing_fields(self):
+        """from_dict tolerates a dict that omits optional fields."""
+        restored = BayesianOptimizerConfig.from_dict({"n_calls": 20, "random_state": 42})
+        assert restored.n_calls == 20
+        assert restored.random_state == 42
+        assert restored.n_initial_points == 10
+        assert restored.acq_func == "EI"
+        assert restored.acq_optimizer == "auto"
+        assert restored.noise == 1e-6
+
+    def test_from_dict_empty_dict(self):
+        """from_dict({}) yields a fully-defaulted config."""
+        restored = BayesianOptimizerConfig.from_dict({})
+        assert restored.n_initial_points == 10
+        assert restored.n_calls == 50
+        assert restored.acq_func == "EI"
+        assert restored.acq_optimizer == "auto"
+        assert restored.random_state is None
+        assert restored.noise == 1e-6
+
+    def test_from_dict_extra_keys_ignored(self):
+        """from_dict ignores unknown keys."""
+        restored = BayesianOptimizerConfig.from_dict(
+            {"n_calls": 20, "random_state": 42, "bogus": 99}
+        )
+        assert restored.n_calls == 20
+        assert restored.random_state == 42
+
+    def test_from_dict_random_state_none_explicit(self):
+        """from_dict accepts an explicit None for random_state."""
+        restored = BayesianOptimizerConfig.from_dict({"random_state": None})
+        assert restored.random_state is None
