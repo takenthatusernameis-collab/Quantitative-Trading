@@ -60,6 +60,61 @@ class TestRiskManagerInit:
         assert rm.portfolio_limit.max_leverage == 2.5
 
 
+class TestPortfolioRiskSerialization:
+    """Tests for PortfolioRisk.to_dict/from_dict serialization."""
+
+    def test_to_dict_exposes_all_fields(self):
+        pr = PortfolioRisk(
+            total_market_value=100000.0,
+            cash=50000.0,
+            positions_value=50000.0,
+            leverage=0.5,
+            current_drawdown=-0.1,
+            peak_value=110000.0,
+        )
+        assert pr.to_dict() == {
+            "total_market_value": 100000.0,
+            "cash": 50000.0,
+            "positions_value": 50000.0,
+            "leverage": 0.5,
+            "current_drawdown": -0.1,
+            "peak_value": 110000.0,
+        }
+
+    def test_to_dict_defaults(self):
+        pr = PortfolioRisk()
+        assert pr.to_dict() == {
+            "total_market_value": 0.0,
+            "cash": 0.0,
+            "positions_value": 0.0,
+            "leverage": 0.0,
+            "current_drawdown": 0.0,
+            "peak_value": 0.0,
+        }
+
+    def test_from_dict_round_trips(self):
+        pr = PortfolioRisk(100000.0, 50000.0, 50000.0, 0.5, -0.1, 110000.0)
+        assert PortfolioRisk.from_dict(pr.to_dict()) == pr
+
+    def test_from_dict_json_round_trip(self):
+        import json
+
+        pr = PortfolioRisk(100000.0, 50000.0, 50000.0)
+        decoded = json.loads(json.dumps(pr.to_dict()))
+        restored = PortfolioRisk.from_dict(decoded)
+        assert restored == pr
+
+    def test_from_dict_defaults_missing_keys(self):
+        restored = PortfolioRisk.from_dict({})
+        assert restored == PortfolioRisk()
+
+    def test_from_dict_ignores_extra_keys(self):
+        data = PortfolioRisk(100000.0, 50000.0, 50000.0).to_dict()
+        data["unknown"] = 123
+        restored = PortfolioRisk.from_dict(data)
+        assert restored == PortfolioRisk(100000.0, 50000.0, 50000.0)
+
+
 class TestUpdatePortfolioValue:
     """Tests for update_portfolio_value."""
 

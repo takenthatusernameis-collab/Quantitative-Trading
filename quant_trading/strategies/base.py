@@ -70,6 +70,75 @@ class Signal:
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the signal to a plain, JSON-safe dictionary.
+
+        The ``timestamp`` is serialized as an ISO 8601 string and ``metadata``
+        is copied so the returned dictionary shares no mutable state with the
+        signal.
+
+        Returns:
+            Dictionary with keys ``symbol``, ``action``, ``strength``,
+            ``price``, ``timestamp``, and ``metadata``.
+
+        Examples:
+            >>> from quant_trading.strategies.base import Signal
+            >>> from datetime import datetime
+            >>> ts = datetime(2024, 1, 1, 12, 0, 0)
+            >>> signal = Signal(symbol="AAPL", action="buy", price=150.0, strength=0.5, timestamp=ts, metadata={"key": "value"})
+            >>> d = signal.to_dict()
+            >>> d["symbol"], d["action"], d["strength"]
+            ('AAPL', 'buy', 0.5)
+            >>> d["timestamp"]
+            '2024-01-01T12:00:00'
+
+        """
+        return {
+            "symbol": self.symbol,
+            "action": self.action,
+            "strength": self.strength,
+            "price": self.price,
+            "timestamp": self.timestamp.isoformat() if self.timestamp is not None else None,
+            "metadata": dict(self.metadata),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Signal":
+        """Deserialize a :class:`Signal` from a dictionary.
+
+        Missing keys fall back to the class defaults (a missing timestamp is
+        assigned the current time by :meth:`__post_init__`). Extra keys are
+        ignored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`Signal`.
+
+        Examples:
+            >>> from quant_trading.strategies.base import Signal
+            >>> restored = Signal.from_dict({"symbol": "AAPL", "action": "sell"})
+            >>> restored.symbol, restored.action
+            ('AAPL', 'sell')
+            >>> restored.strength
+            1.0
+            >>> restored.timestamp is not None
+            True
+
+        """
+        timestamp = data.get("timestamp")
+        if timestamp is not None:
+            timestamp = datetime.fromisoformat(timestamp)
+        return cls(
+            symbol=data.get("symbol", ""),
+            action=data.get("action", "hold"),
+            strength=float(data.get("strength", 1.0)),
+            price=data.get("price"),
+            timestamp=timestamp,
+            metadata=dict(data.get("metadata") or {}),
+        )
+
 
 @dataclass
 class Position:
@@ -131,6 +200,62 @@ class Position:
 
         """
         return self.unrealized_pnl + self.realized_pnl
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the position to a plain, JSON-safe dictionary.
+
+        Returns:
+            Dictionary with keys ``symbol``, ``quantity``, ``avg_price``,
+            ``current_price``, ``unrealized_pnl``, and ``realized_pnl``.
+            The computed ``market_value`` and ``pnl`` properties are not
+            included; they are derived from these fields.
+
+        Examples:
+            >>> from quant_trading.strategies.base import Position
+            >>> pos = Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=160.0)
+            >>> d = pos.to_dict()
+            >>> d["quantity"], d["avg_price"]
+            (100, 150.0)
+
+        """
+        return {
+            "symbol": self.symbol,
+            "quantity": self.quantity,
+            "avg_price": self.avg_price,
+            "current_price": self.current_price,
+            "unrealized_pnl": self.unrealized_pnl,
+            "realized_pnl": self.realized_pnl,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Position":
+        """Deserialize a :class:`Position` from a dictionary.
+
+        Missing keys fall back to the class defaults. Extra keys are ignored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`Position`.
+
+        Examples:
+            >>> from quant_trading.strategies.base import Position
+            >>> restored = Position.from_dict({"symbol": "AAPL", "quantity": 100, "avg_price": 150.0})
+            >>> restored.symbol, restored.quantity, restored.avg_price
+            ('AAPL', 100, 150.0)
+            >>> restored.current_price
+            0.0
+
+        """
+        return cls(
+            symbol=data.get("symbol", ""),
+            quantity=data.get("quantity", 0.0),
+            avg_price=data.get("avg_price", 0.0),
+            current_price=data.get("current_price", 0.0),
+            unrealized_pnl=data.get("unrealized_pnl", 0.0),
+            realized_pnl=data.get("realized_pnl", 0.0),
+        )
 
 
 class Strategy(ABC):

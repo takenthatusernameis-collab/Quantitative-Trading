@@ -63,6 +63,133 @@ class TestSignal:
         assert signal.timestamp == fixed
 
 
+class TestPositionSerialization:
+    """Tests for Position.to_dict/from_dict serialization."""
+
+    def test_to_dict_exposes_all_fields(self):
+        pos = Position(
+            symbol="AAPL",
+            quantity=100,
+            avg_price=150.0,
+            current_price=160.0,
+            unrealized_pnl=1000.0,
+            realized_pnl=500.0,
+        )
+        assert pos.to_dict() == {
+            "symbol": "AAPL",
+            "quantity": 100,
+            "avg_price": 150.0,
+            "current_price": 160.0,
+            "unrealized_pnl": 1000.0,
+            "realized_pnl": 500.0,
+        }
+
+    def test_to_dict_defaults(self):
+        pos = Position(symbol="MSFT")
+        assert pos.to_dict() == {
+            "symbol": "MSFT",
+            "quantity": 0.0,
+            "avg_price": 0.0,
+            "current_price": 0.0,
+            "unrealized_pnl": 0.0,
+            "realized_pnl": 0.0,
+        }
+
+    def test_from_dict_round_trips(self):
+        pos = Position("AAPL", 100, 150.0, 160.0, 1000.0, 500.0)
+        assert Position.from_dict(pos.to_dict()) == pos
+
+    def test_from_dict_json_round_trip(self):
+        import json
+
+        pos = Position("AAPL", 100, 150.0, 160.0)
+        decoded = json.loads(json.dumps(pos.to_dict()))
+        restored = Position.from_dict(decoded)
+        assert restored == pos
+
+    def test_from_dict_defaults_missing_keys(self):
+        restored = Position.from_dict({})
+        assert restored == Position(symbol="")
+
+    def test_from_dict_ignores_extra_keys(self):
+        data = Position("AAPL", 10, 100.0).to_dict()
+        data["unknown"] = 123
+        restored = Position.from_dict(data)
+        assert restored == Position("AAPL", 10, 100.0)
+
+
+class TestSignalSerialization:
+    """Tests for Signal.to_dict/from_dict serialization."""
+
+    def test_to_dict_exposes_all_fields(self):
+        ts = datetime(2024, 1, 1, 12, 0, 0)
+        signal = Signal(
+            symbol="AAPL",
+            action="buy",
+            strength=0.5,
+            price=150.0,
+            timestamp=ts,
+            metadata={"key": "value"},
+        )
+        assert signal.to_dict() == {
+            "symbol": "AAPL",
+            "action": "buy",
+            "strength": 0.5,
+            "price": 150.0,
+            "timestamp": "2024-01-01T12:00:00",
+            "metadata": {"key": "value"},
+        }
+
+    def test_to_dict_serializes_timestamp_as_iso_string(self):
+        """A signal created without a timestamp serializes it as an ISO string."""
+        signal = Signal(symbol="AAPL", action="hold")
+        d = signal.to_dict()
+        assert d["timestamp"] is not None
+        assert d["metadata"] == {}
+        assert datetime.fromisoformat(d["timestamp"]) == signal.timestamp
+
+    def test_to_dict_metadata_is_copied(self):
+        metadata = {"key": "value"}
+        signal = Signal(symbol="AAPL", action="buy", metadata=metadata)
+        d = signal.to_dict()
+        assert d["metadata"] == metadata
+        d["metadata"]["mutated"] = True
+        assert signal.metadata == {"key": "value"}
+
+    def test_from_dict_round_trips(self):
+        ts = datetime(2024, 1, 1, 12, 0, 0)
+        signal = Signal("AAPL", "sell", 0.25, 150.0, ts, {"k": "v"})
+        assert Signal.from_dict(signal.to_dict()) == signal
+
+    def test_from_dict_json_round_trip(self):
+        import json
+
+        ts = datetime(2024, 1, 1, 12, 0, 0)
+        signal = Signal("AAPL", "buy", timestamp=ts)
+        decoded = json.loads(json.dumps(signal.to_dict()))
+        restored = Signal.from_dict(decoded)
+        assert restored.timestamp == ts
+
+    def test_from_dict_defaults_missing_keys(self):
+        restored = Signal.from_dict({})
+        assert restored.symbol == ""
+        assert restored.action == "hold"
+        assert restored.strength == 1.0
+        assert restored.price is None
+        assert restored.metadata == {}
+
+    def test_from_dict_ignores_extra_keys(self):
+        data = Signal("AAPL", "buy").to_dict()
+        data["extra"] = 123
+        restored = Signal.from_dict(data)
+        assert restored.symbol == "AAPL"
+        assert restored.action == "buy"
+        assert restored.strength == 1.0
+        assert restored.price is None
+        assert restored.metadata == {}
+        assert restored.timestamp is not None
+
+
 class StrategyWithValidation(Strategy):
     """Concrete strategy with parameter validation for testing."""
 

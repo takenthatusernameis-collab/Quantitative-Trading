@@ -49,6 +49,61 @@ class PortfolioRisk:
     current_drawdown: float = 0.0
     peak_value: float = 0.0
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the portfolio risk state to a plain dictionary.
+
+        Returns:
+            Dictionary with keys ``total_market_value``, ``cash``,
+            ``positions_value``, ``leverage``, ``current_drawdown``, and
+            ``peak_value``.
+
+        Examples:
+            >>> from quant_trading.risk.manager import PortfolioRisk
+            >>> pr = PortfolioRisk(total_market_value=100000.0, cash=50000.0, positions_value=50000.0)
+            >>> d = pr.to_dict()
+            >>> d["cash"], d["positions_value"]
+            (50000.0, 50000.0)
+
+        """
+        return {
+            "total_market_value": self.total_market_value,
+            "cash": self.cash,
+            "positions_value": self.positions_value,
+            "leverage": self.leverage,
+            "current_drawdown": self.current_drawdown,
+            "peak_value": self.peak_value,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "PortfolioRisk":
+        """Deserialize a :class:`PortfolioRisk` from a dictionary.
+
+        Missing keys fall back to the class defaults. Extra keys are ignored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`PortfolioRisk`.
+
+        Examples:
+            >>> from quant_trading.risk.manager import PortfolioRisk
+            >>> restored = PortfolioRisk.from_dict({"total_market_value": 100000.0, "cash": 50000.0})
+            >>> restored.total_market_value, restored.cash
+            (100000.0, 50000.0)
+            >>> restored.leverage
+            0.0
+
+        """
+        return cls(
+            total_market_value=float(data.get("total_market_value", 0.0)),
+            cash=float(data.get("cash", 0.0)),
+            positions_value=float(data.get("positions_value", 0.0)),
+            leverage=float(data.get("leverage", 0.0)),
+            current_drawdown=float(data.get("current_drawdown", 0.0)),
+            peak_value=float(data.get("peak_value", 0.0)),
+        )
+
     @property
     def total_value(self) -> float:
         """Total portfolio value.
