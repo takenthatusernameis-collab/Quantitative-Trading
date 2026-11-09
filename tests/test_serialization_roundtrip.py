@@ -11,6 +11,9 @@ cannot compare the omitted fields meaningfully. For those we assert serialized-
 form stability instead: ``from_dict(to_dict(x)).to_dict() == x.to_dict()``.
 """
 
+import dataclasses
+import importlib
+import pkgutil
 from datetime import datetime
 
 import pandas as pd
@@ -184,3 +187,35 @@ def test_serialization_round_trip(cls, instance):
         assert restored.to_dict() == instance.to_dict()
     else:
         assert restored == instance
+
+
+def test_every_dataclass_declares_to_dict_and_from_dict():
+    """Every dataclass defined in ``quant_trading/`` must expose ``to_dict``/``from_dict``.
+
+    This introspection guard complements the explicit round-trip cases above:
+    it catches any new dataclass added to the package without the serialization
+    methods, before it drifts out of the repo-wide serialization contract.
+    Classes imported into a module (rather than defined there) are skipped so
+    each dataclass is checked exactly once, where it is defined.
+    """
+    import quant_trading
+
+    missing = []
+    for module_info in pkgutil.walk_packages(quant_trading.__path__, prefix="quant_trading."):
+        try:
+            module = importlib.import_module(module_info.name)
+        except Exception:  # pragma: no cover - a module that cannot import is a separate failure  # noqa: BLE001, S112
+            continue
+        for name, obj in vars(module).items():
+            if not dataclasses.is_dataclass(obj) or not isinstance(obj, type):
+                continue
+            if getattr(obj, "__module__", None) != module_info.name:
+                continue  # skip imported/re-exported dataclasses
+            if "to_dict" not in obj.__dict__:
+                missing.append(f"{module_info.name}.{name}.to_dict")
+            if "from_dict" not in obj.__dict__:
+                missing.append(f"{module_info.name}.{name}.from_dict")
+    assert not missing, (
+        "dataclasses missing to_dict/from_dict (serialization contract):\n"
+        + "\n".join(sorted(missing))
+    )
