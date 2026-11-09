@@ -3859,3 +3859,106 @@ class TestBayesianOptimizerConfigSerialization:
         """from_dict accepts an explicit None for random_state."""
         restored = BayesianOptimizerConfig.from_dict({"random_state": None})
         assert restored.random_state is None
+
+
+@pytest.mark.skipif(not _HAS_SKOPT, reason="requires scikit-optimize")
+class TestBayesianOptimizerNoise:
+    """The ``noise`` field of :class:`BayesianOptimizerConfig` was defined,
+    serialized, and round-tripped but never wired into :class:`BayesianOptimizer`
+    itself: ``gp_minimize`` was called with a hardcoded ``noise=1e-6`` and the
+    optimizer constructor rejected ``noise`` as an unexpected keyword
+    argument. These tests guard the wiring so a configured noise value actually
+    reaches the Gaussian Process kernel.
+    """
+
+    def _make_optimizer(self, **overrides):
+        from quant_trading.data.synthetic import create_synthetic_provider
+
+        provider = create_synthetic_provider(["AAPL"], days=60, seed=42)
+        data_manager = DataManager([provider])
+        param_grid = ParameterGrid()
+        param_grid.add(ParameterSpace("fast_period", values=[5], param_type=int))
+        param_grid.add(ParameterSpace("slow_period", values=[10], param_type=int))
+        kwargs = {
+            "strategy_cls": MovingAverageCrossover,
+            "param_grid": param_grid,
+            "objective": maximize_sharpe,
+            "symbols": ["AAPL"],
+            "start": datetime.now() - timedelta(days=50),
+            "end": datetime.now(),
+            "data_manager": data_manager,
+            "random_state": 42,
+            "n_initial_points": 2,
+            "n_calls": 3,
+        }
+        kwargs.update(overrides)
+        return BayesianOptimizer(**kwargs)
+
+    def test_constructor_accepts_noise_kwarg(self):
+        """BayesianOptimizer accepts a ``noise`` keyword argument."""
+        optimizer = self._make_optimizer(noise=1e-3)
+        assert optimizer.noise == 1e-3
+
+    def test_default_noise_matches_config_default(self):
+        """The optimizer's default noise mirrors BayesianOptimizerConfig."""
+        optimizer = self._make_optimizer()
+        assert optimizer.noise == BayesianOptimizerConfig().noise
+
+    def test_configured_noise_reaches_gp_minimize(self, monkeypatch):
+        """The configured ``noise`` value is forwarded to ``gp_minimize``.
+
+        Regression test: previously ``gp_minimize`` was called with a hardcoded
+        ``noise=1e-6`` regardless of the configured value, so a user setting
+        ``noise=1e-3`` on the config had no effect.
+        """
+        captured: dict[str, Any] = {}
+
+        def fake_gp_minimize(*args, **kwargs):
+            captured.update(kwargs)
+            # gp_minimize returns an OptimizeResult; the optimizer only reads
+            # ``x``/``fun`` indirectly through the objective, so an empty stub
+            # result is sufficient to let run() complete.
+            return SimpleNamespace(
+                x=[0],
+                fun=0.0,
+                x_iters=[[0]],
+                fun_iters=[0.0],
+                models=[],
+            )
+
+        # run() imports gp_minimize lazily via ``from skopt import gp_minimize``,
+        # so patch the attribute on the skopt module namespace.
+        import skopt
+
+        monkeypatch.setattr(skopt, "gp_minimize", fake_gp_minimize)
+
+        optimizer = self._make_optimizer(noise=1e-3)
+        optimizer.run()
+
+        assert captured.get("noise") == 1e-3, (
+            f"gp_minimize received noise={captured.get('noise')!r}, "
+            "expected the configured 1e-3"
+        )
+
+    def test_default_noise_reaches_gp_minimize(self, monkeypatch):
+        """When unset, the optimizer's default noise is forwarded."""
+        captured: dict[str, Any] = {}
+
+        def fake_gp_minimize(*args, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(
+                x=[0],
+                fun=0.0,
+                x_iters=[[0]],
+                fun_iters=[0.0],
+                models=[],
+            )
+
+        import skopt
+
+        monkeypatch.setattr(skopt, "gp_minimize", fake_gp_minimize)
+
+        optimizer = self._make_optimizer()
+        optimizer.run()
+
+        assert captured.get("noise") == optimizer.noise == BayesianOptimizerConfig().noise

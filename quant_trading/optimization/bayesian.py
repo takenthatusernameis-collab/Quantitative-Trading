@@ -224,6 +224,7 @@ class BayesianOptimizer(BaseOptimizer):
         acq_func: str = "EI",
         acq_optimizer: str = "auto",
         random_state: int | None = None,
+        noise: float = 1e-6,
         periods_per_year: int = 252,
         verbose: bool = False,
     ):
@@ -248,6 +249,9 @@ class BayesianOptimizer(BaseOptimizer):
             acq_func: Acquisition function name.
             acq_optimizer: Acquisition optimizer name.
             random_state: Seed for reproducibility.
+            noise: Observation noise added to the GP kernel. Defaults to the
+                same value as :class:`BayesianOptimizerConfig` so a config
+                restored via ``from_dict`` is honored when passed through.
             periods_per_year: Trading periods per year used to annualize the
                 return, volatility, Sharpe, Sortino and Calmar metrics.
             verbose: Whether to print progress.
@@ -291,6 +295,7 @@ class BayesianOptimizer(BaseOptimizer):
         self.acq_func = acq_func
         self.acq_optimizer = acq_optimizer
         self.random_state = random_state
+        self.noise = noise
         self._space = self._create_skopt_space()
         self._use_named_args = use_named_args(self._space)
 
@@ -414,7 +419,7 @@ class BayesianOptimizer(BaseOptimizer):
                 acq_func=self.acq_func,
                 acq_optimizer=self.acq_optimizer,
                 random_state=self.random_state,
-                noise=1e-6,
+                noise=self.noise,
                 verbose=self.verbose,
             )
         except (ValueError, RuntimeError, KeyError) as e:
