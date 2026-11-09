@@ -498,8 +498,8 @@ def calculate_treynor_ratio(
         >>> import pandas as pd
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, 0.01])
         >>> market = pd.Series([0.008, 0.015, -0.003, 0.01, 0.008])
-        >>> round(calculate_treynor_ratio(returns, market, risk_free_rate=0.02, annualize=False), 2)
-        0.01
+        >>> round(calculate_treynor_ratio(returns, market, risk_free_rate=0.02), 2)
+        1.77
 
     """
     beta = calculate_beta(returns, market_returns)
@@ -538,8 +538,8 @@ def calculate_information_ratio(
         >>> import pandas as pd
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, 0.01])
         >>> benchmark = pd.Series([0.008, 0.015, -0.003, 0.01, 0.008])
-        >>> round(calculate_information_ratio(returns, benchmark, annualize=False), 2)
-        1.23
+        >>> round(calculate_information_ratio(returns, benchmark), 2)
+        13.22
 
     """
     aligned = _align_series(returns, benchmark_returns)
@@ -577,7 +577,7 @@ def calculate_cvar(
         >>> import pandas as pd
         >>> returns = pd.Series([-0.02, 0.01, -0.01, 0.005, -0.03, -0.025])
         >>> round(calculate_cvar(returns, 0.95), 3)
-        -0.027
+        -0.03
 
     """
     returns = returns.dropna()
@@ -617,7 +617,7 @@ def calculate_omega_ratio(
         >>> import pandas as pd
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, -0.01])
         >>> round(calculate_omega_ratio(returns, threshold=0.0), 2)
-        2.50
+        3.0
 
     """
     returns = returns.dropna()
