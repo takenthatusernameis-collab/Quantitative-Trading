@@ -491,6 +491,84 @@ class BacktestResult:
                 handle.write(content)
         return content
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "BacktestResult":
+        """Deserialize a backtest result from a dictionary.
+
+        Reconstructs :class:`BacktestMetrics` from the summary fields and, when
+        present, nested ``regime_analysis``, ``monte_carlo``, and
+        ``trade_analysis`` objects via their respective ``from_dict`` methods.
+
+        ``equity_curve``, ``trades``, and ``positions`` are not serialized by
+        :meth:`to_dict`; missing values default to an empty series/dataframe/dict.
+
+        Missing keys fall back to safe defaults and extra keys are ignored.
+
+        Args:
+            data: Dictionary whose keys match :meth:`to_dict` output.
+
+        Returns:
+            BacktestResult populated from the dictionary.
+
+        """
+        from datetime import datetime as _datetime
+
+        def _parse_dt(value: Any) -> datetime:
+            if isinstance(value, datetime):
+                return value
+            if isinstance(value, str):
+                return _datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return _datetime(1970, 1, 1)
+
+        metrics_data = dict(data)
+        # to_dict() exports total_trades; BacktestMetrics.from_dict() reads num_trades.
+        if "num_trades" not in metrics_data and "total_trades" in metrics_data:
+            metrics_data["num_trades"] = metrics_data["total_trades"]
+        metrics = BacktestMetrics.from_dict(metrics_data)
+
+        initial_capital = float(data.get("initial_capital", 0.0) or 0.0)
+        final_value = float(data.get("final_value", 0.0) or 0.0)
+        total_return = float(data.get("total_return", final_value - initial_capital) or 0.0)
+        total_return_pct = float(
+            data.get("total_return_pct", (total_return / initial_capital * 100) if initial_capital else 0.0)
+            or 0.0
+        )
+
+        result = cls(
+            equity_curve=pd.Series(dtype=float),
+            trades=pd.DataFrame(),
+            positions=dict(data.get("positions", {}) or {}),
+            metrics=metrics,
+            start_date=_parse_dt(data.get("start_date")),
+            end_date=_parse_dt(data.get("end_date")),
+            initial_capital=initial_capital,
+            final_value=final_value,
+            total_return=total_return,
+            total_return_pct=total_return_pct,
+            portfolio_violations=list(data.get("portfolio_violations", []) or []),
+            total_costs=float(data.get("total_costs", 0.0) or 0.0),
+        )
+
+        regime_data = data.get("regime_analysis")
+        if isinstance(regime_data, dict):
+            from quant_trading.backtest.analysis import BacktestRegimeAnalysis
+
+            result.regime_analysis = BacktestRegimeAnalysis.from_dict(regime_data)  # type: ignore[attr-defined]
+
+        monte_carlo_data = data.get("monte_carlo")
+        if isinstance(monte_carlo_data, dict):
+            from quant_trading.monte_carlo.simulator import MonteCarloResult
+
+            result.monte_carlo = MonteCarloResult.from_dict(monte_carlo_data)  # type: ignore[attr-defined]
+
+        trade_analysis_data = data.get("trade_analysis")
+        if isinstance(trade_analysis_data, dict):
+            from quant_trading.backtest.trade_analysis import TradeAnalysis
+
+            result.trade_analysis = TradeAnalysis.from_dict(trade_analysis_data)  # type: ignore[attr-defined]
+
+        return result
+
 
 class BacktestEngine:
     """Engine for running backtests on trading strategies.

@@ -1,5 +1,6 @@
 """Tests for the Monte Carlo simulator."""
 
+import json
 from datetime import datetime
 
 import pandas as pd
@@ -365,3 +366,66 @@ def test_monte_carlo_risk_free_rate_parametric_method():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+class TestMonteCarloResultSerialization:
+    """Tests for MonteCarloResult.to_dict/from_dict."""
+
+    def test_to_dict_round_trips(self):
+        result = _make_result()
+        sim = run_monte_carlo(result, n_simulations=12, random_state=42)
+        data = sim.to_dict()
+        reconstructed = MonteCarloResult.from_dict(data)
+
+        assert reconstructed.n_simulations == sim.n_simulations
+        assert reconstructed.confidence_level == sim.confidence_level
+        assert len(reconstructed.simulations) == len(sim.simulations)
+        assert reconstructed.start_time == sim.start_time
+        assert reconstructed.end_time == sim.end_time
+        assert reconstructed.original_metrics.total_return_pct == pytest.approx(
+            sim.original_metrics.total_return_pct
+        )
+        for orig, recon in zip(sim.simulations, reconstructed.simulations):
+            assert recon.total_return_pct == pytest.approx(orig.total_return_pct)
+            assert recon.sharpe_ratio == pytest.approx(orig.sharpe_ratio)
+            assert recon.num_trades == orig.num_trades
+
+    def test_to_dict_is_json_serializable(self):
+        result = _make_result()
+        sim = run_monte_carlo(result, n_simulations=5, random_state=1)
+        data = sim.to_dict()
+        encoded = json.dumps(data)
+        decoded = json.loads(encoded)
+        reconstructed = MonteCarloResult.from_dict(decoded)
+        assert reconstructed.n_simulations == 5
+        assert len(reconstructed.simulations) == 5
+
+    def test_from_dict_defaults_missing_keys(self):
+        mc = MonteCarloResult.from_dict({})
+        assert mc.n_simulations == 0
+        assert mc.confidence_level == 0.95
+        assert mc.simulations == []
+        assert mc.start_time == datetime(1970, 1, 1)
+        assert mc.end_time == datetime(1970, 1, 1)
+
+    def test_from_dict_ignores_extra_keys(self):
+        m = BacktestMetrics(total_return=1.0)
+        mc = MonteCarloResult(
+            simulations=[m],
+            original_metrics=m,
+            n_simulations=1,
+            confidence_level=0.95,
+            start_time=datetime(2024, 1, 1),
+            end_time=datetime(2024, 1, 1),
+        )
+        data = mc.to_dict()
+        data["unknown"] = "value"
+        reconstructed = MonteCarloResult.from_dict(data)
+        assert reconstructed.n_simulations == 1
+        assert len(reconstructed.simulations) == 1
+
+    def test_from_dict_empty_simulations(self):
+        m = BacktestMetrics()
+        mc = MonteCarloResult([], m, 0, 0.95, datetime(2024, 1, 1), datetime(2024, 1, 1))
+        reconstructed = MonteCarloResult.from_dict(mc.to_dict())
+        assert reconstructed.simulations == []
+        assert reconstructed.n_simulations == 0

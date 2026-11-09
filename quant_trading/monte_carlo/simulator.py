@@ -250,6 +250,55 @@ class MonteCarloResult:
         frame: pd.DataFrame = pd.DataFrame(data)
         return frame
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the Monte Carlo result to a JSON-serializable dictionary.
+
+        Returns:
+            Dictionary containing simulation metrics, original metrics, run
+            metadata, and ISO-formatted timestamps. Simulation and original
+            metrics are serialized via :meth:`BacktestMetrics.to_dict`.
+
+        """
+        return {
+            "simulations": [s.to_dict() for s in self.simulations],
+            "original_metrics": self.original_metrics.to_dict(),
+            "n_simulations": self.n_simulations,
+            "confidence_level": self.confidence_level,
+            "start_time": self.start_time.isoformat(),
+            "end_time": self.end_time.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "MonteCarloResult":
+        """Deserialize a Monte Carlo result from a dictionary.
+
+        Missing keys fall back to safe defaults, so a dictionary produced by
+        :meth:`to_dict` (for example after a JSON round-trip) can be
+        reconstructed. Extra keys are ignored.
+
+        Args:
+            data: Dictionary whose keys match the serialized field names.
+
+        Returns:
+            MonteCarloResult populated from the dictionary.
+
+        """
+        simulations = [BacktestMetrics.from_dict(s) for s in data.get("simulations", []) or []]
+        original = data.get("original_metrics") or {}
+        start_raw = data.get("start_time")
+        end_raw = data.get("end_time")
+        epoch = datetime(1970, 1, 1)
+        start = datetime.fromisoformat(start_raw) if start_raw else epoch
+        end = datetime.fromisoformat(end_raw) if end_raw else epoch
+        return cls(
+            simulations=simulations,
+            original_metrics=BacktestMetrics.from_dict(original),
+            n_simulations=int(data.get("n_simulations", len(simulations))),
+            confidence_level=float(data.get("confidence_level", 0.95)),
+            start_time=start,
+            end_time=end,
+        )
+
     def summary(self) -> dict[str, Any]:
         """Get summary statistics for the simulation distribution.
 

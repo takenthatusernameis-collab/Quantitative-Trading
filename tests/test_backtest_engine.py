@@ -2507,3 +2507,99 @@ class TestMetricsAndAnalysisReconciliationOnEngineResults:
         booked = float(result.trades["pnl"].sum())
         assert metrics.total_pnl == pytest.approx(analysis.total_pnl)
         assert metrics.total_pnl == pytest.approx(booked)
+
+
+class TestBacktestResultSerialization:
+    """Tests for BacktestResult.to_dict/from_dict."""
+
+    def _make_result(self):
+        dates = pd.date_range("2024-01-01", periods=5, freq="D")
+        equity = pd.Series([100000.0, 101000.0, 100500.0, 102000.0, 103000.0], index=dates)
+        metrics = calculate_backtest_metrics(equity)
+        return BacktestResult(
+            equity_curve=equity,
+            trades=pd.DataFrame({"symbol": ["AAPL"], "pnl": [100.0]}),
+            positions={"AAPL": {"quantity": 10}},
+            metrics=metrics,
+            start_date=datetime(2024, 1, 1),
+            end_date=datetime(2024, 1, 5),
+            initial_capital=100000.0,
+            final_value=103000.0,
+            total_return=3000.0,
+            total_return_pct=3.0,
+            portfolio_violations=["warn"],
+            total_costs=12.5,
+        )
+
+    def test_from_dict_round_trips_summary(self):
+        result = self._make_result()
+        data = result.to_dict()
+        reconstructed = BacktestResult.from_dict(data)
+
+        assert reconstructed.start_date == result.start_date
+        assert reconstructed.end_date == result.end_date
+        assert reconstructed.initial_capital == result.initial_capital
+        assert reconstructed.final_value == result.final_value
+        assert reconstructed.total_return == result.total_return
+        assert reconstructed.total_return_pct == result.total_return_pct
+        assert reconstructed.total_costs == result.total_costs
+        assert reconstructed.portfolio_violations == result.portfolio_violations
+        assert reconstructed.metrics.sharpe_ratio == pytest.approx(result.metrics.sharpe_ratio)
+        assert reconstructed.metrics.total_return == pytest.approx(result.metrics.total_return)
+
+    def test_from_dict_defaults_missing_keys(self):
+        result = BacktestResult.from_dict({})
+        assert result.initial_capital == 0.0
+        assert result.final_value == 0.0
+        assert result.total_return == 0.0
+        assert result.total_costs == 0.0
+        assert result.portfolio_violations == []
+        assert result.equity_curve.empty
+        assert result.trades.empty
+        assert result.positions == {}
+
+    def test_from_dict_ignores_extra_keys(self):
+        data = self._make_result().to_dict()
+        data["unknown"] = 123
+        result = BacktestResult.from_dict(data)
+        assert result.initial_capital == 100000.0
+
+    def test_from_dict_json_round_trip(self):
+        result = self._make_result()
+        payload = result.to_json()
+        decoded = json.loads(payload)
+        reconstructed = BacktestResult.from_dict(decoded)
+        assert reconstructed.final_value == 103000.0
+        assert reconstructed.start_date.year == 2024
+
+    def test_from_dict_reconstructs_nested_trade_analysis(self):
+        result = self._make_result()
+        result.trades = pd.DataFrame(
+            {
+                "symbol": ["AAPL", "AAPL"],
+                "action": ["buy", "sell"],
+                "quantity": [10, 10],
+                "price": [100.0, 110.0],
+                "timestamp": pd.date_range("2024-01-01", periods=2),
+                "pnl": [0.0, 100.0],
+            }
+        )
+        result.trade_analysis = analyze_trades(result)
+        data = result.to_dict()
+        reconstructed = BacktestResult.from_dict(data)
+        assert hasattr(reconstructed, "trade_analysis")
+        assert reconstructed.trade_analysis.total_trades == result.trade_analysis.total_trades
+
+    def test_from_dict_reconstructs_nested_monte_carlo(self):
+        result = self._make_result()
+        from quant_trading.monte_carlo.simulator import MonteCarloResult
+
+        m = result.metrics
+        result.monte_carlo = MonteCarloResult(
+            simulations=[m], original_metrics=m, n_simulations=1, confidence_level=0.95,
+            start_time=datetime(2024, 1, 1), end_time=datetime(2024, 1, 1, 0, 0, 1),
+        )
+        reconstructed = BacktestResult.from_dict(result.to_dict())
+        assert hasattr(reconstructed, "monte_carlo")
+        assert reconstructed.monte_carlo.n_simulations == 1
+        assert len(reconstructed.monte_carlo.simulations) == 1
