@@ -723,11 +723,13 @@ class OptimizationResult:
 
         """
         best_result_raw = data.get("best_result")
-        best_result: BacktestResult | None
+        best_result: BacktestResult | Any | None
         if isinstance(best_result_raw, dict):
             best_result = BacktestResult.from_dict(best_result_raw)
         else:
-            best_result = best_result_raw  # type: ignore[assignment]
+            # Preserve pass-through for non-dict values (including None and
+            # arbitrary sentinels used by tests/legacy payloads).
+            best_result = best_result_raw
         return cls(
             best_params=dict(data.get("best_params") or {}),
             best_score=float(data.get("best_score", 0.0)),
@@ -753,7 +755,7 @@ def _coerce_datetime(value: Any) -> datetime | None:
         return value
     if isinstance(value, str):
         return datetime.fromisoformat(value)
-    return value  # type: ignore[return-value]
+    return None
 
 
 class BaseOptimizer(ABC):

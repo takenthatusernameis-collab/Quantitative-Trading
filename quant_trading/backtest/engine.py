@@ -48,6 +48,8 @@ Examples:
 
 """
 
+from __future__ import annotations
+
 __all__ = [
     "BacktestEngine",
     "BacktestResult",
@@ -59,7 +61,7 @@ __all__ = [
 
 from dataclasses import dataclass, field, replace
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
@@ -75,6 +77,11 @@ from quant_trading.data.providers import DataManager, create_data_manager_from_c
 from quant_trading.portfolio.portfolio import Holding, Portfolio
 from quant_trading.risk.manager import RiskManager
 from quant_trading.strategies.base import Signal, Strategy
+
+if TYPE_CHECKING:
+    from quant_trading.backtest.analysis import BacktestRegimeAnalysis
+    from quant_trading.backtest.trade_analysis import TradeAnalysis
+    from quant_trading.monte_carlo.simulator import MonteCarloResult
 
 _default_data_manager: DataManager | None = None
 
@@ -239,7 +246,7 @@ class Trade:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Trade":
+    def from_dict(cls, data: dict[str, Any]) -> Trade:
         """Deserialize a :class:`Trade` from a dictionary.
 
         Missing optional keys fall back to the field defaults. Extra keys are
@@ -372,6 +379,9 @@ class BacktestResult:
     total_return_pct: float
     portfolio_violations: list[str] = field(default_factory=list)
     total_costs: float = 0.0
+    regime_analysis: BacktestRegimeAnalysis | None = None
+    monte_carlo: MonteCarloResult | None = None
+    trade_analysis: TradeAnalysis | None = None
 
     @property
     def unrealized_pnl(self) -> float:
@@ -459,7 +469,7 @@ class BacktestResult:
         """
 
         metrics = self.metrics
-        return pd.DataFrame(  # type: ignore[no-any-return]
+        return pd.DataFrame(
             [
                 {
                     "start_date": self.start_date,
@@ -539,7 +549,7 @@ class BacktestResult:
         }
 
         for attr in ("regime_analysis", "monte_carlo", "trade_analysis"):
-            value = getattr(self, attr, None)
+            value = getattr(self, attr)
             if value is not None:
                 data[attr] = value.to_dict() if hasattr(value, "to_dict") else value
 
@@ -571,7 +581,7 @@ class BacktestResult:
         return content
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "BacktestResult":
+    def from_dict(cls, data: dict[str, Any]) -> BacktestResult:
         """Deserialize a backtest result from a dictionary.
 
         Reconstructs :class:`BacktestMetrics` from the summary fields and, when
@@ -616,7 +626,7 @@ class BacktestResult:
         result = cls(
             equity_curve=pd.Series(dtype=float),
             trades=pd.DataFrame(),
-            positions=dict(data.get("positions", {}) or {}),
+            positions={},
             metrics=metrics,
             start_date=_parse_dt(data.get("start_date")),
             end_date=_parse_dt(data.get("end_date")),
@@ -632,21 +642,22 @@ class BacktestResult:
         if isinstance(regime_data, dict):
             from quant_trading.backtest.analysis import BacktestRegimeAnalysis
 
-            result.regime_analysis = BacktestRegimeAnalysis.from_dict(regime_data)  # type: ignore[attr-defined]
+            result.regime_analysis = BacktestRegimeAnalysis.from_dict(regime_data)
 
         monte_carlo_data = data.get("monte_carlo")
         if isinstance(monte_carlo_data, dict):
             from quant_trading.monte_carlo.simulator import MonteCarloResult
 
-            result.monte_carlo = MonteCarloResult.from_dict(monte_carlo_data)  # type: ignore[attr-defined]
+            result.monte_carlo = MonteCarloResult.from_dict(monte_carlo_data)
 
         trade_analysis_data = data.get("trade_analysis")
         if isinstance(trade_analysis_data, dict):
             from quant_trading.backtest.trade_analysis import TradeAnalysis
 
-            result.trade_analysis = TradeAnalysis.from_dict(trade_analysis_data)  # type: ignore[attr-defined]
+            result.trade_analysis = TradeAnalysis.from_dict(trade_analysis_data)
 
         return result
+
 
 
 class BacktestEngine:

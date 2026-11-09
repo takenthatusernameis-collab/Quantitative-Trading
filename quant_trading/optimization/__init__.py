@@ -1,4 +1,6 @@
-"""Parameter optimization for trading strategies."""
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from .base import (
     ObjectiveFunction,
@@ -14,10 +16,13 @@ from .base import (
     minimize_max_drawdown,
 )
 
-try:
-    from .bayesian import BayesianOptimizer
-except ImportError:  # pragma: no cover
-    BayesianOptimizer = None  # type: ignore[assignment,misc]
+if TYPE_CHECKING:
+    from .bayesian import BayesianOptimizer as BayesianOptimizer
+else:
+    try:
+        from .bayesian import BayesianOptimizer
+    except ImportError:  # pragma: no cover
+        BayesianOptimizer = None  # type: ignore[assignment]
 from .grid_search import GridSearch
 from .random_search import RandomSearch
 from .walk_forward import WalkForwardOptimizer
