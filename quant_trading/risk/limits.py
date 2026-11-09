@@ -14,8 +14,27 @@ Examples:
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from quant_trading.strategies.base import Position
+
+
+def _iso(value: datetime | None) -> str | None:
+    """Return ISO-8601 string for a datetime, or None for None."""
+    if value is None:
+        return None
+    return value.isoformat()
+
+
+def _coerce_datetime(value: Any) -> datetime | None:
+    """Coerce a value to a datetime, accepting ISO-8601 strings."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    return None  # fallback for unexpected types
 
 
 def gross_exposure(position: Position) -> float:
@@ -72,6 +91,54 @@ class PositionLimit:
     max_value: float = 50000.0  # Max dollar value
     stop_loss_pct: float = 0.05  # Stop loss percentage
     take_profit_pct: float = 0.15  # Take profit percentage
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the position limits to a plain dictionary.
+
+        Returns:
+            Dictionary with keys ``max_size``, ``max_value``,
+            ``stop_loss_pct``, and ``take_profit_pct``.
+
+        Examples:
+            >>> from quant_trading.risk.limits import PositionLimit
+            >>> pl = PositionLimit(max_size=0.2, max_value=100000.0)
+            >>> d = pl.to_dict()
+            >>> d["max_size"], d["max_value"]
+            (0.2, 100000.0)
+
+        """
+        return {
+            "max_size": self.max_size,
+            "max_value": self.max_value,
+            "stop_loss_pct": self.stop_loss_pct,
+            "take_profit_pct": self.take_profit_pct,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "PositionLimit":
+        """Deserialize a :class:`PositionLimit` from a dictionary.
+
+        Missing keys fall back to the class defaults.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`PositionLimit`.
+
+        Examples:
+            >>> from quant_trading.risk.limits import PositionLimit
+            >>> restored = PositionLimit.from_dict({"max_size": 0.2, "max_value": 100000.0})
+            >>> restored.max_size, restored.max_value
+            (0.2, 100000.0)
+
+        """
+        return cls(
+            max_size=float(data.get("max_size", 0.1)),
+            max_value=float(data.get("max_value", 50000.0)),
+            stop_loss_pct=float(data.get("stop_loss_pct", 0.05)),
+            take_profit_pct=float(data.get("take_profit_pct", 0.15)),
+        )
 
     def check(self, position: Position, portfolio_value: float) -> list[str]:
         """Check if position violates limits.
@@ -174,6 +241,57 @@ class PortfolioLimit:
     max_drawdown: float = 0.20  # Max drawdown before new positions are stopped
     max_leverage: float = 1.0  # Max gross exposure as multiple of portfolio value
     stop_loss_pct: float = 0.05  # Stop loss distance used to size position risk
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the portfolio limits to a plain dictionary.
+
+        Returns:
+            Dictionary with all limit parameters.
+
+        Examples:
+            >>> from quant_trading.risk.limits import PortfolioLimit
+            >>> pl = PortfolioLimit(max_positions=10, max_drawdown=0.15)
+            >>> d = pl.to_dict()
+            >>> d["max_positions"], d["max_drawdown"]
+            (10, 0.15)
+
+        """
+        return {
+            "max_positions": self.max_positions,
+            "max_position_size": self.max_position_size,
+            "max_portfolio_risk": self.max_portfolio_risk,
+            "max_drawdown": self.max_drawdown,
+            "max_leverage": self.max_leverage,
+            "stop_loss_pct": self.stop_loss_pct,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "PortfolioLimit":
+        """Deserialize a :class:`PortfolioLimit` from a dictionary.
+
+        Missing keys fall back to the class defaults.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`PortfolioLimit`.
+
+        Examples:
+            >>> from quant_trading.risk.limits import PortfolioLimit
+            >>> restored = PortfolioLimit.from_dict({"max_positions": 10, "max_drawdown": 0.15})
+            >>> restored.max_positions, restored.max_drawdown
+            (10, 0.15)
+
+        """
+        return cls(
+            max_positions=int(data.get("max_positions", 20)),
+            max_position_size=float(data.get("max_position_size", 0.1)),
+            max_portfolio_risk=float(data.get("max_portfolio_risk", 0.02)),
+            max_drawdown=float(data.get("max_drawdown", 0.20)),
+            max_leverage=float(data.get("max_leverage", 1.0)),
+            stop_loss_pct=float(data.get("stop_loss_pct", 0.05)),
+        )
 
     def position_risk(self, position: Position) -> float:
         """Compute the risk committed by a single position.
@@ -325,6 +443,55 @@ class CheckResult:
     passed: bool
     violations: list[str] = field(default_factory=list)
     timestamp: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the check result to a plain dictionary.
+
+        Returns:
+            Dictionary with keys ``passed``, ``violations``, and ``timestamp``
+            (as ISO-8601 string).
+
+        Examples:
+            >>> from quant_trading.risk.limits import CheckResult
+            >>> res = CheckResult(passed=False, violations=["Too big"])
+            >>> d = res.to_dict()
+            >>> d["passed"], d["violations"]
+            (False, ['Too big'])
+
+        """
+        return {
+            "passed": self.passed,
+            "violations": list(self.violations),
+            "timestamp": _iso(self.timestamp),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "CheckResult":
+        """Deserialize a :class:`CheckResult` from a dictionary.
+
+        Missing keys fall back to safe defaults. ISO-8601 timestamps are accepted.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`CheckResult`.
+
+        Examples:
+            >>> from quant_trading.risk.limits import CheckResult
+            >>> restored = CheckResult.from_dict({"passed": True})
+            >>> restored.passed
+            True
+
+        """
+        timestamp = _coerce_datetime(data.get("timestamp"))
+        if timestamp is None:
+            timestamp = datetime.now()
+        return cls(
+            passed=bool(data.get("passed", True)),
+            violations=list(data.get("violations") or []),
+            timestamp=timestamp,
+        )
 
     @property
     def ok(self) -> bool:
