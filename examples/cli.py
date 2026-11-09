@@ -2020,6 +2020,7 @@ def run_walk_forward(
             "optimizer": args.optimizer,
             "window_results": result.to_dataframe().to_dict(orient="records"),
             "summary": summary,
+            "walk_forward_result": result.to_dict(),
         }
         if not _save_json_output(args.output, output_data, output_format):
             return 1
