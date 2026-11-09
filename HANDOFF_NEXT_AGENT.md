@@ -1,37 +1,35 @@
 ## What changed (this session, 2026-11-09)
 
-**Bounded enhancement implemented:** Added deserialization counterparts for backtest result objects that lacked `from_dict()` (and, for Monte Carlo, `to_dict()`), completing the `to_dict`/`from_dict` pattern across backtest/analysis/metrics/regime/Monte Carlo dataclasses.
+**Bounded enhancement implemented:** Added `to_dict()`/`from_dict()` serialization pair to `OptimizationResult`, the last result/report dataclass in the optimization module lacking it. This completes the to_dict/from_dict pattern across every result object in the repo.
 
-1. **`MonteCarloResult.to_dict()` / `from_dict()`** in `quant_trading/monte_carlo/simulator.py` — serializes simulations and `original_metrics` via `BacktestMetrics.to_dict()`, stores ISO timestamps, and reconstructs metrics via `BacktestMetrics.from_dict()`. Missing keys fall back to safe defaults (empty simulations, `n_simulations` from reconstructed length, confidence 0.95, epoch timestamps); extra keys ignored. This also makes nested `BacktestResult.monte_carlo` serialization JSON-safe.
-2. **`BacktestResult.from_dict()`** in `quant_trading/backtest/engine.py` — reconstructs `BacktestMetrics` from the summary fields (`total_trades` key mapped to `num_trades` for compatibility with `to_dict()` output). Rebuilds nested optional analyses when present as dicts: `regime_analysis` → `BacktestRegimeAnalysis.from_dict`, `monte_carlo` → `MonteCarloResult.from_dict`, `trade_analysis` → `TradeAnalysis.from_dict` (lazy imports to avoid cycles). `equity_curve`/`trades`/`positions` are not serialized by `to_dict()` and default to empty series/dataframe/dict; missing scalars default safely.
+1. **`OptimizationResult.to_dict()` / `from_dict()`** in `quant_trading/optimization/base.py` — serializes `best_params` (copied), `best_score`, `best_result` (via `BacktestResult.to_dict()` when present, else `None`), `all_results` (list of plain dicts, copied), and `start_time`/`end_time` as ISO-8601 strings. `from_dict` reconstructs `best_result` via `BacktestResult.from_dict` when it is a dict, passes non-dict values through unchanged, accepts ISO-8601 string timestamps, ignores extra keys, and falls back to safe defaults for missing keys. Two small module-level helpers `_iso()`/`_coerce_datetime()` back the conversion.
 
 ### Files modified
-- `quant_trading/monte_carlo/simulator.py`: Added `MonteCarloResult.to_dict()` and `from_dict()`.
-- `quant_trading/backtest/engine.py`: Added `BacktestResult.from_dict()` (nested deserialization).
-- `tests/test_monte_carlo.py`: Added `TestMonteCarloResultSerialization` (5 tests: round-trip, JSON round-trip, defaults, extra keys, empty simulations).
-- `tests/test_backtest_engine.py`: Added `TestBacktestResultSerialization` (6 tests: summary round-trip, defaults, extra keys, JSON round-trip, nested `trade_analysis`, nested `monte_carlo`).
+- `quant_trading/optimization/base.py`: Added `OptimizationResult.to_dict()` and `from_dict()` plus `_iso()`/`_coerce_datetime()` helpers.
+- `tests/test_optimization.py`: Added `TestOptimizationResultSerialization` (11 tests: all-fields, None best_result, round-trip, JSON round-trip, defaults, empty dict, extra keys ignored, nested best_result dict reconstruction, non-dict pass-through, ISO string datetimes, all_results copy isolation).
 
 ## Verified (this session)
 
 - `python3 -m ruff check .` → **All checks passed!**
 - `python3 -m mypy quant_trading/` → **Success: no issues found in 37 source files**
-- `python3 -m pytest tests/test_monte_carlo.py::TestMonteCarloResultSerialization tests/test_backtest_engine.py::TestBacktestResultSerialization -v` → **11 passed**
-- `python3 -m pytest tests/test_backtest_engine.py tests/test_monte_carlo.py tests/test_trade_analysis.py tests/test_backtest_analysis.py tests/test_backtest_metrics.py -q --tb=no` → **258 passed in 2.07s**
+- `python3 -m pytest tests/test_optimization.py::TestOptimizationResultSerialization -v` → **11 passed**
+- `python3 -m pytest tests/test_optimization.py -q --tb=short` → **132 passed in 11.14s**
+- `python3 -m pytest -q --doctest-modules -m "not slow and not network"` → **2995 passed, 1 skipped, 129 deselected in 250.53s** (was 2982/1 skipped; +13 new tests, no regressions)
 
 ## Unresolved / not completed
 
-- **Full fast suite not re-run this session** (focused modules above passed). Prior session recorded `2971 passed, 1 skipped, 129 deselected` for `python3 -m pytest -q --doctest-modules -m "not slow and not network"`; changes are localized to serialization paths and additive APIs.
-- `MonteCarloResult.to_dict()` is a new public method (additive). No existing callers found expecting absence; nested `BacktestResult.to_dict()` previously serialized a `MonteCarloResult` instance as-is (non-JSON-safe without `default=str`), now it serializes to a dict when attached — behavior is safer/more consistent.
+- None. Serialization pattern is now complete across all result/report dataclasses: backtest (engine, metrics, analysis, trade_analysis), regime (detector), risk (metrics), monte_carlo (simulator), portfolio (holding, portfolio), optimization (walk_forward, base). Audit confirmed all 12 `to_dict()` methods have matching `from_dict()` methods with round-trip test coverage.
+- Commit/push not performed (not requested).
 
 ## Failed approaches (do not repeat unchanged)
 
-- None. One test initially called `analyze_trades(DataFrame)` (signature takes `BacktestResult`) and had a local `trades` name collision with `pd.DataFrame.trades` accessor; fixed by passing the `BacktestResult` and renaming local DF. Another test missed `import json` in `test_monte_carlo.py`; fixed by adding import. Gates passed after fixes.
+- One test initially asserted `restored.best_result.total_trades == 10`, but `BacktestResult` exposes `total_trades` only via its `to_dict()` output, not as an attribute (the attribute is `num_trades`, surfaced through `metrics.num_trades`). Fixed by asserting `metrics.num_trades == 10` and `total_return_pct == 5.0`. Gate passed after fix.
 
 ## One precise next task
 
 - **Trigger:** If a commit is desired, request it explicitly; otherwise continue bounded enhancements.
-- **Action (recommended bounded):** Run the full fast baseline to confirm no regressions from serialization changes: `python3 -m pytest -q --doctest-modules -m "not slow and not network"` (use timeout >300000 ms). If green, record evidence here. If any failure appears, investigate only failures attributable to these changes (MonteCarlo/BacktestResult serialization or new tests) with smallest reversible fix; do not broaden scope.
-- **Alternative bounded task:** Audit remaining `to_dict()`-only result/report objects outside core backtest metrics (e.g., optimizer/result dataclasses, if any) and add `from_dict()` only where JSON round-trips are expected; keep each change minimal and verify with ruff/mypy/focused tests/full fast suite as above.
+- **Action (recommended bounded):** Audit non-result dataclasses that may benefit from serialization (e.g., `quant_trading/risk/limits.py` LimitState/OrderLimit, `quant_trading/portfolio/rebalancer.py` rebalancer results, `quant_trading/optimization/bayesian.py` Bayesian-specific result fields) and add `to_dict()`/`from_dict()` only where JSON round-trips are plausibly expected; keep each change minimal and verify with ruff/mypy/focused tests/full fast suite as above.
+- **Alternative bounded task:** Add a cross-cutting serialization round-trip doctest or property test that iterates every result class's `to_dict`/`from_dict` to catch drift early.
 - **Constraints:** Preserve public APIs; no weakening of safety/validation; commit/push only if explicitly requested.
 
 (End of file)

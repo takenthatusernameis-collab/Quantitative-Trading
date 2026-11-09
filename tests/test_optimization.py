@@ -2,6 +2,7 @@
 
 import importlib.util
 import itertools
+import json
 import os
 from concurrent.futures import _base
 from concurrent.futures.process import BrokenProcessPool, ProcessPoolExecutor
@@ -3604,3 +3605,148 @@ class TestWalkForwardSerialization:
         assert len(restored.windows) == 1
         assert restored.windows[0] is window
         assert restored.anchored is False
+
+
+class TestOptimizationResultSerialization:
+    """Round-trip tests for OptimizationResult.to_dict / from_dict.
+
+    ``OptimizationResult`` shipped no ``to_dict``/``from_dict`` pair, so a
+    consumer wanting to persist or transmit an optimization result through
+    JSON had no supported path. These tests guard the round trip.
+    """
+
+    def test_to_dict_contains_all_fields(self):
+        """to_dict exposes every OptimizationResult field."""
+        start = datetime(2024, 1, 1, 9, 0, 0)
+        end = datetime(2024, 1, 1, 10, 0, 0)
+        result = OptimizationResult(
+            best_params={"fast_period": 5},
+            best_score=1.5,
+            all_results=[{"params": {"fast_period": 5}, "score": 1.5}],
+            start_time=start,
+            end_time=end,
+        )
+        data = result.to_dict()
+
+        assert data["best_params"] == {"fast_period": 5}
+        assert data["best_score"] == 1.5
+        assert data["all_results"] == [{"params": {"fast_period": 5}, "score": 1.5}]
+        assert data["start_time"] == start.isoformat()
+        assert data["end_time"] == end.isoformat()
+
+    def test_to_dict_none_best_result(self):
+        """to_dict emits None for best_result when absent."""
+        result = OptimizationResult(best_params={"x": 1}, best_score=0.0)
+        assert result.to_dict()["best_result"] is None
+
+    def test_round_trip_restores_fields(self):
+        """from_dict(to_dict(result)) restores every scalar field."""
+        start = datetime(2024, 1, 1, 9, 0, 0)
+        end = datetime(2024, 1, 1, 10, 0, 0)
+        result = OptimizationResult(
+            best_params={"fast_period": 5, "slow_period": 20},
+            best_score=1.5,
+            all_results=[{"params": {"fast_period": 5}, "score": 1.5}],
+            start_time=start,
+            end_time=end,
+        )
+        restored = OptimizationResult.from_dict(result.to_dict())
+
+        assert restored.best_params == {"fast_period": 5, "slow_period": 20}
+        assert restored.best_score == 1.5
+        assert restored.all_results == [{"params": {"fast_period": 5}, "score": 1.5}]
+        assert restored.start_time == start
+        assert restored.end_time == end
+        assert restored.duration_seconds == 3600.0
+
+    def test_round_trip_json_safe(self):
+        """to_dict output is JSON-serializable and from_dict accepts it."""
+        result = OptimizationResult(
+            best_params={"fast_period": 5},
+            best_score=1.5,
+            all_results=[{"params": {"fast_period": 5}, "score": 1.5}],
+            start_time=datetime(2024, 1, 1, 9, 0, 0),
+            end_time=datetime(2024, 1, 1, 10, 0, 0),
+        )
+        data = json.loads(json.dumps(result.to_dict()))
+        restored = OptimizationResult.from_dict(data)
+
+        assert restored.best_params == {"fast_period": 5}
+        assert restored.best_score == 1.5
+        assert restored.start_time == datetime(2024, 1, 1, 9, 0, 0)
+
+    def test_from_dict_defaults_missing_fields(self):
+        """from_dict tolerates a dict that omits optional fields."""
+        restored = OptimizationResult.from_dict(
+            {"best_params": {"x": 1}, "best_score": 0.5}
+        )
+        assert restored.best_params == {"x": 1}
+        assert restored.best_score == 0.5
+        assert restored.best_result is None
+        assert restored.all_results == []
+        assert restored.start_time is None
+        assert restored.end_time is None
+        assert restored.duration_seconds is None
+
+    def test_from_dict_empty_dict(self):
+        """from_dict({}) yields a fully-defaulted result."""
+        restored = OptimizationResult.from_dict({})
+        assert restored.best_params == {}
+        assert restored.best_score == 0.0
+        assert restored.best_result is None
+        assert restored.all_results == []
+
+    def test_from_dict_extra_keys_ignored(self):
+        """from_dict ignores unknown keys."""
+        restored = OptimizationResult.from_dict(
+            {"best_params": {"x": 1}, "best_score": 0.5, "bogus": 99}
+        )
+        assert restored.best_params == {"x": 1}
+        assert restored.best_score == 0.5
+
+    def test_round_trip_with_best_result_dict(self):
+        """A dict best_result is reconstructed via BacktestResult.from_dict."""
+        result = OptimizationResult(
+            best_params={"x": 1},
+            best_score=0.5,
+            all_results=[],
+        )
+        data = result.to_dict()
+        data["best_result"] = {"total_return_pct": 5.0, "total_trades": 10}
+        restored = OptimizationResult.from_dict(data)
+
+        assert restored.best_result is not None
+        assert restored.best_result.total_return_pct == 5.0
+        assert restored.best_result.metrics.num_trades == 10
+
+    def test_from_dict_passes_through_non_dict_best_result(self):
+        """A non-dict best_result is passed through unchanged."""
+        sentinel = object()
+        restored = OptimizationResult.from_dict(
+            {"best_params": {}, "best_score": 0.0, "best_result": sentinel}
+        )
+        assert restored.best_result is sentinel
+
+    def test_round_trip_with_datetimes_as_strings(self):
+        """from_dict accepts ISO-8601 strings, as JSON round-trips emit."""
+        restored = OptimizationResult.from_dict(
+            {
+                "best_params": {"x": 1},
+                "best_score": 0.5,
+                "start_time": "2024-01-01T09:00:00",
+                "end_time": "2024-01-01T10:00:00",
+            }
+        )
+        assert restored.start_time == datetime(2024, 1, 1, 9, 0, 0)
+        assert restored.end_time == datetime(2024, 1, 1, 10, 0, 0)
+
+    def test_to_dict_copies_all_results(self):
+        """to_dict copies all_results entries so mutations do not leak."""
+        result = OptimizationResult(
+            best_params={"x": 1},
+            best_score=0.5,
+            all_results=[{"params": {"x": 1}, "score": 0.5}],
+        )
+        data = result.to_dict()
+        data["all_results"][0]["score"] = 999.0
+        assert result.all_results[0]["score"] == 0.5

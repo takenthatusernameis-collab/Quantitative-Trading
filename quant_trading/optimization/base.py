@@ -553,6 +553,93 @@ class OptimizationResult:
         sorted_results = sorted(self.all_results, key=lambda x: x["score"], reverse=True)
         return sorted_results[:n]
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the result to a plain, JSON-safe dictionary.
+
+        The nested ``best_result`` is serialized via
+        :meth:`BacktestResult.to_dict` when present; ``all_results`` entries
+        are already plain dicts and are copied as-is.
+
+        Returns:
+            Dictionary with keys ``best_params``, ``best_score``,
+            ``best_result``, ``all_results``, ``start_time``, and
+            ``end_time`` (datetimes as ISO-8601 strings).
+
+        Examples:
+            >>> from quant_trading.optimization.base import OptimizationResult
+            >>> r = OptimizationResult(best_params={"x": 1}, best_score=1.0)
+            >>> d = r.to_dict()
+            >>> d["best_params"], d["best_score"], d["best_result"]
+            ({'x': 1}, 1.0, None)
+
+        """
+        best_result = self.best_result.to_dict() if self.best_result is not None else None
+        return {
+            "best_params": dict(self.best_params),
+            "best_score": self.best_score,
+            "best_result": best_result,
+            "all_results": [dict(entry) for entry in self.all_results],
+            "start_time": _iso(self.start_time),
+            "end_time": _iso(self.end_time),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> OptimizationResult:
+        """Deserialize an :class:`OptimizationResult` from a dictionary.
+
+        Missing keys fall back to safe defaults. The ``best_result`` key is
+        reconstructed via :meth:`BacktestResult.from_dict` when it is a dict;
+        non-dict values are passed through unchanged. ISO-8601 timestamps
+        (as emitted by :meth:`to_dict` through JSON) are accepted.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`OptimizationResult`.
+
+        Examples:
+            >>> from quant_trading.optimization.base import OptimizationResult
+            >>> restored = OptimizationResult.from_dict(
+            ...     {"best_params": {"x": 1}, "best_score": 1.0}
+            ... )
+            >>> restored.best_params, restored.best_score
+            ({'x': 1}, 1.0)
+
+        """
+        best_result_raw = data.get("best_result")
+        best_result: BacktestResult | None
+        if isinstance(best_result_raw, dict):
+            best_result = BacktestResult.from_dict(best_result_raw)
+        else:
+            best_result = best_result_raw  # type: ignore[assignment]
+        return cls(
+            best_params=dict(data.get("best_params") or {}),
+            best_score=float(data.get("best_score", 0.0)),
+            best_result=best_result,
+            all_results=[dict(entry) for entry in (data.get("all_results") or [])],
+            start_time=_coerce_datetime(data.get("start_time")),
+            end_time=_coerce_datetime(data.get("end_time")),
+        )
+
+
+def _iso(value: datetime | None) -> str | None:
+    """Return ISO-8601 string for a datetime, or None for None."""
+    if value is None:
+        return None
+    return value.isoformat()
+
+
+def _coerce_datetime(value: Any) -> datetime | None:
+    """Coerce a value to a datetime, accepting ISO-8601 strings."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    return value  # type: ignore[return-value]
+
 
 class BaseOptimizer(ABC):
     """Base class for parameter optimizers.
