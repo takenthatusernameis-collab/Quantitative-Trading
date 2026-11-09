@@ -2507,3 +2507,62 @@ class TestMetricsAndAnalysisReconciliationOnEngineResults:
         booked = float(result.trades["pnl"].sum())
         assert metrics.total_pnl == pytest.approx(analysis.total_pnl)
         assert metrics.total_pnl == pytest.approx(booked)
+
+
+def test_backtest_result_from_dict_round_trip():
+    """BacktestResult.from_dict reconstructs summary/analyses from to_dict()."""
+    from quant_trading.backtest.metrics import BacktestMetrics
+
+    equity = pd.Series([100000.0, 101500.0], index=pd.date_range("2023-01-01", periods=2))
+    metrics = BacktestMetrics(total_pnl=1250.0, total_return=1500.0, num_trades=3)
+    result = BacktestResult(
+        equity_curve=equity,
+        trades=pd.DataFrame([{"symbol": "AAPL", "pnl": 1250.0}]),
+        positions={"AAPL": 10},
+        metrics=metrics,
+        start_date=datetime(2023, 1, 1),
+        end_date=datetime(2023, 1, 10),
+        initial_capital=100000.0,
+        final_value=101500.0,
+        total_return=1500.0,
+        total_return_pct=1.5,
+        total_costs=12.5,
+        portfolio_violations=["v1"],
+    )
+
+    class FakeAnalysis:
+        def to_dict(self):
+            return {"current_regime": "bull"}
+
+    result.regime_analysis = FakeAnalysis()
+    result.monte_carlo = {"summary": "mocked"}  # preserved as-is by to_dict; not reconstructed
+
+    payload = result.to_dict()
+    restored = BacktestResult.from_dict(payload, equity_curve=equity)
+
+    assert restored.start_date == result.start_date
+    assert restored.end_date == result.end_date
+    assert restored.initial_capital == result.initial_capital
+    assert restored.final_value == result.final_value
+    assert restored.total_return == result.total_return
+    assert restored.total_return_pct == result.total_return_pct
+    assert restored.total_costs == result.total_costs
+    assert restored.portfolio_violations == ["v1"]
+    assert restored.metrics.total_pnl == pytest.approx(1250.0)
+    assert restored.metrics.num_trades == 3
+    assert restored.metrics.unrealized_pnl == pytest.approx(0.0)
+    assert restored.equity_curve.equals(equity)
+    # to_dict preserved the plain dict; from_dict tolerantly reconstructs it
+    from quant_trading.monte_carlo.simulator import MonteCarloResult
+    assert isinstance(restored.monte_carlo, MonteCarloResult)
+    assert restored.monte_carlo.n_simulations == 0
+
+
+def test_backtest_result_from_dict_defaults_and_extra_keys():
+    """BacktestResult.from_dict tolerates missing/extra keys."""
+    restored = BacktestResult.from_dict({"initial_capital": 50000, "extra": "x"})
+    assert restored.initial_capital == pytest.approx(50000.0)
+    assert restored.final_value == pytest.approx(0.0)
+    assert restored.metrics.total_pnl == pytest.approx(0.0)
+    assert restored.portfolio_violations == []
+    assert isinstance(restored.trades, pd.DataFrame)

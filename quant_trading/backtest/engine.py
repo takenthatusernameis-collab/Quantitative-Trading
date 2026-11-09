@@ -293,6 +293,9 @@ class BacktestResult:
     total_return_pct: float
     portfolio_violations: list[str] = field(default_factory=list)
     total_costs: float = 0.0
+    regime_analysis: Any = field(default=None, init=False, repr=False)
+    monte_carlo: Any = field(default=None, init=False, repr=False)
+    trade_analysis: Any = field(default=None, init=False, repr=False)
 
     @property
     def unrealized_pnl(self) -> float:
@@ -490,6 +493,95 @@ class BacktestResult:
             with open(output_path, "w", encoding="utf-8") as handle:
                 handle.write(content)
         return content
+
+    @classmethod
+    def from_dict(
+        cls,
+        data: dict[str, Any],
+        equity_curve: pd.Series | None = None,
+        trades: pd.DataFrame | None = None,
+        positions: dict[str, Any] | None = None,
+    ) -> "BacktestResult":
+        """Deserialize a summary backtest result from a dictionary.
+
+        Reconstructs the result from data produced by :meth:`to_dict` (for
+        example after a JSON round-trip). Nested analyses (``regime_analysis``,
+        ``monte_carlo``, ``trade_analysis``) are reconstructed when present and
+        recognizable; otherwise they are left unset. The equity curve, trades,
+        and positions are not serialized by :meth:`to_dict`, so callers may
+        supply them explicitly; when omitted, empty placeholders are used.
+
+        Missing keys fall back to sensible defaults; extra keys are ignored.
+
+        Args:
+            data: Dictionary containing summary/result fields.
+            equity_curve: Optional equity curve to attach.
+            trades: Optional trades DataFrame to attach.
+            positions: Optional positions mapping to attach.
+
+        Returns:
+            Reconstructed :class:`BacktestResult`.
+
+        """
+        from quant_trading.backtest.analysis import BacktestRegimeAnalysis
+        from quant_trading.backtest.metrics import BacktestMetrics
+        from quant_trading.backtest.trade_analysis import TradeAnalysis
+        from quant_trading.monte_carlo.simulator import MonteCarloResult
+
+        def _parse_dt(value: Any) -> datetime:
+            if isinstance(value, datetime):
+                return value
+            if isinstance(value, str) and value:
+                parsed = pd.Timestamp(value).to_pydatetime()
+                if isinstance(parsed, datetime):
+                    return parsed
+            return datetime.now()
+
+        metrics_data = dict(data)
+        # total_trades in to_dict maps to num_trades in BacktestMetrics
+        if "num_trades" not in metrics_data and "total_trades" in metrics_data:
+            metrics_data["num_trades"] = metrics_data["total_trades"]
+        metrics = BacktestMetrics.from_dict(metrics_data)
+
+        violations = data.get("portfolio_violations")
+        if not isinstance(violations, list):
+            violations = []
+
+        result = cls(
+            equity_curve=equity_curve if equity_curve is not None else pd.Series(dtype=float),
+            trades=trades if trades is not None else pd.DataFrame(),
+            positions=dict(positions) if positions is not None else {},
+            metrics=metrics,
+            start_date=_parse_dt(data.get("start_date")),
+            end_date=_parse_dt(data.get("end_date")),
+            initial_capital=float(data.get("initial_capital", 0.0) or 0.0),
+            final_value=float(data.get("final_value", 0.0) or 0.0),
+            total_return=float(data.get("total_return", 0.0) or 0.0),
+            total_return_pct=float(data.get("total_return_pct", 0.0) or 0.0),
+            portfolio_violations=[str(v) for v in violations],
+            total_costs=float(data.get("total_costs", 0.0) or 0.0),
+        )
+
+        regime = data.get("regime_analysis")
+        if isinstance(regime, dict):
+            try:
+                result.regime_analysis = BacktestRegimeAnalysis.from_dict(regime)
+            except (TypeError, ValueError, KeyError):
+                result.regime_analysis = None
+        mc = data.get("monte_carlo")
+        if isinstance(mc, dict):
+            try:
+                result.monte_carlo = MonteCarloResult.from_dict(mc)
+            except (TypeError, ValueError, KeyError):
+                result.monte_carlo = None
+        ta = data.get("trade_analysis")
+        if isinstance(ta, dict):
+            try:
+                result.trade_analysis = TradeAnalysis.from_dict(ta)
+            except (TypeError, ValueError, KeyError):
+                result.trade_analysis = None
+
+        return result
 
 
 class BacktestEngine:

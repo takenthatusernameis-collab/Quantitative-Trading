@@ -293,6 +293,64 @@ class MonteCarloResult:
 
         return summary
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the Monte Carlo result to a dictionary.
+
+        Returns:
+            Dictionary containing simulation settings, timing, original metrics,
+            and the per-simulation metrics. Timestamps are stored as ISO strings.
+
+        """
+        return {
+            "n_simulations": self.n_simulations,
+            "confidence_level": self.confidence_level,
+            "start_time": self.start_time.isoformat(),
+            "end_time": self.end_time.isoformat(),
+            "original_metrics": self.original_metrics.to_dict(),
+            "simulations": [s.to_dict() for s in self.simulations],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "MonteCarloResult":
+        """Deserialize a Monte Carlo result from a dictionary.
+
+        Missing keys fall back to sensible defaults. Extra keys are ignored.
+        ``start_time``/``end_time`` accept ISO strings or ``datetime`` values.
+
+        Args:
+            data: Dictionary produced by :meth:`to_dict` (or a compatible form).
+
+        Returns:
+            Reconstructed :class:`MonteCarloResult`.
+
+        """
+        from quant_trading.backtest.metrics import BacktestMetrics
+
+        def _parse_dt(value: Any) -> datetime:
+            if isinstance(value, datetime):
+                return value
+            if isinstance(value, str) and value:
+                parsed = pd.Timestamp(value).to_pydatetime()
+                if isinstance(parsed, datetime):
+                    return parsed
+            return datetime.now()
+
+        original = data.get("original_metrics") or {}
+        if not isinstance(original, dict):
+            original = {}
+        sims = data.get("simulations") or []
+        if not isinstance(sims, list):
+            sims = []
+        sim_metrics = [BacktestMetrics.from_dict(s) for s in sims if isinstance(s, dict)]
+        return cls(
+            simulations=sim_metrics,
+            original_metrics=BacktestMetrics.from_dict(original),
+            n_simulations=int(data.get("n_simulations", len(sim_metrics))),
+            confidence_level=float(data.get("confidence_level", 0.95)),
+            start_time=_parse_dt(data.get("start_time")),
+            end_time=_parse_dt(data.get("end_time")),
+        )
+
 
 class MonteCarloSimulator:
     """Monte Carlo simulator for backtest strategy analysis.

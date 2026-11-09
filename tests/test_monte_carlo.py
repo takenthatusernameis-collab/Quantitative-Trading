@@ -365,3 +365,33 @@ def test_monte_carlo_risk_free_rate_parametric_method():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_monte_carlo_result_from_dict_round_trip():
+    """MonteCarloResult.from_dict reconstructs from to_dict()."""
+    from quant_trading.monte_carlo.simulator import MonteCarloResult
+
+    res = run_monte_carlo(_make_result(), n_simulations=25, random_state=42)
+    payload = res.to_dict()
+    restored = MonteCarloResult.from_dict(payload)
+
+    assert restored.n_simulations == res.n_simulations
+    assert restored.confidence_level == pytest.approx(res.confidence_level)
+    assert restored.start_time == res.start_time
+    assert restored.end_time == res.end_time
+    assert restored.original_metrics.total_return_pct == pytest.approx(
+        res.original_metrics.total_return_pct
+    )
+    assert len(restored.simulations) == len(res.simulations)
+    assert restored.probability_of_profit() == pytest.approx(res.probability_of_profit())
+
+
+def test_monte_carlo_result_from_dict_defaults_and_extra_keys():
+    """MonteCarloResult.from_dict tolerates missing/extra keys."""
+    from quant_trading.monte_carlo.simulator import MonteCarloResult
+
+    restored = MonteCarloResult.from_dict({"confidence_level": 0.9, "extra": 1})
+    assert restored.confidence_level == pytest.approx(0.9)
+    assert restored.n_simulations == 0
+    assert restored.simulations == []
+    assert restored.original_metrics.total_return == pytest.approx(0.0)
