@@ -2228,7 +2228,12 @@ def test_walk_forward_result_to_dataframe_without_best_params():
 
 
 def test_walk_forward_window_to_dict():
-    """WalkForwardWindow.to_dict returns every field (line 109)."""
+    """WalkForwardWindow.to_dict returns every field as JSON-safe values.
+
+    The four date boundaries are serialized as ISO-8601 strings (consistent
+    with every other ``to_dict`` in the codebase), so the result can be passed
+    straight to ``json.dumps`` without a ``default`` hook.
+    """
     from quant_trading.optimization.walk_forward import WalkForwardWindow
 
     window = WalkForwardWindow(
@@ -2242,14 +2247,18 @@ def test_walk_forward_window_to_dict():
     )
     result = window.to_dict()
     assert result == {
-        "train_start": datetime(2024, 1, 1),
-        "train_end": datetime(2024, 2, 1),
-        "test_start": datetime(2024, 2, 1),
-        "test_end": datetime(2024, 3, 1),
+        "train_start": "2024-01-01T00:00:00",
+        "train_end": "2024-02-01T00:00:00",
+        "test_start": "2024-02-01T00:00:00",
+        "test_end": "2024-03-01T00:00:00",
         "best_params": {"fast_period": 5},
         "train_result": None,
         "test_result": None,
     }
+    # The serialized form must be JSON-safe (no raw datetime objects).
+    import json
+
+    json.dumps(result)
 
 
 def test_walk_forward_with_failing_strategy_skips_test():

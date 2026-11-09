@@ -1,44 +1,50 @@
 # Next Task
 
-## Repository state (verified 2026-11-08, thirty-third session)
-- Working tree clean; `git log -1 --oneline` → `5d388ab`; branch `main` up to
-  date with `origin/main`. No open issues or PRs on the remote.
+## Repository state (verified 2026-11-09, thirty-fourth session)
+- Working tree clean at session start; `git log -1 --oneline` → `bd43325`;
+  branch `main` up to date with `origin/main`. No open issues or PRs on the remote.
 - `python3 -m ruff check .` → All checks passed.
-- `python3 -m mypy quant_trading/` → Success: no issues found in 37 source
-  files.
-- `python3 -m pytest -q tests/test_risk_metrics.py tests/test_readme.py
-  tests/test_repository_integrity.py` → **119 passed** in 6.50s.
-- Prior Sortino fix (flat-portfolio zero-variance guard) confirmed live via
-  `examples/cli.py --offline --provider synthetic --strategy ma --days 10
-  --symbols AAPL` → `Sortino Ratio: 0.00`.
+- `python3 -m mypy quant_trading/` → Success: no issues found in 37 source files.
+- Focused regression set (walk-forward + serialization + backtest engine/analysis +
+  repository integrity + README suites) → **400 passed, 30 skipped, 3 deselected**.
 
 ## Completed this session
-- Audited every ratio/division site in `quant_trading/risk/metrics.py` for a
-  missing zero-variance / divisor-zero guard (the class of defect the prior
-  handoff flagged). All are guarded: `calculate_volatility`,
-  `calculate_max_drawdown`, `calculate_sharpe_ratio`, `calculate_sortino_ratio`,
-  `calculate_var`, `calculate_beta`, `calculate_alpha`,
-  `calculate_calmar_ratio`. No missing guard found.
-- Investigated the unintuitive `Trade Sharpe: -51.79` /
-  `Trade Sortino: -15.20` printed by `examples/run_analysis.py`. Confirmed
-  it is mathematically correct, not a degenerate-division artifact: the
-  per-trade return series has non-zero variance (std ≈ 2.02e-05) with a
-  positive but tiny mean (≈ 1.13e-06) below the per-period risk-free rate
-  (≈ 7.94e-05), so the excess is legitimately negative. Reproduced
-  deterministically (Sharpe ≈ -61.6, Sortino ≈ -15.4 annualized). No change
-  made.
+
+Fixed a serialization inconsistency in `WalkForwardWindow.to_dict()` that made its
+output not JSON-safe, unlike every other `to_dict()` in the codebase:
+
+- `quant_trading/optimization/walk_forward.py`: `WalkForwardWindow.to_dict()` now
+  serializes the four date boundaries (`train_start`, `train_end`, `test_start`,
+  `test_end`) as ISO-8601 strings via a new local `_iso()` helper (mirrors
+  `quant_trading.optimization.base._iso`). Previously it emitted raw `datetime`
+  objects, so `json.dumps(window.to_dict())` raised
+  `Object of type datetime is not JSON serializable`. `WalkForwardResult.to_dict()`
+  delegates to `WalkForwardWindow.to_dict()`, so it is fixed transitively.
+  `from_dict` was already tolerant of both forms via `_coerce_datetime`, so the
+  round-trip is unchanged. Updated module/class/`to_dict` doctests (they
+  previously called `.isoformat()` on the now-string value).
+- `tests/test_optimization.py`: `test_walk_forward_window_to_dict` now asserts the
+  ISO-string form and explicitly calls `json.dumps(result)` to prove JSON-safety.
+- No API, safety/validation, or workflow changes. The CLI walk-forward output path
+  uses `to_dataframe().to_dict(orient="records")` (already JSON-safe) and is
+  unaffected.
 
 ## One precise next task
-**No bounded task pending.** No reproducible defect found after guard audit,
-runtime output probing, and baseline re-verification. Act only on a new
-external issue or feature request with concrete requirements. On arrival:
-reproduce/define acceptance criteria, implement the smallest reversible
+
+**No bounded task pending.** No reproducible defect found after the serialization
+consistency audit, CLI output probing (backtest / optimization / walk-forward /
+combined-with-regime+monte-carlo+trade-analysis), and baseline re-verification.
+Act only on a new external issue or feature request with concrete requirements.
+On arrival: reproduce/define acceptance criteria, implement the smallest reversible
 change, and verify (targeted checks + `ruff` + `mypy` + relevant/full tests).
 
 Notes for the next session:
 - `pytest`/`ruff`/`mypy` are importable as modules (`python3 -m pytest`, etc.).
+- Full fast suite needs timeout > 300000 ms (~400s+); `rg` is unavailable
+  (use grep/Python); commit/push only if explicitly requested.
 - `data/` at repo root is `drwx------`, gitignored, created at runtime by the
   data providers. It is an environment artifact — do not change `.gitignore`
   or commit it.
-- Full fast suite needs timeout > 300000 ms (~400s+); `rg` is unavailable
-  (use grep/Python); commit/push only if explicitly requested.
+- Five dataclasses still lack `to_dict`/`from_dict` (`MarketData`, `FetchResult`,
+  `_RebalancePlan`, `ParameterSpace`, `ParameterGrid`) — only add if there is a
+  demonstrated need and a stable contract.

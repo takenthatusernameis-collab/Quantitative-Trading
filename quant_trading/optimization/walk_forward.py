@@ -13,7 +13,7 @@ Examples:
     ...     test_start=datetime(2024, 2, 1),
     ...     test_end=datetime(2024, 3, 1),
     ... )
-    >>> w.to_dict()["test_start"].isoformat()
+    >>> w.to_dict()["test_start"]
     '2024-02-01T00:00:00'
 
 """
@@ -37,13 +37,25 @@ from quant_trading.optimization.grid_search import GridSearch
 from quant_trading.strategies.base import Strategy
 
 
+def _iso(value: datetime | None) -> str | None:
+    """Serialize a datetime to an ISO-8601 string, or ``None``.
+
+    Mirrors :func:`quant_trading.optimization.base._iso` so that
+    :meth:`WalkForwardWindow.to_dict` emits JSON-safe values, consistent with
+    every other ``to_dict`` in the codebase.
+
+    """
+    return value.isoformat() if value is not None else None
+
+
 def _coerce_datetime(value: Any) -> datetime:
     """Coerce a serialized value into a ``datetime``.
 
-    Accepts raw ``datetime`` objects (the shape :meth:`to_dict` emits) and
-    ISO-8601 strings (the shape a JSON round-trip would emit). A missing value
-    is passed through unchanged so that callers may apply their own defaults;
-    malformed strings raise ``ValueError`` from :meth:`datetime.fromisoformat`.
+    Accepts ISO-8601 strings (the shape a JSON round-trip emits) and raw
+    ``datetime`` objects (the legacy shape :meth:`to_dict` used to emit). A
+    missing value is passed through unchanged so that callers may apply their
+    own defaults; malformed strings raise ``ValueError`` from
+    :meth:`datetime.fromisoformat`.
 
     """
     if isinstance(value, datetime):
@@ -84,7 +96,7 @@ class WalkForwardWindow:
         ...     test_start=datetime(2024, 2, 1),
         ...     test_end=datetime(2024, 3, 1),
         ... )
-        >>> w.to_dict()["test_start"].isoformat()
+        >>> w.to_dict()["test_start"]
         '2024-02-01T00:00:00'
         >>> w.best_params is None
         True
@@ -100,13 +112,20 @@ class WalkForwardWindow:
     test_result: BacktestResult | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert the window to a plain dictionary.
+        """Convert the window to a plain, JSON-safe dictionary.
+
+        The four date boundaries are serialized as ISO-8601 strings so the
+        result can be passed directly to :func:`json.dumps` (or any other
+        JSON encoder) without a ``default`` hook. ``best_params`` is copied
+        as-is; ``train_result`` and ``test_result`` are included as-is (they
+        are :class:`BacktestResult` objects and are not recursively serialized
+        here — callers that need JSON-safe output should call
+        :meth:`BacktestResult.to_dict` on them).
 
         Returns:
             Dictionary with keys ``train_start``, ``train_end``,
             ``test_start``, ``test_end``, ``best_params``, ``train_result``,
-            and ``test_result``. Backtest results are included as-is (they are
-            not recursively serialized).
+            and ``test_result``.
 
         Examples:
             >>> from datetime import datetime
@@ -118,15 +137,20 @@ class WalkForwardWindow:
             ...     test_end=datetime(2024, 3, 1),
             ...     best_params={"fast_period": 5},
             ... )
-            >>> w.to_dict()["best_params"]
+            >>> d = w.to_dict()
+            >>> d["train_start"]
+            '2024-01-01T00:00:00'
+            >>> d["test_start"]
+            '2024-02-01T00:00:00'
+            >>> d["best_params"]
             {'fast_period': 5}
 
         """
         return {
-            "train_start": self.train_start,
-            "train_end": self.train_end,
-            "test_start": self.test_start,
-            "test_end": self.test_end,
+            "train_start": _iso(self.train_start),
+            "train_end": _iso(self.train_end),
+            "test_start": _iso(self.test_start),
+            "test_end": _iso(self.test_end),
             "best_params": self.best_params,
             "train_result": self.train_result,
             "test_result": self.test_result,

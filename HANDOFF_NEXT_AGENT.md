@@ -1,45 +1,83 @@
-## What changed (2026-11-09, session 5)
-
-Completed the cross-cutting serialization round-trip coverage (sessions 1–4 left a gap):
-
-- **`tests/test_serialization_roundtrip.py`**: Added `BacktestResult` and `BacktestRegimeAnalysis` (both have `to_dict()`/`from_dict()`) to the round-trip suite. These classes deliberately omit pandas-backed runtime state from `to_dict()` (`BacktestResult`: `equity_curve`/`trades`/`positions`; `BacktestRegimeAnalysis`: `equity_curve`), so dataclass `__eq__` is not meaningful across that boundary. The test now asserts **serialized-form stability** for those two: `from_dict(to_dict(x)).to_dict() == x.to_dict()`. All other serializable classes still assert full object equality. Round-trip cases: **27** (was 25). Docstring updated to match behavior.
-- No production code changes. No API, safety/validation, or workflow changes.
-- These changes are **committed** at HEAD (`44af6ef`); working tree was clean at the start of this session.
-
 ## What changed (2026-11-09, this session)
 
-Added `to_dict()`/`from_dict()` to `Trade` (a previously uncovered core domain object) and registered it in the round-trip suite:
+Fixed a serialization inconsistency in `WalkForwardWindow.to_dict()` that made its
+output not JSON-safe, unlike every other `to_dict()` in the codebase.
 
-- **`quant_trading/backtest/engine.py`**: `Trade.to_dict()` serializes all fields (timestamp as ISO 8601 string; derived `cost`/`fee`/`pnl` properties omitted); `Trade.from_dict()` reconstructs a `Trade`, with required fields indexed directly (`symbol`, `action`, `quantity`, `price`, `timestamp`) and optional keys (`commission`, `slippage`, `realized_pnl`) falling back to field defaults. Follows the existing `Signal`/`Position` convention. Includes doctests.
-- **`tests/test_serialization_roundtrip.py`**: Added `Trade` round-trip case (full object equality path, not `_DICT_STABLE`, since `Trade` has no omitted pandas state). Round-trip cases: **28** (was 27).
-- No API, safety/validation, or workflow changes.
+- **`quant_trading/optimization/walk_forward.py`**: `WalkForwardWindow.to_dict()`
+  now serializes the four date boundaries (`train_start`, `train_end`,
+  `test_start`, `test_end`) as ISO-8601 strings via a new local `_iso()` helper
+  (mirrors `quant_trading.optimization.base._iso`). Previously it emitted raw
+  `datetime` objects, so `json.dumps(window.to_dict())` raised
+  `Object of type datetime is not JSON serializable`. `WalkForwardResult.to_dict()`
+  delegates to `WalkForwardWindow.to_dict()`, so it is fixed transitively.
+  `from_dict` was already tolerant of both forms via `_coerce_datetime`, so the
+  round-trip is unchanged; the `_coerce_datetime` docstring was reworded to
+  reflect that ISO strings are now the primary shape. Updated module/class/`to_dict`
+  doctests (they previously called `.isoformat()` on the now-string value).
+- **`tests/test_optimization.py`**: `test_walk_forward_window_to_dict` now asserts
+  the ISO-string form and explicitly calls `json.dumps(result)` to prove
+  JSON-safety. Added an explicit JSON round-trip check
+  (`json.dumps` → `json.loads` → `WalkForwardResult.from_dict`) in the verification
+  section below.
+- No API, safety/validation, or workflow changes. `to_dataframe()` and the CLI
+  walk-forward output path (which uses `to_dataframe().to_dict(orient="records")`)
+  were already JSON-safe and are unaffected.
 
 ## Verified (this session)
 
-- `python -m pytest tests/test_serialization_roundtrip.py -q --tb=no` → **28 passed** (includes `Trade`).
-- `python -m pytest tests/test_serialization_roundtrip.py tests/test_backtest_engine.py tests/test_backtest_analysis.py tests/test_repository_integrity.py -q --tb=no` → **188 passed**.
-- `python -m pytest --doctest-modules quant_trading/backtest/engine.py -q --tb=short` → **7 passed** (includes new `Trade` doctests).
+- `python -m pytest tests/test_optimization.py -k "walk_forward or WalkForward" -q`
+  → **35 passed, 1 skipped**.
+- `python -m pytest --doctest-modules quant_trading/optimization/walk_forward.py -q`
+  → **11 passed**.
+- `python -m pytest tests/test_serialization_roundtrip.py tests/test_optimization.py
+  tests/test_backtest_engine.py tests/test_backtest_analysis.py tests/test_repository_integrity.py
+  tests/test_readme.py tests/test_readme_cli.py tests/test_readme_cli_commands.py -q`
+  → **400 passed, 30 skipped, 3 deselected**.
+- Manual JSON round-trip: `json.dumps(WalkForwardResult(...).to_dict())` →
+  `json.loads` → `WalkForwardResult.from_dict(...)` → datetimes restored correctly.
 - `python -m ruff check .` → **All checks passed**.
-- `python -m mypy quant_trading --ignore-missing-imports` → **Success, no issues** (37 source files).
-- `git status` → working tree clean before this change; current diff limited to `quant_trading/backtest/engine.py` and `tests/test_serialization_roundtrip.py` (uncommitted).
+- `python -m mypy quant_trading --ignore-missing-imports` → **Success, no issues** (37 files).
+- `git status` → working tree clean before this change; diff limited to
+  `quant_trading/optimization/walk_forward.py` and `tests/test_optimization.py`
+  (uncommitted).
 
 ## Not verified (honest scope)
 
-- Full `pytest tests/` end-to-end was **not** completed in this session (earlier attempts timed out at the harness command timeout while collecting/running the full ~2883-test suite). Targeted verification covered the changed area and key integrity suites.
+- Full `pytest tests/` end-to-end was **not** completed (would exceed the harness
+  command timeout at ~6.5 min; the targeted regression sweep above covers the
+  changed area plus the serialization/integrity/README suites).
+- `examples/cli.py --walk-forward --output` was re-run to confirm the CLI path
+  still writes valid JSON (it uses `to_dataframe()`, not `to_dict()`, so it was
+  never affected).
 
 ## Unresolved / not completed
 
-- Commit/push **not performed** (not requested). Current diff is limited to `quant_trading/backtest/engine.py` and `tests/test_serialization_roundtrip.py`; neither is staged or committed.
-- Dataclasses **without** `to_dict`/`from_dict` remain intentionally uncovered by this round-trip suite (e.g. `MarketData`, `FetchResult`, `ParameterSpace`/`ParameterGrid`, `_RebalancePlan` private) — only add if there is a demonstrated need and a stable contract. `Trade` is now covered.
+- Commit/push **not performed** (not requested). Current diff is limited to
+  `quant_trading/optimization/walk_forward.py` and `tests/test_optimization.py`;
+  neither is staged or committed.
 
 ## Failed approaches (do not repeat unchanged)
 
-- Constructing `BacktestResult()` / `BacktestRegimeAnalysis()` with no args fails (required fields). Use minimal valid instances (as in the test) when extending coverage.
-- Asserting `BacktestResult`/`BacktestRegimeAnalysis` full `==` after `from_dict(to_dict(...))` fails because omitted pandas state breaks `__eq__` / is not reconstructed; use **serialized-form stability** (`to_dict()` equality) for such classes.
-- Passing `data.get("timestamp")` (type `datetime | None`) into `Trade(...)` (field type `datetime`) fails mypy; index the required field directly with `data["timestamp"]` instead (matching `Position.from_dict`).
+- Do not "fix" this by adding a `default=str` hook to `json.dumps` at call sites:
+  that would mask the inconsistency instead of making `to_dict()` emit a
+  canonical, JSON-safe form like every other `to_dict()` in the codebase.
+- Do not make `train_result`/`test_result` recursive in `to_dict()`: they are
+  `BacktestResult | None` and the existing convention (documented in the
+  docstring) is to leave them as-is so callers control serialization.
 
 ## One precise next task
 
 - **Trigger:** If a commit is explicitly requested.
-- **Action:** Inspect `git status`/diff, run a focused regression set (`tests/test_serialization_roundtrip.py`, `tests/test_backtest_engine.py`, `tests/test_backtest_analysis.py`, `tests/test_repository_integrity.py`) plus `ruff`/`mypy` (evidence above), then commit the serialization changes with a clear message. Push only if explicitly requested and remote/auth are verified.
-- **Constraints:** No API/safety/validation weakening; do not commit secrets/caches; exclude unrelated modifications; do not claim checks passed without evidence. If the full suite must be gate-verified before commit, run it with an appropriate timeout and record results (do not guess).
+- **Action:** Inspect `git status`/diff, run the focused regression set above
+  plus `ruff`/`mypy` (evidence recorded), then commit the walk-forward
+  serialization fix with a clear message. Push only if explicitly requested and
+  remote/auth are verified.
+- **Constraints:** No API/safety/validation weakening; do not commit secrets/caches;
+  exclude unrelated modifications; do not claim checks passed without evidence.
+- **Alternative if a broader task arrives:** the five dataclasses still lacking
+  `to_dict`/`from_dict` (`MarketData`, `FetchResult`, `_RebalancePlan`,
+  `ParameterSpace`, `ParameterGrid`) are intentionally uncovered by the
+  round-trip suite — only add if there is a demonstrated need and a stable
+  contract.
+
+(End of file - total 89 lines)
