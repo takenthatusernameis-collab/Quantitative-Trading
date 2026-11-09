@@ -26,10 +26,14 @@ import pandas as pd
 from quant_trading.backtest.trade_log import split_trade_log
 from quant_trading.risk.metrics import (
     calculate_calmar_ratio,
+    calculate_cvar,
+    calculate_information_ratio,
     calculate_max_drawdown,
+    calculate_omega_ratio,
     calculate_returns,
     calculate_sharpe_ratio,
     calculate_sortino_ratio,
+    calculate_treynor_ratio,
     calculate_var,
     calculate_volatility,
 )
@@ -82,6 +86,14 @@ class BacktestMetrics:
         largest_win: Largest single-trade PnL (0.0 if none).
         largest_loss: Smallest (most negative) single-trade PnL (0.0 if none).
         var_95: Value at Risk at 95% confidence (historical method).
+        var_99: Value at Risk at 99% confidence (historical method).
+        cvar_95: Conditional Value at Risk (Expected Shortfall) at 95% confidence.
+        cvar_99: Conditional Value at Risk (Expected Shortfall) at 99% confidence.
+        beta: Beta relative to the market benchmark.
+        alpha: Jensen's alpha (annualized) relative to the market benchmark.
+        treynor_ratio: Treynor ratio (excess return / beta).
+        information_ratio: Information ratio (active return / tracking error).
+        omega_ratio: Omega ratio (probability-weighted gains/losses vs threshold).
 
     Examples:
         >>> metrics = BacktestMetrics(total_return=1000.0, sharpe_ratio=1.5)
@@ -109,7 +121,7 @@ class BacktestMetrics:
     sortino_ratio: float = 0.0
     calmar_ratio: float = 0.0
 
-    # Other
+    # Trade statistics
     win_rate: float = 0.0
     profit_factor: float = 0.0
     num_trades: int = 0
@@ -119,7 +131,19 @@ class BacktestMetrics:
     avg_loss: float = 0.0
     largest_win: float = 0.0
     largest_loss: float = 0.0
+
+    # VaR/CVaR
     var_95: float = 0.0
+    var_99: float = 0.0
+    cvar_95: float = 0.0
+    cvar_99: float = 0.0
+
+    # Market-relative metrics (populated when market_returns provided)
+    beta: float = 0.0
+    alpha: float = 0.0
+    treynor_ratio: float = 0.0
+    information_ratio: float = 0.0
+    omega_ratio: float = 0.0
 
     # Unrealized PnL of the positions that are still open. It is declared last
     # so that the positional order of the fields above stays the same for
@@ -156,6 +180,14 @@ class BacktestMetrics:
             "largest_win": self.largest_win,
             "largest_loss": self.largest_loss,
             "var_95": self.var_95,
+            "var_99": self.var_99,
+            "cvar_95": self.cvar_95,
+            "cvar_99": self.cvar_99,
+            "beta": self.beta,
+            "alpha": self.alpha,
+            "treynor_ratio": self.treynor_ratio,
+            "information_ratio": self.information_ratio,
+            "omega_ratio": self.omega_ratio,
             "unrealized_pnl": self.unrealized_pnl,
         }
 
@@ -167,6 +199,7 @@ def calculate_backtest_metrics(
     periods_per_year: int = 252,
     unrealized_pnl: float | None = None,
     positions: dict[str, Any] | None = None,
+    market_returns: pd.Series | None = None,
 ) -> BacktestMetrics:
     """Calculate comprehensive backtest metrics from an equity curve.
 
@@ -199,6 +232,9 @@ def calculate_backtest_metrics(
             with an ``unrealized_pnl`` attribute. When ``unrealized_pnl``
             is ``None`` and positions are provided, the unrealized PnL is
             summed from them.
+        market_returns: Optional benchmark return series. When provided,
+            additional market-relative metrics (beta, alpha, treynor_ratio,
+            information_ratio) are calculated.
 
     Returns:
         BacktestMetrics object populated with the computed values.
@@ -255,6 +291,27 @@ def calculate_backtest_metrics(
             returns, equity_curve, periods_per_year=periods_per_year
         )
         metrics.var_95 = calculate_var(returns, 0.95)
+        metrics.var_99 = calculate_var(returns, 0.99)
+        metrics.cvar_95 = calculate_cvar(returns, 0.95)
+        metrics.cvar_99 = calculate_cvar(returns, 0.99)
+        metrics.omega_ratio = calculate_omega_ratio(returns, periods_per_year=periods_per_year)
+
+    # Market-relative metrics (require market_returns)
+    if market_returns is not None and len(market_returns) > 0:
+        from quant_trading.risk.metrics import calculate_alpha, calculate_beta
+
+        beta = calculate_beta(returns, market_returns)
+        metrics.beta = beta
+        if beta != 0:
+            metrics.alpha = calculate_alpha(
+                returns, market_returns, risk_free_rate, periods_per_year=periods_per_year
+            )
+            metrics.treynor_ratio = calculate_treynor_ratio(
+                returns, market_returns, risk_free_rate, periods_per_year=periods_per_year
+            )
+            metrics.information_ratio = calculate_information_ratio(
+                returns, market_returns, periods_per_year=periods_per_year
+            )
 
     # Trade statistics
     if trades is not None and len(trades) > 0 and "pnl" in trades.columns:

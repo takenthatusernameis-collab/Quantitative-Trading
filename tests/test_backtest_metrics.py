@@ -449,3 +449,75 @@ def test_backtest_result_metric_passthrough_remaining_attrs():
     assert result.max_drawdown == 0.0
     assert result.total_pnl == 0.0
     assert result.unrealized_pnl == 0.0
+
+
+class TestBacktestMetricsNewRiskMetrics:
+    """Test new risk metrics added to BacktestMetrics."""
+
+    EQUITY = pd.Series([100.0, 102.0, 101.0, 104.0, 103.0, 106.0, 108.0])
+
+    def test_var_cvar_metrics_populated(self):
+        """Test that VaR and CVaR metrics are calculated."""
+        metrics = calculate_backtest_metrics(self.EQUITY)
+
+        assert metrics.var_95 != 0.0
+        assert metrics.var_99 != 0.0
+        assert metrics.cvar_95 != 0.0
+        assert metrics.cvar_99 != 0.0
+        # VaR 99 should be more negative (worse) than VaR 95
+        assert metrics.var_99 <= metrics.var_95
+        # CVaR should be more negative than corresponding VaR
+        assert metrics.cvar_95 <= metrics.var_95
+        assert metrics.cvar_99 <= metrics.var_99
+
+    def test_omega_ratio_populated(self):
+        """Test that Omega ratio is calculated."""
+        metrics = calculate_backtest_metrics(self.EQUITY)
+        assert metrics.omega_ratio != 0.0
+        assert isinstance(metrics.omega_ratio, float)
+
+    def test_market_relative_metrics_populated_when_market_returns_provided(self):
+        """Test that beta, alpha, treynor, information_ratio are calculated when market_returns provided."""
+        market_returns = pd.Series([0.01, 0.015, -0.005, 0.012, -0.003, 0.008, 0.01])
+        metrics = calculate_backtest_metrics(self.EQUITY, market_returns=market_returns)
+
+        assert metrics.beta != 0.0
+        assert metrics.alpha != 0.0
+        assert metrics.treynor_ratio != 0.0
+        assert metrics.information_ratio != 0.0
+
+    def test_market_relative_metrics_zero_when_no_market_returns(self):
+        """Test that market-relative metrics remain zero when market_returns not provided."""
+        metrics = calculate_backtest_metrics(self.EQUITY)
+
+        assert metrics.beta == 0.0
+        assert metrics.alpha == 0.0
+        assert metrics.treynor_ratio == 0.0
+        assert metrics.information_ratio == 0.0
+
+    def test_new_metrics_in_to_dict(self):
+        """Test that new metrics are included in to_dict output."""
+        metrics = calculate_backtest_metrics(self.EQUITY)
+        d = metrics.to_dict()
+
+        assert "var_99" in d
+        assert "cvar_95" in d
+        assert "cvar_99" in d
+        assert "beta" in d
+        assert "alpha" in d
+        assert "treynor_ratio" in d
+        assert "information_ratio" in d
+        assert "omega_ratio" in d
+
+    def test_new_metrics_default_to_zero_in_dataclass(self):
+        """Test that new metrics default to zero in BacktestMetrics constructor."""
+        metrics = BacktestMetrics()
+
+        assert metrics.var_99 == 0.0
+        assert metrics.cvar_95 == 0.0
+        assert metrics.cvar_99 == 0.0
+        assert metrics.beta == 0.0
+        assert metrics.alpha == 0.0
+        assert metrics.treynor_ratio == 0.0
+        assert metrics.information_ratio == 0.0
+        assert metrics.omega_ratio == 0.0
