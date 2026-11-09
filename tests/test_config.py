@@ -283,6 +283,156 @@ class TestConfigFromYamlTypeChecking:
         assert config.backtest.initial_capital == 100000.0
 
 
+class TestDataConfigSerialization:
+    """Tests for DataConfig.to_dict / from_dict round-trips."""
+
+    def test_to_dict_contains_all_fields(self):
+        config = DataConfig(provider="synthetic", offline=True, synthetic_days=100)
+        assert config.to_dict() == {
+            "provider": "synthetic",
+            "cache_dir": "./data/cache",
+            "default_interval": "1d",
+            "default_period": "1y",
+            "offline": True,
+            "synthetic_days": 100,
+            "synthetic_seed": 42,
+            "alphavantage_api_key": None,
+        }
+
+    def test_round_trip(self):
+        config = DataConfig(
+            provider="alphavantage",
+            cache_dir="./cache",
+            synthetic_seed=7,
+            alphavantage_api_key="demo",
+        )
+        assert DataConfig.from_dict(config.to_dict()) == config
+
+    def test_missing_keys_use_defaults(self):
+        assert DataConfig.from_dict({}) == DataConfig()
+
+    def test_extra_keys_ignored(self):
+        restored = DataConfig.from_dict(
+            {"provider": "yfinance", "bogus": 1, "another": "x"}
+        )
+        assert restored.provider == "yfinance"
+        assert not hasattr(restored, "bogus")
+
+
+class TestBacktestConfigSerialization:
+    """Tests for BacktestConfig.to_dict / from_dict round-trips."""
+
+    def test_to_dict_contains_all_fields(self):
+        config = BacktestConfig(initial_capital=50000.0, commission=0.002)
+        d = config.to_dict()
+        assert d["initial_capital"] == 50000.0
+        assert d["commission"] == 0.002
+        assert d["periods_per_year"] == 252
+        assert d["enable_stop_exits"] is False
+
+    def test_round_trip(self):
+        config = BacktestConfig(
+            initial_capital=50000.0,
+            commission=0.002,
+            periods_per_year=12,
+            enable_stop_exits=True,
+        )
+        assert BacktestConfig.from_dict(config.to_dict()) == config
+
+    def test_int_values_coerced_to_float(self):
+        restored = BacktestConfig.from_dict({"initial_capital": 50000, "slippage": 0})
+        assert restored.initial_capital == 50000.0
+        assert restored.slippage == 0.0
+
+    def test_missing_keys_use_defaults(self):
+        assert BacktestConfig.from_dict({}) == BacktestConfig()
+
+    def test_extra_keys_ignored(self):
+        restored = BacktestConfig.from_dict({"initial_capital": 1000, "bogus": 1})
+        assert restored.initial_capital == 1000.0
+        assert not hasattr(restored, "bogus")
+
+
+class TestRiskConfigSerialization:
+    """Tests for RiskConfig.to_dict / from_dict round-trips."""
+
+    def test_round_trip(self):
+        config = RiskConfig(max_position_size=0.15, max_drawdown=0.10, max_leverage=2.0)
+        assert RiskConfig.from_dict(config.to_dict()) == config
+
+    def test_missing_keys_use_defaults(self):
+        assert RiskConfig.from_dict({}) == RiskConfig()
+
+    def test_extra_keys_ignored(self):
+        restored = RiskConfig.from_dict({"max_drawdown": 0.5, "bogus": 1})
+        assert restored.max_drawdown == 0.5
+        assert not hasattr(restored, "bogus")
+
+
+class TestPortfolioConfigSerialization:
+    """Tests for PortfolioConfig.to_dict / from_dict round-trips."""
+
+    def test_round_trip(self):
+        config = PortfolioConfig(rebalance_frequency="weekly", max_positions=10)
+        assert PortfolioConfig.from_dict(config.to_dict()) == config
+
+    def test_missing_keys_use_defaults(self):
+        assert PortfolioConfig.from_dict({}) == PortfolioConfig()
+
+    def test_extra_keys_ignored(self):
+        restored = PortfolioConfig.from_dict({"max_positions": 10, "bogus": 1})
+        assert restored.max_positions == 10
+        assert restored.rebalance_frequency == "monthly"
+        assert not hasattr(restored, "bogus")
+
+
+class TestConfigSerialization:
+    """Tests for Config.to_dict / from_dict round-trips."""
+
+    def test_to_dict_nests_sub_configs(self):
+        config = Config(logging_level="DEBUG")
+        d = config.to_dict()
+        assert set(d) == {
+            "data",
+            "backtest",
+            "risk",
+            "portfolio",
+            "logging_level",
+            "output_dir",
+        }
+        assert d["logging_level"] == "DEBUG"
+        assert d["data"]["provider"] == "yfinance"
+        assert d["backtest"]["initial_capital"] == 100000.0
+
+    def test_round_trip(self):
+        config = Config(
+            data=DataConfig(provider="synthetic", offline=True),
+            backtest=BacktestConfig(initial_capital=50000.0),
+            risk=RiskConfig(max_position_size=0.15),
+            portfolio=PortfolioConfig(max_positions=10),
+            logging_level="DEBUG",
+            output_dir="./out",
+        )
+        assert Config.from_dict(config.to_dict()) == config
+
+    def test_missing_keys_use_defaults(self):
+        assert Config.from_dict({}) == Config()
+
+    def test_missing_sub_configs_use_defaults(self):
+        restored = Config.from_dict({"data": {"provider": "synthetic"}})
+        assert restored.data.provider == "synthetic"
+        assert restored.backtest == BacktestConfig()
+        assert restored.risk == RiskConfig()
+        assert restored.portfolio == PortfolioConfig()
+        assert restored.logging_level == "INFO"
+        assert restored.output_dir == "./output"
+
+    def test_extra_keys_ignored(self):
+        restored = Config.from_dict({"logging_level": "DEBUG", "unknown": 1})
+        assert restored.logging_level == "DEBUG"
+        assert not hasattr(restored, "unknown")
+
+
 if __name__ == "__main__":
     import pytest
 

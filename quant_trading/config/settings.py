@@ -70,6 +70,70 @@ class DataConfig:
     synthetic_seed: int = 42
     alphavantage_api_key: str | None = None
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the data configuration to a plain, JSON-safe dictionary.
+
+        Returns:
+            Dictionary with keys ``provider``, ``cache_dir``,
+            ``default_interval``, ``default_period``, ``offline``,
+            ``synthetic_days``, ``synthetic_seed``, and
+            ``alphavantage_api_key``.
+
+        Examples:
+            >>> from quant_trading.config.settings import DataConfig
+            >>> data = DataConfig(provider="synthetic", offline=True)
+            >>> d = data.to_dict()
+            >>> d["provider"], d["offline"]
+            ('synthetic', True)
+            >>> d["alphavantage_api_key"] is None
+            True
+
+        """
+        return {
+            "provider": self.provider,
+            "cache_dir": self.cache_dir,
+            "default_interval": self.default_interval,
+            "default_period": self.default_period,
+            "offline": self.offline,
+            "synthetic_days": self.synthetic_days,
+            "synthetic_seed": self.synthetic_seed,
+            "alphavantage_api_key": self.alphavantage_api_key,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "DataConfig":
+        """Deserialize a :class:`DataConfig` from a dictionary.
+
+        Missing keys fall back to the class defaults. Extra keys are ignored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`DataConfig`.
+
+        Examples:
+            >>> from quant_trading.config.settings import DataConfig
+            >>> restored = DataConfig.from_dict({"provider": "synthetic"})
+            >>> restored.provider
+            'synthetic'
+            >>> restored.offline
+            False
+            >>> restored.synthetic_days
+            365
+
+        """
+        return cls(
+            provider=str(data.get("provider", "yfinance")),
+            cache_dir=str(data.get("cache_dir", "./data/cache")),
+            default_interval=str(data.get("default_interval", "1d")),
+            default_period=str(data.get("default_period", "1y")),
+            offline=bool(data.get("offline", False)),
+            synthetic_days=int(data.get("synthetic_days", 365)),
+            synthetic_seed=int(data.get("synthetic_seed", 42)),
+            alphavantage_api_key=data.get("alphavantage_api_key"),
+        )
+
 
 def _filter_fields(dataclass_type: Any, values: dict[str, Any]) -> dict[str, Any]:
     """Keep only values whose keys are valid dataclass fields.
@@ -201,6 +265,67 @@ class BacktestConfig:
     halt_on_portfolio_violation: bool = False
     enable_stop_exits: bool = False
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the backtest configuration to a plain, JSON-safe dictionary.
+
+        Returns:
+            Dictionary with keys ``initial_capital``, ``commission``,
+            ``slippage``, ``risk_free_rate``, ``periods_per_year``,
+            ``halt_on_portfolio_violation``, and ``enable_stop_exits``.
+
+        Examples:
+            >>> from quant_trading.config.settings import BacktestConfig
+            >>> cfg = BacktestConfig(initial_capital=50000.0, commission=0.002)
+            >>> d = cfg.to_dict()
+            >>> d["initial_capital"], d["commission"]
+            (50000.0, 0.002)
+            >>> d["enable_stop_exits"]
+            False
+
+        """
+        return {
+            "initial_capital": self.initial_capital,
+            "commission": self.commission,
+            "slippage": self.slippage,
+            "risk_free_rate": self.risk_free_rate,
+            "periods_per_year": self.periods_per_year,
+            "halt_on_portfolio_violation": self.halt_on_portfolio_violation,
+            "enable_stop_exits": self.enable_stop_exits,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "BacktestConfig":
+        """Deserialize a :class:`BacktestConfig` from a dictionary.
+
+        Missing keys fall back to the class defaults. Extra keys are ignored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`BacktestConfig`.
+
+        Examples:
+            >>> from quant_trading.config.settings import BacktestConfig
+            >>> restored = BacktestConfig.from_dict({"initial_capital": 50000})
+            >>> restored.initial_capital
+            50000.0
+            >>> restored.periods_per_year
+            252
+
+        """
+        return cls(
+            initial_capital=float(data.get("initial_capital", 100000.0)),
+            commission=float(data.get("commission", 0.001)),
+            slippage=float(data.get("slippage", 0.0005)),
+            risk_free_rate=float(data.get("risk_free_rate", 0.02)),
+            periods_per_year=int(data.get("periods_per_year", 252)),
+            halt_on_portfolio_violation=bool(
+                data.get("halt_on_portfolio_violation", False)
+            ),
+            enable_stop_exits=bool(data.get("enable_stop_exits", False)),
+        )
+
 
 @dataclass
 class RiskConfig:
@@ -239,6 +364,70 @@ class RiskConfig:
     trailing_stop_pct: float = 0.0
     trailing_stop_activation_pct: float = 0.0
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the risk configuration to a plain, JSON-safe dictionary.
+
+        Returns:
+            Dictionary with keys ``max_position_size``,
+            ``max_portfolio_risk``, ``stop_loss_pct``,
+            ``take_profit_pct``, ``max_drawdown``, ``max_leverage``,
+            ``trailing_stop_pct``, and ``trailing_stop_activation_pct``.
+
+        Examples:
+            >>> from quant_trading.config.settings import RiskConfig
+            >>> cfg = RiskConfig(max_position_size=0.15, max_drawdown=0.10)
+            >>> d = cfg.to_dict()
+            >>> d["max_position_size"], d["max_drawdown"]
+            (0.15, 0.1)
+            >>> d["max_leverage"]
+            1.0
+
+        """
+        return {
+            "max_position_size": self.max_position_size,
+            "max_portfolio_risk": self.max_portfolio_risk,
+            "stop_loss_pct": self.stop_loss_pct,
+            "take_profit_pct": self.take_profit_pct,
+            "max_drawdown": self.max_drawdown,
+            "max_leverage": self.max_leverage,
+            "trailing_stop_pct": self.trailing_stop_pct,
+            "trailing_stop_activation_pct": self.trailing_stop_activation_pct,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RiskConfig":
+        """Deserialize a :class:`RiskConfig` from a dictionary.
+
+        Missing keys fall back to the class defaults. Extra keys are ignored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`RiskConfig`.
+
+        Examples:
+            >>> from quant_trading.config.settings import RiskConfig
+            >>> restored = RiskConfig.from_dict({"max_drawdown": 0.1})
+            >>> restored.max_drawdown
+            0.1
+            >>> restored.max_position_size
+            0.1
+
+        """
+        return cls(
+            max_position_size=float(data.get("max_position_size", 0.1)),
+            max_portfolio_risk=float(data.get("max_portfolio_risk", 0.02)),
+            stop_loss_pct=float(data.get("stop_loss_pct", 0.05)),
+            take_profit_pct=float(data.get("take_profit_pct", 0.15)),
+            max_drawdown=float(data.get("max_drawdown", 0.20)),
+            max_leverage=float(data.get("max_leverage", 1.0)),
+            trailing_stop_pct=float(data.get("trailing_stop_pct", 0.0)),
+            trailing_stop_activation_pct=float(
+                data.get("trailing_stop_activation_pct", 0.0)
+            ),
+        )
+
 
 @dataclass
 class PortfolioConfig:
@@ -260,6 +449,56 @@ class PortfolioConfig:
     rebalance_frequency: str = "monthly"
     max_positions: int = 20
     min_position_size: float = 0.01
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the portfolio configuration to a plain, JSON-safe dictionary.
+
+        Returns:
+            Dictionary with keys ``rebalance_frequency``, ``max_positions``,
+            and ``min_position_size``.
+
+        Examples:
+            >>> from quant_trading.config.settings import PortfolioConfig
+            >>> cfg = PortfolioConfig(rebalance_frequency="weekly", max_positions=10)
+            >>> d = cfg.to_dict()
+            >>> d["rebalance_frequency"], d["max_positions"]
+            ('weekly', 10)
+            >>> d["min_position_size"]
+            0.01
+
+        """
+        return {
+            "rebalance_frequency": self.rebalance_frequency,
+            "max_positions": self.max_positions,
+            "min_position_size": self.min_position_size,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "PortfolioConfig":
+        """Deserialize a :class:`PortfolioConfig` from a dictionary.
+
+        Missing keys fall back to the class defaults. Extra keys are ignored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`PortfolioConfig`.
+
+        Examples:
+            >>> from quant_trading.config.settings import PortfolioConfig
+            >>> restored = PortfolioConfig.from_dict({"max_positions": 10})
+            >>> restored.max_positions
+            10
+            >>> restored.rebalance_frequency
+            'monthly'
+
+        """
+        return cls(
+            rebalance_frequency=str(data.get("rebalance_frequency", "monthly")),
+            max_positions=int(data.get("max_positions", 20)),
+            min_position_size=float(data.get("min_position_size", 0.01)),
+        )
 
 
 @dataclass
@@ -301,6 +540,66 @@ class Config:
     portfolio: PortfolioConfig = field(default_factory=PortfolioConfig)
     logging_level: str = "INFO"
     output_dir: str = "./output"
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the configuration to a plain, JSON-safe dictionary.
+
+        Returns:
+            Dictionary with ``data``, ``backtest``, ``risk``,
+            ``portfolio``, ``logging_level``, and ``output_dir`` keys;
+            each sub-config is serialized via its own :meth:`to_dict`.
+
+        Examples:
+            >>> from quant_trading.config.settings import Config
+            >>> config = Config(logging_level="DEBUG", output_dir="./out")
+            >>> d = config.to_dict()
+            >>> d["logging_level"], d["output_dir"]
+            ('DEBUG', './out')
+            >>> d["data"]["provider"]
+            'yfinance'
+
+        """
+        return {
+            "data": self.data.to_dict(),
+            "backtest": self.backtest.to_dict(),
+            "risk": self.risk.to_dict(),
+            "portfolio": self.portfolio.to_dict(),
+            "logging_level": self.logging_level,
+            "output_dir": self.output_dir,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Config":
+        """Deserialize a :class:`Config` from a dictionary.
+
+        Missing keys fall back to the class defaults (empty sub-configs
+        reconstruct with their defaults). Extra keys are ignored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`Config`.
+
+        Examples:
+            >>> from quant_trading.config.settings import Config
+            >>> restored = Config.from_dict({"logging_level": "DEBUG"})
+            >>> restored.logging_level
+            'DEBUG'
+            >>> restored.output_dir
+            './output'
+            >>> restored.data.provider
+            'yfinance'
+
+        """
+        return cls(
+            data=DataConfig.from_dict(data.get("data", {})),
+            backtest=BacktestConfig.from_dict(data.get("backtest", {})),
+            risk=RiskConfig.from_dict(data.get("risk", {})),
+            portfolio=PortfolioConfig.from_dict(data.get("portfolio", {})),
+            logging_level=str(data.get("logging_level", "INFO")),
+            output_dir=str(data.get("output_dir", "./output")),
+        )
 
     @classmethod
     def from_yaml(cls, path: str) -> "Config":

@@ -24,7 +24,7 @@
 
 ## Unresolved / not completed
 
-- None. Serialization pattern is now complete across every config and result dataclass in the repo: backtest (engine, metrics, analysis, trade_analysis), regime (detector), risk (metrics, limits), monte_carlo (simulator), portfolio (holding, portfolio, rebalancer), optimization (walk_forward, base, bayesian config), plus the state dataclasses `Signal`, `Position`, and `PortfolioRisk`. Audit confirmed all `to_dict()` methods have matching `from_dict()` methods with round-trip test coverage.
+- Serialization pattern is now complete across every dataclass in the repo: backtest (engine, metrics, analysis, trade_analysis), regime (detector), risk (metrics, limits), monte_carlo (simulator), portfolio (holding, portfolio, rebalancer), optimization (walk_forward, base, bayesian config), config/settings (DataConfig, BacktestConfig, RiskConfig, PortfolioConfig, Config), plus the state dataclasses `Signal`, `Position`, and `PortfolioRisk`. Audit confirmed all `to_dict()` methods have matching `from_dict()` methods with round-trip test coverage.
 - Commit/push not performed (not requested).
 
 ## Failed approaches (do not repeat unchanged)
@@ -36,8 +36,9 @@
 ## One precise next task
 
 - **Trigger:** If a commit is desired, request it explicitly; otherwise continue bounded enhancements.
-- **Action (recommended bounded):** Remaining candidates from the prior audit: provider configs in `quant_trading/data/providers.py` — add `to_dict()`/`from_dict()` only where JSON round-trips are plausibly expected; keep each change minimal and verify with ruff/mypy/focused tests/full fast suite as above.
-- **Alternative bounded task:** Add a cross-cutting serialization round-trip doctest or property test that iterates every serializable class's `to_dict`/`from_dict` to catch drift early.
+- **Action (recommended bounded):** Add a cross-cutting serialization round-trip test (doctest or property test under `tests/`) that iterates every serializable class's `to_dict()`/`from_dict()` pair and asserts `from_dict(to_dict(x)) == x`, to catch drift early now that the pattern covers every dataclass. Keep it minimal and verify with ruff/mypy/focused tests/full fast suite as above.
+  - Note: `quant_trading/data/providers.py` (`MarketData`, `FetchResult`) holds pandas `DataFrame`s and `Exception` objects, so it is not a clean JSON round-trip target — do not force `to_dict`/`from_dict` there without a concrete use case.
+- **Alternative bounded task:** Commit/push the completed serialization work if explicitly requested.
 - **Constraints:** Preserve public APIs; no weakening of safety/validation; commit/push only if explicitly requested.
 
 (End of file)
