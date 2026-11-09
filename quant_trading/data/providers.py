@@ -50,6 +50,24 @@ if TYPE_CHECKING:  # pragma: no cover
     from quant_trading.config.settings import DataConfig
 
 
+def _iso(value: datetime | None) -> str | None:
+    """Return ISO-8601 string for a datetime, or None for None."""
+    if value is None:
+        return None
+    return value.isoformat()
+
+
+def _coerce_datetime(value: Any) -> datetime | None:
+    """Coerce a value to a datetime, accepting ISO-8601 strings."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    return None
+
+
 @dataclass
 class MarketData:
     """Container for the market data fetched for a single symbol.
@@ -76,6 +94,11 @@ class MarketData:
         {}
         >>> float(md.data["close"].iloc[1])
         101.0
+        >>> restored = MarketData.from_dict(md.to_dict())
+        >>> restored.symbol == md.symbol
+        True
+        >>> float(restored.data["close"].iloc[1])
+        101.0
 
     """
 
@@ -89,6 +112,101 @@ class MarketData:
         """Initialize metadata to an empty dict when not provided."""
         if self.metadata is None:
             self.metadata = {}
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize this market data to a plain dictionary.
+
+        The :class:`~pandas.DataFrame` is encoded with ``orient="split"``
+        (index/columns/data) so it survives a JSON round-trip with full index
+        fidelity. The index and values are JSON-normalized (timestamps to
+        ISO-8601 strings) before encoding.
+
+        Returns:
+            Dictionary with ``symbol``, ``data``, ``source``, ``fetched_at``,
+            and ``metadata``.
+
+        Examples:
+            >>> import pandas as pd
+            >>> from quant_trading.data.providers import MarketData
+            >>> md = MarketData(
+            ...     symbol="AAPL",
+            ...     data=pd.DataFrame({"close": [1.0]}),
+            ...     source="synthetic",
+            ...     fetched_at=pd.Timestamp("2024-01-01"),
+            ... )
+            >>> md.to_dict()["symbol"]
+            'AAPL'
+
+        """
+        raw = self.data.to_dict(orient="split")
+        raw_index = raw.get("index") or []
+        is_dt_index = isinstance(self.data.index, pd.DatetimeIndex) or pd.api.types.is_datetime64_any_dtype(
+            self.data.index
+        )
+        if is_dt_index:
+            index = [(v.isoformat() if hasattr(v, "isoformat") else v) for v in raw_index]
+        else:
+            index = list(raw_index)
+        return {
+            "symbol": self.symbol,
+            "data": {
+                "index": index,
+                "columns": raw.get("columns"),
+                "data": raw.get("data"),
+                "datetime_index": bool(is_dt_index),
+            },
+            "source": self.source,
+            "fetched_at": _iso(self.fetched_at),
+            "metadata": self.metadata if self.metadata is not None else {},
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "MarketData":
+        """Deserialize a :class:`MarketData` from a dictionary.
+
+        Missing keys fall back to safe defaults (empty frame, current
+        timestamp). ISO-8601 timestamps are accepted for ``fetched_at`` and
+        for the data-frame index.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`MarketData`.
+
+        Examples:
+            >>> from quant_trading.data.providers import MarketData
+            >>> restored = MarketData.from_dict({"symbol": "AAPL", "source": "s"})
+            >>> restored.symbol
+            'AAPL'
+            >>> restored.data.empty
+            True
+
+        """
+        payload = data.get("data") or {}
+        columns = payload.get("columns")
+        rows = payload.get("data") or []
+        index = payload.get("index") or []
+        dt_index = payload.get("datetime_index")
+        if index:
+            if dt_index is True or (
+                dt_index is None
+                and len(index) > 0
+                and isinstance(index[0], str)
+                and ("-" in index[0] or "T" in index[0] or ":" in index[0])
+            ):
+                try:
+                    index = pd.to_datetime(index)
+                except (ValueError, TypeError):
+                    pass
+        frame = pd.DataFrame(rows, index=index, columns=columns)
+        return cls(
+            symbol=str(data.get("symbol", "")),
+            data=frame,
+            source=str(data.get("source", "")),
+            fetched_at=_coerce_datetime(data.get("fetched_at")) or datetime.now(),
+            metadata=data.get("metadata") if data.get("metadata") is not None else {},
+        )
 
 
 @dataclass
@@ -122,6 +240,9 @@ class FetchResult:
         True
         >>> missing.is_success
         False
+        >>> restored = FetchResult.from_dict(ok.to_dict())
+        >>> restored.is_success
+        True
 
     """
 
@@ -146,6 +267,76 @@ class FetchResult:
     def has_missing(self) -> bool:
         """Return True if any symbols returned no data."""
         return bool(self.missing)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize this fetch result to a plain dictionary.
+
+        Each :class:`MarketData` value is serialized via its ``to_dict``.
+        Exceptions in :attr:`errors` cannot be faithfully round-tripped as
+        live objects; they are encoded as ``{"type": <name>, "message":
+        <str>}`` for inspection. Equality-based round-trips therefore compare
+        serialized form (see ``tests/test_serialization_roundtrip.py``).
+
+        Returns:
+            Dictionary with ``data``, ``errors``, and ``missing``.
+
+        Examples:
+            >>> from quant_trading.data.providers import FetchResult
+            >>> FetchResult(missing=["MSFT"]).to_dict()["missing"]
+            ['MSFT']
+
+        """
+        return {
+            "data": {k: v.to_dict() for k, v in self.data.items()},
+            "errors": {
+                k: {"type": type(v).__name__, "message": str(v)} for k, v in self.errors.items()
+            },
+            "missing": list(self.missing),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FetchResult":
+        """Deserialize a :class:`FetchResult` from a dictionary.
+
+        Missing keys fall back to safe defaults. Error entries are restored as
+        :class:`Exception` instances carrying the stored message (the original
+        exception type is not reconstructed as a live subclass).
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`FetchResult`.
+
+        Examples:
+            >>> from quant_trading.data.providers import FetchResult
+            >>> restored = FetchResult.from_dict({"missing": ["MSFT"]})
+            >>> restored.has_missing
+            True
+
+        """
+        raw_data = data.get("data") or {}
+        raw_errors = data.get("errors") or {}
+        restored_data = {
+            k: (MarketData.from_dict(v) if isinstance(v, dict) else v)
+            for k, v in raw_data.items()
+        }
+        restored_errors: dict[str, Exception] = {}
+        for k, v in raw_errors.items():
+            if isinstance(v, dict):
+                msg = str(v.get("message", ""))
+                etype = str(v.get("type", "Exception")) or "Exception"
+                try:
+                    err_cls: type[Exception] = type(etype, (Exception,), {})
+                except (TypeError, ValueError):
+                    err_cls = Exception
+                restored_errors[k] = err_cls(msg)
+            elif isinstance(v, BaseException):
+                restored_errors[k] = v if isinstance(v, Exception) else Exception(str(v))
+            else:
+                restored_errors[k] = Exception(str(v))
+        missing = list(data.get("missing") or [])
+        return cls(data=restored_data, errors=restored_errors, missing=missing)
 
 
 class DataProvider(ABC):

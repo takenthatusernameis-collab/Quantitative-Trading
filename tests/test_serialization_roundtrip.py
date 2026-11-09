@@ -27,6 +27,7 @@ from quant_trading.config.settings import (
     PortfolioConfig,
     RiskConfig,
 )
+from quant_trading.data.providers import FetchResult, MarketData
 from quant_trading.monte_carlo.simulator import MonteCarloResult
 from quant_trading.optimization.base import OptimizationResult, ParameterGrid, ParameterSpace
 from quant_trading.optimization.bayesian import BayesianOptimizerConfig
@@ -39,8 +40,9 @@ from quant_trading.risk.manager import PortfolioRisk
 from quant_trading.risk.metrics import RiskMetrics
 from quant_trading.strategies.base import Position, Signal
 
-# Classes whose to_dict() omits pandas/runtime state: compare serialized form.
-_DICT_STABLE = {BacktestResult, BacktestRegimeAnalysis}
+# Classes whose to_dict() omits or transforms runtime state (pandas/exception
+# objects) so dataclass __eq__ is not meaningful: compare serialized form.
+_DICT_STABLE = {BacktestResult, BacktestRegimeAnalysis, MarketData, FetchResult}
 
 
 def _instances():
@@ -118,6 +120,34 @@ def _instances():
         ),
         (RebalanceAction, RebalanceAction(symbol="AAPL", action="buy", quantity=10.0)),
         (RebalanceExecution, RebalanceExecution(symbol="AAPL", action="buy", requested_quantity=10.0)),
+        (
+            MarketData,
+            MarketData(
+                symbol="AAPL",
+                data=pd.DataFrame(
+                    {"close": [100.0, 101.0]},
+                    index=pd.to_datetime(["2024-01-01", "2024-01-02"]),
+                ),
+                source="synthetic",
+                fetched_at=datetime(2024, 1, 1, 12, 0, 0),
+                metadata={"interval": "1d"},
+            ),
+        ),
+        (
+            FetchResult,
+            FetchResult(
+                data={
+                    "AAPL": MarketData(
+                        symbol="AAPL",
+                        data=pd.DataFrame({"close": [100.0]}),
+                        source="synthetic",
+                        fetched_at=datetime(2024, 1, 1),
+                    )
+                },
+                errors={"MSFT": RuntimeError("boom")},
+                missing=["GOOG"],
+            ),
+        ),
         (RegimeSegment, segment),
         (RegimeResult, regime_result),
         (Holding, Holding(symbol="AAPL", quantity=100, avg_cost=150.0, current_price=160.0)),
