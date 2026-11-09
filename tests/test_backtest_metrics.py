@@ -521,3 +521,97 @@ class TestBacktestMetricsNewRiskMetrics:
         assert metrics.treynor_ratio == 0.0
         assert metrics.information_ratio == 0.0
         assert metrics.omega_ratio == 0.0
+
+
+class TestBacktestMetricsFromDict:
+    """Test BacktestMetrics.from_dict deserialization."""
+
+    def test_from_dict_round_trips_to_dict(self):
+        """from_dict must reconstruct a metrics object equal to its to_dict output."""
+        metrics = BacktestMetrics(
+            total_return=15000.0,
+            total_pnl=12000.0,
+            total_return_pct=15.0,
+            annual_return=0.12,
+            annual_return_pct=12.0,
+            volatility=0.2,
+            max_drawdown=-0.08,
+            max_drawdown_pct=-8.0,
+            sharpe_ratio=1.5,
+            sortino_ratio=2.0,
+            calmar_ratio=1.5,
+            win_rate=0.6,
+            profit_factor=1.4,
+            num_trades=10,
+            num_winning_trades=6,
+            num_losing_trades=4,
+            avg_win=500.0,
+            avg_loss=-250.0,
+            largest_win=1200.0,
+            largest_loss=-900.0,
+            var_95=-0.03,
+            var_99=-0.05,
+            cvar_95=-0.04,
+            cvar_99=-0.06,
+            beta=1.1,
+            alpha=0.02,
+            treynor_ratio=0.09,
+            information_ratio=0.4,
+            omega_ratio=1.25,
+            unrealized_pnl=300.0,
+        )
+        reconstructed = BacktestMetrics.from_dict(metrics.to_dict())
+        assert reconstructed == metrics
+
+    def test_from_dict_defaults_missing_keys_to_zero(self):
+        """Missing keys must fall back to the dataclass defaults."""
+        metrics = BacktestMetrics.from_dict({"sharpe_ratio": 1.5, "num_trades": 3})
+
+        assert metrics.total_return == 0.0
+        assert metrics.total_pnl == 0.0
+        assert metrics.total_return_pct == 0.0
+        assert metrics.annual_return == 0.0
+        assert metrics.annual_return_pct == 0.0
+        assert metrics.volatility == 0.0
+        assert metrics.max_drawdown == 0.0
+        assert metrics.max_drawdown_pct == 0.0
+        assert metrics.sharpe_ratio == 1.5
+        assert metrics.sortino_ratio == 0.0
+        assert metrics.calmar_ratio == 0.0
+        assert metrics.win_rate == 0.0
+        assert metrics.profit_factor == 0.0
+        assert metrics.num_trades == 3
+        assert metrics.num_winning_trades == 0
+        assert metrics.num_losing_trades == 0
+        assert metrics.avg_win == 0.0
+        assert metrics.avg_loss == 0.0
+        assert metrics.largest_win == 0.0
+        assert metrics.largest_loss == 0.0
+        assert metrics.var_95 == 0.0
+        assert metrics.var_99 == 0.0
+        assert metrics.cvar_95 == 0.0
+        assert metrics.cvar_99 == 0.0
+        assert metrics.beta == 0.0
+        assert metrics.alpha == 0.0
+        assert metrics.treynor_ratio == 0.0
+        assert metrics.information_ratio == 0.0
+        assert metrics.omega_ratio == 0.0
+        assert metrics.unrealized_pnl == 0.0
+
+    def test_from_dict_ignores_extra_keys(self):
+        """Extra keys in the dictionary must not raise."""
+        data = BacktestMetrics(total_return=100.0).to_dict()
+        data["unknown_metric"] = 42.0
+        data["another_extra"] = "not-a-number"
+        metrics = BacktestMetrics.from_dict(data)
+        assert metrics.total_return == 100.0
+        assert metrics.num_trades == 0
+
+    def test_from_dict_preserves_integer_trade_counts(self):
+        """Integer trade-count fields must survive a dictionary round-trip."""
+        metrics = BacktestMetrics(num_trades=7, num_winning_trades=4, num_losing_trades=3)
+        reconstructed = BacktestMetrics.from_dict(metrics.to_dict())
+        assert reconstructed.num_trades == 7
+        assert reconstructed.num_winning_trades == 4
+        assert reconstructed.num_losing_trades == 3
+        assert isinstance(reconstructed.num_trades, int)

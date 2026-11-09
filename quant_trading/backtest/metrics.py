@@ -191,6 +191,54 @@ class BacktestMetrics:
             "unrealized_pnl": self.unrealized_pnl,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "BacktestMetrics":
+        """Deserialize backtest metrics from a dictionary.
+
+        Missing keys fall back to the dataclass defaults, so a dictionary
+        produced by :meth:`to_dict` (for example after a JSON round-trip) can
+        be reconstructed without carrying every field. Extra keys are ignored.
+
+        Args:
+            data: Dictionary whose keys match metric attribute names.
+
+        Returns:
+            BacktestMetrics object populated from the dictionary.
+
+        """
+        return cls(
+            total_return=data.get("total_return", 0.0),
+            total_pnl=data.get("total_pnl", 0.0),
+            total_return_pct=data.get("total_return_pct", 0.0),
+            annual_return=data.get("annual_return", 0.0),
+            annual_return_pct=data.get("annual_return_pct", 0.0),
+            volatility=data.get("volatility", 0.0),
+            max_drawdown=data.get("max_drawdown", 0.0),
+            max_drawdown_pct=data.get("max_drawdown_pct", 0.0),
+            sharpe_ratio=data.get("sharpe_ratio", 0.0),
+            sortino_ratio=data.get("sortino_ratio", 0.0),
+            calmar_ratio=data.get("calmar_ratio", 0.0),
+            win_rate=data.get("win_rate", 0.0),
+            profit_factor=data.get("profit_factor", 0.0),
+            num_trades=data.get("num_trades", 0),
+            num_winning_trades=data.get("num_winning_trades", 0),
+            num_losing_trades=data.get("num_losing_trades", 0),
+            avg_win=data.get("avg_win", 0.0),
+            avg_loss=data.get("avg_loss", 0.0),
+            largest_win=data.get("largest_win", 0.0),
+            largest_loss=data.get("largest_loss", 0.0),
+            var_95=data.get("var_95", 0.0),
+            var_99=data.get("var_99", 0.0),
+            cvar_95=data.get("cvar_95", 0.0),
+            cvar_99=data.get("cvar_99", 0.0),
+            beta=data.get("beta", 0.0),
+            alpha=data.get("alpha", 0.0),
+            treynor_ratio=data.get("treynor_ratio", 0.0),
+            information_ratio=data.get("information_ratio", 0.0),
+            omega_ratio=data.get("omega_ratio", 0.0),
+            unrealized_pnl=data.get("unrealized_pnl", 0.0),
+        )
+
 
 def calculate_backtest_metrics(
     equity_curve: pd.Series,
