@@ -578,5 +578,79 @@ def test_generate_html_report_omits_trade_details_when_disabled():
     assert "Performance Summary" in html
 
 
+def test_build_trades_table_truncates_at_max_rows():
+    """_build_trades_table must cap rows at max_rows and note the truncation."""
+    from quant_trading.backtest.report import _build_trades_table, _get_theme_colors
+
+    dates = pd.date_range("2024-01-01", periods=60, freq="D")
+    trades = pd.DataFrame(
+        {
+            "symbol": ["AAPL"] * 60,
+            "action": ["buy"] * 60,
+            "quantity": [10] * 60,
+            "price": [150.0 + i for i in range(60)],
+            "timestamp": dates,
+            "commission": [0.001] * 60,
+            "slippage": [0.0005] * 60,
+            "cost": [1500.0] * 60,
+            "fee": [2.25] * 60,
+            "pnl": [float(i) for i in range(60)],
+        }
+    )
+    result = _create_sample_result()
+    result = result.__class__(
+        equity_curve=result.equity_curve,
+        trades=trades,
+        positions={},
+        metrics=result.metrics,
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=result.initial_capital,
+        final_value=result.final_value,
+        total_return=result.total_return,
+        total_return_pct=result.total_return_pct,
+    )
+    html = _build_trades_table(result, _get_theme_colors("light"))
+    assert "Showing first 50 of 60 trades" in html
+    # 50 data rows + 1 header row
+    assert html.count("<tr style") == 50
+
+
+def test_build_trades_table_formats_missing_and_nan_columns():
+    """_build_trades_table must render N/A for NaN and skip absent optional columns."""
+    from quant_trading.backtest.report import _build_trades_table, _get_theme_colors
+
+    dates = pd.date_range("2024-01-01", periods=100, freq="D")
+    trades = pd.DataFrame(
+        {
+            "symbol": ["AAPL", "MSFT"],
+            "action": ["buy", "sell"],
+            "quantity": [np.nan, 10],
+            "price": [np.nan, 160.0],
+            "timestamp": [dates[0], dates[1]],
+            "pnl": [10.0, -5.0],
+        }
+    )
+    result = _create_sample_result()
+    result = result.__class__(
+        equity_curve=result.equity_curve,
+        trades=trades,
+        positions={},
+        metrics=result.metrics,
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=result.initial_capital,
+        final_value=result.final_value,
+        total_return=result.total_return,
+        total_return_pct=result.total_return_pct,
+    )
+    html = _build_trades_table(result, _get_theme_colors("light"))
+    assert "N/A" in html
+    assert "AAPL" in html
+    assert "MSFT" in html
+    # Optional columns absent from the frame must not break rendering
+    assert "commission" not in html.split("<thead>")[1]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
