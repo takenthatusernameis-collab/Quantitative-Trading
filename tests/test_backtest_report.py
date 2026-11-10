@@ -541,6 +541,38 @@ def test_comparison_report_dark_theme():
     assert "#1e1e1e" in html  # dark background color
 
 
+def test_report_matplotlib_unavailable_branch(monkeypatch):
+    """Cover report.py:29-30: MATPLOTLIB_AVAILABLE=False when matplotlib import fails.
+
+    Simulates a missing matplotlib at import time by blocking the module in
+    sys.modules and reloading the report module, exercising the except branch.
+    """
+    import importlib
+    import sys
+
+    import quant_trading.backtest.report as report_module
+
+    original_matplotlib = sys.modules.get("matplotlib")
+    original_pyplot = sys.modules.get("matplotlib.pyplot")
+    try:
+        sys.modules["matplotlib"] = None
+        sys.modules["matplotlib.pyplot"] = None
+        reloaded = importlib.reload(report_module)
+        assert reloaded.MATPLOTLIB_AVAILABLE is False
+        with pytest.raises(ImportError, match="matplotlib is required"):
+            reloaded._check_matplotlib()
+    finally:
+        if original_matplotlib is None:
+            sys.modules.pop("matplotlib", None)
+        else:
+            sys.modules["matplotlib"] = original_matplotlib
+        if original_pyplot is None:
+            sys.modules.pop("matplotlib.pyplot", None)
+        else:
+            sys.modules["matplotlib.pyplot"] = original_pyplot
+    importlib.reload(report_module)
+
+
 def test_generate_html_report_uses_default_config_when_config_is_none():
     """generate_html_report must fall back to ReportConfig() when config is None."""
     result = _create_sample_result()
