@@ -541,5 +541,42 @@ def test_comparison_report_dark_theme():
     assert "#1e1e1e" in html  # dark background color
 
 
+def test_generate_html_report_uses_default_config_when_config_is_none():
+    """generate_html_report must fall back to ReportConfig() when config is None."""
+    result = _create_sample_result()
+    html = generate_html_report(result)
+    assert isinstance(html, str)
+    assert "<!DOCTYPE html>" in html
+    assert "Backtest Report" in html
+    assert "Equity Curve" in html
+
+
+def test_generate_html_report_omits_monthly_heatmap_when_disabled():
+    """include_monthly_heatmap=False must exclude the monthly returns chart."""
+    result = _create_sample_result()
+    config = ReportConfig(include_charts=True, include_monthly_heatmap=False)
+    html = generate_html_report(result, config)
+    assert "Monthly Returns" not in html
+    assert "Equity Curve" in html
+
+
+def test_generate_html_report_omits_rolling_metrics_when_disabled():
+    """include_rolling_metrics=False must exclude the rolling metric chart cards."""
+    result = _create_sample_result()
+    config = ReportConfig(include_charts=True, include_rolling_metrics=False)
+    html = generate_html_report(result, config)
+    assert "Rolling Sharpe" not in html
+    assert "Rolling Volatility" not in html
+
+
+def test_generate_html_report_omits_trade_details_when_disabled():
+    """include_trade_details=False must exclude the trade details section."""
+    result = _create_sample_result()
+    config = ReportConfig(include_charts=False, include_trade_details=False)
+    html = generate_html_report(result, config)
+    assert "Trade Details" not in html
+    assert "Performance Summary" in html
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
