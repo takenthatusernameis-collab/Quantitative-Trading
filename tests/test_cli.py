@@ -4240,6 +4240,54 @@ class TestUserErrorReporting:
         assert "Window Results:" in captured.out
         assert "Traceback" not in captured.out
 
+    @pytest.mark.slow
+    def test_offline_walk_forward_with_bayesian_inner_optimizer_and_custom_noise_completes(self, capsys):
+        """An offline walk-forward run with the Bayesian inner optimizer and a
+        custom ``--bayesian-noise`` completes end-to-end.
+
+        This guards the full CLI → ``run_walk_forward`` →
+        ``WalkForwardOptimizer`` → ``optimizer_kwargs`` → ``BayesianOptimizer``
+        → ``gp_minimize`` path with a non-default noise value, ensuring the
+        parameter is forwarded through the walk-forward layer and accepted by
+        scikit-optimize's GP kernel.
+        """
+        args = [
+            "--offline",
+            "--walk-forward",
+            "--wf-optimizer",
+            "bayesian",
+            "--bayesian-n-initial",
+            "2",
+            "--n-iter",
+            "5",
+            "--bayesian-noise",
+            "1e-4",
+            "--ma-fast-range",
+            "5,15,5",
+            "--ma-slow-range",
+            "20,30,10",
+            "--wf-windows",
+            "3",
+            "--wf-train-size",
+            "0.7",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "90",
+            "--n-jobs",
+            "1",
+        ]
+        with patch("sys.argv", ["cli.py", *args]):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Running walk-forward optimization for MovingAverageCrossover" in captured.out
+        assert "Inner optimizer: bayesian" in captured.out
+        assert "Walk-Forward Optimization Complete" in captured.out
+        assert "Window Results:" in captured.out
+        assert "Traceback" not in captured.out
+
     def test_zero_n_jobs_is_reported(self, capsys):
         """Zero ``--n-jobs`` is a usage error at the CLI level.
 
