@@ -19,7 +19,7 @@ from .bayesian import BayesianOptimizerConfig
 
 _BayesianOptimizer: type | None
 if TYPE_CHECKING:
-    from .bayesian import BayesianOptimizer as BayesianOptimizer
+    from .bayesian import BayesianOptimizer as BayesianOptimizer  # pragma: no cover
 else:
     try:
         from .bayesian import BayesianOptimizer as _BayesianOptimizer

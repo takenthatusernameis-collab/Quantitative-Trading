@@ -235,6 +235,38 @@ def test_walk_forward_result_from_dict_rejects_unexpected_combined_type():
     assert result.windows == []
 
 
+def test_optimization_result_from_dict_coerces_datetime_start_time():
+    """OptimizationResult.from_dict keeps a datetime start_time (base.py:755).
+
+    Covers the datetime branch of the private ``_coerce_datetime`` helper in
+    quant_trading/optimization/base.py: when ``start_time`` is already a
+    ``datetime`` it is returned unchanged, so a round-trip preserves it.
+    """
+    from quant_trading.optimization.base import OptimizationResult
+
+    start = datetime(2024, 1, 1, 12, 0, 0)
+    data = {"best_params": {"x": 1}, "best_score": 1.0, "start_time": start}
+    result = OptimizationResult.from_dict(data)
+    assert result.start_time == start
+    assert OptimizationResult.from_dict(result.to_dict()) == result
+
+
+def test_optimization_result_from_dict_drops_uncoercible_start_time():
+    """OptimizationResult.from_dict drops a non-coercible start_time (base.py:758).
+
+    Covers the fallback branch of the private ``_coerce_datetime`` helper in
+    quant_trading/optimization/base.py: when ``start_time`` is neither None,
+    a datetime, nor an ISO-8601 string, it is coerced to None.
+    """
+    from quant_trading.optimization.base import OptimizationResult
+
+    data = {"best_params": {"x": 1}, "best_score": 1.0, "start_time": 42}
+    result = OptimizationResult.from_dict(data)
+    assert result.start_time is None
+    assert result.best_params == {"x": 1}
+    assert result.best_score == 1.0
+
+
 def test_every_dataclass_declares_to_dict_and_from_dict():
     """Every dataclass defined in ``quant_trading/`` must expose ``to_dict``/``from_dict``.
 
