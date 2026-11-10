@@ -219,6 +219,159 @@ def test_parameter_grid_random():
         assert combo["b"] in [10, 20, 30]
 
 
+def test_parameter_space_to_dict():
+    """Test ParameterSpace.to_dict serialization."""
+    space = ParameterSpace("test_param", values=[1, 2, 3], min_val=0.0, max_val=10.0, step=1.0, distribution="log", param_type=int)
+    data = space.to_dict()
+
+    assert data["name"] == "test_param"
+    assert data["values"] == [1, 2, 3]
+    assert data["min_val"] == 0.0
+    assert data["max_val"] == 10.0
+    assert data["step"] == 1.0
+    assert data["distribution"] == "log"
+    assert data["param_type"] == "int"
+
+
+def test_parameter_space_to_dict_none_values():
+    """Test ParameterSpace.to_dict with None values."""
+    space = ParameterSpace("test_param", min_val=0.0, max_val=10.0, step=1.0, param_type=float)
+    data = space.to_dict()
+
+    assert data["name"] == "test_param"
+    assert data["values"] is None
+    assert data["min_val"] == 0.0
+    assert data["max_val"] == 10.0
+    assert data["step"] == 1.0
+    assert data["distribution"] is None
+    assert data["param_type"] == "float"
+
+
+def test_parameter_space_from_dict():
+    """Test ParameterSpace.from_dict deserialization."""
+    data = {
+        "name": "test_param",
+        "values": [1, 2, 3],
+        "min_val": 0.0,
+        "max_val": 10.0,
+        "step": 1.0,
+        "distribution": "log",
+        "param_type": "int",
+    }
+    space = ParameterSpace.from_dict(data)
+
+    assert space.name == "test_param"
+    assert space.values == [1, 2, 3]
+    assert space.min_val == 0.0
+    assert space.max_val == 10.0
+    assert space.step == 1.0
+    assert space.distribution == "log"
+    assert space.param_type == int
+
+
+def test_parameter_space_from_dict_defaults():
+    """Test ParameterSpace.from_dict with missing optional fields."""
+    data = {"name": "test_param", "values": []}
+    space = ParameterSpace.from_dict(data)
+
+    assert space.name == "test_param"
+    assert space.values == []
+    assert space.min_val is None
+    assert space.max_val is None
+    assert space.step is None
+    assert space.distribution is None
+    assert space.param_type == float
+
+
+def test_parameter_space_round_trip():
+    """Test ParameterSpace round-trip serialization."""
+    original = ParameterSpace("test_param", values=[1, 2, 3], min_val=0.0, max_val=10.0, step=1.0, distribution="log", param_type=int)
+    data = original.to_dict()
+    restored = ParameterSpace.from_dict(data)
+
+    assert restored.name == original.name
+    assert restored.values == original.values
+    assert restored.min_val == original.min_val
+    assert restored.max_val == original.max_val
+    assert restored.step == original.step
+    assert restored.distribution == original.distribution
+    assert restored.param_type == original.param_type
+
+
+def test_parameter_grid_to_dict():
+    """Test ParameterGrid.to_dict serialization."""
+    grid = ParameterGrid()
+    grid.add(ParameterSpace("a", values=[1, 2], param_type=int))
+    grid.add(ParameterSpace("b", min_val=0.0, max_val=1.0, step=0.5, param_type=float))
+
+    data = grid.to_dict()
+
+    assert "spaces" in data
+    assert "a" in data["spaces"]
+    assert "b" in data["spaces"]
+    assert data["spaces"]["a"]["name"] == "a"
+    assert data["spaces"]["a"]["values"] == [1, 2]
+    assert data["spaces"]["a"]["param_type"] == "int"
+    assert data["spaces"]["b"]["name"] == "b"
+    assert data["spaces"]["b"]["min_val"] == 0.0
+    assert data["spaces"]["b"]["max_val"] == 1.0
+    assert data["spaces"]["b"]["step"] == 0.5
+    assert data["spaces"]["b"]["param_type"] == "float"
+
+
+def test_parameter_grid_from_dict():
+    """Test ParameterGrid.from_dict deserialization."""
+    data = {
+        "spaces": {
+            "a": {"name": "a", "values": [1, 2], "param_type": "int"},
+            "b": {"name": "b", "min_val": 0.0, "max_val": 1.0, "step": 0.5, "param_type": "float"},
+        }
+    }
+    grid = ParameterGrid.from_dict(data)
+
+    assert "a" in grid.spaces
+    assert "b" in grid.spaces
+    assert grid.spaces["a"].name == "a"
+    assert grid.spaces["a"].values == [1, 2]
+    assert grid.spaces["a"].param_type == int
+    assert grid.spaces["b"].name == "b"
+    assert grid.spaces["b"].min_val == 0.0
+    assert grid.spaces["b"].max_val == 1.0
+    assert grid.spaces["b"].step == 0.5
+    assert grid.spaces["b"].param_type == float
+
+
+def test_parameter_grid_round_trip():
+    """Test ParameterGrid round-trip serialization."""
+    original = ParameterGrid()
+    original.add(ParameterSpace("a", values=[1, 2], param_type=int))
+    original.add(ParameterSpace("b", min_val=0.0, max_val=1.0, step=0.5, param_type=float))
+
+    data = original.to_dict()
+    restored = ParameterGrid.from_dict(data)
+
+    assert list(restored.spaces.keys()) == list(original.spaces.keys())
+    for name in original.spaces:
+        orig_space = original.spaces[name]
+        rest_space = restored.spaces[name]
+        assert rest_space.name == orig_space.name
+        assert rest_space.values == orig_space.values
+        assert rest_space.min_val == orig_space.min_val
+        assert rest_space.max_val == orig_space.max_val
+        assert rest_space.step == orig_space.step
+        assert rest_space.distribution == orig_space.distribution
+        assert rest_space.param_type == orig_space.param_type
+
+
+def test_parameter_grid_from_dict_empty():
+    """Test ParameterGrid.from_dict with empty spaces."""
+    grid = ParameterGrid.from_dict({})
+    assert grid.spaces == {}
+
+    grid = ParameterGrid.from_dict({"spaces": {}})
+    assert grid.spaces == {}
+
+
 def test_objective_functions():
     """Test objective functions."""
     from quant_trading.backtest.metrics import BacktestMetrics
@@ -4030,3 +4183,196 @@ class TestBayesianOptimizerNoise:
         optimizer.run()
 
         assert captured.get("noise") == optimizer.noise == BayesianOptimizerConfig().noise
+
+
+class TestBaseOptimizationUtilities:
+    """Tests for internal utility functions in optimization.base."""
+
+    def test_coerce_datetime_with_datetime(self):
+        """_coerce_datetime returns datetime objects unchanged."""
+        from quant_trading.optimization.base import _coerce_datetime
+
+        dt = datetime(2024, 1, 1, 9, 0, 0)
+        result = _coerce_datetime(dt)
+        assert result is dt
+
+    def test_coerce_datetime_with_string(self):
+        """_coerce_datetime parses ISO-8601 strings."""
+        from quant_trading.optimization.base import _coerce_datetime
+
+        result = _coerce_datetime("2024-01-01T09:00:00")
+        assert result == datetime(2024, 1, 1, 9, 0, 0)
+
+    def test_coerce_datetime_with_none(self):
+        """_coerce_datetime returns None for None input."""
+        from quant_trading.optimization.base import _coerce_datetime
+
+        result = _coerce_datetime(None)
+        assert result is None
+
+    def test_coerce_datetime_with_other_type(self):
+        """_coerce_datetime returns None for unsupported types."""
+        from quant_trading.optimization.base import _coerce_datetime
+
+        result = _coerce_datetime(123)
+        assert result is None
+
+        result = _coerce_datetime([])
+        assert result is None
+
+        result = _coerce_datetime({})
+        assert result is None
+
+
+class TestWalkForwardWindowRestoreResult:
+    """Tests for the _restore_result helper in WalkForwardWindow.from_dict."""
+
+    def test_restore_result_with_none(self):
+        """_restore_result returns None for None input."""
+        from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+        # Access the private helper via from_dict with a known structure
+        window = WalkForwardWindow.from_dict(
+            {
+                "train_start": datetime(2024, 1, 1),
+                "train_end": datetime(2024, 2, 1),
+                "test_start": datetime(2024, 2, 1),
+                "test_end": datetime(2024, 3, 1),
+                "train_result": None,
+                "test_result": None,
+            }
+        )
+        assert window.train_result is None
+        assert window.test_result is None
+
+    def test_restore_result_with_backtest_result_instance(self):
+        """_restore_result passes BacktestResult instances through unchanged."""
+        from quant_trading.backtest.engine import BacktestResult
+        from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+        br = BacktestResult(
+            equity_curve=pd.Series([100000, 101000]),
+            trades=pd.DataFrame(),
+            positions={},
+            metrics=None,
+            start_date=datetime(2024, 1, 1),
+            end_date=datetime(2024, 1, 2),
+            initial_capital=100000.0,
+            final_value=101000.0,
+            total_return=1000.0,
+            total_return_pct=1.0,
+        )
+        window = WalkForwardWindow.from_dict(
+            {
+                "train_start": datetime(2024, 1, 1),
+                "train_end": datetime(2024, 2, 1),
+                "test_start": datetime(2024, 2, 1),
+                "test_end": datetime(2024, 3, 1),
+                "train_result": br,
+                "test_result": br,
+            }
+        )
+        assert window.train_result is br
+        assert window.test_result is br
+
+    def test_restore_result_with_dict(self):
+        """_restore_result reconstructs BacktestResult from dict."""
+        from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+        window = WalkForwardWindow.from_dict(
+            {
+                "train_start": datetime(2024, 1, 1),
+                "train_end": datetime(2024, 2, 1),
+                "test_start": datetime(2024, 2, 1),
+                "test_end": datetime(2024, 3, 1),
+                "train_result": {"total_return_pct": 5.0},
+                "test_result": {"total_return_pct": 3.0},
+            }
+        )
+        assert window.train_result is not None
+        assert window.train_result.total_return_pct == 5.0
+        assert window.test_result is not None
+        assert window.test_result.total_return_pct == 3.0
+
+    def test_restore_result_with_other_type(self):
+        """_restore_result returns None for unsupported types."""
+        from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+        window = WalkForwardWindow.from_dict(
+            {
+                "train_start": datetime(2024, 1, 1),
+                "train_end": datetime(2024, 2, 1),
+                "test_start": datetime(2024, 2, 1),
+                "test_end": datetime(2024, 3, 1),
+                "train_result": "not-a-dict",
+                "test_result": 123,
+            }
+        )
+        assert window.train_result is None
+        assert window.test_result is None
+
+
+class TestWalkForwardResultCombinedRestore:
+    """Tests for combined_test_result restoration in WalkForwardResult.from_dict."""
+
+    def test_combined_result_with_dict(self):
+        """from_dict reconstructs combined_test_result from dict."""
+        from quant_trading.optimization.walk_forward import WalkForwardResult
+
+        result = WalkForwardResult.from_dict(
+            {
+                "windows": [],
+                "combined_test_result": {"total_return_pct": 10.0},
+                "anchored": True,
+            }
+        )
+        assert result.combined_test_result is not None
+        assert result.combined_test_result.total_return_pct == 10.0
+
+    def test_combined_result_with_backtest_result_instance(self):
+        """from_dict passes BacktestResult instance through unchanged."""
+        from quant_trading.backtest.engine import BacktestResult
+        from quant_trading.optimization.walk_forward import WalkForwardResult
+
+        br = BacktestResult(
+            equity_curve=pd.Series([100000, 101000]),
+            trades=pd.DataFrame(),
+            positions={},
+            metrics=None,
+            start_date=datetime(2024, 1, 1),
+            end_date=datetime(2024, 1, 2),
+            initial_capital=100000.0,
+            final_value=101000.0,
+            total_return=1000.0,
+            total_return_pct=1.0,
+        )
+        result = WalkForwardResult.from_dict(
+            {
+                "windows": [],
+                "combined_test_result": br,
+                "anchored": True,
+            }
+        )
+        assert result.combined_test_result is br
+
+    def test_combined_result_with_other_type(self):
+        """from_dict sets combined_test_result to None for unsupported types."""
+        from quant_trading.optimization.walk_forward import WalkForwardResult
+
+        result = WalkForwardResult.from_dict(
+            {
+                "windows": [],
+                "combined_test_result": "not-a-dict",
+                "anchored": True,
+            }
+        )
+        assert result.combined_test_result is None
+
+        result = WalkForwardResult.from_dict(
+            {
+                "windows": [],
+                "combined_test_result": 123,
+                "anchored": True,
+            }
+        )
+        assert result.combined_test_result is None
