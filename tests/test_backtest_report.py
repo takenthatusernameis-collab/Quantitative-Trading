@@ -1014,5 +1014,121 @@ def test_build_trades_table_missing_quantity_column():
     # quantity column should not appear in output since it was missing
 
 
+def test_report_config_to_dict_and_from_dict_roundtrip():
+    """ReportConfig.to_dict/from_dict must serialize and reconstruct faithfully (report.py:62, 85)."""
+    from quant_trading.backtest.report import ReportConfig
+
+    config = ReportConfig(
+        title="Custom Report",
+        include_charts=False,
+        theme="dark",
+        dpi=300,
+    )
+    data = config.to_dict()
+    assert data == {
+        "title": "Custom Report",
+        "include_charts": False,
+        "include_trade_details": True,
+        "include_monthly_heatmap": True,
+        "include_rolling_metrics": True,
+        "theme": "dark",
+        "dpi": 300,
+    }
+    restored = ReportConfig.from_dict(data)
+    assert restored == config
+
+
+def test_report_config_from_dict_missing_keys_use_defaults():
+    """ReportConfig.from_dict must fall back to defaults for missing keys (report.py:85)."""
+    from quant_trading.backtest.report import ReportConfig
+
+    restored = ReportConfig.from_dict({"title": "Only title"})
+    assert restored.title == "Only title"
+    assert restored.include_charts is True
+    assert restored.include_trade_details is True
+    assert restored.include_monthly_heatmap is True
+    assert restored.include_rolling_metrics is True
+    assert restored.theme == "light"
+    assert restored.dpi == 150
+
+
+def test_check_matplotlib_raises_when_unavailable(monkeypatch):
+    """_check_matplotlib must raise ImportError when matplotlib is unavailable (report.py:99)."""
+    import quant_trading.backtest.report as report_module
+
+    monkeypatch.setattr(report_module, "MATPLOTLIB_AVAILABLE", False)
+    with pytest.raises(ImportError, match="matplotlib is required"):
+        report_module._check_matplotlib()
+
+
+def test_build_comparison_table_metric_value_error():
+    """_build_comparison_table must render N/A when a metric_fn raises (report.py:1059-1060)."""
+    import pandas as pd
+
+    from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.report import (
+        _build_comparison_table,
+        _get_theme_colors,
+    )
+
+    dates = pd.date_range("2024-01-01", periods=10, freq="D")
+    equity_curve = pd.Series([100000] * 10, index=dates)
+    trades_df = pd.DataFrame()
+
+    class GoodMetrics:
+        total_return = 0.0
+        total_return_pct = 0.0
+        annual_return = 0.0
+        volatility = 0.0
+        sharpe_ratio = 0.0
+        sortino_ratio = 0.0
+        calmar_ratio = 0.0
+        max_drawdown = 0.0
+        max_drawdown_pct = 0.0
+        win_rate = 0.0
+        profit_factor = 0.0
+        num_trades = 0
+        avg_win = 0.0
+        avg_loss = 0.0
+        largest_win = 0.0
+        largest_loss = 0.0
+
+    good_result = BacktestResult(
+        equity_curve=equity_curve,
+        trades=trades_df,
+        positions={},
+        metrics=GoodMetrics(),
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=100000.0,
+        final_value=100000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+        total_costs=0.0,
+    )
+
+    # total_return_pct=None makes f"{None:.2f}%" raise ValueError, hitting the except branch.
+    bad_result = BacktestResult(
+        equity_curve=equity_curve,
+        trades=trades_df,
+        positions={},
+        metrics=GoodMetrics(),
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=100000.0,
+        final_value=100000.0,
+        total_return=0.0,
+        total_return_pct=None,
+        total_costs=0.0,
+    )
+
+    results = [("Good", good_result), ("Bad", bad_result)]
+    html = _build_comparison_table(results, _get_theme_colors("light"))
+
+    assert "Good" in html
+    assert "Bad" in html
+    assert "N/A" in html
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
