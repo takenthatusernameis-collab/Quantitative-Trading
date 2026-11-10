@@ -235,6 +235,108 @@ def test_walk_forward_result_from_dict_rejects_unexpected_combined_type():
     assert result.windows == []
 
 
+def test_walk_forward_window_from_dict_restores_backtest_result_instance():
+    """WalkForwardWindow.from_dict keeps an already-built BacktestResult (line 173).
+
+    Covers the ``isinstance(value, BacktestResult)`` branch of ``_restore_result``:
+    when ``train_result``/``test_result`` is already a ``BacktestResult`` it is
+    returned unchanged rather than re-deserialized.
+    """
+    from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+    result = BacktestResult(
+        equity_curve=pd.Series(dtype=float),
+        trades=pd.DataFrame(),
+        positions=pd.DataFrame(),
+        metrics=BacktestMetrics(),
+        start_date=datetime(2024, 1, 1),
+        end_date=datetime(2024, 1, 2),
+        initial_capital=100000.0,
+        final_value=100000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+    )
+    data = {
+        "train_start": "2024-01-01T00:00:00",
+        "train_end": "2024-02-01T00:00:00",
+        "test_start": "2024-02-01T00:00:00",
+        "test_end": "2024-03-01T00:00:00",
+        "best_params": {"fast": 5},
+        "train_result": result,
+        "test_result": result,
+    }
+    window = WalkForwardWindow.from_dict(data)
+    assert window.train_result is result
+    assert window.test_result is result
+    assert window.best_params == {"fast": 5}
+
+
+def test_walk_forward_window_from_dict_restores_backtest_result_from_dict():
+    """WalkForwardWindow.from_dict rebuilds a BacktestResult from a dict (line 175).
+
+    Covers the ``isinstance(value, dict)`` branch of ``_restore_result``: a dict
+    payload is deserialized via ``BacktestResult.from_dict``.
+    """
+    from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+    result = BacktestResult(
+        equity_curve=pd.Series(dtype=float),
+        trades=pd.DataFrame(),
+        positions=pd.DataFrame(),
+        metrics=BacktestMetrics(),
+        start_date=datetime(2024, 1, 1),
+        end_date=datetime(2024, 1, 2),
+        initial_capital=100000.0,
+        final_value=100000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+    )
+    data = {
+        "train_start": "2024-01-01T00:00:00",
+        "train_end": "2024-02-01T00:00:00",
+        "test_start": "2024-02-01T00:00:00",
+        "test_end": "2024-03-01T00:00:00",
+        "best_params": {"fast": 5},
+        "train_result": result.to_dict(),
+        "test_result": result.to_dict(),
+    }
+    window = WalkForwardWindow.from_dict(data)
+    assert window.train_result.to_dict() == result.to_dict()
+    assert window.test_result.to_dict() == result.to_dict()
+    assert window.best_params == {"fast": 5}
+
+
+def test_walk_forward_result_from_dict_restores_combined_test_result_from_dict():
+    """WalkForwardResult.from_dict rebuilds combined_test_result from a dict (line 277).
+
+    Covers the ``isinstance(combined, dict)`` branch: a dict payload for
+    ``combined_test_result`` is deserialized via ``BacktestResult.from_dict``.
+    """
+    from quant_trading.optimization.walk_forward import WalkForwardResult
+
+    result = BacktestResult(
+        equity_curve=pd.Series(dtype=float),
+        trades=pd.DataFrame(),
+        positions=pd.DataFrame(),
+        metrics=BacktestMetrics(),
+        start_date=datetime(2024, 1, 1),
+        end_date=datetime(2024, 1, 2),
+        initial_capital=100000.0,
+        final_value=100000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+    )
+    data = {
+        "windows": [],
+        "combined_test_result": result.to_dict(),
+        "anchored": True,
+    }
+    restored = WalkForwardResult.from_dict(data)
+    assert restored.combined_test_result.to_dict() == result.to_dict()
+    assert restored.anchored is True
+    assert restored.windows == []
+
+
 def test_optimization_result_from_dict_coerces_datetime_start_time():
     """OptimizationResult.from_dict keeps a datetime start_time (base.py:755).
 
