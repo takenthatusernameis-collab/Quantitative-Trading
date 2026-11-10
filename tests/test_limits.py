@@ -665,3 +665,92 @@ class TestLimitsCoverageGaps:
         }
         lev = pl.leverage(positions, 100000.0)
         assert lev > 0
+
+
+class TestIsoAndCoerceDatetime:
+    """Tests for internal datetime helpers."""
+
+    def test_iso_none_returns_none(self):
+        from quant_trading.risk.limits import _iso
+
+        assert _iso(None) is None
+
+    def test_iso_datetime_returns_isoformat(self):
+        from datetime import datetime
+
+        from quant_trading.risk.limits import _iso
+
+        dt = datetime(2024, 1, 2, 3, 4, 5)
+        assert _iso(dt) == "2024-01-02T03:04:05"
+
+    def test_coerce_datetime_none(self):
+        from quant_trading.risk.limits import _coerce_datetime
+
+        assert _coerce_datetime(None) is None
+
+    def test_coerce_datetime_passthrough(self):
+        from datetime import datetime
+
+        from quant_trading.risk.limits import _coerce_datetime
+
+        dt = datetime(2024, 1, 2, 3, 4, 5)
+        assert _coerce_datetime(dt) is dt
+
+    def test_coerce_datetime_from_iso_string(self):
+        from datetime import datetime
+
+        from quant_trading.risk.limits import _coerce_datetime
+
+        result = _coerce_datetime("2024-01-02T03:04:05")
+        assert result == datetime(2024, 1, 2, 3, 4, 5)
+
+    def test_coerce_datetime_unexpected_type_returns_none(self):
+        from quant_trading.risk.limits import _coerce_datetime
+
+        assert _coerce_datetime(12345) is None
+
+
+class TestCheckResultSerialization:
+    """Tests for CheckResult.to_dict/from_dict branches."""
+
+    def test_to_dict_serializes_timestamp(self):
+        from datetime import datetime
+
+        dt = datetime(2024, 1, 2, 3, 4, 5)
+        res = CheckResult(passed=False, violations=["x"], timestamp=dt)
+        d = res.to_dict()
+        assert d["passed"] is False
+        assert d["violations"] == ["x"]
+        assert d["timestamp"] == "2024-01-02T03:04:05"
+
+    def test_from_dict_missing_keys_use_defaults(self):
+        from datetime import datetime
+
+        res = CheckResult.from_dict({})
+        assert res.passed is True
+        assert res.violations == []
+        assert isinstance(res.timestamp, datetime)
+
+    def test_from_dict_coerces_iso_timestamp(self):
+        from datetime import datetime
+
+        res = CheckResult.from_dict(
+            {"passed": False, "violations": ["v"], "timestamp": "2024-01-02T03:04:05"}
+        )
+        assert res.passed is False
+        assert res.violations == ["v"]
+        assert res.timestamp == datetime(2024, 1, 2, 3, 4, 5)
+
+    def test_from_dict_invalid_timestamp_type_falls_back_to_now(self):
+        from datetime import datetime
+
+        res = CheckResult.from_dict({"passed": True, "timestamp": 12345})
+        assert isinstance(res.timestamp, datetime)
+
+    def test_add_violation_marks_failed(self):
+        res = CheckResult(passed=True)
+        assert res.ok is True
+        res.add_violation("boom")
+        assert res.passed is False
+        assert res.ok is False
+        assert res.violations == ["boom"]
