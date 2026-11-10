@@ -4,6 +4,7 @@ import warnings
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -485,6 +486,20 @@ class TestBacktestMetricsNewRiskMetrics:
         assert metrics.alpha != 0.0
         assert metrics.treynor_ratio != 0.0
         assert metrics.information_ratio != 0.0
+
+    def test_market_relative_metrics_zero_beta_skips_derived_metrics(self):
+        """When market_returns are provided but beta is zero, alpha/treynor/info stay at defaults.
+
+        Covers the ``if beta != 0:`` branch in calculate_backtest_metrics (metrics.py:353).
+        """
+        market_returns = pd.Series([0.01, 0.015, -0.005, 0.012, -0.003, 0.008, 0.01])
+        with patch("quant_trading.risk.metrics.calculate_beta", return_value=0.0):
+            metrics = calculate_backtest_metrics(self.EQUITY, market_returns=market_returns)
+
+        assert metrics.beta == 0.0
+        assert metrics.alpha == 0.0
+        assert metrics.treynor_ratio == 0.0
+        assert metrics.information_ratio == 0.0
 
     def test_market_relative_metrics_zero_when_no_market_returns(self):
         """Test that market-relative metrics remain zero when market_returns not provided."""

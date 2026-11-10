@@ -1,79 +1,63 @@
 ## What changed (2026-11-10, this session)
 
-- Added 3 tests (+37 lines) to `tests/test_rebalancer_extra_coverage.py`
-  covering the previously-uncovered private datetime helpers in
-  `quant_trading/portfolio/rebalancer.py`:
-  - `test_rebalancer_iso_none_returns_none` — `_iso(None)` returns `None`
-    (rebalancer.py:43).
-  - `test_rebalancer_iso_datetime_returns_isoformat` — `_iso(datetime)`
-    returns its ISO-8601 string (rebalancer.py:44).
-  - `test_rebalancer_coerce_datetime_branches` — `_coerce_datetime`
-    covers the None/datetime/str/fallback branches (rebalancer.py:50-55).
+- Added 4 tests (+42 lines) to `tests/test_backtest_engine.py`
+  covering the previously-uncovered `Trade.to_dict()`/`Trade.from_dict()`
+  serialization methods in `quant_trading/backtest/engine.py`:
+  - `test_trade_to_dict_serializes_all_fields` — covers engine.py:237-246
+  - `test_trade_from_dict_deserializes_all_fields` — covers engine.py:276-287
+  - `test_trade_from_dict_defaults_missing_optional_keys` — covers default fallback branch
+  - `test_trade_to_dict_from_dict_round_trip` — round-trip equivalence
+
+- Added 1 test (+14 lines) to `tests/test_backtest_metrics.py`
+  covering the `beta == 0` branch in `quant_trading/backtest/metrics.py`:
+  - `test_market_relative_metrics_zero_beta_skips_derived_metrics` — covers metrics.py:353
+    (when `calculate_beta` returns 0, `alpha`/`treynor_ratio`/`information_ratio` stay at defaults)
+
+- Added `from unittest.mock import patch` import to test_backtest_metrics.py
 
 No source changes — only regression tests.
 
 ## Verified (this session, evidence)
 
-- `python -m pytest tests/test_rebalancer_extra_coverage.py
-  tests/test_rebalancer.py tests/test_rebalancer_execution.py
-  tests/test_rebalancer_risk_integration.py tests/test_rebalancer_sizing_invariants.py
-  tests/test_serialization_roundtrip.py tests/test_repository_integrity.py
-  tests/test_risk_manager.py tests/test_risk_metrics.py -q` → **402 passed**.
-- `quant_trading/portfolio/rebalancer.py` coverage → **100%**
-  (254 stmts, 0 miss, 0 branch miss). Was 98% (missing lines 43, 50, 52, 55).
-- Full non-slow/non-network suite re-run after installing `matplotlib` and
-  `scikit-optimize` (which were missing in the environment and caused 11
-  pre-existing failures): **2849 passed, 11 failed → all 11 now pass**.
-  Re-verified the previously-failing sets explicitly:
-  - `tests/test_readme_cli_commands.py` → 101 passed (was 5 failed).
-  - `tests/test_backtest_report.py` → 38 passed (was 3 failed).
-  - `tests/test_cli.py::TestHtmlReportFlag` → 3 passed (was 3 failed).
-- `python -m pytest tests/test_optimization.py -q` → **128 passed, 17 skipped**;
-  `quant_trading/optimization/bayesian.py` coverage → **100%** (was 96%,
-  missing lines 61/63/67; those are the numpy-conversion branches in
-  `_convert_to_native`, reached by the existing `test_convert_to_native`
-  once scikit-optimize/numpy coexist in one process).
-- `python -m ruff check .` → **All checks passed!**
-- `python -m mypy quant_trading --ignore-missing-imports` → **Success: no
-  issues found in 38 source files**
+- `python -m pytest tests/test_backtest_engine.py tests/test_backtest_metrics.py -q --cov=quant_trading -p no:cacheprovider` → **158 passed**
+- `quant_trading/backtest/engine.py` coverage → **99%** (was 98%)
+  - Lines 237, 276-278 now covered (Trade.to_dict/from_dict)
+  - Only lines 82-84 remain (TYPE_CHECKING block, runtime-invisible)
+- `quant_trading/backtest/metrics.py` coverage → **100%** (was 99%)
+  - Line 353 branch (`if beta != 0:`) now covered
+- `python -m ruff check tests/test_backtest_engine.py tests/test_backtest_metrics.py` → **All checks passed!**
+- `python -m mypy quant_trading/backtest/engine.py quant_trading/backtest/metrics.py --ignore-missing-imports` → **Success: no issues found**
 
 ## Unresolved / not completed
 
 - `quant_trading/backtest/report.py` lines 29-30 (import-time
-  matplotlib-unavailable branch) and `quant_trading/backtest/engine.py`
-  lines 82-84 (import-time `TYPE_CHECKING` block) remain uncovered. Both are
-  environment/import-time-only branches, not logic gaps.
+  matplotlib-unavailable branch) — environment-only, not a logic gap.
+- `quant_trading/backtest/engine.py` lines 82-84 (import-time `TYPE_CHECKING`
+  block) — `TYPE_CHECKING` is always False at runtime, cannot be covered.
 - `quant_trading/data/yfinance_provider.py` line 85 (`self._yf = yf` inside
-  the `try` of `_get_yf`) is uncovered because `yfinance` is not installed in
-  this environment; the `except ImportError` path IS covered by
-  `test_get_yf_import_error`. Installing yfinance would require network and
-  would only cover a one-line assignment; left uncovered.
-- The 11 pre-existing failures were caused by missing optional dependencies
-  (`matplotlib`, `scikit-optimize`), not by code defects. They are now fixed
-  in the environment; CI installs them via the `reporting`/`bayesian` extras.
+  the `try` of `_get_yf`) — `yfinance` not installed; `except ImportError` path
+  IS covered by `test_get_yf_import_error`.
 
 ## Failed approaches (do not repeat unchanged)
 
-- `--cov=quant_trading.<submodule>` (e.g. `--cov=quant_trading.portfolio.rebalancer`)
-  triggers a numpy "cannot load module more than once per process"
-  ImportError at collection in a fresh process once scikit-optimize is
-  installed. Coverage for these modules must be verified via
-  `--cov=quant_trading` instead. Do not use submodule coverage targets here.
+- `--cov=quant_trading.<submodule>` triggers a numpy "cannot load module more
+  than once per process" ImportError at collection once scikit-optimize is
+  installed. Use `--cov=quant_trading` instead.
 - Do not run the full `tests/` suite with coverage in a single foreground
-  call: it takes ~5.5 minutes and exceeds the default timeout. Run targeted
-  suites, or run it as a background process and tail the log.
+  call: it takes ~5.5 minutes and exceeds the default timeout.
 
 ## One precise next task
 
-- None outstanding. All bounded coverage gaps identified this session are
-  either environment/import-time-only branches or covered. If a new task is
-  assigned, re-run the verification set above first.
+- None outstanding. All bounded logic coverage gaps identified this session
+  are either covered or environment/import-time-only branches. If a new task
+  is assigned, re-run the verification set above first.
 
 ## Git state
 
 - Branch `main` up to date with `origin/main`.
 - HEAD = `cfac267`.
-- Uncommitted: `tests/test_rebalancer_extra_coverage.py` (+37 lines, 3 new tests).
+- Uncommitted: `tests/test_backtest_engine.py` (+42 lines, 4 new tests),
+  `tests/test_backtest_metrics.py` (+15 lines, 1 new test + 1 import).
 - No secrets/caches added; `data/` is gitignored.
 
 ## Constraints

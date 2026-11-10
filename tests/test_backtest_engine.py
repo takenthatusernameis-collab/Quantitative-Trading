@@ -1318,6 +1318,96 @@ def test_run_backtest_with_config_and_no_data_manager():
     assert result is not None
 
 
+def test_trade_to_dict_serializes_all_fields():
+    """Trade.to_dict() returns a JSON-safe dict with all fields."""
+    ts = datetime(2024, 1, 1, 12, 0, 0)
+    trade = Trade(
+        symbol="AAPL",
+        action="buy",
+        quantity=100,
+        price=150.0,
+        timestamp=ts,
+        commission=0.001,
+        slippage=0.0005,
+        realized_pnl=250.0,
+    )
+    d = trade.to_dict()
+    assert d == {
+        "symbol": "AAPL",
+        "action": "buy",
+        "quantity": 100,
+        "price": 150.0,
+        "timestamp": "2024-01-01T12:00:00",
+        "commission": 0.001,
+        "slippage": 0.0005,
+        "realized_pnl": 250.0,
+    }
+
+
+def test_trade_from_dict_deserializes_all_fields():
+    """Trade.from_dict() rebuilds a Trade from a dictionary."""
+    trade = Trade.from_dict(
+        {
+            "symbol": "MSFT",
+            "action": "sell",
+            "quantity": 50,
+            "price": 250.0,
+            "timestamp": "2024-06-15T09:30:00",
+            "commission": 0.002,
+            "slippage": 0.001,
+            "realized_pnl": -100.0,
+        }
+    )
+    assert trade.symbol == "MSFT"
+    assert trade.action == "sell"
+    assert trade.quantity == 50
+    assert trade.price == 250.0
+    assert trade.timestamp.isoformat() == "2024-06-15T09:30:00"
+    assert trade.commission == 0.002
+    assert trade.slippage == 0.001
+    assert trade.realized_pnl == -100.0
+
+
+def test_trade_from_dict_defaults_missing_optional_keys():
+    """Trade.from_dict() falls back to defaults for missing optional keys."""
+    trade = Trade.from_dict(
+        {
+            "symbol": "GOOGL",
+            "action": "buy",
+            "quantity": 10,
+            "price": 100.0,
+            "timestamp": "2024-03-01T10:00:00",
+        }
+    )
+    assert trade.commission == 0.0
+    assert trade.slippage == 0.0
+    assert trade.realized_pnl == 0.0
+
+
+def test_trade_to_dict_from_dict_round_trip():
+    """Trade.from_dict(trade.to_dict()) reproduces the original trade."""
+    ts = datetime(2024, 2, 28, 14, 30, 0)
+    original = Trade(
+        symbol="TSLA",
+        action="cover",
+        quantity=75,
+        price=200.5,
+        timestamp=ts,
+        commission=0.0015,
+        slippage=0.0008,
+        realized_pnl=125.0,
+    )
+    restored = Trade.from_dict(original.to_dict())
+    assert restored.symbol == original.symbol
+    assert restored.action == original.action
+    assert restored.quantity == original.quantity
+    assert restored.price == original.price
+    assert restored.timestamp == original.timestamp
+    assert restored.commission == original.commission
+    assert restored.slippage == original.slippage
+    assert restored.realized_pnl == original.realized_pnl
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
