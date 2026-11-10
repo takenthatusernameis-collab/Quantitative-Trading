@@ -9,6 +9,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from examples.cli import (
+    _default_param_grid,
+    _get_monte_carlo_analysis,
     _is_supported_interval,
     _print_monte_carlo_analysis,
     _print_regime_analysis,
@@ -4707,6 +4709,86 @@ class TestCliHelpers:
         with patch("quant_trading.backtest.print_trade_analysis") as mock_print:
             _print_trade_analysis("fake-analysis")
             mock_print.assert_called_once_with("fake-analysis")
+
+    def test_default_param_grid_moving_average_crossover(self):
+        """``_default_param_grid`` builds one space per tunable constructor param."""
+        from quant_trading.optimization import ParameterGrid, ParameterSpace
+        from quant_trading.strategies.examples import MovingAverageCrossover
+
+        grid = _default_param_grid(MovingAverageCrossover)
+        assert isinstance(grid, ParameterGrid)
+        assert set(grid.spaces) == {"fast_period", "slow_period"}
+        fast = grid.spaces["fast_period"]
+        slow = grid.spaces["slow_period"]
+        assert isinstance(fast, ParameterSpace) and isinstance(slow, ParameterSpace)
+        assert fast.param_type is int and slow.param_type is int
+        assert fast.values == [9, 10, 11]
+        assert slow.values == [29, 30, 31]
+
+    def test_default_param_grid_skips_required_and_self_params(self):
+        """Constructor params without a default, plus ``self``/``name``, are skipped."""
+        from quant_trading.optimization import ParameterGrid
+
+        class Mixed:
+            def __init__(self, required: int, optional: float = 1.0, name: str = "x"):
+                self.required = required
+                self.optional = optional
+                self.name = name
+
+        grid = _default_param_grid(Mixed)
+        assert isinstance(grid, ParameterGrid)
+        assert set(grid.spaces) == {"optional"}
+        assert grid.spaces["optional"].param_type is float
+        assert grid.spaces["optional"].values == [0.75, 1.0, 1.25]
+
+    def test_default_param_grid_empty_when_unintrospectable(self):
+        """A constructor that cannot be introspected yields an empty grid."""
+        grid = _default_param_grid(object)
+        from quant_trading.optimization import ParameterGrid
+
+        assert isinstance(grid, ParameterGrid)
+        assert len(grid.spaces) == 0
+        assert grid.generate_combinations() == [{}]
+
+    def test_get_monte_carlo_analysis_forwards_args_and_sets_method(self):
+        import pandas as pd
+
+        from quant_trading.backtest.engine import BacktestResult
+        from quant_trading.backtest.metrics import calculate_backtest_metrics
+
+        equity = pd.Series(
+            [100000.0 * (1.0 + 0.001 * i) for i in range(60)],
+            index=pd.date_range("2024-01-01", periods=60, freq="D"),
+        )
+        result = BacktestResult(
+            equity_curve=equity,
+            trades=pd.DataFrame(),
+            positions={},
+            metrics=calculate_backtest_metrics(equity),
+            start_date=equity.index[0],
+            end_date=equity.index[-1],
+            initial_capital=100000.0,
+            final_value=float(equity.iloc[-1]),
+            total_return=float(equity.iloc[-1] - equity.iloc[0]),
+            total_return_pct=float((equity.iloc[-1] / equity.iloc[0] - 1) * 100),
+        )
+        args = argparse.Namespace(
+            mc_simulations=20,
+            mc_confidence=0.90,
+            mc_method="parametric",
+            mc_seed=7,
+        )
+
+        mc = _get_monte_carlo_analysis(
+            result, args, periods_per_year=252, risk_free_rate=0.02
+        )
+        assert mc.n_simulations == 20
+        assert mc.confidence_level == 0.90
+        assert mc._method == "parametric"
+        summary = mc.summary()
+        assert summary["n_simulations"] == 20
+        assert "probability_of_profit" in summary
+        assert "total_return_pct_mean" in summary
 
 
 if __name__ == "__main__":
