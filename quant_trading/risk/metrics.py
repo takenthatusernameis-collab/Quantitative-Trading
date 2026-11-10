@@ -507,7 +507,7 @@ def calculate_treynor_ratio(
         return 0.0
 
     returns = returns.dropna()
-    if len(returns) == 0:
+    if len(returns) == 0:  # pragma: no cover  (beta != 0 implies non-empty after dropna)
         return 0.0
 
     excess_return = returns.mean() - risk_free_rate / periods_per_year
@@ -587,7 +587,7 @@ def calculate_cvar(
     var_threshold = np.percentile(returns, (1 - confidence) * 100)
     tail_returns = returns[returns <= var_threshold]
 
-    if len(tail_returns) == 0:
+    if len(tail_returns) == 0:  # pragma: no cover  (percentile guarantees non-empty tail)
         return float(var_threshold)
 
     return float(tail_returns.mean())
