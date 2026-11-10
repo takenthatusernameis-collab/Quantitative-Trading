@@ -4193,6 +4193,53 @@ class TestUserErrorReporting:
         assert "Best Parameters:" in captured.out
         assert "Traceback" not in captured.out
 
+    @pytest.mark.slow
+    def test_offline_walk_forward_with_bayesian_inner_optimizer_completes(self, capsys):
+        """An offline walk-forward run with the Bayesian inner optimizer completes.
+
+        The walk-forward mode wires the Bayesian optimizer through
+        ``WalkForwardOptimizer`` → ``optimizer_kwargs`` → ``BayesianOptimizer``
+        → ``gp_minimize``. The library-level ``test_walk_forward_with_bayesian``
+        covers that path with mock data; this is the end-to-end guard that the
+        documented CLI invocation (``--walk-forward --wf-optimizer bayesian``)
+        reaches the same path through ``run_walk_forward`` and finishes with
+        exit code 0 instead of raising deep in ``skopt``.
+        """
+        args = [
+            "--offline",
+            "--walk-forward",
+            "--wf-optimizer",
+            "bayesian",
+            "--bayesian-n-initial",
+            "2",
+            "--n-iter",
+            "5",
+            "--ma-fast-range",
+            "5,15,5",
+            "--ma-slow-range",
+            "20,30,10",
+            "--wf-windows",
+            "3",
+            "--wf-train-size",
+            "0.7",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "90",
+            "--n-jobs",
+            "1",
+        ]
+        with patch("sys.argv", ["cli.py", *args]):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Running walk-forward optimization for MovingAverageCrossover" in captured.out
+        assert "Inner optimizer: bayesian" in captured.out
+        assert "Walk-Forward Optimization Complete" in captured.out
+        assert "Window Results:" in captured.out
+        assert "Traceback" not in captured.out
+
     def test_zero_n_jobs_is_reported(self, capsys):
         """Zero ``--n-jobs`` is a usage error at the CLI level.
 
