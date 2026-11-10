@@ -41,6 +41,9 @@ dev = [
 bayesian = [
     "scikit-optimize>=0.10.0",
 ]
+reporting = [
+    "matplotlib>=3.7.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
