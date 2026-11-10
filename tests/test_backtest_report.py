@@ -652,5 +652,47 @@ def test_build_trades_table_formats_missing_and_nan_columns():
     assert "commission" not in html.split("<thead>")[1]
 
 
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_create_trade_distribution_chart_all_nan_pnl():
+    """_create_trade_distribution_chart must render empty state when all PnL is NaN."""
+    from quant_trading.backtest.report import (
+        _create_trade_distribution_chart,
+        _get_theme_colors,
+    )
+
+    dates = pd.date_range("2024-01-01", periods=10, freq="D")
+    trades = pd.DataFrame(
+        {
+            "symbol": ["AAPL", "MSFT"],
+            "action": ["buy", "sell"],
+            "quantity": [10, 10],
+            "price": [150.0, 160.0],
+            "timestamp": [dates[0], dates[1]],
+            "commission": [0.001, 0.001],
+            "slippage": [0.0005, 0.0005],
+            "cost": [1500.0, 1600.0],
+            "fee": [2.25, 2.40],
+            "pnl": [np.nan, np.nan],
+        }
+    )
+    result = _create_sample_result()
+    result = result.__class__(
+        equity_curve=result.equity_curve,
+        trades=trades,
+        positions={},
+        metrics=result.metrics,
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=result.initial_capital,
+        final_value=result.final_value,
+        total_return=result.total_return,
+        total_return_pct=result.total_return_pct,
+    )
+
+    for theme in ("light", "dark"):
+        png = _create_trade_distribution_chart(result, _get_theme_colors(theme), 150)
+        assert isinstance(png, str) and len(png) > 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
