@@ -501,8 +501,9 @@ combinations, set with `--n-iter` (default 50). The number of parallel jobs is
 controlled with `--n-jobs` (default 4). The Bayesian optimizer additionally
 accepts `--bayesian-n-initial` (initial random points, default 10),
 `--bayesian-acq-func` (acquisition function: `EI`, `PI`, `LCB`, `gp_hedge`;
-default `EI`), and `--bayesian-acq-optimizer` (`auto`, `sampling`, `lbfgs`;
-default `auto`):
+default `EI`), `--bayesian-acq-optimizer` (`auto`, `sampling`, `lbfgs`;
+default `auto`), and `--bayesian-noise` (observation noise added to the GP
+kernel, default `1e-6`):
 
 ```bash
 python examples/cli.py --offline --optimize --strategy ma \
@@ -513,13 +514,14 @@ python examples/cli.py --offline --optimize --strategy ma \
 
 The Bayesian optimizer additionally accepts `--bayesian-n-initial` (initial
 random points, default 10), `--bayesian-acq-func` (acquisition function:
-`EI`, `PI`, `LCB`, `gp_hedge`; default `EI`), and
-`--bayesian-acq-optimizer` (`auto`, `sampling`, `lbfgs`; default `auto`):
+`EI`, `PI`, `LCB`, `gp_hedge`; default `EI`), `--bayesian-acq-optimizer`
+(`auto`, `sampling`, `lbfgs`; default `auto`), and `--bayesian-noise`
+(observation noise added to the GP kernel, default `1e-6`):
 
 ```bash
 python examples/cli.py --offline --optimize --strategy ma \
     --optimizer bayesian --bayesian-n-initial 3 --bayesian-acq-func PI \
-    --bayesian-acq-optimizer lbfgs \
+    --bayesian-acq-optimizer lbfgs --bayesian-noise 1e-4 \
     --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
     --symbols AAPL --days 60
 ```

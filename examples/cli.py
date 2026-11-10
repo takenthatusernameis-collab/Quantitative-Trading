@@ -673,6 +673,12 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Bayesian acquisition optimizer (default: auto)",
     )
     parser.add_argument(
+        "--bayesian-noise",
+        type=float,
+        default=1e-6,
+        help="Observation noise added to the GP kernel (default: 1e-6)",
+    )
+    parser.add_argument(
         "--combined",
         action="store_true",
         help="Run all strategies and compare results",
@@ -1022,6 +1028,11 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             f"invalid --bayesian-n-initial: must be <= --n-iter "
             f"(got {args.bayesian_n_initial} > {args.n_iter})"
+        )
+    if args.bayesian_noise <= 0:
+        raise ValueError(
+            f"invalid --bayesian-noise: the value must be greater than 0 "
+            f"(got {args.bayesian_noise})"
         )
     if args.n_jobs < 1 and args.n_jobs != -1:
         raise ValueError(
@@ -1812,6 +1823,7 @@ def run_optimization(
             n_calls=args.n_iter,
             acq_func=args.bayesian_acq_func,
             acq_optimizer=args.bayesian_acq_optimizer,
+            noise=args.bayesian_noise,
             periods_per_year=config.backtest.periods_per_year,
             verbose=True,
         )
@@ -1942,6 +1954,7 @@ def run_walk_forward(
             "n_calls": args.n_iter,
             "acq_func": args.bayesian_acq_func,
             "acq_optimizer": args.bayesian_acq_optimizer,
+            "noise": args.bayesian_noise,
         }
     else:
         optimizer_kwargs = {"n_jobs": args.n_jobs}

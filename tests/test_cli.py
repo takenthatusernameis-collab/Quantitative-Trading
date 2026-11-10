@@ -4121,6 +4121,34 @@ class TestUserErrorReporting:
             parse_args()
         assert "invalid --bayesian-n-initial" in str(exc.value)
 
+    def test_bayesian_noise_zero_is_invalid(self):
+        with (
+            patch("sys.argv", ["cli.py", "--bayesian-noise", "0"]),
+            pytest.raises(ValueError) as exc,
+        ):
+            parse_args()
+        assert "invalid --bayesian-noise" in str(exc.value)
+
+    def test_bayesian_noise_negative_is_invalid(self):
+        with (
+            patch("sys.argv", ["cli.py", "--bayesian-noise", "-1e-3"]),
+            pytest.raises(ValueError) as exc,
+        ):
+            parse_args()
+        assert "invalid --bayesian-noise" in str(exc.value)
+
+    def test_bayesian_noise_default(self):
+        """``--bayesian-noise`` defaults to the optimizer's default (1e-6)."""
+        with patch("sys.argv", ["cli.py"]):
+            args = parse_args()
+        assert args.bayesian_noise == 1e-6
+
+    def test_bayesian_noise_custom_is_accepted(self):
+        """A positive ``--bayesian-noise`` value is parsed and forwarded."""
+        with patch("sys.argv", ["cli.py", "--bayesian-noise", "1e-3"]):
+            args = parse_args()
+        assert args.bayesian_noise == 1e-3
+
     def test_zero_n_jobs_is_reported(self, capsys):
         """Zero ``--n-jobs`` is a usage error at the CLI level.
 
