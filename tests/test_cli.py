@@ -10,6 +10,10 @@ import pytest
 
 from examples.cli import (
     _is_supported_interval,
+    _print_monte_carlo_analysis,
+    _print_regime_analysis,
+    _print_trade_analysis,
+    _save_json_output,
     create_config,
     create_strategy,
     init_config,
@@ -4537,6 +4541,172 @@ class TestHtmlReportFlag:
         assert result == 1
         assert "matplotlib" in output
         assert "Traceback" not in output
+
+
+class TestCliHelpers:
+    """Unit tests for the pure helper functions of examples.cli.
+
+    These helpers take data structures (or mocks) and produce files or printed
+    output, so they can be tested directly without running a backtest.
+    """
+
+    def test_save_json_output_writes_json_file(self, tmp_path):
+        path = tmp_path / "out.json"
+        data = {"strategy": "ma", "total_return_pct": 15.5, "params": {"fast": 10}}
+        assert _save_json_output(str(path), data) is True
+        import json
+
+        with open(path) as f:
+            assert json.load(f) == data
+
+    def test_save_json_output_writes_csv_file(self, tmp_path):
+        path = tmp_path / "out.csv"
+        data = {"strategy": "ma", "total_return_pct": 15.5}
+        assert _save_json_output(str(path), data) is True
+        content = path.read_text()
+        assert "strategy,total_return_pct" in content
+        assert "ma,15.5" in content
+
+    def test_save_json_output_explicit_format(self, tmp_path):
+        path = tmp_path / "out.txt"
+        data = {"strategy": "ma", "total_return_pct": 15.5}
+        assert _save_json_output(str(path), data, output_format="json") is True
+        import json
+
+        with open(path) as f:
+            assert json.load(f) == data
+
+    def test_save_json_output_unwritable_path(self, tmp_path):
+        path = tmp_path / "missing_dir" / "out.json"
+        assert _save_json_output(str(path), {"a": 1}) is False
+
+    def test_print_regime_analysis(self, capsys):
+        class _Seg:
+            def __init__(self):
+                self.regime = type("R", (), {"value": "bull"})()
+                self.start = "2024-01-01"
+                self.end = "2024-06-30"
+                self.volatility = 0.15
+                self.return_pct = 8.25
+
+        class _Analysis:
+            def summary(self):
+                return {
+                    "current_regime": "bull",
+                    "total_volatility": 0.15,
+                    "total_return_pct": 8.25,
+                    "n_segments": 1,
+                    "periods_per_year": 252,
+                }
+
+            @property
+            def segments(self):
+                return [_Seg()]
+
+        _print_regime_analysis(_Analysis())
+        captured = capsys.readouterr()
+        assert "Market Regime Analysis" in captured.out
+        assert "Current Regime:   bull" in captured.out
+        assert "Periods per Year:  252" in captured.out
+
+    def test_print_regime_analysis_no_segments(self, capsys):
+        class _Analysis:
+            def summary(self):
+                return {
+                    "current_regime": "sideways",
+                    "total_volatility": 0.05,
+                    "total_return_pct": 1.5,
+                    "n_segments": 0,
+                    "periods_per_year": 252,
+                }
+
+            @property
+            def segments(self):
+                return []
+
+        _print_regime_analysis(_Analysis())
+        captured = capsys.readouterr()
+        assert "Market Regime Analysis" in captured.out
+        assert "Current Regime:   sideways" in captured.out
+
+    def test_print_monte_carlo_analysis(self, capsys):
+        class _MC:
+            def __init__(self):
+                self.n_simulations = 100
+                self.confidence_level = 0.95
+                self.duration_seconds = 1.25
+                self._method = "parametric"
+
+            def summary(self):
+                return {
+                    "probability_of_profit": 0.68,
+                    "total_return_pct_mean": 12.5,
+                    "total_return_pct_median": 11.8,
+                    "total_return_pct_std": 4.2,
+                    "sharpe_ratio_mean": 1.2,
+                    "sharpe_ratio_median": 1.1,
+                    "sharpe_ratio_std": 0.3,
+                    "max_drawdown_pct_mean": -8.5,
+                    "max_drawdown_pct_median": -7.9,
+                    "max_drawdown_pct_std": 2.1,
+                    "volatility_mean": 0.18,
+                    "volatility_median": 0.17,
+                    "volatility_std": 0.04,
+                    "total_return_pct_ci_lower": 5.0,
+                    "total_return_pct_ci_upper": 20.0,
+                    "sharpe_ratio_ci_lower": 0.7,
+                    "sharpe_ratio_ci_upper": 1.7,
+                    "max_drawdown_pct_ci_lower": -12.0,
+                    "max_drawdown_pct_ci_upper": -5.0,
+                }
+
+        _print_monte_carlo_analysis(_MC())
+        captured = capsys.readouterr()
+        assert "Monte Carlo Simulation" in captured.out
+        assert "Method:            parametric" in captured.out
+        assert "Simulations:       100" in captured.out
+        assert "Probability of Profit: 68.00%" in captured.out
+
+    def test_print_monte_carlo_analysis_default_method(self, capsys):
+        class _MC:
+            def __init__(self):
+                self.n_simulations = 50
+                self.confidence_level = 0.90
+                self.duration_seconds = 0.5
+
+            def summary(self):
+                return {
+                    "probability_of_profit": 0.55,
+                    "total_return_pct_mean": 5.0,
+                    "total_return_pct_median": 4.8,
+                    "total_return_pct_std": 3.0,
+                    "sharpe_ratio_mean": 0.8,
+                    "sharpe_ratio_median": 0.75,
+                    "sharpe_ratio_std": 0.2,
+                    "max_drawdown_pct_mean": -6.0,
+                    "max_drawdown_pct_median": -5.5,
+                    "max_drawdown_pct_std": 1.5,
+                    "volatility_mean": 0.15,
+                    "volatility_median": 0.14,
+                    "volatility_std": 0.03,
+                    "total_return_pct_ci_lower": 1.0,
+                    "total_return_pct_ci_upper": 9.0,
+                    "sharpe_ratio_ci_lower": 0.4,
+                    "sharpe_ratio_ci_upper": 1.2,
+                    "max_drawdown_pct_ci_lower": -9.0,
+                    "max_drawdown_pct_ci_upper": -3.0,
+                }
+
+        _print_monte_carlo_analysis(_MC())
+        captured = capsys.readouterr()
+        assert "Method:            bootstrap" in captured.out
+
+    def test_print_trade_analysis(self, capsys):
+        from unittest.mock import patch
+
+        with patch("quant_trading.backtest.print_trade_analysis") as mock_print:
+            _print_trade_analysis("fake-analysis")
+            mock_print.assert_called_once_with("fake-analysis")
 
 
 if __name__ == "__main__":
