@@ -1710,6 +1710,37 @@ def test_walk_forward_combined_result_can_be_analyzed():
     assert analysis.total_pnl == pytest.approx(combined.metrics.total_pnl)
 
 
+def test_walk_forward_to_dataframe_is_json_safe():
+    """``WalkForwardResult.to_dataframe()`` must be JSON-serializable.
+
+    The frame's four date-boundary columns hold raw ``datetime`` objects, which
+    are not JSON-serializable. A consumer that dumps the frame to JSON (for
+    example ``examples/cli.py --walk-forward --output out.json``) would raise
+    ``TypeError: Object of type Timestamp is not JSON serializable`` unless the
+    boundaries are emitted as ISO-8601 strings, matching the contract already
+    enforced by :meth:`WalkForwardWindow.to_dict`.
+    """
+    import json
+
+    optimizer = _walk_forward_optimizer()
+    result = optimizer.run()
+
+    df = result.to_dataframe()
+    assert not df.empty
+
+    # The frame must round-trip through a JSON encoder with no default hook.
+    records = json.loads(json.dumps(df.to_dict(orient="records")))
+
+    # The serialized boundaries are ISO-8601 strings, not raw datetimes.
+    first = records[0]
+    for column in ("train_start", "train_end", "test_start", "test_end"):
+        assert isinstance(first[column], str), (
+            f"{column} serialized as {type(first[column]).__name__}, expected str"
+        )
+        # The string must round-trip back to a datetime.
+        datetime.fromisoformat(first[column])
+
+
 def test_walk_forward_combine_drops_overlapping_points():
     """Overlapping out-of-sample periods are combined into one time series.
 

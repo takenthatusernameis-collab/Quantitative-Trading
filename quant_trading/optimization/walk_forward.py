@@ -313,10 +313,13 @@ class WalkForwardResult:
         for i, w in enumerate(self.windows):
             row: dict[str, Any] = {
                 "window": i,
-                "train_start": w.train_start,
-                "train_end": w.train_end,
-                "test_start": w.test_start,
-                "test_end": w.test_end,
+                # The four date boundaries are serialized as ISO-8601 strings so
+                # the frame is JSON-safe (a raw datetime is not JSON-serializable
+                # and breaks any consumer that dumps the frame to JSON).
+                "train_start": _iso(w.train_start),
+                "train_end": _iso(w.train_end),
+                "test_start": _iso(w.test_start),
+                "test_end": _iso(w.test_end),
                 "train_return_pct": w.train_result.total_return_pct if w.train_result else None,
                 "train_sharpe": w.train_result.metrics.sharpe_ratio if w.train_result else None,
                 "test_return_pct": w.test_result.total_return_pct if w.test_result else None,
