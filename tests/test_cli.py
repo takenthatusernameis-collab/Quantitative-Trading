@@ -4149,6 +4149,50 @@ class TestUserErrorReporting:
             args = parse_args()
         assert args.bayesian_noise == 1e-3
 
+    @pytest.mark.slow
+    def test_offline_bayesian_optimize_with_custom_noise_completes(self, capsys):
+        """An offline Bayesian optimization with a non-default ``--bayesian-noise``
+        runs the full CLI → ``run_optimization`` → ``BayesianOptimizer`` →
+        ``gp_minimize`` path and completes with exit code 0.
+
+        The parse/constructor unit tests cover the ``--bayesian-noise`` flag in
+        isolation; this is the end-to-end guard that the value actually reaches
+        the Gaussian Process kernel through the optimizer and that the run
+        finishes instead of raising deep in ``skopt``.
+        """
+        args = [
+            "--offline",
+            "--optimize",
+            "--optimizer",
+            "bayesian",
+            "--bayesian-noise",
+            "1e-4",
+            "--ma-fast-range",
+            "5,15,5",
+            "--ma-slow-range",
+            "20,30,10",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "60",
+            "--n-iter",
+            "5",
+            "--bayesian-n-initial",
+            "2",
+            "--n-jobs",
+            "1",
+        ]
+        with patch("sys.argv", ["cli.py", *args]):
+            result = main()
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "Running parameter optimization for MovingAverageCrossover" in captured.out
+        assert "Optimizer: bayesian" in captured.out
+        assert "Optimization Complete" in captured.out
+        assert "Best Parameters:" in captured.out
+        assert "Traceback" not in captured.out
+
     def test_zero_n_jobs_is_reported(self, capsys):
         """Zero ``--n-jobs`` is a usage error at the CLI level.
 
