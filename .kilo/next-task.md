@@ -1,70 +1,28 @@
 # Next Task
 
 ## Repository state (verified this session)
-- Branch `main` up to date with `origin/main`; working tree clean except for the
-  change below.
-- Prior serialization work is complete and committed: every dataclass in
-  `quant_trading/` (33 total, verified by introspection) defines
-  `to_dict()`/`from_dict()`.
+- Branch `main` up to date with `origin/main`; working tree clean except for the change below.
+- The `BayesianOptimizer` `noise` wiring described in the prior `.kilo/next-task.md` is **already committed** (present in `quant_trading/optimization/bayesian.py`; `HEAD = cc45c0f` is ahead of `cfac267`). That prior next-task (commit the noise wiring) is complete.
 
 ## Completed this session
-
-**Fixed an orphaned `noise` parameter on `BayesianOptimizer`.** The
-`BayesianOptimizerConfig` dataclass defined a `noise` field, serialized it in
-`to_dict`, and round-tripped it in `from_dict` — but `BayesianOptimizer` itself
-ignored it: the constructor rejected `noise` as an unexpected keyword argument,
-and `gp_minimize` was called with a hardcoded `noise=1e-6`
-(`quant_trading/optimization/bayesian.py:417`). Wired the parameter through:
-added `noise: float = 1e-6` to the constructor (matching
-`BayesianOptimizerConfig`'s default), stored it as `self.noise`, and forwarded
-`noise=self.noise` to `gp_minimize`.
-- `quant_trading/optimization/bayesian.py`: +1 constructor arg, +3 doc lines,
-  +1 attribute, `noise=1e-6` → `noise=self.noise` (7 lines changed).
-- `tests/test_optimization.py`: added `TestBayesianOptimizerNoise` class with
-  4 regression tests (constructor accepts the kwarg, default matches config
-  default, configured value reaches `gp_minimize`, default reaches
-  `gp_minimize`).
+**Removed yfinance gating from 6 optimization tests and closed the remaining real coverage gaps in `grid_search.py` / `random_search.py`.**
+- `tests/test_optimization.py`: 6 tests previously behind `@skip_if_no_yfinance` now run offline using synthetic data (`Config(data=DataConfig(offline=True, ...))`) or a patched synthetic default data manager (`unittest.mock.patch` on `get_default_data_manager`).
+- `quant_trading/optimization/grid_search.py` coverage → **100%** (was 98%).
+- `quant_trading/optimization/random_search.py` coverage → **100%** (was 98%).
 
 ## Verified (this session, evidence)
-- `python3 -m pytest tests/test_optimization.py tests/test_serialization_roundtrip.py
-  tests/test_repository_integrity.py -q` → **203 passed**.
-- `python3 -m pytest tests/test_optimization.py -k "bayesian or Bayesian" -q` →
-  **26 passed** (no regressions).
-- `python3 -m pytest tests/test_optimization.py::TestBayesianOptimizerNoise -v` →
-  **4 passed**.
-- `python3 -m ruff check .` → **All checks passed!**
-- `python3 -m mypy quant_trading --ignore-missing-imports` → **Success: no issues
-  found in 37 source files.**
-- Bug reproduced before fixing: `BayesianOptimizer(noise=1e-3)` raised
-  `TypeError: unexpected keyword argument 'noise'`.
+- `python -m pytest tests/test_optimization.py -q -p no:cacheprovider` → **134 passed, 11 skipped** (remaining skips are genuinely network-dependent).
+- `python -m ruff check tests/test_optimization.py` → **All checks passed!**
+- `python -m mypy quant_trading/optimization/grid_search.py quant_trading/optimization/random_search.py --ignore-missing-imports` → **Success: no issues found**
 
 ## Unresolved / not completed
-- None. The `noise` parameter is now wired end-to-end and guarded by tests.
-
-## Failed approaches (do not repeat unchanged)
-- Initial test used a hand-rolled `_Result` class with mutable class attributes,
-  which tripped ruff `RUF012`; replaced with `types.SimpleNamespace(...)` and
-  rewrote the `dict(...)` call as a literal to satisfy `C408`.
+- Remaining coverage gaps are environment-only (`engine.py:82-84` TYPE_CHECKING, `report.py:29-30` matplotlib, `yfinance_provider.py:85`) or unreachable dead branches (`risk/metrics.py:511, 591`); not logic gaps.
 
 ## One precise next task
-
-**Trigger:** If a commit is explicitly requested.
-
-**Action:** Inspect `git status`/`diff`, re-run the verification set
-(`pytest tests/test_optimization.py tests/test_serialization_roundtrip.py
-tests/test_repository_integrity.py -q`, `ruff check .`,
-`mypy quant_trading --ignore-missing-imports`), then commit the `noise` wiring
-with a clear message. Push only if explicitly requested and remote/auth are
-verified.
-
-**Constraints:** No API/safety/validation changes beyond the `noise` wiring;
-do not commit secrets/caches (`data/` is gitignored and runtime-created);
-exclude unrelated modifications; do not claim checks passed without evidence.
+- None outstanding for bounded logic coverage. If a new task is assigned, re-run the verification set above first.
 
 ## Git state
-- Branch `main` up to date with `origin/main`.
-- Working tree has **two uncommitted changes** (this session's work, not yet
-  committed):
-  - `quant_trading/optimization/bayesian.py` (+ noise wiring)
-  - `tests/test_optimization.py` (+ 4 regression tests)
-- No secrets/caches added.
+- Working tree has one uncommitted change: `tests/test_optimization.py` (+53/-16 lines).
+- Do NOT commit unless explicitly asked.
+
+(End of file)

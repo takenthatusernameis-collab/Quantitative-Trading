@@ -9,6 +9,7 @@ from concurrent.futures.process import BrokenProcessPool, ProcessPoolExecutor
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -2674,10 +2675,9 @@ def test_grid_search_parallel_error_handling_quiet():
     assert len(result.all_results) == 4
 
 
-@skip_if_no_yfinance
 def test_grid_search_parallel_with_config():
     """Test GridSearch parallel path unwraps a Config into its DataConfig (line 173)."""
-    from quant_trading.config.settings import Config
+    from quant_trading.config.settings import Config, DataConfig
 
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -2697,7 +2697,14 @@ def test_grid_search_parallel_with_config():
         end=datetime(2026, 1, 15),
         initial_capital=100000.0,
         data_manager=data_manager,
-        config=Config(),
+        config=Config(
+            data=DataConfig(
+                offline=True,
+                provider="synthetic",
+                synthetic_seed=42,
+                synthetic_days=60,
+            )
+        ),
         verbose=False,
         n_jobs=2,
     )
@@ -2740,10 +2747,9 @@ def test_random_search_parallel_error_handling_quiet():
     assert len(result.all_results) == 4
 
 
-@skip_if_no_yfinance
 def test_random_search_parallel_with_config():
     """Test RandomSearch parallel path unwraps a Config into its DataConfig (line 185)."""
-    from quant_trading.config.settings import Config
+    from quant_trading.config.settings import Config, DataConfig
 
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -2763,7 +2769,14 @@ def test_random_search_parallel_with_config():
         end=datetime(2026, 1, 15),
         initial_capital=100000.0,
         data_manager=data_manager,
-        config=Config(),
+        config=Config(
+            data=DataConfig(
+                offline=True,
+                provider="synthetic",
+                synthetic_seed=42,
+                synthetic_days=60,
+            )
+        ),
         verbose=False,
         n_jobs=2,
         n_iter=4,
@@ -2800,10 +2813,16 @@ def test_evaluate_params_worker_grid():
     assert result.metrics is not None
 
 
-@skip_if_no_yfinance
-def test_evaluate_params_worker_grid_none_config():
+@patch("quant_trading.backtest.engine.get_default_data_manager")
+def test_evaluate_params_worker_grid_none_config(mock_get_default):
     """Test grid_search._evaluate_params_worker with data_config=None (line 39 False branch)."""
+    from quant_trading.data.providers import DataManager
+    from quant_trading.data.synthetic import create_synthetic_provider
     from quant_trading.optimization.grid_search import _evaluate_params_worker
+
+    mock_get_default.return_value = DataManager(
+        [create_synthetic_provider(["AAPL"], days=60, seed=42)]
+    )
 
     _params, _score, result = _evaluate_params_worker(
         MovingAverageCrossover,
@@ -2822,13 +2841,19 @@ def test_evaluate_params_worker_grid_none_config():
     assert result is not None
 
 
-@skip_if_no_yfinance
 def test_evaluate_params_worker_grid_config_branch():
     """Test grid_search._evaluate_params_worker with a Config instance (line 40-41 branch)."""
-    from quant_trading.config.settings import Config
+    from quant_trading.config.settings import Config, DataConfig
     from quant_trading.optimization.grid_search import _evaluate_params_worker
 
-    config = Config()
+    config = Config(
+        data=DataConfig(
+            offline=True,
+            provider="synthetic",
+            synthetic_seed=42,
+            synthetic_days=60,
+        )
+    )
     _params, _score, result = _evaluate_params_worker(
         MovingAverageCrossover,
         {},
@@ -2921,10 +2946,16 @@ def test_evaluate_params_worker_random():
     assert result is not None
 
 
-@skip_if_no_yfinance
-def test_evaluate_params_worker_random_none_config():
+@patch("quant_trading.backtest.engine.get_default_data_manager")
+def test_evaluate_params_worker_random_none_config(mock_get_default):
     """Test random_search._evaluate_params_worker with data_config=None (line 41 False branch)."""
+    from quant_trading.data.providers import DataManager
+    from quant_trading.data.synthetic import create_synthetic_provider
     from quant_trading.optimization.random_search import _evaluate_params_worker
+
+    mock_get_default.return_value = DataManager(
+        [create_synthetic_provider(["AAPL"], days=60, seed=42)]
+    )
 
     _params, _score, result = _evaluate_params_worker(
         MovingAverageCrossover,
@@ -2943,13 +2974,19 @@ def test_evaluate_params_worker_random_none_config():
     assert result is not None
 
 
-@skip_if_no_yfinance
 def test_evaluate_params_worker_random_config_branch():
     """Test random_search._evaluate_params_worker with a Config instance (line 42-43 branch)."""
-    from quant_trading.config.settings import Config
+    from quant_trading.config.settings import Config, DataConfig
     from quant_trading.optimization.random_search import _evaluate_params_worker
 
-    config = Config()
+    config = Config(
+        data=DataConfig(
+            offline=True,
+            provider="synthetic",
+            synthetic_seed=42,
+            synthetic_days=60,
+        )
+    )
     _params, _score, result = _evaluate_params_worker(
         MovingAverageCrossover,
         {},
