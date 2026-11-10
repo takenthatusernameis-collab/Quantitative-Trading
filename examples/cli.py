@@ -18,7 +18,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 from quant_trading.backtest.engine import run_backtest
-from quant_trading.backtest.report import ReportConfig, generate_html_report
+from quant_trading.backtest.report import (
+    ReportConfig,
+    generate_comparison_report,
+    generate_html_report,
+)
 from quant_trading.config.settings import Config
 from quant_trading.data.yfinance_provider import AlphaVantageProvider
 from quant_trading.monte_carlo import run_monte_carlo
@@ -2651,16 +2655,24 @@ def run_combined(
         if not _save_json_output(args.output, output_data, output_format):
             return 1
 
-    if getattr(args, "report", None) and not _write_report(
-        best[1],
-        args.report,
-        theme=getattr(args, "report_theme", "light"),
-        include_charts=not getattr(args, "report_no_charts", False),
-        include_trade_details=not getattr(args, "report_no_trades", False),
-        include_monthly_heatmap=not getattr(args, "report_no_monthly", False),
-        include_rolling_metrics=not getattr(args, "report_no_rolling", False),
-    ):
-        return 1
+    if getattr(args, "report", None):
+        config = ReportConfig(
+            title="Strategy Comparison Report",
+            theme=getattr(args, "report_theme", "light"),
+            include_charts=not getattr(args, "report_no_charts", False),
+            include_trade_details=not getattr(args, "report_no_trades", False),
+            include_monthly_heatmap=not getattr(args, "report_no_monthly", False),
+            include_rolling_metrics=not getattr(args, "report_no_rolling", False),
+        )
+        try:
+            generate_comparison_report(results, config, output_path=args.report)
+        except ImportError as e:
+            print(f"Error: {e}")
+            return 1
+        except OSError as e:
+            print(f"Error: could not write report file '{args.report}': {e.strerror or e}")
+            return 1
+        print(f"\nHTML comparison report saved to {args.report}")
 
     return 0
 

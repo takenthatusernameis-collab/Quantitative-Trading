@@ -4478,7 +4478,7 @@ class TestHtmlReportFlag:
         assert "#1e1e1e" in content
 
     def test_report_combined_writes_html_for_best_strategy(self, capsys, tmp_path):
-        """In ``--combined`` mode ``--report`` writes a report for the best strategy."""
+        """In ``--combined`` mode ``--report`` writes a comparison report."""
         import multiprocessing
 
         report_path = tmp_path / "combined_report.html"
@@ -4501,7 +4501,7 @@ class TestHtmlReportFlag:
         assert report_path.exists()
         content = report_path.read_text(encoding="utf-8")
         assert "<!DOCTYPE html>" in content
-        assert "Performance Summary" in content
+        assert "Strategy Comparison" in content
 
     def test_report_missing_matplotlib_is_reported(self, capsys, tmp_path, monkeypatch):
         """A missing ``matplotlib`` is a one-line error, not a traceback.

@@ -913,9 +913,296 @@ def generate_report_from_dict(
     return generate_html_report(result, config, output_path)
 
 
+def _create_comparison_equity_chart(
+    results: list[tuple[str, BacktestResult]],
+    colors: dict[str, str],
+    dpi: int,
+) -> str:
+    """Create comparison equity curve chart and return as base64 string."""
+    _check_matplotlib()
+    fig, ax = plt.subplots(figsize=(10, 4), dpi=dpi, facecolor=colors["bg"])
+    ax.set_facecolor(colors["bg"])
+
+    # Use a color palette for multiple strategies
+    palette = [
+        colors["neutral"],
+        colors["positive"],
+        colors["negative"],
+        colors["accent"],
+        "#9c27b0",
+        "#00bcd4",
+        "#ff5722",
+        "#795548",
+    ]
+
+    for i, (name, result) in enumerate(results):
+        equity = result.equity_curve
+        if len(equity) > 0:
+            color = palette[i % len(palette)]
+            ax.plot(
+                equity.index,
+                equity.values,
+                color=color,
+                linewidth=1.5,
+                label=name,
+                alpha=0.8,
+            )
+
+    ax.set_title("Equity Curves Comparison", color=colors["fg"], fontsize=14, fontweight="bold")
+    ax.set_ylabel("Portfolio Value ($)", color=colors["fg"])
+    ax.set_xlabel("Date", color=colors["fg"])
+    ax.tick_params(colors=colors["fg"])
+    ax.grid(True, color=colors["grid"], alpha=0.3, linestyle="-", linewidth=0.5)
+    ax.legend(facecolor=colors["bg"], edgecolor=colors["grid"], labelcolor=colors["fg"], fontsize=8)
+
+    for spine in ax.spines.values():
+        spine.set_color(colors["grid"])
+
+    return _fig_to_base64(fig, dpi)
+
+
+def _create_comparison_drawdown_chart(
+    results: list[tuple[str, BacktestResult]],
+    colors: dict[str, str],
+    dpi: int,
+) -> str:
+    """Create comparison drawdown chart and return as base64 string."""
+    _check_matplotlib()
+    fig, ax = plt.subplots(figsize=(10, 3), dpi=dpi, facecolor=colors["bg"])
+    ax.set_facecolor(colors["bg"])
+
+    palette = [
+        colors["neutral"],
+        colors["positive"],
+        colors["negative"],
+        colors["accent"],
+        "#9c27b0",
+        "#00bcd4",
+        "#ff5722",
+        "#795548",
+    ]
+
+    for i, (name, result) in enumerate(results):
+        equity = result.equity_curve
+        if len(equity) > 0:
+            color = palette[i % len(palette)]
+            peak = equity.expanding().max()
+            drawdown = (equity - peak) / peak * 100
+            ax.plot(
+                drawdown.index,
+                drawdown.values,
+                color=color,
+                linewidth=1,
+                label=name,
+                alpha=0.8,
+            )
+
+    ax.axhline(y=0, color=colors["fg"], linewidth=0.5)
+    ax.set_title("Drawdown Comparison (%)", color=colors["fg"], fontsize=14, fontweight="bold")
+    ax.set_ylabel("Drawdown (%)", color=colors["fg"])
+    ax.set_xlabel("Date", color=colors["fg"])
+    ax.tick_params(colors=colors["fg"])
+    ax.grid(True, color=colors["grid"], alpha=0.3, linestyle="-", linewidth=0.5)
+    ax.legend(facecolor=colors["bg"], edgecolor=colors["grid"], labelcolor=colors["fg"], fontsize=8)
+
+    for spine in ax.spines.values():
+        spine.set_color(colors["grid"])
+
+    return _fig_to_base64(fig, dpi)
+
+
+def _build_comparison_table(
+    results: list[tuple[str, BacktestResult]],
+    colors: dict[str, str],
+) -> str:
+    """Build HTML comparison table for multiple strategies."""
+    rows = [
+        ("Initial Capital", lambda r: f"${r.initial_capital:,.2f}"),
+        ("Final Value", lambda r: f"${r.final_value:,.2f}"),
+        ("Total Return", lambda r: f"{r.total_return_pct:.2f}%"),
+        ("Total Return ($)", lambda r: f"${r.total_return:,.2f}"),
+        ("Annualized Return", lambda r: _format_metric(getattr(r.metrics, "annual_return", None), "{:.2f}%")),
+        ("Volatility (Ann.)", lambda r: _format_metric(getattr(r.metrics, "volatility", None), "{:.2f}%")),
+        ("Sharpe Ratio", lambda r: _format_metric(getattr(r.metrics, "sharpe_ratio", None))),
+        ("Sortino Ratio", lambda r: _format_metric(getattr(r.metrics, "sortino_ratio", None))),
+        ("Calmar Ratio", lambda r: _format_metric(getattr(r.metrics, "calmar_ratio", None))),
+        ("Max Drawdown", lambda r: _format_metric(getattr(r.metrics, "max_drawdown_pct", None), "{:.2f}%")),
+        ("Max Drawdown ($)", lambda r: _format_metric(getattr(r.metrics, "max_drawdown", None), "${:,.2f}")),
+        ("Profit Factor", lambda r: _format_metric(getattr(r.metrics, "profit_factor", None))),
+        ("Win Rate", lambda r: _format_metric(getattr(r.metrics, "win_rate", None), "{:.2%}")),
+        ("Total Trades", lambda r: _format_metric(getattr(r.metrics, "num_trades", None), "{:.0f}")),
+        ("Avg Win", lambda r: _format_metric(getattr(r.metrics, "avg_win", None), "${:,.2f}")),
+        ("Avg Loss", lambda r: _format_metric(getattr(r.metrics, "avg_loss", None), "${:,.2f}")),
+        ("Best Trade", lambda r: _format_metric(getattr(r.metrics, "best_trade", None), "${:,.2f}")),
+        ("Worst Trade", lambda r: _format_metric(getattr(r.metrics, "worst_trade", None), "${:,.2f}")),
+        (
+            "Avg Trade Duration",
+            lambda r: _format_metric(getattr(r.metrics, "avg_trade_duration", None), "{:.1f} bars"),
+        ),
+        ("Total Costs", lambda r: f"${r.total_costs:,.2f}"),
+    ]
+
+    header = [f'<thead><tr><th style="background:{colors["table_header"]}">Metric</th>']
+    for name, _ in results:
+        header.append(f'<th style="background:{colors["table_header"]}">{name}</th>')
+    header.append("</tr></thead>")
+
+    html = ['<table class="metrics-table comparison-table">']
+    html.extend(header)
+    html.append("<tbody>")
+    for i, (metric_name, metric_fn) in enumerate(rows):
+        bg = colors["table_row_even"] if i % 2 == 0 else colors["table_row_odd"]
+        html.append(f'<tr><td style="background:{bg}">{metric_name}</td>')
+        for name, result in results:
+            try:
+                value = metric_fn(result)
+            except (AttributeError, TypeError, ValueError):
+                value = "N/A"
+            html.append(f'<td style="background:{bg}">{value}</td>')
+        html.append("</tr>")
+    html.append("</tbody></table>")
+    return "\n".join(html)
+
+
+def _build_comparison_summary_cards(
+    results: list[tuple[str, BacktestResult]],
+    colors: dict[str, str],
+) -> str:
+    """Build summary cards for each strategy."""
+    html = ['<div class="summary-cards">']
+    for name, result in results:
+        metrics = result.metrics
+        html.append(f'''
+        <div class="summary-card" style="background:{colors["table_row_even"]}; border:1px solid {colors["grid"]}; border-radius:8px; padding:15px; margin:10px 0;">
+            <h3 style="margin:0 0 10px 0; color:{colors["fg"]};">{name}</h3>
+            <div style="display:flex; flex-wrap:wrap; gap:20px;">
+                <div><strong>Return:</strong> {result.total_return_pct:.2f}%</div>
+                <div><strong>Sharpe:</strong> {getattr(metrics, "sharpe_ratio", 0):.2f}</div>
+                <div><strong>Max DD:</strong> {getattr(metrics, "max_drawdown_pct", 0):.2f}%</div>
+                <div><strong>Win Rate:</strong> {getattr(metrics, "win_rate", 0):.1%}</div>
+                <div><strong>Trades:</strong> {getattr(metrics, "num_trades", 0)}</div>
+                <div><strong>Costs:</strong> ${result.total_costs:,.2f}</div>
+            </div>
+        </div>
+        ''')
+    html.append('</div>')
+    return "\n".join(html)
+
+
+def generate_comparison_report(
+    results: list[tuple[str, BacktestResult]],
+    config: ReportConfig | None = None,
+    output_path: str | Path | None = None,
+) -> str:
+    """Generate an HTML comparison report from multiple backtest results.
+
+    Args:
+        results: List of (strategy_name, BacktestResult) tuples.
+        config: Optional ReportConfig for customization.
+        output_path: Optional path to write the HTML file.
+
+    Returns:
+        HTML string of the report.
+
+    Raises:
+        ImportError: If matplotlib is required but not installed.
+        ValueError: If results list is empty.
+    """
+    if not results:
+        raise ValueError("At least one result is required for comparison report")
+
+    if config is None:
+        config = ReportConfig()
+
+    if config.include_charts:
+        _check_matplotlib()
+
+    colors = _get_theme_colors(config.theme)
+
+    # Generate charts if enabled
+    equity_chart = ""
+    drawdown_chart = ""
+
+    if config.include_charts:
+        equity_chart = _create_comparison_equity_chart(results, colors, config.dpi)
+        drawdown_chart = _create_comparison_drawdown_chart(results, colors, config.dpi)
+
+    # Build comparison table
+    comparison_table = _build_comparison_table(results, colors)
+
+    # Build summary cards
+    summary_cards = _build_comparison_summary_cards(results, colors)
+
+    # Build HTML
+    html_parts = [
+        "<!DOCTYPE html>",
+        '<html lang="en">',
+        "<head>",
+        '<meta charset="UTF-8">',
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+        f"<title>{config.title}</title>",
+        f"<style>{_get_css(colors)}</style>",
+        "<style>.summary-cards {display:flex; flex-wrap:wrap; gap:15px; justify-content:center;} .summary-card {flex:1 1 300px; min-width:280px;}</style>",
+        "</head>",
+        "<body>",
+        '<div class="container">',
+        '<header class="report-header">',
+        f"<h1>{config.title}</h1>",
+        '<div class="report-meta">',
+        f'<span>Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>',
+        f'<span>Strategies: {", ".join(name for name, _ in results)}</span>',
+        "</div>",
+        "</header>",
+    ]
+
+    if config.include_charts:
+        html_parts.extend(
+            [
+                '<section class="section">',
+                "<h2>Charts</h2>",
+                '<div class="chart-grid">',
+                f'<div class="chart-card full-width"><h3>Equity Curves</h3><img src="data:image/png;base64,{equity_chart}" alt="Equity Curves Comparison"></div>',
+                f'<div class="chart-card full-width"><h3>Drawdown Comparison</h3><img src="data:image/png;base64,{drawdown_chart}" alt="Drawdown Comparison"></div>',
+                "</div>",
+                "</section>",
+            ]
+        )
+
+    html_parts.extend(
+        [
+            '<section class="section">',
+            "<h2>Strategy Comparison</h2>",
+            summary_cards,
+            comparison_table,
+            "</section>",
+        ]
+    )
+
+    html_parts.extend(
+        [
+            '<footer class="report-footer">',
+            "<p>Generated by Quantitative Trading Framework</p>",
+            "</footer>",
+            "</div>",
+            "</body>",
+            "</html>",
+        ]
+    )
+
+    html = "\n".join(html_parts)
+
+    if output_path:
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(html, encoding="utf-8")
+
+    return html
+
+
 __all__ = [
     "MATPLOTLIB_AVAILABLE",
     "ReportConfig",
+    "generate_comparison_report",
     "generate_html_report",
     "generate_report_from_dict",
 ]

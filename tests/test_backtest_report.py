@@ -12,6 +12,7 @@ from quant_trading.backtest.metrics import BacktestMetrics
 from quant_trading.backtest.report import (
     MATPLOTLIB_AVAILABLE,
     ReportConfig,
+    generate_comparison_report,
     generate_html_report,
     generate_report_from_dict,
 )
@@ -432,6 +433,112 @@ def test_report_handles_nan_metrics():
 
     assert "N/A" in html
     assert "Performance Summary" in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_generate_comparison_report_basic():
+    """Test basic comparison report generation."""
+    result1 = _create_sample_result()
+    result2 = _create_sample_result()
+    # Modify result2 to have different metrics
+    result2 = BacktestResult(
+        equity_curve=result2.equity_curve * 1.02,  # 2% better
+        trades=result2.trades,
+        positions=result2.positions,
+        metrics=result2.metrics,
+        start_date=result2.start_date,
+        end_date=result2.end_date,
+        initial_capital=result2.initial_capital,
+        final_value=result2.final_value * 1.02,
+        total_return=result2.total_return * 1.02,
+        total_return_pct=result2.total_return_pct * 1.02,
+        total_costs=result2.total_costs,
+    )
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    config = ReportConfig(include_charts=True, title="Strategy Comparison")
+
+    html = generate_comparison_report(results, config)
+
+    assert isinstance(html, str)
+    assert len(html) > 0
+    assert "<!DOCTYPE html>" in html
+    assert "Strategy Comparison" in html
+    assert "Strategy A" in html
+    assert "Strategy B" in html
+    assert "Equity Curves Comparison" in html
+    assert "Drawdown Comparison" in html
+    assert "Strategy Comparison" in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_generate_comparison_report_no_charts():
+    """Test comparison report generation without charts."""
+    result1 = _create_sample_result()
+    result2 = _create_sample_result()
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    config = ReportConfig(include_charts=False)
+
+    html = generate_comparison_report(results, config)
+
+    assert isinstance(html, str)
+    assert "Equity Curves Comparison" not in html
+    assert "Drawdown Comparison" not in html
+    assert "Strategy A" in html
+    assert "Strategy B" in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_generate_comparison_report_to_file():
+    """Test comparison report generation writing to file."""
+    result1 = _create_sample_result()
+    result2 = _create_sample_result()
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    config = ReportConfig(include_charts=True)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_path = Path(tmpdir) / "comparison.html"
+        html = generate_comparison_report(results, config, output_path)
+
+        assert output_path.exists()
+        content = output_path.read_text()
+        assert content == html
+        assert "Strategy Comparison" in content
+
+
+def test_generate_comparison_report_empty_results():
+    """Test that empty results list raises ValueError."""
+    with pytest.raises(ValueError, match="At least one result is required"):
+        generate_comparison_report([])
+
+
+def test_generate_comparison_report_single_result():
+    """Test comparison report with a single result."""
+    result1 = _create_sample_result()
+
+    results = [("Strategy A", result1)]
+    config = ReportConfig(include_charts=False)
+
+    html = generate_comparison_report(results, config)
+
+    assert isinstance(html, str)
+    assert "Strategy A" in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_comparison_report_dark_theme():
+    """Test comparison report with dark theme."""
+    result1 = _create_sample_result()
+    result2 = _create_sample_result()
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    config = ReportConfig(theme="dark")
+
+    html = generate_comparison_report(results, config)
+
+    assert "#1e1e1e" in html  # dark background color
 
 
 if __name__ == "__main__":
