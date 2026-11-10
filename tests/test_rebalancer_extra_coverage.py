@@ -44,3 +44,34 @@ def test_risk_adjust_buy_no_room_left():
     # try to buy more - should return 0 if room <= 0
     result = rebalancer._risk_adjust_buy(plan, "AAPL", 10.0, 100.0, 100000.0)
     assert result == 0.0
+
+
+def test_rebalancer_iso_none_returns_none():
+    """_iso(None) returns None (rebalancer.py:43)."""
+    from quant_trading.portfolio.rebalancer import _iso
+
+    assert _iso(None) is None
+
+
+def test_rebalancer_iso_datetime_returns_isoformat():
+    """_iso(datetime) returns its ISO-8601 string (rebalancer.py:44)."""
+    from datetime import datetime
+
+    from quant_trading.portfolio.rebalancer import _iso
+
+    dt = datetime(2024, 1, 2, 3, 4, 5)
+    assert _iso(dt) == "2024-01-02T03:04:05"
+
+
+def test_rebalancer_coerce_datetime_branches():
+    """_coerce_datetime covers the None/datetime/str/fallback branches
+    (rebalancer.py:50-55)."""
+    from datetime import datetime
+
+    from quant_trading.portfolio.rebalancer import _coerce_datetime
+
+    assert _coerce_datetime(None) is None
+    dt = datetime(2024, 1, 2, 3, 4, 5)
+    assert _coerce_datetime(dt) is dt
+    assert _coerce_datetime("2024-01-02T03:04:05") == dt
+    assert _coerce_datetime(12345) is None
