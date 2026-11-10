@@ -2603,3 +2603,26 @@ class TestBacktestResultSerialization:
         assert hasattr(reconstructed, "monte_carlo")
         assert reconstructed.monte_carlo.n_simulations == 1
         assert len(reconstructed.monte_carlo.simulations) == 1
+
+    def test_from_dict_reconstructs_nested_regime_analysis(self):
+        """BacktestResult.from_dict rebuilds regime_analysis from a dict (engine.py:644-648).
+
+        The sibling branches for ``trade_analysis`` and ``monte_carlo`` are
+        already covered; the ``regime_analysis`` branch had no test, so a
+        regression in its reconstruction (wrong key, dropped segments) would
+        go unnoticed.
+        """
+        from quant_trading.backtest.analysis import analyze_regimes
+
+        result = self._make_result()
+        result.regime_analysis = analyze_regimes(result, window=10)
+        data = result.to_dict()
+        assert "regime_analysis" in data
+
+        reconstructed = BacktestResult.from_dict(data)
+        assert hasattr(reconstructed, "regime_analysis")
+        assert reconstructed.regime_analysis.current_regime == result.regime_analysis.current_regime
+        assert reconstructed.regime_analysis.n_segments == result.regime_analysis.n_segments
+        assert reconstructed.regime_analysis.window == result.regime_analysis.window
+        # The serialized form must round-trip stably (equity_curve is not exported).
+        assert reconstructed.regime_analysis.to_dict() == result.regime_analysis.to_dict()
