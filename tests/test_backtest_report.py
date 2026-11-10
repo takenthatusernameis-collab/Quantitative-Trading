@@ -694,5 +694,325 @@ def test_create_trade_distribution_chart_all_nan_pnl():
         assert isinstance(png, str) and len(png) > 0
 
 
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_comparison_report_with_empty_equity_curve():
+    """Test comparison report with an empty equity curve in one result."""
+    result1 = _create_sample_result()
+
+    # Create a result with empty equity curve
+    dates = pd.date_range("2024-01-01", periods=10, freq="D")
+    empty_equity = pd.Series(dtype=float, index=dates[:0])
+
+    metrics = BacktestMetrics(
+        total_return=0.0,
+        total_return_pct=0.0,
+        annual_return=0.0,
+        volatility=0.0,
+        sharpe_ratio=0.0,
+        sortino_ratio=0.0,
+        calmar_ratio=0.0,
+        max_drawdown=0.0,
+        max_drawdown_pct=0.0,
+        win_rate=0.0,
+        profit_factor=0.0,
+        num_trades=0,
+        avg_win=0.0,
+        avg_loss=0.0,
+        largest_win=0.0,
+        largest_loss=0.0,
+    )
+
+    result2 = BacktestResult(
+        equity_curve=empty_equity,
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=100000.0,
+        final_value=100000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+        total_costs=0.0,
+    )
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    config = ReportConfig(include_charts=True)
+
+    html = generate_comparison_report(results, config)
+
+    assert isinstance(html, str)
+    assert "Strategy A" in html
+    assert "Strategy B" in html
+    assert "Equity Curves Comparison" in html
+    assert "Drawdown Comparison" in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_comparison_report_with_config_none():
+    """generate_comparison_report must fall back to ReportConfig() when config is None."""
+    result1 = _create_sample_result()
+    result2 = _create_sample_result()
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    html = generate_comparison_report(results)
+
+    assert isinstance(html, str)
+    assert "<!DOCTYPE html>" in html
+    assert "Strategy Comparison" in html
+    assert "Equity Curves Comparison" in html
+    assert "Drawdown Comparison" in html
+
+
+def test_build_comparison_table_handles_metric_fn_exceptions():
+    """_build_comparison_table must handle metric_fn exceptions gracefully."""
+    from quant_trading.backtest.report import _build_comparison_table, _get_theme_colors
+
+    result1 = _create_sample_result()
+
+    # Create a result with metrics that will cause AttributeError
+    class BadMetrics:
+        pass
+
+    bad_result = BacktestResult(
+        equity_curve=result1.equity_curve,
+        trades=result1.trades,
+        positions=result1.positions,
+        metrics=BadMetrics(),  # Missing attributes will cause AttributeError
+        start_date=result1.start_date,
+        end_date=result1.end_date,
+        initial_capital=result1.initial_capital,
+        final_value=result1.final_value,
+        total_return=result1.total_return,
+        total_return_pct=result1.total_return_pct,
+        total_costs=result1.total_costs,
+    )
+
+    results = [("Good Strategy", result1), ("Bad Strategy", bad_result)]
+    html = _build_comparison_table(results, _get_theme_colors("light"))
+
+    assert isinstance(html, str)
+    assert "Good Strategy" in html
+    assert "Bad Strategy" in html
+    # N/A should appear for the bad strategy's metrics
+    assert "N/A" in html
+
+
+def test_build_trades_table_branch_coverage_nan_columns():
+    """_build_trades_table must handle columns with all NaN values."""
+    from quant_trading.backtest.report import _build_trades_table, _get_theme_colors
+
+    dates = pd.date_range("2024-01-01", periods=100, freq="D")
+    trades = pd.DataFrame(
+        {
+            "symbol": ["AAPL", "MSFT"],
+            "action": ["buy", "sell"],
+            "quantity": [np.nan, np.nan],  # All NaN
+            "price": [np.nan, np.nan],  # All NaN
+            "timestamp": [dates[0], dates[1]],
+            "commission": [np.nan, np.nan],  # All NaN
+            "slippage": [np.nan, np.nan],  # All NaN
+            "cost": [1500.0, 1600.0],
+            "fee": [2.25, 2.40],
+            "pnl": [10.0, -5.0],
+        }
+    )
+    result = _create_sample_result()
+    result = result.__class__(
+        equity_curve=result.equity_curve,
+        trades=trades,
+        positions={},
+        metrics=result.metrics,
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=result.initial_capital,
+        final_value=result.final_value,
+        total_return=result.total_return,
+        total_return_pct=result.total_return_pct,
+    )
+    html = _build_trades_table(result, _get_theme_colors("light"))
+    assert "N/A" in html
+    assert "AAPL" in html
+    assert "MSFT" in html
+
+
+def test_build_trades_table_missing_timestamp_column():
+    """_build_trades_table must handle missing timestamp column (else branch)."""
+    from quant_trading.backtest.report import _build_trades_table, _get_theme_colors
+
+    trades = pd.DataFrame(
+        {
+            "symbol": ["AAPL", "MSFT"],
+            "action": ["buy", "sell"],
+            "quantity": [10, 10],
+            "price": [150.0, 160.0],
+            # No timestamp column
+            "commission": [0.001, 0.001],
+            "slippage": [0.0005, 0.0005],
+            "cost": [1500.0, 1600.0],
+            "fee": [2.25, 2.40],
+            "pnl": [10.0, -5.0],
+        }
+    )
+    result = _create_sample_result()
+    dates = pd.date_range("2024-01-01", periods=100, freq="D")
+    result = result.__class__(
+        equity_curve=result.equity_curve,
+        trades=trades,
+        positions={},
+        metrics=result.metrics,
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=result.initial_capital,
+        final_value=result.final_value,
+        total_return=result.total_return,
+        total_return_pct=result.total_return_pct,
+    )
+    html = _build_trades_table(result, _get_theme_colors("light"))
+    assert "AAPL" in html
+    assert "MSFT" in html
+    # timestamp column should not be in headers since it was missing
+    # The headers are from the display_df which doesn't have timestamp
+    # The test verifies no crash and proper rendering
+
+
+def test_build_trades_table_missing_price_cost_fee_pnl_columns():
+    """_build_trades_table must handle missing optional price/cost/fee/pnl columns."""
+    from quant_trading.backtest.report import _build_trades_table, _get_theme_colors
+
+    trades = pd.DataFrame(
+        {
+            "symbol": ["AAPL"],
+            "action": ["buy"],
+            "quantity": [10],
+            "timestamp": [pd.Timestamp("2024-01-01")],
+            # Missing price, cost, fee, pnl columns
+        }
+    )
+    result = _create_sample_result()
+    dates = pd.date_range("2024-01-01", periods=100, freq="D")
+    result = result.__class__(
+        equity_curve=result.equity_curve,
+        trades=trades,
+        positions={},
+        metrics=result.metrics,
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=result.initial_capital,
+        final_value=result.final_value,
+        total_return=result.total_return,
+        total_return_pct=result.total_return_pct,
+    )
+    html = _build_trades_table(result, _get_theme_colors("light"))
+    assert "AAPL" in html
+    # Should not crash
+
+
+def test_build_comparison_table_metric_fn_exception_coverage():
+    """Force coverage of _build_comparison_table exception handler (lines 1059-1060)."""
+    import pandas as pd
+
+    from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.report import _build_comparison_table, _get_theme_colors
+
+    dates = pd.date_range("2024-01-01", periods=10, freq="D")
+    equity_curve = pd.Series([100000] * 10, index=dates)
+    trades_df = pd.DataFrame()
+
+    class GoodMetrics:
+        total_return = 0.0
+        total_return_pct = 0.0
+        annual_return = 0.0
+        volatility = 0.0
+        sharpe_ratio = 0.0
+        sortino_ratio = 0.0
+        calmar_ratio = 0.0
+        max_drawdown = 0.0
+        max_drawdown_pct = 0.0
+        win_rate = 0.0
+        profit_factor = 0.0
+        num_trades = 0
+        avg_win = 0.0
+        avg_loss = 0.0
+        largest_win = 0.0
+        largest_loss = 0.0
+
+    class BadMetrics:
+        """Missing all attributes - will cause AttributeError when accessed."""
+
+    good_result = BacktestResult(
+        equity_curve=equity_curve,
+        trades=trades_df,
+        positions={},
+        metrics=GoodMetrics(),
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=100000.0,
+        final_value=100000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+        total_costs=0.0,
+    )
+
+    bad_result = BacktestResult(
+        equity_curve=equity_curve,
+        trades=trades_df,
+        positions={},
+        metrics=BadMetrics(),
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=100000.0,
+        final_value=100000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+        total_costs=0.0,
+    )
+
+    results = [("Good", good_result), ("Bad", bad_result)]
+    html = _build_comparison_table(results, _get_theme_colors("light"))
+
+    assert "Good" in html
+    assert "Bad" in html
+    # The exception handler should produce N/A for Bad strategy's metrics
+    assert "N/A" in html
+
+
+def test_build_trades_table_missing_quantity_column():
+    """_build_trades_table must handle missing quantity column (else branch at line 594)."""
+    from quant_trading.backtest.report import _build_trades_table, _get_theme_colors
+
+    trades = pd.DataFrame(
+        {
+            "symbol": ["AAPL"],
+            "action": ["buy"],
+            "price": [150.0],
+            "timestamp": [pd.Timestamp("2024-01-01")],
+            "commission": [0.001],
+            "slippage": [0.0005],
+            "cost": [1500.0],
+            "fee": [2.25],
+            "pnl": [10.0],
+            # Missing quantity column
+        }
+    )
+    result = _create_sample_result()
+    dates = pd.date_range("2024-01-01", periods=100, freq="D")
+    result = result.__class__(
+        equity_curve=result.equity_curve,
+        trades=trades,
+        positions={},
+        metrics=result.metrics,
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=result.initial_capital,
+        final_value=result.final_value,
+        total_return=result.total_return,
+        total_return_pct=result.total_return_pct,
+    )
+    html = _build_trades_table(result, _get_theme_colors("light"))
+    assert "AAPL" in html
+    # quantity column should not appear in output since it was missing
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
