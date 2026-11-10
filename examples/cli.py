@@ -2471,16 +2471,16 @@ def _run_cli() -> int:
             if not _save_json_output(args.output, output_data, output_format):
                 return 1
 
-if getattr(args, "report", None) and not _write_report(
-                result,
-                args.report,
-                theme=getattr(args, "report_theme", "light"),
-                include_charts=not getattr(args, "report_no_charts", False),
-                include_trade_details=not getattr(args, "report_no_trades", False),
-                include_monthly_heatmap=not getattr(args, "report_no_monthly", False),
-                include_rolling_metrics=not getattr(args, "report_no_rolling", False),
-            ):
-                return 1
+        if getattr(args, "report", None) and not _write_report(
+            result,
+            args.report,
+            theme=getattr(args, "report_theme", "light"),
+            include_charts=not getattr(args, "report_no_charts", False),
+            include_trade_details=not getattr(args, "report_no_trades", False),
+            include_monthly_heatmap=not getattr(args, "report_no_monthly", False),
+            include_rolling_metrics=not getattr(args, "report_no_rolling", False),
+        ):
+            return 1
 
     except (ValueError, RuntimeError, KeyError) as e:
         print(f"Error running backtest: {e}")

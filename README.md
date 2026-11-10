@@ -70,7 +70,8 @@ quant_trading/
 │   ├── metrics.py      # Performance metrics
 │   ├── analysis.py     # Regime and trade analysis helpers
 │   ├── trade_analysis.py # Detailed trade-level analysis
-│   └── trade_log.py    # Trade log interpretation and round-trip pairing
+│   ├── trade_log.py    # Trade log interpretation and round-trip pairing
+│   └── report.py       # HTML backtest report generation
 ├── data/               # Data providers
 │   ├── providers.py    # Base interfaces
 │   ├── synthetic.py    # Deterministic synthetic data generator

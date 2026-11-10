@@ -52,6 +52,46 @@ class ReportConfig:
     theme: str = "light"
     dpi: int = 150
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the report configuration to a dictionary.
+
+        Returns:
+            Dictionary of all report configuration fields.
+
+        """
+        return {
+            "title": self.title,
+            "include_charts": self.include_charts,
+            "include_trade_details": self.include_trade_details,
+            "include_monthly_heatmap": self.include_monthly_heatmap,
+            "include_rolling_metrics": self.include_rolling_metrics,
+            "theme": self.theme,
+            "dpi": self.dpi,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ReportConfig:
+        """Deserialize a :class:`ReportConfig` from a dictionary.
+
+        Missing keys fall back to the dataclass defaults, so a dictionary
+        produced by :meth:`to_dict` (for example after a JSON round-trip) can
+        be reconstructed without carrying every field. Extra keys are ignored.
+
+        Args:
+            data: Dictionary whose keys match report configuration attribute
+                names.
+
+        """
+        return cls(
+            title=data.get("title", "Backtest Report"),
+            include_charts=data.get("include_charts", True),
+            include_trade_details=data.get("include_trade_details", True),
+            include_monthly_heatmap=data.get("include_monthly_heatmap", True),
+            include_rolling_metrics=data.get("include_rolling_metrics", True),
+            theme=data.get("theme", "light"),
+            dpi=data.get("dpi", 150),
+        )
+
 
 def _check_matplotlib() -> None:
     """Raise ImportError if matplotlib is not available."""
