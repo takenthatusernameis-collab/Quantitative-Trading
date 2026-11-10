@@ -189,6 +189,52 @@ def test_serialization_round_trip(cls, instance):
         assert restored == instance
 
 
+def test_walk_forward_window_from_dict_drops_unexpected_result_types():
+    """WalkForwardWindow.from_dict coerces unexpected train/test result values to None.
+
+    Covers the defensive branch at quant_trading/optimization/walk_forward.py:176
+    where ``train_result``/``test_result`` are present but neither a dict nor a
+    BacktestResult: the private ``_restore_result`` helper returns None for
+    them, so the deserialized window keeps ``None`` for both fields.
+    """
+    from quant_trading.optimization.walk_forward import WalkForwardWindow
+
+    data = {
+        "train_start": "2024-01-01T00:00:00",
+        "train_end": "2024-02-01T00:00:00",
+        "test_start": "2024-02-01T00:00:00",
+        "test_end": "2024-03-01T00:00:00",
+        "best_params": {"fast": 5},
+        "train_result": 42,
+        "test_result": object(),
+    }
+    window = WalkForwardWindow.from_dict(data)
+    assert window.train_result is None
+    assert window.test_result is None
+    assert window.best_params == {"fast": 5}
+
+
+def test_walk_forward_result_from_dict_rejects_unexpected_combined_type():
+    """WalkForwardResult.from_dict coerces an unexpected combined_test_result to None.
+
+    Covers the defensive branch at quant_trading/optimization/walk_forward.py:278-279
+    where ``combined_test_result`` is present but neither a dict nor a
+    BacktestResult: it is silently dropped rather than propagated, so the
+    deserialized result keeps ``combined_test_result=None``.
+    """
+    from quant_trading.optimization.walk_forward import WalkForwardResult
+
+    data = {
+        "windows": [],
+        "combined_test_result": "not-a-backtest-result",
+        "anchored": False,
+    }
+    result = WalkForwardResult.from_dict(data)
+    assert result.combined_test_result is None
+    assert result.anchored is False
+    assert result.windows == []
+
+
 def test_every_dataclass_declares_to_dict_and_from_dict():
     """Every dataclass defined in ``quant_trading/`` must expose ``to_dict``/``from_dict``.
 
