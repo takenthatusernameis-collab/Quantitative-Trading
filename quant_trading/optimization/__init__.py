@@ -15,6 +15,7 @@ from .base import (
     maximize_win_rate,
     minimize_max_drawdown,
 )
+from .bayesian import BayesianOptimizerConfig
 
 _BayesianOptimizer: type | None
 if TYPE_CHECKING:
@@ -31,6 +32,7 @@ from .walk_forward import WalkForwardOptimizer
 
 __all__ = [
     "BayesianOptimizer",
+    "BayesianOptimizerConfig",
     "GridSearch",
     "ObjectiveFunction",
     "OptimizationResult",
