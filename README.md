@@ -582,6 +582,11 @@ python examples/cli.py --offline --walk-forward \
     --wf-windows 3 --wf-train-size 0.7 --wf-optimizer random \
     --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
     --symbols AAPL --days 120
+python examples/cli.py --offline --walk-forward --wf-optimizer bayesian \
+    --bayesian-n-initial 2 --n-iter 5 \
+    --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
+    --wf-windows 3 --wf-train-size 0.7 --symbols AAPL --days 90 \
+    --n-jobs 1
 ```
 
 The windows are controlled with `--wf-windows` (number of windows, default 5),

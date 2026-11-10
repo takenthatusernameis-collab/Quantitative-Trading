@@ -73,10 +73,9 @@ def _readme_commands() -> list[pytest.param]:
                 logical_lines.append(line[:-1].rstrip())
                 continue
             if logical_lines:
-                logical_lines[-1] += " " + line
-                line = logical_lines.pop()
-            else:
-                line = raw_line.strip()
+                logical_lines.append(line)
+                line = " ".join(logical_lines)
+                logical_lines.clear()
             match = _COMMAND.match(line)
             if match:
                 args = match.group("args").strip().split()
@@ -94,7 +93,11 @@ def _expects_failure(args: list[str]) -> bool:
         or "--mc-simulations 0" in text
         or "--ma-fast-range 5,20,0" in text
         or "--config missing.yaml" in text
-        or "--wf-step-size 0" in text
+        # ``--wf-step-size 0`` is an error (windows would not advance), but
+        # ``--wf-step-size 0.5`` is a valid positive step, so match the value
+        # token precisely rather than a substring prefix.
+        or "--wf-step-size 0 " in text
+        or text.endswith("--wf-step-size 0")
     )
 
 
