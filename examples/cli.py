@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 from quant_trading.backtest.engine import run_backtest
+from quant_trading.backtest.report import ReportConfig, generate_html_report
 from quant_trading.config.settings import Config
 from quant_trading.data.yfinance_provider import AlphaVantageProvider
 from quant_trading.monte_carlo import run_monte_carlo
@@ -702,6 +703,47 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Write the (best) strategy configuration to PATH",
     )
     parser.add_argument(
+        "--report",
+        type=str,
+        metavar="PATH",
+        default=None,
+        help=(
+            "Generate an HTML backtest report at PATH "
+            "(requires the optional 'reporting' extra, matplotlib). "
+            "In --combined mode the report is written for the best strategy."
+        ),
+    )
+    parser.add_argument(
+        "--report-theme",
+        choices=["light", "dark"],
+        default="light",
+        help="Color theme for the HTML report (default: light)",
+    )
+    parser.add_argument(
+        "--report-no-charts",
+        action="store_true",
+        default=False,
+        help="Generate the HTML report without embedded matplotlib charts",
+    )
+    parser.add_argument(
+        "--report-no-trades",
+        action="store_true",
+        default=False,
+        help="Generate the HTML report without the trade details table",
+    )
+    parser.add_argument(
+        "--report-no-monthly",
+        action="store_true",
+        default=False,
+        help="Generate the HTML report without the monthly returns heatmap",
+    )
+    parser.add_argument(
+        "--report-no-rolling",
+        action="store_true",
+        default=False,
+        help="Generate the HTML report without the rolling metrics charts",
+    )
+    parser.add_argument(
         "--regime",
         action="store_true",
         help="Run market regime analysis on the equity curve",
@@ -1291,6 +1333,41 @@ def _save_json_output(path: str, output_data: dict, output_format: str | None = 
         print(f"Error: could not write output file '{path}': {e.strerror or e}")
         return False
     print(f"\nResults saved to {path}")
+    return True
+
+
+def _write_report(
+    result,
+    path: str,
+    *,
+    theme: str = "light",
+    include_charts: bool = True,
+    include_trade_details: bool = True,
+    include_monthly_heatmap: bool = True,
+    include_rolling_metrics: bool = True,
+) -> bool:
+    """Generate an HTML backtest report for ``result`` and write it to ``path``.
+
+    Returns True on success, False (after printing a one-line error) when the
+    report cannot be written. A missing ``matplotlib`` installation when charts
+    are requested is reported as a one-line error rather than a traceback.
+    """
+    config = ReportConfig(
+        theme=theme,
+        include_charts=include_charts,
+        include_trade_details=include_trade_details,
+        include_monthly_heatmap=include_monthly_heatmap,
+        include_rolling_metrics=include_rolling_metrics,
+    )
+    try:
+        generate_html_report(result, config, output_path=path)
+    except ImportError as e:
+        print(f"Error: {e}")
+        return False
+    except OSError as e:
+        print(f"Error: could not write report file '{path}': {e.strerror or e}")
+        return False
+    print(f"\nHTML report saved to {path}")
     return True
 
 
@@ -2394,6 +2471,17 @@ def _run_cli() -> int:
             if not _save_json_output(args.output, output_data, output_format):
                 return 1
 
+if getattr(args, "report", None) and not _write_report(
+                result,
+                args.report,
+                theme=getattr(args, "report_theme", "light"),
+                include_charts=not getattr(args, "report_no_charts", False),
+                include_trade_details=not getattr(args, "report_no_trades", False),
+                include_monthly_heatmap=not getattr(args, "report_no_monthly", False),
+                include_rolling_metrics=not getattr(args, "report_no_rolling", False),
+            ):
+                return 1
+
     except (ValueError, RuntimeError, KeyError) as e:
         print(f"Error running backtest: {e}")
         return 1
@@ -2562,6 +2650,17 @@ def run_combined(
             output_data["trade_analysis"] = trade_analysis.to_dict()
         if not _save_json_output(args.output, output_data, output_format):
             return 1
+
+    if getattr(args, "report", None) and not _write_report(
+        best[1],
+        args.report,
+        theme=getattr(args, "report_theme", "light"),
+        include_charts=not getattr(args, "report_no_charts", False),
+        include_trade_details=not getattr(args, "report_no_trades", False),
+        include_monthly_heatmap=not getattr(args, "report_no_monthly", False),
+        include_rolling_metrics=not getattr(args, "report_no_rolling", False),
+    ):
+        return 1
 
     return 0
 

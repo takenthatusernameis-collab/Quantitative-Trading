@@ -4392,6 +4392,153 @@ class TestUserErrorReporting:
         assert "Traceback" not in output
 
 
+class TestHtmlReportFlag:
+    """The ``--report`` flag writes an HTML backtest report for the run.
+
+    The report module itself is covered by ``tests/test_backtest_report.py``;
+    these tests guard the CLI wiring: the flag is accepted, the file is
+    written, and a missing optional dependency is reported as a one-line
+    error instead of a traceback.
+    """
+
+    def _run(self, arguments, capsys):
+        with patch("sys.argv", ["cli.py", *arguments]):
+            result = main()
+        captured = capsys.readouterr()
+        return result, captured.out + captured.err
+
+    def test_report_writes_html_file(self, capsys, tmp_path):
+        """``--report`` writes an HTML file and exits 0."""
+        report_path = tmp_path / "report.html"
+        result, output = self._run(
+            [
+                "--offline",
+                "--strategy",
+                "rsi",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+                "--report",
+                str(report_path),
+            ],
+            capsys,
+        )
+        assert result == 0
+        assert report_path.exists()
+        content = report_path.read_text(encoding="utf-8")
+        assert "<!DOCTYPE html>" in content
+        assert "Performance Summary" in content
+        assert "HTML report saved to" in output
+
+    def test_report_without_charts_writes_html_file(self, capsys, tmp_path):
+        """``--report --report-no-charts`` writes a chart-free report."""
+        report_path = tmp_path / "nocharts.html"
+        result, _ = self._run(
+            [
+                "--offline",
+                "--strategy",
+                "rsi",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+                "--report",
+                str(report_path),
+                "--report-no-charts",
+            ],
+            capsys,
+        )
+        assert result == 0
+        content = report_path.read_text(encoding="utf-8")
+        assert "<!DOCTYPE html>" in content
+        assert "data:image/png;base64," not in content
+
+    def test_report_dark_theme(self, capsys, tmp_path):
+        """``--report-theme dark`` embeds the dark background color."""
+        report_path = tmp_path / "dark.html"
+        result, _ = self._run(
+            [
+                "--offline",
+                "--strategy",
+                "rsi",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+                "--report",
+                str(report_path),
+                "--report-theme",
+                "dark",
+            ],
+            capsys,
+        )
+        assert result == 0
+        content = report_path.read_text(encoding="utf-8")
+        assert "#1e1e1e" in content
+
+    def test_report_combined_writes_html_for_best_strategy(self, capsys, tmp_path):
+        """In ``--combined`` mode ``--report`` writes a report for the best strategy."""
+        import multiprocessing
+
+        report_path = tmp_path / "combined_report.html"
+        result, _ = self._run(
+            [
+                "--combined",
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "60",
+                "--report",
+                str(report_path),
+                "--n-jobs",
+                str(min(4, multiprocessing.cpu_count() or 1)),
+            ],
+            capsys,
+        )
+        assert result == 0
+        assert report_path.exists()
+        content = report_path.read_text(encoding="utf-8")
+        assert "<!DOCTYPE html>" in content
+        assert "Performance Summary" in content
+
+    def test_report_missing_matplotlib_is_reported(self, capsys, tmp_path, monkeypatch):
+        """A missing ``matplotlib`` is a one-line error, not a traceback.
+
+        ``matplotlib`` is an optional dependency (the ``reporting`` extra).
+        When it is unavailable and charts are requested, the CLI must report
+        the install hint and exit 1 rather than printing a traceback.
+        """
+        from examples import cli as cli_module
+
+        def _raise_import_error(*args, **kwargs):
+            raise ImportError(
+                "matplotlib is required for chart generation. "
+                "Install with: pip install quant-trading[reporting]"
+            )
+
+        monkeypatch.setattr(cli_module, "generate_html_report", _raise_import_error)
+        report_path = tmp_path / "no_mpl.html"
+        result, output = self._run(
+            [
+                "--offline",
+                "--strategy",
+                "rsi",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+                "--report",
+                str(report_path),
+            ],
+            capsys,
+        )
+        assert result == 1
+        assert "matplotlib" in output
+        assert "Traceback" not in output
+
+
 if __name__ == "__main__":
     import pytest
 

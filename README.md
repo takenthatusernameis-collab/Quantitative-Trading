@@ -15,6 +15,10 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 - **Monte Carlo Simulation**: Bootstrap and parametric simulation of backtest outcomes
 - **Parameter Optimization**: Grid search, random search, Bayesian optimization, and walk-forward analysis
 - **Configuration**: YAML-based configuration system
+- **HTML Backtest Reports**: Generate standalone HTML reports from a backtest
+  result, with embedded equity/drawdown/monthly-returns/trade-distribution/
+  rolling-metrics charts, a metrics table, and a trade details table
+  (`generate_html_report`, `ReportConfig`)
 
 ## Installation
 
@@ -617,6 +621,19 @@ python examples/cli.py --output results.json
 python examples/cli.py --combined --output comparison.json
 python examples/cli.py --output results.csv --output-format csv
 ```
+
+Generate an HTML backtest report (charts require the optional `reporting`
+extra, `pip install quant-trading[reporting]`):
+
+```bash
+python examples/cli.py --offline --symbols AAPL --days 120 --report report.html
+python examples/cli.py --offline --strategy rsi --report dark.html --report-theme dark
+python examples/cli.py --offline --report nocharts.html --report-no-charts
+```
+
+In `--combined` mode the report is written for the best strategy (by Sharpe
+ratio). The `--report-no-charts`, `--report-no-trades`, `--report-no-monthly`,
+and `--report-no-rolling` flags disable individual report sections.
 
 ### Error Reporting
 

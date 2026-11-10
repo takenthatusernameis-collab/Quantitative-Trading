@@ -21,9 +21,10 @@ from quant_trading.backtest.engine import BacktestResult
 
 try:
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from matplotlib.dates import DateFormatter
+
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
@@ -100,9 +101,7 @@ def _get_theme_colors(theme: str) -> dict[str, str]:
     }
 
 
-def _create_equity_curve_chart(
-    result: BacktestResult, colors: dict[str, str], dpi: int
-) -> str:
+def _create_equity_curve_chart(result: BacktestResult, colors: dict[str, str], dpi: int) -> str:
     """Create equity curve chart and return as base64 string."""
     _check_matplotlib()
     fig, ax = plt.subplots(figsize=(10, 4), dpi=dpi, facecolor=colors["bg"])
@@ -140,9 +139,7 @@ def _create_equity_curve_chart(
     return _fig_to_base64(fig, dpi)
 
 
-def _create_drawdown_chart(
-    result: BacktestResult, colors: dict[str, str], dpi: int
-) -> str:
+def _create_drawdown_chart(result: BacktestResult, colors: dict[str, str], dpi: int) -> str:
     """Create drawdown chart and return as base64 string."""
     _check_matplotlib()
     fig, ax = plt.subplots(figsize=(10, 3), dpi=dpi, facecolor=colors["bg"])
@@ -191,8 +188,13 @@ def _create_monthly_returns_heatmap(
         fig, ax = plt.subplots(figsize=(8, 4), dpi=dpi, facecolor=colors["bg"])
         ax.set_facecolor(colors["bg"])
         ax.text(
-            0.5, 0.5, "Insufficient data for monthly returns",
-            ha="center", va="center", color=colors["fg"], transform=ax.transAxes
+            0.5,
+            0.5,
+            "Insufficient data for monthly returns",
+            ha="center",
+            va="center",
+            color=colors["fg"],
+            transform=ax.transAxes,
         )
         ax.set_title("Monthly Returns", color=colors["fg"], fontsize=14, fontweight="bold")
         ax.axis("off")
@@ -206,8 +208,13 @@ def _create_monthly_returns_heatmap(
         fig, ax = plt.subplots(figsize=(8, 4), dpi=dpi, facecolor=colors["bg"])
         ax.set_facecolor(colors["bg"])
         ax.text(
-            0.5, 0.5, "Insufficient data for monthly returns",
-            ha="center", va="center", color=colors["fg"], transform=ax.transAxes
+            0.5,
+            0.5,
+            "Insufficient data for monthly returns",
+            ha="center",
+            va="center",
+            color=colors["fg"],
+            transform=ax.transAxes,
         )
         ax.set_title("Monthly Returns", color=colors["fg"], fontsize=14, fontweight="bold")
         ax.axis("off")
@@ -215,15 +222,27 @@ def _create_monthly_returns_heatmap(
 
     # Create pivot table for heatmap
     monthly_returns.index = pd.to_datetime(monthly_returns.index)
-    pivot = monthly_returns.groupby([monthly_returns.index.year, monthly_returns.index.month]).first()
+    pivot = monthly_returns.groupby(
+        [monthly_returns.index.year, monthly_returns.index.month]
+    ).first()
     pivot = pivot.unstack(level=1)
 
     # Ensure all 12 months are present as columns (fill missing with NaN)
     all_months = range(1, 13)
     pivot = pivot.reindex(columns=all_months)
     pivot.columns = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
     ]
 
     fig, ax = plt.subplots(figsize=(10, 4), dpi=dpi, facecolor=colors["bg"])
@@ -248,8 +267,16 @@ def _create_monthly_returns_heatmap(
             val = pivot.iloc[i, j]
             if not np.isnan(val):
                 text_color = "white" if abs(val) > (pivot.max().max() * 0.5) else colors["fg"]
-                ax.text(j, i, f"{val:.1f}%", ha="center", va="center",
-                       color=text_color, fontsize=9, fontweight="bold")
+                ax.text(
+                    j,
+                    i,
+                    f"{val:.1f}%",
+                    ha="center",
+                    va="center",
+                    color=text_color,
+                    fontsize=9,
+                    fontweight="bold",
+                )
 
     ax.set_title("Monthly Returns (%)", color=colors["fg"], fontsize=14, fontweight="bold")
 
@@ -276,8 +303,13 @@ def _create_trade_distribution_chart(
     trades_df = result.trades
     if trades_df.empty or "pnl" not in trades_df.columns:
         ax.text(
-            0.5, 0.5, "No trades to display",
-            ha="center", va="center", color=colors["fg"], transform=ax.transAxes
+            0.5,
+            0.5,
+            "No trades to display",
+            ha="center",
+            va="center",
+            color=colors["fg"],
+            transform=ax.transAxes,
         )
         ax.set_title("Trade PnL Distribution", color=colors["fg"], fontsize=14, fontweight="bold")
         ax.axis("off")
@@ -286,8 +318,13 @@ def _create_trade_distribution_chart(
     pnls = trades_df["pnl"].dropna()
     if len(pnls) == 0:
         ax.text(
-            0.5, 0.5, "No trade PnL data",
-            ha="center", va="center", color=colors["fg"], transform=ax.transAxes
+            0.5,
+            0.5,
+            "No trade PnL data",
+            ha="center",
+            va="center",
+            color=colors["fg"],
+            transform=ax.transAxes,
         )
         ax.set_title("Trade PnL Distribution", color=colors["fg"], fontsize=14, fontweight="bold")
         ax.axis("off")
@@ -298,10 +335,24 @@ def _create_trade_distribution_chart(
     losers = pnls[pnls <= 0]
 
     bins = 30
-    ax.hist(winners, bins=bins, alpha=0.7, color=colors["positive"],
-            label=f"Winners ({len(winners)})", edgecolor=colors["bg"], linewidth=0.5)
-    ax.hist(losers, bins=bins, alpha=0.7, color=colors["negative"],
-            label=f"Losers ({len(losers)})", edgecolor=colors["bg"], linewidth=0.5)
+    ax.hist(
+        winners,
+        bins=bins,
+        alpha=0.7,
+        color=colors["positive"],
+        label=f"Winners ({len(winners)})",
+        edgecolor=colors["bg"],
+        linewidth=0.5,
+    )
+    ax.hist(
+        losers,
+        bins=bins,
+        alpha=0.7,
+        color=colors["negative"],
+        label=f"Losers ({len(losers)})",
+        edgecolor=colors["bg"],
+        linewidth=0.5,
+    )
 
     ax.axvline(x=0, color=colors["fg"], linewidth=1, linestyle="-")
     ax.set_title("Trade PnL Distribution", color=colors["fg"], fontsize=14, fontweight="bold")
@@ -317,9 +368,7 @@ def _create_trade_distribution_chart(
     return _fig_to_base64(fig, dpi)
 
 
-def _create_rolling_sharpe_chart(
-    result: BacktestResult, colors: dict[str, str], dpi: int
-) -> str:
+def _create_rolling_sharpe_chart(result: BacktestResult, colors: dict[str, str], dpi: int) -> str:
     """Create rolling Sharpe ratio chart and return as base64 string."""
     _check_matplotlib()
     fig, ax = plt.subplots(figsize=(10, 3), dpi=dpi, facecolor=colors["bg"])
@@ -328,18 +377,23 @@ def _create_rolling_sharpe_chart(
     equity = result.equity_curve
     if len(equity) < 60:
         ax.text(
-            0.5, 0.5, "Insufficient data for rolling Sharpe (need 60+ bars)",
-            ha="center", va="center", color=colors["fg"], transform=ax.transAxes
+            0.5,
+            0.5,
+            "Insufficient data for rolling Sharpe (need 60+ bars)",
+            ha="center",
+            va="center",
+            color=colors["fg"],
+            transform=ax.transAxes,
         )
-        ax.set_title("Rolling Sharpe Ratio (60-period)", color=colors["fg"], fontsize=14, fontweight="bold")
+        ax.set_title(
+            "Rolling Sharpe Ratio (60-period)", color=colors["fg"], fontsize=14, fontweight="bold"
+        )
         ax.axis("off")
         return _fig_to_base64(fig, dpi)
 
     returns = equity.pct_change().dropna()
     rolling_sharpe = (
-        returns.rolling(window=60).mean()
-        / returns.rolling(window=60).std()
-        * np.sqrt(252)
+        returns.rolling(window=60).mean() / returns.rolling(window=60).std() * np.sqrt(252)
     )
 
     ax.plot(
@@ -353,7 +407,9 @@ def _create_rolling_sharpe_chart(
     ax.axhline(y=1, color=colors["positive"], linewidth=0.5, linestyle="--", alpha=0.5)
     ax.axhline(y=-1, color=colors["negative"], linewidth=0.5, linestyle="--", alpha=0.5)
 
-    ax.set_title("Rolling Sharpe Ratio (60-period)", color=colors["fg"], fontsize=14, fontweight="bold")
+    ax.set_title(
+        "Rolling Sharpe Ratio (60-period)", color=colors["fg"], fontsize=14, fontweight="bold"
+    )
     ax.set_ylabel("Sharpe Ratio", color=colors["fg"])
     ax.set_xlabel("Date", color=colors["fg"])
     ax.tick_params(colors=colors["fg"])
@@ -377,10 +433,17 @@ def _create_rolling_volatility_chart(
     equity = result.equity_curve
     if len(equity) < 60:
         ax.text(
-            0.5, 0.5, "Insufficient data for rolling volatility (need 60+ bars)",
-            ha="center", va="center", color=colors["fg"], transform=ax.transAxes
+            0.5,
+            0.5,
+            "Insufficient data for rolling volatility (need 60+ bars)",
+            ha="center",
+            va="center",
+            color=colors["fg"],
+            transform=ax.transAxes,
         )
-        ax.set_title("Rolling Volatility (60-period)", color=colors["fg"], fontsize=14, fontweight="bold")
+        ax.set_title(
+            "Rolling Volatility (60-period)", color=colors["fg"], fontsize=14, fontweight="bold"
+        )
         ax.axis("off")
         return _fig_to_base64(fig, dpi)
 
@@ -395,7 +458,12 @@ def _create_rolling_volatility_chart(
         label="Rolling Vol (60)",
     )
 
-    ax.set_title("Rolling Volatility (60-period, Annualized %)", color=colors["fg"], fontsize=14, fontweight="bold")
+    ax.set_title(
+        "Rolling Volatility (60-period, Annualized %)",
+        color=colors["fg"],
+        fontsize=14,
+        fontweight="bold",
+    )
     ax.set_ylabel("Volatility (%)", color=colors["fg"])
     ax.set_xlabel("Date", color=colors["fg"])
     ax.tick_params(colors=colors["fg"])
@@ -442,16 +510,23 @@ def _build_metrics_table(result: BacktestResult, colors: dict[str, str]) -> str:
         ("Avg Loss", _format_metric(getattr(metrics, "avg_loss", None), "${:,.2f}")),
         ("Best Trade", _format_metric(getattr(metrics, "best_trade", None), "${:,.2f}")),
         ("Worst Trade", _format_metric(getattr(metrics, "worst_trade", None), "${:,.2f}")),
-        ("Avg Trade Duration", _format_metric(getattr(metrics, "avg_trade_duration", None), "{:.1f} bars")),
+        (
+            "Avg Trade Duration",
+            _format_metric(getattr(metrics, "avg_trade_duration", None), "{:.1f} bars"),
+        ),
         ("Total Costs", f"${result.total_costs:,.2f}"),
     ]
 
     html = ['<table class="metrics-table">']
-    html.append(f'<thead><tr><th style="background:{colors["table_header"]}">Metric</th><th style="background:{colors["table_header"]}">Value</th></tr></thead>')
+    html.append(
+        f'<thead><tr><th style="background:{colors["table_header"]}">Metric</th><th style="background:{colors["table_header"]}">Value</th></tr></thead>'
+    )
     html.append("<tbody>")
     for i, (name, value) in enumerate(rows):
         bg = colors["table_row_even"] if i % 2 == 0 else colors["table_row_odd"]
-        html.append(f'<tr><td style="background:{bg}">{name}</td><td style="background:{bg}">{value}</td></tr>')
+        html.append(
+            f'<tr><td style="background:{bg}">{name}</td><td style="background:{bg}">{value}</td></tr>'
+        )
     html.append("</tbody></table>")
     return "\n".join(html)
 
@@ -468,16 +543,26 @@ def _build_trades_table(result: BacktestResult, colors: dict[str, str], max_rows
 
     # Format columns
     if "timestamp" in display_df.columns:
-        display_df["timestamp"] = pd.to_datetime(display_df["timestamp"]).dt.strftime("%Y-%m-%d %H:%M")
+        display_df["timestamp"] = pd.to_datetime(display_df["timestamp"]).dt.strftime(
+            "%Y-%m-%d %H:%M"
+        )
     for col in ["price", "cost", "fee", "pnl"]:
         if col in display_df.columns:
-            display_df[col] = display_df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "N/A")
+            display_df[col] = display_df[col].apply(
+                lambda x: f"${x:,.2f}" if pd.notna(x) else "N/A"
+            )
     if "quantity" in display_df.columns:
-        display_df["quantity"] = display_df["quantity"].apply(lambda x: f"{x:.4f}" if pd.notna(x) else "N/A")
+        display_df["quantity"] = display_df["quantity"].apply(
+            lambda x: f"{x:.4f}" if pd.notna(x) else "N/A"
+        )
     if "commission" in display_df.columns:
-        display_df["commission"] = display_df["commission"].apply(lambda x: f"{x:.4%}" if pd.notna(x) else "N/A")
+        display_df["commission"] = display_df["commission"].apply(
+            lambda x: f"{x:.4%}" if pd.notna(x) else "N/A"
+        )
     if "slippage" in display_df.columns:
-        display_df["slippage"] = display_df["slippage"].apply(lambda x: f"{x:.4%}" if pd.notna(x) else "N/A")
+        display_df["slippage"] = display_df["slippage"].apply(
+            lambda x: f"{x:.4%}" if pd.notna(x) else "N/A"
+        )
 
     html = ['<div class="table-container"><table class="trades-table">']
     headers = display_df.columns.tolist()
@@ -562,13 +647,13 @@ def generate_html_report(
         "<head>",
         '<meta charset="UTF-8">',
         '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
-        f'<title>{config.title}</title>',
+        f"<title>{config.title}</title>",
         f"<style>{_get_css(colors)}</style>",
         "</head>",
         "<body>",
         '<div class="container">',
         '<header class="report-header">',
-        f'<h1>{config.title}</h1>',
+        f"<h1>{config.title}</h1>",
         '<div class="report-meta">',
         f'<span>Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>',
         f'<span>Period: {result.start_date.strftime("%Y-%m-%d")} to {result.end_date.strftime("%Y-%m-%d")}</span>',
@@ -576,46 +661,60 @@ def generate_html_report(
         "</div>",
         "</header>",
         '<section class="section">',
-        '<h2>Performance Summary</h2>',
+        "<h2>Performance Summary</h2>",
         metrics_table,
         "</section>",
     ]
 
     if config.include_charts:
-        html_parts.extend([
-            '<section class="section">',
-            '<h2>Charts</h2>',
-            '<div class="chart-grid">',
-            f'<div class="chart-card"><h3>Equity Curve</h3><img src="data:image/png;base64,{equity_chart}" alt="Equity Curve"></div>',
-            f'<div class="chart-card"><h3>Drawdown</h3><img src="data:image/png;base64,{drawdown_chart}" alt="Drawdown"></div>',
-        ])
+        html_parts.extend(
+            [
+                '<section class="section">',
+                "<h2>Charts</h2>",
+                '<div class="chart-grid">',
+                f'<div class="chart-card"><h3>Equity Curve</h3><img src="data:image/png;base64,{equity_chart}" alt="Equity Curve"></div>',
+                f'<div class="chart-card"><h3>Drawdown</h3><img src="data:image/png;base64,{drawdown_chart}" alt="Drawdown"></div>',
+            ]
+        )
         if monthly_heatmap:
-            html_parts.append(f'<div class="chart-card full-width"><h3>Monthly Returns</h3><img src="data:image/png;base64,{monthly_heatmap}" alt="Monthly Returns"></div>')
-        html_parts.extend([
-            f'<div class="chart-card"><h3>Trade PnL Distribution</h3><img src="data:image/png;base64,{trade_dist_chart}" alt="Trade PnL Distribution"></div>',
-        ])
+            html_parts.append(
+                f'<div class="chart-card full-width"><h3>Monthly Returns</h3><img src="data:image/png;base64,{monthly_heatmap}" alt="Monthly Returns"></div>'
+            )
+        html_parts.extend(
+            [
+                f'<div class="chart-card"><h3>Trade PnL Distribution</h3><img src="data:image/png;base64,{trade_dist_chart}" alt="Trade PnL Distribution"></div>',
+            ]
+        )
         if rolling_sharpe_chart:
-            html_parts.append(f'<div class="chart-card"><h3>Rolling Sharpe (60)</h3><img src="data:image/png;base64,{rolling_sharpe_chart}" alt="Rolling Sharpe"></div>')
+            html_parts.append(
+                f'<div class="chart-card"><h3>Rolling Sharpe (60)</h3><img src="data:image/png;base64,{rolling_sharpe_chart}" alt="Rolling Sharpe"></div>'
+            )
         if rolling_vol_chart:
-            html_parts.append(f'<div class="chart-card"><h3>Rolling Volatility (60)</h3><img src="data:image/png;base64,{rolling_vol_chart}" alt="Rolling Volatility"></div>')
+            html_parts.append(
+                f'<div class="chart-card"><h3>Rolling Volatility (60)</h3><img src="data:image/png;base64,{rolling_vol_chart}" alt="Rolling Volatility"></div>'
+            )
         html_parts.extend(["</div>", "</section>"])
 
     if config.include_trade_details:
-        html_parts.extend([
-            '<section class="section">',
-            '<h2>Trade Details</h2>',
-            trades_table,
-            "</section>",
-        ])
+        html_parts.extend(
+            [
+                '<section class="section">',
+                "<h2>Trade Details</h2>",
+                trades_table,
+                "</section>",
+            ]
+        )
 
-    html_parts.extend([
-        '<footer class="report-footer">',
-        '<p>Generated by Quantitative Trading Framework</p>',
-        "</footer>",
-        "</div>",
-        "</body>",
-        "</html>",
-    ])
+    html_parts.extend(
+        [
+            '<footer class="report-footer">',
+            "<p>Generated by Quantitative Trading Framework</p>",
+            "</footer>",
+            "</div>",
+            "</body>",
+            "</html>",
+        ]
+    )
 
     html = "\n".join(html_parts)
 

@@ -1,21 +1,19 @@
 """Tests for the backtest report module."""
 
-import json
 import tempfile
-from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from quant_trading.backtest.engine import BacktestResult, Trade
+from quant_trading.backtest.engine import BacktestResult
 from quant_trading.backtest.metrics import BacktestMetrics
 from quant_trading.backtest.report import (
+    MATPLOTLIB_AVAILABLE,
     ReportConfig,
     generate_html_report,
     generate_report_from_dict,
-    MATPLOTLIB_AVAILABLE,
 )
 
 
@@ -251,9 +249,9 @@ def test_charts_generated_as_base64():
     html = generate_html_report(result, config)
 
     # Check that base64 images are embedded
-    assert 'data:image/png;base64,' in html
+    assert "data:image/png;base64," in html
     # Should have multiple charts
-    base64_count = html.count('data:image/png;base64,')
+    base64_count = html.count("data:image/png;base64,")
     assert base64_count >= 4  # equity, drawdown, monthly, trade dist, rolling sharpe, rolling vol
 
 
@@ -395,6 +393,7 @@ def test_report_handles_nan_metrics():
     trades_df = pd.DataFrame()
 
     import numpy as np
+
     metrics = BacktestMetrics(
         total_return=0.0,
         total_return_pct=0.0,
