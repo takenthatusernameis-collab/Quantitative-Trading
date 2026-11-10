@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta
 
+import pandas as pd
 import pytest
 
 from quant_trading.data.providers import (
@@ -361,7 +362,69 @@ def test_create_synthetic_provider():
 # Coverage: close data/providers.py to 100%
 
 
-def test_fetch_result_has_missing():
+def test_market_data_to_dict_renders_none_fetched_at_as_none():
+    """MarketData.to_dict maps a None fetched_at to None (providers.py:56)."""
+    md = MarketData(
+        symbol="AAPL",
+        data=pd.DataFrame({"close": [1.0]}),
+        source="synthetic",
+        fetched_at=None,
+    )
+    assert md.to_dict()["fetched_at"] is None
+
+
+def test_market_data_from_dict_coerces_datetime_fetched_at():
+    """MarketData.from_dict keeps a datetime fetched_at as-is (providers.py:65)."""
+    fetched = datetime(2024, 1, 1, 12, 0, 0)
+    md = MarketData.from_dict({"symbol": "AAPL", "source": "synthetic", "fetched_at": fetched})
+    assert md.fetched_at == fetched
+
+
+def test_market_data_from_dict_falls_back_for_uncoercible_fetched_at():
+    """MarketData.from_dict falls back to now for non-datetime fetched_at (providers.py:68)."""
+    md = MarketData.from_dict({"symbol": "AAPL", "source": "synthetic", "fetched_at": 12345})
+    assert isinstance(md.fetched_at, datetime)
+
+
+def test_market_data_from_dict_keeps_raw_index_when_parse_fails():
+    """MarketData.from_dict keeps the raw index when pd.to_datetime fails (providers.py:202-203)."""
+    md = MarketData.from_dict(
+        {
+            "symbol": "AAPL",
+            "source": "synthetic",
+            "data": {
+                "index": ["2024-01-01", "not-a-date"],
+                "columns": ["close"],
+                "data": [[1.0], [2.0]],
+            },
+        }
+    )
+    assert list(md.data.index) == ["2024-01-01", "not-a-date"]
+
+
+def test_fetch_result_from_dict_falls_back_for_invalid_error_type():
+    """FetchResult.from_dict falls back to Exception for an invalid error type name (providers.py:333-334)."""
+    result = FetchResult.from_dict({"errors": {"X": {"type": "bad\x00name", "message": "boom"}}})
+    err = result.errors["X"]
+    assert type(err) is Exception
+    assert str(err) == "boom"
+
+
+def test_fetch_result_from_dict_wraps_base_exception_error():
+    """FetchResult.from_dict wraps a BaseException (not Exception) error (providers.py:336-337)."""
+    result = FetchResult.from_dict({"errors": {"X": KeyboardInterrupt("boom")}})
+    err = result.errors["X"]
+    assert isinstance(err, Exception)
+    assert not isinstance(err, KeyboardInterrupt)
+    assert str(err) == "boom"
+
+
+def test_fetch_result_from_dict_wraps_plain_error_value():
+    """FetchResult.from_dict wraps a non-exception, non-dict error value (providers.py:338-339)."""
+    result = FetchResult.from_dict({"errors": {"X": "just a string"}})
+    err = result.errors["X"]
+    assert isinstance(err, Exception)
+    assert str(err) == "just a string"
     """FetchResult.has_missing property (line 50)."""
     result = FetchResult()
     result.missing.append("X")
