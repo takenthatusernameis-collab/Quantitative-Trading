@@ -5098,6 +5098,67 @@ class TestHtmlReportFlag:
         assert "<h2>Trade Details</h2>" not in content
         assert "<h2>Charts</h2>" not in content
 
+    def test_combined_report_without_charts_omits_charts_section(self, capsys, tmp_path):
+        """``--combined --report --report-no-charts`` omits the Charts section."""
+        import multiprocessing
+
+        report_path = tmp_path / "combined_nocharts.html"
+        result, _ = self._run(
+            [
+                "--combined",
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "60",
+                "--report",
+                str(report_path),
+                "--n-jobs",
+                str(min(4, multiprocessing.cpu_count() or 1)),
+                "--report-no-charts",
+            ],
+            capsys,
+        )
+        assert result == 0
+        content = report_path.read_text(encoding="utf-8")
+        assert "<!DOCTYPE html>" in content
+        assert "<h2>Strategy Comparison</h2>" in content
+        assert "data:image/png;base64," not in content
+        assert "<h2>Charts</h2>" not in content
+
+    def test_combined_report_all_sections_disabled_still_writes_html(
+        self, capsys, tmp_path
+    ):
+        """Every optional section disabled still yields a valid combined report."""
+        import multiprocessing
+
+        report_path = tmp_path / "combined_minimal.html"
+        result, _ = self._run(
+            [
+                "--combined",
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "60",
+                "--report",
+                str(report_path),
+                "--n-jobs",
+                str(min(4, multiprocessing.cpu_count() or 1)),
+                "--report-no-charts",
+                "--report-no-trades",
+                "--report-no-monthly",
+                "--report-no-rolling",
+            ],
+            capsys,
+        )
+        assert result == 0
+        content = report_path.read_text(encoding="utf-8")
+        assert "<!DOCTYPE html>" in content
+        assert "<h2>Strategy Comparison</h2>" in content
+        assert "data:image/png;base64," not in content
+        assert "<h2>Charts</h2>" not in content
+
 
 class TestCliHelpers:
     """Unit tests for the pure helper functions of examples.cli.
