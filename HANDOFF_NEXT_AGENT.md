@@ -1,48 +1,56 @@
 ## What changed (this session)
 
-Added library-level input validation to `WalkForwardOptimizer.__init__`
-(`quant_trading/optimization/walk_forward.py:531-561`), mirroring the
-RiskManager / Monte Carlo validation pattern. The constructor previously
-accepted `initial_capital`, `commission`, `slippage`, and `periods_per_year`
-without validation (only `n_windows`, `train_size`, `step_size` were already
-checked), so invalid values silently produced misleading walk-forward results.
-`__init__` now raises `ValueError` at construction when:
+Added library-level input validation to `BaseOptimizer.__init__`
+(`quant_trading/optimization/base.py:848-876`), mirroring the RiskManager /
+Monte Carlo / WalkForwardOptimizer validation pattern. The constructor
+previously accepted `initial_capital`, `commission`, `slippage`, and
+`periods_per_year` without validation, so invalid values silently propagated to
+GridSearch, RandomSearch, and BayesianOptimizer (all of which call
+`super().__init__(...)`). `__init__` now raises `ValueError` at construction
+when:
 
 - `initial_capital <= 0`
 - `periods_per_year < 1`
 - `commission` not in `[0, 1]`
 - `slippage` not in `[0, 1]`
 
-The pre-existing checks for `n_windows < 1`, `train_size` not in `(0, 1]`,
-and `step_size` not in `(0, 1]` were left in place (they are stricter than the
-handoff spec for `step_size`, which only required rejecting `<= 0`; no existing
-test relies on `step_size > 1` being accepted, so the behavior was preserved).
+The existing `n_jobs` clamping (`max(n_jobs, 1)`, `-1` -> `os.cpu_count()`) is
+left unchanged.
 
-**Tests added** (`tests/test_walk_forward.py`, class
-`TestWalkForwardInitValidation`):
-- parametrized rejection tests for `initial_capital`, `n_windows`,
-  `train_size`, `step_size`, `periods_per_year`, `commission`, `slippage`
-- boundary-acceptance tests for `train_size`, `step_size` (upper boundary
-  `1.0`), `periods_per_year` (`1`), `commission`, `slippage` (`0.0`/`1.0`)
+Error messages mirror the WalkForwardOptimizer prefixes exactly
+(`invalid initial_capital`, `invalid periods_per_year`, `invalid commission`,
+`invalid slippage`) so the existing `pytest.raises(..., match=...)` style
+aligns.
+
+**Tests added** (`tests/test_optimization.py`, class
+`TestBaseOptimizerInitValidation`, appended after `TestWalkForwardResultCombinedRestore`):
+- parametrized rejection tests for `initial_capital`, `periods_per_year`,
+  `commission`, `slippage`
+- boundary-acceptance tests for `periods_per_year` (`1`), `commission`
+  (`0.0`/`1.0`), `slippage` (`0.0`/`1.0`)
 - `test_accepts_all_boundary_valid_values`
 
-4 files changed (counting the new test file):
-`quant_trading/optimization/walk_forward.py` (+24),
-`tests/test_walk_forward.py` (new, ~130).
+Files changed: `quant_trading/optimization/base.py` (+28), `tests/test_optimization.py` (~100).
 
 ## Verified (this session, evidence)
 
-- `python -m py_compile quant_trading/optimization/walk_forward.py
-  tests/test_walk_forward.py` → COMPILE OK
+- `python -m py_compile quant_trading/optimization/base.py
+  tests/test_optimization.py` → COMPILE OK
 - `ast.parse` of both files → PARSE OK
+- Confirmed `grid_search.py`, `random_search.py`, `bayesian.py` all call
+  `super().__init__(...)`, so the validation covers GridSearch, RandomSearch,
+  and BayesianOptimizer in one place.
+- Existing tests that instantiate `BaseOptimizer` subclasses
+  (test_optimization.py:1052-1149) use valid defaults
+  (`initial_capital=100000.0`, default commission/slippage, default
+  `periods_per_year=252`), so they are unaffected.
 
 **Could not execute:** `pytest`, `ruff`, `mypy`, and the runtime dependency
 `pandas` are not installed in this environment (`ModuleNotFoundError`), so the
 test suite and lint/type checks could not be run. The validation logic was
-sanity-checked by reasoning against the constructor source; the new tests mirror
-the passing `TestRiskManagerInitValidation` style and match the error message
-prefixes (`invalid initial_capital`, `invalid n_windows`, etc.) used in the
-implementation, so `pytest.raises(..., match=...)` should align.
+sanity-checked by mirroring the WalkForwardOptimizer implementation whose
+tests pass in the proper environment; the new tests use the same error-message
+prefixes.
 
 ## Unresolved / not completed
 
@@ -57,9 +65,9 @@ implementation, so `pytest.raises(..., match=...)` should align.
 ## Verification commands (re-run before starting)
 
 ```bash
-python -m pytest tests/test_walk_forward.py tests/test_optimization.py -q -p no:cacheprovider
-python -m ruff check quant_trading/optimization/walk_forward.py tests/test_walk_forward.py
-python -m mypy quant_trading/optimization/walk_forward.py --ignore-missing-imports
+python -m pytest tests/test_optimization.py -q -p no:cacheprovider
+python -m ruff check quant_trading/optimization/base.py tests/test_optimization.py
+python -m mypy quant_trading/optimization/base.py --ignore-missing-imports
 ```
 
 ## Git state
@@ -70,26 +78,13 @@ python -m mypy quant_trading/optimization/walk_forward.py --ignore-missing-impor
 
 ## One precise next task
 
-- Add library-level input validation to `BaseOptimizer.__init__`
-  (`quant_trading/optimization/base.py:792-849`), mirroring the
-  RiskManager / Monte Carlo / WalkForwardOptimizer validation pattern.
-  `BaseOptimizer.__init__` accepts `initial_capital`, `commission`,
-  `slippage`, and `periods_per_year` without validation (it only clamps
-  `n_jobs` via `max(n_jobs, 1)` and maps `-1` to `os.cpu_count()`), so invalid
-  values silently propagate to GridSearch, RandomSearch, and BayesianOptimizer.
-  Reject at construction with `ValueError`:
-  - `initial_capital <= 0`
-  - `periods_per_year < 1`
-  - `commission` not in `[0, 1]`
-  - `slippage` not in `[0, 1]`
-  Leave `n_jobs` clamping behavior unchanged (do not weaken/alter existing
-  behavior without evidence).
-- Add a `TestBaseOptimizerInitValidation` class in `tests/test_optimization.py`
-  (parametrized rejection + boundary-acceptance tests, mirroring
-  `TestWalkForwardInitValidation` / `TestRiskManagerInitValidation`).
-- Because GridSearch/RandomSearch/BayesianOptimizer delegate to
-  `BaseOptimizer.__init__` via `super().__init__(...)`, validating here covers
-  all three optimizers in one place.
-- Verify: `tests/test_optimization.py`, ruff on
-  `quant_trading/optimization/base.py`, mypy on
-  `quant_trading/optimization/base.py`.
+- Run the verification commands above (pytest on `tests/test_optimization.py`,
+  ruff + mypy on `quant_trading/optimization/base.py`) in an environment with
+  dev dependencies (`pandas`, `pytest`, `ruff`, `mypy`) installed, and fix any
+  failures. This is the final gate for the BaseOptimizer validation task.
+- Once green, a natural follow-up bounded task: add tests confirming
+  `GridSearch`, `RandomSearch`, and `BayesianOptimizer` inherit the
+  `BaseOptimizer.__init__` validation (they delegate via `super().__init__`,
+  so no new library code is needed—just parametrized rejection tests for
+  `initial_capital`/`commission`/`slippage`/`periods_per_year` on each
+  subclass, mirroring `TestBaseOptimizerInitValidation`).

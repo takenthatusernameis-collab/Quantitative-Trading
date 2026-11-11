@@ -848,6 +848,30 @@ class BaseOptimizer(ABC):
         self.periods_per_year = periods_per_year
         self.verbose = verbose
 
+        # Validate library-level inputs. Invalid values are silently accepted
+        # today, so they propagate to GridSearch, RandomSearch, and
+        # BayesianOptimizer instead of surfacing a clear error at construction.
+        if self.initial_capital <= 0:
+            raise ValueError(
+                f"invalid initial_capital: the value must be positive "
+                f"(got {self.initial_capital})"
+            )
+        if self.periods_per_year < 1:
+            raise ValueError(
+                f"invalid periods_per_year: the value must be at least 1 "
+                f"(got {self.periods_per_year})"
+            )
+        if not (0.0 <= self.commission <= 1.0):
+            raise ValueError(
+                f"invalid commission: the value must be in the range [0, 1] "
+                f"(got {self.commission})"
+            )
+        if not (0.0 <= self.slippage <= 1.0):
+            raise ValueError(
+                f"invalid slippage: the value must be in the range [0, 1] "
+                f"(got {self.slippage})"
+            )
+
     @abstractmethod
     def run(self) -> OptimizationResult:
         """Run the optimization.
