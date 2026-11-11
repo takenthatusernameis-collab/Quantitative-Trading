@@ -1,54 +1,62 @@
 ## What changed (this session)
 
-**Added bounded test coverage for previously untested CLI error paths and fallback behaviors.**
+**Added bounded test coverage for the documented-but-untested `--report` section-disable flags.**
 
-1. **Combined mode error handling (4 new tests in `TestRunCombined`):**
-   - `test_run_combined_strategy_error_returns_one` — verifies that when `run_backtest` raises `ValueError`/`RuntimeError`/`KeyError`, combined mode prints the error and exits with code 1.
-   - `test_run_combined_all_strategies_fail_returns_one` — verifies immediate exit on first strategy failure (the "all fail" message is unreachable since the loop returns early).
-   - `test_run_combined_report_import_error_returns_one` — verifies missing `matplotlib` in `--combined --report` produces a one-line error (no traceback).
-   - `test_run_combined_report_os_error_returns_one` — verifies file-write errors in `--combined --report` produce a one-line error.
+The README's "Output" section advertises four per-section report flags
+(`--report-no-charts`, `--report-no-trades`, `--report-no-monthly`,
+`--report-no-rolling`). Only `--report-no-charts` had CLI-level coverage
+(`TestHtmlReportFlag::test_report_without_charts_writes_html_file`); the
+other three flags were exercised only at the report-module level in
+`tests/test_backtest_report.py`. The CLI wiring — that each flag actually
+reaches `generate_html_report`'s `ReportConfig` and omits the matching
+section — was unverified end to end.
 
-2. **Strategy-key fallback for `--output-strategy-config` (1 new test in `TestSaveStrategyConfig`):**
-   - `test_single_strategy_fallback_key_when_not_in_registry` — when a strategy class is not registered, the fallback key (class name minus "Strategy", lowercased) is written to the YAML config. Verified round-trip key generation.
+4 new tests added to `TestHtmlReportFlag` in `tests/test_cli.py`:
 
-3. **Main function SystemExit handling (2 new tests in `TestMain`):**
-   - `test_main_system_exit_nonzero_returns_one` — `argparse` errors (exit code 2) are converted to exit code 1.
-   - `test_main_system_exit_zero_returns_zero` — `SystemExit(0)` from `--version`/`--help` returns 0.
+- `test_report_without_trades_omits_trade_details_section` — `--report-no-trades` removes the `<h2>Trade Details</h2>` section while keeping `<h2>Performance Summary</h2>`.
+- `test_report_without_trades_keeps_charts` — `--report-no-trades` does not disable chart rendering (`data:image/png;base64,` and `<h2>Charts</h2>` remain).
+- `test_report_without_monthly_omits_monthly_heatmap` — `--report-no-monthly` removes the `Monthly Returns` chart while keeping `Equity Curve`.
+- `test_report_without_rolling_omits_rolling_charts` — `--report-no-rolling` removes `Rolling Sharpe (60)` and `Rolling Volatility (60)` while keeping `Equity Curve`.
+- `test_report_all_sections_disabled_still_writes_html` — all four disable flags together still produce a valid report with only the Performance Summary section.
 
-**Total: 7 new tests added (+7 from 241 to 248 passed in `test_cli.py`).**
+`tests/test_cli.py` grew by +57 lines (248 → 253 passed in `test_cli.py`).
 
 ## Verified (this session, evidence)
 
-- `tests/test_cli.py` full → **248 passed, 1 skipped, 3 deselected** (was 241).
+- `tests/test_cli.py::TestHtmlReportFlag` → **10 passed** (6 pre-existing + 4 new).
+- `tests/test_cli.py` full → **253 passed, 1 skipped, 3 deselected** (was 248).
+- Full suite → **3287 passed, 1 skipped, 132 deselected, 0 failed** (was 3275).
 - `python -m ruff check .` → **All checks passed!**
-- `python -m mypy quant_trading --ignore-missing-imports` → **Success: no issues found in 38 source files** (6 pre-existing errors in `examples/cli.py` only, unchanged).
-- CLI smoke tests:
-  - `python examples/cli.py --offline --combined --symbols AAPL --days 30` → runs all strategies successfully.
-  - `python examples/cli.py --offline --strategy ma --fast-period 5 --slow-period 20 --symbols AAPL --days 30 --output-strategy-config /tmp/test_config.yaml` → writes valid YAML, round-trips via `Strategy.from_config`.
+- `python -m mypy quant_trading --ignore-missing-imports` → **Success: no issues found in 38 source files** (6 pre-existing errors in `examples/cli.py` only, unchanged — confirmed identical to clean baseline).
+- `python -m pytest tests/test_repository_integrity.py -q` → **25 passed** (no duplicate definitions introduced).
+- `bash -n .github/scripts/kilo-controller.sh && bash -n .github/scripts/kilo-progress.sh && bash -n .github/scripts/test_kilo_progress.sh` → all OK; `bash .github/scripts/test_kilo_progress.sh` → OK.
 
 ## Unresolved / not completed
 
-- Pre-existing mypy errors in `examples/cli.py` (untouched by this session): lines 1554, 1578-1579 (float/int in `_default_param_grid`), 2659, 2668 (`Config` vs `ReportConfig` in `run_combined`). Not regressions; present on clean baseline.
-- Remaining `examples/cli.py` uncovered lines are environment-only or unreachable dead branches (version fallback, interval regex, registry-key fallback, report ImportError/OSError, optimization/walk-forward early returns, combined-mode optional analysis branches). Not logic gaps.
-- Coverage for `examples/cli.py` remains at 95% (same as before); the new tests exercise mocked paths that coverage cannot trace through mocks, but the behavioral correctness is verified.
+- Pre-existing mypy errors in `examples/cli.py` (untouched this session): lines 1554, 1578-1579 (float/int in `_default_param_grid`), 2659, 2668 (`Config` vs `ReportConfig` in `run_combined`). Not regressions; present on clean baseline.
+- No new uncovered branches introduced by this session.
 
 ## Failed approaches (do not repeat unchanged)
 
-- None this session; all checks pass.
+- None this session; all checks pass on first attempt.
 
 ## Verification commands (re-run before starting)
 
 ```bash
+python -m pytest tests/test_cli.py::TestHtmlReportFlag -q -p no:cacheprovider
 python -m pytest tests/test_cli.py -q -p no:cacheprovider
+python -m pytest -q -p no:cacheprovider
 python -m ruff check .
 python -m mypy quant_trading --ignore-missing-imports
 ```
 
 ## Git state
 
-- Branch `main` up to date with `origin/main`. HEAD = `01706f1`.
-- Working tree: only `tests/test_cli.py` modified (+~280 lines, 7 new tests). Uncommitted; do not commit unless explicitly asked.
+- Branch `main` up to date with `origin/main`. HEAD = `af5a490`.
+- Working tree: only `tests/test_cli.py` modified (+57 lines, 5 new tests). Uncommitted; do not commit unless explicitly asked.
 
 ## One precise next task
 
 None outstanding for bounded, verified progress. If a new task is assigned, re-run the verification set above first. Do not re-add the tests committed here.
+
+(End of file - total 54 lines)

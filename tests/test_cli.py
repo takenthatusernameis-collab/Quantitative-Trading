@@ -4971,6 +4971,133 @@ class TestHtmlReportFlag:
         assert "matplotlib" in output
         assert "Traceback" not in output
 
+    def test_report_without_trades_omits_trade_details_section(self, capsys, tmp_path):
+        """``--report --report-no-trades`` omits the Trade Details section."""
+        report_path = tmp_path / "notrades.html"
+        result, _ = self._run(
+            [
+                "--offline",
+                "--strategy",
+                "rsi",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+                "--report",
+                str(report_path),
+                "--report-no-trades",
+            ],
+            capsys,
+        )
+        assert result == 0
+        content = report_path.read_text(encoding="utf-8")
+        assert "<!DOCTYPE html>" in content
+        assert "<h2>Trade Details</h2>" not in content
+        # The Performance Summary section is always present.
+        assert "<h2>Performance Summary</h2>" in content
+
+    def test_report_without_trades_keeps_charts(self, capsys, tmp_path):
+        """``--report --report-no-trades`` still renders the chart sections."""
+        report_path = tmp_path / "notrades_charts.html"
+        result, _ = self._run(
+            [
+                "--offline",
+                "--strategy",
+                "rsi",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+                "--report",
+                str(report_path),
+                "--report-no-trades",
+            ],
+            capsys,
+        )
+        assert result == 0
+        content = report_path.read_text(encoding="utf-8")
+        assert "data:image/png;base64," in content
+        assert "<h2>Charts</h2>" in content
+
+    def test_report_without_monthly_omits_monthly_heatmap(self, capsys, tmp_path):
+        """``--report --report-no-monthly`` omits the Monthly Returns chart."""
+        report_path = tmp_path / "nomonthly.html"
+        result, _ = self._run(
+            [
+                "--offline",
+                "--strategy",
+                "rsi",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+                "--report",
+                str(report_path),
+                "--report-no-monthly",
+            ],
+            capsys,
+        )
+        assert result == 0
+        content = report_path.read_text(encoding="utf-8")
+        assert "<!DOCTYPE html>" in content
+        assert "Monthly Returns" not in content
+        # Other charts are still rendered.
+        assert "Equity Curve" in content
+
+    def test_report_without_rolling_omits_rolling_charts(self, capsys, tmp_path):
+        """``--report --report-no-rolling`` omits the Rolling Sharpe/Volatility charts."""
+        report_path = tmp_path / "norolling.html"
+        result, _ = self._run(
+            [
+                "--offline",
+                "--strategy",
+                "rsi",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+                "--report",
+                str(report_path),
+                "--report-no-rolling",
+            ],
+            capsys,
+        )
+        assert result == 0
+        content = report_path.read_text(encoding="utf-8")
+        assert "<!DOCTYPE html>" in content
+        assert "Rolling Sharpe (60)" not in content
+        assert "Rolling Volatility (60)" not in content
+        # Other charts are still rendered.
+        assert "Equity Curve" in content
+
+    def test_report_all_sections_disabled_still_writes_html(self, capsys, tmp_path):
+        """Every optional section disabled still yields a valid report."""
+        report_path = tmp_path / "minimal.html"
+        result, _ = self._run(
+            [
+                "--offline",
+                "--strategy",
+                "rsi",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+                "--report",
+                str(report_path),
+                "--report-no-charts",
+                "--report-no-trades",
+                "--report-no-monthly",
+                "--report-no-rolling",
+            ],
+            capsys,
+        )
+        assert result == 0
+        content = report_path.read_text(encoding="utf-8")
+        assert "<!DOCTYPE html>" in content
+        assert "<h2>Performance Summary</h2>" in content
+        assert "<h2>Trade Details</h2>" not in content
+        assert "<h2>Charts</h2>" not in content
+
 
 class TestCliHelpers:
     """Unit tests for the pure helper functions of examples.cli.
