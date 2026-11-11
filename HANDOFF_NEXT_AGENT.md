@@ -1,76 +1,61 @@
 ## What changed (this session)
 
-Added library-level input validation to `BaseOptimizer.__init__`
-(`quant_trading/optimization/base.py:848-876`), mirroring the RiskManager /
-Monte Carlo / WalkForwardOptimizer validation pattern. The constructor
-previously accepted `initial_capital`, `commission`, `slippage`, and
-`periods_per_year` without validation, so invalid values silently propagated to
-GridSearch, RandomSearch, and BayesianOptimizer (all of which call
-`super().__init__(...)`). `__init__` now raises `ValueError` at construction
-when:
+Extended library-level input validation to `RiskConfig` and `PortfolioConfig` in
+`quant_trading/config/settings.py`, mirroring the existing `RiskManager`
+validation (`quant_trading/risk/manager.py:232-276`) and the prior
+`BacktestConfig`/`BaseOptimizer` validation. `__post_init__` now raises
+`ValueError` at construction (covers direct construction, `from_dict`, and
+`from_yaml`):
 
-- `initial_capital <= 0`
-- `periods_per_year < 1`
-- `commission` not in `[0, 1]`
-- `slippage` not in `[0, 1]`
+`RiskConfig`:
+- `max_position_size` in `(0, 1]` (`invalid max_position_size`)
+- `max_portfolio_risk` in `(0, 1]` (`invalid max_portfolio_risk`)
+- `max_drawdown`, `stop_loss_pct`, `take_profit_pct`, `trailing_stop_pct`,
+  `trailing_stop_activation_pct` in `[0, 1]`
+- `max_leverage` positive (`invalid max_leverage`)
 
-The existing `n_jobs` clamping (`max(n_jobs, 1)`, `-1` -> `os.cpu_count()`) is
-left unchanged.
+`PortfolioConfig`:
+- `max_positions >= 1` (`invalid max_positions`)
+- `min_position_size` in `[0, 1]` (`invalid min_position_size`)
 
-Error messages mirror the WalkForwardOptimizer prefixes exactly
-(`invalid initial_capital`, `invalid periods_per_year`, `invalid commission`,
-`invalid slippage`) so the existing `pytest.raises(..., match=...)` style
-aligns.
+Error-message prefixes match `RiskManager` exactly so the existing
+`pytest.raises(..., match=...)` style aligns.
 
-**Tests added** (`tests/test_optimization.py`, class
-`TestBaseOptimizerInitValidation`, appended after `TestWalkForwardResultCombinedRestore`):
-- parametrized rejection tests for `initial_capital`, `periods_per_year`,
-  `commission`, `slippage`
-- boundary-acceptance tests for `periods_per_year` (`1`), `commission`
-  (`0.0`/`1.0`), `slippage` (`0.0`/`1.0`)
-- `test_accepts_all_boundary_valid_values`
+**Tests added** (`tests/test_config.py`):
+- `TestRiskConfig`: parametrized rejection tests for all 8 fields, boundary
+  acceptance test, `test_from_dict_rejects_invalid_values`,
+  `test_from_yaml_rejects_invalid_values`
+- `TestPortfolioConfig`: rejection tests for `max_positions` and
+  `min_position_size`, boundary acceptance test, `test_from_dict_rejects_invalid_values`,
+  `test_from_yaml_rejects_invalid_values`
 
-Files changed: `quant_trading/optimization/base.py` (+28), `tests/test_optimization.py` (~100).
+Also fixed one pre-existing broken test:
+- `tests/test_backtest_engine.py::test_run_with_zero_initial_capital_is_rejected`
+  constructed `BacktestConfig(initial_capital=0.0)` outside the
+  `pytest.raises` block, which now raises at config construction (committed
+  `BacktestConfig.__post_init__` validation). Moved the construction inside the
+  `with` block so the rejection is actually asserted.
+
+Files changed: `quant_trading/config/settings.py` (+68), `tests/test_config.py`
+(+104), `tests/test_backtest_engine.py` (~4 lines moved).
 
 ## Verified (this session, evidence)
 
-Previous agent's BaseOptimizer validation task:
-- `python -m pytest tests/test_optimization.py -q -p no:cacheprovider` → 186 passed, 37 skipped
-- `python -m ruff check quant_trading/optimization/base.py tests/test_optimization.py` → All checks passed
-- `python -m mypy quant_trading/optimization/base.py --ignore-missing-imports` → Success: no issues found
-- Full suite `python -m pytest -q -p no:cacheprovider` → 3280 passed; 17 failures are pre-existing environment gaps (missing `matplotlib` / `scikit-optimize` optional deps), none related to the validation change.
-
-This session — new bounded task: library-level input validation on `BacktestConfig`
-(`quant_trading/config/settings.py:268-302`), mirroring the `BaseOptimizer.__init__`
-validation (same error-message prefixes). `__post_init__` now raises `ValueError`
-at construction (covers direct construction, `from_dict`, and `from_yaml`) when:
-
-- `initial_capital <= 0`
-- `periods_per_year < 1`
-- `commission` not in `[0, 1]`
-- `slippage` not in `[0, 1]`
-
-Previously `BacktestConfig` only type-checked these fields, so invalid values
-silently propagated to the backtest engine (and only surfaced later, if an
-optimizer was used).
-
-**Tests added** (`tests/test_config.py`, class `TestBacktestConfig`):
-- parametrized rejection tests for `initial_capital`, `periods_per_year`,
-  `commission`, `slippage`
-- boundary-acceptance test (`initial_capital=1.0`, `commission=0.0`, `slippage=1.0`, `periods_per_year=1`)
-- `test_from_dict_rejects_invalid_values`
-- `test_from_yaml_rejects_invalid_values`
-
-Files changed: `quant_trading/config/settings.py` (+34), `tests/test_config.py` (~50).
-
-- `python -m py_compile quant_trading/config/settings.py tests/test_config.py` → COMPILE OK
-- `python -m pytest tests/test_config.py -q -p no:cacheprovider` → 60 passed
-- `python -m ruff check quant_trading/config/settings.py tests/test_config.py` → All checks passed
+- `python -m pytest tests/test_config.py -q -p no:cacheprovider` → 88 passed
+- Affected files (`test_config`, `test_backtest_engine`, `test_integration`,
+  `test_serialization_roundtrip`, `test_rebalancer`, `test_risk_manager`,
+  `test_limits`) → 532 passed
+- Full suite `python -m pytest -q -p no:cacheprovider` → 3319 passed;
+  17 failures are pre-existing environment gaps (missing `matplotlib` /
+  `scikit-optimize` optional deps: report/HTML-report/bayesian CLI tests),
+  none related to this change
+- `python -m ruff check quant_trading/config/settings.py tests/test_config.py tests/test_backtest_engine.py` → All checks passed
 - `python -m mypy quant_trading/config/settings.py --ignore-missing-imports` → Success: no issues found
 
 ## Unresolved / not completed
 
-- None. Both assigned tasks are complete and verified.
+- None for the assigned task. The 17 full-suite failures are pre-existing
+  optional-dependency gaps, not caused by this change.
 
 ## Failed approaches (do not repeat unchanged)
 
@@ -79,26 +64,26 @@ Files changed: `quant_trading/config/settings.py` (+34), `tests/test_config.py` 
 ## Verification commands (re-run before starting)
 
 ```bash
-python -m pytest tests/test_config.py tests/test_optimization.py -q -p no:cacheprovider
-python -m ruff check quant_trading/config/settings.py quant_trading/optimization/base.py tests/test_config.py tests/test_optimization.py
-python -m mypy quant_trading/config/settings.py quant_trading/optimization/base.py --ignore-missing-imports
+python -m pytest tests/test_config.py tests/test_backtest_engine.py -q -p no:cacheprovider
+python -m ruff check quant_trading/config/settings.py tests/test_config.py tests/test_backtest_engine.py
+python -m mypy quant_trading/config/settings.py --ignore-missing-imports
 ```
 
 ## Git state
 
 - Branch `main` up to date with `origin/main`.
-- Working tree clean before this session; changes not yet committed.
-  Do NOT commit unless explicitly asked.
+- Working tree has uncommitted changes (settings.py, test_config.py,
+  test_backtest_engine.py). Do NOT commit unless explicitly asked.
 
 ## One precise next task
 
-A natural follow-up bounded task: extend the same input validation to the
-other config dataclasses (`RiskConfig` limits such as `max_position_size`,
-`max_drawdown`, `max_leverage`, `stop_loss_pct`, `take_profit_pct`,
-`trailing_stop_pct`; `PortfolioConfig.max_positions`/`min_position_size`),
-mirroring the existing risk-limit validation in `quant_trading/risk/limits.py`
-and `quant_trading/risk/manager.py`. Add parametrized rejection + boundary
-tests to `tests/test_config.py`, then run the verification commands above.
-Scope constraint: keep changes minimal (`__post_init__` only, same
-error-message style) and do not alter `Config.update()` (bulk setter) unless a
+A natural follow-up bounded task: extend the same `__post_init__` input
+validation to `DataConfig` (`quant_trading/config/settings.py`), mirroring the
+existing validation style. Sensible checks: `synthetic_days >= 1`,
+`provider`/`default_interval`/`default_period` non-empty strings,
+`synthetic_seed` any int (defaults already valid). Add parametrized rejection +
+boundary tests plus `from_dict`/`from_yaml` rejection tests to
+`tests/test_config.py` (class `TestDataConfig` exists), then run the
+verification commands above plus the full suite. Scope constraint: keep changes
+minimal (`__post_init__` only) and do not alter `Config.update()` unless a
 separate issue motivates it.

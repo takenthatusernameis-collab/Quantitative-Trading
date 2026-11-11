@@ -393,6 +393,55 @@ class RiskConfig:
     trailing_stop_pct: float = 0.0
     trailing_stop_activation_pct: float = 0.0
 
+    def __post_init__(self) -> None:
+        """Reject out-of-range risk-limit inputs at construction time.
+
+        Mirrors :class:`quant_trading.risk.manager.RiskManager` so invalid
+        values are rejected when a config is built (directly, from a
+        dictionary, or from YAML) instead of silently producing misleading
+        risk decisions.
+        """
+        if not (0.0 < self.max_position_size <= 1.0):
+            raise ValueError(
+                f"invalid max_position_size: the value must be in the range (0, 1] "
+                f"(got {self.max_position_size})"
+            )
+        if not (0.0 < self.max_portfolio_risk <= 1.0):
+            raise ValueError(
+                f"invalid max_portfolio_risk: the value must be in the range (0, 1] "
+                f"(got {self.max_portfolio_risk})"
+            )
+        if not (0.0 <= self.max_drawdown <= 1.0):
+            raise ValueError(
+                f"invalid max_drawdown: the value must be in the range [0, 1] "
+                f"(got {self.max_drawdown})"
+            )
+        if not (0.0 <= self.stop_loss_pct <= 1.0):
+            raise ValueError(
+                f"invalid stop_loss_pct: the value must be in the range [0, 1] "
+                f"(got {self.stop_loss_pct})"
+            )
+        if not (0.0 <= self.take_profit_pct <= 1.0):
+            raise ValueError(
+                f"invalid take_profit_pct: the value must be in the range [0, 1] "
+                f"(got {self.take_profit_pct})"
+            )
+        if self.max_leverage < 1e-9:
+            raise ValueError(
+                f"invalid max_leverage: the value must be positive "
+                f"(got {self.max_leverage})"
+            )
+        if not (0.0 <= self.trailing_stop_pct <= 1.0):
+            raise ValueError(
+                f"invalid trailing_stop_pct: the value must be in the range [0, 1] "
+                f"(got {self.trailing_stop_pct})"
+            )
+        if not (0.0 <= self.trailing_stop_activation_pct <= 1.0):
+            raise ValueError(
+                f"invalid trailing_stop_activation_pct: the value must be in the range [0, 1] "
+                f"(got {self.trailing_stop_activation_pct})"
+            )
+
     def to_dict(self) -> dict[str, Any]:
         """Convert the risk configuration to a plain, JSON-safe dictionary.
 
@@ -478,6 +527,25 @@ class PortfolioConfig:
     rebalance_frequency: str = "monthly"
     max_positions: int = 20
     min_position_size: float = 0.01
+
+    def __post_init__(self) -> None:
+        """Reject out-of-range portfolio inputs at construction time.
+
+        Mirrors :class:`quant_trading.risk.manager.RiskManager` so invalid
+        values are rejected when a config is built (directly, from a
+        dictionary, or from YAML) instead of silently propagating to the
+        portfolio rebalancer.
+        """
+        if self.max_positions < 1:
+            raise ValueError(
+                f"invalid max_positions: the value must be at least 1 "
+                f"(got {self.max_positions})"
+            )
+        if not (0.0 <= self.min_position_size <= 1.0):
+            raise ValueError(
+                f"invalid min_position_size: the value must be in the range [0, 1] "
+                f"(got {self.min_position_size})"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the portfolio configuration to a plain, JSON-safe dictionary.

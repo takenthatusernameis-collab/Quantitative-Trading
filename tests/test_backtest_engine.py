@@ -1424,8 +1424,8 @@ def test_run_with_zero_initial_capital_is_rejected():
     provider = MockDataProvider(mock_data)
     data_manager = DataManager([provider])
 
-    config = BacktestConfig(initial_capital=0.0)
     with pytest.raises(ValueError, match="invalid initial_capital"):
+        config = BacktestConfig(initial_capital=0.0)
         BacktestEngine(config=config, data_manager=data_manager)
 
 

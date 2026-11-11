@@ -94,6 +94,82 @@ class TestRiskConfig:
         assert config.trailing_stop_pct == 0.08
         assert config.trailing_stop_activation_pct == 0.05
 
+    @pytest.mark.parametrize("max_position_size", [0.0, -0.1, 1.5])
+    def test_rejects_invalid_max_position_size(self, max_position_size):
+        with pytest.raises(ValueError, match="invalid max_position_size"):
+            RiskConfig(max_position_size=max_position_size)
+
+    @pytest.mark.parametrize("max_portfolio_risk", [0.0, -0.1, 1.5])
+    def test_rejects_invalid_max_portfolio_risk(self, max_portfolio_risk):
+        with pytest.raises(ValueError, match="invalid max_portfolio_risk"):
+            RiskConfig(max_portfolio_risk=max_portfolio_risk)
+
+    @pytest.mark.parametrize("max_drawdown", [-0.1, 1.5])
+    def test_rejects_invalid_max_drawdown(self, max_drawdown):
+        with pytest.raises(ValueError, match="invalid max_drawdown"):
+            RiskConfig(max_drawdown=max_drawdown)
+
+    @pytest.mark.parametrize("stop_loss_pct", [-0.1, 1.5])
+    def test_rejects_invalid_stop_loss_pct(self, stop_loss_pct):
+        with pytest.raises(ValueError, match="invalid stop_loss_pct"):
+            RiskConfig(stop_loss_pct=stop_loss_pct)
+
+    @pytest.mark.parametrize("take_profit_pct", [-0.1, 1.5])
+    def test_rejects_invalid_take_profit_pct(self, take_profit_pct):
+        with pytest.raises(ValueError, match="invalid take_profit_pct"):
+            RiskConfig(take_profit_pct=take_profit_pct)
+
+    @pytest.mark.parametrize("max_leverage", [0.0, -1.0])
+    def test_rejects_invalid_max_leverage(self, max_leverage):
+        with pytest.raises(ValueError, match="invalid max_leverage"):
+            RiskConfig(max_leverage=max_leverage)
+
+    @pytest.mark.parametrize("trailing_stop_pct", [-0.1, 1.5])
+    def test_rejects_invalid_trailing_stop_pct(self, trailing_stop_pct):
+        with pytest.raises(ValueError, match="invalid trailing_stop_pct"):
+            RiskConfig(trailing_stop_pct=trailing_stop_pct)
+
+    @pytest.mark.parametrize(
+        "trailing_stop_activation_pct", [-0.1, 1.5]
+    )
+    def test_rejects_invalid_trailing_stop_activation_pct(
+        self, trailing_stop_activation_pct
+    ):
+        with pytest.raises(
+            ValueError, match="invalid trailing_stop_activation_pct"
+        ):
+            RiskConfig(trailing_stop_activation_pct=trailing_stop_activation_pct)
+
+    def test_accepts_boundary_valid_values(self):
+        config = RiskConfig(
+            max_position_size=1.0,
+            max_portfolio_risk=1.0,
+            max_drawdown=0.0,
+            stop_loss_pct=0.0,
+            take_profit_pct=1.0,
+            max_leverage=1.0,
+            trailing_stop_pct=0.0,
+            trailing_stop_activation_pct=1.0,
+        )
+        assert config.max_position_size == 1.0
+        assert config.max_portfolio_risk == 1.0
+        assert config.max_drawdown == 0.0
+        assert config.stop_loss_pct == 0.0
+        assert config.take_profit_pct == 1.0
+        assert config.max_leverage == 1.0
+        assert config.trailing_stop_pct == 0.0
+        assert config.trailing_stop_activation_pct == 1.0
+
+    def test_from_dict_rejects_invalid_values(self):
+        with pytest.raises(ValueError, match="invalid max_drawdown"):
+            RiskConfig.from_dict({"max_drawdown": 1.5})
+
+    def test_from_yaml_rejects_invalid_values(self, tmp_path):
+        path = tmp_path / "config.yaml"
+        path.write_text("risk:\n  max_position_size: 0\n")
+        with pytest.raises(ValueError, match="invalid max_position_size"):
+            Config.from_yaml(str(path))
+
 
 class TestPortfolioConfig:
     """Tests for PortfolioConfig."""
@@ -102,6 +178,34 @@ class TestPortfolioConfig:
         config = PortfolioConfig()
         assert config.rebalance_frequency == "monthly"
         assert config.max_positions == 20
+
+    @pytest.mark.parametrize("max_positions", [0, -1])
+    def test_rejects_invalid_max_positions(self, max_positions):
+        with pytest.raises(ValueError, match="invalid max_positions"):
+            PortfolioConfig(max_positions=max_positions)
+
+    @pytest.mark.parametrize("min_position_size", [-0.1, 1.5])
+    def test_rejects_invalid_min_position_size(self, min_position_size):
+        with pytest.raises(ValueError, match="invalid min_position_size"):
+            PortfolioConfig(min_position_size=min_position_size)
+
+    def test_accepts_boundary_valid_values(self):
+        config = PortfolioConfig(max_positions=1, min_position_size=0.0)
+        assert config.max_positions == 1
+        assert config.min_position_size == 0.0
+        config = PortfolioConfig(max_positions=5, min_position_size=1.0)
+        assert config.max_positions == 5
+        assert config.min_position_size == 1.0
+
+    def test_from_dict_rejects_invalid_values(self):
+        with pytest.raises(ValueError, match="invalid max_positions"):
+            PortfolioConfig.from_dict({"max_positions": 0})
+
+    def test_from_yaml_rejects_invalid_values(self, tmp_path):
+        path = tmp_path / "config.yaml"
+        path.write_text("portfolio:\n  min_position_size: -0.05\n")
+        with pytest.raises(ValueError, match="invalid min_position_size"):
+            Config.from_yaml(str(path))
 
 
 class TestDataConfig:
