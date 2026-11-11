@@ -5214,6 +5214,74 @@ class TestHtmlReportFlag:
         assert "data:image/png;base64," not in content
         assert "<h2>Charts</h2>" not in content
 
+    def test_combined_report_without_trades_is_wired_and_harmless(
+        self, capsys, tmp_path
+    ):
+        """``--combined --report --report-no-trades`` is accepted and harmless.
+
+        The comparison report has no per-strategy trade table, so the flag
+        is a no-op for HTML content, but it must still reach
+        ``ReportConfig`` without erroring.
+        """
+        import multiprocessing
+
+        report_path = tmp_path / "combined_notrades.html"
+        result, _ = self._run(
+            [
+                "--combined",
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "60",
+                "--report",
+                str(report_path),
+                "--n-jobs",
+                str(min(4, multiprocessing.cpu_count() or 1)),
+                "--report-no-trades",
+            ],
+            capsys,
+        )
+        assert result == 0
+        content = report_path.read_text(encoding="utf-8")
+        assert "<!DOCTYPE html>" in content
+        assert "<h2>Strategy Comparison</h2>" in content
+
+    def test_combined_report_without_monthly_keeps_charts(
+        self, capsys, tmp_path
+    ):
+        """``--report-no-monthly`` is a no-op for the comparison report.
+
+        The comparison report renders only an Equity Curves / Drawdown
+        Comparison chart pair; it has no monthly-returns heatmap, so the
+        flag must not suppress the existing charts.
+        """
+        import multiprocessing
+
+        report_path = tmp_path / "combined_nomonthly.html"
+        result, _ = self._run(
+            [
+                "--combined",
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "60",
+                "--report",
+                str(report_path),
+                "--n-jobs",
+                str(min(4, multiprocessing.cpu_count() or 1)),
+                "--report-no-monthly",
+            ],
+            capsys,
+        )
+        assert result == 0
+        content = report_path.read_text(encoding="utf-8")
+        assert "<!DOCTYPE html>" in content
+        assert "data:image/png;base64," in content
+        assert "<h2>Charts</h2>" in content
+        assert "Equity Curves" in content
+
 
 class TestCliHelpers:
     """Unit tests for the pure helper functions of examples.cli.
