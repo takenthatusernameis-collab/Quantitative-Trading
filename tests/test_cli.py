@@ -24,6 +24,7 @@ from examples.cli import (
     resolve_periods_per_year,
     run_combined,
 )
+from quant_trading.backtest.report import MATPLOTLIB_AVAILABLE
 from quant_trading.config.settings import Config
 from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
@@ -4411,6 +4412,7 @@ class TestHtmlReportFlag:
         captured = capsys.readouterr()
         return result, captured.out + captured.err
 
+    @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
     def test_report_writes_html_file(self, capsys, tmp_path):
         """``--report`` writes an HTML file and exits 0."""
         report_path = tmp_path / "report.html"
@@ -4435,6 +4437,7 @@ class TestHtmlReportFlag:
         assert "Performance Summary" in content
         assert "HTML report saved to" in output
 
+    @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
     def test_report_without_charts_writes_html_file(self, capsys, tmp_path):
         """``--report --report-no-charts`` writes a chart-free report."""
         report_path = tmp_path / "nocharts.html"
@@ -4458,6 +4461,7 @@ class TestHtmlReportFlag:
         assert "<!DOCTYPE html>" in content
         assert "data:image/png;base64," not in content
 
+    @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
     def test_report_dark_theme(self, capsys, tmp_path):
         """``--report-theme dark`` embeds the dark background color."""
         report_path = tmp_path / "dark.html"
@@ -4481,6 +4485,7 @@ class TestHtmlReportFlag:
         content = report_path.read_text(encoding="utf-8")
         assert "#1e1e1e" in content
 
+    @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
     def test_report_combined_writes_html_for_best_strategy(self, capsys, tmp_path):
         """In ``--combined`` mode ``--report`` writes a comparison report."""
         import multiprocessing

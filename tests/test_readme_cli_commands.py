@@ -32,6 +32,7 @@ import pandas as pd
 import pytest
 
 from examples.cli import main
+from quant_trading.backtest.report import MATPLOTLIB_AVAILABLE
 from quant_trading.data.providers import DataProvider, FetchResult, MarketData
 from quant_trading.data.yfinance_provider import AlphaVantageProvider, YFinanceProvider
 
@@ -81,6 +82,13 @@ def _readme_commands() -> list[pytest.param]:
                 args = match.group("args").strip().split()
                 test_id = " ".join(args)[:70]
                 marks = [pytest.mark.slow] if "--combined" in args else []
+                if "--report" in args:
+                    marks.append(
+                        pytest.mark.skipif(
+                            not MATPLOTLIB_AVAILABLE,
+                            reason="matplotlib not installed (reporting extra)",
+                        )
+                    )
                 params.append(pytest.param(args, marks=marks, id=test_id))
     return params
 

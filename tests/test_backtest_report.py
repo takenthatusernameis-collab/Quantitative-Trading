@@ -573,6 +573,7 @@ def test_report_matplotlib_unavailable_branch(monkeypatch):
     importlib.reload(report_module)
 
 
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_generate_html_report_uses_default_config_when_config_is_none():
     """generate_html_report must fall back to ReportConfig() when config is None."""
     result = _create_sample_result()
@@ -583,6 +584,7 @@ def test_generate_html_report_uses_default_config_when_config_is_none():
     assert "Equity Curve" in html
 
 
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_generate_html_report_omits_monthly_heatmap_when_disabled():
     """include_monthly_heatmap=False must exclude the monthly returns chart."""
     result = _create_sample_result()
@@ -592,6 +594,7 @@ def test_generate_html_report_omits_monthly_heatmap_when_disabled():
     assert "Equity Curve" in html
 
 
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_generate_html_report_omits_rolling_metrics_when_disabled():
     """include_rolling_metrics=False must exclude the rolling metric chart cards."""
     result = _create_sample_result()
