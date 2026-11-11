@@ -88,7 +88,7 @@ ignore_missing_imports = true
 
 [tool.coverage.run]
 branch = true
-source = ["quant_trading"]
+source = ["quant_trading", "examples.cli"]
 
 [tool.coverage.report]
 exclude_lines = [
