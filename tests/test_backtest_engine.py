@@ -1412,11 +1412,11 @@ if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
 
-def test_run_with_zero_initial_capital_does_not_divide_by_zero():
-    """A zero initial capital must not crash when the total return is reported.
+def test_run_with_zero_initial_capital_is_rejected():
+    """A zero initial capital is rejected at construction instead of producing a degenerate run.
 
-    The percentage return is undefined without a starting capital, so it is
-    reported as 0.0 -- the same convention the metrics use.
+    The percentage return is undefined without a starting capital, so the risk
+    manager refuses to construct with ``initial_capital <= 0``.
     """
     symbols = ["AAPL"]
     mock_data = create_synthetic_data(symbols, days=60)
@@ -1425,17 +1425,8 @@ def test_run_with_zero_initial_capital_does_not_divide_by_zero():
     data_manager = DataManager([provider])
 
     config = BacktestConfig(initial_capital=0.0)
-    engine = BacktestEngine(config=config, data_manager=data_manager)
-    engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=15, name="Test_MA"))
-
-    start_date = datetime.now() - timedelta(days=50)
-    end_date = datetime.now()
-
-    result = engine.run(symbols, start_date, end_date, "1d")
-
-    assert result.initial_capital == 0.0
-    assert result.total_return_pct == 0.0
-    assert result.metrics.total_return_pct == 0.0
+    with pytest.raises(ValueError, match="invalid initial_capital"):
+        BacktestEngine(config=config, data_manager=data_manager)
 
 
 # ---------------------------------------------------------------------------
@@ -2055,30 +2046,17 @@ def test_stop_exits_are_off_by_default():
     assert result.positions["TEST"].quantity == pytest.approx(200.0)
 
 
-def test_a_bar_that_hits_both_levels_closes_the_position_once():
-    """A close that hits the stop and the target closes the position once."""
-    data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
-    # The target is placed below the entry price, so the close of 45.00 hits
-    # both the stop at 47.50 and the target at 42.50.
-    risk_manager = RiskManager(
-        initial_capital=100000.0,
-        max_position_size=0.1,
-        max_leverage=1.0,
-        max_portfolio_risk=1.0,
-        stop_loss_pct=0.05,
-        take_profit_pct=-0.15,
-    )
-
-    result, _engine = _run_script(
-        [("buy", 1.0), ("hold", 0.0), ("hold", 0.0)],
-        data,
-        _stop_exit_config(),
-        risk_manager=risk_manager,
-    )
-
-    assert len(result.trades) == 2
-    assert result.trades.iloc[1]["action"] == "sell"
-    assert result.positions == {}
+def test_negative_take_profit_pct_is_rejected():
+    """A negative take profit is rejected at construction."""
+    with pytest.raises(ValueError, match="invalid take_profit_pct"):
+        RiskManager(
+            initial_capital=100000.0,
+            max_position_size=0.1,
+            max_leverage=1.0,
+            max_portfolio_risk=1.0,
+            stop_loss_pct=0.05,
+            take_profit_pct=-0.15,
+        )
 
 
 class TestRunBacktestAppliesConfig:
