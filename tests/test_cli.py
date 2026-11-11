@@ -4790,6 +4790,103 @@ class TestCliHelpers:
         assert "probability_of_profit" in summary
         assert "total_return_pct_mean" in summary
 
+    def test_default_param_grid_bool_default_param(self):
+        """A constructor param with a bool default yields a [False, True] space."""
+        from quant_trading.optimization import ParameterGrid, ParameterSpace
+
+        class WithBool:
+            def __init__(self, enabled: bool = True):
+                self.enabled = enabled
+
+        grid = _default_param_grid(WithBool)
+        assert isinstance(grid, ParameterGrid)
+        assert set(grid.spaces) == {"enabled"}
+        space = grid.spaces["enabled"]
+        assert isinstance(space, ParameterSpace)
+        assert space.param_type is bool
+        assert space.values == [False, True]
+
+    def test_default_param_grid_string_default_param(self):
+        """A constructor param with a non-numeric default yields a single-value space."""
+        from quant_trading.optimization import ParameterGrid, ParameterSpace
+
+        class WithStr:
+            def __init__(self, symbol: str = "AAPL"):
+                self.symbol = symbol
+
+        grid = _default_param_grid(WithStr)
+        assert isinstance(grid, ParameterGrid)
+        assert set(grid.spaces) == {"symbol"}
+        space = grid.spaces["symbol"]
+        assert isinstance(space, ParameterSpace)
+        assert space.param_type is str
+        assert space.values == ["AAPL"]
+
+    def test_default_param_grid_empty_when_signature_raises(self):
+        """A constructor whose signature cannot be introspected yields an empty grid."""
+
+        class Unintrospectable:
+            __init__ = int
+
+        grid = _default_param_grid(Unintrospectable)
+        from quant_trading.optimization import ParameterGrid
+
+        assert isinstance(grid, ParameterGrid)
+        assert len(grid.spaces) == 0
+        assert grid.generate_combinations() == [{}]
+
+    def test_get_monte_carlo_analysis_swallows_method_assignment_failure(self):
+        """``mc._method = ...`` failing must not break the returned analysis."""
+        import pandas as pd
+
+        from quant_trading.backtest.engine import BacktestResult
+        from quant_trading.backtest.metrics import calculate_backtest_metrics
+
+        equity = pd.Series(
+            [100000.0 * (1.0 + 0.001 * i) for i in range(60)],
+            index=pd.date_range("2024-01-01", periods=60, freq="D"),
+        )
+        result = BacktestResult(
+            equity_curve=equity,
+            trades=pd.DataFrame(),
+            positions={},
+            metrics=calculate_backtest_metrics(equity),
+            start_date=equity.index[0],
+            end_date=equity.index[-1],
+            initial_capital=100000.0,
+            final_value=float(equity.iloc[-1]),
+            total_return=float(equity.iloc[-1] - equity.iloc[0]),
+            total_return_pct=float((equity.iloc[-1] / equity.iloc[0] - 1) * 100),
+        )
+        args = argparse.Namespace(
+            mc_simulations=20,
+            mc_confidence=0.90,
+            mc_method="parametric",
+            mc_seed=7,
+        )
+
+        class _LockedMC:
+            __slots__ = ("confidence_level", "n_simulations")
+
+            def __init__(self):
+                self.n_simulations = 20
+                self.confidence_level = 0.90
+
+            def summary(self):
+                return {"n_simulations": 20, "probability_of_profit": 0.5}
+
+        with patch("examples.cli.run_monte_carlo", return_value=_LockedMC()):
+            mc = _get_monte_carlo_analysis(
+                result, args, periods_per_year=252, risk_free_rate=0.02
+            )
+
+        assert mc.n_simulations == 20
+        assert mc.confidence_level == 0.90
+        assert not hasattr(mc, "_method")
+        summary = mc.summary()
+        assert summary["n_simulations"] == 20
+        assert "probability_of_profit" in summary
+
 
 if __name__ == "__main__":
     import pytest
