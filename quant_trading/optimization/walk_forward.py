@@ -688,6 +688,14 @@ class WalkForwardOptimizer:
             next_train_end = spans[i + 1][1] if i + 1 < len(spans) else self.end
             test_end = min(train_end + timedelta(days=test_days), next_train_end, self.end)
 
+            # The last window catches the remainder of the requested period so
+            # the out-of-sample spans tile start to end even when the step is
+            # smaller than a full window (overlapping training spans). Without
+            # this, a step below one window leaves the tail of the period
+            # untested, contradicting the documented tiling behavior.
+            if i == len(spans) - 1:
+                test_end = self.end
+
             if test_start >= test_end:
                 break
 

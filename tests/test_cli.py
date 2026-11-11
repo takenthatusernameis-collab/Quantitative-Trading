@@ -2,6 +2,7 @@
 
 import argparse
 import importlib.util
+import itertools
 import json
 import tempfile
 from unittest.mock import MagicMock, patch
@@ -5799,6 +5800,46 @@ class TestRunOptimizationWalkForwardEndToEnd:
         assert "walk_forward_result" in data
         assert data["summary"]["n_windows"] == 2
 
+    def test_run_walk_forward_with_sub_step_size_tiles_to_period_end(self, tmp_path):
+        """A ``--wf-step-size`` below 1.0 still tiles the requested period.
+
+        The README documents that walk-forward windows tile the requested period
+        exactly, so the last window's out-of-sample span must reach the run's
+        end date even when the step is smaller than a full window. The CLI
+        output carries the per-window test boundaries, so the invariant is
+        checked end to end here rather than only inside the optimizer.
+        """
+        import json
+        from datetime import datetime, timedelta
+
+        from examples.cli import run_walk_forward
+
+        output = tmp_path / "wf_step.json"
+        args = self._base_opt_args(
+            tmp_path,
+            walk_forward=True,
+            output=str(output),
+            wf_windows=4,
+            wf_train_size=0.6,
+            wf_step_size=0.5,
+            wf_anchored=False,
+            wf_optimizer="grid",
+        )
+        config = self._synthetic_config(days=120, seed=42)
+        end_date = datetime(2024, 12, 31)
+        start_date = end_date - timedelta(days=120)
+
+        result = run_walk_forward(args, config, start_date, end_date)
+
+        assert result == 0
+        assert output.exists()
+        data = json.loads(output.read_text())
+        windows = data["walk_forward_result"]["windows"]
+        assert windows, "expected at least one window in the output"
+        assert windows[-1]["test_end"] == end_date.isoformat()
+        # Consecutive out-of-sample spans never overlap.
+        for previous, current in itertools.pairwise(windows):
+            assert current["test_start"] >= previous["test_end"]
 
 
 if __name__ == "__main__":

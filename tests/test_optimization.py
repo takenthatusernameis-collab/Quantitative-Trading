@@ -1452,6 +1452,32 @@ def test_walk_forward_step_size_override():
     assert len(result.windows) >= 1
 
 
+@pytest.mark.parametrize("anchored", [True, False])
+@pytest.mark.parametrize("step_size", [0.3, 0.5, 0.75])
+def test_walk_forward_windows_tile_the_full_period_for_sub_window_steps(anchored, step_size):
+    """A step smaller than one window still tiles start to end.
+
+    ``--wf-step-size`` is documented as a fraction of a window's span, and the
+    README states that the windows tile the requested period exactly so no part
+    of it is left untested. The last window's out-of-sample span must therefore
+    reach ``end`` even when the step is smaller than a full window, otherwise the
+    tail of the period is silently never evaluated out of sample.
+    """
+    optimizer = _walk_forward_optimizer(
+        n_windows=4, train_size=0.6, step_size=step_size, anchored=anchored
+    )
+    windows = optimizer._generate_windows()
+
+    assert windows, "expected at least one window"
+    assert windows[0].test_start >= optimizer.start
+    # The out-of-sample spans tile the requested period: the last window's test
+    # span reaches the end, and consecutive test spans never overlap.
+    assert windows[-1].test_end == optimizer.end
+    for previous, current in itertools.pairwise(windows):
+        assert current.test_start >= previous.test_end
+        assert current.test_start == current.train_end
+
+
 def test_walk_forward_unknown_optimizer():
     """Test WalkForwardOptimizer raises for unknown optimizer type."""
     optimizer = WalkForwardOptimizer(

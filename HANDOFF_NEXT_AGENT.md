@@ -1,55 +1,40 @@
 ## What changed (this session)
 
-No source code changes. Added bounded CLI test coverage for the **comparison report** (`--combined --report`) wiring of the documented per-section disable flags.
+Fixed a silent behavior bug in walk-forward window generation that contradicted the README, and pinned the invariant with tests.
 
-The README's "Output" section advertises four per-section report flags
-(`--report-no-charts`, `--report-no-trades`, `--report-no-monthly`,
-`--report-no-rolling`). The prior session verified these for the
-single-strategy report (`generate_html_report`) but the comparison report
-(`generate_comparison_report`, invoked by `run_combined`) was only
-covered for `--report-no-charts`. The CLI wiring of the other three
-flags into the comparison report's `ReportConfig` was unverified end to
-end.
+**Root cause:** `WalkForwardOptimizer._generate_windows` capped every window's out-of-sample span at `test_days = window_days - train_days`. When `step_size < 1.0`, the last window's test span stopped far short of `end`, so the tail of the requested period was never evaluated out of sample. The README states the windows "tile the requested period exactly", which was false for sub-window steps.
 
-2 new tests added to `TestHtmlReportFlag` in `tests/test_cli.py`:
+**Fix** (`quant_trading/optimization/walk_forward.py:682-695`): the last window's `test_end` is now set to `self.end` after the overlap-safe `min(...)`, so the out-of-sample spans tile start-to-end for any `step_size` in `(0, 1]`, in both anchored and rolling modes. Consecutive test spans still never overlap (the `min(next_train_end, ...)` cap is preserved for non-final windows).
 
-- `test_combined_report_without_trades_is_wired_and_harmless` —
-  `--combined --report --report-no-trades` reaches `ReportConfig`
-  without erroring and still yields a valid report. The comparison report
-  has no per-strategy trade table, so this flag is a documented no-op
-  for HTML content; the test pins that behavior rather than asserting a
-  phantom section is removed.
-- `test_combined_report_without_monthly_keeps_charts` —
-  `--report-no-monthly` is a no-op for the comparison report (it has no
-  monthly-returns heatmap), so the existing Equity Curves / Drawdown
-  Comparison charts must remain. Asserts `data:image/png;base64,` is
-  present and `<h2>Charts</h2>` + `Equity Curves` survive.
+**Tests added:**
+- `tests/test_optimization.py::test_walk_forward_windows_tile_the_full_period_for_sub_window_steps` — parametrized over `anchored ∈ {True, False}` and `step_size ∈ {0.3, 0.5, 0.75}`; asserts `windows[-1].test_end == optimizer.end` and that consecutive test spans do not overlap.
+- `tests/test_cli.py::TestRunOptimizationWalkForwardEndToEnd::test_run_walk_forward_with_sub_step_size_tiles_to_period_end` — end-to-end via `run_walk_forward` with `--wf-step-size 0.5`, asserting the serialized `windows[-1]["test_end"]` equals the run's end date.
 
-`tests/test_cli.py` grew by +43 lines (259 → 261 passed in
-`test_cli.py`; `TestHtmlReportFlag` 13 → 15).
+3 files changed, +75 lines.
 
 ## Verified (this session, evidence)
 
-- `tests/test_cli.py::TestHtmlReportFlag` → **15 passed** (13 pre-existing + 2 new).
-- `tests/test_cli.py` full → **259 passed, 1 skipped, 3 deselected**.
-- Full suite → **3293 passed, 1 skipped, 132 deselected, 0 failed** (522.88s).
+- `tests/test_optimization.py` → **171 passed** (was 164; +7 new).
+- `tests/test_cli.py` → **260 passed, 1 skipped, 3 deselected** (was 259; +1 new).
+- Full suite → **3300 passed, 1 skipped, 132 deselected, 0 failed** (512.34s; was 3293).
 - `python -m ruff check .` → **All checks passed.**
 - `python -m mypy quant_trading --ignore-missing-imports` → **Success: no issues in 38 source files.**
 - `python -m mypy examples/cli.py --ignore-missing-imports` → **Success: no issues in 1 source file.**
-- `git status --short` → only `tests/test_cli.py` and this handoff modified; working tree otherwise clean.
+- `python -m pytest --doctest-modules quant_trading/optimization/walk_forward.py` → **12 passed.**
+- Manual reproduction before the fix confirmed the bug: `step=0.5` test coverage ended `2024-01-12` vs period end `2024-01-21`; after the fix it ends `2024-01-21` for all steps.
 
 ## Unresolved / not completed
 
-- None identified. No failing tests, lint, or type errors reproduced.
+- None identified.
 
 ## Failed approaches (do not repeat unchanged)
 
-- None this session; all checks pass on first attempt.
+- First CLI test used `zip(windows, windows[1:])` for the overlap check; ruff flagged it as an unsafe fix suggestion (`RUF022`), so it was switched to `itertools.pairwise` (matching the existing style in `tests/test_optimization.py`) and `import itertools` was added to `tests/test_cli.py`.
 
 ## Verification commands (re-run before starting)
 
 ```bash
-python -m pytest tests/test_cli.py::TestHtmlReportFlag -q -p no:cacheprovider
+python -m pytest tests/test_optimization.py -q -p no:cacheprovider
 python -m pytest tests/test_cli.py -q -p no:cacheprovider
 python -m pytest -q -p no:cacheprovider
 python -m ruff check .
@@ -60,7 +45,7 @@ python -m mypy examples/cli.py --ignore-missing-imports
 ## Git state
 
 - Branch `main` up to date with `origin/main`.
-- Working tree has uncommitted changes: `tests/test_cli.py` (+43 lines, 2 new tests). Do NOT commit unless explicitly asked.
+- Working tree has uncommitted changes: `quant_trading/optimization/walk_forward.py` (+8), `tests/test_cli.py` (+41), `tests/test_optimization.py` (+26). Do NOT commit unless explicitly asked.
 
 ## One precise next task
 
