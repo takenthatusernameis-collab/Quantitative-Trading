@@ -1,35 +1,73 @@
 ## What changed (this session)
 
-**Closed the single-mode `--report` file-write error gap.**
+**Added a direct test for the top-level `main()` error handler.**
 
-Single-mode `_write_report` (examples/cli.py:1371-1373) catches `OSError` from `generate_html_report` and reports a one-line error with exit 1, but only the `ImportError` (missing matplotlib) path was tested. Combined mode already had both error paths covered.
+`main()` (examples/cli.py:2281-2301) wraps `_run_cli()` and converts any
+`ImportError`, `OSError`, or `ValueError` into a one-line
+`print(f"Error: {e}")` with exit code 1 instead of a traceback. The
+report-level error paths were already tested (single + combined mode), but
+this top-level safety net had no direct test for a raw error propagating out
+of `_run_cli`.
 
-1 new test added to `TestHtmlReportFlag` in `tests/test_cli.py`:
+1 new test added to `TestMain` in `tests/test_cli.py` (+23 lines):
 
-- `test_report_os_error_is_reported` — monkeypatches `generate_html_report` to raise `OSError("Permission denied")`, runs `--offline --strategy rsi --symbols AAPL --days 120 --report <path>`, asserts `result == 1`, `"could not write report file"` in output, and no `Traceback`.
+- `test_main_value_error_is_reported_as_one_line_error` — monkeypatches
+  `examples.cli.create_config` (called by `_run_cli` at cli.py:2338, before
+  any inner try/except) to raise `ValueError("boom")`, runs
+  `--offline --symbols AAPL --days 60`, asserts `result == 1`,
+  `"Error: boom"` in output, and `"Traceback"` not in output. Mirrors the
+  style of `test_report_missing_matplotlib_is_reported` /
+  `test_report_os_error_is_reported`.
 
-`tests/test_cli.py` grew by ~30 lines (255 → 256 passed).
+Note: the pre-existing `test_main_error_handling` patches `run_backtest`,
+but that error is caught *innerly* by `_run_cli`
+(cli.py:2491 `except (ValueError, RuntimeError, KeyError)` → "Error running
+backtest"), so it never reaches `main()`'s top-level handler. This new test
+covers that gap.
+
+`tests/test_cli.py` now has 23 added lines (1 new test). No source files
+modified.
 
 ## Verified (this session, evidence)
 
-- `tests/test_cli.py::TestHtmlReportFlag` → **13 passed** (12 pre-existing + 1 new).
-- `tests/test_cli.py` full → **256 passed, 1 skipped, 3 deselected** (was 255; no regressions).
+- `tests/test_cli.py::TestMain::test_main_value_error_is_reported_as_one_line_error` → **1 passed** (in isolation).
+- `tests/test_cli.py` full → **251 passed, 7 failed, 3 deselected**.
+  - The 7 failures are all `TestHtmlReportFlag` HTML-write tests
+    (`test_report_writes_html_file`, `test_report_dark_theme`,
+    `test_report_combined_writes_html_for_best_strategy`,
+    `test_report_without_trades_*`, `test_report_without_monthly_*`,
+    `test_report_without_rolling_*`) failing with `assert 1 == 0`.
+    Root cause: `matplotlib` (the optional `reporting` extra) is **not
+    installed** in this environment, so `generate_html_report` raises
+    `ImportError` and `_write_report` returns False → exit 1.
+    **Environmental and pre-existing; NOT caused by this change.** The
+    `test_report_missing_matplotlib_is_reported` and
+    `test_report_os_error_is_reported` tests (which cover the error paths)
+    still pass.
 - `python -m ruff check .` → **All checks passed!**
-- `python -m mypy quant_trading --ignore-missing-imports` → **Success: no issues found in 38 source files** (6 pre-existing errors in `examples/cli.py` only, unchanged — confirmed identical to clean baseline).
-- `tests/test_readme.py tests/test_readme_cli.py` → **18 passed** (README still in sync).
+- `python -m mypy quant_trading --ignore-missing-imports` → **Success: no
+  issues found in 38 source files.**
 
 ## Unresolved / not completed
 
-- Pre-existing mypy errors in `examples/cli.py` (untouched): lines 1554, 1578-1579 (float/int in `_default_param_grid`), 2659, 2668 (`Config` vs `ReportConfig` in `run_combined`). Not regressions; present on clean baseline.
+- 7 `TestHtmlReportFlag` HTML-write tests fail because `matplotlib` /
+  `pip install -e ".[reporting]"` is not installed in this environment.
+  Environmental, no code change needed; install the extra and re-run to
+  confirm a fully green suite.
+- Pre-existing mypy errors in `examples/cli.py` (untouched): lines 1554,
+  1578-1579 (float/int in `_default_param_grid`), 2659, 2668
+  (`Config` vs `ReportConfig` in `run_combined`). Not regressions; present
+  on clean baseline. These are in `examples/cli.py`, which is outside the
+  `mypy quant_trading/` scope that passes cleanly.
 
 ## Failed approaches (do not repeat unchanged)
 
-- None this session; all checks pass on first attempt.
+- None this session; the new test passed on first attempt.
 
 ## Verification commands (re-run before starting)
 
 ```bash
-python -m pytest tests/test_cli.py::TestHtmlReportFlag -q -p no:cacheprovider
+python -m pytest tests/test_cli.py::TestMain::test_main_value_error_is_reported_as_one_line_error -q -p no:cacheprovider
 python -m pytest tests/test_cli.py -q -p no:cacheprovider
 python -m ruff check .
 python -m mypy quant_trading --ignore-missing-imports
@@ -37,15 +75,27 @@ python -m mypy quant_trading --ignore-missing-imports
 
 ## Git state
 
-- Branch `main` up to date with `origin/main`. HEAD = `15cb6cb`.
-- Working tree: only `tests/test_cli.py` modified (~30 lines, 1 new test). Uncommitted; do not commit unless explicitly asked.
+- Branch `main` up to date with `origin/main`.
+- Working tree: only `tests/test_cli.py` modified (+23 lines, 1 new test).
+  Uncommitted; do not commit unless explicitly asked.
 
 ## One precise next task
 
-**Add a direct test for the top-level `main()` error handler (examples/cli.py:2291-2301).**
+**Install the optional `reporting` extra and confirm the 7 `TestHtmlReportFlag` HTML-write tests pass, yielding a fully green `test_cli.py` suite.**
 
-`main()` wraps `_run_cli()` and converts any `ImportError`, `OSError`, or `ValueError` into a one-line `print(f"Error: {e}")` with exit code 1 (instead of a traceback). The report-level error paths are now tested in both single and combined mode, but this top-level safety net has no direct test: no existing test triggers a raw `ImportError`/`OSError`/`ValueError` from inside `_run_cli` and asserts `main()` returns `1` with a one-line `Error:` message and no `Traceback`.
+`matplotlib` is not installed in this environment, so the report
+HTML-generation tests fail with exit 1 (report write fails → `result == 1`).
+This is purely environmental: no source or test change is required.
 
-Bounded approach: monkeypatch a function called by `_run_cli` (e.g. `create_config` or `create_strategy`) to raise `ValueError("boom")`, call `main()` with patched `sys.argv`, assert result == 1, `"Error: boom"` in output, and `"Traceback"` not in output. Mirror the style of `test_report_missing_matplotlib_is_reported` / `test_report_os_error_is_reported`. Run the verification set above before and after.
+Bounded approach:
+```bash
+python -m pip install matplotlib   # or: pip install -e ".[reporting]"
+python -m pytest tests/test_cli.py::TestHtmlReportFlag -q -p no:cacheprovider
+```
+Expect all 13 `TestHtmlReportFlag` tests to pass (was 7 failing due to the
+missing dep). Then re-run the full `tests/test_cli.py` suite to confirm
+251+ passed / 0 failed. If green, the suite is fully verified and the next
+agent can move on to a new bounded task (e.g. addressing the pre-existing
+mypy errors in `examples/cli.py` lines 1554, 1578-1579, 2659, 2668).
 
 (End of file)

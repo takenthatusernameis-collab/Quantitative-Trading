@@ -2778,6 +2778,29 @@ class TestMain:
             captured = capsys.readouterr()
             assert "Error running backtest" in captured.out
 
+    def test_main_value_error_is_reported_as_one_line_error(self, capsys, monkeypatch):
+        """A ValueError propagating out of _run_cli is a one-line error, not a traceback.
+
+        The top-level ``main()`` handler converts ``ImportError``, ``OSError``
+        and ``ValueError`` into a single ``Error: {e}`` line with exit code 1.
+        ``create_config`` runs before any inner try/except in ``_run_cli``, so a
+        ``ValueError`` raised there reaches ``main()`` directly.
+        """
+        from examples import cli as cli_module
+
+        def _raise_value_error(*args, **kwargs):
+            raise ValueError("boom")
+
+        monkeypatch.setattr(cli_module, "create_config", _raise_value_error)
+
+        args = ["--offline", "--symbols", "AAPL", "--days", "60"]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        captured = capsys.readouterr()
+        assert result == 1
+        assert "Error: boom" in captured.out
+        assert "Traceback" not in captured.out
+
     def test_main_with_regime_monte_carlo_trade_analysis_output(self, capsys):
         """Main with all analysis flags and output."""
         import json
