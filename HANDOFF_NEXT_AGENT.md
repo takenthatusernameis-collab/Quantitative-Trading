@@ -1,69 +1,54 @@
 ## What changed (this session)
 
-Added library-level input validation to `RiskManager.__init__` so invalid
-risk configuration is rejected at construction with a clear `ValueError`,
-instead of silently producing misleading risk decisions.
+Added library-level input validation to `WalkForwardOptimizer.__init__`
+(`quant_trading/optimization/walk_forward.py:531-561`), mirroring the
+RiskManager / Monte Carlo validation pattern. The constructor previously
+accepted `initial_capital`, `commission`, `slippage`, and `periods_per_year`
+without validation (only `n_windows`, `train_size`, `step_size` were already
+checked), so invalid values silently produced misleading walk-forward results.
+`__init__` now raises `ValueError` at construction when:
 
-**Root cause:** `RiskManager.__init__` accepted `initial_capital`,
-`max_position_size`, `max_portfolio_risk`, `max_drawdown`, `max_positions`,
-`stop_loss_pct`, `take_profit_pct`, `max_leverage`, `trailing_stop_pct`, and
-`trailing_stop_activation_pct` without validation.
-
-**Fix** (`quant_trading/risk/manager.py:223-269`): after the trailing-stop
-attribute assignments, `__init__` now raises `ValueError` when:
 - `initial_capital <= 0`
-- `max_position_size` not in `(0, 1]`
-- `max_portfolio_risk` not in `(0, 1]`
-- `max_drawdown` not in `[0, 1]` (`0.0` disables the limit, so it is allowed)
-- `max_positions < 1`
-- `stop_loss_pct` not in `[0, 1]`
-- `take_profit_pct` not in `[0, 1]`
-- `max_leverage < 1e-9` (must be positive)
-- `trailing_stop_pct` not in `[0, 1]`
-- `trailing_stop_activation_pct` not in `[0, 1]`
+- `periods_per_year < 1`
+- `commission` not in `[0, 1]`
+- `slippage` not in `[0, 1]`
 
-The checks use the constructor parameters directly (mirroring the Monte Carlo
-pattern in `quant_trading/monte_carlo/simulator.py:406-420`), since most of
-these values are not stored as instance attributes.
+The pre-existing checks for `n_windows < 1`, `train_size` not in `(0, 1]`,
+and `step_size` not in `(0, 1]` were left in place (they are stricter than the
+handoff spec for `step_size`, which only required rejecting `<= 0`; no existing
+test relies on `step_size > 1` being accepted, so the behavior was preserved).
 
-**Tests added** (`tests/test_risk_manager.py`, class
-`TestRiskManagerInitValidation`):
-- parametrized rejection tests for each invalid family above
-- boundary-acceptance tests for `max_drawdown`, `stop_loss_pct`,
-  `take_profit_pct`, `trailing_stop_pct`, `trailing_stop_activation_pct`
-  at `0.0`/`1.0`
-- `test_accepts_minimal_positive_max_leverage` (`1e-9`)
+**Tests added** (`tests/test_walk_forward.py`, class
+`TestWalkForwardInitValidation`):
+- parametrized rejection tests for `initial_capital`, `n_windows`,
+  `train_size`, `step_size`, `periods_per_year`, `commission`, `slippage`
+- boundary-acceptance tests for `train_size`, `step_size` (upper boundary
+  `1.0`), `periods_per_year` (`1`), `commission`, `slippage` (`0.0`/`1.0`)
 - `test_accepts_all_boundary_valid_values`
 
-**Existing tests updated** (`tests/test_backtest_engine.py`):
-- `test_run_with_zero_initial_capital_does_not_divide_by_value` → renamed to
-  `test_run_with_zero_initial_capital_is_rejected`, now asserts `ValueError`
-  for `initial_capital=0.0`
-- `test_a_bar_that_hits_both_levels_closes_the_position_once` → renamed to
-  `test_negative_take_profit_pct_is_rejected`, now asserts `ValueError` for
-  `take_profit_pct=-0.15` (that scenario required an inverted take profit,
-  which is now invalid)
-
-4 files changed: `quant_trading/risk/manager.py` (+43),
-`tests/test_risk_manager.py` (+~110), `tests/test_backtest_engine.py` (2 tests
-rewritten), `HANDOFF_NEXT_AGENT.md`.
+4 files changed (counting the new test file):
+`quant_trading/optimization/walk_forward.py` (+24),
+`tests/test_walk_forward.py` (new, ~130).
 
 ## Verified (this session, evidence)
 
-- `tests/test_risk_manager.py` → all pass
-- `tests/test_limits.py` → all pass
-- `tests/test_portfolio_rebalancer.py` → all pass
-- `tests/test_backtest_engine.py`, `tests/test_integration.py`,
-  `tests/test_rebalancer_extra_coverage.py`,
-  `tests/test_rebalancer_sizing_invariants.py`,
-  `tests/test_rebalancer_risk_integration.py` → all pass (496 passed total)
-- `python -m ruff check quant_trading/risk/manager.py tests/test_risk_manager.py tests/test_backtest_engine.py` → **All checks passed.**
-- `python -m mypy quant_trading/risk/manager.py --ignore-missing-imports` → **Success: no issues found.**
-- `python -m pytest --doctest-modules quant_trading/risk/manager.py -q -p no:cacheprovider` → **12 passed.**
+- `python -m py_compile quant_trading/optimization/walk_forward.py
+  tests/test_walk_forward.py` → COMPILE OK
+- `ast.parse` of both files → PARSE OK
+
+**Could not execute:** `pytest`, `ruff`, `mypy`, and the runtime dependency
+`pandas` are not installed in this environment (`ModuleNotFoundError`), so the
+test suite and lint/type checks could not be run. The validation logic was
+sanity-checked by reasoning against the constructor source; the new tests mirror
+the passing `TestRiskManagerInitValidation` style and match the error message
+prefixes (`invalid initial_capital`, `invalid n_windows`, etc.) used in the
+implementation, so `pytest.raises(..., match=...)` should align.
 
 ## Unresolved / not completed
 
-- None for this task.
+- Test suite / ruff / mypy not run (environment missing `pandas`, `pytest`,
+  `ruff`, `mypy`). Re-run the verification commands below in an environment
+  with dev dependencies installed before treating this task as complete.
 
 ## Failed approaches (do not repeat unchanged)
 
@@ -72,10 +57,9 @@ rewritten), `HANDOFF_NEXT_AGENT.md`.
 ## Verification commands (re-run before starting)
 
 ```bash
-python -m pytest tests/test_risk_manager.py tests/test_limits.py tests/test_portfolio_rebalancer.py tests/test_backtest_engine.py -q -p no:cacheprovider
-python -m ruff check quant_trading/risk/manager.py tests/test_risk_manager.py tests/test_backtest_engine.py
-python -m mypy quant_trading/risk/manager.py --ignore-missing-imports
-python -m pytest --doctest-modules quant_trading/risk/manager.py -q -p no:cacheprovider
+python -m pytest tests/test_walk_forward.py tests/test_optimization.py -q -p no:cacheprovider
+python -m ruff check quant_trading/optimization/walk_forward.py tests/test_walk_forward.py
+python -m mypy quant_trading/optimization/walk_forward.py --ignore-missing-imports
 ```
 
 ## Git state
@@ -86,25 +70,26 @@ python -m pytest --doctest-modules quant_trading/risk/manager.py -q -p no:cachep
 
 ## One precise next task
 
-- Add library-level input validation to `WalkForwardOptimizer.__init__`
-  (`quant_trading/optimization/walk_forward.py:448-529`), mirroring the
-  RiskManager / Monte Carlo validation pattern. The constructor accepts
-  `n_windows`, `train_size`, `step_size`, `periods_per_year`,
-  `initial_capital`, `commission`, and `slippage` without validation, so
-  invalid values silently produce misleading walk-forward results. Reject at
-  construction with `ValueError`:
+- Add library-level input validation to `BaseOptimizer.__init__`
+  (`quant_trading/optimization/base.py:792-849`), mirroring the
+  RiskManager / Monte Carlo / WalkForwardOptimizer validation pattern.
+  `BaseOptimizer.__init__` accepts `initial_capital`, `commission`,
+  `slippage`, and `periods_per_year` without validation (it only clamps
+  `n_jobs` via `max(n_jobs, 1)` and maps `-1` to `os.cpu_count()`), so invalid
+  values silently propagate to GridSearch, RandomSearch, and BayesianOptimizer.
+  Reject at construction with `ValueError`:
   - `initial_capital <= 0`
-  - `n_windows < 1`
-  - `train_size` not in `(0, 1]`
-  - `step_size <= 0` (must be positive; a zero step was already flagged in the
-    CLI walk-forward path)
   - `periods_per_year < 1`
   - `commission` not in `[0, 1]`
   - `slippage` not in `[0, 1]`
-- Add parametrized rejection tests + boundary-acceptance tests in
-  `tests/test_walk_forward.py` (create if it does not exist).
-- Verify: `tests/test_walk_forward.py`, `tests/test_optimization.py` if present,
-  ruff on `quant_trading/optimization/walk_forward.py`, mypy on
-  `quant_trading/optimization/walk_forward.py`, and the walk-forward doctest
-  (`quant_trading/optimization/walk_forward.py:434-444` passes
-  `strategy_cls=None`, so do not validate `strategy_cls`).
+  Leave `n_jobs` clamping behavior unchanged (do not weaken/alter existing
+  behavior without evidence).
+- Add a `TestBaseOptimizerInitValidation` class in `tests/test_optimization.py`
+  (parametrized rejection + boundary-acceptance tests, mirroring
+  `TestWalkForwardInitValidation` / `TestRiskManagerInitValidation`).
+- Because GridSearch/RandomSearch/BayesianOptimizer delegate to
+  `BaseOptimizer.__init__` via `super().__init__(...)`, validating here covers
+  all three optimizers in one place.
+- Verify: `tests/test_optimization.py`, ruff on
+  `quant_trading/optimization/base.py`, mypy on
+  `quant_trading/optimization/base.py`.
