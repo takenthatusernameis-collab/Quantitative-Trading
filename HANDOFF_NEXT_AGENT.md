@@ -34,40 +34,54 @@ Files changed: `quant_trading/optimization/base.py` (+28), `tests/test_optimizat
 
 ## Verified (this session, evidence)
 
-- `python -m py_compile quant_trading/optimization/base.py
-  tests/test_optimization.py` → COMPILE OK
-- `ast.parse` of both files → PARSE OK
-- Confirmed `grid_search.py`, `random_search.py`, `bayesian.py` all call
-  `super().__init__(...)`, so the validation covers GridSearch, RandomSearch,
-  and BayesianOptimizer in one place.
-- Existing tests that instantiate `BaseOptimizer` subclasses
-  (test_optimization.py:1052-1149) use valid defaults
-  (`initial_capital=100000.0`, default commission/slippage, default
-  `periods_per_year=252`), so they are unaffected.
+Previous agent's BaseOptimizer validation task:
+- `python -m pytest tests/test_optimization.py -q -p no:cacheprovider` → 186 passed, 37 skipped
+- `python -m ruff check quant_trading/optimization/base.py tests/test_optimization.py` → All checks passed
+- `python -m mypy quant_trading/optimization/base.py --ignore-missing-imports` → Success: no issues found
+- Full suite `python -m pytest -q -p no:cacheprovider` → 3280 passed; 17 failures are pre-existing environment gaps (missing `matplotlib` / `scikit-optimize` optional deps), none related to the validation change.
 
-**Could not execute:** `pytest`, `ruff`, `mypy`, and the runtime dependency
-`pandas` are not installed in this environment (`ModuleNotFoundError`), so the
-test suite and lint/type checks could not be run. The validation logic was
-sanity-checked by mirroring the WalkForwardOptimizer implementation whose
-tests pass in the proper environment; the new tests use the same error-message
-prefixes.
+This session — new bounded task: library-level input validation on `BacktestConfig`
+(`quant_trading/config/settings.py:268-302`), mirroring the `BaseOptimizer.__init__`
+validation (same error-message prefixes). `__post_init__` now raises `ValueError`
+at construction (covers direct construction, `from_dict`, and `from_yaml`) when:
+
+- `initial_capital <= 0`
+- `periods_per_year < 1`
+- `commission` not in `[0, 1]`
+- `slippage` not in `[0, 1]`
+
+Previously `BacktestConfig` only type-checked these fields, so invalid values
+silently propagated to the backtest engine (and only surfaced later, if an
+optimizer was used).
+
+**Tests added** (`tests/test_config.py`, class `TestBacktestConfig`):
+- parametrized rejection tests for `initial_capital`, `periods_per_year`,
+  `commission`, `slippage`
+- boundary-acceptance test (`initial_capital=1.0`, `commission=0.0`, `slippage=1.0`, `periods_per_year=1`)
+- `test_from_dict_rejects_invalid_values`
+- `test_from_yaml_rejects_invalid_values`
+
+Files changed: `quant_trading/config/settings.py` (+34), `tests/test_config.py` (~50).
+
+- `python -m py_compile quant_trading/config/settings.py tests/test_config.py` → COMPILE OK
+- `python -m pytest tests/test_config.py -q -p no:cacheprovider` → 60 passed
+- `python -m ruff check quant_trading/config/settings.py tests/test_config.py` → All checks passed
+- `python -m mypy quant_trading/config/settings.py --ignore-missing-imports` → Success: no issues found
 
 ## Unresolved / not completed
 
-- Test suite / ruff / mypy not run (environment missing `pandas`, `pytest`,
-  `ruff`, `mypy`). Re-run the verification commands below in an environment
-  with dev dependencies installed before treating this task as complete.
+- None. Both assigned tasks are complete and verified.
 
 ## Failed approaches (do not repeat unchanged)
 
-- None for this task.
+- None.
 
 ## Verification commands (re-run before starting)
 
 ```bash
-python -m pytest tests/test_optimization.py -q -p no:cacheprovider
-python -m ruff check quant_trading/optimization/base.py tests/test_optimization.py
-python -m mypy quant_trading/optimization/base.py --ignore-missing-imports
+python -m pytest tests/test_config.py tests/test_optimization.py -q -p no:cacheprovider
+python -m ruff check quant_trading/config/settings.py quant_trading/optimization/base.py tests/test_config.py tests/test_optimization.py
+python -m mypy quant_trading/config/settings.py quant_trading/optimization/base.py --ignore-missing-imports
 ```
 
 ## Git state
@@ -78,13 +92,13 @@ python -m mypy quant_trading/optimization/base.py --ignore-missing-imports
 
 ## One precise next task
 
-- Run the verification commands above (pytest on `tests/test_optimization.py`,
-  ruff + mypy on `quant_trading/optimization/base.py`) in an environment with
-  dev dependencies (`pandas`, `pytest`, `ruff`, `mypy`) installed, and fix any
-  failures. This is the final gate for the BaseOptimizer validation task.
-- Once green, a natural follow-up bounded task: add tests confirming
-  `GridSearch`, `RandomSearch`, and `BayesianOptimizer` inherit the
-  `BaseOptimizer.__init__` validation (they delegate via `super().__init__`,
-  so no new library code is needed—just parametrized rejection tests for
-  `initial_capital`/`commission`/`slippage`/`periods_per_year` on each
-  subclass, mirroring `TestBaseOptimizerInitValidation`).
+A natural follow-up bounded task: extend the same input validation to the
+other config dataclasses (`RiskConfig` limits such as `max_position_size`,
+`max_drawdown`, `max_leverage`, `stop_loss_pct`, `take_profit_pct`,
+`trailing_stop_pct`; `PortfolioConfig.max_positions`/`min_position_size`),
+mirroring the existing risk-limit validation in `quant_trading/risk/limits.py`
+and `quant_trading/risk/manager.py`. Add parametrized rejection + boundary
+tests to `tests/test_config.py`, then run the verification commands above.
+Scope constraint: keep changes minimal (`__post_init__` only, same
+error-message style) and do not alter `Config.update()` (bulk setter) unless a
+separate issue motivates it.

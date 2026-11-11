@@ -265,6 +265,35 @@ class BacktestConfig:
     halt_on_portfolio_violation: bool = False
     enable_stop_exits: bool = False
 
+    def __post_init__(self) -> None:
+        """Reject out-of-range backtest inputs at construction time.
+
+        Mirrors :meth:`quant_trading.optimization.base.BaseOptimizer.__init__`
+        so invalid values are rejected when a config is built (directly, from a
+        dictionary, or from YAML) instead of silently propagating to the
+        backtest engine or optimizer.
+        """
+        if self.initial_capital <= 0:
+            raise ValueError(
+                f"invalid initial_capital: the value must be positive "
+                f"(got {self.initial_capital})"
+            )
+        if self.periods_per_year < 1:
+            raise ValueError(
+                f"invalid periods_per_year: the value must be at least 1 "
+                f"(got {self.periods_per_year})"
+            )
+        if not (0.0 <= self.commission <= 1.0):
+            raise ValueError(
+                f"invalid commission: the value must be in the range [0, 1] "
+                f"(got {self.commission})"
+            )
+        if not (0.0 <= self.slippage <= 1.0):
+            raise ValueError(
+                f"invalid slippage: the value must be in the range [0, 1] "
+                f"(got {self.slippage})"
+            )
+
     def to_dict(self) -> dict[str, Any]:
         """Convert the backtest configuration to a plain, JSON-safe dictionary.
 

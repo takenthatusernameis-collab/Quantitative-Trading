@@ -35,6 +35,48 @@ class TestBacktestConfig:
         config = BacktestConfig(periods_per_year=12)
         assert config.periods_per_year == 12
 
+    @pytest.mark.parametrize("initial_capital", [0.0, -1000.0])
+    def test_rejects_invalid_initial_capital(self, initial_capital):
+        with pytest.raises(ValueError, match="invalid initial_capital"):
+            BacktestConfig(initial_capital=initial_capital)
+
+    @pytest.mark.parametrize("periods_per_year", [0, -1])
+    def test_rejects_invalid_periods_per_year(self, periods_per_year):
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            BacktestConfig(periods_per_year=periods_per_year)
+
+    @pytest.mark.parametrize("commission", [-0.1, 1.5])
+    def test_rejects_invalid_commission(self, commission):
+        with pytest.raises(ValueError, match="invalid commission"):
+            BacktestConfig(commission=commission)
+
+    @pytest.mark.parametrize("slippage", [-0.1, 1.5])
+    def test_rejects_invalid_slippage(self, slippage):
+        with pytest.raises(ValueError, match="invalid slippage"):
+            BacktestConfig(slippage=slippage)
+
+    def test_accepts_boundary_valid_values(self):
+        config = BacktestConfig(
+            initial_capital=1.0,
+            commission=0.0,
+            slippage=1.0,
+            periods_per_year=1,
+        )
+        assert config.initial_capital == 1.0
+        assert config.commission == 0.0
+        assert config.slippage == 1.0
+        assert config.periods_per_year == 1
+
+    def test_from_dict_rejects_invalid_values(self):
+        with pytest.raises(ValueError, match="invalid commission"):
+            BacktestConfig.from_dict({"commission": 1.5})
+
+    def test_from_yaml_rejects_invalid_values(self, tmp_path):
+        path = tmp_path / "config.yaml"
+        path.write_text("backtest:\n  slippage: -0.05\n")
+        with pytest.raises(ValueError, match="invalid slippage"):
+            Config.from_yaml(str(path))
+
 
 class TestRiskConfig:
     """Tests for RiskConfig."""
