@@ -2319,6 +2319,281 @@ class TestRunCombined:
                 assert "unrealized_pnl" in entry
                 assert "total_return" in entry
 
+    @patch("examples.cli.run_backtest")
+    def test_run_combined_strategy_error_returns_one(self, mock_run_backtest, capsys):
+        """When a strategy raises an error, combined mode prints it and returns 1."""
+        from quant_trading.backtest.metrics import BacktestMetrics
+
+        mock_metrics = MagicMock(spec=BacktestMetrics)
+        mock_metrics.num_trades = 10
+        mock_metrics.win_rate = 0.6
+        mock_metrics.sharpe_ratio = 1.5
+        mock_metrics.max_drawdown_pct = 5.0
+        mock_metrics.profit_factor = 2.0
+        mock_metrics.total_pnl = 0.0
+        mock_metrics.unrealized_pnl = 0.0
+
+        def side_effect(*args, **kwargs):
+            strategy = kwargs.get("strategy")
+            if strategy.name == "RSI_14":
+                raise ValueError("RSI strategy failed")
+            mock_result = MagicMock(
+                spec=[
+                    "name",
+                    "total_return_pct",
+                    "metrics",
+                    "initial_capital",
+                    "final_value",
+                    "total_return",
+                    "total_costs",
+                ]
+            )
+            mock_result.name = strategy.name
+            mock_result.total_return_pct = 15.5
+            mock_result.metrics = mock_metrics
+            mock_result.initial_capital = 100000.0
+            mock_result.final_value = 115500.0
+            mock_result.total_return = 15500.0
+            mock_result.total_costs = 0.0
+            return mock_result
+
+        mock_run_backtest.side_effect = side_effect
+
+        args = argparse.Namespace(
+            symbols=["AAPL"],
+            strategy="ma",
+            combined=True,
+            initial_capital=100000.0,
+            commission=0.001,
+            slippage=0.0005,
+            interval="1d",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            aroon_period=25,
+            dc_period=20,
+            dc_exit_period=20,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
+            sar_step=0.02,
+            sar_max_step=0.20,
+            tenkan_period=9,
+            kijun_period=26,
+            senkou_b_period=52,
+            output=None,
+        )
+
+        config = Config()
+        from datetime import datetime, timedelta
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365)
+
+        result = run_combined(args, config, start_date, end_date)
+        assert result == 1
+
+        captured = capsys.readouterr()
+        assert "Error - RSI strategy failed" in captured.out
+        assert "✗" in captured.out
+
+    @patch("examples.cli.run_backtest")
+    def test_run_combined_all_strategies_fail_returns_one(self, mock_run_backtest, capsys):
+        """When the first strategy fails, combined mode returns 1 immediately."""
+        mock_run_backtest.side_effect = RuntimeError("data unavailable")
+
+        args = argparse.Namespace(
+            symbols=["AAPL"],
+            strategy="ma",
+            combined=True,
+            initial_capital=100000.0,
+            commission=0.001,
+            slippage=0.0005,
+            interval="1d",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            aroon_period=25,
+            dc_period=20,
+            dc_exit_period=20,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
+            sar_step=0.02,
+            sar_max_step=0.20,
+            tenkan_period=9,
+            kijun_period=26,
+            senkou_b_period=52,
+            output=None,
+        )
+
+        config = Config()
+        from datetime import datetime, timedelta
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365)
+
+        result = run_combined(args, config, start_date, end_date)
+        assert result == 1
+
+        captured = capsys.readouterr()
+        assert "Error - data unavailable" in captured.out
+        assert "✗" in captured.out
+
+    def test_run_combined_report_import_error_returns_one(self, capsys, tmp_path, monkeypatch):
+        """Missing matplotlib in combined mode --report is a one-line error."""
+        from examples.cli import run_combined
+
+        def _raise_import_error(*args, **kwargs):
+            raise ImportError(
+                "matplotlib is required for chart generation. "
+                "Install with: pip install quant-trading[reporting]"
+            )
+
+        monkeypatch.setattr("examples.cli.generate_comparison_report", _raise_import_error)
+
+        report_path = tmp_path / "combined_report.html"
+        args = argparse.Namespace(
+            symbols=["AAPL"],
+            strategy="ma",
+            combined=True,
+            initial_capital=100000.0,
+            commission=0.001,
+            slippage=0.0005,
+            interval="1d",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            aroon_period=25,
+            dc_period=20,
+            dc_exit_period=20,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
+            sar_step=0.02,
+            sar_max_step=0.20,
+            tenkan_period=9,
+            kijun_period=26,
+            senkou_b_period=52,
+            output=None,
+            report=str(report_path),
+            report_theme="light",
+            report_no_charts=False,
+            report_no_trades=False,
+            report_no_monthly=False,
+            report_no_rolling=False,
+        )
+
+        config = Config()
+        config.data.provider = "synthetic"
+        config.data.offline = True
+        config.data.synthetic_days = 60
+        config.data.synthetic_seed = 42
+
+        from datetime import datetime, timedelta
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=60)
+
+        result = run_combined(args, config, start_date, end_date)
+        assert result == 1
+
+        captured = capsys.readouterr()
+        assert "matplotlib" in captured.out
+        assert "Traceback" not in captured.out
+
+    def test_run_combined_report_os_error_returns_one(self, capsys, tmp_path, monkeypatch):
+        """File write error in combined mode --report is a one-line error."""
+        from examples.cli import run_combined
+
+        def _raise_os_error(*args, **kwargs):
+            raise OSError("Permission denied")
+
+        monkeypatch.setattr("examples.cli.generate_comparison_report", _raise_os_error)
+
+        report_path = tmp_path / "combined_report.html"
+        args = argparse.Namespace(
+            symbols=["AAPL"],
+            strategy="ma",
+            combined=True,
+            initial_capital=100000.0,
+            commission=0.001,
+            slippage=0.0005,
+            interval="1d",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            aroon_period=25,
+            dc_period=20,
+            dc_exit_period=20,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
+            sar_step=0.02,
+            sar_max_step=0.20,
+            tenkan_period=9,
+            kijun_period=26,
+            senkou_b_period=52,
+            output=None,
+            report=str(report_path),
+            report_theme="light",
+            report_no_charts=False,
+            report_no_trades=False,
+            report_no_monthly=False,
+            report_no_rolling=False,
+        )
+
+        config = Config()
+        config.data.provider = "synthetic"
+        config.data.offline = True
+        config.data.synthetic_days = 60
+        config.data.synthetic_seed = 42
+
+        from datetime import datetime, timedelta
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=60)
+
+        result = run_combined(args, config, start_date, end_date)
+        assert result == 1
+
+        captured = capsys.readouterr()
+        assert "could not write report file" in captured.out
+        assert "Permission denied" in captured.out
+        assert "Traceback" not in captured.out
+
 
 class TestMain:
     """Tests for main function."""
@@ -2566,6 +2841,26 @@ class TestMain:
                 result = main()
             assert result == 0
             mock_wf.assert_called_once()
+
+    def test_main_system_exit_nonzero_returns_one(self, capsys):
+        """main() converts non-zero SystemExit from argparse to exit code 1."""
+
+        from examples.cli import main
+
+        # Simulate argparse raising SystemExit(2) for invalid argument
+        with patch("examples.cli.parse_args") as mock_parse:
+            mock_parse.side_effect = SystemExit(2)
+            result = main()
+        assert result == 1
+
+    def test_main_system_exit_zero_returns_zero(self, capsys):
+        """main() converts SystemExit(0) to exit code 0."""
+        from examples.cli import main
+
+        with patch("examples.cli.parse_args") as mock_parse:
+            mock_parse.side_effect = SystemExit(0)
+            result = main()
+        assert result == 0
 
 
 class TestFactoryIntegration:
@@ -3039,6 +3334,66 @@ class TestSaveStrategyConfig:
         assert isinstance(strategy, MovingAverageCrossover)
         assert strategy.fast_period == 5
         assert strategy.slow_period == 25
+
+    def test_single_strategy_fallback_key_when_not_in_registry(self, tmp_path, capsys, monkeypatch):
+        """When strategy class is not in registry, fallback key is used in saved config."""
+        import pandas as pd
+
+        from examples.cli import main
+        from quant_trading.strategies.base import Signal, Strategy
+
+        # Create a custom strategy class not in the registry
+        class CustomUnregisteredStrategy(Strategy):
+            def __init__(self, param_a=10, param_b=20, **kwargs):
+                kwargs.setdefault("name", "CustomUnregistered")
+                super().__init__(**kwargs)
+                self.param_a = param_a
+                self.param_b = param_b
+
+            def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+                return []
+
+            def get_parameters(self):
+                return {"param_a": self.param_a, "param_b": self.param_b}
+
+        # Monkeypatch create_strategy to return our custom unregistered strategy
+        import examples.cli as cli_module
+
+        def mock_create_strategy(args):
+            return CustomUnregisteredStrategy(param_a=5, param_b=15)
+
+        monkeypatch.setattr(cli_module, "create_strategy", mock_create_strategy)
+
+        out = tmp_path / "fallback.yaml"
+        args = [
+            "--offline",
+            "--strategy",
+            "ma",  # This will be ignored by mock
+            "--symbols",
+            "AAPL",
+            "--days",
+            "120",
+            "--output-strategy-config",
+            str(out),
+        ]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+        assert out.exists()
+
+        import yaml
+
+        with open(out) as f:
+            saved = yaml.safe_load(f)
+
+        # The fallback key should be the class name without "Strategy" suffix, lowercased
+        assert saved["type"] == "customunregistered"
+        assert saved["name"] == "CustomUnregistered"
+        assert saved["parameters"] == {"param_a": 5, "param_b": 15}
+
+        # Round-trip should work if the fallback key is registered
+        # (but it won't be since we didn't register it)
+        # This test just verifies the fallback key generation
 
 
 class TestResolvePeriodsPerYear:
