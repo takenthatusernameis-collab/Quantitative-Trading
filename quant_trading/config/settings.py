@@ -70,6 +70,34 @@ class DataConfig:
     synthetic_seed: int = 42
     alphavantage_api_key: str | None = None
 
+    def __post_init__(self) -> None:
+        """Reject out-of-range data-config inputs at construction time.
+
+        Invalid values are rejected when a config is built (directly, from a
+        dictionary, or from YAML) instead of silently propagating to the data
+        layer.
+        """
+        if not self.provider:
+            raise ValueError(
+                f"invalid provider: the value must be a non-empty string "
+                f"(got {self.provider!r})"
+            )
+        if not self.default_interval:
+            raise ValueError(
+                f"invalid default_interval: the value must be a non-empty "
+                f"string (got {self.default_interval!r})"
+            )
+        if not self.default_period:
+            raise ValueError(
+                f"invalid default_period: the value must be a non-empty "
+                f"string (got {self.default_period!r})"
+            )
+        if self.synthetic_days < 1:
+            raise ValueError(
+                f"invalid synthetic_days: the value must be at least 1 "
+                f"(got {self.synthetic_days})"
+            )
+
     def to_dict(self) -> dict[str, Any]:
         """Convert the data configuration to a plain, JSON-safe dictionary.
 

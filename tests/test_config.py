@@ -216,6 +216,48 @@ class TestDataConfig:
         assert config.provider == "yfinance"
         assert config.default_interval == "1d"
 
+    @pytest.mark.parametrize("provider", ["", None])
+    def test_rejects_invalid_provider(self, provider):
+        with pytest.raises(ValueError, match="invalid provider"):
+            DataConfig(provider=provider)
+
+    @pytest.mark.parametrize("default_interval", ["", None])
+    def test_rejects_invalid_default_interval(self, default_interval):
+        with pytest.raises(ValueError, match="invalid default_interval"):
+            DataConfig(default_interval=default_interval)
+
+    @pytest.mark.parametrize("default_period", ["", None])
+    def test_rejects_invalid_default_period(self, default_period):
+        with pytest.raises(ValueError, match="invalid default_period"):
+            DataConfig(default_period=default_period)
+
+    @pytest.mark.parametrize("synthetic_days", [0, -1, -365])
+    def test_rejects_invalid_synthetic_days(self, synthetic_days):
+        with pytest.raises(ValueError, match="invalid synthetic_days"):
+            DataConfig(synthetic_days=synthetic_days)
+
+    def test_accepts_boundary_valid_values(self):
+        config = DataConfig(
+            provider="yfinance",
+            default_interval="1d",
+            default_period="1y",
+            synthetic_days=1,
+        )
+        assert config.provider == "yfinance"
+        assert config.default_interval == "1d"
+        assert config.default_period == "1y"
+        assert config.synthetic_days == 1
+
+    def test_from_dict_rejects_invalid_values(self):
+        with pytest.raises(ValueError, match="invalid synthetic_days"):
+            DataConfig.from_dict({"synthetic_days": 0})
+
+    def test_from_yaml_rejects_invalid_values(self, tmp_path):
+        path = tmp_path / "config.yaml"
+        path.write_text('data:\n  provider: ""\n')
+        with pytest.raises(ValueError, match="invalid provider"):
+            Config.from_yaml(str(path))
+
 
 class TestConfig:
     """Tests for the main Config class."""
