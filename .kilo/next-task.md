@@ -2,36 +2,43 @@
 
 ## Repository state (verified this session)
 - Branch `main` up to date with `origin/main`; working tree clean except for the changes below.
-- The `BayesianOptimizer` `noise` wiring described in the prior `.kilo/next-task.md` is **already committed** (present in `quant_trading/optimization/bayesian.py`; `HEAD = cc45c0f` is ahead of `cfac267`). That prior next-task (commit the noise wiring) is complete.
+- The prior assigned task (install the reporting extra and confirm the full suite is green) is **complete**: `pip install -e ".[dev,reporting]"` succeeded and the full suite is **3275 passed, 1 skipped, 132 deselected, 0 failed** (the 8 pre-existing matplotlib failures are resolved).
 
 ## Completed this session
-**Removed yfinance gating from 6 optimization tests and closed the remaining real coverage gaps in `grid_search.py` / `random_search.py`.**
-- `tests/test_optimization.py`: 6 tests previously behind `@skip_if_no_yfinance` now run offline using synthetic data (`Config(data=DataConfig(offline=True, ...))`) or a patched synthetic default data manager (`unittest.mock.patch` on `get_default_data_manager`).
-- `quant_trading/optimization/grid_search.py` coverage → **100%** (was 98%).
-- `quant_trading/optimization/random_search.py` coverage → **100%** (was 98%).
+**Executed the prior handoff task and added bounded test coverage for a documented-but-untested CLI path.**
 
-**Added direct unit tests for pure `examples.cli` helpers with zero prior coverage.**
-- `tests/test_cli.py`: new `TestCliHelpers` class with 9 tests covering `_save_json_output`, `_print_regime_analysis`, `_print_monte_carlo_analysis`, `_print_trade_analysis` directly (no backtest runs needed).
+1. **Installed the reporting extra; full suite is green.**
+   - `pip install -e ".[dev,reporting]"` → `python -m pytest -q -p no:cacheprovider` → **3275 passed, 1 skipped, 132 deselected, 0 failed** (was 3251 passed + 8 matplotlib-env failures).
+   - `python -m ruff check .` → All checks passed.
+   - `python -m mypy quant_trading --ignore-missing-imports` → Success: no issues in 38 source files.
+   - Coverage (`--cov=quant_trading --cov=examples.cli`): **examples/cli.py = 95%** (was 93%); TOTAL = 99%.
+
+2. **Added tests for the single-strategy `--output-strategy-config` path** (`examples/cli.py:2351-2378`), which the README documents for regular backtests but had zero coverage (only the optimization and walk-forward paths were tested).
+   - `tests/test_cli.py::TestSaveStrategyConfig::test_single_strategy_saves_config` — runs `main()` offline with `--output-strategy-config`, asserts exit 0, file written, YAML contents (`type=ma`, `fast_period=5`, `slow_period=25`), "Strategy configuration saved to" printed, and a round-trip reload via `Strategy.from_config` into `MovingAverageCrossover`.
+   - `tests/test_cli.py::TestSaveStrategyConfig::test_single_strategy_config_writes_to_nested_directory` — asserts missing parent directories are created.
+   - `tests/test_cli.py` grew by +72 lines; removed two unused local imports (`json`, `tempfile`) that ruff flagged.
 
 ## Verified (this session, evidence)
-- `python -m pytest tests/test_optimization.py -q -p no:cacheprovider` → **134 passed, 11 skipped** (remaining skips are genuinely network-dependent).
-- `python -m pytest tests/test_cli.py::TestCliHelpers -q -p no:cacheprovider` → **9 passed**.
-- `python -m ruff check tests/test_cli.py` → **All checks passed!**
-- `python -m mypy tests/test_cli.py --ignore-missing-imports` → no new errors from added tests.
+- `tests/test_cli.py::TestSaveStrategyConfig` → **6 passed** (4 pre-existing + 2 new).
+- `tests/test_cli.py` full → **241 passed, 1 skipped, 3 deselected**.
+- Full suite → **3275 passed, 1 skipped, 132 deselected, 0 failed**.
+- `python -m ruff check .` → All checks passed.
+- `python -m mypy tests/test_cli.py --ignore-missing-imports` → no new errors from added tests. The 6 errors in `examples/cli.py` (`1554`, `1578-1579`, `2659`, `2668`) are pre-existing — confirmed by stashing the change and re-running mypy on the clean baseline (identical 6 errors).
 
 ## Unresolved / not completed
-- Remaining coverage gaps are environment-only (`engine.py:82-84` TYPE_CHECKING, `report.py:29-30` matplotlib, `yfinance_provider.py:85`) or unreachable dead branches (`risk/metrics.py:511, 591`); not logic gaps.
-- `examples/cli.py` is not in the coverage source (`source = ["quant_trading"]`), so its remaining uncovered lines (mostly `main()`, `run_optimization()`, `run_walk_forward()`, `run_combined()`) are not measured. The new `TestCliHelpers` tests cover the pure helpers directly.
+- Pre-existing mypy errors in `examples/cli.py` (untouched this session): `1554`, `1578-1579` (float/int in `_default_param_grid`), `2659`, `2668` (`Config` vs `ReportConfig` in `run_combined`). Not regressions; present on the clean baseline.
+- Remaining `examples/cli.py` uncovered lines are environment-only or unreachable dead branches (version fallback, interval-regex branches, arg-validation `raise` branches already covered by `test_examples_smoke.py`, registry-key fallback, report ImportError/OSError, walk-forward/optimization early returns, combined-mode per-strategy error/empty-results, combined-mode optional analysis + report). Not logic gaps.
 
 ## One precise next task
-- None outstanding for bounded logic coverage. If a new task is assigned, re-run the verification set above first:
-  `python -m pytest tests/test_optimization.py -q -p no:cacheprovider`,
-  `python -m pytest tests/test_cli.py::TestCliHelpers -q -p no:cacheprovider`,
+- None outstanding for bounded, verified progress. If a new task is assigned, re-run the verification set first:
+  `python -m pytest tests/test_cli.py::TestSaveStrategyConfig -q -p no:cacheprovider`,
+  `python -m pytest tests/test_cli.py -q -p no:cacheprovider`,
+  `python -m pytest -q -p no:cacheprovider` (expect 3275 passed, 0 failed),
   `python -m ruff check .`,
-  `python -m mypy quant_trading --ignore-missing-imports`.
+  `python -m mypy quant_trading --ignore-missing-imports` (baseline has 6 pre-existing errors in `examples/cli.py` only).
 
 ## Git state
-- Working tree has uncommitted changes: `tests/test_optimization.py` (+53/-16 lines), `tests/test_cli.py` (+TestCliHelpers, 9 new tests).
-- Do NOT commit unless explicitly asked.
+- Branch `main` up to date with `origin/main`. HEAD = `01706f1`.
+- Working tree has uncommitted changes: `tests/test_cli.py` (+72 lines, 2 new tests). Do NOT commit unless explicitly asked.
 
 (End of file)

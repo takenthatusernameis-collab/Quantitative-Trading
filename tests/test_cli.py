@@ -2894,6 +2894,78 @@ class TestSaveStrategyConfig:
         assert "fast_period" in saved["parameters"]
         assert "slow_period" in saved["parameters"]
 
+    def test_single_strategy_saves_config(self, tmp_path, capsys):
+        """``--output-strategy-config`` in a regular backtest writes the run strategy.
+
+        The README documents ``--output-strategy-config`` for optimization,
+        walk-forward, and regular backtest modes, but only the first two were
+        covered. This pins the single-strategy path (``_run_cli``) so the
+        documented round-trip stays alive: write the config, then reload it
+        through ``Strategy.from_config``.
+        """
+        from examples.cli import main
+
+        out = tmp_path / "single.yaml"
+        args = [
+            "--offline",
+            "--strategy",
+            "ma",
+            "--fast-period",
+            "5",
+            "--slow-period",
+            "25",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "120",
+            "--output-strategy-config",
+            str(out),
+        ]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+        assert out.exists()
+
+        import yaml
+
+        with open(out) as f:
+            saved = yaml.safe_load(f)
+        assert saved["type"] == "ma"
+        assert saved["parameters"]["fast_period"] == 5
+        assert saved["parameters"]["slow_period"] == 25
+        assert "Strategy configuration saved to" in capsys.readouterr().out
+
+        # Round-trip: the saved config must reload into the same strategy.
+        from quant_trading.strategies.base import Strategy
+        from quant_trading.strategies.examples import MovingAverageCrossover
+
+        reloaded = Strategy.from_config(saved)
+        assert isinstance(reloaded, MovingAverageCrossover)
+        assert reloaded.fast_period == 5
+        assert reloaded.slow_period == 25
+
+    def test_single_strategy_config_writes_to_nested_directory(self, tmp_path, capsys):
+        """``--output-strategy-config`` creates missing parent directories."""
+        from examples.cli import main
+
+        out = tmp_path / "nested" / "deep" / "single.yaml"
+        args = [
+            "--offline",
+            "--strategy",
+            "rsi",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "120",
+            "--output-strategy-config",
+            str(out),
+        ]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+        assert out.exists()
+        assert out.parent.is_dir()
+
     def test_run_walk_forward_passes_risk_free_rate_to_optimizer(self):
         """CLI walk-forward must forward config.backtest.risk_free_rate."""
         from unittest.mock import patch
