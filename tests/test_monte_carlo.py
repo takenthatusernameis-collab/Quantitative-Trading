@@ -327,6 +327,42 @@ def test_monte_carlo_default_risk_free_rate_is_002():
     assert simulator.risk_free_rate == 0.02
 
 
+@pytest.mark.parametrize("n_simulations", [0, -1, -5])
+def test_monte_carlo_rejects_invalid_n_simulations(n_simulations):
+    with pytest.raises(ValueError, match="invalid n_simulations"):
+        MonteCarloSimulator(n_simulations=n_simulations, random_state=7)
+
+
+@pytest.mark.parametrize("confidence_level", [0.0, -0.5, 1.0, 1.5])
+def test_monte_carlo_rejects_invalid_confidence_level(confidence_level):
+    with pytest.raises(ValueError, match="invalid confidence_level"):
+        MonteCarloSimulator(n_simulations=10, confidence_level=confidence_level, random_state=7)
+
+
+@pytest.mark.parametrize("periods_per_year", [0, -1, -252])
+def test_monte_carlo_rejects_invalid_periods_per_year(periods_per_year):
+    with pytest.raises(ValueError, match="invalid periods_per_year"):
+        MonteCarloSimulator(n_simulations=10, periods_per_year=periods_per_year, random_state=7)
+
+
+def test_monte_carlo_accepts_minimal_valid_values():
+    simulator = MonteCarloSimulator(
+        n_simulations=1,
+        confidence_level=0.5,
+        periods_per_year=1,
+        random_state=7,
+    )
+    assert simulator.n_simulations == 1
+    assert simulator.confidence_level == 0.5
+    assert simulator.periods_per_year == 1
+
+
+def test_monte_carlo_run_monte_carlo_rejects_invalid_n_simulations():
+    result = _make_result()
+    with pytest.raises(ValueError, match="invalid n_simulations"):
+        run_monte_carlo(result, n_simulations=0, random_state=7)
+
+
 def test_monte_carlo_risk_free_rate_reaches_simulated_metrics():
     """A non-default risk-free rate must change the simulated Sharpe/Sortino.
 

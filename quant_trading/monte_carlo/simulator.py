@@ -399,6 +399,26 @@ class MonteCarloSimulator:
         self.risk_free_rate = risk_free_rate
         self._rng = np.random.default_rng(random_state)
 
+        # Validate the simulator configuration. Invalid values do not raise here
+        # today, so a library user would silently get a degenerate or misleading
+        # run (for example n_simulations=0 divides by zero in
+        # probability_of_profit) instead of a clear error.
+        if self.n_simulations < 1:
+            raise ValueError(
+                f"invalid n_simulations: the value must be at least 1 "
+                f"(got {self.n_simulations})"
+            )
+        if not (0.0 < self.confidence_level < 1.0):
+            raise ValueError(
+                f"invalid confidence_level: the value must be in the range (0, 1) "
+                f"(got {self.confidence_level})"
+            )
+        if self.periods_per_year < 1:
+            raise ValueError(
+                f"invalid periods_per_year: the value must be at least 1 "
+                f"(got {self.periods_per_year})"
+            )
+
     def run(
         self,
         result: BacktestResult,
