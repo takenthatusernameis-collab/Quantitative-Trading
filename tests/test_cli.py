@@ -4888,6 +4888,181 @@ class TestCliHelpers:
         assert "probability_of_profit" in summary
 
 
+class TestRunOptimizationWalkForwardEndToEnd:
+    """End-to-end tests for run_optimization and run_walk_forward."""
+
+    def _base_opt_args(self, tmp_path, **overrides):
+        import argparse
+
+        base = {
+            "symbols": ["AAPL", "MSFT"],
+            "days": 120,
+            "strategy": "ma",
+            "initial_capital": 100000.0,
+            "commission": 0.001,
+            "slippage": 0.0005,
+            "interval": "1d",
+            "optimizer": "grid",
+            "objective": "sharpe",
+            "n_iter": 5,
+            "n_jobs": 1,
+            "bayesian_n_initial": 3,
+            "bayesian_acq_func": "gp_hedge",
+            "bayesian_acq_optimizer": "lbfgs",
+            "bayesian_noise": "gaussian",
+            "output": None,
+            "output_format": None,
+            "output_strategy_config": None,
+            # MA strategy params / ranges for grid
+            "fast_period": 10,
+            "slow_period": 30,
+            "ma_fast_range": "5,10,5",
+            "ma_slow_range": "20,30,10",
+            # required by create_param_grid for other strategies (unused here)
+            "rsi_period": 14,
+            "rsi_oversold": 30,
+            "rsi_overbought": 70,
+            "bb_period": 20,
+            "bb_std": 2.0,
+            "st_period": 10,
+            "st_multiplier": 3.0,
+            "dc_period": 20,
+            "dc_exit_period": None,
+            "aroon_period": 25,
+            "kc_ema_period": 20,
+            "kc_atr_period": 10,
+            "kc_multiplier": 2.0,
+            "kc_use_middle_cross": False,
+            "atr_period": 14,
+            "atr_multiplier": 2.0,
+            "stoch_k_period": 14,
+            "stoch_d_period": 3,
+            "stoch_oversold": 20,
+            "stoch_overbought": 80,
+            "stoch_use_midline": False,
+            "tenkan_period": 9,
+            "kijun_period": 26,
+            "senkou_b_period": 52,
+            "sar_step": 0.02,
+            "sar_max_step": 0.2,
+            # walk-forward
+            "wf_windows": 2,
+            "wf_train_size": 0.6,
+            "wf_step_size": None,
+            "wf_anchored": False,
+            "wf_optimizer": "grid",
+        }
+        base.update(overrides)
+        return argparse.Namespace(**base)
+
+    def _synthetic_config(self, days=120, seed=42):
+        config = Config()
+        config.data.provider = "synthetic"
+        config.data.offline = True
+        config.data.synthetic_days = days
+        config.data.synthetic_seed = seed
+        return config
+
+    def test_run_optimization_offline_returns_zero_and_prints_results(self, tmp_path, capsys):
+        from datetime import datetime, timedelta
+
+        from examples.cli import run_optimization
+
+        args = self._base_opt_args(tmp_path)
+        config = self._synthetic_config(days=120, seed=42)
+        end_date = datetime(2024, 12, 31)
+        start_date = end_date - timedelta(days=120)
+
+        result = run_optimization(args, config, start_date, end_date)
+
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Optimization Complete" in out
+        assert "Best Parameters" in out
+        assert "Top 10 Results" in out
+
+    def test_run_optimization_writes_output_json(self, tmp_path):
+        import json
+        from datetime import datetime, timedelta
+
+        from examples.cli import run_optimization
+
+        output = tmp_path / "opt.json"
+        args = self._base_opt_args(tmp_path, output=str(output))
+        config = self._synthetic_config(days=120, seed=42)
+        end_date = datetime(2024, 12, 31)
+        start_date = end_date - timedelta(days=120)
+
+        result = run_optimization(args, config, start_date, end_date)
+
+        assert result == 0
+        assert output.exists()
+        data = json.loads(output.read_text())
+        assert data["strategy"] == "MovingAverageCrossover"
+        assert data["optimizer"] == "grid"
+        assert "best_params" in data
+        assert "best_score" in data
+        assert isinstance(data.get("all_results"), list)
+
+    def test_run_walk_forward_offline_returns_zero_and_prints_results(self, tmp_path, capsys):
+        from datetime import datetime, timedelta
+
+        from examples.cli import run_walk_forward
+
+        args = self._base_opt_args(
+            tmp_path,
+            walk_forward=True,
+            wf_windows=2,
+            wf_train_size=0.6,
+            wf_anchored=False,
+            wf_optimizer="grid",
+        )
+        config = self._synthetic_config(days=120, seed=42)
+        end_date = datetime(2024, 12, 31)
+        start_date = end_date - timedelta(days=120)
+
+        result = run_walk_forward(args, config, start_date, end_date)
+
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Walk-Forward Optimization Complete" in out
+        assert "Window Results" in out
+        assert "Summary:" in out
+
+    def test_run_walk_forward_writes_output_json(self, tmp_path):
+        import json
+        from datetime import datetime, timedelta
+
+        from examples.cli import run_walk_forward
+
+        output = tmp_path / "wf.json"
+        args = self._base_opt_args(
+            tmp_path,
+            walk_forward=True,
+            output=str(output),
+            wf_windows=2,
+            wf_train_size=0.6,
+            wf_anchored=False,
+            wf_optimizer="grid",
+        )
+        config = self._synthetic_config(days=120, seed=42)
+        end_date = datetime(2024, 12, 31)
+        start_date = end_date - timedelta(days=120)
+
+        result = run_walk_forward(args, config, start_date, end_date)
+
+        assert result == 0
+        assert output.exists()
+        data = json.loads(output.read_text())
+        assert data["strategy"] == "MovingAverageCrossover"
+        assert "walk_forward" in data
+        assert "summary" in data
+        assert "window_results" in data
+        assert "walk_forward_result" in data
+        assert data["summary"]["n_windows"] == 2
+
+
+
 if __name__ == "__main__":
     import pytest
 
