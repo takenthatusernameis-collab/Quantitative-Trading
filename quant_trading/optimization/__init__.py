@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .base import (
+    BaseOptimizer,
     ObjectiveFunction,
     OptimizationResult,
     ParameterGrid,
@@ -33,6 +34,7 @@ from .walk_forward import WalkForwardOptimizer
 __all__ = [
     "BayesianOptimizer",
     "BayesianOptimizerConfig",
+    "BaseOptimizer",
     "GridSearch",
     "ObjectiveFunction",
     "OptimizationResult",

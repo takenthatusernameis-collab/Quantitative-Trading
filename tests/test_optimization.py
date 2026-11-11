@@ -17,6 +17,7 @@ import pytest
 
 from quant_trading.data.providers import DataManager
 from quant_trading.optimization import (
+    BaseOptimizer,
     GridSearch,
     OptimizationResult,
     ParameterGrid,
@@ -4464,66 +4465,64 @@ def _base_optimizer_minimal_kwargs():
     }
 
 
+class _ConcreteBaseOptimizer(BaseOptimizer):
+    """Concrete subclass used to exercise BaseOptimizer.__init__ validation.
+
+    BaseOptimizer is abstract (it declares an abstract ``run`` method), so it
+    cannot be instantiated directly. This subclass only implements ``run`` and
+    delegates all constructor behaviour to ``BaseOptimizer.__init__``.
+    """
+
+    def run(self) -> OptimizationResult:
+        return OptimizationResult(best_params={}, best_score=0.0)
+
+
 class TestBaseOptimizerInitValidation:
     """Tests for input validation in BaseOptimizer.__init__."""
 
     @pytest.mark.parametrize("initial_capital", [0.0, -1000.0, -1.0])
     def test_rejects_invalid_initial_capital(self, initial_capital):
-        from quant_trading.optimization.base import BaseOptimizer
-
         with pytest.raises(ValueError, match="invalid initial_capital"):
-            BaseOptimizer(**_base_optimizer_minimal_kwargs(), initial_capital=initial_capital)
+            _ConcreteBaseOptimizer(
+                **_base_optimizer_minimal_kwargs(), initial_capital=initial_capital
+            )
 
     @pytest.mark.parametrize("periods_per_year", [0, -1, -252])
     def test_rejects_invalid_periods_per_year(self, periods_per_year):
-        from quant_trading.optimization.base import BaseOptimizer
-
         with pytest.raises(ValueError, match="invalid periods_per_year"):
-            BaseOptimizer(
+            _ConcreteBaseOptimizer(
                 **_base_optimizer_minimal_kwargs(), periods_per_year=periods_per_year
             )
 
     @pytest.mark.parametrize("periods_per_year", [1])
     def test_accepts_minimal_periods_per_year(self, periods_per_year):
-        from quant_trading.optimization.base import BaseOptimizer
-
-        optimizer = BaseOptimizer(
+        optimizer = _ConcreteBaseOptimizer(
             **_base_optimizer_minimal_kwargs(), periods_per_year=periods_per_year
         )
         assert optimizer.periods_per_year == periods_per_year
 
     @pytest.mark.parametrize("commission", [-0.1, 1.5])
     def test_rejects_invalid_commission(self, commission):
-        from quant_trading.optimization.base import BaseOptimizer
-
         with pytest.raises(ValueError, match="invalid commission"):
-            BaseOptimizer(**_base_optimizer_minimal_kwargs(), commission=commission)
+            _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), commission=commission)
 
     @pytest.mark.parametrize("commission", [0.0, 1.0])
     def test_accepts_commission_boundaries(self, commission):
-        from quant_trading.optimization.base import BaseOptimizer
-
-        optimizer = BaseOptimizer(**_base_optimizer_minimal_kwargs(), commission=commission)
+        optimizer = _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), commission=commission)
         assert optimizer.commission == commission
 
     @pytest.mark.parametrize("slippage", [-0.1, 1.5])
     def test_rejects_invalid_slippage(self, slippage):
-        from quant_trading.optimization.base import BaseOptimizer
-
         with pytest.raises(ValueError, match="invalid slippage"):
-            BaseOptimizer(**_base_optimizer_minimal_kwargs(), slippage=slippage)
+            _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), slippage=slippage)
 
     @pytest.mark.parametrize("slippage", [0.0, 1.0])
     def test_accepts_slippage_boundaries(self, slippage):
-        from quant_trading.optimization.base import BaseOptimizer
-
-        optimizer = BaseOptimizer(**_base_optimizer_minimal_kwargs(), slippage=slippage)
+        optimizer = _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), slippage=slippage)
         assert optimizer.slippage == slippage
 
     def test_accepts_all_boundary_valid_values(self):
-        from quant_trading.optimization.base import BaseOptimizer
-
-        optimizer = BaseOptimizer(
+        optimizer = _ConcreteBaseOptimizer(
             **_base_optimizer_minimal_kwargs(),
             initial_capital=1.0,
             periods_per_year=1,
