@@ -528,6 +528,25 @@ class WalkForwardOptimizer:
         else:
             self.step_size = step_size
 
+        # Validate the walk-forward geometry. Invalid values do not raise here
+        # today, so a library user (unlike the CLI, which validates them) would
+        # silently get a degenerate or misleading run instead of a clear error.
+        if self.n_windows < 1:
+            raise ValueError(
+                f"invalid n_windows: the value must be at least 1 "
+                f"(got {self.n_windows})"
+            )
+        if not (0.0 < self.train_size <= 1.0):
+            raise ValueError(
+                f"invalid train_size: the value must be in the range (0, 1] "
+                f"(got {self.train_size})"
+            )
+        if not (0.0 < self.step_size <= 1.0):
+            raise ValueError(
+                f"invalid step_size: the value must be in the range (0, 1] "
+                f"(got {self.step_size})"
+            )
+
     def _create_optimizer(self) -> BaseOptimizer:
         """Create the backend optimizer instance for the current window.
 

@@ -1511,6 +1511,52 @@ def test_walk_forward_no_dates():
         optimizer.run()
 
 
+def _base_walk_forward_optimizer(**overrides: Any) -> WalkForwardOptimizer:
+    kwargs: dict[str, Any] = {
+        "strategy_cls": MovingAverageCrossover,
+        "param_grid": ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int)),
+        "objective": maximize_sharpe,
+        "symbols": ["AAPL"],
+        "start": datetime(2026, 1, 15) - timedelta(days=10),
+        "end": datetime(2026, 1, 15),
+        "initial_capital": 100000.0,
+        "data_manager": DataManager(
+            [MockDataProvider({"AAPL": create_test_data("AAPL", 20)})]
+        ),
+    }
+    kwargs.update(overrides)
+    return WalkForwardOptimizer(**kwargs)
+
+
+@pytest.mark.parametrize("step_size", [0.0, -0.5, 1.5])
+def test_walk_forward_rejects_invalid_step_size(step_size: float):
+    """WalkForwardOptimizer rejects step sizes outside the documented (0, 1] fraction."""
+    with pytest.raises(ValueError, match="invalid step_size"):
+        _base_walk_forward_optimizer(step_size=step_size)
+
+
+@pytest.mark.parametrize("train_size", [0.0, -0.5, 1.5])
+def test_walk_forward_rejects_invalid_train_size(train_size: float):
+    """WalkForwardOptimizer rejects train sizes outside the documented (0, 1] range."""
+    with pytest.raises(ValueError, match="invalid train_size"):
+        _base_walk_forward_optimizer(train_size=train_size)
+
+
+@pytest.mark.parametrize("n_windows", [0, -1])
+def test_walk_forward_rejects_invalid_n_windows(n_windows: int):
+    """WalkForwardOptimizer rejects n_windows below 1."""
+    with pytest.raises(ValueError, match="invalid n_windows"):
+        _base_walk_forward_optimizer(n_windows=n_windows)
+
+
+def test_walk_forward_accepts_boundary_values():
+    """Boundary step_size=1.0, train_size=1.0, and n_windows=1 construct cleanly."""
+    optimizer = _base_walk_forward_optimizer(step_size=1.0, train_size=1.0, n_windows=1)
+    assert optimizer.step_size == 1.0
+    assert optimizer.train_size == 1.0
+    assert optimizer.n_windows == 1
+
+
 def test_walk_forward_combine_no_valid_windows():
     """Test _combine_test_results returns None when no windows have test results."""
     from quant_trading.optimization.walk_forward import WalkForwardOptimizer, WalkForwardWindow
