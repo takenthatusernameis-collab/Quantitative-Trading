@@ -1551,7 +1551,7 @@ def _default_param_grid(strategy_cls: type) -> "ParameterGrid":
     """
     grid = ParameterGrid()
     try:
-        signature = inspect.signature(strategy_cls.__init__)
+        signature = inspect.signature(strategy_cls)
     except (TypeError, ValueError):
         return grid
 
@@ -1569,15 +1569,17 @@ def _default_param_grid(strategy_cls: type) -> "ParameterGrid":
             continue
 
         if isinstance(default, int):
-            value = int(default)
-            candidates = sorted({max(1, value - 1), value, value + 1})
-            grid.add(ParameterSpace(name, values=candidates, param_type=int))
+            int_value = int(default)
+            int_candidates: list[int] = sorted({max(1, int_value - 1), int_value, int_value + 1})
+            grid.add(ParameterSpace(name, values=int_candidates, param_type=int))
             continue
 
         if isinstance(default, float):
-            value = float(default)
-            candidates = sorted({round(value * 0.75, 6), value, round(value * 1.25, 6)})
-            grid.add(ParameterSpace(name, values=candidates, param_type=float))
+            float_value = float(default)
+            float_candidates: list[float] = sorted(
+                {round(float_value * 0.75, 6), float_value, round(float_value * 1.25, 6)}
+            )
+            grid.add(ParameterSpace(name, values=float_candidates, param_type=float))
             continue
 
         grid.add(ParameterSpace(name, values=[default], param_type=type(default)))
@@ -2656,7 +2658,7 @@ def run_combined(
             return 1
 
     if getattr(args, "report", None):
-        config = ReportConfig(
+        report_config = ReportConfig(
             title="Strategy Comparison Report",
             theme=getattr(args, "report_theme", "light"),
             include_charts=not getattr(args, "report_no_charts", False),
@@ -2665,7 +2667,7 @@ def run_combined(
             include_rolling_metrics=not getattr(args, "report_no_rolling", False),
         )
         try:
-            generate_comparison_report(results, config, output_path=args.report)
+            generate_comparison_report(results, report_config, output_path=args.report)
         except ImportError as e:
             print(f"Error: {e}")
             return 1
