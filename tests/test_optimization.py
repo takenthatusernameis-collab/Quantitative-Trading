@@ -4533,3 +4533,138 @@ class TestBaseOptimizerInitValidation:
         assert optimizer.periods_per_year == 1
         assert optimizer.commission == 0.0
         assert optimizer.slippage == 0.0
+
+
+def _grid_search_minimal_kwargs():
+    """Return minimal valid GridSearch constructor kwargs."""
+    from quant_trading.optimization.grid_search import GridSearch
+
+    grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
+    return {
+        "strategy_cls": MovingAverageCrossover,
+        "param_grid": grid,
+        "objective": maximize_sharpe,
+        "symbols": ["AAPL"],
+        "start": datetime(2024, 1, 1),
+        "end": datetime(2024, 1, 31),
+        "n_jobs": 1,
+    }, GridSearch
+
+
+def _random_search_minimal_kwargs():
+    """Return minimal valid RandomSearch constructor kwargs."""
+    from quant_trading.optimization.random_search import RandomSearch
+
+    grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
+    return {
+        "strategy_cls": MovingAverageCrossover,
+        "param_grid": grid,
+        "objective": maximize_sharpe,
+        "symbols": ["AAPL"],
+        "start": datetime(2024, 1, 1),
+        "end": datetime(2024, 1, 31),
+        "n_iter": 1,
+        "random_state": 0,
+        "n_jobs": 1,
+    }, RandomSearch
+
+
+def _bayesian_optimizer_minimal_kwargs():
+    """Return minimal valid BayesianOptimizer constructor kwargs."""
+    pytest.importorskip("skopt")
+    from quant_trading.optimization.bayesian import BayesianOptimizer
+
+    grid = ParameterGrid().add(
+        ParameterSpace("fast_period", min_val=5, max_val=10, param_type=int)
+    )
+    return {
+        "strategy_cls": MovingAverageCrossover,
+        "param_grid": grid,
+        "objective": maximize_sharpe,
+        "symbols": ["AAPL"],
+        "start": datetime(2024, 1, 1),
+        "end": datetime(2024, 1, 31),
+        "n_initial_points": 1,
+        "n_calls": 1,
+        "random_state": 0,
+    }, BayesianOptimizer
+
+
+@pytest.mark.parametrize(
+    "kwargs_factory",
+    [_grid_search_minimal_kwargs, _random_search_minimal_kwargs],
+)
+class TestSubclassOptimizerInitValidation:
+    """Tests confirming GridSearch/RandomSearch inherit BaseOptimizer validation."""
+
+    @pytest.mark.parametrize("initial_capital", [0.0, -1000.0])
+    def test_rejects_invalid_initial_capital(self, kwargs_factory, initial_capital):
+        kwargs, cls = kwargs_factory()
+        with pytest.raises(ValueError, match="invalid initial_capital"):
+            cls(**kwargs, initial_capital=initial_capital)
+
+    @pytest.mark.parametrize("periods_per_year", [0, -1])
+    def test_rejects_invalid_periods_per_year(self, kwargs_factory, periods_per_year):
+        kwargs, cls = kwargs_factory()
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            cls(**kwargs, periods_per_year=periods_per_year)
+
+    @pytest.mark.parametrize("commission", [-0.1, 1.5])
+    def test_rejects_invalid_commission(self, kwargs_factory, commission):
+        kwargs, cls = kwargs_factory()
+        with pytest.raises(ValueError, match="invalid commission"):
+            cls(**kwargs, commission=commission)
+
+    @pytest.mark.parametrize("slippage", [-0.1, 1.5])
+    def test_rejects_invalid_slippage(self, kwargs_factory, slippage):
+        kwargs, cls = kwargs_factory()
+        with pytest.raises(ValueError, match="invalid slippage"):
+            cls(**kwargs, slippage=slippage)
+
+    def test_accepts_boundary_valid_values(self, kwargs_factory):
+        kwargs, cls = kwargs_factory()
+        optimizer = cls(
+            **kwargs, initial_capital=1.0, periods_per_year=1, commission=0.0, slippage=1.0
+        )
+        assert optimizer.initial_capital == 1.0
+        assert optimizer.periods_per_year == 1
+        assert optimizer.commission == 0.0
+        assert optimizer.slippage == 1.0
+
+
+class TestBayesianOptimizerInitValidation:
+    """Tests confirming BayesianOptimizer inherits BaseOptimizer validation."""
+
+    @pytest.mark.parametrize("initial_capital", [0.0, -1000.0])
+    def test_rejects_invalid_initial_capital(self, initial_capital):
+        kwargs, cls = _bayesian_optimizer_minimal_kwargs()
+        with pytest.raises(ValueError, match="invalid initial_capital"):
+            cls(**kwargs, initial_capital=initial_capital)
+
+    @pytest.mark.parametrize("periods_per_year", [0, -1])
+    def test_rejects_invalid_periods_per_year(self, periods_per_year):
+        kwargs, cls = _bayesian_optimizer_minimal_kwargs()
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            cls(**kwargs, periods_per_year=periods_per_year)
+
+    @pytest.mark.parametrize("commission", [-0.1, 1.5])
+    def test_rejects_invalid_commission(self, commission):
+        kwargs, cls = _bayesian_optimizer_minimal_kwargs()
+        with pytest.raises(ValueError, match="invalid commission"):
+            cls(**kwargs, commission=commission)
+
+    @pytest.mark.parametrize("slippage", [-0.1, 1.5])
+    def test_rejects_invalid_slippage(self, slippage):
+        kwargs, cls = _bayesian_optimizer_minimal_kwargs()
+        with pytest.raises(ValueError, match="invalid slippage"):
+            cls(**kwargs, slippage=slippage)
+
+    def test_accepts_boundary_valid_values(self):
+        kwargs, cls = _bayesian_optimizer_minimal_kwargs()
+        optimizer = cls(
+            **kwargs, initial_capital=1.0, periods_per_year=1, commission=0.0, slippage=1.0
+        )
+        assert optimizer.initial_capital == 1.0
+        assert optimizer.periods_per_year == 1
+        assert optimizer.commission == 0.0
+        assert optimizer.slippage == 1.0
