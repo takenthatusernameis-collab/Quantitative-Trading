@@ -4971,6 +4971,38 @@ class TestHtmlReportFlag:
         assert "matplotlib" in output
         assert "Traceback" not in output
 
+    def test_report_os_error_is_reported(self, capsys, tmp_path, monkeypatch):
+        """A file-write error in single-mode ``--report`` is a one-line error.
+
+        ``generate_html_report`` can raise ``OSError`` when the report file
+        cannot be written. The CLI must report it as a one-line message and
+        exit 1 instead of printing a traceback.
+        """
+        from examples import cli as cli_module
+
+        def _raise_os_error(*args, **kwargs):
+            raise OSError("Permission denied")
+
+        monkeypatch.setattr(cli_module, "generate_html_report", _raise_os_error)
+        report_path = tmp_path / "no_write.html"
+        result, output = self._run(
+            [
+                "--offline",
+                "--strategy",
+                "rsi",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "120",
+                "--report",
+                str(report_path),
+            ],
+            capsys,
+        )
+        assert result == 1
+        assert "could not write report file" in output
+        assert "Traceback" not in output
+
     def test_report_without_trades_omits_trade_details_section(self, capsys, tmp_path):
         """``--report --report-no-trades`` omits the Trade Details section."""
         report_path = tmp_path / "notrades.html"
