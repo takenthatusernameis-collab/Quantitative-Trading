@@ -63,7 +63,7 @@ class TestRiskManagerInit:
 class TestRiskManagerInitValidation:
     """Tests for input validation in RiskManager.__init__."""
 
-    @pytest.mark.parametrize("initial_capital", [0.0, -1000.0, -1.0])
+    @pytest.mark.parametrize("initial_capital", [0.0, -1000.0, -1.0, float("nan"), float("inf"), float("-inf")])
     def test_rejects_invalid_initial_capital(self, initial_capital):
         with pytest.raises(ValueError, match="invalid initial_capital"):
             RiskManager(initial_capital=initial_capital)
@@ -113,7 +113,7 @@ class TestRiskManagerInitValidation:
         rm = RiskManager(take_profit_pct=take_profit_pct)
         assert rm.position_limit.take_profit_pct == take_profit_pct
 
-    @pytest.mark.parametrize("max_leverage", [0.0, -1.0])
+    @pytest.mark.parametrize("max_leverage", [0.0, -1.0, float("nan"), float("inf"), float("-inf")])
     def test_rejects_invalid_max_leverage(self, max_leverage):
         with pytest.raises(ValueError, match="invalid max_leverage"):
             RiskManager(max_leverage=max_leverage)

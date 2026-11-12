@@ -10,6 +10,7 @@ True
 
 """
 
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -224,9 +225,9 @@ class RiskManager:
         # Validate the risk manager configuration. Invalid values do not raise
         # here today, so a library user would silently get misleading risk
         # decisions instead of a clear error.
-        if initial_capital <= 0:
+        if not math.isfinite(initial_capital) or initial_capital <= 0:
             raise ValueError(
-                f"invalid initial_capital: the value must be positive "
+                f"invalid initial_capital: the value must be positive and finite "
                 f"(got {initial_capital})"
             )
         if not (0.0 < max_position_size <= 1.0):
@@ -259,9 +260,9 @@ class RiskManager:
                 f"invalid take_profit_pct: the value must be in the range [0, 1] "
                 f"(got {take_profit_pct})"
             )
-        if max_leverage < 1e-9:
+        if not math.isfinite(max_leverage) or max_leverage < 1e-9:
             raise ValueError(
-                f"invalid max_leverage: the value must be positive "
+                f"invalid max_leverage: the value must be positive and finite "
                 f"(got {max_leverage})"
             )
         if not (0.0 <= trailing_stop_pct <= 1.0):

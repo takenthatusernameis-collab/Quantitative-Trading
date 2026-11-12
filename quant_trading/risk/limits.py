@@ -12,6 +12,7 @@ Examples:
 
 """
 
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -314,7 +315,7 @@ class PortfolioLimit:
             return 0.0
 
         basis = position.avg_price if position.avg_price > 0 else position.current_price
-        if basis <= 0:
+        if not math.isfinite(basis) or basis <= 0:
             return 0.0
 
         return abs(quantity) * basis * self.stop_loss_pct
@@ -343,7 +344,7 @@ class PortfolioLimit:
             portfolio value is not positive).
 
         """
-        if portfolio_value <= 0:
+        if not math.isfinite(portfolio_value) or portfolio_value <= 0:
             return 0.0
         return self.portfolio_risk(positions) / portfolio_value
 
@@ -362,7 +363,7 @@ class PortfolioLimit:
             portfolio value is not positive).
 
         """
-        if portfolio_value <= 0:
+        if not math.isfinite(portfolio_value) or portfolio_value <= 0:
             return 0.0
         gross = sum(gross_exposure(pos) for pos in positions.values())
         return gross / portfolio_value
