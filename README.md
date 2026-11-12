@@ -744,6 +744,17 @@ The regime volatility and the regime return are annualized with the same
 `periods_per_year` as the rest of the run, and the block reports the value it
 used.
 
+The `--regime-window` argument is checked before the run starts. It is the
+rolling window used for the volatility and return statistics and has to be at
+least 2, because a window of 1 (or 0) leaves every rolling statistic undefined
+and yields a silent, degenerate `unknown` regime, while a negative window
+crashes deep inside pandas:
+
+```bash
+$ python examples/cli.py --offline --regime --regime-window 1 --symbols AAPL --days 30
+Error: invalid --regime-window: the value must be at least 2 (got 1)
+```
+
 ### CLI Trade Analysis
 
 Detailed trade-level analysis including PnL statistics, holding periods, streaks, and per-symbol breakdowns:

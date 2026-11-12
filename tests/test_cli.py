@@ -369,6 +369,35 @@ class TestParseArgs:
             args = parse_args()
         assert args.periods_per_year is None
 
+    def test_regime_window_below_two_is_rejected(self):
+        """A ``--regime-window`` below 2 is a usage error naming the flag.
+
+        The rolling volatility and return use ``rolling(window).std()``/``.mean()``,
+        so a window of 1 (or 0) yields all-NaN statistics. The detector then
+        labels nothing and reports a silent, degenerate ``unknown`` regime instead
+        of a real result. A negative window crashes deep inside pandas with
+        ``window must be an integer 0 or greater``. Reject both up front, like
+        every other bounded CLI value.
+        """
+        for value in ("1", "0", "-3"):
+            with (
+                patch("sys.argv", ["cli.py", "--regime", "--regime-window", value]),
+                pytest.raises(ValueError, match="invalid --regime-window"),
+            ):
+                parse_args()
+
+    def test_regime_window_two_is_accepted(self):
+        """The minimum accepted ``--regime-window`` is 2 (one return is not enough)."""
+        with patch("sys.argv", ["cli.py", "--regime", "--regime-window", "2"]):
+            args = parse_args()
+        assert args.regime_window == 2
+
+    def test_regime_window_default_is_accepted(self):
+        """The default ``--regime-window`` of 20 is accepted."""
+        with patch("sys.argv", ["cli.py"]):
+            args = parse_args()
+        assert args.regime_window == 20
+
     def test_initial_capital_non_positive_is_rejected(self):
         """A ``--initial-capital`` of zero or below is a usage error naming the flag."""
         for value in ("0", "-1"):
