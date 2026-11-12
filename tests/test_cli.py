@@ -2397,7 +2397,7 @@ class TestRunCombined:
             ("Percentage_Price_Oscillator", 15.9),
             ("Ease_Of_Movement", 17.5),
             ("Chaikin_Oscillator", 16.5),
-            ("Choppiness_Index", 16.0),
+            ("Choppiness_14_38.2_61.8", 16.0),
             ("Awesome_Oscillator", 12.8),
             ("Chande_Momentum_Oscillator", 15.5),
             ("TRIX", 14.0),
