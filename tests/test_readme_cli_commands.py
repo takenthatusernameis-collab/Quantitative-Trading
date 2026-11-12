@@ -98,6 +98,7 @@ def _expects_failure(args: list[str]) -> bool:
         # token precisely rather than a substring prefix.
         or "--wf-step-size 0 " in text
         or text.endswith("--wf-step-size 0")
+        or "--wf-windows 0" in text
     )
 
 

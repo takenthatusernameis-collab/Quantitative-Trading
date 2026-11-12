@@ -518,3 +518,37 @@ def test_cli_reports_an_invalid_walk_forward_train_size_without_a_traceback() ->
     ), f"expected the exit code 1\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
     assert "invalid --wf-train-size" in output, output
     assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["0", "-1"],
+    ids=["zero", "negative"],
+)
+def test_cli_reports_an_invalid_walk_forward_windows_count_without_a_traceback(
+    value: str,
+) -> None:
+    """A ``--wf-windows`` below 1 is a message naming the flag, not a run.
+
+    Zero or negative windows produce degenerate walk-forward windows, so the
+    check belongs in the CLI and has to reject the value before the run starts.
+    """
+    completed = _run_cli(
+        [
+            "--walk-forward",
+            "--wf-windows",
+            value,
+            "--offline",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "30",
+        ]
+    )
+    output = completed.stdout + completed.stderr
+    assert (
+        completed.returncode == 1
+    ), f"expected the exit code 1\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+    assert "invalid --wf-windows" in output, output
+    assert "the value must be at least 1" in output, output
+    assert "Traceback" not in output, f"the output must not contain a traceback\n{output}"

@@ -706,6 +706,15 @@ $ python examples/cli.py --offline --walk-forward --wf-step-size 0 --symbols AAP
 Error: invalid --wf-step-size: the value must be in the range (0, 1] (got 0.0)
 ```
 
+The `--wf-windows` argument of the walk-forward mode is checked before the
+run starts. It is the number of windows and has to be at least 1, because zero
+or negative windows are degenerate and would produce no out-of-sample result:
+
+```bash
+$ python examples/cli.py --offline --walk-forward --wf-windows 0 --symbols AAPL --days 30
+Error: invalid --wf-windows: the value must be at least 1 (got 0)
+```
+
 ### CLI Market Regime Analysis
 
 Annotate a backtest's equity curve with market-regime labels
