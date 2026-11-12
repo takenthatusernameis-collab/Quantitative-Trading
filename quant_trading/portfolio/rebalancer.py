@@ -419,11 +419,37 @@ class Rebalancer:
                 against the position and loss limits before actions are
                 emitted. When ``None`` no risk checks are applied.
 
+        Raises:
+            ValueError: If ``frequency`` is not recognized, ``rebalance_threshold``
+                is not in ``[0, 1]``, or ``target_allocation`` contains
+                non-finite values.
+
         """
         self.portfolio = portfolio
+
+        valid_frequencies = ("daily", "weekly", "monthly", "quarterly")
+        if frequency not in valid_frequencies:
+            raise ValueError(
+                f"invalid frequency: must be one of {valid_frequencies} (got {frequency!r})"
+            )
         self.frequency = frequency
-        self.target_allocation = target_allocation or {}
+
+        target = target_allocation or {}
+        if target:
+            for symbol, weight in target.items():
+                if not isinstance(weight, (int, float)) or not (weight == weight and abs(weight) != float('inf')):
+                    raise ValueError(
+                        f"invalid target_allocation: weight for {symbol!r} must be a finite number (got {weight!r})"
+                    )
+        self.target_allocation = target
+
+        if not (0.0 <= rebalance_threshold <= 1.0):
+            raise ValueError(
+                f"invalid rebalance_threshold: the value must be in the range [0, 1] "
+                f"(got {rebalance_threshold})"
+            )
         self.rebalance_threshold = rebalance_threshold
+
         self.risk_manager = risk_manager
         self.last_rebalance: datetime | None = None
         self.rebalance_history: list[dict[str, Any]] = []

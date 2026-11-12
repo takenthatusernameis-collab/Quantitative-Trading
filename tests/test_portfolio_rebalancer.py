@@ -233,6 +233,78 @@ class TestRebalancerInit:
         assert rebalancer.target_allocation == {}
 
 
+class TestRebalancerInitValidation:
+    """Tests for input validation in Rebalancer.__init__."""
+
+    @pytest.mark.parametrize("frequency", ["yearly", "hourly", "invalid", ""])
+    def test_rejects_invalid_frequency(self, frequency):
+        portfolio = _empty_portfolio()
+        with pytest.raises(ValueError, match="invalid frequency"):
+            Rebalancer(portfolio, frequency=frequency)
+
+    @pytest.mark.parametrize("frequency", ["daily", "weekly", "monthly", "quarterly"])
+    def test_accepts_valid_frequencies(self, frequency):
+        portfolio = _empty_portfolio()
+        rebalancer = Rebalancer(portfolio, frequency=frequency)
+        assert rebalancer.frequency == frequency
+
+    @pytest.mark.parametrize("threshold", [-0.1, -1.0, 1.5])
+    def test_rejects_invalid_rebalance_threshold(self, threshold):
+        portfolio = _empty_portfolio()
+        with pytest.raises(ValueError, match="invalid rebalance_threshold"):
+            Rebalancer(portfolio, rebalance_threshold=threshold)
+
+    @pytest.mark.parametrize("threshold", [0.0, 0.01, 0.05, 0.10, 1.0])
+    def test_accepts_rebalance_threshold_boundaries(self, threshold):
+        portfolio = _empty_portfolio()
+        rebalancer = Rebalancer(portfolio, rebalance_threshold=threshold)
+        assert rebalancer.rebalance_threshold == threshold
+
+    @pytest.mark.parametrize("allocation", [
+        {"AAPL": float('nan')},
+        {"AAPL": float('inf')},
+        {"AAPL": float('-inf')},
+        {"AAPL": "not_a_number"},
+    ])
+    def test_rejects_non_finite_target_weights(self, allocation):
+        portfolio = _empty_portfolio()
+        with pytest.raises(ValueError, match="must be a finite number"):
+            Rebalancer(portfolio, target_allocation=allocation)
+
+    def test_accepts_various_target_allocations(self):
+        """Target allocations with any finite weights are accepted."""
+        portfolio = _empty_portfolio()
+        for allocation in [
+            {"AAPL": 0.5},                    # partial allocation
+            {"AAPL": 0.0},                    # zero weight
+            {"AAPL": -0.5},                   # negative weight
+            {"AAPL": 0.6, "MSFT": 0.4},       # sums to 1.0
+            {"AAPL": 0.6, "MSFT": 0.3},       # sums to 0.9
+            {"AAPL": 1.0, "MSFT": -0.5},      # mixed signs
+        ]:
+            rebalancer = Rebalancer(portfolio, target_allocation=allocation)
+            assert rebalancer.target_allocation == allocation
+
+    def test_accepts_empty_target_allocation(self):
+        """An empty target allocation is valid (no-op rebalancer)."""
+        portfolio = _empty_portfolio()
+        rebalancer = Rebalancer(portfolio, target_allocation={})
+        assert rebalancer.target_allocation == {}
+
+    def test_accepts_all_valid_combinations(self):
+        """All boundary-valid values together should initialize."""
+        portfolio = _empty_portfolio()
+        rebalancer = Rebalancer(
+            portfolio,
+            frequency="quarterly",
+            target_allocation={"AAPL": 0.5},
+            rebalance_threshold=1.0,
+        )
+        assert rebalancer.frequency == "quarterly"
+        assert rebalancer.target_allocation == {"AAPL": 0.5}
+        assert rebalancer.rebalance_threshold == 1.0
+
+
 class TestShouldRebalance:
     """Tests for the frequency-based should_rebalance trigger."""
 
