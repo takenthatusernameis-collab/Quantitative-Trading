@@ -1,63 +1,44 @@
 # Next Task
 
 ## Repository state (verified this session)
-- Branch `main` up to date with `origin/main`; working tree clean.
-- `python -m ruff check .` → All checks passed.
-- `python -m mypy quant_trading --ignore-missing-imports` → Success: no issues in 38 source files.
+- Branch `main` up to date with `origin/main`; working tree has uncommitted changes (rebalancer validation regression fixes).
+- `Rebalancer.__init__` construction-time validation (HEAD `c157804`) is implemented and verified:
+  - `frequency` must be one of daily/weekly/monthly/quarterly → `ValueError`
+  - `target_allocation` weights must be finite numbers → `ValueError`
+  - `rebalance_threshold` must be in `[0, 1]` → `ValueError`
+- `python -m ruff check quant_trading/portfolio/rebalancer.py tests/test_portfolio_rebalancer.py tests/test_rebalancer.py` → All checks passed.
+- `python -m mypy quant_trading/portfolio/rebalancer.py --ignore-missing-imports` → Success.
+- Rebalancer test files → **222 passed**; full suite → **3484 passed** with only pre-existing optional-dependency gaps (scikit-optimize/matplotlib), no new failures.
 
 ## Completed this session
 
-**Verified: `RiskManager.__init__` validation is already implemented and tested.**
-
-The `RiskManager.__init__` method in `quant_trading/risk/manager.py:227-276` already validates all constructor parameters:
-- `initial_capital <= 0` → `ValueError`
-- `max_position_size` not in `(0, 1]` → `ValueError`
-- `max_portfolio_risk` not in `(0, 1]` → `ValueError`
-- `max_drawdown` not in `[0, 1]` → `ValueError`
-- `max_positions < 1` → `ValueError`
-- `stop_loss_pct` not in `[0, 1]` → `ValueError`
-- `take_profit_pct` not in `[0, 1]` → `ValueError`
-- `max_leverage < 1e-9` → `ValueError`
-- `trailing_stop_pct` not in `[0, 1]` → `ValueError`
-- `trailing_stop_activation_pct` not in `[0, 1]` → `ValueError`
-
-**Tests** in `tests/test_risk_manager.py::TestRiskManagerInitValidation` cover all validation cases with parametrized rejection tests and boundary-acceptance tests (165 tests total in the file, all passing).
-
-## Verified (this session, evidence)
-- `tests/test_risk_manager.py` → **165 passed**
-- `tests/test_limits.py` + `tests/test_portfolio_rebalancer.py` → **180 passed**
-- `ruff check quant_trading/risk/manager.py tests/test_risk_manager.py` → **All checks passed**
-- `mypy quant_trading/risk/manager.py --ignore-missing-imports` → **Success**
+Fixed 4 regressions caused by the `Rebalancer.__init__` validation:
+- `tests/test_portfolio_rebalancer.py::test_unrecognized_frequency` — now asserts `ValueError` for `frequency="yearly"`.
+- `tests/test_portfolio_rebalancer.py::test_target_buy_exact_target_no_action` — `rebalance_threshold=-0.001` → `0.05`.
+- `tests/test_rebalancer.py::test_should_rebalance_unknown_frequency` — now asserts `ValueError` for `frequency="yearly"`.
+- `tests/test_rebalancer.py::test_generate_rebalance_actions_exact_diff_negative_threshold` — `rebalance_threshold=-0.1` → `0.05`.
+Also fixed ruff `PLR0124` in `quant_trading/portfolio/rebalancer.py:440` (self-comparison `weight == weight` → `isfinite(weight)`).
 
 ## Unresolved / not completed
-- None for the previously assigned task.
+
+- The previously listed task ("Add construction-time input validation to `PortfolioRebalancer.__init__` with `target_weights`, `tolerance`, `min_trade_size`, `max_turnover`, `cash_buffer_pct`, `allow_short`, `rebalance_on_drawdown_breach`") **cannot be executed as written**: no `PortfolioRebalancer` class and none of those parameters exist in the codebase. The real class is `Rebalancer`, and its `__init__` validation is already complete and verified. This task should be retired, not re-implemented as a fabricated parallel class.
+- 3 full-suite failures are pre-existing optional-dependency gaps (`scikit-optimize` bayesian; `matplotlib` reporting). Install `quant-trading[reporting bayesian]` to clear them.
 
 ## Failed approaches (do not repeat unchanged)
-- None.
+- None. Do not weaken the `Rebalancer.__init__` validation to satisfy the old lenient tests; update those tests to the new contract (done).
 
 ## Verification commands (re-run before starting)
 ```bash
-python -m pytest tests/test_risk_manager.py tests/test_limits.py tests/test_portfolio_rebalancer.py -q -p no:cacheprovider
-python -m ruff check quant_trading/risk/manager.py tests/test_risk_manager.py
-python -m mypy quant_trading/risk/manager.py --ignore-missing-imports
+python -m pytest tests/test_portfolio_rebalancer.py tests/test_rebalancer.py -q -p no:cacheprovider
+python -m ruff check quant_trading/portfolio/rebalancer.py tests/test_portfolio_rebalancer.py tests/test_rebalancer.py
+python -m mypy quant_trading/portfolio/rebalancer.py --ignore-missing-imports
+python -m pytest -q -p no:cacheprovider
 ```
 
 ## Git state
 - Branch `main` up to date with `origin/main`.
-- Working tree clean.
+- Working tree has uncommitted changes (`quant_trading/portfolio/rebalancer.py`, `tests/test_portfolio_rebalancer.py`, `tests/test_rebalancer.py`). Do NOT commit unless explicitly asked.
 
 ## One precise next task
 
-**Add construction-time input validation to `PortfolioRebalancer.__init__`** (`quant_trading/portfolio/rebalancer.py:104-174`), mirroring the `RiskManager` and `MonteCarloSimulator` validation pattern.
-
-The `PortfolioRebalancer.__init__` accepts parameters without validation:
-- `target_weights` (dict[str, float]) — should validate: non-empty, all values > 0, sum ≈ 1.0
-- `tolerance` (float) — should be in `(0, 1]`
-- `min_trade_size` (float) — should be >= 0
-- `max_turnover` (float | None) — if not None, should be in `(0, 1]`
-- `risk_manager` (RiskManager | None) — no validation needed (duck-typed)
-- `allow_short` (bool) — no validation needed
-- `cash_buffer_pct` (float) — should be in `[0, 1]`
-- `rebalance_on_drawdown_breach` (bool) — no validation needed
-
-Add parametrized rejection tests + a boundary-acceptance test in `tests/test_portfolio_rebalancer.py` (or a new `TestPortfolioRebalancerInitValidation` class). Verify: `tests/test_portfolio_rebalancer.py`, `tests/test_rebalancer.py`, ruff, mypy on `quant_trading/portfolio/rebalancer.py`.
+Retire this stale next-task entry (the `PortfolioRebalancer.__init__` validation task references nonexistent code; `Rebalancer.__init__` validation is done), then clear the remaining optional-dependency test failures: `pip install quant-trading[reporting bayesian]` and re-run `python -m pytest -q -p no:cacheprovider` to confirm the full suite is green. If pip/network is unavailable, document that as a blocker.

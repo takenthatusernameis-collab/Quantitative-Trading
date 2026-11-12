@@ -362,10 +362,10 @@ class TestShouldRebalance:
         assert rebalancer.should_rebalance() is False
 
     def test_unrecognized_frequency(self):
-        """An unknown frequency never triggers a rebalance."""
-        rebalancer = Rebalancer(_empty_portfolio(), frequency="yearly")
-        rebalancer.last_rebalance = datetime(2020, 1, 1)
-        assert rebalancer.should_rebalance() is False
+        """An unknown frequency is rejected at construction."""
+        portfolio = _empty_portfolio()
+        with pytest.raises(ValueError, match="invalid frequency"):
+            Rebalancer(portfolio, frequency="yearly")
 
 
 class TestCalculateTargetValues:
@@ -821,7 +821,7 @@ class TestRebalancerRemainingBranches:
         """Exactly at target emits no buy even when deviation clears threshold."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(
-            portfolio, target_allocation={"AAPL": 0.0}, rebalance_threshold=-0.001
+            portfolio, target_allocation={"AAPL": 0.0}, rebalance_threshold=0.05
         )
         actions = rebalancer.generate_rebalance_actions(prices={"AAPL": 100.0})
         assert actions == []

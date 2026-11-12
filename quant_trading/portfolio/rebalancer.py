@@ -29,7 +29,7 @@ True
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from math import copysign
+from math import copysign, isfinite
 from typing import Any
 
 from quant_trading.portfolio.portfolio import Portfolio
@@ -437,7 +437,7 @@ class Rebalancer:
         target = target_allocation or {}
         if target:
             for symbol, weight in target.items():
-                if not isinstance(weight, (int, float)) or not (weight == weight and abs(weight) != float('inf')):
+                if not isinstance(weight, (int, float)) or not isfinite(weight):
                     raise ValueError(
                         f"invalid target_allocation: weight for {symbol!r} must be a finite number (got {weight!r})"
                     )

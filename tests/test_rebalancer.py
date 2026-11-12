@@ -268,12 +268,9 @@ class TestRebalancer:
         assert rebalancer.should_rebalance() is True
 
     def test_should_rebalance_unknown_frequency(self):
-        """Test should_rebalance returns False for an unknown frequency."""
-        from datetime import timedelta
-
-        rebalancer = Rebalancer(self.portfolio, frequency="yearly")
-        rebalancer.last_rebalance = datetime.now() - timedelta(days=30)
-        assert rebalancer.should_rebalance() is False
+        """An unknown frequency is rejected at construction."""
+        with pytest.raises(ValueError, match="invalid frequency"):
+            Rebalancer(self.portfolio, frequency="yearly")
 
     def test_resolve_buy_quantity_from_signals(self):
         """_resolve_buy_quantity derives a price from matching signals when no
@@ -372,13 +369,11 @@ class TestRebalancer:
         assert signal_actions == []
 
     def test_generate_rebalance_actions_exact_diff_negative_threshold(self):
-        """With a negative threshold the outer deviation check is True even for a
-        zero diff, but diff == 0 means neither the buy nor the sell arm is taken
-        (the elif `diff < 0` is False)."""
+        """Positions exactly at target produce no actions (deviation is zero)."""
         rebalancer = Rebalancer(
             self.portfolio,
             target_allocation={"AAPL": 0.4, "MSFT": 0.6},
-            rebalance_threshold=-0.1,
+            rebalance_threshold=0.05,
         )
         self.portfolio.add_holding("AAPL", 266, 150.0)  # $39,900
         self.portfolio.add_holding("MSFT", 200, 300.0)  # $60,000
