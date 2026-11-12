@@ -1,47 +1,46 @@
 ## What changed (this session)
 
-Extended `__post_init__` input validation to `DataConfig` in
-`quant_trading/config/settings.py`, mirroring the existing `BacktestConfig`,
-`RiskConfig`, and `PortfolioConfig` validation. `__post_init__` now raises
-`ValueError` at construction (covers direct construction, `from_dict`, and
-`from_yaml`):
+Made `Config.update()` validate nested sub-config assignments by reconstructing
+the sub-config through its `from_dict` (so `__post_init__` runs), in
+`quant_trading/config/settings.py:835-843`.
 
-`DataConfig`:
-- `provider` non-empty string (`invalid provider`)
-- `default_interval` non-empty string (`invalid default_interval`)
-- `default_period` non-empty string (`invalid default_period`)
-- `synthetic_days >= 1` (`invalid synthetic_days`)
+`Config.update(**kwargs)`:
+- unknown keys remain silently ignored (unchanged);
+- scalar top-level updates (`logging_level`, `output_dir`) keep working
+  unchanged;
+- nested dataclass fields (`data`, `backtest`, `risk`, `portfolio`) given a
+  `dict` are merged with the existing sub-config (`{**current.to_dict(), **value}`)
+  and reconstructed via `field_type.from_dict(merged)`, so `__post_init__`
+  validation runs; a failed validation leaves the sub-config untouched
+  (`setattr` never executes).
 
-`synthetic_seed` intentionally unchecked (any int; defaults already valid).
-`Config.update()` left untouched per scope constraint (nested field assignment
-still bypasses validation).
+Example: `config.update(data={"synthetic_days": 0})` now raises
+`ValueError: invalid synthetic_days: ...` instead of silently storing it.
 
-**Tests added** (`tests/test_config.py`, `TestDataConfig`):
-- parametrized rejection tests for `provider`, `default_interval`,
-  `default_period`, `synthetic_days`
-- `test_accepts_boundary_valid_values` (synthetic_days=1 accepted)
-- `test_from_dict_rejects_invalid_values`
-- `test_from_yaml_rejects_invalid_values`
+**Tests added** (`tests/test_config.py`, `TestConfig`):
+- `test_update_rejects_invalid_nested_values` — 11 parametrized cases across
+  `data`, `backtest`, `risk`, `portfolio` (all `match="invalid"`)
+- `test_update_accepts_valid_nested_values` — partial nested updates keep
+  unmentioned fields intact
+- `test_update_scalar_fields_still_work` — `logging_level`/`output_dir`
 
-Error-message prefixes match existing style so `pytest.raises(..., match=...)`
-aligns.
+No `__post_init__` logic was altered.
 
-Files changed: `quant_trading/config/settings.py` (+~28), `tests/test_config.py`
-(+~55).
+Files changed: `quant_trading/config/settings.py` (+~16/-2), `tests/test_config.py` (+43).
 
 ## Verified (this session, evidence)
 
-- `python -m pytest tests/test_config.py tests/test_backtest_engine.py -q -p no:cacheprovider` → 215 passed
-- `python -m ruff check quant_trading/config/settings.py tests/test_config.py tests/test_backtest_engine.py` → All checks passed
+- `python -m pytest tests/test_config.py tests/test_backtest_engine.py -q -p no:cacheprovider` → 228 passed (215 before + 13 new)
+- `python -m ruff check quant_trading/config/settings.py tests/test_config.py` → All checks passed
 - `python -m mypy quant_trading/config/settings.py --ignore-missing-imports` → Success: no issues found
-- Full suite `python -m pytest -q -p no:cacheprovider` → 3331 passed; 17 failures are
+- Full suite `python -m pytest -q -p no:cacheprovider` → 3344 passed; 17 failures are
   pre-existing environment gaps (missing `matplotlib` reporting tests), none
   related to this change
 
 ## Unresolved / not completed
 
 - None for the assigned task. The 17 full-suite failures are pre-existing
-  optional-dependency gaps.
+  optional-dependency gaps; install `quant-trading[reporting]` to make them pass.
 
 ## Failed approaches (do not repeat unchanged)
 
@@ -51,8 +50,9 @@ Files changed: `quant_trading/config/settings.py` (+~28), `tests/test_config.py`
 
 ```bash
 python -m pytest tests/test_config.py tests/test_backtest_engine.py -q -p no:cacheprovider
-python -m ruff check quant_trading/config/settings.py tests/test_config.py tests/test_backtest_engine.py
+python -m ruff check quant_trading/config/settings.py tests/test_config.py
 python -m mypy quant_trading/config/settings.py --ignore-missing-imports
+python -m pytest -q -p no:cacheprovider
 ```
 
 ## Git state
@@ -63,12 +63,6 @@ python -m mypy quant_trading/config/settings.py --ignore-missing-imports
 
 ## One precise next task
 
-Make `Config.update()` validate nested sub-config assignments by reconstructing
-the sub-config through its `from_dict` (so `__post_init__` runs), e.g.
-`config.update(data={"synthetic_days": 0})` must raise `ValueError`
-("invalid synthetic_days"), while scalar top-level updates (`logging_level`,
-`output_dir`) keep working unchanged. Add parametrized rejection tests plus a
-valid-update test to `tests/test_config.py` (`TestConfig`), then run the
-verification commands above plus the full suite. Scope constraint: only nested
-dataclass fields (`data`, `backtest`, `risk`, `portfolio`) are reconstructed;
-unknown keys remain silently ignored; do not alter `__post_init__` logic.
+The assigned task is complete and verified. No further work is required;
+optional follow-ups would be committing the two modified files or installing
+`quant-trading[reporting]` to clear the 17 pre-existing matplotlib failures.

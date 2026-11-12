@@ -29,7 +29,7 @@ Examples:
 
 import os
 import typing
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Any
 
 import yaml
@@ -818,6 +818,13 @@ class Config:
         Only attributes that already exist on the config are updated;
         unknown keys are silently ignored.
 
+        Nested sub-configs (``data``, ``backtest``, ``risk``,
+        ``portfolio``) are updated through their :meth:`from_dict`
+        so :meth:`__post_init__` validation runs on the merged values.
+        A partial mapping such as ``{"synthetic_days": 0}`` is merged
+        with the existing sub-config before validation, and a failed
+        validation leaves the sub-config untouched.
+
         Args:
             **kwargs: Attribute name/value pairs to set.
 
@@ -826,7 +833,14 @@ class Config:
 
         """
         for key, value in kwargs.items():
-            if hasattr(self, key):
+            if not hasattr(self, key):
+                continue
+            field_type = self.__dataclass_fields__[key].type
+            if isinstance(value, dict) and is_dataclass(field_type):
+                merged = {**getattr(self, key).to_dict(), **value}
+                constructor = field_type.from_dict  # type: ignore[union-attr]
+                setattr(self, key, constructor(merged))
+            else:
                 setattr(self, key, value)
 
 

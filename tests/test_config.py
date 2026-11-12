@@ -280,6 +280,49 @@ class TestConfig:
         config.update(nonexistent_attr="value")  # should not raise
         assert not hasattr(config, "nonexistent_attr")
 
+    @pytest.mark.parametrize(
+        "key,updates",
+        [
+            ("data", {"synthetic_days": 0}),
+            ("data", {"synthetic_days": -5}),
+            ("data", {"provider": ""}),
+            ("data", {"default_interval": ""}),
+            ("data", {"default_period": ""}),
+            ("backtest", {"initial_capital": 0.0}),
+            ("backtest", {"commission": 1.5}),
+            ("risk", {"max_drawdown": -0.1}),
+            ("risk", {"max_position_size": 0.0}),
+            ("portfolio", {"max_positions": 0}),
+            ("portfolio", {"min_position_size": 1.5}),
+        ],
+    )
+    def test_update_rejects_invalid_nested_values(self, key, updates):
+        config = Config()
+        with pytest.raises(ValueError, match="invalid"):
+            config.update(**{key: updates})
+        # a failed update leaves the sub-config untouched
+        assert getattr(config, key) == getattr(Config(), key)
+
+    def test_update_accepts_valid_nested_values(self):
+        config = Config()
+        config.update(data={"provider": "synthetic", "offline": True})
+        assert config.data.provider == "synthetic"
+        assert config.data.offline is True
+        assert config.data.cache_dir == "./data/cache"
+        config.update(backtest={"initial_capital": 50000.0, "commission": 0.002})
+        assert config.backtest.initial_capital == 50000.0
+        assert config.backtest.commission == 0.002
+        config.update(risk={"max_position_size": 0.15})
+        assert config.risk.max_position_size == 0.15
+        config.update(portfolio={"max_positions": 10})
+        assert config.portfolio.max_positions == 10
+
+    def test_update_scalar_fields_still_work(self):
+        config = Config()
+        config.update(logging_level="DEBUG", output_dir="./out")
+        assert config.logging_level == "DEBUG"
+        assert config.output_dir == "./out"
+
     def test_yaml_round_trip(self):
         """to_yaml followed by from_yaml must reproduce the configuration."""
         config = Config(
