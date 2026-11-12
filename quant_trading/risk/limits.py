@@ -93,6 +93,26 @@ class PositionLimit:
     stop_loss_pct: float = 0.05  # Stop loss percentage
     take_profit_pct: float = 0.15  # Take profit percentage
 
+    def __post_init__(self) -> None:
+        """Reject non-finite limit values so silent corruption cannot occur."""
+        if not math.isfinite(self.max_size):
+            raise ValueError(
+                f"invalid max_size: the value must be finite (got {self.max_size})"
+            )
+        if not math.isfinite(self.max_value):
+            raise ValueError(
+                f"invalid max_value: the value must be finite (got {self.max_value})"
+            )
+        if not math.isfinite(self.stop_loss_pct):
+            raise ValueError(
+                f"invalid stop_loss_pct: the value must be finite (got {self.stop_loss_pct})"
+            )
+        if not math.isfinite(self.take_profit_pct):
+            raise ValueError(
+                f"invalid take_profit_pct: the value must be finite "
+                f"(got {self.take_profit_pct})"
+            )
+
     def to_dict(self) -> dict[str, Any]:
         """Convert the position limits to a plain dictionary.
 
@@ -242,6 +262,43 @@ class PortfolioLimit:
     max_drawdown: float = 0.20  # Max drawdown before new positions are stopped
     max_leverage: float = 1.0  # Max gross exposure as multiple of portfolio value
     stop_loss_pct: float = 0.05  # Stop loss distance used to size position risk
+
+    def __post_init__(self) -> None:
+        """Reject non-finite limit values so silent corruption cannot occur.
+
+        Zero and negative values are deliberately allowed here: some limits
+        (max_drawdown, max_portfolio_risk, max_leverage) use 0.0 to disable
+        the check. Range enforcement happens at the RiskManager boundary.
+        """
+        if not math.isfinite(self.max_positions) or self.max_positions < 0:
+            raise ValueError(
+                f"invalid max_positions: the value must be at least 0 and finite "
+                f"(got {self.max_positions})"
+            )
+        if not math.isfinite(self.max_position_size):
+            raise ValueError(
+                f"invalid max_position_size: the value must be finite "
+                f"(got {self.max_position_size})"
+            )
+        if not math.isfinite(self.max_portfolio_risk):
+            raise ValueError(
+                f"invalid max_portfolio_risk: the value must be finite "
+                f"(got {self.max_portfolio_risk})"
+            )
+        if not math.isfinite(self.max_drawdown):
+            raise ValueError(
+                f"invalid max_drawdown: the value must be finite "
+                f"(got {self.max_drawdown})"
+            )
+        if not math.isfinite(self.max_leverage):
+            raise ValueError(
+                f"invalid max_leverage: the value must be finite (got {self.max_leverage})"
+            )
+        if not math.isfinite(self.stop_loss_pct):
+            raise ValueError(
+                f"invalid stop_loss_pct: the value must be finite "
+                f"(got {self.stop_loss_pct})"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the portfolio limits to a plain dictionary.

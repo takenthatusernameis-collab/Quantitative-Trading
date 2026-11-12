@@ -68,17 +68,17 @@ class TestRiskManagerInitValidation:
         with pytest.raises(ValueError, match="invalid initial_capital"):
             RiskManager(initial_capital=initial_capital)
 
-    @pytest.mark.parametrize("max_position_size", [0.0, -0.1, 1.5])
+    @pytest.mark.parametrize("max_position_size", [0.0, -0.1, 1.5, float("nan"), float("inf"), float("-inf")])
     def test_rejects_invalid_max_position_size(self, max_position_size):
         with pytest.raises(ValueError, match="invalid max_position_size"):
             RiskManager(max_position_size=max_position_size)
 
-    @pytest.mark.parametrize("max_portfolio_risk", [0.0, -0.5, 1.5])
+    @pytest.mark.parametrize("max_portfolio_risk", [0.0, -0.5, 1.5, float("nan"), float("inf"), float("-inf")])
     def test_rejects_invalid_max_portfolio_risk(self, max_portfolio_risk):
         with pytest.raises(ValueError, match="invalid max_portfolio_risk"):
             RiskManager(max_portfolio_risk=max_portfolio_risk)
 
-    @pytest.mark.parametrize("max_drawdown", [-0.1, 1.5])
+    @pytest.mark.parametrize("max_drawdown", [-0.1, 1.5, float("nan"), float("inf"), float("-inf")])
     def test_rejects_invalid_max_drawdown(self, max_drawdown):
         with pytest.raises(ValueError, match="invalid max_drawdown"):
             RiskManager(max_drawdown=max_drawdown)
@@ -88,12 +88,12 @@ class TestRiskManagerInitValidation:
         rm = RiskManager(max_drawdown=max_drawdown)
         assert rm.portfolio_limit.max_drawdown == max_drawdown
 
-    @pytest.mark.parametrize("max_positions", [0, -1, -5])
+    @pytest.mark.parametrize("max_positions", [0, -1, -5, float("nan"), float("inf"), float("-inf")])
     def test_rejects_invalid_max_positions(self, max_positions):
         with pytest.raises(ValueError, match="invalid max_positions"):
             RiskManager(max_positions=max_positions)
 
-    @pytest.mark.parametrize("stop_loss_pct", [-0.1, 1.5])
+    @pytest.mark.parametrize("stop_loss_pct", [-0.1, 1.5, float("nan"), float("inf"), float("-inf")])
     def test_rejects_invalid_stop_loss_pct(self, stop_loss_pct):
         with pytest.raises(ValueError, match="invalid stop_loss_pct"):
             RiskManager(stop_loss_pct=stop_loss_pct)
@@ -103,7 +103,7 @@ class TestRiskManagerInitValidation:
         rm = RiskManager(stop_loss_pct=stop_loss_pct)
         assert rm.position_limit.stop_loss_pct == stop_loss_pct
 
-    @pytest.mark.parametrize("take_profit_pct", [-0.1, 1.5])
+    @pytest.mark.parametrize("take_profit_pct", [-0.1, 1.5, float("nan"), float("inf"), float("-inf")])
     def test_rejects_invalid_take_profit_pct(self, take_profit_pct):
         with pytest.raises(ValueError, match="invalid take_profit_pct"):
             RiskManager(take_profit_pct=take_profit_pct)
@@ -122,7 +122,7 @@ class TestRiskManagerInitValidation:
         rm = RiskManager(max_leverage=1e-9)
         assert rm.portfolio_limit.max_leverage == 1e-9
 
-    @pytest.mark.parametrize("trailing_stop_pct", [-0.1, 1.5])
+    @pytest.mark.parametrize("trailing_stop_pct", [-0.1, 1.5, float("nan"), float("inf"), float("-inf")])
     def test_rejects_invalid_trailing_stop_pct(self, trailing_stop_pct):
         with pytest.raises(ValueError, match="invalid trailing_stop_pct"):
             RiskManager(trailing_stop_pct=trailing_stop_pct)
@@ -132,7 +132,7 @@ class TestRiskManagerInitValidation:
         rm = RiskManager(trailing_stop_pct=trailing_stop_pct)
         assert rm.trailing_stop_pct == trailing_stop_pct
 
-    @pytest.mark.parametrize("trailing_stop_activation_pct", [-0.1, 1.5])
+    @pytest.mark.parametrize("trailing_stop_activation_pct", [-0.1, 1.5, float("nan"), float("inf"), float("-inf")])
     def test_rejects_invalid_trailing_stop_activation_pct(self, trailing_stop_activation_pct):
         with pytest.raises(ValueError, match="invalid trailing_stop_activation_pct"):
             RiskManager(trailing_stop_activation_pct=trailing_stop_activation_pct)

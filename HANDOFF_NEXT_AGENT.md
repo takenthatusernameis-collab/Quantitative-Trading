@@ -1,82 +1,52 @@
 ## What changed (this session)
 
-- Rejected non-finite `initial_capital` and `periods_per_year` at every
-  validation surface that already range-checked them. Root cause: the existing
-  guards used `<= 0` / `< 1`, and `nan <= 0`, `inf <= 0`, `nan < 1` are all
-  `False`, so non-finite values slipped through and silently produced all-`nan`
-  metrics with exit code 0.
-  - `quant_trading/config/settings.py` — `BacktestConfig.__post_init__`:
-    `if not math.isfinite(self.initial_capital) or self.initial_capital <= 0`
-    and the same for `periods_per_year` (`< 1`).
-  - `quant_trading/optimization/base.py` — `BaseOptimizer.__init__` (added
-    `import math`), same finite guards for `initial_capital` /
-    `periods_per_year`.
-  - `quant_trading/optimization/walk_forward.py` — `WalkForwardOptimizer`
-    (added `import math`), same finite guards.
-  - `examples/cli.py` — `parse_args` now rejects non-finite `--initial-capital`
-    (`nan`/`inf`/`-inf`), message
-    `invalid --initial-capital: the value must be greater than 0 and finite`.
-  - Error message wording for the two fields changed to "positive and finite" /
-    "at least 1 and finite"; existing tests match the `invalid <field>` prefix,
-    so they still pass.
+- Rejected non-finite `max_positions` in `RiskManager.__init__`:
+  `quant_trading/risk/manager.py:217` is now
+  `if not math.isfinite(max_positions) or max_positions < 1` (previously a naked
+  `max_positions < 1`, which `nan` slips past since `nan < 1` is `False`).
+  The whole validation block was moved ahead of `PositionLimit`/`PortfolioLimit`
+  construction so `RiskManager(initial_capital=nan)` still raises
+  `invalid initial_capital` (existing tests at tests/test_risk_manager.py:66-69
+  depend on that ordering).
+- Added `__post_init__` finite guards to `PositionLimit` and `PortfolioLimit` in
+  `quant_trading/risk/limits.py`, so direct limit construction (and
+  `from_dict` deserialization) rejects `nan`/`inf`/`-inf` on every numeric field
+  with an `invalid <field>: ...` message prefix:
+  - `max_positions` also requires `>= 0` (0 still constructible: it means "no
+    positions may be opened", exercised by
+    tests/test_risk_manager.py::test_portfolio_check_branches).
+  - Zero/negative still allowed for `max_leverage`, `max_portfolio_risk`,
+    `max_drawdown` because existing tests use `0.0` to disable those checks;
+    range enforcement stays at the RiskManager boundary.
 - Tests:
-  - `tests/test_config.py`: extended the `initial_capital` /
-    `periods_per_year` reject parametrizations with `nan`, `inf`, `-inf`.
-  - `tests/test_optimization.py` and `tests/test_walk_forward.py`: same
-    extension for the two optimizer constructors.
-  - `tests/test_cli.py`: new `test_initial_capital_non_finite_is_rejected`
-    (uses `--flag=value` form because a bare `-inf` token is parsed as an
-    option).
-- `README.md`: documented the finite `--initial-capital` check and that the
-  library config/optimizers enforce it too.
-- **Files changed:** `quant_trading/config/settings.py`,
-  `quant_trading/optimization/base.py`,
-  `quant_trading/optimization/walk_forward.py`, `examples/cli.py`,
-  `tests/test_config.py`, `tests/test_optimization.py`,
-  `tests/test_walk_forward.py`, `tests/test_cli.py`, `README.md`.
-- Changes are **not committed**; the working tree holds them (the previous
-  session's commits used empty messages).
-
-## Why this task (evidence)
-
-- The previous handoff's "next task" (strategy float `std_dev`/`multiplier`
-  finite guards) was **already implemented** in the code before this session.
-  Verified by probe: `BollingerBandsStrategy(std_dev=nan)`,
-  `AverageTrueRangeStrategy(atr_multiplier=nan|inf)` and
-  `SuperTrendStrategy(multiplier=nan)` are all rejected. Do not redo it.
-- The remaining hole of the same class was the backtest/optimizer capital and
-  annualization fields. Reproduced before the fix:
-  - `BacktestConfig(initial_capital=nan)` / `(initial_capital=inf)` /
-    `(periods_per_year=nan)` → constructed OK.
-  - `GridSearch(..., initial_capital=nan|inf)` and
-    `WalkForwardOptimizer(..., initial_capital=nan)` → constructed OK.
-  - `python examples/cli.py --offline --initial-capital nan --symbols AAPL
-    --days 30` → printed `Initial Capital: $nan`, all metrics `nan`/`0`, exit 0.
+  - `tests/test_risk_manager.py`: `max_positions` parametrization extended with
+    `nan`/`inf`/`-inf`; same extension for `max_position_size`,
+    `max_portfolio_risk`, `max_drawdown`, `stop_loss_pct`, `take_profit_pct`,
+    `trailing_stop_pct`, `trailing_stop_activation_pct` (guards already reject
+    non-finite via chained comparisons; tests now document it).
+  - `tests/test_limits.py`: new `TestPositionLimitValidation` and
+    `TestPortfolioLimitValidation` (non-finite rejection for every field,
+    `max_positions < 0` rejection, zero still accepted for `max_positions`/
+    `max_leverage`/`max_portfolio_risk`/`max_drawdown`).
+- **Files changed:** `quant_trading/risk/manager.py`,
+  `quant_trading/risk/limits.py`, `tests/test_risk_manager.py`,
+  `tests/test_limits.py`. Changes are **not committed**.
 
 ## What was actually verified (evidence)
 
-- Library probes after the fix: all of `nan`/`inf`/`-inf` for `initial_capital`
-  and `periods_per_year` are now rejected by `BacktestConfig`, `GridSearch`
-  (via `BaseOptimizer`) and `WalkForwardOptimizer`; finite positive values
+- Library probes: all of `nan`/`inf`/`-inf` rejected for `RiskManager`
+  (`initial_capital`, `max_positions`, `max_leverage`) and for direct
+  `PositionLimit`/`PortfolioLimit` construction; finite valid values still
+  construct; `max_leverage=0.0`/`max_portfolio_risk=0.0`/`max_drawdown=0.0`
   still construct.
-- CLI probes after the fix:
-  - `--initial-capital nan|inf` and `--initial-capital=-inf` → `Error: invalid
-    --initial-capital: the value must be greater than 0 and finite (...)`, exit 1.
-  - `--initial-capital 50000 --offline ...` → normal run, exit 0.
-- `python -m pytest -q -p no:cacheprovider tests/test_config.py
-  tests/test_walk_forward.py tests/test_optimization.py` → **356 passed, 37
-  skipped**.
-- `python -m pytest -q -p no:cacheprovider tests/test_cli.py::TestParseArgs`
-  → **81 passed**.
-- `python -m pytest -q -p no:cacheprovider tests/test_repository_integrity.py
-  tests/test_readme.py tests/test_config.py tests/test_backtest_engine.py
-  tests/test_risk_manager.py tests/test_monte_carlo.py` → **498 passed**.
-- `python -m py_compile` on all changed files → OK.
-- Full suite: **3465 passed, 17 failed, 131 skipped, 136 deselected**. All 17
-  failures are pre-existing environmental ones: `TestHtmlReportFlag` +
-  `test_backtest_report.py` require `matplotlib` (not installed), and the
-  bayesian README-command tests require `scikit-optimize` (not installed;
-  confirmed `ModuleNotFoundError`). None touch the changed code.
+- `python -m py_compile` on all changed files: OK.
+- `pytest tests/test_risk_manager.py tests/test_limits.py
+  tests/test_rebalancer_risk_integration.py tests/test_rebalancer_sizing_invariants.py
+  tests/test_serialization_roundtrip.py quant_trading/risk/`: **421 passed**.
+- Full suite: **3535 passed, 17 failed, 131 skipped, 136 deselected**. All 17
+  failures are pre-existing environmental ones (matplotlib not installed ->
+  test_backtest_report.py + TestHtmlReportFlag; scikit-optimize not installed ->
+  bayesian README CLI commands). None touch the changed code.
 
 ### Environment caveat (unchanged)
 
@@ -87,38 +57,34 @@ reasons only.
 
 ## Unresolved / not completed
 
-- None for this task. Change is minimal, isolated, verified.
 - Lint/type checks not run (no ruff/mypy).
 - Not committed (no explicit request).
 
 ## Failed approaches (do not repeat unchanged)
 
-- Passing `-inf` as a separate argv token in tests/CLI: argparse consumes a
-  bare `-inf` as an option. Use the `--flag=value` form for values starting
-  with `-`.
-- Re-attempting the previous handoff's strategy `std_dev`/`multiplier` finite
-  guards: already implemented and verified; skip.
-
-## Git state
-
-- Branch `main`. Changes from this session are in the working tree, uncommitted.
-- The repo's prior commits have empty messages; prefer a descriptive message
-  when this work is committed.
+- None this session.
 
 ## One precise next task
 
-- **Risk/portfolio limit constructors still use `<= 0` and accept `nan`/`inf`.**
-  Same class of silent-corruption bug, in a different module:
-  - Evidence to gather first (not yet confirmed): `quant_trading/risk/manager.py`
-    guards `initial_capital <= 0` (line ~227), `limit <= 0` (~476),
-    `trailing_stop_pct <= 0` (~867); `quant_trading/risk/limits.py` guards
-    `basis <= 0`, `portfolio_value <= 0`; `quant_trading/risk/metrics.py` may
-    consume these. `nan`/`inf` slip past each `<= 0`.
-  - Concrete step: add `not math.isfinite(x) or x <= 0` guards at the
-    risk-manager / risk-limit constructor boundaries that already validate a
-    numeric limit, mirroring this session's change. Verify with library probes
-    (`RiskManager(initial_capital=nan)`, etc.) and add parametrized tests in
-    `tests/test_risk_manager.py` / a risk-limits test file.
-  - Constraints: minimal, localized; do not reject negative values beyond the
-    existing rule; keep the `invalid <field>` message prefix so existing tests
-    pass. Run `tests/test_risk_manager.py` plus the config/integrity suites.
+- **`quant_trading/config/settings.py` has the same nan-acceptance hole in
+  naked guards in other `__post_init__` methods** (invalid config silently
+  propagates to the portfolio rebalancer):
+  - `DataConfig.__post_init__` line 96: `if self.synthetic_days < 1:` — `nan`
+    accepted.
+  - `DataConfig.__post_init__` line 101: `if self.synthetic_seed < 0 or ...` —
+    `nan` accepted (both comparisons are `False` for `nan`).
+  - `RiskConfig.__post_init__` line 468: `if self.max_leverage < 1e-9:` —
+    `nan` accepted.
+  - `PortfolioConfig.__post_init__` line 578: `if self.max_positions < 1:` —
+    `nan` accepted; its docstring (settings.py:573-576) explicitly says it
+    "Mirrors RiskManager so invalid values are rejected ... instead of silently
+    propagating".
+  - Concrete step: add `not math.isfinite(x) or` to each guard (`synthetic_days`
+    / `max_positions`: `< 1`; `max_leverage`: `< 1e-9`; `synthetic_seed`: `< 0
+    or > 2**32 - 1`). Keep the `invalid <field>` message prefix so existing
+    tests pass. Verify with library probes
+    (`DataConfig(synthetic_days=nan)`, `PortfolioConfig(max_positions=nan)`,
+    `RiskConfig(max_leverage=nan)`) and extend `tests/test_config.py`
+    parametrizations. Run `tests/test_config.py` plus
+    `tests/test_repository_integrity.py`. Constraints: minimal, localized; do
+    not change existing range semantics — only reject non-finite values.

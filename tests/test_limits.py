@@ -754,3 +754,71 @@ class TestCheckResultSerialization:
         assert res.passed is False
         assert res.ok is False
         assert res.violations == ["boom"]
+
+
+class TestPositionLimitValidation:
+    """Tests that PositionLimit rejects non-finite constructor values."""
+
+    @pytest.mark.parametrize(
+        "field",
+        ["max_size", "max_value", "stop_loss_pct", "take_profit_pct"],
+    )
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_rejects_non_finite_values(self, field, value):
+        with pytest.raises(ValueError, match="invalid "):
+            PositionLimit(**{field: value})
+
+    def test_accepts_finite_values(self):
+        limit = PositionLimit(
+            max_size=0.5,
+            max_value=10000.0,
+            stop_loss_pct=0.0,
+            take_profit_pct=1.0,
+        )
+        assert limit.max_size == 0.5
+        assert limit.max_value == 10000.0
+
+
+class TestPortfolioLimitValidation:
+    """Tests that PortfolioLimit rejects non-finite constructor values."""
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "max_positions",
+            "max_position_size",
+            "max_portfolio_risk",
+            "max_drawdown",
+            "max_leverage",
+            "stop_loss_pct",
+        ],
+    )
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_rejects_non_finite_values(self, field, value):
+        with pytest.raises(ValueError, match="invalid "):
+            PortfolioLimit(**{field: value})
+
+    @pytest.mark.parametrize(
+        "max_positions", [-1, -5, float("nan"), float("inf"), float("-inf")]
+    )
+    def test_rejects_invalid_max_positions(self, max_positions):
+        with pytest.raises(ValueError, match="invalid max_positions"):
+            PortfolioLimit(max_positions=max_positions)
+
+    def test_accepts_zero_max_positions(self):
+        # Zero means no positions may be opened; it must remain constructible.
+        limit = PortfolioLimit(max_positions=0)
+        assert limit.max_positions == 0
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("max_leverage", 0.0),
+            ("max_portfolio_risk", 0.0),
+            ("max_drawdown", 0.0),
+        ],
+    )
+    def test_accepts_disabled_limits(self, field, value):
+        # Zero disables some limits and must remain constructible.
+        limit = PortfolioLimit(**{field: value})
+        assert getattr(limit, field) == value

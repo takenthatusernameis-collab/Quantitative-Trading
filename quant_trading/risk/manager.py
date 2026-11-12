@@ -190,6 +190,61 @@ class RiskManager:
         """
         self.initial_capital = initial_capital
         self.risk_free_rate = risk_free_rate
+
+        # Validate the risk manager configuration before the limit objects are
+        # built from these values, so invalid input raises here with a clear
+        # message instead of silently producing misleading risk decisions.
+        if not math.isfinite(initial_capital) or initial_capital <= 0:
+            raise ValueError(
+                f"invalid initial_capital: the value must be positive and finite "
+                f"(got {initial_capital})"
+            )
+        if not (0.0 < max_position_size <= 1.0):
+            raise ValueError(
+                f"invalid max_position_size: the value must be in the range (0, 1] "
+                f"(got {max_position_size})"
+            )
+        if not (0.0 < max_portfolio_risk <= 1.0):
+            raise ValueError(
+                f"invalid max_portfolio_risk: the value must be in the range (0, 1] "
+                f"(got {max_portfolio_risk})"
+            )
+        if not (0.0 <= max_drawdown <= 1.0):
+            raise ValueError(
+                f"invalid max_drawdown: the value must be in the range [0, 1] "
+                f"(got {max_drawdown})"
+            )
+        if not math.isfinite(max_positions) or max_positions < 1:
+            raise ValueError(
+                f"invalid max_positions: the value must be at least 1 and finite "
+                f"(got {max_positions})"
+            )
+        if not (0.0 <= stop_loss_pct <= 1.0):
+            raise ValueError(
+                f"invalid stop_loss_pct: the value must be in the range [0, 1] "
+                f"(got {stop_loss_pct})"
+            )
+        if not (0.0 <= take_profit_pct <= 1.0):
+            raise ValueError(
+                f"invalid take_profit_pct: the value must be in the range [0, 1] "
+                f"(got {take_profit_pct})"
+            )
+        if not math.isfinite(max_leverage) or max_leverage < 1e-9:
+            raise ValueError(
+                f"invalid max_leverage: the value must be positive and finite "
+                f"(got {max_leverage})"
+            )
+        if not (0.0 <= trailing_stop_pct <= 1.0):
+            raise ValueError(
+                f"invalid trailing_stop_pct: the value must be in the range [0, 1] "
+                f"(got {trailing_stop_pct})"
+            )
+        if not (0.0 <= trailing_stop_activation_pct <= 1.0):
+            raise ValueError(
+                f"invalid trailing_stop_activation_pct: the value must be in the range [0, 1] "
+                f"(got {trailing_stop_activation_pct})"
+            )
+
         self.position_limit = PositionLimit(
             max_size=max_position_size,
             max_value=initial_capital * max_position_size,
@@ -221,60 +276,6 @@ class RiskManager:
         self._trailing_stops: dict[str, float] = {}
         self._trailing_highs: dict[str, float] = {}
         self._trailing_lows: dict[str, float] = {}
-
-        # Validate the risk manager configuration. Invalid values do not raise
-        # here today, so a library user would silently get misleading risk
-        # decisions instead of a clear error.
-        if not math.isfinite(initial_capital) or initial_capital <= 0:
-            raise ValueError(
-                f"invalid initial_capital: the value must be positive and finite "
-                f"(got {initial_capital})"
-            )
-        if not (0.0 < max_position_size <= 1.0):
-            raise ValueError(
-                f"invalid max_position_size: the value must be in the range (0, 1] "
-                f"(got {max_position_size})"
-            )
-        if not (0.0 < max_portfolio_risk <= 1.0):
-            raise ValueError(
-                f"invalid max_portfolio_risk: the value must be in the range (0, 1] "
-                f"(got {max_portfolio_risk})"
-            )
-        if not (0.0 <= max_drawdown <= 1.0):
-            raise ValueError(
-                f"invalid max_drawdown: the value must be in the range [0, 1] "
-                f"(got {max_drawdown})"
-            )
-        if max_positions < 1:
-            raise ValueError(
-                f"invalid max_positions: the value must be at least 1 "
-                f"(got {max_positions})"
-            )
-        if not (0.0 <= stop_loss_pct <= 1.0):
-            raise ValueError(
-                f"invalid stop_loss_pct: the value must be in the range [0, 1] "
-                f"(got {stop_loss_pct})"
-            )
-        if not (0.0 <= take_profit_pct <= 1.0):
-            raise ValueError(
-                f"invalid take_profit_pct: the value must be in the range [0, 1] "
-                f"(got {take_profit_pct})"
-            )
-        if not math.isfinite(max_leverage) or max_leverage < 1e-9:
-            raise ValueError(
-                f"invalid max_leverage: the value must be positive and finite "
-                f"(got {max_leverage})"
-            )
-        if not (0.0 <= trailing_stop_pct <= 1.0):
-            raise ValueError(
-                f"invalid trailing_stop_pct: the value must be in the range [0, 1] "
-                f"(got {trailing_stop_pct})"
-            )
-        if not (0.0 <= trailing_stop_activation_pct <= 1.0):
-            raise ValueError(
-                f"invalid trailing_stop_activation_pct: the value must be in the range [0, 1] "
-                f"(got {trailing_stop_activation_pct})"
-            )
 
     def update_portfolio_value(self, positions: dict[str, Position], cash: float) -> None:
         """Update portfolio value and track equity curve.
