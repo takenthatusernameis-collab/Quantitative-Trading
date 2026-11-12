@@ -935,6 +935,10 @@ class TestBollingerBandsStrategy:
             BollingerBandsStrategy(std_dev=0)
         with pytest.raises(ValueError, match="std_dev must be positive"):
             BollingerBandsStrategy(std_dev=-2.0)
+        with pytest.raises(ValueError, match="std_dev must be positive"):
+            BollingerBandsStrategy(std_dev=float("nan"))
+        with pytest.raises(ValueError, match="std_dev must be positive"):
+            BollingerBandsStrategy(std_dev=float("inf"))
 
     def test_generate_signals_lower_band_touch(self):
         """Test generate_signals detects lower band touch (buy signal).
@@ -1651,6 +1655,10 @@ class TestSuperTrendStrategy:
             SuperTrendStrategy(period=-1)
         with pytest.raises(ValueError, match="multiplier must be positive"):
             SuperTrendStrategy(multiplier=-1)
+        with pytest.raises(ValueError, match="multiplier must be positive"):
+            SuperTrendStrategy(multiplier=float("nan"))
+        with pytest.raises(ValueError, match="multiplier must be positive"):
+            SuperTrendStrategy(multiplier=float("inf"))
 
     def test_generate_signals_insufficient_data(self):
         """Test generate_signals with insufficient data."""
@@ -1868,6 +1876,10 @@ class TestKeltnerChannelStrategy:
             KeltnerChannelStrategy(atr_period=-1)
         with pytest.raises(ValueError, match="multiplier must be positive"):
             KeltnerChannelStrategy(multiplier=-1)
+        with pytest.raises(ValueError, match="multiplier must be positive"):
+            KeltnerChannelStrategy(multiplier=float("nan"))
+        with pytest.raises(ValueError, match="multiplier must be positive"):
+            KeltnerChannelStrategy(multiplier=float("inf"))
 
     def test_generate_signals_insufficient_data(self):
         """Test generate_signals with insufficient data."""
@@ -2588,6 +2600,14 @@ class TestParabolicSARStrategy:
             ParabolicSARStrategy(max_step=-0.01)
         with pytest.raises(ValueError, match="step must be less than or equal to max_step"):
             ParabolicSARStrategy(step=0.30, max_step=0.20)
+        with pytest.raises(ValueError, match="step must be positive"):
+            ParabolicSARStrategy(step=float("nan"))
+        with pytest.raises(ValueError, match="step must be positive"):
+            ParabolicSARStrategy(step=float("inf"))
+        with pytest.raises(ValueError, match="max_step must be positive"):
+            ParabolicSARStrategy(max_step=float("nan"))
+        with pytest.raises(ValueError, match="max_step must be positive"):
+            ParabolicSARStrategy(max_step=float("-inf"))
 
     def test_calculate_sar_insufficient_data(self):
         """_calculate_sar returns NaN SAR / zero trend with fewer than 2 points (lines 1593-1607)."""
@@ -3125,6 +3145,10 @@ class TestMomentumStrategy:
             MomentumStrategy(period=-1)
         with pytest.raises(ValueError, match="threshold must be non-negative"):
             MomentumStrategy(threshold=-0.01)
+        with pytest.raises(ValueError, match="threshold must be non-negative"):
+            MomentumStrategy(threshold=float("nan"))
+        with pytest.raises(ValueError, match="threshold must be non-negative"):
+            MomentumStrategy(threshold=float("inf"))
 
     def test_generate_signals_insufficient_data(self):
         """Test generate_signals returns empty when fewer than period + 1 bars."""
@@ -4442,6 +4466,10 @@ class TestBollingerPercentBStrategy:
             BollingerPercentBStrategy(period=0, std_dev=2.0)
         with pytest.raises(ValueError, match="std_dev must be positive"):
             BollingerPercentBStrategy(period=20, std_dev=0.0)
+        with pytest.raises(ValueError, match="std_dev must be positive"):
+            BollingerPercentBStrategy(period=20, std_dev=float("nan"))
+        with pytest.raises(ValueError, match="std_dev must be positive"):
+            BollingerPercentBStrategy(period=20, std_dev=float("inf"))
         with pytest.raises(ValueError, match="oversold"):
             BollingerPercentBStrategy(period=20, std_dev=2.0, oversold=0.8, overbought=0.2)
         with pytest.raises(ValueError, match="oversold"):
@@ -5505,6 +5533,10 @@ class TestAverageTrueRangeStrategy:
             AverageTrueRangeStrategy(period=0, atr_multiplier=1.0)
         with pytest.raises(ValueError, match="atr_multiplier must be positive"):
             AverageTrueRangeStrategy(period=2, atr_multiplier=0.0)
+        with pytest.raises(ValueError, match="atr_multiplier must be positive"):
+            AverageTrueRangeStrategy(period=2, atr_multiplier=float("nan"))
+        with pytest.raises(ValueError, match="atr_multiplier must be positive"):
+            AverageTrueRangeStrategy(period=2, atr_multiplier=float("inf"))
 
     def test_generate_signals_insufficient_data(self):
         """Test generate_signals with fewer bars than period + 2."""
@@ -5601,6 +5633,10 @@ class TestCCIStrategy:
             CCIStrategy(period=0)
         with pytest.raises(ValueError, match="threshold must be positive"):
             CCIStrategy(threshold=0)
+        with pytest.raises(ValueError, match="threshold must be positive"):
+            CCIStrategy(threshold=float("nan"))
+        with pytest.raises(ValueError, match="threshold must be positive"):
+            CCIStrategy(threshold=float("inf"))
 
     def test_generate_signals_insufficient_data(self):
         strategy = CCIStrategy(period=20)

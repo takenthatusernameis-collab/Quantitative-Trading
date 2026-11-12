@@ -1,6 +1,7 @@
 """Example trading strategies."""
 
 from typing import Any, cast
+import math
 
 import numpy as np
 import pandas as pd
@@ -563,7 +564,7 @@ class BollingerBandsStrategy(Strategy):
         """
         if self.period <= 0:
             raise ValueError("period must be positive")
-        if self.std_dev <= 0:
+        if not math.isfinite(self.std_dev) or self.std_dev <= 0:
             raise ValueError("std_dev must be positive")
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
@@ -760,7 +761,7 @@ class BollingerPercentBStrategy(Strategy):
         """
         if self.period <= 0:
             raise ValueError("period must be positive")
-        if self.std_dev <= 0:
+        if not math.isfinite(self.std_dev) or self.std_dev <= 0:
             raise ValueError("std_dev must be positive")
         if not (0.0 <= self.oversold < self.overbought <= 1.0):
             raise ValueError("oversold must be in [0, 1) and below overbought in (0, 1]")
@@ -915,7 +916,7 @@ class SuperTrendStrategy(Strategy):
         """
         if self.period <= 0:
             raise ValueError("period must be positive")
-        if self.multiplier <= 0:
+        if not math.isfinite(self.multiplier) or self.multiplier <= 0:
             raise ValueError("multiplier must be positive")
 
     def _calculate_atr(self, df: pd.DataFrame, period: int) -> pd.Series:
@@ -1878,7 +1879,7 @@ class KeltnerChannelStrategy(Strategy):
             raise ValueError("ema_period must be positive")
         if self.atr_period <= 0:
             raise ValueError("atr_period must be positive")
-        if self.multiplier <= 0:
+        if not math.isfinite(self.multiplier) or self.multiplier <= 0:
             raise ValueError("multiplier must be positive")
 
     def _ema(self, close: pd.Series, period: int) -> pd.Series:
@@ -2616,9 +2617,9 @@ class ParabolicSARStrategy(Strategy):
             ValueError: If any parameter is invalid.
 
         """
-        if self.step <= 0:
+        if not math.isfinite(self.step) or self.step <= 0:
             raise ValueError("step must be positive")
-        if self.max_step <= 0:
+        if not math.isfinite(self.max_step) or self.max_step <= 0:
             raise ValueError("max_step must be positive")
         if self.step > self.max_step:
             raise ValueError("step must be less than or equal to max_step")
@@ -3008,7 +3009,7 @@ class MomentumStrategy(Strategy):
         """
         if self.period <= 0:
             raise ValueError("period must be positive")
-        if self.threshold < 0:
+        if not math.isfinite(self.threshold) or self.threshold < 0:
             raise ValueError("threshold must be non-negative")
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
@@ -3133,7 +3134,7 @@ class AverageTrueRangeStrategy(Strategy):
         """
         if self.period <= 0:
             raise ValueError("period must be positive")
-        if self.atr_multiplier <= 0:
+        if not math.isfinite(self.atr_multiplier) or self.atr_multiplier <= 0:
             raise ValueError("atr_multiplier must be positive")
 
     def _true_range(self, df: pd.DataFrame) -> pd.Series:
@@ -3531,7 +3532,7 @@ class CCIStrategy(Strategy):
     def validate_parameters(self) -> None:
         if self.period <= 0:
             raise ValueError("period must be positive")
-        if self.threshold <= 0:
+        if not math.isfinite(self.threshold) or self.threshold <= 0:
             raise ValueError("threshold must be positive")
 
     def _calculate_cci(self, high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
