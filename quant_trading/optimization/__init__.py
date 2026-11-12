@@ -32,9 +32,9 @@ from .random_search import RandomSearch
 from .walk_forward import WalkForwardOptimizer
 
 __all__ = [
+    "BaseOptimizer",
     "BayesianOptimizer",
     "BayesianOptimizerConfig",
-    "BaseOptimizer",
     "GridSearch",
     "ObjectiveFunction",
     "OptimizationResult",
