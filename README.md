@@ -378,6 +378,15 @@ $ python examples/cli.py --offline --synthetic-days 0 --symbols AAPL
 Error: invalid --synthetic-days: the value must be at least 1 (got 0)
 ```
 
+The `--synthetic-seed` argument is checked before the run starts and must be in
+the range ``[0, 2**32 - 1]`` (i.e. 0 to 4294967295). A negative seed or a seed
+above ``2**32 - 1`` crashes late inside ``np.random.seed`` with a traceback:
+
+```bash
+$ python examples/cli.py --offline --synthetic-seed -1 --symbols AAPL
+Error: invalid --synthetic-seed: the value must be between 0 and 4294967295 (got -1)
+```
+
 ### Utility Commands
 
 ```bash

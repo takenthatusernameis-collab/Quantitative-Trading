@@ -1096,6 +1096,11 @@ def parse_args() -> argparse.Namespace:
             f"invalid --synthetic-days: the value must be at least 1 "
             f"(got {args.synthetic_days})"
         )
+    if args.synthetic_seed < 0 or args.synthetic_seed > 2**32 - 1:
+        raise ValueError(
+            f"invalid --synthetic-seed: the value must be between 0 and "
+            f"{2**32 - 1} (got {args.synthetic_seed})"
+        )
     if args.n_iter < 1:
         raise ValueError(f"invalid --n-iter: the value must be at least 1 " f"(got {args.n_iter})")
     if args.bayesian_n_initial < 1:

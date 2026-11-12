@@ -474,6 +474,39 @@ class TestParseArgs:
             args = parse_args()
         assert args.synthetic_days == 365
 
+    def test_synthetic_seed_outside_range_is_rejected(self):
+        """``--synthetic-seed`` outside ``[0, 2**32 - 1]`` is rejected up front.
+
+        ``np.random.seed`` accepts only ``0 <= seed <= 2**32 - 1``; values outside
+        that range fail late deep inside the generator instead of at parse time.
+        """
+        for value in ("-1", "4294967296"):
+            with (
+                patch("sys.argv", ["cli.py", "--offline", "--synthetic-seed", value]),
+                pytest.raises(ValueError, match="invalid --synthetic-seed"),
+            ):
+                parse_args()
+
+    def test_synthetic_seed_zero_is_accepted(self):
+        """``--synthetic-seed 0`` is accepted (``np.random.seed(0)`` is valid)."""
+        with patch("sys.argv", ["cli.py", "--offline", "--synthetic-seed", "0"]):
+            args = parse_args()
+        assert args.synthetic_seed == 0
+
+    def test_synthetic_seed_max_is_accepted(self):
+        """``--synthetic-seed 4294967295`` (2**32 - 1) is accepted."""
+        with patch(
+            "sys.argv", ["cli.py", "--offline", "--synthetic-seed", "4294967295"]
+        ):
+            args = parse_args()
+        assert args.synthetic_seed == 2**32 - 1
+
+    def test_synthetic_seed_default_is_accepted(self):
+        """The default ``--synthetic-seed`` of 42 is accepted."""
+        with patch("sys.argv", ["cli.py", "--offline"]):
+            args = parse_args()
+        assert args.synthetic_seed == 42
+
     def test_initial_capital_non_positive_is_rejected(self):
         """A ``--initial-capital`` of zero or below is a usage error naming the flag."""
         for value in ("0", "-1"):
