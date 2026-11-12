@@ -398,6 +398,53 @@ class TestParseArgs:
             args = parse_args()
         assert args.regime_window == 20
 
+    def test_days_below_one_is_rejected_without_start(self):
+        """A ``--days`` below 1 is a usage error naming the flag when ``--start`` is absent.
+
+        When ``--start`` is not provided, ``--days`` determines the lookback window.
+        A value of 0 makes ``start == end`` (empty window) and a negative value makes
+        ``start > end``; both silently produce an all-zero backtest instead of an
+        actionable error. Reject them up front like every other bounded CLI value.
+        """
+        for value in ("0", "-1"):
+            with (
+                patch("sys.argv", ["cli.py", "--offline", "--days", value]),
+                pytest.raises(ValueError, match="invalid --days"),
+            ):
+                parse_args()
+
+    def test_days_one_is_accepted_without_start(self):
+        """The minimum accepted ``--days`` is 1 when ``--start`` is absent."""
+        with patch("sys.argv", ["cli.py", "--offline", "--days", "1"]):
+            args = parse_args()
+        assert args.days == 1
+
+    def test_days_default_is_accepted_without_start(self):
+        """The default ``--days`` of 365 is accepted when ``--start`` is absent."""
+        with patch("sys.argv", ["cli.py", "--offline"]):
+            args = parse_args()
+        assert args.days == 365
+
+    def test_days_below_one_is_accepted_with_explicit_start(self):
+        """A ``--days`` below 1 is accepted when ``--start`` is explicitly provided.
+
+        An explicit ``--start`` overrides ``--days`` (``start_date`` is parsed from
+        ``--start`` directly), so a non-positive ``--days`` is harmless and must not
+        be falsely rejected. This keeps the override path working for scripts that
+        pass a fixed ``--start`` while leaving ``--days`` at its default.
+        """
+        with patch("sys.argv", ["cli.py", "--offline", "--start", "2024-01-01", "--days", "0"]):
+            args = parse_args()
+        assert args.days == 0
+        assert args.start == "2024-01-01"
+
+    def test_days_negative_is_accepted_with_explicit_start(self):
+        """A negative ``--days`` is accepted when ``--start`` is explicitly provided."""
+        with patch("sys.argv", ["cli.py", "--offline", "--start", "2024-01-01", "--days", "-5"]):
+            args = parse_args()
+        assert args.days == -5
+        assert args.start == "2024-01-01"
+
     def test_initial_capital_non_positive_is_rejected(self):
         """A ``--initial-capital`` of zero or below is a usage error naming the flag."""
         for value in ("0", "-1"):

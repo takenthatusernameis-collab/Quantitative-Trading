@@ -1087,6 +1087,10 @@ def parse_args() -> argparse.Namespace:
             f"invalid --regime-window: the value must be at least 2 "
             f"(got {args.regime_window})"
         )
+    if args.start is None and args.days < 1:
+        raise ValueError(
+            f"invalid --days: the value must be at least 1 " f"(got {args.days})"
+        )
     if args.n_iter < 1:
         raise ValueError(f"invalid --n-iter: the value must be at least 1 " f"(got {args.n_iter})")
     if args.bayesian_n_initial < 1:

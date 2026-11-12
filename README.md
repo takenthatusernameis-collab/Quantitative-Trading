@@ -243,6 +243,25 @@ python examples/cli.py --offline --start 2020-01-01 --end 2020-06-01 --symbols A
 # Cache downloaded data in a custom directory
 python examples/cli.py --offline --cache-dir /tmp/quant_cache --symbols AAPL --days 30
 
+The `--days` argument is checked before the run starts when `--start` is not
+provided. It determines the lookback window (`start_date = end_date - days`) and
+must be at least 1, because a value of 0 makes the window empty (`start == end`)
+and a negative value inverts it (`start > end`); both silently produce an
+all-zero backtest instead of a real result:
+
+```bash
+$ python examples/cli.py --offline --days 0 --symbols AAPL
+Error: invalid --days: the value must be at least 1 (got 0)
+```
+
+When `--start` is given explicitly, `--days` is ignored and any value is
+accepted:
+
+```bash
+$ python examples/cli.py --offline --start 2024-01-01 --days 0 --symbols AAPL
+# Runs normally using the explicit start date
+```
+
 # Override strategy parameters and run a Monte Carlo simulation
 python examples/cli.py --offline --strategy macd --macd-fast 12 --macd-slow 26 --macd-signal 9 --monte-carlo --mc-method bootstrap --mc-confidence 0.95 --mc-seed 42
 
