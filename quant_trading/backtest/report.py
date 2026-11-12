@@ -1011,6 +1011,364 @@ def _create_comparison_drawdown_chart(
     return _fig_to_base64(fig, dpi)
 
 
+def _create_comparison_monthly_returns_heatmap(
+    results: list[tuple[str, BacktestResult]],
+    colors: dict[str, str],
+    dpi: int,
+) -> str:
+    """Create comparison monthly returns heatmap and return as base64 string."""
+    _check_matplotlib()
+    n_results = len(results)
+    if n_results == 0:
+        return ""
+
+    fig, axes = plt.subplots(1, n_results, figsize=(8 * n_results, 4), dpi=dpi, facecolor=colors["bg"], squeeze=False)
+    axes = axes[0]
+
+    for i, (name, result) in enumerate(results):
+        ax = axes[i]
+        ax.set_facecolor(colors["bg"])
+        equity = result.equity_curve
+
+        if len(equity) < 2:
+            ax.text(
+                0.5,
+                0.5,
+                "Insufficient data",
+                ha="center",
+                va="center",
+                color=colors["fg"],
+                transform=ax.transAxes,
+            )
+            ax.set_title(f"{name} - Monthly Returns", color=colors["fg"], fontsize=12, fontweight="bold")
+            ax.axis("off")
+            continue
+
+        monthly = equity.resample("ME").last()
+        monthly_returns = monthly.pct_change().dropna() * 100
+
+        if len(monthly_returns) == 0:
+            ax.text(
+                0.5,
+                0.5,
+                "Insufficient data",
+                ha="center",
+                va="center",
+                color=colors["fg"],
+                transform=ax.transAxes,
+            )
+            ax.set_title(f"{name} - Monthly Returns", color=colors["fg"], fontsize=12, fontweight="bold")
+            ax.axis("off")
+            continue
+
+        monthly_returns.index = pd.to_datetime(monthly_returns.index)
+        pivot = monthly_returns.groupby(
+            [monthly_returns.index.year, monthly_returns.index.month]
+        ).first()
+        pivot = pivot.unstack(level=1)
+
+        all_months = range(1, 13)
+        pivot = pivot.reindex(columns=all_months)
+        pivot.columns = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ]
+
+        vmin = -max(abs(pivot.min().min()), abs(pivot.max().max())) if not pivot.empty else -1
+        vmax = max(abs(pivot.min().min()), abs(pivot.max().max())) if not pivot.empty else 1
+
+        im = ax.imshow(
+            pivot.values,
+            cmap="RdYlGn",
+            aspect="auto",
+            vmin=vmin,
+            vmax=vmax,
+        )
+
+        ax.set_xticks(range(12))
+        ax.set_xticklabels(pivot.columns, color=colors["fg"], fontsize=8)
+        ax.set_yticks(range(len(pivot.index)))
+        ax.set_yticklabels([str(y) for y in pivot.index], color=colors["fg"], fontsize=8)
+
+        for row_idx in range(len(pivot.index)):
+            for col_idx in range(12):
+                val = pivot.iloc[row_idx, col_idx]
+                if not np.isnan(val):
+                    text_color = "white" if abs(val) > (pivot.max().max() * 0.5) else colors["fg"]
+                    ax.text(
+                        col_idx,
+                        row_idx,
+                        f"{val:.1f}%",
+                        ha="center",
+                        va="center",
+                        color=text_color,
+                        fontsize=7,
+                        fontweight="bold",
+                    )
+
+        ax.set_title(f"{name} - Monthly Returns (%)", color=colors["fg"], fontsize=12, fontweight="bold")
+
+        for spine in ax.spines.values():
+            spine.set_color(colors["grid"])
+
+    cbar = plt.colorbar(im, ax=axes, shrink=0.6)
+    cbar.ax.tick_params(colors=colors["fg"])
+    cbar.outline.set_edgecolor(colors["grid"])
+
+    plt.tight_layout()
+    return _fig_to_base64(fig, dpi)
+
+
+def _create_comparison_trade_distribution_chart(
+    results: list[tuple[str, BacktestResult]],
+    colors: dict[str, str],
+    dpi: int,
+) -> str:
+    """Create comparison trade PnL distribution chart and return as base64 string."""
+    _check_matplotlib()
+    fig, ax = plt.subplots(figsize=(10, 4), dpi=dpi, facecolor=colors["bg"])
+    ax.set_facecolor(colors["bg"])
+
+    palette = [
+        colors["neutral"],
+        colors["positive"],
+        colors["negative"],
+        colors["accent"],
+        "#9c27b0",
+        "#00bcd4",
+        "#ff5722",
+        "#795548",
+    ]
+
+    any_data = False
+    for i, (name, result) in enumerate(results):
+        trades_df = result.trades
+        if trades_df.empty or "pnl" not in trades_df.columns:
+            continue
+
+        pnls = trades_df["pnl"].dropna()
+        if len(pnls) == 0:
+            continue
+
+        winners = pnls[pnls > 0]
+        losers = pnls[pnls <= 0]
+
+        color = palette[i % len(palette)]
+        alpha = 0.5 if len(results) > 1 else 0.7
+
+        bins = 30
+        ax.hist(
+            winners,
+            bins=bins,
+            alpha=alpha,
+            color=color,
+            label=f"{name} Winners ({len(winners)})",
+            edgecolor=colors["bg"],
+            linewidth=0.5,
+            histtype="stepfilled",
+        )
+        ax.hist(
+            losers,
+            bins=bins,
+            alpha=alpha,
+            color=color,
+            label=f"{name} Losers ({len(losers)})",
+            edgecolor=colors["bg"],
+            linewidth=0.5,
+            histtype="step",
+            linestyle="--",
+        )
+        any_data = True
+
+    if not any_data:
+        ax.text(
+            0.5,
+            0.5,
+            "No trade PnL data to display",
+            ha="center",
+            va="center",
+            color=colors["fg"],
+            transform=ax.transAxes,
+        )
+        ax.set_title("Trade PnL Distribution Comparison", color=colors["fg"], fontsize=14, fontweight="bold")
+        ax.axis("off")
+        return _fig_to_base64(fig, dpi)
+
+    ax.axvline(x=0, color=colors["fg"], linewidth=1, linestyle="-")
+    ax.set_title("Trade PnL Distribution Comparison", color=colors["fg"], fontsize=14, fontweight="bold")
+    ax.set_xlabel("PnL ($)", color=colors["fg"])
+    ax.set_ylabel("Frequency", color=colors["fg"])
+    ax.tick_params(colors=colors["fg"])
+    ax.grid(True, color=colors["grid"], alpha=0.3, linestyle="-", linewidth=0.5)
+    ax.legend(facecolor=colors["bg"], edgecolor=colors["grid"], labelcolor=colors["fg"], fontsize=7)
+
+    for spine in ax.spines.values():
+        spine.set_color(colors["grid"])
+
+    return _fig_to_base64(fig, dpi)
+
+
+def _create_comparison_rolling_sharpe_chart(
+    results: list[tuple[str, BacktestResult]],
+    colors: dict[str, str],
+    dpi: int,
+) -> str:
+    """Create comparison rolling Sharpe ratio chart and return as base64 string."""
+    _check_matplotlib()
+    fig, ax = plt.subplots(figsize=(10, 3), dpi=dpi, facecolor=colors["bg"])
+    ax.set_facecolor(colors["bg"])
+
+    palette = [
+        colors["neutral"],
+        colors["positive"],
+        colors["negative"],
+        colors["accent"],
+        "#9c27b0",
+        "#00bcd4",
+        "#ff5722",
+        "#795548",
+    ]
+
+    any_data = False
+    for i, (name, result) in enumerate(results):
+        equity = result.equity_curve
+        if len(equity) < 60:
+            continue
+
+        returns = equity.pct_change().dropna()
+        rolling_sharpe = (
+            returns.rolling(window=60).mean() / returns.rolling(window=60).std() * np.sqrt(252)
+        )
+
+        if rolling_sharpe.dropna().empty:
+            continue
+
+        color = palette[i % len(palette)]
+        ax.plot(
+            rolling_sharpe.index,
+            rolling_sharpe.values,
+            color=color,
+            linewidth=1,
+            label=name,
+            alpha=0.8,
+        )
+        any_data = True
+
+    if not any_data:
+        ax.text(
+            0.5,
+            0.5,
+            "Insufficient data for rolling Sharpe (need 60+ bars)",
+            ha="center",
+            va="center",
+            color=colors["fg"],
+            transform=ax.transAxes,
+        )
+        ax.set_title(
+            "Rolling Sharpe Ratio (60-period) Comparison", color=colors["fg"], fontsize=14, fontweight="bold"
+        )
+        ax.axis("off")
+        return _fig_to_base64(fig, dpi)
+
+    ax.axhline(y=0, color=colors["fg"], linewidth=0.5)
+    ax.axhline(y=1, color=colors["positive"], linewidth=0.5, linestyle="--", alpha=0.5)
+    ax.axhline(y=-1, color=colors["negative"], linewidth=0.5, linestyle="--", alpha=0.5)
+    ax.set_title(
+        "Rolling Sharpe Ratio (60-period) Comparison", color=colors["fg"], fontsize=14, fontweight="bold"
+    )
+    ax.set_ylabel("Sharpe Ratio", color=colors["fg"])
+    ax.set_xlabel("Date", color=colors["fg"])
+    ax.tick_params(colors=colors["fg"])
+    ax.grid(True, color=colors["grid"], alpha=0.3, linestyle="-", linewidth=0.5)
+    ax.legend(facecolor=colors["bg"], edgecolor=colors["grid"], labelcolor=colors["fg"], fontsize=8)
+
+    for spine in ax.spines.values():
+        spine.set_color(colors["grid"])
+
+    return _fig_to_base64(fig, dpi)
+
+
+def _create_comparison_rolling_volatility_chart(
+    results: list[tuple[str, BacktestResult]],
+    colors: dict[str, str],
+    dpi: int,
+) -> str:
+    """Create comparison rolling volatility chart and return as base64 string."""
+    _check_matplotlib()
+    fig, ax = plt.subplots(figsize=(10, 3), dpi=dpi, facecolor=colors["bg"])
+    ax.set_facecolor(colors["bg"])
+
+    palette = [
+        colors["neutral"],
+        colors["positive"],
+        colors["negative"],
+        colors["accent"],
+        "#9c27b0",
+        "#00bcd4",
+        "#ff5722",
+        "#795548",
+    ]
+
+    any_data = False
+    for i, (name, result) in enumerate(results):
+        equity = result.equity_curve
+        if len(equity) < 60:
+            continue
+
+        returns = equity.pct_change().dropna()
+        rolling_vol = returns.rolling(window=60).std() * np.sqrt(252) * 100
+
+        if rolling_vol.dropna().empty:
+            continue
+
+        color = palette[i % len(palette)]
+        ax.plot(
+            rolling_vol.index,
+            rolling_vol.values,
+            color=color,
+            linewidth=1,
+            label=name,
+            alpha=0.8,
+        )
+        any_data = True
+
+    if not any_data:
+        ax.text(
+            0.5,
+            0.5,
+            "Insufficient data for rolling volatility (need 60+ bars)",
+            ha="center",
+            va="center",
+            color=colors["fg"],
+            transform=ax.transAxes,
+        )
+        ax.set_title(
+            "Rolling Volatility (60-period, Annualized %) Comparison",
+            color=colors["fg"],
+            fontsize=14,
+            fontweight="bold",
+        )
+        ax.axis("off")
+        return _fig_to_base64(fig, dpi)
+
+    ax.set_title(
+        "Rolling Volatility (60-period, Annualized %) Comparison",
+        color=colors["fg"],
+        fontsize=14,
+        fontweight="bold",
+    )
+    ax.set_ylabel("Volatility (%)", color=colors["fg"])
+    ax.set_xlabel("Date", color=colors["fg"])
+    ax.tick_params(colors=colors["fg"])
+    ax.grid(True, color=colors["grid"], alpha=0.3, linestyle="-", linewidth=0.5)
+    ax.legend(facecolor=colors["bg"], edgecolor=colors["grid"], labelcolor=colors["fg"], fontsize=8)
+
+    for spine in ax.spines.values():
+        spine.set_color(colors["grid"])
+
+    return _fig_to_base64(fig, dpi)
+
+
 def _build_comparison_table(
     results: list[tuple[str, BacktestResult]],
     colors: dict[str, str],
@@ -1122,10 +1480,23 @@ def generate_comparison_report(
     # Generate charts if enabled
     equity_chart = ""
     drawdown_chart = ""
+    monthly_heatmap = ""
+    trade_dist_chart = ""
+    rolling_sharpe_chart = ""
+    rolling_vol_chart = ""
 
     if config.include_charts:
         equity_chart = _create_comparison_equity_chart(results, colors, config.dpi)
         drawdown_chart = _create_comparison_drawdown_chart(results, colors, config.dpi)
+
+        if config.include_monthly_heatmap:
+            monthly_heatmap = _create_comparison_monthly_returns_heatmap(results, colors, config.dpi)
+
+        trade_dist_chart = _create_comparison_trade_distribution_chart(results, colors, config.dpi)
+
+        if config.include_rolling_metrics:
+            rolling_sharpe_chart = _create_comparison_rolling_sharpe_chart(results, colors, config.dpi)
+            rolling_vol_chart = _create_comparison_rolling_volatility_chart(results, colors, config.dpi)
 
     # Build comparison table
     comparison_table = _build_comparison_table(results, colors)
@@ -1163,10 +1534,26 @@ def generate_comparison_report(
                 '<div class="chart-grid">',
                 f'<div class="chart-card full-width"><h3>Equity Curves</h3><img src="data:image/png;base64,{equity_chart}" alt="Equity Curves Comparison"></div>',
                 f'<div class="chart-card full-width"><h3>Drawdown Comparison</h3><img src="data:image/png;base64,{drawdown_chart}" alt="Drawdown Comparison"></div>',
-                "</div>",
-                "</section>",
             ]
         )
+        if monthly_heatmap:
+            html_parts.append(
+                f'<div class="chart-card full-width"><h3>Monthly Returns Comparison</h3><img src="data:image/png;base64,{monthly_heatmap}" alt="Monthly Returns Comparison"></div>'
+            )
+        html_parts.extend(
+            [
+                f'<div class="chart-card full-width"><h3>Trade PnL Distribution Comparison</h3><img src="data:image/png;base64,{trade_dist_chart}" alt="Trade PnL Distribution Comparison"></div>',
+            ]
+        )
+        if rolling_sharpe_chart:
+            html_parts.append(
+                f'<div class="chart-card full-width"><h3>Rolling Sharpe (60) Comparison</h3><img src="data:image/png;base64,{rolling_sharpe_chart}" alt="Rolling Sharpe Comparison"></div>'
+            )
+        if rolling_vol_chart:
+            html_parts.append(
+                f'<div class="chart-card full-width"><h3>Rolling Volatility (60) Comparison</h3><img src="data:image/png;base64,{rolling_vol_chart}" alt="Rolling Volatility Comparison"></div>'
+            )
+        html_parts.extend(["</div>", "</section>"])
 
     html_parts.extend(
         [
