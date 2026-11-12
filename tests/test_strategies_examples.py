@@ -751,6 +751,18 @@ class TestRSIStrategy:
             RSIStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             RSIStrategy(period=-14)
+        with pytest.raises(ValueError, match="oversold must be finite"):
+            RSIStrategy(oversold=float("nan"))
+        with pytest.raises(ValueError, match="oversold must be finite"):
+            RSIStrategy(oversold=float("inf"))
+        with pytest.raises(ValueError, match="oversold must be finite"):
+            RSIStrategy(oversold=float("-inf"))
+        with pytest.raises(ValueError, match="overbought must be finite"):
+            RSIStrategy(overbought=float("nan"))
+        with pytest.raises(ValueError, match="overbought must be finite"):
+            RSIStrategy(overbought=float("inf"))
+        with pytest.raises(ValueError, match="overbought must be finite"):
+            RSIStrategy(overbought=float("-inf"))
         with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
             RSIStrategy(oversold=0)
         with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
@@ -2068,6 +2080,24 @@ class TestStochasticOscillatorStrategy:
         # Should not raise
         StochasticOscillatorStrategy(k_period=14, d_period=3, oversold=20, overbought=80)
 
+    def test_validate_parameters_finite_oversold(self):
+        """Test parameter validation rejects non-finite oversold."""
+        with pytest.raises(ValueError, match="oversold must be finite"):
+            StochasticOscillatorStrategy(oversold=float("nan"))
+        with pytest.raises(ValueError, match="oversold must be finite"):
+            StochasticOscillatorStrategy(oversold=float("inf"))
+        with pytest.raises(ValueError, match="oversold must be finite"):
+            StochasticOscillatorStrategy(oversold=float("-inf"))
+
+    def test_validate_parameters_finite_overbought(self):
+        """Test parameter validation rejects non-finite overbought."""
+        with pytest.raises(ValueError, match="overbought must be finite"):
+            StochasticOscillatorStrategy(overbought=float("nan"))
+        with pytest.raises(ValueError, match="overbought must be finite"):
+            StochasticOscillatorStrategy(overbought=float("inf"))
+        with pytest.raises(ValueError, match="overbought must be finite"):
+            StochasticOscillatorStrategy(overbought=float("-inf"))
+
     def test_validate_parameters_invalid_k_period(self):
         """Test parameter validation with invalid k_period."""
         with pytest.raises(ValueError, match="k_period must be positive"):
@@ -3272,6 +3302,12 @@ class TestADXStrategy:
             ADXStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             ADXStrategy(period=-14)
+        with pytest.raises(ValueError, match="threshold must be finite"):
+            ADXStrategy(threshold=float("nan"))
+        with pytest.raises(ValueError, match="threshold must be finite"):
+            ADXStrategy(threshold=float("inf"))
+        with pytest.raises(ValueError, match="threshold must be finite"):
+            ADXStrategy(threshold=float("-inf"))
         with pytest.raises(ValueError, match="threshold must be between 0 and 100"):
             ADXStrategy(threshold=0)
         with pytest.raises(ValueError, match="threshold must be between 0 and 100"):
@@ -3396,6 +3432,18 @@ class TestWilliamsRStrategy:
             WilliamsRStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             WilliamsRStrategy(period=-14)
+        with pytest.raises(ValueError, match="overbought must be finite"):
+            WilliamsRStrategy(overbought=float("nan"))
+        with pytest.raises(ValueError, match="overbought must be finite"):
+            WilliamsRStrategy(overbought=float("inf"))
+        with pytest.raises(ValueError, match="overbought must be finite"):
+            WilliamsRStrategy(overbought=float("-inf"))
+        with pytest.raises(ValueError, match="oversold must be finite"):
+            WilliamsRStrategy(oversold=float("nan"))
+        with pytest.raises(ValueError, match="oversold must be finite"):
+            WilliamsRStrategy(oversold=float("inf"))
+        with pytest.raises(ValueError, match="oversold must be finite"):
+            WilliamsRStrategy(oversold=float("-inf"))
         with pytest.raises(ValueError, match="overbought must be between -100 and 0"):
             WilliamsRStrategy(overbought=0.0)
         with pytest.raises(ValueError, match="overbought must be between -100 and 0"):
@@ -5822,6 +5870,18 @@ class TestStochRSIStrategy:
             StochRSIStrategy(k_period=0)
         with pytest.raises(ValueError, match="d_period must be positive"):
             StochRSIStrategy(d_period=0)
+        with pytest.raises(ValueError, match="oversold must be finite"):
+            StochRSIStrategy(oversold=float("nan"))
+        with pytest.raises(ValueError, match="oversold must be finite"):
+            StochRSIStrategy(oversold=float("inf"))
+        with pytest.raises(ValueError, match="oversold must be finite"):
+            StochRSIStrategy(oversold=float("-inf"))
+        with pytest.raises(ValueError, match="overbought must be finite"):
+            StochRSIStrategy(overbought=float("nan"))
+        with pytest.raises(ValueError, match="overbought must be finite"):
+            StochRSIStrategy(overbought=float("inf"))
+        with pytest.raises(ValueError, match="overbought must be finite"):
+            StochRSIStrategy(overbought=float("-inf"))
         with pytest.raises(ValueError, match="oversold must be between"):
             StochRSIStrategy(oversold=0)
         with pytest.raises(ValueError, match="overbought must be between"):

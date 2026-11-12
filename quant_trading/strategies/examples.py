@@ -330,6 +330,10 @@ class RSIStrategy(Strategy):
         """
         if self.period <= 0:
             raise ValueError("period must be positive")
+        if not math.isfinite(self.oversold):
+            raise ValueError("oversold must be finite")
+        if not math.isfinite(self.overbought):
+            raise ValueError("overbought must be finite")
         if not (0 < self.oversold < 100):
             raise ValueError("oversold must be between 0 and 100")
         if not (0 < self.overbought < 100):
@@ -2129,6 +2133,10 @@ class StochasticOscillatorStrategy(Strategy):
             raise ValueError("k_period must be positive")
         if self.d_period <= 0:
             raise ValueError("d_period must be positive")
+        if not math.isfinite(self.oversold):
+            raise ValueError("oversold must be finite")
+        if not math.isfinite(self.overbought):
+            raise ValueError("overbought must be finite")
         if not (0 < self.oversold < 100):
             raise ValueError("oversold must be between 0 and 100")
         if not (0 < self.overbought < 100):
@@ -3348,6 +3356,8 @@ class ADXStrategy(Strategy):
         """
         if self.period <= 0:
             raise ValueError("period must be positive")
+        if not math.isfinite(self.threshold):
+            raise ValueError("threshold must be finite")
         if not (0 < self.threshold < 100):
             raise ValueError("threshold must be between 0 and 100")
 
@@ -3641,6 +3651,10 @@ class WilliamsRStrategy(Strategy):
     def validate_parameters(self) -> None:
         if self.period <= 0:
             raise ValueError("period must be positive")
+        if not math.isfinite(self.overbought):
+            raise ValueError("overbought must be finite")
+        if not math.isfinite(self.oversold):
+            raise ValueError("oversold must be finite")
         if not -100.0 < self.overbought < 0.0:
             raise ValueError("overbought must be between -100 and 0")
         if not -100.0 < self.oversold < 0.0:
@@ -7317,6 +7331,10 @@ class StochRSIStrategy(Strategy):
             raise ValueError("k_period must be positive")
         if self.d_period <= 0:
             raise ValueError("d_period must be positive")
+        if not math.isfinite(self.oversold):
+            raise ValueError("oversold must be finite")
+        if not math.isfinite(self.overbought):
+            raise ValueError("overbought must be finite")
         if not (0 < self.oversold < 100):
             raise ValueError("oversold must be between 0 and 100")
         if not (0 < self.overbought < 100):
