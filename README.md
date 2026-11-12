@@ -697,12 +697,13 @@ Error: invalid --mc-simulations: the value must be at least 1 (got 0)
 ```
 
 The `--wf-step-size` argument of the walk-forward mode is checked before the
-run starts. It is a fraction of a window's span and has to be greater than
-zero, because a step of zero would keep the windows from advancing:
+run starts. It is a fraction of a window's span and has to be in the range
+`(0, 1]`, because a step of zero would keep the windows from advancing and a
+step above one would exceed a window's span:
 
 ```bash
 $ python examples/cli.py --offline --walk-forward --wf-step-size 0 --symbols AAPL --days 30
-Error: invalid --wf-step-size: the value must be greater than 0 (got 0.0)
+Error: invalid --wf-step-size: the value must be in the range (0, 1] (got 0.0)
 ```
 
 ### CLI Market Regime Analysis

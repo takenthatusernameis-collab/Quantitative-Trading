@@ -1068,9 +1068,9 @@ def parse_args() -> argparse.Namespace:
             f"invalid --wf-train-size: the value must be in the range (0, 1) "
             f"(got {args.wf_train_size})"
         )
-    if args.wf_step_size is not None and args.wf_step_size <= 0:
+    if args.wf_step_size is not None and not (0.0 < args.wf_step_size <= 1.0):
         raise ValueError(
-            f"invalid --wf-step-size: the value must be greater than 0 "
+            f"invalid --wf-step-size: the value must be in the range (0, 1] "
             f"(got {args.wf_step_size})"
         )
     if args.wf_windows < 1:

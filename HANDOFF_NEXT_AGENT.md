@@ -1,41 +1,47 @@
 ## What changed (this session)
 
-- Installed the optional `reporting` extra dependency (`matplotlib`) into the environment. No repository code was changed; the working tree remains clean.
-- This cleared the 14 pre-existing test failures that were caused by the missing optional `matplotlib` reporting extra (`ImportError: matplotlib is required for chart generation`), affecting `tests/test_backtest_report.py`, `tests/test_cli.py::TestHtmlReportFlag`, and 2 `tests/test_readme_cli_commands.py` cases.
+- Fixed CLI validation for `--wf-step-size` to reject values > 1.0 before the run starts, matching the library `WalkForwardOptimizer` validation and the documented behavior (README says "It is a fraction of a window's span").
+- **Files changed:**
+  - `examples/cli.py:1071-1075` — Changed validation from `args.wf_step_size <= 0` to `not (0.0 < args.wf_step_size <= 1.0)` with updated error message.
+  - `tests/test_cli.py:360-375` — Updated `test_wf_step_size_positive_is_accepted` to use valid value `0.5` and added `test_wf_step_size_above_one_is_rejected`.
+  - `README.md:699-706` — Updated error message text to match new validation ("in the range (0, 1]").
 
 ## What was actually verified (evidence)
 
-- `python -m pytest -q -p no:cacheprovider tests/test_backtest_report.py "tests/test_cli.py::TestHtmlReportFlag"` → **54 passed** (were failing before matplotlib was installed).
-- `python -m pytest -q -p no:cacheprovider -m "slow" tests/test_readme_cli_commands.py` → **3 passed, 102 deselected** (slow frontier, unchanged/green).
-- Full default suite: `python -m pytest -q -p no:cacheprovider -m "not slow and not network"` → **3516 passed, 1 skipped, 0 failures, 134 deselected**. Previously 14 failed / 3488 passed; now zero failures.
-- `python -m ruff check .` → **All checks passed**.
-- `python -m mypy quant_trading/` → **Success: no issues found in 38 source files**.
-- `python -m pytest -q -p no:cacheprovider tests/test_readme.py tests/test_repository_integrity.py` → **40 passed** (README/integrity guards unchanged and green).
+- `python -m ruff check .` → **All checks passed**
+- `python -m mypy quant_trading/` → **Success: no issues found in 38 source files**
+- `python -m pytest -q -p no:cacheprovider tests/test_cli.py -k "step_size"` → **4 passed** (includes new `test_wf_step_size_above_one_is_rejected`)
+- `python -m pytest -q -p no:cacheprovider tests/test_readme.py tests/test_repository_integrity.py` → **40 passed**
+- `python -m pytest -q -p no:cacheprovider -m "not slow and not network"` → **3517 passed, 1 skipped, 0 failures, 134 deselected** (full default suite, +1 test from previous session)
+- `python -m pytest -q -p no:cacheprovider -m "slow" tests/test_readme_cli_commands.py tests/test_examples_smoke.py` → **130 passed, 102 deselected** (slow frontier)
+- Manual verification:
+  - `--wf-step-size 0.5` → accepted, runs to completion
+  - `--wf-step-size 0` → rejected with "must be in the range (0, 1] (got 0.0)"
+  - `--wf-step-size 2.0` → rejected with "must be in the range (0, 1] (got 2.0)" **before run starts** (no setup output printed)
 
 ## Unresolved / not completed
 
-- None. The baseline is now fully green: default suite, slow frontier, README/integrity guards, ruff, and mypy all pass with zero failures.
+- None. The CLI validation now matches the library and documentation.
 
 ## Failed approaches (do not repeat unchanged)
 
-- None this session. Installing `matplotlib` (network available) directly resolved the environment/optional-dependency gap.
+- None. Single minimal fix addressed the gap.
 
 ## Verification commands (re-run before starting)
 
 ```bash
 python -m ruff check .
 python -m mypy quant_trading/
-python -m pytest -q -p no:cacheprovider tests/test_readme.py tests/test_repository_integrity.py   # expect green
-python -m pytest -q -p no:cacheprovider -m "slow" tests/test_readme_cli_commands.py tests/test_examples_smoke.py   # slow frontier, expect green
-python -m pytest -q -p no:cacheprovider -m "not slow and not network"   # full default suite, expect 0 failures
+python -m pytest -q -p no:cacheprovider tests/test_cli.py -k "step_size"
+python -m pytest -q -p no:cacheprovider tests/test_readme.py tests/test_repository_integrity.py
+python -m pytest -q -p no:cacheprovider -m "not slow and not network"
+python -m pytest -q -p no:cacheprovider -m "slow" tests/test_readme_cli_commands.py tests/test_examples_smoke.py
 ```
 
 ## Git state
 
-- Branch `main`, up to date with `origin/main`. Working tree clean — no uncommitted changes (this session made no repo edits; only installed the `matplotlib` package in the environment).
+- Branch `main`, up to date with `origin/main`. Working tree has changes to `examples/cli.py`, `tests/test_cli.py`, `README.md`.
 
 ## One precise next task
 
-- There is no remaining defect or gap in the repository: every test, lint, and typecheck check is green. If a further task is desired, pick one bounded, high-value item from the repo/tests (e.g. add a `TestRebalancerExampleScript` smoke test to `tests/test_examples_smoke.py`, though `run_rebalancer.py` is already covered by the existing parametrized `test_example_script_runs_offline`). Do not count control-marker-only commits as progress.
-
-(End of file)
+- The baseline is fully green: every test, lint, and typecheck check passes. If a further task is desired, consider adding a `TestRebalancerExampleScript` smoke test to `tests/test_examples_smoke.py` (though `run_rebalancer.py` is already covered by the existing parametrized `test_example_script_runs_offline`), or pick another bounded item from the test suite. Do not count control-marker-only commits as progress.

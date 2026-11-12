@@ -358,10 +358,23 @@ class TestParseArgs:
         assert args.wf_train_size == 0.99
 
     def test_wf_step_size_positive_is_accepted(self):
-        """A small positive ``--wf-step-size`` is accepted."""
-        with patch("sys.argv", ["cli.py", "--walk-forward", "--wf-step-size", "5"]):
+        """A positive ``--wf-step-size`` at most 1.0 is accepted."""
+        with patch("sys.argv", ["cli.py", "--walk-forward", "--wf-step-size", "0.5"]):
             args = parse_args()
-        assert args.wf_step_size == 5
+        assert args.wf_step_size == 0.5
+
+    def test_wf_step_size_above_one_is_rejected(self):
+        """A ``--wf-step-size`` above 1.0 is a usage error naming the flag.
+
+        The library ``WalkForwardOptimizer`` rejects a step above 1.0 (it is a
+        fraction of a window's span), so the CLI has to reject it before the
+        run starts instead of letting it reach the optimizer.
+        """
+        with (
+            patch("sys.argv", ["cli.py", "--walk-forward", "--wf-step-size", "2.0"]),
+            pytest.raises(ValueError, match="invalid --wf-step-size"),
+        ):
+            parse_args()
 
     def test_initial_capital_positive_is_accepted(self):
         """A positive ``--initial-capital`` is accepted."""
