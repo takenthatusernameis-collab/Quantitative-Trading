@@ -1233,6 +1233,16 @@ signals on death crosses (fast MA crosses below slow MA):
 python examples/run_ma_crossover.py
 ```
 
+For a portfolio rebalancing demonstration, see `examples/run_rebalancer.py`.
+It runs a backtest against seeded synthetic data and then uses the
+`Rebalancer` to bring the portfolio back to an equal-weight target
+allocation, printing the planned actions, the executions they produce, and the
+final deviations from the target:
+
+```bash
+python examples/run_rebalancer.py
+```
+
 
 ## Data fetching
 

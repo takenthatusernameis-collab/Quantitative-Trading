@@ -1,40 +1,45 @@
 ## What changed (this session)
 
-- No code change. The repository was already green on `main` (the prior session's `RUF022` `__all__` sort fix in `quant_trading/optimization/__init__.py` is committed/clean). Working tree is clean; nothing staged or committed this session.
+- Completed the slow/deselected verification frontier from the prior handoff (both fronts now confirmed green, not taken on faith).
+- Found and fixed one bounded defect: `examples/run_rebalancer.py` existed (committed in `f410018`) but was not referenced in the README's "Example Scripts" section, so `tests/test_readme.py::TestReadmeExampleScripts::test_every_example_script_is_documented` failed.
+- Fix: added a 10-line documentation block for `examples/run_rebalancer.py` at the end of the "Example Scripts" section (just before `## Data fetching`), matching the style of the other 50 documented example scripts.
+
+No code logic changed. Working tree now clean except the README edit.
 
 ## What was actually verified (evidence)
 
-- `python -m ruff check .` → **All checks passed** (0 errors).
+- `python -m pytest -q -p no:cacheprovider -m "slow" tests/test_readme_cli_commands.py` → **3 passed, 102 deselected** (was the prior handoff's open item #1).
+- `python -m pytest -q -p no:cacheprovider -m "slow" tests/test_examples_smoke.py` → **127 passed** (prior handoff's open item #2). Baseline fully confirmed beyond the default suite.
+- Reproduced the defect first: `tests/test_readme.py::TestReadmeExampleScripts::test_every_example_script_is_documented` → failed with `['run_rebalancer.py']`.
+- After fix: `python -m pytest -q -p no:cacheprovider tests/test_readme.py tests/test_repository_integrity.py` → **40 passed**.
+- `python examples/run_rebalancer.py` → runs to completion, exit 0, prints backtest + rebalance actions/executions/final deviations.
+- `python -m ruff check .` → **All checks passed**.
 - `python -m mypy quant_trading/` → **Success: no issues found in 38 source files**.
-- `python -m pytest -q -p no:cacheprovider -m "not slow and not network"` (full default suite) → **3514 passed, 1 skipped, 132 deselected, exit 0** (~327s). Matches the prior handoff exactly; verified with my own run, not taken on faith.
-- `python -m pytest -q -p no:cacheprovider -m "slow" tests/test_run_optimization_smoke.py` → **1 passed** (slow test excluded from the default suite).
-- Repository integrity guards all pass: `__all__` exports bound, README/code/CLI sync, strategy registry coverage (every registered strategy has an example script + `Test<ClassName>`), example scripts run, no duplicate definitions, no TODOs/FIXMEs.
-- Reverse-`__all__` check: no `__all__` holes (no `extra_in_all`); the only public names absent from `__all__` are submodule names (e.g. `backtest`, `engine`), which is normal Python practice and not a gap.
+- Full default suite: `python -m pytest -q -p no:cacheprovider -m "not slow and not network"` → **14 failed, 3488 passed, 15 skipped, 134 deselected**. All 14 failures are **pre-existing on the clean baseline** (confirmed via `git stash` before/after) and are caused by the missing optional `matplotlib` reporting extra (`ImportError: matplotlib is required for chart generation`), affecting `tests/test_backtest_report.py`, `tests/test_cli.py::TestHtmlReportFlag`, and 2 `tests/test_readme_cli_commands.py` cases. My change introduces **zero** new failures.
 
 ## Unresolved / not completed
 
-- None. No demonstrated bug, gap, or regression was found. The package is complete and green.
+- The 14 pre-existing `matplotlib`-dependent report/CLI failures remain unresolved. They are an environment/optional-dependency gap, not a code defect. Installing `quant-trading[reporting]` (or `matplotlib`) would clear them; this was not done as it is out of scope for the documented task.
 
 ## Failed approaches (do not repeat unchanged)
 
-- None this session. (Investigated `__all__` reverse-direction completeness — found clean, not a gap.)
+- None this session. The single failing test was a straightforward documentation gap with an obvious, minimal fix.
 
 ## Verification commands (re-run before starting)
 
 ```bash
 python -m ruff check .
 python -m mypy quant_trading/
-python -m pytest -q -p no:cacheprovider -m "not slow and not network"   # full default suite; expect green
+python -m pytest -q -p no:cacheprovider tests/test_readme.py tests/test_repository_integrity.py   # expect green
+python -m pytest -q -p no:cacheprovider -m "slow" tests/test_readme_cli_commands.py tests/test_examples_smoke.py   # slow frontier, expect green
 ```
 
 ## Git state
 
-- Branch `main`, up to date with `origin/main`. Working tree clean. Nothing committed this session (no change was needed).
+- Branch `main`, up to date with `origin/main`. One unstaged change: `README.md` (+10 lines documenting `examples/run_rebalancer.py`). Nothing committed — commit only if explicitly requested.
 
 ## One precise next task
 
-Complete the slow/deselected verification frontier so the baseline is fully confirmed beyond the default suite, then select a bounded issue:
+The baseline is now fully verified (default suite green apart from the pre-existing optional-`matplotlib` gap; slow frontier green). The only demonstrated defect was the missing `run_rebalancer.py` README entry, now fixed. If a further task is desired, pick one bounded, high-value issue from the repo/tests — e.g. add a `TestRebalancerExampleScript` smoke test to `tests/test_examples_smoke.py` to lock the new example script in the coverage set, or install the `reporting` extra to clear the 14 known `matplotlib` failures and re-verify. Do not count control-marker-only commits as progress.
 
-1. Run `python -m pytest -q -p no:cacheprovider -m "slow" tests/test_readme_cli_commands.py` — covers the `--combined` README CLI commands (marked `slow`, deselected by default). Expect green.
-2. Optionally run `python -m pytest -q -p no:cacheprovider -m "slow" tests/test_examples_smoke.py` — covers example-script import/execution checks and CLI user-error reporting (entire module is `slow`; may take several minutes).
-3. If all green, the baseline is fully verified. Then pick one bounded, high-value issue from the repo/tests (e.g. a strategy behaviour gap, a CLI flag, or a README sync item) and implement + verify it with the commands above; do not count control-marker-only commits as progress.
+(End of file)
