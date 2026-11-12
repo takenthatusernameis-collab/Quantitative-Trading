@@ -449,6 +449,15 @@ the command line without touching the config file:
 python examples/cli.py --offline --commission 0.001 --slippage 0.0005 --risk-free-rate 0.02 --symbols AAPL --days 30
 ```
 
+The `--commission` and `--slippage` arguments are checked before the run
+starts and must be in the range ``[0, 1]`` (fractions of trade value). A value
+outside that range is rejected late by the library when the backtest runs:
+
+```bash
+$ python examples/cli.py --offline --commission 1.5 --symbols AAPL
+Error: invalid --commission: the value must be in the range [0, 1] (got 1.5)
+```
+
 `--interval` works the same way: it overrides the `data.default_interval` of
 the file, and defaults to the configured value, or to `"1d"` when no file is
 given.

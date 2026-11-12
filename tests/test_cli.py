@@ -562,11 +562,30 @@ class TestParseArgs:
         ):
             parse_args()
 
+    def test_commission_above_one_is_rejected(self):
+        """A ``--commission`` above 1.0 is a usage error naming the flag.
+
+        The library rejects a commission outside ``[0, 1]``, so the CLI has to
+        reject it before the run starts instead of reporting it late as a
+        backtest error.
+        """
+        with (
+            patch("sys.argv", ["cli.py", "--commission", "1.5"]),
+            pytest.raises(ValueError, match="invalid --commission"),
+        ):
+            parse_args()
+
     def test_commission_zero_is_accepted(self):
         """A ``--commission`` of zero (no commission) is accepted."""
         with patch("sys.argv", ["cli.py", "--commission", "0"]):
             args = parse_args()
         assert args.commission == 0.0
+
+    def test_commission_one_is_accepted(self):
+        """A ``--commission`` of 1.0 is accepted."""
+        with patch("sys.argv", ["cli.py", "--commission", "1"]):
+            args = parse_args()
+        assert args.commission == 1.0
 
     def test_slippage_negative_is_rejected(self):
         """A negative ``--slippage`` is a usage error naming the flag."""
@@ -576,11 +595,30 @@ class TestParseArgs:
         ):
             parse_args()
 
+    def test_slippage_above_one_is_rejected(self):
+        """A ``--slippage`` above 1.0 is a usage error naming the flag.
+
+        The library rejects a slippage outside ``[0, 1]``, so the CLI has to
+        reject it before the run starts instead of reporting it late as a
+        backtest error.
+        """
+        with (
+            patch("sys.argv", ["cli.py", "--slippage", "1.5"]),
+            pytest.raises(ValueError, match="invalid --slippage"),
+        ):
+            parse_args()
+
     def test_slippage_zero_is_accepted(self):
         """A ``--slippage`` of zero (no slippage) is accepted."""
         with patch("sys.argv", ["cli.py", "--slippage", "0"]):
             args = parse_args()
         assert args.slippage == 0.0
+
+    def test_slippage_one_is_accepted(self):
+        """A ``--slippage`` of 1.0 is accepted."""
+        with patch("sys.argv", ["cli.py", "--slippage", "1"]):
+            args = parse_args()
+        assert args.slippage == 1.0
 
     def test_unsupported_interval_is_rejected(self):
         """An unsupported ``--interval`` is a usage error naming the flag."""

@@ -1128,13 +1128,15 @@ def parse_args() -> argparse.Namespace:
             f"invalid --initial-capital: the value must be greater than 0 "
             f"(got {args.initial_capital})"
         )
-    if args.commission is not None and args.commission < 0:
+    if args.commission is not None and not (0.0 <= args.commission <= 1.0):
         raise ValueError(
-            f"invalid --commission: the value must be non-negative " f"(got {args.commission})"
+            f"invalid --commission: the value must be in the range [0, 1] "
+            f"(got {args.commission})"
         )
-    if args.slippage is not None and args.slippage < 0:
+    if args.slippage is not None and not (0.0 <= args.slippage <= 1.0):
         raise ValueError(
-            f"invalid --slippage: the value must be non-negative " f"(got {args.slippage})"
+            f"invalid --slippage: the value must be in the range [0, 1] "
+            f"(got {args.slippage})"
         )
     return args
 
