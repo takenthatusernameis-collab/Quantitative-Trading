@@ -9,6 +9,7 @@ Additional feature:
 
 import argparse
 import inspect
+import math
 import re
 import sys
 from datetime import datetime, timedelta
@@ -1141,6 +1142,21 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             f"invalid --slippage: the value must be in the range [0, 1] "
             f"(got {args.slippage})"
+        )
+    if args.risk_free_rate is not None and not math.isfinite(args.risk_free_rate):
+        raise ValueError(
+            f"invalid --risk-free-rate: the value must be finite "
+            f"(got {args.risk_free_rate})"
+        )
+    if not math.isfinite(args.regime_vol_threshold):
+        raise ValueError(
+            f"invalid --regime-vol-threshold: the value must be finite "
+            f"(got {args.regime_vol_threshold})"
+        )
+    if not math.isfinite(args.regime_return_threshold):
+        raise ValueError(
+            f"invalid --regime-return-threshold: the value must be finite "
+            f"(got {args.regime_return_threshold})"
         )
     return args
 

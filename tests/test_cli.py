@@ -547,6 +547,62 @@ class TestParseArgs:
             args = parse_args()
         assert args.mc_seed is None
 
+    def test_risk_free_rate_non_finite_is_rejected(self):
+        """A non-finite ``--risk-free-rate`` is rejected up front.
+
+        ``risk_free_rate`` is consumed directly by the Sharpe/Sortino
+        calculations and has no library-level finite check, so ``nan``/``inf``
+        would silently turn every risk-adjusted metric into ``nan`` while the
+        run still exits 0. ``parse_args`` names the flag and fails before the
+        backtest runs.
+        """
+        for value in ("nan", "inf", "-inf"):
+            with (
+                patch(
+                    "sys.argv",
+                    ["cli.py", "--offline", f"--risk-free-rate={value}"],
+                ),
+                pytest.raises(ValueError, match="invalid --risk-free-rate"),
+            ):
+                parse_args()
+
+    def test_risk_free_rate_finite_is_accepted(self):
+        """Finite ``--risk-free-rate`` values (including negative rates) are accepted."""
+        for value in ("-0.01", "0", "0.05", "1.5"):
+            with (
+                patch("sys.argv", ["cli.py", "--offline", "--risk-free-rate", value]),
+            ):
+                args = parse_args()
+            assert args.risk_free_rate == float(value)
+
+    def test_risk_free_rate_default_is_accepted(self):
+        """The default ``--risk-free-rate`` of ``None`` is accepted."""
+        with patch("sys.argv", ["cli.py", "--offline"]):
+            args = parse_args()
+        assert args.risk_free_rate is None
+
+    def test_regime_thresholds_non_finite_are_rejected(self):
+        """Non-finite ``--regime-*-threshold`` values are rejected up front.
+
+        The thresholds default to ``0.0`` (auto), so a ``nan``/``inf`` value
+        produces a bogus single regime segment instead of the expected
+        low/high split. The CLI rejects them before the run starts.
+        """
+        for flag in ("--regime-vol-threshold", "--regime-return-threshold"):
+            for value in ("nan", "inf", "-inf"):
+                with (
+                    patch("sys.argv", ["cli.py", "--offline", f"{flag}={value}"]),
+                    pytest.raises(ValueError, match=f"invalid {flag}"),
+                ):
+                    parse_args()
+
+    def test_regime_thresholds_default_is_accepted(self):
+        """The default ``0.0`` (auto) thresholds are accepted."""
+        with patch("sys.argv", ["cli.py", "--offline"]):
+            args = parse_args()
+        assert args.regime_vol_threshold == 0.0
+        assert args.regime_return_threshold == 0.0
+
     def test_initial_capital_non_positive_is_rejected(self):
         """A ``--initial-capital`` of zero or below is a usage error naming the flag."""
         for value in ("0", "-1"):

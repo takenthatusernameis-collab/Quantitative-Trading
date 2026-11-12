@@ -1,104 +1,115 @@
 ## What changed (this session)
 
-- Added `--mc-seed` validation to the CLI, matching the established bounded-value
-  pattern (see `--mc-simulations`, `--synthetic-seed`, `--days`, etc.).
-  - `examples/cli.py`: in `parse_args`, reject `args.mc_seed < 0` (only when the
-    value is not `None`, since `None` means "nondeterministic") with
-    `ValueError("invalid --mc-seed: the value must be at least 0 (got N)")`.
-  - `tests/test_cli.py`: five new tests in `TestParseArgs` —
-    `test_mc_seed_negative_is_rejected` (-1/-100),
-    `test_mc_seed_zero_is_accepted`, `test_mc_seed_positive_is_accepted`,
-    `test_mc_seed_large_is_accepted` (2**40), `test_mc_seed_default_is_accepted`
-    (`None`).
-  - `README.md`: documented the check in the Monte Carlo section (the error
-    example uses the `$ ` prompt form, so it is not executed as a runnable
-    README command).
+- Added parse-time finite-value validation to the CLI, following the established
+  `parse_args` convention (see `--mc-seed`, `--slippage`, `--commission`).
+  - `examples/cli.py`: imported `math`; in `parse_args`, reject non-finite
+    `--risk-free-rate` (only when not `None`, since `None` means "use config
+    value") with
+    `ValueError("invalid --risk-free-rate: the value must be finite (got N)")`.
+    Also reject non-finite `--regime-vol-threshold` and
+    `--regime-return-threshold` (both default to `0.0` meaning "auto", so only
+    `nan`/`inf` are rejected).
+  - `tests/test_cli.py`: six new tests in `TestParseArgs` —
+    `test_risk_free_rate_non_finite_is_rejected` (`nan`/`inf`/`-inf`),
+    `test_risk_free_rate_finite_is_accepted` (incl. negative rate),
+    `test_risk_free_rate_default_is_accepted` (`None`),
+    `test_regime_thresholds_non_finite_are_rejected`,
+    `test_regime_thresholds_default_is_accepted` (`0.0`).
+    Non-finite cases use the `--flag=value` argv form because a bare `-inf`
+    token is consumed by argparse as an option, not a value.
+  - `README.md`: documented the finite checks in the config-override section
+    (risk-free rate) and the market-regime section (thresholds), using the `$ `
+    prompt form so the error examples are not executed as commands.
 - **Files changed:** `examples/cli.py`, `tests/test_cli.py`, `README.md`.
 
 ## Why this task (evidence)
 
-- The previous handoff's "next task" (`--synthetic-seed` validation) was already
-  implemented and committed in `a891f0d`, and a matching library-level check was
-  added in `aa615ab` (`quant_trading/config/settings.py` `DataConfig`). Both were
-  verified before starting: `tests/test_cli.py -k "synthetic_days or synthetic_seed
-  or days or regime"` → 28 passed.
-- A genuine remaining gap was found: `--mc-seed` had no validation.
-  Root cause: `args.mc_seed` is passed straight to
-  `np.random.default_rng(random_state)` (examples/cli.py:2247 →
-  quant_trading/monte_carlo/simulator.py:400). `default_rng` accepts any
-  non-negative integer (arbitrary size) but rejects negatives with
-  `ValueError("expected non-negative integer")`.
-  Probe before the fix:
-  - `--monte-carlo --mc-seed -1` → ran the **entire backtest first**, then printed
-    `Error running backtest: expected non-negative integer`, exit 1. (The error is
-    caught by the broad `except (ValueError, RuntimeError, KeyError)` at
-    examples/cli.py:2534, so the user gets no flag name and wastes the run.)
-  - `--monte-carlo --mc-seed 0` / `42` / `2**40` → normal run, exit 0.
+- The previous handoff's "next task" was exactly this gap. Root cause confirmed:
+  `args.risk_free_rate` is assigned to `config.backtest.risk_free_rate`
+  (examples/cli.py) and consumed by the Sharpe/Sortino calculations; neither the
+  CLI nor `BacktestConfig` checked finiteness. `BacktestConfig.__post_init__`
+  validates `initial_capital`, `periods_per_year`, `commission`, `slippage` but
+  **not** `risk_free_rate`.
+- Probe before the fix (from the previous handoff): `--risk-free-rate nan` printed
+  `Sharpe Ratio: nan` and exited 0 (silent corruption).
+- The regime thresholds (`--regime-vol-threshold`, `--regime-return-threshold`)
+  had the same gap: `nan`/`inf` produced a bogus single regime segment and exit 0.
 
 ## What was actually verified (evidence)
 
-- `python -m pytest -q -p no:cacheprovider tests/test_cli.py -k "mc_seed or
-  synthetic_seed or mc_simulations or monte_carlo"` → **23 passed**.
+- `python -m pytest -q -p no:cacheprovider tests/test_cli.py -k "risk_free_rate or
+  regime_threshold"` → **9 passed**.
 - `python -m pytest -q -p no:cacheprovider tests/test_cli.py::TestParseArgs`
-  → **75 passed**.
+  → **80 passed**.
 - `python -m pytest -q -p no:cacheprovider tests/test_repository_integrity.py
-  tests/test_config.py tests/test_readme.py` → **160 passed**.
+  tests/test_readme.py tests/test_config.py` → **160 passed**.
 - `python -m py_compile examples/cli.py tests/test_cli.py` → OK.
 - Manual CLI probes after the fix:
-  - `--monte-carlo --mc-seed -1` → `Error: invalid --mc-seed: the value must be at
-    least 0 (got -1)`, exit 1, **before** the backtest runs.
-  - `--monte-carlo --mc-seed 0 --days 30 --offline` → normal run, exit 0.
+  - `--risk-free-rate nan` → `Error: invalid --risk-free-rate: the value must be
+    finite (got nan)`, exit 1, before the run.
+  - `--regime-vol-threshold inf` → `Error: invalid --regime-vol-threshold: the
+    value must be finite (got inf)`, exit 1.
+  - `--risk-free-rate 0.05 --regime-vol-threshold 0.2 --days 120 --offline` →
+    normal run, exit 0.
+- Full `tests/test_cli.py` → **285 passed, 9 failed**. The 9 failures are the
+  pre-existing `TestHtmlReportFlag` (`--report`) cases that require matplotlib,
+  which is not installed in this minimal env (confirmed
+  `import matplotlib` → `ModuleNotFoundError`). Unrelated to this change.
 
-### Environment caveat (important for the next session)
+### Environment caveat (unchanged)
 
-This container is a **minimal env** (Python 3.14.4, pandas 3.1.1, numpy 2.5.4,
-pytest 9.2.0). `ruff`, `mypy`, `matplotlib`, and `scikit-optimize` are **NOT
-installed**, so lint/type checks cannot run and some tests fail for environmental
-reasons only. Confirmed pre-existing, unrelated to this change:
-- `tests/test_cli.py`: 9 failures in `TestHtmlReportFlag` (`--report`) need
-  matplotlib.
-- `tests/test_readme_cli_commands.py`: 5 failures need scikit-optimize (3) or
-  matplotlib (2).
+Minimal env (Python 3.14.4, pandas 3.1.1, numpy 2.5.4, pytest 9.2.0).
+`ruff`, `mypy`, `matplotlib`, `scikit-optimize` are **NOT** installed, so
+lint/type checks cannot run and the 9 matplotlib report tests + 5
+`tests/test_readme_cli_commands.py` tests fail for environmental reasons only.
 
 ## Unresolved / not completed
 
 - None for this task. The change is minimal, isolated, and verified.
-- Not runnable in this env (no ruff/mypy): lint/type checks. The change follows
-  the existing formatting/type patterns exactly.
+- Lint/type checks not run (no ruff/mypy). The change follows existing
+  formatting/type patterns exactly.
 
 ## Failed approaches (do not repeat unchanged)
 
-- None this session.
+- Passing `-inf` as a separate argv token in tests: argparse consumes a bare
+  `-inf` as an option (`SystemExit: expected one argument`). Use the
+  `--flag=value` form for values starting with `-`.
 
 ## Git state
 
-- Branch `main`. The `--mc-seed` change was committed this session. See
-  `git log --oneline -3`.
+- Branch `main`. The `--risk-free-rate` / regime-threshold change was committed
+  this session. See `git log --oneline -3`.
 
 ## One precise next task
 
-- **`--risk-free-rate` accepts non-finite values and silently corrupts metrics.**
-  `args.risk_free_rate` is assigned to `config.backtest.risk_free_rate`
-  (examples/cli.py:1512) and consumed by the Sharpe/Sortino calculations. It has
-  no validation at the CLI or in `BacktestConfig` (quant_trading/config/settings.py
-  validates `initial_capital`, `commission`, `slippage`, `periods_per_year` but
-  **not** `risk_free_rate`).
-  - Evidence (before any fix):
-    `python examples/cli.py --offline --strategy rsi --days 120 --symbols AAPL
-    --risk-free-rate nan` → prints `Sharpe Ratio: nan` and exits **0** (silent
-    corruption). `--regime-vol-threshold nan` likewise produces a bogus single
-    regime segment and exits 0.
-  - Concrete step: in `parse_args`, when `args.risk_free_rate is not None`, reject
-    non-finite values with a message like
-    `invalid --risk-free-rate: the value must be finite (got N)` (use
-    `math.isfinite`). Optionally apply the same finite check to
-    `--regime-vol-threshold` and `--regime-return-threshold` (both default to 0.0
-    meaning "auto", so only reject `nan`/`inf`).
-  - Add `tests/test_cli.py` cases (reject `nan`/`inf`/`-inf`; accept a normal value
-    and the `None` default) and a README note/example (use the `$ ` prompt form so
-    it is not executed).
-  - Constraints: keep the check in `parse_args` (not the library) to match the
-    established CLI-validation convention; do not reject negative rates unless you
-    decide that is in scope (negative real rates are legitimate, so prefer a
-    finite-only check). Run `tests/test_cli.py::TestParseArgs` +
-    `tests/test_repository_integrity.py` + `tests/test_readme.py`.
+- **Non-finite float strategy parameters are silently accepted and corrupt runs.**
+  The strategy constructors validate positivity with `<= 0`, which lets `nan`
+  and `inf` through (`nan <= 0` and `inf <= 0` are both `False`).
+  - Evidence gathered this session:
+    - Source: `quant_trading/strategies/examples.py:566` uses
+      `if self.std_dev <= 0`, `:918` uses `if self.multiplier <= 0` (and similar
+      guards at the ATR/Keltner/SuperTrend/etc. constructors).
+    - Library: `BollingerBandsStrategy(period=20, std_dev=float('nan'))` →
+      constructs OK (`s.std_dev` is `nan`).
+      `AverageTrueRangeStrategy(period=14, atr_multiplier=float('inf'))` and
+      `... = float('nan')` → both construct OK.
+    - CLI: `python examples/cli.py --offline --strategy bb --bb-period 20
+      --bb-std nan --days 60 --symbols AAPL` → prints an all-zero result
+      (`Profit Factor: 0.00`, `Sortino Ratio: 0.00`, ...) and exits **0** (silent
+      degenerate run, no error, no trades).
+  - Concrete step: reject non-finite float parameters at the **library
+    constructor** level (root cause, also protects direct API users), e.g. change
+    `if self.std_dev <= 0:` to
+    `if not math.isfinite(self.std_dev) or self.std_dev <= 0:` in
+    `quant_trading/strategies/examples.py` (import `math`), and apply the same
+    finite guard to the other float params guarded by `<= 0`
+    (`multiplier`/`atr_multiplier`, `st_multiplier`, `kc_multiplier`, etc.).
+    Integer `period` params are unaffected by nan/inf, but a finite guard is
+    harmless there; prefer the minimal float-only change.
+  - Add tests in `tests/test_strategy*.py` (or the existing strategy test file —
+    locate it with `glob tests/**/*strateg*`) covering `nan`/`inf` rejection and
+    normal-value acceptance for the affected strategies.
+  - Constraints: do **not** reject negative values (the existing `<= 0` rule
+    already covers those); only add the finite check. Keep changes minimal and
+    localized. Run the strategy test file plus
+    `tests/test_repository_integrity.py` + `tests/test_config.py`.

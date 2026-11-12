@@ -458,6 +458,16 @@ $ python examples/cli.py --offline --commission 1.5 --symbols AAPL
 Error: invalid --commission: the value must be in the range [0, 1] (got 1.5)
 ```
 
+`--risk-free-rate` is checked the same way and must be finite. A `nan` or
+`inf` rate is consumed directly by the Sharpe and Sortino calculations, which
+would otherwise turn every risk-adjusted metric into `nan` while the run still
+exits 0:
+
+```bash
+$ python examples/cli.py --offline --risk-free-rate nan --symbols AAPL
+Error: invalid --risk-free-rate: the value must be finite (got nan)
+```
+
 `--interval` works the same way: it overrides the `data.default_interval` of
 the file, and defaults to the configured value, or to `"1d"` when no file is
 given.
@@ -800,6 +810,15 @@ crashes deep inside pandas:
 ```bash
 $ python examples/cli.py --offline --regime --regime-window 1 --symbols AAPL --days 30
 Error: invalid --regime-window: the value must be at least 2 (got 1)
+```
+
+The `--regime-vol-threshold` and `--regime-return-threshold` arguments are also
+checked before the run starts and must be finite. They default to `0.0`, which
+means "derive the threshold from the data", so only `nan`/`inf` are rejected:
+
+```bash
+$ python examples/cli.py --offline --regime --regime-vol-threshold nan --symbols AAPL
+Error: invalid --regime-vol-threshold: the value must be finite (got nan)
 ```
 
 ### CLI Trade Analysis
