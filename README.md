@@ -715,6 +715,15 @@ $ python examples/cli.py --offline --walk-forward --wf-windows 0 --symbols AAPL 
 Error: invalid --wf-windows: the value must be at least 1 (got 0)
 ```
 
+The `--periods-per-year` argument is checked before the run starts. It is the number of
+trading periods per year used for annualization and has to be at least 1, because zero or
+negative values divide by zero deep inside the metrics calculation:
+
+```bash
+$ python examples/cli.py --periods-per-year 0 --symbols AAPL --days 30
+Error: invalid --periods-per-year: the value must be at least 1 (got 0)
+```
+
 ### CLI Market Regime Analysis
 
 Annotate a backtest's equity curve with market-regime labels

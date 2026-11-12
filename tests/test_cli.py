@@ -341,6 +341,34 @@ class TestParseArgs:
             args = parse_args()
         assert args.wf_windows == 1
 
+    def test_periods_per_year_below_one_is_rejected(self):
+        """A ``--periods-per-year`` of zero or below is a usage error naming the flag.
+
+        The library and ``Config`` reject a ``periods_per_year`` below 1, but the
+        CLI previously let such a value reach the backtest deep inside the run,
+        where it surfaced as a confusing failure instead of a clean one-liner that
+        names the offending flag. Reject it up front, like every other bounded CLI
+        value.
+        """
+        for value in ("0", "-1"):
+            with (
+                patch("sys.argv", ["cli.py", "--periods-per-year", value]),
+                pytest.raises(ValueError, match="invalid --periods-per-year"),
+            ):
+                parse_args()
+
+    def test_periods_per_year_one_is_accepted(self):
+        """A ``--periods-per-year`` of one is accepted."""
+        with patch("sys.argv", ["cli.py", "--periods-per-year", "1"]):
+            args = parse_args()
+        assert args.periods_per_year == 1
+
+    def test_periods_per_year_none_default_is_accepted(self):
+        """An unset ``--periods-per-year`` is accepted and left as ``None``."""
+        with patch("sys.argv", ["cli.py"]):
+            args = parse_args()
+        assert args.periods_per_year is None
+
     def test_initial_capital_non_positive_is_rejected(self):
         """A ``--initial-capital`` of zero or below is a usage error naming the flag."""
         for value in ("0", "-1"):

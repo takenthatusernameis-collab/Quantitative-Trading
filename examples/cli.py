@@ -1077,6 +1077,11 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             f"invalid --wf-windows: the value must be at least 1 " f"(got {args.wf_windows})"
         )
+    if args.periods_per_year is not None and args.periods_per_year < 1:
+        raise ValueError(
+            f"invalid --periods-per-year: the value must be at least 1 "
+            f"(got {args.periods_per_year})"
+        )
     if args.n_iter < 1:
         raise ValueError(f"invalid --n-iter: the value must be at least 1 " f"(got {args.n_iter})")
     if args.bayesian_n_initial < 1:
