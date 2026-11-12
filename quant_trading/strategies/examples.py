@@ -7466,14 +7466,17 @@ class ChoppinessIndexStrategy(Strategy):
             "low_threshold": low_threshold,
             "high_threshold": high_threshold,
         }
+        self.validate_parameters()
 
     def validate_parameters(self) -> None:
         if self.period <= 0:
             raise ValueError("period must be positive")
+        if not math.isfinite(self.low_threshold) or self.low_threshold < 0:
+            raise ValueError("low_threshold must be non-negative")
+        if not math.isfinite(self.high_threshold) or self.high_threshold > 100:
+            raise ValueError("high_threshold must be at most 100")
         if self.low_threshold >= self.high_threshold:
             raise ValueError("low_threshold must be less than high_threshold")
-        if self.low_threshold < 0 or self.high_threshold > 100:
-            raise ValueError("thresholds must be between 0 and 100")
 
     def _calculate_choppiness_index(self, df: pd.DataFrame) -> pd.Series:
         """Calculate Choppiness Index."""

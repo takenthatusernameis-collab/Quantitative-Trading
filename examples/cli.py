@@ -268,6 +268,9 @@ CLI_ARG_DEFAULTS = {
     "sar_max_step": 0.20,
     "adx_period": 14,
     "adx_threshold": 25.0,
+    "chop_period": 14,
+    "chop_low_threshold": 38.2,
+    "chop_high_threshold": 61.8,
 }
 
 
@@ -1040,6 +1043,24 @@ def _create_parser() -> argparse.ArgumentParser:
         default=CLI_ARG_DEFAULTS["adx_threshold"],
         help="ADX trend-strength threshold",
     )
+    parser.add_argument(
+        "--chop-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["chop_period"],
+        help="Choppiness Index period",
+    )
+    parser.add_argument(
+        "--chop-low-threshold",
+        type=float,
+        default=CLI_ARG_DEFAULTS["chop_low_threshold"],
+        help="Choppiness Index low threshold (trending)",
+    )
+    parser.add_argument(
+        "--chop-high-threshold",
+        type=float,
+        default=CLI_ARG_DEFAULTS["chop_high_threshold"],
+        help="Choppiness Index high threshold (choppy)",
+    )
 
     return parser
 
@@ -1266,6 +1287,11 @@ def create_strategy(args: argparse.Namespace):
         ],
         "sar": [("sar_step", "step"), ("sar_max_step", "max_step")],
         "adx": [("adx_period", "period"), ("adx_threshold", "threshold")],
+        "chop": [
+            ("chop_period", "period"),
+            ("chop_low_threshold", "low_threshold"),
+            ("chop_high_threshold", "high_threshold"),
+        ],
         "vwap": [],
     }
 
@@ -1314,6 +1340,8 @@ def create_strategy(args: argparse.Namespace):
             kwargs["name"] = f"Parabolic_SAR_{args.sar_step}_{args.sar_max_step}"
         elif args.strategy == "adx":
             kwargs["name"] = f"ADX_{args.adx_period}_{args.adx_threshold}"
+        elif args.strategy == "chop":
+            kwargs["name"] = f"Choppiness_{args.chop_period}_{args.chop_low_threshold}_{args.chop_high_threshold}"
         elif args.strategy == "vwap":
             kwargs["name"] = "VWAP"
 
