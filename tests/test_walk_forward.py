@@ -27,7 +27,9 @@ def _minimal_kwargs():
 class TestWalkForwardInitValidation:
     """Tests for input validation in WalkForwardOptimizer.__init__."""
 
-    @pytest.mark.parametrize("initial_capital", [0.0, -1000.0, -1.0])
+    @pytest.mark.parametrize(
+        "initial_capital", [0.0, -1000.0, -1.0, float("nan"), float("inf"), float("-inf")]
+    )
     def test_rejects_invalid_initial_capital(self, initial_capital):
         with pytest.raises(ValueError, match="invalid initial_capital"):
             WalkForwardOptimizer(**_minimal_kwargs(), initial_capital=initial_capital)
@@ -57,7 +59,9 @@ class TestWalkForwardInitValidation:
         optimizer = WalkForwardOptimizer(**_minimal_kwargs(), step_size=step_size)
         assert optimizer.step_size == step_size
 
-    @pytest.mark.parametrize("periods_per_year", [0, -1, -252])
+    @pytest.mark.parametrize(
+        "periods_per_year", [0, -1, -252, float("nan"), float("inf"), float("-inf")]
+    )
     def test_rejects_invalid_periods_per_year(self, periods_per_year):
         with pytest.raises(ValueError, match="invalid periods_per_year"):
             WalkForwardOptimizer(

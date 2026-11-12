@@ -1,115 +1,124 @@
 ## What changed (this session)
 
-- Added parse-time finite-value validation to the CLI, following the established
-  `parse_args` convention (see `--mc-seed`, `--slippage`, `--commission`).
-  - `examples/cli.py`: imported `math`; in `parse_args`, reject non-finite
-    `--risk-free-rate` (only when not `None`, since `None` means "use config
-    value") with
-    `ValueError("invalid --risk-free-rate: the value must be finite (got N)")`.
-    Also reject non-finite `--regime-vol-threshold` and
-    `--regime-return-threshold` (both default to `0.0` meaning "auto", so only
-    `nan`/`inf` are rejected).
-  - `tests/test_cli.py`: six new tests in `TestParseArgs` —
-    `test_risk_free_rate_non_finite_is_rejected` (`nan`/`inf`/`-inf`),
-    `test_risk_free_rate_finite_is_accepted` (incl. negative rate),
-    `test_risk_free_rate_default_is_accepted` (`None`),
-    `test_regime_thresholds_non_finite_are_rejected`,
-    `test_regime_thresholds_default_is_accepted` (`0.0`).
-    Non-finite cases use the `--flag=value` argv form because a bare `-inf`
-    token is consumed by argparse as an option, not a value.
-  - `README.md`: documented the finite checks in the config-override section
-    (risk-free rate) and the market-regime section (thresholds), using the `$ `
-    prompt form so the error examples are not executed as commands.
-- **Files changed:** `examples/cli.py`, `tests/test_cli.py`, `README.md`.
+- Rejected non-finite `initial_capital` and `periods_per_year` at every
+  validation surface that already range-checked them. Root cause: the existing
+  guards used `<= 0` / `< 1`, and `nan <= 0`, `inf <= 0`, `nan < 1` are all
+  `False`, so non-finite values slipped through and silently produced all-`nan`
+  metrics with exit code 0.
+  - `quant_trading/config/settings.py` — `BacktestConfig.__post_init__`:
+    `if not math.isfinite(self.initial_capital) or self.initial_capital <= 0`
+    and the same for `periods_per_year` (`< 1`).
+  - `quant_trading/optimization/base.py` — `BaseOptimizer.__init__` (added
+    `import math`), same finite guards for `initial_capital` /
+    `periods_per_year`.
+  - `quant_trading/optimization/walk_forward.py` — `WalkForwardOptimizer`
+    (added `import math`), same finite guards.
+  - `examples/cli.py` — `parse_args` now rejects non-finite `--initial-capital`
+    (`nan`/`inf`/`-inf`), message
+    `invalid --initial-capital: the value must be greater than 0 and finite`.
+  - Error message wording for the two fields changed to "positive and finite" /
+    "at least 1 and finite"; existing tests match the `invalid <field>` prefix,
+    so they still pass.
+- Tests:
+  - `tests/test_config.py`: extended the `initial_capital` /
+    `periods_per_year` reject parametrizations with `nan`, `inf`, `-inf`.
+  - `tests/test_optimization.py` and `tests/test_walk_forward.py`: same
+    extension for the two optimizer constructors.
+  - `tests/test_cli.py`: new `test_initial_capital_non_finite_is_rejected`
+    (uses `--flag=value` form because a bare `-inf` token is parsed as an
+    option).
+- `README.md`: documented the finite `--initial-capital` check and that the
+  library config/optimizers enforce it too.
+- **Files changed:** `quant_trading/config/settings.py`,
+  `quant_trading/optimization/base.py`,
+  `quant_trading/optimization/walk_forward.py`, `examples/cli.py`,
+  `tests/test_config.py`, `tests/test_optimization.py`,
+  `tests/test_walk_forward.py`, `tests/test_cli.py`, `README.md`.
+- Changes are **not committed**; the working tree holds them (the previous
+  session's commits used empty messages).
 
 ## Why this task (evidence)
 
-- The previous handoff's "next task" was exactly this gap. Root cause confirmed:
-  `args.risk_free_rate` is assigned to `config.backtest.risk_free_rate`
-  (examples/cli.py) and consumed by the Sharpe/Sortino calculations; neither the
-  CLI nor `BacktestConfig` checked finiteness. `BacktestConfig.__post_init__`
-  validates `initial_capital`, `periods_per_year`, `commission`, `slippage` but
-  **not** `risk_free_rate`.
-- Probe before the fix (from the previous handoff): `--risk-free-rate nan` printed
-  `Sharpe Ratio: nan` and exited 0 (silent corruption).
-- The regime thresholds (`--regime-vol-threshold`, `--regime-return-threshold`)
-  had the same gap: `nan`/`inf` produced a bogus single regime segment and exit 0.
+- The previous handoff's "next task" (strategy float `std_dev`/`multiplier`
+  finite guards) was **already implemented** in the code before this session.
+  Verified by probe: `BollingerBandsStrategy(std_dev=nan)`,
+  `AverageTrueRangeStrategy(atr_multiplier=nan|inf)` and
+  `SuperTrendStrategy(multiplier=nan)` are all rejected. Do not redo it.
+- The remaining hole of the same class was the backtest/optimizer capital and
+  annualization fields. Reproduced before the fix:
+  - `BacktestConfig(initial_capital=nan)` / `(initial_capital=inf)` /
+    `(periods_per_year=nan)` → constructed OK.
+  - `GridSearch(..., initial_capital=nan|inf)` and
+    `WalkForwardOptimizer(..., initial_capital=nan)` → constructed OK.
+  - `python examples/cli.py --offline --initial-capital nan --symbols AAPL
+    --days 30` → printed `Initial Capital: $nan`, all metrics `nan`/`0`, exit 0.
 
 ## What was actually verified (evidence)
 
-- `python -m pytest -q -p no:cacheprovider tests/test_cli.py -k "risk_free_rate or
-  regime_threshold"` → **9 passed**.
+- Library probes after the fix: all of `nan`/`inf`/`-inf` for `initial_capital`
+  and `periods_per_year` are now rejected by `BacktestConfig`, `GridSearch`
+  (via `BaseOptimizer`) and `WalkForwardOptimizer`; finite positive values
+  still construct.
+- CLI probes after the fix:
+  - `--initial-capital nan|inf` and `--initial-capital=-inf` → `Error: invalid
+    --initial-capital: the value must be greater than 0 and finite (...)`, exit 1.
+  - `--initial-capital 50000 --offline ...` → normal run, exit 0.
+- `python -m pytest -q -p no:cacheprovider tests/test_config.py
+  tests/test_walk_forward.py tests/test_optimization.py` → **356 passed, 37
+  skipped**.
 - `python -m pytest -q -p no:cacheprovider tests/test_cli.py::TestParseArgs`
-  → **80 passed**.
+  → **81 passed**.
 - `python -m pytest -q -p no:cacheprovider tests/test_repository_integrity.py
-  tests/test_readme.py tests/test_config.py` → **160 passed**.
-- `python -m py_compile examples/cli.py tests/test_cli.py` → OK.
-- Manual CLI probes after the fix:
-  - `--risk-free-rate nan` → `Error: invalid --risk-free-rate: the value must be
-    finite (got nan)`, exit 1, before the run.
-  - `--regime-vol-threshold inf` → `Error: invalid --regime-vol-threshold: the
-    value must be finite (got inf)`, exit 1.
-  - `--risk-free-rate 0.05 --regime-vol-threshold 0.2 --days 120 --offline` →
-    normal run, exit 0.
-- Full `tests/test_cli.py` → **285 passed, 9 failed**. The 9 failures are the
-  pre-existing `TestHtmlReportFlag` (`--report`) cases that require matplotlib,
-  which is not installed in this minimal env (confirmed
-  `import matplotlib` → `ModuleNotFoundError`). Unrelated to this change.
+  tests/test_readme.py tests/test_config.py tests/test_backtest_engine.py
+  tests/test_risk_manager.py tests/test_monte_carlo.py` → **498 passed**.
+- `python -m py_compile` on all changed files → OK.
+- Full suite: **3465 passed, 17 failed, 131 skipped, 136 deselected**. All 17
+  failures are pre-existing environmental ones: `TestHtmlReportFlag` +
+  `test_backtest_report.py` require `matplotlib` (not installed), and the
+  bayesian README-command tests require `scikit-optimize` (not installed;
+  confirmed `ModuleNotFoundError`). None touch the changed code.
 
 ### Environment caveat (unchanged)
 
 Minimal env (Python 3.14.4, pandas 3.1.1, numpy 2.5.4, pytest 9.2.0).
 `ruff`, `mypy`, `matplotlib`, `scikit-optimize` are **NOT** installed, so
-lint/type checks cannot run and the 9 matplotlib report tests + 5
-`tests/test_readme_cli_commands.py` tests fail for environmental reasons only.
+lint/type checks cannot run and the 17 tests above fail for environmental
+reasons only.
 
 ## Unresolved / not completed
 
-- None for this task. The change is minimal, isolated, and verified.
-- Lint/type checks not run (no ruff/mypy). The change follows existing
-  formatting/type patterns exactly.
+- None for this task. Change is minimal, isolated, verified.
+- Lint/type checks not run (no ruff/mypy).
+- Not committed (no explicit request).
 
 ## Failed approaches (do not repeat unchanged)
 
-- Passing `-inf` as a separate argv token in tests: argparse consumes a bare
-  `-inf` as an option (`SystemExit: expected one argument`). Use the
-  `--flag=value` form for values starting with `-`.
+- Passing `-inf` as a separate argv token in tests/CLI: argparse consumes a
+  bare `-inf` as an option. Use the `--flag=value` form for values starting
+  with `-`.
+- Re-attempting the previous handoff's strategy `std_dev`/`multiplier` finite
+  guards: already implemented and verified; skip.
 
 ## Git state
 
-- Branch `main`. The `--risk-free-rate` / regime-threshold change was committed
-  this session. See `git log --oneline -3`.
+- Branch `main`. Changes from this session are in the working tree, uncommitted.
+- The repo's prior commits have empty messages; prefer a descriptive message
+  when this work is committed.
 
 ## One precise next task
 
-- **Non-finite float strategy parameters are silently accepted and corrupt runs.**
-  The strategy constructors validate positivity with `<= 0`, which lets `nan`
-  and `inf` through (`nan <= 0` and `inf <= 0` are both `False`).
-  - Evidence gathered this session:
-    - Source: `quant_trading/strategies/examples.py:566` uses
-      `if self.std_dev <= 0`, `:918` uses `if self.multiplier <= 0` (and similar
-      guards at the ATR/Keltner/SuperTrend/etc. constructors).
-    - Library: `BollingerBandsStrategy(period=20, std_dev=float('nan'))` →
-      constructs OK (`s.std_dev` is `nan`).
-      `AverageTrueRangeStrategy(period=14, atr_multiplier=float('inf'))` and
-      `... = float('nan')` → both construct OK.
-    - CLI: `python examples/cli.py --offline --strategy bb --bb-period 20
-      --bb-std nan --days 60 --symbols AAPL` → prints an all-zero result
-      (`Profit Factor: 0.00`, `Sortino Ratio: 0.00`, ...) and exits **0** (silent
-      degenerate run, no error, no trades).
-  - Concrete step: reject non-finite float parameters at the **library
-    constructor** level (root cause, also protects direct API users), e.g. change
-    `if self.std_dev <= 0:` to
-    `if not math.isfinite(self.std_dev) or self.std_dev <= 0:` in
-    `quant_trading/strategies/examples.py` (import `math`), and apply the same
-    finite guard to the other float params guarded by `<= 0`
-    (`multiplier`/`atr_multiplier`, `st_multiplier`, `kc_multiplier`, etc.).
-    Integer `period` params are unaffected by nan/inf, but a finite guard is
-    harmless there; prefer the minimal float-only change.
-  - Add tests in `tests/test_strategy*.py` (or the existing strategy test file —
-    locate it with `glob tests/**/*strateg*`) covering `nan`/`inf` rejection and
-    normal-value acceptance for the affected strategies.
-  - Constraints: do **not** reject negative values (the existing `<= 0` rule
-    already covers those); only add the finite check. Keep changes minimal and
-    localized. Run the strategy test file plus
-    `tests/test_repository_integrity.py` + `tests/test_config.py`.
+- **Risk/portfolio limit constructors still use `<= 0` and accept `nan`/`inf`.**
+  Same class of silent-corruption bug, in a different module:
+  - Evidence to gather first (not yet confirmed): `quant_trading/risk/manager.py`
+    guards `initial_capital <= 0` (line ~227), `limit <= 0` (~476),
+    `trailing_stop_pct <= 0` (~867); `quant_trading/risk/limits.py` guards
+    `basis <= 0`, `portfolio_value <= 0`; `quant_trading/risk/metrics.py` may
+    consume these. `nan`/`inf` slip past each `<= 0`.
+  - Concrete step: add `not math.isfinite(x) or x <= 0` guards at the
+    risk-manager / risk-limit constructor boundaries that already validate a
+    numeric limit, mirroring this session's change. Verify with library probes
+    (`RiskManager(initial_capital=nan)`, etc.) and add parametrized tests in
+    `tests/test_risk_manager.py` / a risk-limits test file.
+  - Constraints: minimal, localized; do not reject negative values beyond the
+    existing rule; keep the `invalid <field>` message prefix so existing tests
+    pass. Run `tests/test_risk_manager.py` plus the config/integrity suites.

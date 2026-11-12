@@ -35,12 +35,17 @@ class TestBacktestConfig:
         config = BacktestConfig(periods_per_year=12)
         assert config.periods_per_year == 12
 
-    @pytest.mark.parametrize("initial_capital", [0.0, -1000.0])
+    @pytest.mark.parametrize(
+        "initial_capital", [0.0, -1000.0, float("nan"), float("inf"), float("-inf")]
+    )
     def test_rejects_invalid_initial_capital(self, initial_capital):
         with pytest.raises(ValueError, match="invalid initial_capital"):
             BacktestConfig(initial_capital=initial_capital)
 
-    @pytest.mark.parametrize("periods_per_year", [0, -1])
+    @pytest.mark.parametrize(
+        "periods_per_year",
+        [0, -1, float("nan"), float("inf"), float("-inf")],
+    )
     def test_rejects_invalid_periods_per_year(self, periods_per_year):
         with pytest.raises(ValueError, match="invalid periods_per_year"):
             BacktestConfig(periods_per_year=periods_per_year)

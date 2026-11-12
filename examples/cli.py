@@ -1149,9 +1149,11 @@ def parse_args() -> argparse.Namespace:
             f"invalid --n-jobs: the value must be at least 1, or -1 for all "
             f"CPU cores (got {args.n_jobs})"
         )
-    if args.initial_capital is not None and args.initial_capital <= 0:
+    if args.initial_capital is not None and (
+        not math.isfinite(args.initial_capital) or args.initial_capital <= 0
+    ):
         raise ValueError(
-            f"invalid --initial-capital: the value must be greater than 0 "
+            f"invalid --initial-capital: the value must be greater than 0 and finite "
             f"(got {args.initial_capital})"
         )
     if args.commission is not None and not (0.0 <= args.commission <= 1.0):

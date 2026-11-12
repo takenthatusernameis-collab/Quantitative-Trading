@@ -468,6 +468,20 @@ $ python examples/cli.py --offline --risk-free-rate nan --symbols AAPL
 Error: invalid --risk-free-rate: the value must be finite (got nan)
 ```
 
+`--initial-capital` is also checked for finiteness, in addition to being
+positive. A `nan` or `inf` capital is not caught by a ``<= 0`` check (``nan <= 0``
+and ``inf <= 0`` are both ``False``) and would otherwise make the initial value,
+the final value and the return ``nan`` while the run still exits 0:
+
+```bash
+$ python examples/cli.py --offline --initial-capital nan --symbols AAPL
+Error: invalid --initial-capital: the value must be greater than 0 and finite (got nan)
+```
+
+The same check is applied by `BacktestConfig` and by the optimizers
+(`BaseOptimizer`, `WalkForwardOptimizer`), so a non-finite `initial_capital` or
+`periods_per_year` is rejected at construction time for library users too.
+
 `--interval` works the same way: it overrides the `data.default_interval` of
 the file, and defaults to the configured value, or to `"1d"` when no file is
 given.

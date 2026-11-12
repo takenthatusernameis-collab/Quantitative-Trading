@@ -612,6 +612,21 @@ class TestParseArgs:
             ):
                 parse_args()
 
+    def test_initial_capital_non_finite_is_rejected(self):
+        """A non-finite ``--initial-capital`` is a usage error naming the flag.
+
+        ``nan`` and ``inf`` are not caught by the ``<= 0`` check (``nan <= 0``
+        and ``inf <= 0`` are both ``False``) and would otherwise turn the whole
+        backtest into ``nan``. The values use the ``--flag=value`` form because
+        a bare ``-inf`` token is consumed by argparse as an option.
+        """
+        for value in ("nan", "inf", "-inf"):
+            with (
+                patch("sys.argv", ["cli.py", f"--initial-capital={value}"]),
+                pytest.raises(ValueError, match="invalid --initial-capital"),
+            ):
+                parse_args()
+
     def test_wf_train_size_at_or_below_one_is_accepted(self):
         """A ``--wf-train-size`` in (0, 1] is accepted, matching the library.
 

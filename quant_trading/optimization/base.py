@@ -20,6 +20,7 @@ Examples:
 
 from __future__ import annotations
 
+import math
 import os
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -851,14 +852,14 @@ class BaseOptimizer(ABC):
         # Validate library-level inputs. Invalid values are silently accepted
         # today, so they propagate to GridSearch, RandomSearch, and
         # BayesianOptimizer instead of surfacing a clear error at construction.
-        if self.initial_capital <= 0:
+        if not math.isfinite(self.initial_capital) or self.initial_capital <= 0:
             raise ValueError(
-                f"invalid initial_capital: the value must be positive "
+                f"invalid initial_capital: the value must be positive and finite "
                 f"(got {self.initial_capital})"
             )
-        if self.periods_per_year < 1:
+        if not math.isfinite(self.periods_per_year) or self.periods_per_year < 1:
             raise ValueError(
-                f"invalid periods_per_year: the value must be at least 1 "
+                f"invalid periods_per_year: the value must be at least 1 and finite "
                 f"(got {self.periods_per_year})"
             )
         if not (0.0 <= self.commission <= 1.0):

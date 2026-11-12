@@ -4480,14 +4480,18 @@ class _ConcreteBaseOptimizer(BaseOptimizer):
 class TestBaseOptimizerInitValidation:
     """Tests for input validation in BaseOptimizer.__init__."""
 
-    @pytest.mark.parametrize("initial_capital", [0.0, -1000.0, -1.0])
+    @pytest.mark.parametrize(
+        "initial_capital", [0.0, -1000.0, -1.0, float("nan"), float("inf"), float("-inf")]
+    )
     def test_rejects_invalid_initial_capital(self, initial_capital):
         with pytest.raises(ValueError, match="invalid initial_capital"):
             _ConcreteBaseOptimizer(
                 **_base_optimizer_minimal_kwargs(), initial_capital=initial_capital
             )
 
-    @pytest.mark.parametrize("periods_per_year", [0, -1, -252])
+    @pytest.mark.parametrize(
+        "periods_per_year", [0, -1, -252, float("nan"), float("inf"), float("-inf")]
+    )
     def test_rejects_invalid_periods_per_year(self, periods_per_year):
         with pytest.raises(ValueError, match="invalid periods_per_year"):
             _ConcreteBaseOptimizer(
