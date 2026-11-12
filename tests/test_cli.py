@@ -507,6 +507,46 @@ class TestParseArgs:
             args = parse_args()
         assert args.synthetic_seed == 42
 
+    def test_mc_seed_negative_is_rejected(self):
+        """A negative ``--mc-seed`` is rejected up front.
+
+        ``--mc-seed`` is passed straight to ``np.random.default_rng``, which
+        accepts only non-negative integers. A negative value otherwise fails
+        late, after the whole backtest has already run, with a bare
+        ``expected non-negative integer`` message instead of a parse-time error
+        that names the flag.
+        """
+        for value in ("-1", "-100"):
+            with (
+                patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-seed", value]),
+                pytest.raises(ValueError, match="invalid --mc-seed"),
+            ):
+                parse_args()
+
+    def test_mc_seed_zero_is_accepted(self):
+        """``--mc-seed 0`` is accepted (``default_rng(0)`` is valid)."""
+        with patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-seed", "0"]):
+            args = parse_args()
+        assert args.mc_seed == 0
+
+    def test_mc_seed_positive_is_accepted(self):
+        """A positive ``--mc-seed`` is accepted."""
+        with patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-seed", "42"]):
+            args = parse_args()
+        assert args.mc_seed == 42
+
+    def test_mc_seed_large_is_accepted(self):
+        """``default_rng`` accepts seeds beyond ``2**32 - 1``, so a large seed passes."""
+        with patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-seed", str(2**40)]):
+            args = parse_args()
+        assert args.mc_seed == 2**40
+
+    def test_mc_seed_default_is_accepted(self):
+        """The default ``--mc-seed`` of ``None`` is accepted."""
+        with patch("sys.argv", ["cli.py", "--monte-carlo"]):
+            args = parse_args()
+        assert args.mc_seed is None
+
     def test_initial_capital_non_positive_is_rejected(self):
         """A ``--initial-capital`` of zero or below is a usage error naming the flag."""
         for value in ("0", "-1"):

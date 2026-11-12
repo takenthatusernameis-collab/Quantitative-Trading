@@ -1592,6 +1592,14 @@ Override the simulation parameters:
 python examples/cli.py --offline --monte-carlo --mc-simulations 500 --mc-method parametric --mc-confidence 0.99 --mc-seed 7
 ```
 
+The `--mc-seed` argument is checked before the run starts and must be a
+non-negative integer (omit it for a nondeterministic run):
+
+```
+$ python examples/cli.py --offline --monte-carlo --mc-seed -1 --symbols AAPL
+Error: invalid --mc-seed: the value must be at least 0 (got -1)
+```
+
 The simulated Sharpe and Sortino are computed with the risk-free rate of the
 run, so they are consistent with the Sharpe of the backtest itself. Pass the
 rate explicitly to compute them with a different one:

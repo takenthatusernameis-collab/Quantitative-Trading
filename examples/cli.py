@@ -1051,6 +1051,10 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             f"invalid --mc-simulations: the value must be at least 1 (got {args.mc_simulations})"
         )
+    if args.mc_seed is not None and args.mc_seed < 0:
+        raise ValueError(
+            f"invalid --mc-seed: the value must be at least 0 (got {args.mc_seed})"
+        )
     interval = getattr(args, "interval", None)
     if interval is not None and not _is_supported_interval(interval):
         raise ValueError(
