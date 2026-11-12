@@ -1063,9 +1063,9 @@ def parse_args() -> argparse.Namespace:
             f"invalid --mc-confidence: the value must be in the range (0, 1] "
             f"(got {args.mc_confidence})"
         )
-    if not (0.0 < args.wf_train_size < 1.0):
+    if not (0.0 < args.wf_train_size <= 1.0):
         raise ValueError(
-            f"invalid --wf-train-size: the value must be in the range (0, 1) "
+            f"invalid --wf-train-size: the value must be in the range (0, 1] "
             f"(got {args.wf_train_size})"
         )
     if args.wf_step_size is not None and not (0.0 < args.wf_step_size <= 1.0):

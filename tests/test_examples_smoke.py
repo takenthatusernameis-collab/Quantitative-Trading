@@ -491,12 +491,14 @@ def test_cli_reports_an_invalid_mc_confidence_without_a_traceback() -> None:
 
 
 def test_cli_reports_an_invalid_walk_forward_train_size_without_a_traceback() -> None:
-    """A ``--wf-train-size`` outside ``(0, 1)`` is a message naming the flag.
+    """A ``--wf-train-size`` outside ``(0, 1]`` is a message naming the flag.
 
-    Walk-forward computes ``train_days = int(window_days * train_size)``, so a
-    train size of zero or above one yields degenerate windows and wrong results
-    instead of an error. The check belongs in the CLI and has to name the
-    offending flag before the run starts.
+    The library ``WalkForwardOptimizer`` accepts ``train_size`` in
+    ``(0, 1]`` (a train size of 1.0 trains on the whole window and tests on
+    the next one), so only values at or below zero or above one are rejected
+    here. A train size of zero or above one yields degenerate windows and
+    wrong results instead of an error. The check belongs in the CLI and has
+    to name the offending flag before the run starts.
     """
     completed = _run_cli(
         [

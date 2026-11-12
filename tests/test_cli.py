@@ -295,13 +295,12 @@ class TestParseArgs:
             args = parse_args()
         assert args.mc_confidence == 1.0
 
-    def test_wf_train_size_at_or_above_one_is_rejected(self):
-        """A ``--wf-train-size`` at or above 1 is a usage error naming the flag.
+    def test_wf_train_size_above_one_is_rejected(self):
+        """A ``--wf-train-size`` above 1 is a usage error naming the flag.
 
-        Walk-forward computes ``train_days = int(window_days * train_size)``,
-        so a train size of one or above yields degenerate windows and wrong
-        results instead of an error. The check belongs in the CLI and has to
-        name the offending flag before the run starts.
+        The library ``WalkForwardOptimizer`` rejects a train size above 1.0
+        (it is a fraction of a window's span), so the CLI has to reject it
+        before the run starts instead of letting it reach the optimizer.
         """
         with (
             patch("sys.argv", ["cli.py", "--walk-forward", "--wf-train-size", "1.5"]),
@@ -351,11 +350,18 @@ class TestParseArgs:
             ):
                 parse_args()
 
-    def test_wf_train_size_below_one_is_accepted(self):
-        """A ``--wf-train-size`` just below 1.0 (valid (0,1) boundary) is accepted."""
-        with patch("sys.argv", ["cli.py", "--walk-forward", "--wf-train-size", "0.99"]):
-            args = parse_args()
-        assert args.wf_train_size == 0.99
+    def test_wf_train_size_at_or_below_one_is_accepted(self):
+        """A ``--wf-train-size`` in (0, 1] is accepted, matching the library.
+
+        The library ``WalkForwardOptimizer`` accepts ``train_size`` in
+        ``(0, 1]`` (a train size of 1.0 trains on the whole window and tests
+        on the next one), so the CLI has to accept the upper boundary too
+        instead of rejecting it before the run starts.
+        """
+        for value in ("0.5", "0.99", "1.0"):
+            with patch("sys.argv", ["cli.py", "--walk-forward", "--wf-train-size", value]):
+                args = parse_args()
+            assert args.wf_train_size == float(value)
 
     def test_wf_step_size_positive_is_accepted(self):
         """A positive ``--wf-step-size`` at most 1.0 is accepted."""
