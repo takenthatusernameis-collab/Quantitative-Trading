@@ -6201,21 +6201,17 @@ class TestChoppinessIndexStrategy:
         assert strategy.period == 14
 
     def test_validate_parameters(self):
-        strategy = ChoppinessIndexStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
-            strategy.validate_parameters()
+            ChoppinessIndexStrategy(period=0)
 
-        strategy = ChoppinessIndexStrategy(period=14, low_threshold=60.0, high_threshold=50.0)
         with pytest.raises(ValueError, match="low_threshold must be less than high_threshold"):
-            strategy.validate_parameters()
+            ChoppinessIndexStrategy(period=14, low_threshold=60.0, high_threshold=50.0)
 
-        strategy = ChoppinessIndexStrategy(period=14, low_threshold=-1.0, high_threshold=50.0)
-        with pytest.raises(ValueError, match="thresholds must be between 0 and 100"):
-            strategy.validate_parameters()
+        with pytest.raises(ValueError, match="low_threshold must be non-negative"):
+            ChoppinessIndexStrategy(period=14, low_threshold=-1.0, high_threshold=50.0)
 
-        strategy = ChoppinessIndexStrategy(period=14, low_threshold=50.0, high_threshold=101.0)
-        with pytest.raises(ValueError, match="thresholds must be between 0 and 100"):
-            strategy.validate_parameters()
+        with pytest.raises(ValueError, match="high_threshold must be at most 100"):
+            ChoppinessIndexStrategy(period=14, low_threshold=50.0, high_threshold=101.0)
 
     def test_generate_signals_insufficient_data(self):
         strategy = ChoppinessIndexStrategy(period=14)
