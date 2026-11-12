@@ -1,47 +1,43 @@
 ## What changed (this session)
 
-- Fixed CLI validation for `--wf-step-size` to reject values > 1.0 before the run starts, matching the library `WalkForwardOptimizer` validation and the documented behavior (README says "It is a fraction of a window's span").
+- Added an end-to-end rebalancer convergence test, `test_rebalancer_converges_to_target_allocation_after_backtest`, in `tests/test_rebalancer_execution.py:606`.
+  - Mirrors `examples/run_rebalancer.py` end to end: runs a `BacktestEngine` against deterministic synthetic data (`create_synthetic_provider(..., seed=42)`), then rebalances the resulting portfolio to an equal target allocation with `Rebalancer.generate_rebalance_actions` + `execute_actions`.
+  - Asserts every symbol's deviation from its target falls within the rebalance threshold after execution — i.e. the portfolio actually converges to target, which the exit-code-only smoke tests do not verify.
+  - Added the needed imports (`BacktestEngine`, `BacktestConfig`, `DataManager`, `create_synthetic_provider`, `MovingAverageCrossover`, `datetime`/`timedelta`) to the top of the file.
 - **Files changed:**
-  - `examples/cli.py:1071-1075` — Changed validation from `args.wf_step_size <= 0` to `not (0.0 < args.wf_step_size <= 1.0)` with updated error message.
-  - `tests/test_cli.py:360-375` — Updated `test_wf_step_size_positive_is_accepted` to use valid value `0.5` and added `test_wf_step_size_above_one_is_rejected`.
-  - `README.md:699-706` — Updated error message text to match new validation ("in the range (0, 1]").
+  - `tests/test_rebalancer_execution.py` — new test + imports.
 
 ## What was actually verified (evidence)
 
+- `python -m pytest -q -p no:cacheprovider tests/test_rebalancer_execution.py -k "converges"` → **1 passed**
+- `python -m pytest -q -p no:cacheprovider tests/test_rebalancer_execution.py` → **37 passed**
+- `python -m pytest -q -p no:cacheprovider tests/test_rebalancer.py tests/test_portfolio_rebalancer.py tests/test_rebalancer_extra_coverage.py tests/test_rebalancer_sizing_invariants.py tests/test_rebalancer_risk_integration.py` → **186 passed**
 - `python -m ruff check .` → **All checks passed**
 - `python -m mypy quant_trading/` → **Success: no issues found in 38 source files**
-- `python -m pytest -q -p no:cacheprovider tests/test_cli.py -k "step_size"` → **4 passed** (includes new `test_wf_step_size_above_one_is_rejected`)
-- `python -m pytest -q -p no:cacheprovider tests/test_readme.py tests/test_repository_integrity.py` → **40 passed**
-- `python -m pytest -q -p no:cacheprovider -m "not slow and not network"` → **3517 passed, 1 skipped, 0 failures, 134 deselected** (full default suite, +1 test from previous session)
-- `python -m pytest -q -p no:cacheprovider -m "slow" tests/test_readme_cli_commands.py tests/test_examples_smoke.py` → **130 passed, 102 deselected** (slow frontier)
-- Manual verification:
-  - `--wf-step-size 0.5` → accepted, runs to completion
-  - `--wf-step-size 0` → rejected with "must be in the range (0, 1] (got 0.0)"
-  - `--wf-step-size 2.0` → rejected with "must be in the range (0, 1] (got 2.0)" **before run starts** (no setup output printed)
+
+Note: `test_examples_smoke.py` and `test_example_scripts_run.py` are marked `slow` and are deselected by the default `-m "not slow and not network"` addopts; the `run_rebalancer.py` smoke test (`test_example_script_runs_offline[run_rebalancer.py]`) was green in the previous session's slow frontier (130 passed). `examples/run_rebalancer.py` itself is unchanged.
 
 ## Unresolved / not completed
 
-- None. The CLI validation now matches the library and documentation.
+- None. The new test passes and no regressions were introduced.
 
 ## Failed approaches (do not repeat unchanged)
 
-- None. Single minimal fix addressed the gap.
+- The first version of the test used fixed dates (`2023-09-17` to `2024-01-15`) for the `data_manager.fetch` window. It failed with `IndexError: single positional indexer is out-of-bounds` because `create_synthetic_provider` generates data relative to `datetime.now()`, so the fixed historical window returned empty DataFrames (`md.data["close"].iloc[-1]` out of bounds). Fixed by mirroring `run_rebalancer.py`: `end_date = datetime.now()`, `start_date = end_date - timedelta(days=120)`.
 
 ## Verification commands (re-run before starting)
 
 ```bash
+python -m pytest -q -p no:cacheprovider tests/test_rebalancer_execution.py
+python -m pytest -q -p no:cacheprovider tests/test_rebalancer.py tests/test_portfolio_rebalancer.py tests/test_rebalancer_extra_coverage.py tests/test_rebalancer_sizing_invariants.py tests/test_rebalancer_risk_integration.py
 python -m ruff check .
 python -m mypy quant_trading/
-python -m pytest -q -p no:cacheprovider tests/test_cli.py -k "step_size"
-python -m pytest -q -p no:cacheprovider tests/test_readme.py tests/test_repository_integrity.py
-python -m pytest -q -p no:cacheprovider -m "not slow and not network"
-python -m pytest -q -p no:cacheprovider -m "slow" tests/test_readme_cli_commands.py tests/test_examples_smoke.py
 ```
 
 ## Git state
 
-- Branch `main`, up to date with `origin/main`. Working tree has changes to `examples/cli.py`, `tests/test_cli.py`, `README.md`.
+- Branch `main`, up to date with `origin/main`. Working tree has **uncommitted** changes to `tests/test_rebalancer_execution.py` only. (Changes were NOT committed — no explicit request to commit.)
 
 ## One precise next task
 
-- The baseline is fully green: every test, lint, and typecheck check passes. If a further task is desired, consider adding a `TestRebalancerExampleScript` smoke test to `tests/test_examples_smoke.py` (though `run_rebalancer.py` is already covered by the existing parametrized `test_example_script_runs_offline`), or pick another bounded item from the test suite. Do not count control-marker-only commits as progress.
+- The baseline is fully green. The repo is already extensively covered (structural integrity guards, strategy registry sync, README sync, all example scripts). A bounded, high-value next item would be to extend CLI validation for walk-forward `--wf-windows` (number of windows, default 5): a value of 0 or negative would produce degenerate windows and should be rejected before the run starts, matching the existing `--wf-step-size`/`--wf-train-size` validation pattern just added in `examples/cli.py`. If pursuing, inspect `examples/cli.py` walk-forward argument handling first, add the check + a `test_cli.py` case, then run `tests/test_cli.py` + `ruff` + `mypy`.

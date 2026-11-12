@@ -15,12 +15,19 @@ The scenarios are pseudo-random but fully deterministic (fixed seeds, no
 network, no unseeded randomness).
 """
 
+from datetime import datetime, timedelta
+
 import numpy as np
 import pytest
 
+from quant_trading.backtest.engine import BacktestEngine
+from quant_trading.config.settings import BacktestConfig
+from quant_trading.data.providers import DataManager
+from quant_trading.data.synthetic import create_synthetic_provider
 from quant_trading.portfolio.portfolio import Portfolio
 from quant_trading.portfolio.rebalancer import RebalanceAction, Rebalancer
 from quant_trading.strategies.base import Signal
+from quant_trading.strategies.examples import MovingAverageCrossover
 
 SEEDS = (20240601, 20240602, 20240603, 20240604, 20240605)
 SYMBOLS = ("AAA", "BBB", "CCC")
@@ -601,3 +608,54 @@ def test_signal_buy_unaffordable_when_cash_exhausted():
     actions = rebalancer.generate_rebalance_actions(prices=prices, signals=[signal])
     # _plan_buy returns 0.0 because cash is exhausted, so no action is emitted.
     assert all(not (a.symbol == "GOOGL" and a.action == "buy") for a in actions)
+
+
+def test_rebalancer_converges_to_target_allocation_after_backtest():
+    """A backtest-produced portfolio converges to its target allocation when rebalanced.
+
+    Mirrors ``examples/run_rebalancer.py`` end to end: run a backtest against
+    deterministic synthetic data, then rebalance the resulting portfolio to an
+    equal target allocation. After executing the generated actions every symbol's
+    deviation from its target must be within the rebalance threshold, proving the
+    rebalancer closes the gaps it is meant to close instead of only exiting 0.
+    """
+    symbols = ["AAPL", "MSFT", "GOOGL"]
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=120)
+
+    provider = create_synthetic_provider(symbols, days=120, seed=42)
+    data_manager = DataManager([provider])
+    config = BacktestConfig(
+        initial_capital=100000.0,
+        commission=0.001,
+        slippage=0.0005,
+    )
+    strategy = MovingAverageCrossover(fast_period=10, slow_period=30, name="MA_10_30")
+
+    engine = BacktestEngine(config=config, data_manager=data_manager)
+    engine.add_strategy(strategy)
+    engine.run(symbols, start_date, end_date, "1d")
+
+    target_allocation = {symbol: 1.0 / len(symbols) for symbol in symbols}
+    rebalancer = Rebalancer(
+        engine.portfolio,
+        frequency="monthly",
+        target_allocation=target_allocation,
+    )
+
+    last_bars = data_manager.fetch(
+        symbols=symbols, start=start_date, end=end_date, interval="1d"
+    ).data
+    prices = {
+        symbol: float(md.data["close"].iloc[-1]) for symbol, md in last_bars.items()
+    }
+
+    actions = rebalancer.generate_rebalance_actions(prices=prices)
+    rebalancer.execute_actions(actions, prices=prices)
+
+    deviations = rebalancer.get_current_deviation()
+    assert deviations, "expected a deviation report for every target symbol"
+    for symbol, deviation in deviations.items():
+        assert abs(deviation) <= rebalancer.rebalance_threshold + 1e-6, (
+            f"{symbol} did not converge to its target allocation: deviation {deviation:+.4f}"
+        )
