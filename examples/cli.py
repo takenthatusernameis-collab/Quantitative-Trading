@@ -265,6 +265,8 @@ CLI_ARG_DEFAULTS = {
     "senkou_b_period": 52,
     "sar_step": 0.02,
     "sar_max_step": 0.20,
+    "adx_period": 14,
+    "adx_threshold": 25.0,
 }
 
 
@@ -1025,6 +1027,18 @@ def _create_parser() -> argparse.ArgumentParser:
         default=CLI_ARG_DEFAULTS["sar_max_step"],
         help="Parabolic SAR max step",
     )
+    parser.add_argument(
+        "--adx-period",
+        type=int,
+        default=CLI_ARG_DEFAULTS["adx_period"],
+        help="ADX lookback period",
+    )
+    parser.add_argument(
+        "--adx-threshold",
+        type=float,
+        default=CLI_ARG_DEFAULTS["adx_threshold"],
+        help="ADX trend-strength threshold",
+    )
 
     return parser
 
@@ -1205,6 +1219,7 @@ def create_strategy(args: argparse.Namespace):
             ("senkou_b_period", "senkou_b_period"),
         ],
         "sar": [("sar_step", "step"), ("sar_max_step", "max_step")],
+        "adx": [("adx_period", "period"), ("adx_threshold", "threshold")],
         "vwap": [],
     }
 
@@ -1251,6 +1266,8 @@ def create_strategy(args: argparse.Namespace):
             )
         elif args.strategy == "sar":
             kwargs["name"] = f"Parabolic_SAR_{args.sar_step}_{args.sar_max_step}"
+        elif args.strategy == "adx":
+            kwargs["name"] = f"ADX_{args.adx_period}_{args.adx_threshold}"
         elif args.strategy == "vwap":
             kwargs["name"] = "VWAP"
 

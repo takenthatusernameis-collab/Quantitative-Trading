@@ -273,6 +273,9 @@ python examples/cli.py --offline --strategy stoch --stoch-k-period 14 --stoch-d-
 # Override the ATR period and multiplier
 python examples/cli.py --offline --strategy atr --atr-period 14 --atr-multiplier 2.0 --symbols AAPL --days 90
 
+# Override the ADX period and trend threshold
+python examples/cli.py --offline --strategy adx --adx-period 14 --adx-threshold 25.0 --symbols AAPL --days 90
+
 # Override the Aroon period
 python examples/cli.py --offline --strategy aroon --aroon-period 25 --symbols AAPL --days 90
 

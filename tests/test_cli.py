@@ -2058,7 +2058,7 @@ class TestRunCombined:
             ("Vortex", 17.0),
             ("EMA_Crossover_10_30", 6.5),
             ("Momentum", 9.5),
-            ("ADX", 11.0),
+            ("ADX_14_25.0", 11.0),
             ("CCI", 10.0),
             ("Williams %R", 12.0),
             ("OBV", 13.0),
