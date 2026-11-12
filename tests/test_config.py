@@ -236,6 +236,16 @@ class TestDataConfig:
         with pytest.raises(ValueError, match="invalid synthetic_days"):
             DataConfig(synthetic_days=synthetic_days)
 
+    @pytest.mark.parametrize("synthetic_seed", [-1, -365, 2**32, 2**32 + 100])
+    def test_rejects_invalid_synthetic_seed(self, synthetic_seed):
+        with pytest.raises(ValueError, match="invalid synthetic_seed"):
+            DataConfig(synthetic_seed=synthetic_seed)
+
+    @pytest.mark.parametrize("synthetic_seed", [0, 42, 2**32 - 1])
+    def test_accepts_valid_synthetic_seed(self, synthetic_seed):
+        config = DataConfig(synthetic_seed=synthetic_seed)
+        assert config.synthetic_seed == synthetic_seed
+
     def test_accepts_boundary_valid_values(self):
         config = DataConfig(
             provider="yfinance",
@@ -251,11 +261,21 @@ class TestDataConfig:
     def test_from_dict_rejects_invalid_values(self):
         with pytest.raises(ValueError, match="invalid synthetic_days"):
             DataConfig.from_dict({"synthetic_days": 0})
+        with pytest.raises(ValueError, match="invalid synthetic_seed"):
+            DataConfig.from_dict({"synthetic_seed": -1})
+        with pytest.raises(ValueError, match="invalid synthetic_seed"):
+            DataConfig.from_dict({"synthetic_seed": 2**32})
 
     def test_from_yaml_rejects_invalid_values(self, tmp_path):
         path = tmp_path / "config.yaml"
         path.write_text('data:\n  provider: ""\n')
         with pytest.raises(ValueError, match="invalid provider"):
+            Config.from_yaml(str(path))
+        path.write_text('data:\n  synthetic_seed: -1\n')
+        with pytest.raises(ValueError, match="invalid synthetic_seed"):
+            Config.from_yaml(str(path))
+        path.write_text('data:\n  synthetic_seed: 4294967296\n')
+        with pytest.raises(ValueError, match="invalid synthetic_seed"):
             Config.from_yaml(str(path))
 
 

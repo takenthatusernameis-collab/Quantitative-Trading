@@ -97,6 +97,11 @@ class DataConfig:
                 f"invalid synthetic_days: the value must be at least 1 "
                 f"(got {self.synthetic_days})"
             )
+        if self.synthetic_seed < 0 or self.synthetic_seed > 2**32 - 1:
+            raise ValueError(
+                f"invalid synthetic_seed: the value must be between 0 and "
+                f"{2**32 - 1} (got {self.synthetic_seed})"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the data configuration to a plain, JSON-safe dictionary.
