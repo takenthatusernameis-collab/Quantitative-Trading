@@ -55,6 +55,16 @@ class TestBacktestConfig:
         with pytest.raises(ValueError, match="invalid slippage"):
             BacktestConfig(slippage=slippage)
 
+
+    @pytest.mark.parametrize("risk_free_rate", [float("nan"), float("inf"), float("-inf")])
+    def test_rejects_non_finite_risk_free_rate(self, risk_free_rate):
+        with pytest.raises(ValueError, match="invalid risk_free_rate"):
+            BacktestConfig(risk_free_rate=risk_free_rate)
+
+    def test_accepts_negative_finite_risk_free_rate(self):
+        config = BacktestConfig(risk_free_rate=-0.01)
+        assert config.risk_free_rate == -0.01
+
     def test_accepts_boundary_valid_values(self):
         config = BacktestConfig(
             initial_capital=1.0,
@@ -70,6 +80,11 @@ class TestBacktestConfig:
     def test_from_dict_rejects_invalid_values(self):
         with pytest.raises(ValueError, match="invalid commission"):
             BacktestConfig.from_dict({"commission": 1.5})
+
+
+    def test_from_dict_rejects_non_finite_risk_free_rate(self):
+        with pytest.raises(ValueError, match="invalid risk_free_rate"):
+            BacktestConfig.from_dict({"risk_free_rate": float("nan")})
 
     def test_from_yaml_rejects_invalid_values(self, tmp_path):
         path = tmp_path / "config.yaml"

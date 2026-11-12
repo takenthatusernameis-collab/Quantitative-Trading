@@ -27,6 +27,7 @@ Examples:
 
 """
 
+import math
 import os
 import typing
 from dataclasses import dataclass, field, fields, is_dataclass
@@ -325,6 +326,11 @@ class BacktestConfig:
             raise ValueError(
                 f"invalid slippage: the value must be in the range [0, 1] "
                 f"(got {self.slippage})"
+            )
+        if not math.isfinite(self.risk_free_rate):
+            raise ValueError(
+                f"invalid risk_free_rate: the value must be finite "
+                f"(got {self.risk_free_rate})"
             )
 
     def to_dict(self) -> dict[str, Any]:
