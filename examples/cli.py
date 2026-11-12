@@ -1091,6 +1091,11 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             f"invalid --days: the value must be at least 1 " f"(got {args.days})"
         )
+    if args.synthetic_days < 1:
+        raise ValueError(
+            f"invalid --synthetic-days: the value must be at least 1 "
+            f"(got {args.synthetic_days})"
+        )
     if args.n_iter < 1:
         raise ValueError(f"invalid --n-iter: the value must be at least 1 " f"(got {args.n_iter})")
     if args.bayesian_n_initial < 1:

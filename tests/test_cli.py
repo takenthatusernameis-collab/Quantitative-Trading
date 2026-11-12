@@ -445,6 +445,35 @@ class TestParseArgs:
         assert args.days == -5
         assert args.start == "2024-01-01"
 
+    def test_synthetic_days_below_one_is_rejected(self):
+        """A ``--synthetic-days`` below 1 is a usage error naming the flag.
+
+        ``--synthetic-days`` sets ``DataConfig.synthetic_days``, but ``create_config``
+        assigns it after the config object is built, which bypasses the
+        ``DataConfig`` validation. A value of 0 generates a single-row (or empty)
+        series and silently yields an all-zero backtest with exit code 0, while a
+        negative value crashes deep inside pandas with an ``OverflowError``
+        traceback. Reject both up front like every other bounded CLI value.
+        """
+        for value in ("0", "-1", "-365"):
+            with (
+                patch("sys.argv", ["cli.py", "--offline", "--synthetic-days", value]),
+                pytest.raises(ValueError, match="invalid --synthetic-days"),
+            ):
+                parse_args()
+
+    def test_synthetic_days_one_is_accepted(self):
+        """The minimum accepted ``--synthetic-days`` is 1."""
+        with patch("sys.argv", ["cli.py", "--offline", "--synthetic-days", "1"]):
+            args = parse_args()
+        assert args.synthetic_days == 1
+
+    def test_synthetic_days_default_is_accepted(self):
+        """The default ``--synthetic-days`` of 365 is accepted."""
+        with patch("sys.argv", ["cli.py", "--offline"]):
+            args = parse_args()
+        assert args.synthetic_days == 365
+
     def test_initial_capital_non_positive_is_rejected(self):
         """A ``--initial-capital`` of zero or below is a usage error naming the flag."""
         for value in ("0", "-1"):

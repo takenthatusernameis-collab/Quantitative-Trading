@@ -1,43 +1,63 @@
 ## What changed (this session)
 
-- Added `--regime-window` validation to the CLI, matching the established bounded-value
-  pattern (see `--periods-per-year`, `--wf-windows`, `--wf-step-size`, etc.).
-  - `examples/cli.py`: in `parse_args`, reject `args.regime_window < 2` with
-    `ValueError("invalid --regime-window: the value must be at least 2 (got N)")`.
-  - `tests/test_cli.py`: three new tests — `test_regime_window_below_two_is_rejected`
-    (0/1/-3), `test_regime_window_two_is_accepted`, `test_regime_window_default_is_accepted`.
-  - `README.md`: documented the new check in the "CLI Market Regime Analysis" section
-    (error example uses the `$ ` prompt form, matching the other error examples, so it is
-    not executed as a runnable README command).
+- Added `--synthetic-days` validation to the CLI, matching the established bounded-value
+  pattern (see `--days`, `--regime-window`, `--periods-per-year`, `--wf-windows`, etc.).
+  - `examples/cli.py`: in `parse_args`, reject `args.synthetic_days < 1` with
+    `ValueError("invalid --synthetic-days: the value must be at least 1 (got N)")`.
+  - `tests/test_cli.py`: three new tests in `TestParseArgs` —
+    `test_synthetic_days_below_one_is_rejected` (0/-1/-365),
+    `test_synthetic_days_one_is_accepted`, `test_synthetic_days_default_is_accepted`.
+  - `README.md`: documented the check in the offline/synthetic section (error example uses
+    the `$ ` prompt form, so it is not executed as a runnable README command).
 - **Files changed:** `examples/cli.py`, `tests/test_cli.py`, `README.md`.
 
 ## Why this task (evidence)
 
-- The prior handoff's "one precise next task" (`--wf-windows` validation) was ALREADY
-  implemented in `HEAD` (examples/cli.py:1076). So there was no pending assignment; this
-  was a freshly selected bounded, high-value task.
-- `--regime-window` was the remaining unvalidated numeric CLI arg. Probes:
-  - `--regime-window 0` or `1` → rolling std/mean are all-NaN → detector returns a silent,
-    degenerate `unknown` regime (no error).
-  - `--regime-window -1` → crashes deep inside pandas: `window must be an integer 0 or greater`.
-  - `window 2` is the true minimum (need >=2 returns for a non-NaN std).
+- The previous handoff was **stale**: both its "next task" (`--days`) and the prior task
+  (`--regime-window`) were ALREADY implemented and committed in `HEAD`
+  (examples/cli.py:1085 and :1090). Verified by grep and by running their tests.
+- A genuine remaining gap was found: `--synthetic-days` has no CLI validation.
+  Root cause: `create_config` assigns `config.data.synthetic_days = args.synthetic_days`
+  **after** `Config()` is built (examples/cli.py:1492), which bypasses the
+  `DataConfig.__post_init__` check `synthetic_days >= 1` (quant_trading/config/settings.py:95).
+  Probes before the fix:
+  - `--synthetic-days 0` → 1-row/empty series → silent all-zero backtest, **exit 0**.
+  - `--synthetic-days -1` / `-365` → raw `OverflowError` traceback deep in pandas, exit 1.
+  - `--synthetic-days 1` / `365` → run normally, exit 0.
 
 ## What was actually verified (evidence)
 
-- `python -m pytest -q -p no:cacheprovider tests/test_cli.py tests/test_readme_cli.py` → **270 passed, 1 skipped**
-- `python -m pytest -q -p no:cacheprovider tests/test_readme.py tests/test_repository_integrity.py` → **40 passed**
-- `python -m ruff check .` → **All checks passed**
-- `python -m mypy quant_trading/` → **Success: no issues found in 38 source files**
-- Manual CLI probe: `--regime --regime-window 0/1/-3` → clean `Error: invalid --regime-window ...`;
-  `--regime --regime-window 2` → real regimes (`bull_high_vol`, 52 segments).
+- `python -m pytest -q -p no:cacheprovider tests/test_cli.py -k "synthetic_days or days or regime"`
+  → **24 passed**.
+- Manual CLI probes after the fix:
+  - `--synthetic-days 0 / -1 / -365` → `Error: invalid --synthetic-days: the value must be
+    at least 1 (got N)`, exit 1.
+  - `--synthetic-days 1 / 365` → normal run, exit 0.
+- `python -m pytest -q -p no:cacheprovider tests/test_repository_integrity.py tests/test_config.py`
+  → **138 passed**.
+- `python -m pytest -q -p no:cacheprovider tests/test_readme.py tests/test_readme_cli.py`
+  → passed (included in the 97 passed below).
+- `python -m py_compile examples/cli.py tests/test_cli.py` → OK; no added line exceeds the
+  100-char ruff limit (checked programmatically).
 
-Note: full default suite (3521 passed, 1 skipped) was green at the start of this session
-before any change; the change is isolated to CLI arg validation + docs, so only the
-directly-affected modules were re-run.
+### Environment caveat (important for the next session)
+
+This container is a **minimal env** (Python 3.14.4, pandas 3.1.1, numpy 2.5.4, pytest 9.2.0).
+`ruff`, `mypy`, `matplotlib`, and `scikit-optimize` are **NOT installed**, so the prior
+handoff's `ruff`/`mypy` commands cannot run here and some tests fail for environmental
+reasons only. Confirmed pre-existing, unrelated to this change:
+- `tests/test_cli.py`: **267 passed, 9 failed** — all 9 failures are in `TestHtmlReportFlag`
+  (`--report`), which needs matplotlib.
+- `tests/test_readme_cli_commands.py`: **97 passed, 5 failed** — 3 bayesian-optimization
+  commands need scikit-optimize; 2 `--report` commands need matplotlib.
+  Verified messages: `Error: matplotlib is required for chart generation...` and
+  `Error: BayesianOptimizer requires scikit-optimize...`.
 
 ## Unresolved / not completed
 
-- None. Change is minimal, isolated, and verified.
+- None for this task. The change is minimal, isolated, and verified.
+- Not runnable in this env (no ruff/mypy): lint/type checks. The change follows the existing
+  formatting/type patterns exactly.
 
 ## Failed approaches (do not repeat unchanged)
 
@@ -47,21 +67,26 @@ directly-affected modules were re-run.
 
 - Branch `main`, up to date with `origin/main`. Changes are **uncommitted** (no commit was
   requested). Modified: `examples/cli.py`, `tests/test_cli.py`, `README.md`.
+- Note: the base commit already contained the prior sessions' `--regime-window` and `--days`
+  work; this session adds `--synthetic-days` on top.
 
 ## One precise next task
 
-- **`--days` has no validation.** `--days` (examples/cli.py:330, default 365) is used only
-  when `--start` is absent: `start_date = end_date - timedelta(days=args.days)`
-  (examples/cli.py:2362). A value `< 1` produces an invalid date window (`start >= end`):
-  - `--days 0` → start == end → empty window → a silent, all-zero backtest (Sharpe 0.00,
-    Total Return $0.00) instead of an actionable error.
-  - `--days -5` → start > end → same silent all-zero result.
-  Evidence: `python -m examples.cli --offline --days 0 --symbols AAPL` and `--days -5` both
-  print `Sharpe Ratio: 0.00` with no error; `--days 120` returns a real result.
-  Concrete step: in `parse_args`, add a check that rejects `args.days < 1` **only when
-  `args.start` is None** (so an explicit `--start` that legitimately overrides `--days` is
-  not falsely rejected), with message `invalid --days: the value must be at least 1 (got N)`.
-  Add a `tests/test_cli.py` case (reject 0/-1 without `--start`; accept `--start` even with
-  `--days 0`), and a README error example. Constraints: keep the `--start`-override case
-  working; follow the existing `if args.X ...: raise ValueError(f"invalid --X: ...")`
-  pattern; run `tests/test_cli.py` + `tests/test_readme_cli.py` + ruff + mypy.
+- **`--synthetic-seed` has no validation.** `--synthetic-seed` (examples/cli.py:407, default
+  42) is assigned to `config.data.synthetic_seed` (examples/cli.py:1494) and consumed by
+  `create_synthetic_data` → `np.random.seed(seed)` (quant_trading/data/synthetic.py:77).
+  `np.random.seed` accepts only `0 <= seed <= 2**32 - 1`; outside that range the run fails
+  **late** with `Error running backtest: Seed must be between 0 and 2**32 - 1` (exit 1)
+  instead of a clean parse-time error.
+  - Evidence: `--synthetic-seed -1` and `--synthetic-seed 4294967296` both print
+    `Error running backtest: Seed must be between 0 and 2**32 - 1` (exit 1);
+    `--synthetic-seed 4294967295` (2**32-1) is accepted (exit 0).
+  - Concrete step: in `parse_args`, add a check rejecting `args.synthetic_seed < 0` or
+    `args.synthetic_seed > 2**32 - 1`, with message
+    `invalid --synthetic-seed: the value must be between 0 and 4294967295 (got N)`.
+  - Add `tests/test_cli.py` cases (reject -1 and 4294967296; accept 0 and 4294967295 and the
+    default 42), and a README error example.
+  - Constraints: follow the existing `if args.X ...: raise ValueError(f"invalid --X: ...")`
+    pattern; keep the check in `parse_args` (not in the library) to match the established
+    CLI-validation convention; run `tests/test_cli.py` (expect the 9 matplotlib-only
+    `TestHtmlReportFlag` failures) + `tests/test_readme.py` + `tests/test_repository_integrity.py`.

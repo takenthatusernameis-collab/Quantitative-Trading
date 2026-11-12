@@ -368,6 +368,16 @@ python examples/cli.py --offline --strategy stoch --stoch-use-midline --symbols 
  python examples/cli.py --offline --synthetic-days 120 --synthetic-seed 7 --symbols AAPL --days 30
 ```
 
+The `--synthetic-days` argument is checked before the run starts and must be at
+least 1. A value of 0 generates a single-row (or empty) series and silently
+yields an all-zero backtest, while a negative value crashes inside the data
+generator:
+
+```bash
+$ python examples/cli.py --offline --synthetic-days 0 --symbols AAPL
+Error: invalid --synthetic-days: the value must be at least 1 (got 0)
+```
+
 ### Utility Commands
 
 ```bash
