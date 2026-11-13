@@ -239,9 +239,7 @@ class RegimeResult:
             RegimeResult object populated from the dictionary.
 
         """
-        segments = [
-            RegimeSegment.from_dict(seg_data) for seg_data in data.get("segments", [])
-        ]
+        segments = [RegimeSegment.from_dict(seg_data) for seg_data in data.get("segments", [])]
         regimes = [seg.regime for seg in segments]
 
         return cls(

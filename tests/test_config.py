@@ -60,7 +60,6 @@ class TestBacktestConfig:
         with pytest.raises(ValueError, match="invalid slippage"):
             BacktestConfig(slippage=slippage)
 
-
     @pytest.mark.parametrize("risk_free_rate", [float("nan"), float("inf"), float("-inf")])
     def test_rejects_non_finite_risk_free_rate(self, risk_free_rate):
         with pytest.raises(ValueError, match="invalid risk_free_rate"):
@@ -85,7 +84,6 @@ class TestBacktestConfig:
     def test_from_dict_rejects_invalid_values(self):
         with pytest.raises(ValueError, match="invalid commission"):
             BacktestConfig.from_dict({"commission": 1.5})
-
 
     def test_from_dict_rejects_non_finite_risk_free_rate(self):
         with pytest.raises(ValueError, match="invalid risk_free_rate"):
@@ -139,9 +137,7 @@ class TestRiskConfig:
         with pytest.raises(ValueError, match="invalid take_profit_pct"):
             RiskConfig(take_profit_pct=take_profit_pct)
 
-    @pytest.mark.parametrize(
-    "max_leverage", [0.0, -1.0, float("nan"), float("inf"), float("-inf")]
-)
+    @pytest.mark.parametrize("max_leverage", [0.0, -1.0, float("nan"), float("inf"), float("-inf")])
     def test_rejects_invalid_max_leverage(self, max_leverage):
         with pytest.raises(ValueError, match="invalid max_leverage"):
             RiskConfig(max_leverage=max_leverage)
@@ -151,15 +147,9 @@ class TestRiskConfig:
         with pytest.raises(ValueError, match="invalid trailing_stop_pct"):
             RiskConfig(trailing_stop_pct=trailing_stop_pct)
 
-    @pytest.mark.parametrize(
-        "trailing_stop_activation_pct", [-0.1, 1.5]
-    )
-    def test_rejects_invalid_trailing_stop_activation_pct(
-        self, trailing_stop_activation_pct
-    ):
-        with pytest.raises(
-            ValueError, match="invalid trailing_stop_activation_pct"
-        ):
+    @pytest.mark.parametrize("trailing_stop_activation_pct", [-0.1, 1.5])
+    def test_rejects_invalid_trailing_stop_activation_pct(self, trailing_stop_activation_pct):
+        with pytest.raises(ValueError, match="invalid trailing_stop_activation_pct"):
             RiskConfig(trailing_stop_activation_pct=trailing_stop_activation_pct)
 
     def test_accepts_boundary_valid_values(self):
@@ -201,9 +191,7 @@ class TestPortfolioConfig:
         assert config.rebalance_frequency == "monthly"
         assert config.max_positions == 20
 
-    @pytest.mark.parametrize(
-    "max_positions", [0, -1, float("nan"), float("inf"), float("-inf")]
-)
+    @pytest.mark.parametrize("max_positions", [0, -1, float("nan"), float("inf"), float("-inf")])
     def test_rejects_invalid_max_positions(self, max_positions):
         with pytest.raises(ValueError, match="invalid max_positions"):
             PortfolioConfig(max_positions=max_positions)
@@ -256,8 +244,8 @@ class TestDataConfig:
             DataConfig(default_period=default_period)
 
     @pytest.mark.parametrize(
-    "synthetic_days", [0, -1, -365, float("nan"), float("inf"), float("-inf")]
-)
+        "synthetic_days", [0, -1, -365, float("nan"), float("inf"), float("-inf")]
+    )
     def test_rejects_invalid_synthetic_days(self, synthetic_days):
         with pytest.raises(ValueError, match="invalid synthetic_days"):
             DataConfig(synthetic_days=synthetic_days)
@@ -300,10 +288,10 @@ class TestDataConfig:
         path.write_text('data:\n  provider: ""\n')
         with pytest.raises(ValueError, match="invalid provider"):
             Config.from_yaml(str(path))
-        path.write_text('data:\n  synthetic_seed: -1\n')
+        path.write_text("data:\n  synthetic_seed: -1\n")
         with pytest.raises(ValueError, match="invalid synthetic_seed"):
             Config.from_yaml(str(path))
-        path.write_text('data:\n  synthetic_seed: 4294967296\n')
+        path.write_text("data:\n  synthetic_seed: 4294967296\n")
         with pytest.raises(ValueError, match="invalid synthetic_seed"):
             Config.from_yaml(str(path))
 
@@ -592,9 +580,7 @@ class TestDataConfigSerialization:
         assert DataConfig.from_dict({}) == DataConfig()
 
     def test_extra_keys_ignored(self):
-        restored = DataConfig.from_dict(
-            {"provider": "yfinance", "bogus": 1, "another": "x"}
-        )
+        restored = DataConfig.from_dict({"provider": "yfinance", "bogus": 1, "another": "x"})
         assert restored.provider == "yfinance"
         assert not hasattr(restored, "bogus")
 

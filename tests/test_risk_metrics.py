@@ -817,9 +817,7 @@ class TestCalculateInformationRatio:
 
     def test_information_ratio_periods_per_year_scales(self):
         daily = calculate_information_ratio(RETURNS, MARKET_RETURNS)
-        monthly = calculate_information_ratio(
-            RETURNS, MARKET_RETURNS, periods_per_year=12
-        )
+        monthly = calculate_information_ratio(RETURNS, MARKET_RETURNS, periods_per_year=12)
         assert monthly == pytest.approx(daily * np.sqrt(12 / 252))
 
 

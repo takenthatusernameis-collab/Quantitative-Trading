@@ -495,9 +495,7 @@ class TestParseArgs:
 
     def test_synthetic_seed_max_is_accepted(self):
         """``--synthetic-seed 4294967295`` (2**32 - 1) is accepted."""
-        with patch(
-            "sys.argv", ["cli.py", "--offline", "--synthetic-seed", "4294967295"]
-        ):
+        with patch("sys.argv", ["cli.py", "--offline", "--synthetic-seed", "4294967295"]):
             args = parse_args()
         assert args.synthetic_seed == 2**32 - 1
 
@@ -569,9 +567,7 @@ class TestParseArgs:
     def test_risk_free_rate_finite_is_accepted(self):
         """Finite ``--risk-free-rate`` values (including negative rates) are accepted."""
         for value in ("-0.01", "0", "0.05", "1.5"):
-            with (
-                patch("sys.argv", ["cli.py", "--offline", "--risk-free-rate", value]),
-            ):
+            with (patch("sys.argv", ["cli.py", "--offline", "--risk-free-rate", value]),):
                 args = parse_args()
             assert args.risk_free_rate == float(value)
 
@@ -893,13 +889,13 @@ class TestListStrategies:
             aliases = registry.aliases_for(key)
             line = next(ln for ln in primary_lines if ln.startswith(f"  {key}:"))
             if aliases:
-                assert f"(aliases: {', '.join(aliases)})" in line, (
-                    f"{key} aliases missing from list output: {line!r}"
-                )
+                assert (
+                    f"(aliases: {', '.join(aliases)})" in line
+                ), f"{key} aliases missing from list output: {line!r}"
             else:
-                assert "aliases:" not in line, (
-                    f"{key} should not report aliases but line says: {line!r}"
-                )
+                assert (
+                    "aliases:" not in line
+                ), f"{key} should not report aliases but line says: {line!r}"
 
     def test_list_strategies_alias_annotation_matches_registry(self, capsys):
         """The alias annotation on each line matches the live registry exactly."""
@@ -919,9 +915,7 @@ class TestListStrategies:
                 continue
             key = line[2:].split(":", 1)[0]
             match = alias_re.search(line)
-            reported = (
-                [a.strip() for a in match.group(1).split(",")] if match else []
-            )
+            reported = [a.strip() for a in match.group(1).split(",")] if match else []
             assert reported == registry.aliases_for(key), (
                 f"{key}: list output reports {reported!r}, "
                 f"registry has {registry.aliases_for(key)!r}"
@@ -5032,7 +5026,9 @@ class TestUserErrorReporting:
         assert "Traceback" not in captured.out
 
     @pytest.mark.slow
-    def test_offline_walk_forward_with_bayesian_inner_optimizer_and_custom_noise_completes(self, capsys):
+    def test_offline_walk_forward_with_bayesian_inner_optimizer_and_custom_noise_completes(
+        self, capsys
+    ):
         """An offline walk-forward run with the Bayesian inner optimizer and a
         custom ``--bayesian-noise`` completes end-to-end.
 
@@ -5516,9 +5512,7 @@ class TestHtmlReportFlag:
         assert "data:image/png;base64," not in content
         assert "<h2>Charts</h2>" not in content
 
-    def test_combined_report_all_sections_disabled_still_writes_html(
-        self, capsys, tmp_path
-    ):
+    def test_combined_report_all_sections_disabled_still_writes_html(self, capsys, tmp_path):
         """Every optional section disabled still yields a valid combined report."""
         import multiprocessing
 
@@ -5549,9 +5543,7 @@ class TestHtmlReportFlag:
         assert "data:image/png;base64," not in content
         assert "<h2>Charts</h2>" not in content
 
-    def test_combined_report_without_trades_is_wired_and_harmless(
-        self, capsys, tmp_path
-    ):
+    def test_combined_report_without_trades_is_wired_and_harmless(self, capsys, tmp_path):
         """``--combined --report --report-no-trades`` is accepted and harmless.
 
         The comparison report has no per-strategy trade table, so the flag
@@ -5582,9 +5574,7 @@ class TestHtmlReportFlag:
         assert "<!DOCTYPE html>" in content
         assert "<h2>Strategy Comparison</h2>" in content
 
-    def test_combined_report_without_monthly_keeps_charts(
-        self, capsys, tmp_path
-    ):
+    def test_combined_report_without_monthly_keeps_charts(self, capsys, tmp_path):
         """``--report-no-monthly`` is a no-op for the comparison report.
 
         The comparison report renders only an Equity Curves / Drawdown
@@ -5852,9 +5842,7 @@ class TestCliHelpers:
             mc_seed=7,
         )
 
-        mc = _get_monte_carlo_analysis(
-            result, args, periods_per_year=252, risk_free_rate=0.02
-        )
+        mc = _get_monte_carlo_analysis(result, args, periods_per_year=252, risk_free_rate=0.02)
         assert mc.n_simulations == 20
         assert mc.confidence_level == 0.90
         assert mc._method == "parametric"
@@ -5949,9 +5937,7 @@ class TestCliHelpers:
                 return {"n_simulations": 20, "probability_of_profit": 0.5}
 
         with patch("examples.cli.run_monte_carlo", return_value=_LockedMC()):
-            mc = _get_monte_carlo_analysis(
-                result, args, periods_per_year=252, risk_free_rate=0.02
-            )
+            mc = _get_monte_carlo_analysis(result, args, periods_per_year=252, risk_free_rate=0.02)
 
         assert mc.n_simulations == 20
         assert mc.confidence_level == 0.90

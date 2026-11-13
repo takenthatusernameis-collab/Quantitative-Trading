@@ -222,7 +222,15 @@ def test_parameter_grid_random():
 
 def test_parameter_space_to_dict():
     """Test ParameterSpace.to_dict serialization."""
-    space = ParameterSpace("test_param", values=[1, 2, 3], min_val=0.0, max_val=10.0, step=1.0, distribution="log", param_type=int)
+    space = ParameterSpace(
+        "test_param",
+        values=[1, 2, 3],
+        min_val=0.0,
+        max_val=10.0,
+        step=1.0,
+        distribution="log",
+        param_type=int,
+    )
     data = space.to_dict()
 
     assert data["name"] == "test_param"
@@ -286,7 +294,15 @@ def test_parameter_space_from_dict_defaults():
 
 def test_parameter_space_round_trip():
     """Test ParameterSpace round-trip serialization."""
-    original = ParameterSpace("test_param", values=[1, 2, 3], min_val=0.0, max_val=10.0, step=1.0, distribution="log", param_type=int)
+    original = ParameterSpace(
+        "test_param",
+        values=[1, 2, 3],
+        min_val=0.0,
+        max_val=10.0,
+        step=1.0,
+        distribution="log",
+        param_type=int,
+    )
     data = original.to_dict()
     restored = ParameterSpace.from_dict(data)
 
@@ -1515,15 +1531,15 @@ def test_walk_forward_no_dates():
 def _base_walk_forward_optimizer(**overrides: Any) -> WalkForwardOptimizer:
     kwargs: dict[str, Any] = {
         "strategy_cls": MovingAverageCrossover,
-        "param_grid": ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int)),
+        "param_grid": ParameterGrid().add(
+            ParameterSpace("fast_period", values=[5], param_type=int)
+        ),
         "objective": maximize_sharpe,
         "symbols": ["AAPL"],
         "start": datetime(2026, 1, 15) - timedelta(days=10),
         "end": datetime(2026, 1, 15),
         "initial_capital": 100000.0,
-        "data_manager": DataManager(
-            [MockDataProvider({"AAPL": create_test_data("AAPL", 20)})]
-        ),
+        "data_manager": DataManager([MockDataProvider({"AAPL": create_test_data("AAPL", 20)})]),
     }
     kwargs.update(overrides)
     return WalkForwardOptimizer(**kwargs)
@@ -1961,9 +1977,9 @@ def test_walk_forward_to_dataframe_is_json_safe():
     # The serialized boundaries are ISO-8601 strings, not raw datetimes.
     first = records[0]
     for column in ("train_start", "train_end", "test_start", "test_end"):
-        assert isinstance(first[column], str), (
-            f"{column} serialized as {type(first[column]).__name__}, expected str"
-        )
+        assert isinstance(
+            first[column], str
+        ), f"{column} serialized as {type(first[column]).__name__}, expected str"
         # The string must round-trip back to a datetime.
         datetime.fromisoformat(first[column])
 
@@ -3984,9 +4000,7 @@ class TestOptimizationResultSerialization:
 
     def test_from_dict_defaults_missing_fields(self):
         """from_dict tolerates a dict that omits optional fields."""
-        restored = OptimizationResult.from_dict(
-            {"best_params": {"x": 1}, "best_score": 0.5}
-        )
+        restored = OptimizationResult.from_dict({"best_params": {"x": 1}, "best_score": 0.5})
         assert restored.best_params == {"x": 1}
         assert restored.best_score == 0.5
         assert restored.best_result is None
@@ -4230,8 +4244,7 @@ class TestBayesianOptimizerNoise:
         optimizer.run()
 
         assert captured.get("noise") == 1e-3, (
-            f"gp_minimize received noise={captured.get('noise')!r}, "
-            "expected the configured 1e-3"
+            f"gp_minimize received noise={captured.get('noise')!r}, " "expected the configured 1e-3"
         )
 
     def test_default_noise_reaches_gp_minimize(self, monkeypatch):
@@ -4453,9 +4466,7 @@ class TestWalkForwardResultCombinedRestore:
 
 def _base_optimizer_minimal_kwargs():
     """Return a minimal valid set of BaseOptimizer constructor kwargs."""
-    grid = ParameterGrid().add(
-        ParameterSpace("fast_period", values=[5], param_type=int)
-    )
+    grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
     return {
         "strategy_cls": None,
         "param_grid": grid,
@@ -4512,7 +4523,9 @@ class TestBaseOptimizerInitValidation:
 
     @pytest.mark.parametrize("commission", [0.0, 1.0])
     def test_accepts_commission_boundaries(self, commission):
-        optimizer = _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), commission=commission)
+        optimizer = _ConcreteBaseOptimizer(
+            **_base_optimizer_minimal_kwargs(), commission=commission
+        )
         assert optimizer.commission == commission
 
     @pytest.mark.parametrize("slippage", [-0.1, 1.5])
@@ -4578,9 +4591,7 @@ def _bayesian_optimizer_minimal_kwargs():
     pytest.importorskip("skopt")
     from quant_trading.optimization.bayesian import BayesianOptimizer
 
-    grid = ParameterGrid().add(
-        ParameterSpace("fast_period", min_val=5, max_val=10, param_type=int)
-    )
+    grid = ParameterGrid().add(ParameterSpace("fast_period", min_val=5, max_val=10, param_type=int))
     return {
         "strategy_cls": MovingAverageCrossover,
         "param_grid": grid,

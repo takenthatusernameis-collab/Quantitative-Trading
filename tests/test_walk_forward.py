@@ -12,9 +12,7 @@ from quant_trading.optimization.walk_forward import WalkForwardOptimizer
 
 def _minimal_kwargs():
     """Return a minimal valid set of WalkForwardOptimizer constructor kwargs."""
-    grid = ParameterGrid().add(
-        ParameterSpace("fast_period", values=[5], param_type=int)
-    )
+    grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
     return {
         "strategy_cls": None,
         "param_grid": grid,
@@ -64,15 +62,11 @@ class TestWalkForwardInitValidation:
     )
     def test_rejects_invalid_periods_per_year(self, periods_per_year):
         with pytest.raises(ValueError, match="invalid periods_per_year"):
-            WalkForwardOptimizer(
-                **_minimal_kwargs(), periods_per_year=periods_per_year
-            )
+            WalkForwardOptimizer(**_minimal_kwargs(), periods_per_year=periods_per_year)
 
     @pytest.mark.parametrize("periods_per_year", [1])
     def test_accepts_minimal_periods_per_year(self, periods_per_year):
-        optimizer = WalkForwardOptimizer(
-            **_minimal_kwargs(), periods_per_year=periods_per_year
-        )
+        optimizer = WalkForwardOptimizer(**_minimal_kwargs(), periods_per_year=periods_per_year)
         assert optimizer.periods_per_year == periods_per_year
 
     @pytest.mark.parametrize("commission", [-0.1, 1.5])

@@ -120,9 +120,7 @@ def main() -> None:
     last_bars = data_manager.fetch(
         symbols=symbols, start=start_date, end=end_date, interval="1d"
     ).data
-    prices = {
-        symbol: float(md.data["close"].iloc[-1]) for symbol, md in last_bars.items()
-    }
+    prices = {symbol: float(md.data["close"].iloc[-1]) for symbol, md in last_bars.items()}
 
     actions = rebalancer.generate_rebalance_actions(prices=prices)
 

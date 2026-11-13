@@ -42,9 +42,9 @@ class TestPackageVersion:
         """Version should follow a simple MAJOR.MINOR.PATCH numeric form."""
         import re
 
-        assert re.fullmatch(r"\d+\.\d+\.\d+", quant_trading.__version__), (
-            f"Expected MAJOR.MINOR.PATCH version, got: {quant_trading.__version__!r}"
-        )
+        assert re.fullmatch(
+            r"\d+\.\d+\.\d+", quant_trading.__version__
+        ), f"Expected MAJOR.MINOR.PATCH version, got: {quant_trading.__version__!r}"
 
 
 class TestPackageExports:

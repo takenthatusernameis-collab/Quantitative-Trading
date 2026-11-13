@@ -96,13 +96,9 @@ class PositionLimit:
     def __post_init__(self) -> None:
         """Reject non-finite limit values so silent corruption cannot occur."""
         if not math.isfinite(self.max_size):
-            raise ValueError(
-                f"invalid max_size: the value must be finite (got {self.max_size})"
-            )
+            raise ValueError(f"invalid max_size: the value must be finite (got {self.max_size})")
         if not math.isfinite(self.max_value):
-            raise ValueError(
-                f"invalid max_value: the value must be finite (got {self.max_value})"
-            )
+            raise ValueError(f"invalid max_value: the value must be finite (got {self.max_value})")
         if not math.isfinite(self.stop_loss_pct):
             raise ValueError(
                 f"invalid stop_loss_pct: the value must be finite (got {self.stop_loss_pct})"
@@ -287,8 +283,7 @@ class PortfolioLimit:
             )
         if not math.isfinite(self.max_drawdown):
             raise ValueError(
-                f"invalid max_drawdown: the value must be finite "
-                f"(got {self.max_drawdown})"
+                f"invalid max_drawdown: the value must be finite " f"(got {self.max_drawdown})"
             )
         if not math.isfinite(self.max_leverage):
             raise ValueError(
@@ -296,8 +291,7 @@ class PortfolioLimit:
             )
         if not math.isfinite(self.stop_loss_pct):
             raise ValueError(
-                f"invalid stop_loss_pct: the value must be finite "
-                f"(got {self.stop_loss_pct})"
+                f"invalid stop_loss_pct: the value must be finite " f"(got {self.stop_loss_pct})"
             )
 
     def to_dict(self) -> dict[str, Any]:

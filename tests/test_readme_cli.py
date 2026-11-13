@@ -244,6 +244,6 @@ class TestReadmeCliFlags:
                     f"{flag}: help string claims default {claimed!r}, "
                     f"parser default is {actual[flag]!r}"
                 )
-        assert not offenders, "CLI help-string default claims out of sync with the parser:\n" + "\n".join(
-            offenders
-        )
+        assert (
+            not offenders
+        ), "CLI help-string default claims out of sync with the parser:\n" + "\n".join(offenders)

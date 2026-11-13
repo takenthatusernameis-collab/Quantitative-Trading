@@ -328,13 +328,11 @@ class BacktestConfig:
             )
         if not (0.0 <= self.slippage <= 1.0):
             raise ValueError(
-                f"invalid slippage: the value must be in the range [0, 1] "
-                f"(got {self.slippage})"
+                f"invalid slippage: the value must be in the range [0, 1] " f"(got {self.slippage})"
             )
         if not math.isfinite(self.risk_free_rate):
             raise ValueError(
-                f"invalid risk_free_rate: the value must be finite "
-                f"(got {self.risk_free_rate})"
+                f"invalid risk_free_rate: the value must be finite " f"(got {self.risk_free_rate})"
             )
 
     def to_dict(self) -> dict[str, Any]:
@@ -392,9 +390,7 @@ class BacktestConfig:
             slippage=float(data.get("slippage", 0.0005)),
             risk_free_rate=float(data.get("risk_free_rate", 0.02)),
             periods_per_year=int(data.get("periods_per_year", 252)),
-            halt_on_portfolio_violation=bool(
-                data.get("halt_on_portfolio_violation", False)
-            ),
+            halt_on_portfolio_violation=bool(data.get("halt_on_portfolio_violation", False)),
             enable_stop_exits=bool(data.get("enable_stop_exits", False)),
         )
 
@@ -471,8 +467,7 @@ class RiskConfig:
             )
         if not math.isfinite(self.max_leverage) or self.max_leverage < 1e-9:
             raise ValueError(
-                f"invalid max_leverage: the value must be positive "
-                f"(got {self.max_leverage})"
+                f"invalid max_leverage: the value must be positive " f"(got {self.max_leverage})"
             )
         if not (0.0 <= self.trailing_stop_pct <= 1.0):
             raise ValueError(
@@ -544,9 +539,7 @@ class RiskConfig:
             max_drawdown=float(data.get("max_drawdown", 0.20)),
             max_leverage=float(data.get("max_leverage", 1.0)),
             trailing_stop_pct=float(data.get("trailing_stop_pct", 0.0)),
-            trailing_stop_activation_pct=float(
-                data.get("trailing_stop_activation_pct", 0.0)
-            ),
+            trailing_stop_activation_pct=float(data.get("trailing_stop_activation_pct", 0.0)),
         )
 
 

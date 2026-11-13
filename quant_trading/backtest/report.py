@@ -1022,7 +1022,9 @@ def _create_comparison_monthly_returns_heatmap(
     if n_results == 0:
         return ""
 
-    fig, axes = plt.subplots(1, n_results, figsize=(8 * n_results, 4), dpi=dpi, facecolor=colors["bg"], squeeze=False)
+    fig, axes = plt.subplots(
+        1, n_results, figsize=(8 * n_results, 4), dpi=dpi, facecolor=colors["bg"], squeeze=False
+    )
     axes = axes[0]
 
     for i, (name, result) in enumerate(results):
@@ -1040,7 +1042,9 @@ def _create_comparison_monthly_returns_heatmap(
                 color=colors["fg"],
                 transform=ax.transAxes,
             )
-            ax.set_title(f"{name} - Monthly Returns", color=colors["fg"], fontsize=12, fontweight="bold")
+            ax.set_title(
+                f"{name} - Monthly Returns", color=colors["fg"], fontsize=12, fontweight="bold"
+            )
             ax.axis("off")
             continue
 
@@ -1057,7 +1061,9 @@ def _create_comparison_monthly_returns_heatmap(
                 color=colors["fg"],
                 transform=ax.transAxes,
             )
-            ax.set_title(f"{name} - Monthly Returns", color=colors["fg"], fontsize=12, fontweight="bold")
+            ax.set_title(
+                f"{name} - Monthly Returns", color=colors["fg"], fontsize=12, fontweight="bold"
+            )
             ax.axis("off")
             continue
 
@@ -1070,8 +1076,18 @@ def _create_comparison_monthly_returns_heatmap(
         all_months = range(1, 13)
         pivot = pivot.reindex(columns=all_months)
         pivot.columns = [
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
         ]
 
         vmin = -max(abs(pivot.min().min()), abs(pivot.max().max())) if not pivot.empty else -1
@@ -1106,7 +1122,9 @@ def _create_comparison_monthly_returns_heatmap(
                         fontweight="bold",
                     )
 
-        ax.set_title(f"{name} - Monthly Returns (%)", color=colors["fg"], fontsize=12, fontweight="bold")
+        ax.set_title(
+            f"{name} - Monthly Returns (%)", color=colors["fg"], fontsize=12, fontweight="bold"
+        )
 
         for spine in ax.spines.values():
             spine.set_color(colors["grid"])
@@ -1190,12 +1208,16 @@ def _create_comparison_trade_distribution_chart(
             color=colors["fg"],
             transform=ax.transAxes,
         )
-        ax.set_title("Trade PnL Distribution Comparison", color=colors["fg"], fontsize=14, fontweight="bold")
+        ax.set_title(
+            "Trade PnL Distribution Comparison", color=colors["fg"], fontsize=14, fontweight="bold"
+        )
         ax.axis("off")
         return _fig_to_base64(fig, dpi)
 
     ax.axvline(x=0, color=colors["fg"], linewidth=1, linestyle="-")
-    ax.set_title("Trade PnL Distribution Comparison", color=colors["fg"], fontsize=14, fontweight="bold")
+    ax.set_title(
+        "Trade PnL Distribution Comparison", color=colors["fg"], fontsize=14, fontweight="bold"
+    )
     ax.set_xlabel("PnL ($)", color=colors["fg"])
     ax.set_ylabel("Frequency", color=colors["fg"])
     ax.tick_params(colors=colors["fg"])
@@ -1265,7 +1287,10 @@ def _create_comparison_rolling_sharpe_chart(
             transform=ax.transAxes,
         )
         ax.set_title(
-            "Rolling Sharpe Ratio (60-period) Comparison", color=colors["fg"], fontsize=14, fontweight="bold"
+            "Rolling Sharpe Ratio (60-period) Comparison",
+            color=colors["fg"],
+            fontsize=14,
+            fontweight="bold",
         )
         ax.axis("off")
         return _fig_to_base64(fig, dpi)
@@ -1274,7 +1299,10 @@ def _create_comparison_rolling_sharpe_chart(
     ax.axhline(y=1, color=colors["positive"], linewidth=0.5, linestyle="--", alpha=0.5)
     ax.axhline(y=-1, color=colors["negative"], linewidth=0.5, linestyle="--", alpha=0.5)
     ax.set_title(
-        "Rolling Sharpe Ratio (60-period) Comparison", color=colors["fg"], fontsize=14, fontweight="bold"
+        "Rolling Sharpe Ratio (60-period) Comparison",
+        color=colors["fg"],
+        fontsize=14,
+        fontweight="bold",
     )
     ax.set_ylabel("Sharpe Ratio", color=colors["fg"])
     ax.set_xlabel("Date", color=colors["fg"])
@@ -1379,20 +1407,41 @@ def _build_comparison_table(
         ("Final Value", lambda r: f"${r.final_value:,.2f}"),
         ("Total Return", lambda r: f"{r.total_return_pct:.2f}%"),
         ("Total Return ($)", lambda r: f"${r.total_return:,.2f}"),
-        ("Annualized Return", lambda r: _format_metric(getattr(r.metrics, "annual_return", None), "{:.2f}%")),
-        ("Volatility (Ann.)", lambda r: _format_metric(getattr(r.metrics, "volatility", None), "{:.2f}%")),
+        (
+            "Annualized Return",
+            lambda r: _format_metric(getattr(r.metrics, "annual_return", None), "{:.2f}%"),
+        ),
+        (
+            "Volatility (Ann.)",
+            lambda r: _format_metric(getattr(r.metrics, "volatility", None), "{:.2f}%"),
+        ),
         ("Sharpe Ratio", lambda r: _format_metric(getattr(r.metrics, "sharpe_ratio", None))),
         ("Sortino Ratio", lambda r: _format_metric(getattr(r.metrics, "sortino_ratio", None))),
         ("Calmar Ratio", lambda r: _format_metric(getattr(r.metrics, "calmar_ratio", None))),
-        ("Max Drawdown", lambda r: _format_metric(getattr(r.metrics, "max_drawdown_pct", None), "{:.2f}%")),
-        ("Max Drawdown ($)", lambda r: _format_metric(getattr(r.metrics, "max_drawdown", None), "${:,.2f}")),
+        (
+            "Max Drawdown",
+            lambda r: _format_metric(getattr(r.metrics, "max_drawdown_pct", None), "{:.2f}%"),
+        ),
+        (
+            "Max Drawdown ($)",
+            lambda r: _format_metric(getattr(r.metrics, "max_drawdown", None), "${:,.2f}"),
+        ),
         ("Profit Factor", lambda r: _format_metric(getattr(r.metrics, "profit_factor", None))),
         ("Win Rate", lambda r: _format_metric(getattr(r.metrics, "win_rate", None), "{:.2%}")),
-        ("Total Trades", lambda r: _format_metric(getattr(r.metrics, "num_trades", None), "{:.0f}")),
+        (
+            "Total Trades",
+            lambda r: _format_metric(getattr(r.metrics, "num_trades", None), "{:.0f}"),
+        ),
         ("Avg Win", lambda r: _format_metric(getattr(r.metrics, "avg_win", None), "${:,.2f}")),
         ("Avg Loss", lambda r: _format_metric(getattr(r.metrics, "avg_loss", None), "${:,.2f}")),
-        ("Best Trade", lambda r: _format_metric(getattr(r.metrics, "best_trade", None), "${:,.2f}")),
-        ("Worst Trade", lambda r: _format_metric(getattr(r.metrics, "worst_trade", None), "${:,.2f}")),
+        (
+            "Best Trade",
+            lambda r: _format_metric(getattr(r.metrics, "best_trade", None), "${:,.2f}"),
+        ),
+        (
+            "Worst Trade",
+            lambda r: _format_metric(getattr(r.metrics, "worst_trade", None), "${:,.2f}"),
+        ),
         (
             "Avg Trade Duration",
             lambda r: _format_metric(getattr(r.metrics, "avg_trade_duration", None), "{:.1f} bars"),
@@ -1430,7 +1479,7 @@ def _build_comparison_summary_cards(
     html = ['<div class="summary-cards">']
     for name, result in results:
         metrics = result.metrics
-        html.append(f'''
+        html.append(f"""
         <div class="summary-card" style="background:{colors["table_row_even"]}; border:1px solid {colors["grid"]}; border-radius:8px; padding:15px; margin:10px 0;">
             <h3 style="margin:0 0 10px 0; color:{colors["fg"]};">{name}</h3>
             <div style="display:flex; flex-wrap:wrap; gap:20px;">
@@ -1442,8 +1491,8 @@ def _build_comparison_summary_cards(
                 <div><strong>Costs:</strong> ${result.total_costs:,.2f}</div>
             </div>
         </div>
-        ''')
-    html.append('</div>')
+        """)
+    html.append("</div>")
     return "\n".join(html)
 
 
@@ -1490,13 +1539,19 @@ def generate_comparison_report(
         drawdown_chart = _create_comparison_drawdown_chart(results, colors, config.dpi)
 
         if config.include_monthly_heatmap:
-            monthly_heatmap = _create_comparison_monthly_returns_heatmap(results, colors, config.dpi)
+            monthly_heatmap = _create_comparison_monthly_returns_heatmap(
+                results, colors, config.dpi
+            )
 
         trade_dist_chart = _create_comparison_trade_distribution_chart(results, colors, config.dpi)
 
         if config.include_rolling_metrics:
-            rolling_sharpe_chart = _create_comparison_rolling_sharpe_chart(results, colors, config.dpi)
-            rolling_vol_chart = _create_comparison_rolling_volatility_chart(results, colors, config.dpi)
+            rolling_sharpe_chart = _create_comparison_rolling_sharpe_chart(
+                results, colors, config.dpi
+            )
+            rolling_vol_chart = _create_comparison_rolling_volatility_chart(
+                results, colors, config.dpi
+            )
 
     # Build comparison table
     comparison_table = _build_comparison_table(results, colors)

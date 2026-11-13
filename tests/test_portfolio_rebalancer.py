@@ -74,7 +74,11 @@ class TestRebalanceActionSerialization:
         """to_dict followed by from_dict reproduces the action."""
         timestamp = datetime(2026, 1, 1, 12, 0, 0)
         action = RebalanceAction(
-            symbol="AAPL", action="buy", quantity=400.0, reason="target_allocation", timestamp=timestamp
+            symbol="AAPL",
+            action="buy",
+            quantity=400.0,
+            reason="target_allocation",
+            timestamp=timestamp,
         )
         restored = RebalanceAction.from_dict(action.to_dict())
         assert restored == action
@@ -260,12 +264,15 @@ class TestRebalancerInitValidation:
         rebalancer = Rebalancer(portfolio, rebalance_threshold=threshold)
         assert rebalancer.rebalance_threshold == threshold
 
-    @pytest.mark.parametrize("allocation", [
-        {"AAPL": float('nan')},
-        {"AAPL": float('inf')},
-        {"AAPL": float('-inf')},
-        {"AAPL": "not_a_number"},
-    ])
+    @pytest.mark.parametrize(
+        "allocation",
+        [
+            {"AAPL": float("nan")},
+            {"AAPL": float("inf")},
+            {"AAPL": float("-inf")},
+            {"AAPL": "not_a_number"},
+        ],
+    )
     def test_rejects_non_finite_target_weights(self, allocation):
         portfolio = _empty_portfolio()
         with pytest.raises(ValueError, match="must be a finite number"):
@@ -275,12 +282,12 @@ class TestRebalancerInitValidation:
         """Target allocations with any finite weights are accepted."""
         portfolio = _empty_portfolio()
         for allocation in [
-            {"AAPL": 0.5},                    # partial allocation
-            {"AAPL": 0.0},                    # zero weight
-            {"AAPL": -0.5},                   # negative weight
-            {"AAPL": 0.6, "MSFT": 0.4},       # sums to 1.0
-            {"AAPL": 0.6, "MSFT": 0.3},       # sums to 0.9
-            {"AAPL": 1.0, "MSFT": -0.5},      # mixed signs
+            {"AAPL": 0.5},  # partial allocation
+            {"AAPL": 0.0},  # zero weight
+            {"AAPL": -0.5},  # negative weight
+            {"AAPL": 0.6, "MSFT": 0.4},  # sums to 1.0
+            {"AAPL": 0.6, "MSFT": 0.3},  # sums to 0.9
+            {"AAPL": 1.0, "MSFT": -0.5},  # mixed signs
         ]:
             rebalancer = Rebalancer(portfolio, target_allocation=allocation)
             assert rebalancer.target_allocation == allocation

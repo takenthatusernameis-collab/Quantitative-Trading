@@ -257,9 +257,11 @@ class WalkForwardResult:
         """
         return {
             "windows": [w.to_dict() for w in self.windows],
-            "combined_test_result": self.combined_test_result.to_dict()
-            if self.combined_test_result is not None
-            else None,
+            "combined_test_result": (
+                self.combined_test_result.to_dict()
+                if self.combined_test_result is not None
+                else None
+            ),
             "anchored": self.anchored,
         }
 
@@ -534,8 +536,7 @@ class WalkForwardOptimizer:
         # silently get a degenerate or misleading run instead of a clear error.
         if self.n_windows < 1:
             raise ValueError(
-                f"invalid n_windows: the value must be at least 1 "
-                f"(got {self.n_windows})"
+                f"invalid n_windows: the value must be at least 1 " f"(got {self.n_windows})"
             )
         if not (0.0 < self.train_size <= 1.0):
             raise ValueError(
@@ -564,8 +565,7 @@ class WalkForwardOptimizer:
             )
         if not (0.0 <= self.slippage <= 1.0):
             raise ValueError(
-                f"invalid slippage: the value must be in the range [0, 1] "
-                f"(got {self.slippage})"
+                f"invalid slippage: the value must be in the range [0, 1] " f"(got {self.slippage})"
             )
 
     def _create_optimizer(self) -> BaseOptimizer:

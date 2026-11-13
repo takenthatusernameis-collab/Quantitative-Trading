@@ -646,9 +646,7 @@ def test_rebalancer_converges_to_target_allocation_after_backtest():
     last_bars = data_manager.fetch(
         symbols=symbols, start=start_date, end=end_date, interval="1d"
     ).data
-    prices = {
-        symbol: float(md.data["close"].iloc[-1]) for symbol, md in last_bars.items()
-    }
+    prices = {symbol: float(md.data["close"].iloc[-1]) for symbol, md in last_bars.items()}
 
     actions = rebalancer.generate_rebalance_actions(prices=prices)
     rebalancer.execute_actions(actions, prices=prices)
@@ -656,6 +654,6 @@ def test_rebalancer_converges_to_target_allocation_after_backtest():
     deviations = rebalancer.get_current_deviation()
     assert deviations, "expected a deviation report for every target symbol"
     for symbol, deviation in deviations.items():
-        assert abs(deviation) <= rebalancer.rebalance_threshold + 1e-6, (
-            f"{symbol} did not converge to its target allocation: deviation {deviation:+.4f}"
-        )
+        assert (
+            abs(deviation) <= rebalancer.rebalance_threshold + 1e-6
+        ), f"{symbol} did not converge to its target allocation: deviation {deviation:+.4f}"

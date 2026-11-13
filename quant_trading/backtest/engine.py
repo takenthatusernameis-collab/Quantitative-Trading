@@ -622,7 +622,10 @@ class BacktestResult:
         final_value = float(data.get("final_value", 0.0) or 0.0)
         total_return = float(data.get("total_return", final_value - initial_capital) or 0.0)
         total_return_pct = float(
-            data.get("total_return_pct", (total_return / initial_capital * 100) if initial_capital else 0.0)
+            data.get(
+                "total_return_pct",
+                (total_return / initial_capital * 100) if initial_capital else 0.0,
+            )
             or 0.0
         )
 
@@ -660,7 +663,6 @@ class BacktestResult:
             result.trade_analysis = TradeAnalysis.from_dict(trade_analysis_data)
 
         return result
-
 
 
 class BacktestEngine:

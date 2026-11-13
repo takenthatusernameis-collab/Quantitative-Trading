@@ -798,9 +798,7 @@ class TestPortfolioLimitValidation:
         with pytest.raises(ValueError, match="invalid "):
             PortfolioLimit(**{field: value})
 
-    @pytest.mark.parametrize(
-        "max_positions", [-1, -5, float("nan"), float("inf"), float("-inf")]
-    )
+    @pytest.mark.parametrize("max_positions", [-1, -5, float("nan"), float("inf"), float("-inf")])
     def test_rejects_invalid_max_positions(self, max_positions):
         with pytest.raises(ValueError, match="invalid max_positions"):
             PortfolioLimit(max_positions=max_positions)

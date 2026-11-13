@@ -321,9 +321,7 @@ class ParameterGrid:
 
         """
         return {
-            "spaces": {
-                name: space.to_dict() for name, space in self.spaces.items()
-            },
+            "spaces": {name: space.to_dict() for name, space in self.spaces.items()},
         }
 
     @classmethod
@@ -869,8 +867,7 @@ class BaseOptimizer(ABC):
             )
         if not (0.0 <= self.slippage <= 1.0):
             raise ValueError(
-                f"invalid slippage: the value must be in the range [0, 1] "
-                f"(got {self.slippage})"
+                f"invalid slippage: the value must be in the range [0, 1] " f"(got {self.slippage})"
             )
 
     @abstractmethod

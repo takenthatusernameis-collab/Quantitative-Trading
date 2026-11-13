@@ -403,6 +403,7 @@ def test_monte_carlo_risk_free_rate_parametric_method():
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
+
 class TestMonteCarloResultSerialization:
     """Tests for MonteCarloResult.to_dict/from_dict."""
 

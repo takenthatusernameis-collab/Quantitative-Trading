@@ -2664,8 +2664,12 @@ class TestBacktestResultSerialization:
 
         m = result.metrics
         result.monte_carlo = MonteCarloResult(
-            simulations=[m], original_metrics=m, n_simulations=1, confidence_level=0.95,
-            start_time=datetime(2024, 1, 1), end_time=datetime(2024, 1, 1, 0, 0, 1),
+            simulations=[m],
+            original_metrics=m,
+            n_simulations=1,
+            confidence_level=0.95,
+            start_time=datetime(2024, 1, 1),
+            end_time=datetime(2024, 1, 1, 0, 0, 1),
         )
         reconstructed = BacktestResult.from_dict(result.to_dict())
         assert hasattr(reconstructed, "monte_carlo")

@@ -1,7 +1,7 @@
 """Example trading strategies."""
 
-from typing import Any, cast
 import math
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd

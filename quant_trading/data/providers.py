@@ -140,9 +140,9 @@ class MarketData:
         """
         raw = self.data.to_dict(orient="split")
         raw_index = raw.get("index") or []
-        is_dt_index = isinstance(self.data.index, pd.DatetimeIndex) or pd.api.types.is_datetime64_any_dtype(
-            self.data.index
-        )
+        is_dt_index = isinstance(
+            self.data.index, pd.DatetimeIndex
+        ) or pd.api.types.is_datetime64_any_dtype(self.data.index)
         if is_dt_index:
             index = [(v.isoformat() if hasattr(v, "isoformat") else v) for v in raw_index]
         else:
@@ -320,8 +320,7 @@ class FetchResult:
         raw_data = data.get("data") or {}
         raw_errors = data.get("errors") or {}
         restored_data = {
-            k: (MarketData.from_dict(v) if isinstance(v, dict) else v)
-            for k, v in raw_data.items()
+            k: (MarketData.from_dict(v) if isinstance(v, dict) else v) for k, v in raw_data.items()
         }
         restored_errors: dict[str, Exception] = {}
         for k, v in raw_errors.items():

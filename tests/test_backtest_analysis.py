@@ -304,7 +304,9 @@ class TestBacktestRegimeAnalysisFromDict:
     def test_from_dict_round_trips_to_dict(self):
         """from_dict must reconstruct an analysis from its to_dict output."""
         result = _make_result()
-        analysis = analyze_regimes(result, window=20, vol_threshold=0.15, return_threshold=0.05, periods_per_year=252)
+        analysis = analyze_regimes(
+            result, window=20, vol_threshold=0.15, return_threshold=0.05, periods_per_year=252
+        )
         data = analysis.to_dict()
         reconstructed = BacktestRegimeAnalysis.from_dict(data)
 
@@ -313,8 +315,12 @@ class TestBacktestRegimeAnalysisFromDict:
         assert reconstructed.return_threshold == analysis.return_threshold
         assert reconstructed.periods_per_year == analysis.periods_per_year
         assert reconstructed.current_regime == analysis.current_regime
-        assert reconstructed.result.total_volatility == pytest.approx(analysis.result.total_volatility)
-        assert reconstructed.result.total_return_pct == pytest.approx(analysis.result.total_return_pct)
+        assert reconstructed.result.total_volatility == pytest.approx(
+            analysis.result.total_volatility
+        )
+        assert reconstructed.result.total_return_pct == pytest.approx(
+            analysis.result.total_return_pct
+        )
         assert reconstructed.n_segments == analysis.n_segments
         for orig_seg, recon_seg in zip(analysis.segments, reconstructed.segments):
             assert recon_seg.regime == orig_seg.regime

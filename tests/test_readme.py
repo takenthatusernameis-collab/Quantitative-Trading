@@ -135,8 +135,6 @@ class TestReadmeStrategyRegistry:
             not offenders
         ), "README strategy aliases out of sync with the registry:\n" + "\n".join(offenders)
 
-
-
     def test_feature_bullet_strategy_count_matches_registry(self):
         """The README feature bullet's 'N registered strategies' must match the live registry."""
         readme = README_PATH.read_text(encoding="utf-8")
@@ -144,9 +142,9 @@ class TestReadmeStrategyRegistry:
         assert match is not None, "README missing 'N registered strategies' feature claim"
         claimed = int(match.group(1))
         actual = len(list_strategies())
-        assert claimed == actual, (
-            f"README claims {claimed} registered strategies, registry has {actual}"
-        )
+        assert (
+            claimed == actual
+        ), f"README claims {claimed} registered strategies, registry has {actual}"
 
 
 # Names imported from ``quant_trading.data`` in the README's DataManager example.

@@ -1074,9 +1074,7 @@ def parse_args() -> argparse.Namespace:
             f"invalid --mc-simulations: the value must be at least 1 (got {args.mc_simulations})"
         )
     if args.mc_seed is not None and args.mc_seed < 0:
-        raise ValueError(
-            f"invalid --mc-seed: the value must be at least 0 (got {args.mc_seed})"
-        )
+        raise ValueError(f"invalid --mc-seed: the value must be at least 0 (got {args.mc_seed})")
     interval = getattr(args, "interval", None)
     if interval is not None and not _is_supported_interval(interval):
         raise ValueError(
@@ -1110,13 +1108,10 @@ def parse_args() -> argparse.Namespace:
         )
     if args.regime_window < 2:
         raise ValueError(
-            f"invalid --regime-window: the value must be at least 2 "
-            f"(got {args.regime_window})"
+            f"invalid --regime-window: the value must be at least 2 " f"(got {args.regime_window})"
         )
     if args.start is None and args.days < 1:
-        raise ValueError(
-            f"invalid --days: the value must be at least 1 " f"(got {args.days})"
-        )
+        raise ValueError(f"invalid --days: the value must be at least 1 " f"(got {args.days})")
     if args.synthetic_days < 1:
         raise ValueError(
             f"invalid --synthetic-days: the value must be at least 1 "
@@ -1163,13 +1158,11 @@ def parse_args() -> argparse.Namespace:
         )
     if args.slippage is not None and not (0.0 <= args.slippage <= 1.0):
         raise ValueError(
-            f"invalid --slippage: the value must be in the range [0, 1] "
-            f"(got {args.slippage})"
+            f"invalid --slippage: the value must be in the range [0, 1] " f"(got {args.slippage})"
         )
     if args.risk_free_rate is not None and not math.isfinite(args.risk_free_rate):
         raise ValueError(
-            f"invalid --risk-free-rate: the value must be finite "
-            f"(got {args.risk_free_rate})"
+            f"invalid --risk-free-rate: the value must be finite " f"(got {args.risk_free_rate})"
         )
     if not math.isfinite(args.regime_vol_threshold):
         raise ValueError(
@@ -1343,7 +1336,9 @@ def create_strategy(args: argparse.Namespace):
         elif args.strategy == "adx":
             kwargs["name"] = f"ADX_{args.adx_period}_{args.adx_threshold}"
         elif args.strategy == "chop":
-            kwargs["name"] = f"Choppiness_{args.chop_period}_{args.chop_low_threshold}_{args.chop_high_threshold}"
+            kwargs["name"] = (
+                f"Choppiness_{args.chop_period}_{args.chop_low_threshold}_{args.chop_high_threshold}"
+            )
         elif args.strategy == "vwap":
             kwargs["name"] = "VWAP"
 

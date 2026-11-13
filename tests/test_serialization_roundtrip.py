@@ -122,7 +122,10 @@ def _instances():
             ParameterGrid().add(ParameterSpace(name="fast", values=[5, 10, 15])),
         ),
         (RebalanceAction, RebalanceAction(symbol="AAPL", action="buy", quantity=10.0)),
-        (RebalanceExecution, RebalanceExecution(symbol="AAPL", action="buy", requested_quantity=10.0)),
+        (
+            RebalanceExecution,
+            RebalanceExecution(symbol="AAPL", action="buy", requested_quantity=10.0),
+        ),
         (_RebalancePlan, _RebalancePlan(cash=10000.0, fee_rate=0.001, positions={"AAPL": 5.0})),
         (
             MarketData,
@@ -384,7 +387,7 @@ def test_every_dataclass_declares_to_dict_and_from_dict():
     for module_info in pkgutil.walk_packages(quant_trading.__path__, prefix="quant_trading."):
         try:
             module = importlib.import_module(module_info.name)
-        except Exception:  # pragma: no cover - a module that cannot import is a separate failure  # noqa: BLE001, S112
+        except Exception:  # noqa: BLE001, S112 - a module that cannot import is a separate failure
             continue
         for name, obj in vars(module).items():
             if not dataclasses.is_dataclass(obj) or not isinstance(obj, type):
@@ -395,7 +398,8 @@ def test_every_dataclass_declares_to_dict_and_from_dict():
                 missing.append(f"{module_info.name}.{name}.to_dict")
             if "from_dict" not in obj.__dict__:
                 missing.append(f"{module_info.name}.{name}.from_dict")
-    assert not missing, (
-        "dataclasses missing to_dict/from_dict (serialization contract):\n"
-        + "\n".join(sorted(missing))
+    assert (
+        not missing
+    ), "dataclasses missing to_dict/from_dict (serialization contract):\n" + "\n".join(
+        sorted(missing)
     )
