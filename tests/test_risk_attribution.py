@@ -18,10 +18,12 @@ class TestMarginalVaR:
 
     def test_marginal_var_basic(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 200),
-            "B": np.random.normal(0.001, 0.02, 200),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 200),
+                "B": np.random.normal(0.001, 0.02, 200),
+            }
+        )
         weights = pd.Series([0.5, 0.5], index=["A", "B"])
         mvar = calculate_marginal_var(returns, weights, confidence=0.95)
         assert len(mvar) == 2
@@ -44,19 +46,23 @@ class TestMarginalVaR:
         assert (mvar == 0.0).all()
 
     def test_marginal_var_invalid_weights_sum(self):
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 100),
-            "B": np.random.normal(0.001, 0.02, 100),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 100),
+                "B": np.random.normal(0.001, 0.02, 100),
+            }
+        )
         weights = pd.Series([0.3, 0.3], index=["A", "B"])
         with pytest.raises(ValueError, match="sum to 1.0"):
             calculate_marginal_var(returns, weights)
 
     def test_marginal_var_nan_weights(self):
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 100),
-            "B": np.random.normal(0.001, 0.02, 100),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 100),
+                "B": np.random.normal(0.001, 0.02, 100),
+            }
+        )
         weights = pd.Series([0.5, np.nan], index=["A", "B"])
         with pytest.raises(ValueError, match="finite"):
             calculate_marginal_var(returns, weights)
@@ -67,10 +73,12 @@ class TestComponentVaR:
 
     def test_component_var_basic(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 200),
-            "B": np.random.normal(0.001, 0.02, 200),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 200),
+                "B": np.random.normal(0.001, 0.02, 200),
+            }
+        )
         weights = pd.Series([0.5, 0.5], index=["A", "B"])
         cvar = calculate_component_var(returns, weights, confidence=0.95)
         assert len(cvar) == 2
@@ -79,16 +87,19 @@ class TestComponentVaR:
 
     def test_component_var_sums_to_portfolio_var(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 500),
-            "B": np.random.normal(0.001, 0.02, 500),
-            "C": np.random.normal(0.001, 0.02, 500),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 500),
+                "B": np.random.normal(0.001, 0.02, 500),
+                "C": np.random.normal(0.001, 0.02, 500),
+            }
+        )
         weights = pd.Series([0.4, 0.3, 0.3], index=["A", "B", "C"])
         cvar = calculate_component_var(returns, weights, confidence=0.95)
 
         portfolio_returns = returns.values @ weights.values
         from quant_trading.risk.metrics import calculate_var
+
         portfolio_var = calculate_var(pd.Series(portfolio_returns), 0.95)
 
         # Euler's theorem: sum of component VaR = portfolio VaR
@@ -109,10 +120,12 @@ class TestVolatilityContributions:
 
     def test_vol_contrib_basic(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 200),
-            "B": np.random.normal(0.001, 0.02, 200),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 200),
+                "B": np.random.normal(0.001, 0.02, 200),
+            }
+        )
         weights = pd.Series([0.5, 0.5], index=["A", "B"])
         contrib = calculate_volatility_contributions(returns, weights, annualize=False)
         assert len(contrib) == 2
@@ -121,26 +134,31 @@ class TestVolatilityContributions:
 
     def test_vol_contrib_sums_to_portfolio_vol(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 500),
-            "B": np.random.normal(0.001, 0.02, 500),
-            "C": np.random.normal(0.001, 0.02, 500),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 500),
+                "B": np.random.normal(0.001, 0.02, 500),
+                "C": np.random.normal(0.001, 0.02, 500),
+            }
+        )
         weights = pd.Series([0.4, 0.3, 0.3], index=["A", "B", "C"])
         contrib = calculate_volatility_contributions(returns, weights, annualize=False)
 
         portfolio_returns = returns.values @ weights.values
         from quant_trading.risk.metrics import calculate_volatility
+
         portfolio_vol = calculate_volatility(pd.Series(portfolio_returns), annualize=False)
 
         assert abs(contrib.sum() - portfolio_vol) < 1e-6
 
     def test_vol_contrib_annualized(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 200),
-            "B": np.random.normal(0.001, 0.02, 200),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 200),
+                "B": np.random.normal(0.001, 0.02, 200),
+            }
+        )
         weights = pd.Series([0.5, 0.5], index=["A", "B"])
         contrib = calculate_volatility_contributions(returns, weights, annualize=True)
         assert np.isfinite(contrib.values).all()
@@ -152,10 +170,12 @@ class TestVolatilityContributions:
         assert (contrib == 0.0).all()
 
     def test_vol_contrib_invalid_weights(self):
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 100),
-            "B": np.random.normal(0.001, 0.02, 100),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 100),
+                "B": np.random.normal(0.001, 0.02, 100),
+            }
+        )
         weights = pd.Series([0.3, 0.3], index=["A", "B"])
         with pytest.raises(ValueError, match="sum to 1.0"):
             calculate_volatility_contributions(returns, weights)
@@ -166,10 +186,12 @@ class TestEqualRiskContribution:
 
     def test_erc_basic(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 200),
-            "B": np.random.normal(0.001, 0.02, 200),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 200),
+                "B": np.random.normal(0.001, 0.02, 200),
+            }
+        )
         weights = calculate_equal_risk_contribution_weights(returns, annualize=False)
         assert len(weights) == 2
         assert weights.index.tolist() == ["A", "B"]
@@ -178,23 +200,25 @@ class TestEqualRiskContribution:
 
     def test_erc_equal_contributions(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 500),
-            "B": np.random.normal(0.001, 0.02, 500),
-        })
-        weights = calculate_equal_risk_contribution_weights(returns, annualize=False)
-        contrib = calculate_volatility_contributions(
-            returns, weights, annualize=False
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 500),
+                "B": np.random.normal(0.001, 0.02, 500),
+            }
         )
+        weights = calculate_equal_risk_contribution_weights(returns, annualize=False)
+        contrib = calculate_volatility_contributions(returns, weights, annualize=False)
         assert abs(contrib["A"] - contrib["B"]) < contrib.sum() * 0.05
 
     def test_erc_three_assets(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 500),
-            "B": np.random.normal(0.001, 0.02, 500),
-            "C": np.random.normal(0.001, 0.02, 500),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 500),
+                "B": np.random.normal(0.001, 0.02, 500),
+                "C": np.random.normal(0.001, 0.02, 500),
+            }
+        )
         weights = calculate_equal_risk_contribution_weights(returns, annualize=False)
         assert len(weights) == 3
         assert abs(weights.sum() - 1.0) < 1e-6
@@ -216,10 +240,12 @@ class TestRiskBudgetWeights:
 
     def test_risk_budget_basic(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 200),
-            "B": np.random.normal(0.001, 0.02, 200),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 200),
+                "B": np.random.normal(0.001, 0.02, 200),
+            }
+        )
         budget = pd.Series([0.7, 0.3], index=["A", "B"])
         weights = calculate_risk_budget_weights(returns, budget, annualize=False)
         assert len(weights) == 2
@@ -228,10 +254,12 @@ class TestRiskBudgetWeights:
 
     def test_risk_budget_matches_contributions(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 500),
-            "B": np.random.normal(0.001, 0.02, 500),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 500),
+                "B": np.random.normal(0.001, 0.02, 500),
+            }
+        )
         budget = pd.Series([0.7, 0.3], index=["A", "B"])
         weights = calculate_risk_budget_weights(returns, budget, annualize=False)
         contrib = calculate_volatility_contributions(returns, weights, annualize=False)
@@ -241,10 +269,12 @@ class TestRiskBudgetWeights:
 
     def test_risk_budget_equal_is_erc(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 500),
-            "B": np.random.normal(0.001, 0.02, 500),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 500),
+                "B": np.random.normal(0.001, 0.02, 500),
+            }
+        )
         budget = pd.Series([0.5, 0.5], index=["A", "B"])
         weights_rb = calculate_risk_budget_weights(returns, budget, annualize=False)
         weights_erc = calculate_equal_risk_contribution_weights(returns, annualize=False)
@@ -252,20 +282,24 @@ class TestRiskBudgetWeights:
 
     def test_risk_budget_invalid_budget_sum(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 100),
-            "B": np.random.normal(0.001, 0.02, 100),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 100),
+                "B": np.random.normal(0.001, 0.02, 100),
+            }
+        )
         budget = pd.Series([0.5, 0.3], index=["A", "B"])
         with pytest.raises(ValueError, match="sum to 1.0"):
             calculate_risk_budget_weights(returns, budget)
 
     def test_risk_budget_nan_budget(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 100),
-            "B": np.random.normal(0.001, 0.02, 100),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 100),
+                "B": np.random.normal(0.001, 0.02, 100),
+            }
+        )
         budget = pd.Series([0.5, np.nan], index=["A", "B"])
         with pytest.raises(ValueError, match="finite"):
             calculate_risk_budget_weights(returns, budget)
@@ -283,10 +317,12 @@ class TestRiskAttributionIntegration:
 
     def test_marginal_component_var_consistency(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.02, 500),
-            "B": np.random.normal(0.001, 0.02, 500),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 500),
+                "B": np.random.normal(0.001, 0.02, 500),
+            }
+        )
         weights = pd.Series([0.6, 0.4], index=["A", "B"])
         mvar = calculate_marginal_var(returns, weights, confidence=0.95)
         cvar = calculate_component_var(returns, weights, confidence=0.95)
@@ -299,10 +335,12 @@ class TestRiskAttributionIntegration:
         n = 500
         # Create correlated returns
         base = np.random.normal(0.001, 0.02, n)
-        returns = pd.DataFrame({
-            "A": base + np.random.normal(0, 0.01, n),
-            "B": base + np.random.normal(0, 0.01, n),
-        })
+        returns = pd.DataFrame(
+            {
+                "A": base + np.random.normal(0, 0.01, n),
+                "B": base + np.random.normal(0, 0.01, n),
+            }
+        )
         weights = pd.Series([0.5, 0.5], index=["A", "B"])
         contrib = calculate_volatility_contributions(returns, weights, annualize=False)
         assert contrib.sum() > 0
@@ -310,10 +348,12 @@ class TestRiskAttributionIntegration:
 
     def test_erc_with_different_volatilities(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.01, 500),  # Low vol
-            "B": np.random.normal(0.001, 0.03, 500),  # High vol
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.01, 500),  # Low vol
+                "B": np.random.normal(0.001, 0.03, 500),  # High vol
+            }
+        )
         weights = calculate_equal_risk_contribution_weights(returns, annualize=False)
         # Lower vol asset should get higher weight
         assert weights["A"] > weights["B"]
@@ -321,10 +361,12 @@ class TestRiskAttributionIntegration:
 
     def test_risk_budget_with_different_volatilities(self):
         np.random.seed(42)
-        returns = pd.DataFrame({
-            "A": np.random.normal(0.001, 0.01, 500),  # Low vol
-            "B": np.random.normal(0.001, 0.03, 500),  # High vol
-        })
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.01, 500),  # Low vol
+                "B": np.random.normal(0.001, 0.03, 500),  # High vol
+            }
+        )
         budget = pd.Series([0.5, 0.5], index=["A", "B"])
         weights = calculate_risk_budget_weights(returns, budget, annualize=False)
         # With equal risk budget, lower vol asset gets higher weight
