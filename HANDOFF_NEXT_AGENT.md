@@ -15,6 +15,7 @@ The previous handoff claimed the skip condition was "inverted" and should be fli
   - **3695 passed, 0 skipped** (previously 3694 passed + 1 skipped).
   - **136 deselected** (`slow` + `network`), 7 benign matplotlib `tight_layout` warnings.
   - Duration: 524.48s.
+- Slow smoke/subprocess suite (`-m slow`): **136 passed, 0 failed**, duration 436.80s (EXIT_CODE=0).
 - Quality gates all pass:
   - `ruff check .` -> "All checks passed!"
   - `black --check .` -> "153 files would be left unchanged."
@@ -28,8 +29,9 @@ Minimal env (Python 3.14.4, pandas 3.1.1, numpy 2.5.4, pytest 9.2.0).
 
 ## Unresolved / not completed
 
-- The 136 deselected tests (`-m slow` smoke/subprocess + `-m network`) are still not run by the default job. `pytest -m slow --collect-only` confirms 136 slow tests exist (mostly `tests/test_examples_smoke.py`, `tests/test_readme_cli_commands.py`, `tests/test_run_optimization_smoke.py`). Network tests require external APIs (yfinance/AlphaVantage) and cannot run offline.
+- Network tests (`-m network`) still not run; require external APIs (yfinance/AlphaVantage) and cannot run offline.
 - No CI workflow currently runs the `slow`/`network` markers; `.github/workflows/main.yml` is the Kilo controller, not a test job.
+- A separate CI job for `-m slow` is proposed but not implemented (awaiting evidence/approval).
 
 ## Failed approaches (do not repeat unchanged)
 
@@ -38,11 +40,7 @@ Minimal env (Python 3.14.4, pandas 3.1.1, numpy 2.5.4, pytest 9.2.0).
 
 ## One precise next task
 
-Verify the `slow` smoke/subprocess tests pass in this environment, since they are the only remaining gap in default coverage:
-
-1. Run `export PATH="$HOME/.local/bin:$PATH"; python -m pytest -m slow -q` (136 tests; use a timeout >= 900000 ms — these spawn subprocesses and run example scripts).
-2. If any fail, inspect the specific failure (likely environment/example-script issues) and fix with the smallest change.
-3. Record the pass/fail counts in this file. If they pass, propose (do not implement without evidence) adding a separate CI job with `-m slow` so they run outside the default fast suite.
+The slow suite is now verified passing (136 passed, 0 failed). The remaining gap is network tests, which cannot run offline. Propose (do not implement without evidence) adding a separate CI job with `-m slow` so they run outside the default fast suite.
 
 Constraints: keep changes minimal and reversible; do not enable `network` tests in the default job; do not modify the Kilo controller workflow as part of this task.
 
