@@ -1550,6 +1550,115 @@ def _build_comparison_table(
     return "\n".join(html)
 
 
+def _build_comparison_risk_attribution(
+    results: list[tuple[str, BacktestResult]],
+    colors: dict[str, str],
+) -> str:
+    """Build HTML risk attribution comparison section for multiple strategies."""
+    has_attribution = any(getattr(result, "risk_attribution", None) for _, result in results)
+    if not has_attribution:
+        return ""
+
+    palette = [
+        colors["neutral"],
+        colors["positive"],
+        colors["negative"],
+        colors["accent"],
+        "#9c27b0",
+        "#00bcd4",
+        "#ff5722",
+        "#795548",
+    ]
+
+    html = ['<section class="section">', "<h2>Risk Attribution Comparison</h2>"]
+
+    # Summary metrics table
+    summary_rows = [
+        ("Confidence", lambda d: _format_metric(d.get("confidence"), "{:.2%}")),
+        ("Positions Value", lambda d: _format_metric(d.get("positions_value"), "${:,.2f}")),
+        ("Portfolio Value", lambda d: _format_metric(d.get("portfolio_value"), "${:,.2f}")),
+        ("Portfolio VaR", lambda d: _format_metric(d.get("portfolio_var"), "{:.4f}")),
+        ("Portfolio Volatility", lambda d: _format_metric(d.get("portfolio_volatility"), "{:.4f}")),
+    ]
+
+    html.append('<table class="metrics-table comparison-table">')
+    header = [f'<thead><tr><th style="background:{colors["table_header"]}">Metric</th>']
+    for name, _ in results:
+        header.append(f'<th style="background:{colors["table_header"]}">{name}</th>')
+    header.append("</tr></thead>")
+    html.extend(header)
+    html.append("<tbody>")
+    for i, (metric_name, metric_fn) in enumerate(summary_rows):
+        bg = colors["table_row_even"] if i % 2 == 0 else colors["table_row_odd"]
+        html.append(f'<tr><td style="background:{bg}">{metric_name}</td>')
+        for _, result in results:
+            attr = getattr(result, "risk_attribution", None)
+            if attr is not None:
+                data = attr.to_dict() if hasattr(attr, "to_dict") else attr
+                if isinstance(data, dict):
+                    try:
+                        value = metric_fn(data)
+                    except (TypeError, ValueError, KeyError):
+                        value = "N/A"
+                else:
+                    value = "N/A"
+            else:
+                value = "N/A"
+            html.append(f'<td style="background:{bg}">{value}</td>')
+        html.append("</tr>")
+    html.append("</tbody></table>")
+
+    # Per-symbol breakdown for each strategy
+    for idx, (name, result) in enumerate(results):
+        attr = getattr(result, "risk_attribution", None)
+        if attr is None:
+            continue
+
+        data = attr.to_dict() if hasattr(attr, "to_dict") else attr
+        if not isinstance(data, dict):
+            continue
+
+        symbols = sorted(
+            set(
+                list((data.get("weights") or {}).keys())
+                + list((data.get("marginal_var") or {}).keys())
+                + list((data.get("component_var") or {}).keys())
+                + list((data.get("volatility_contributions") or {}).keys())
+            )
+        )
+
+        if not symbols:
+            continue
+
+        color = palette[idx % len(palette)]
+        html.append(
+            f'<h3 style="color:{color}; margin-top:20px;">{name} - Position Breakdown</h3>'
+        )
+        headers = ["Symbol", "Weight", "Marginal VaR", "Component VaR", "Volatility Contribution"]
+        html.append('<div class="table-container"><table class="trades-table">')
+        html.append("<thead><tr>")
+        for h in headers:
+            html.append(f'<th style="background:{colors["table_header"]}">{h}</th>')
+        html.append("</tr></thead><tbody>")
+        for i, symbol in enumerate(symbols):
+            bg = colors["table_row_even"] if i % 2 == 0 else colors["table_row_odd"]
+            weight = (data.get("weights") or {}).get(symbol)
+            mvar = (data.get("marginal_var") or {}).get(symbol)
+            cvar = (data.get("component_var") or {}).get(symbol)
+            volc = (data.get("volatility_contributions") or {}).get(symbol)
+            html.append(f'<tr style="background:{bg}">')
+            html.append(f"<td>{symbol}</td>")
+            html.append(f"<td>{_format_metric(weight, '{:.4f}')}</td>")
+            html.append(f"<td>{_format_metric(mvar, '{:.6f}')}</td>")
+            html.append(f"<td>{_format_metric(cvar, '{:.6f}')}</td>")
+            html.append(f"<td>{_format_metric(volc, '{:.6f}')}</td>")
+            html.append("</tr>")
+        html.append("</tbody></table></div>")
+
+    html.append("</section>")
+    return "\n".join(html)
+
+
 def _build_comparison_summary_cards(
     results: list[tuple[str, BacktestResult]],
     colors: dict[str, str],
@@ -1638,6 +1747,9 @@ def generate_comparison_report(
     # Build summary cards
     summary_cards = _build_comparison_summary_cards(results, colors)
 
+    # Build risk attribution comparison
+    risk_attribution_comparison = _build_comparison_risk_attribution(results, colors)
+
     # Build HTML
     html_parts = [
         "<!DOCTYPE html>",
@@ -1698,6 +1810,9 @@ def generate_comparison_report(
             "</section>",
         ]
     )
+
+    if risk_attribution_comparison:
+        html_parts.append(risk_attribution_comparison)
 
     html_parts.extend(
         [

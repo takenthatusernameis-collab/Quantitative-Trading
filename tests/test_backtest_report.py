@@ -16,6 +16,7 @@ from quant_trading.backtest.report import (
     generate_html_report,
     generate_report_from_dict,
 )
+from quant_trading.risk.manager import RiskAttribution
 
 
 def _create_sample_result() -> BacktestResult:
@@ -1215,3 +1216,124 @@ def test_build_comparison_table_metric_value_error():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def _create_sample_result_with_attribution() -> BacktestResult:
+    """Create a sample BacktestResult with risk attribution for testing."""
+    result = _create_sample_result()
+    result.risk_attribution = RiskAttribution(
+        confidence=0.95,
+        positions_value=50000.0,
+        portfolio_value=105000.0,
+        portfolio_var=0.0312,
+        portfolio_volatility=0.1825,
+        weights=pd.Series([0.6, 0.4], index=["AAPL", "MSFT"]),
+        marginal_var=pd.Series([0.021, 0.010], index=["AAPL", "MSFT"]),
+        component_var=pd.Series([0.0187, 0.0125], index=["AAPL", "MSFT"]),
+        volatility_contributions=pd.Series([0.109, 0.073], index=["AAPL", "MSFT"]),
+    )
+    return result
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_generate_comparison_report_with_risk_attribution():
+    """Test comparison report includes risk attribution when present."""
+    result1 = _create_sample_result_with_attribution()
+    result2 = _create_sample_result()  # No attribution
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    config = ReportConfig(include_charts=False, title="Strategy Comparison")
+
+    html = generate_comparison_report(results, config)
+
+    assert "Risk Attribution Comparison" in html
+    assert "Portfolio VaR" in html
+    assert "Portfolio Volatility" in html
+    assert "Strategy A" in html
+    assert "Strategy B" in html
+    # Strategy A should have attribution data
+    assert "0.0312" in html  # portfolio_var
+    assert "0.1825" in html  # portfolio_volatility
+    # Strategy B should show N/A
+    assert "N/A" in html
+    # Position breakdown for Strategy A
+    assert "AAPL" in html
+    assert "MSFT" in html
+    assert "Component VaR" in html
+    assert "Volatility Contribution" in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_generate_comparison_report_multiple_with_attribution():
+    """Test comparison report with multiple strategies having attribution."""
+    result1 = _create_sample_result_with_attribution()
+    result2 = _create_sample_result()
+    result2.risk_attribution = RiskAttribution(
+        confidence=0.99,
+        positions_value=40000.0,
+        portfolio_value=105000.0,
+        portfolio_var=0.045,
+        portfolio_volatility=0.21,
+        weights=pd.Series([1.0], index=["AAPL"]),
+        marginal_var=pd.Series([0.03], index=["AAPL"]),
+        component_var=pd.Series([0.045], index=["AAPL"]),
+        volatility_contributions=pd.Series([0.21], index=["AAPL"]),
+    )
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    config = ReportConfig(include_charts=False)
+
+    html = generate_comparison_report(results, config)
+
+    assert "Risk Attribution Comparison" in html
+    # Both strategies should have data
+    assert "0.0312" in html  # Strategy A portfolio_var
+    assert "0.0450" in html  # Strategy B portfolio_var (formatted to 4 decimal places)
+    assert "0.1825" in html  # Strategy A portfolio_volatility
+    assert "0.2100" in html  # Strategy B portfolio_volatility
+    # Both position breakdowns
+    assert "Strategy A" in html
+    assert "Strategy B" in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_generate_comparison_report_no_attribution():
+    """Test comparison report without any risk attribution still works."""
+    result1 = _create_sample_result()
+    result2 = _create_sample_result()
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    config = ReportConfig(include_charts=False)
+
+    html = generate_comparison_report(results, config)
+
+    # Should not have risk attribution section
+    assert "Risk Attribution Comparison" not in html
+    assert "Strategy Comparison" in html
+
+
+def test_generate_comparison_report_from_dict_with_attribution():
+    """Test generate_comparison_report works with dict input (via generate_report_from_dict path if applicable)."""
+    # This tests the path where results are loaded from dict
+    result1 = _create_sample_result_with_attribution()
+    result2 = _create_sample_result()
+    result2.risk_attribution = RiskAttribution(
+        confidence=0.99,
+        positions_value=40000.0,
+        portfolio_value=105000.0,
+        portfolio_var=0.045,
+        portfolio_volatility=0.21,
+        weights=pd.Series([1.0], index=["AAPL"]),
+        marginal_var=pd.Series([0.03], index=["AAPL"]),
+        component_var=pd.Series([0.045], index=["AAPL"]),
+        volatility_contributions=pd.Series([0.21], index=["AAPL"]),
+    )
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    config = ReportConfig(include_charts=False)
+
+    html = generate_comparison_report(results, config)
+
+    assert "Risk Attribution Comparison" in html
+    assert "0.0312" in html
+    assert "0.0450" in html
