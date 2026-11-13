@@ -285,7 +285,12 @@ def _create_monthly_returns_heatmap(
         "Dec",
     ]
 
-    fig, ax = plt.subplots(figsize=(10, 4), dpi=dpi, facecolor=colors["bg"])
+    fig, ax = plt.subplots(
+        figsize=(10, 4),
+        dpi=dpi,
+        facecolor=colors["bg"],
+        constrained_layout=True,
+    )
     ax.set_facecolor(colors["bg"])
 
     im = ax.imshow(
@@ -321,14 +326,13 @@ def _create_monthly_returns_heatmap(
     ax.set_title("Monthly Returns (%)", color=colors["fg"], fontsize=14, fontweight="bold")
 
     # Add colorbar
-    cbar = plt.colorbar(im, ax=ax, shrink=0.8)
+    cbar = fig.colorbar(im, ax=ax, shrink=0.8)
     cbar.ax.tick_params(colors=colors["fg"])
     cbar.outline.set_edgecolor(colors["grid"])
 
     for spine in ax.spines.values():
         spine.set_color(colors["grid"])
 
-    plt.tight_layout()
     return _fig_to_base64(fig, dpi)
 
 

@@ -1441,3 +1441,27 @@ def test_comparison_report_single_strategy_no_tight_layout_warning():
         w for w in caught if "tight_layout" in str(w.message)
     ]
     assert tight_layout_warnings == []
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_single_result_report_no_tight_layout_warning():
+    """Single-result report with monthly heatmap must not emit tight_layout UserWarnings.
+
+    Regression test for the pre-existing warning raised by
+    ``_create_monthly_returns_heatmap`` when a colorbar is attached to a single
+    axis. The chart now uses ``constrained_layout=True`` and ``fig.colorbar``
+    so no warning is raised.
+    """
+    import warnings
+
+    result = _create_sample_result()
+    config = ReportConfig(include_charts=True, include_monthly_heatmap=True)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        generate_html_report(result, config)
+
+    tight_layout_warnings = [
+        w for w in caught if "tight_layout" in str(w.message)
+    ]
+    assert tight_layout_warnings == []
