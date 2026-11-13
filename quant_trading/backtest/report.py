@@ -625,6 +625,72 @@ def _build_trades_table(result: BacktestResult, colors: dict[str, str], max_rows
     return "\n".join(html)
 
 
+def _build_risk_attribution_table(result: BacktestResult, colors: dict[str, str]) -> str:
+    """Build HTML risk attribution table."""
+    attr = getattr(result, "risk_attribution", None)
+    if attr is None:
+        return ""
+
+    data = attr.to_dict() if hasattr(attr, "to_dict") else attr
+    if not isinstance(data, dict):
+        return ""
+
+    summary_rows = [
+        ("Confidence", _format_metric(data.get("confidence"), "{:.2%}")),
+        ("Positions Value", _format_metric(data.get("positions_value"), "${:,.2f}")),
+        ("Portfolio Value", _format_metric(data.get("portfolio_value"), "${:,.2f}")),
+        ("Portfolio VaR", _format_metric(data.get("portfolio_var"), "{:.4f}")),
+        ("Portfolio Volatility", _format_metric(data.get("portfolio_volatility"), "{:.4f}")),
+    ]
+
+    html = ['<div class="risk-attribution">']
+    html.append('<table class="metrics-table">')
+    html.append(
+        f'<thead><tr><th style="background:{colors["table_header"]}">Metric</th>'
+        f'<th style="background:{colors["table_header"]}">Value</th></tr></thead>'
+    )
+    html.append("<tbody>")
+    for i, (name, value) in enumerate(summary_rows):
+        bg = colors["table_row_even"] if i % 2 == 0 else colors["table_row_odd"]
+        html.append(
+            f'<tr><td style="background:{bg}">{name}</td><td style="background:{bg}">{value}</td></tr>'
+        )
+    html.append("</tbody></table>")
+
+    symbols = sorted(
+        set(
+            list((data.get("weights") or {}).keys())
+            + list((data.get("marginal_var") or {}).keys())
+            + list((data.get("component_var") or {}).keys())
+            + list((data.get("volatility_contributions") or {}).keys())
+        )
+    )
+    if symbols:
+        headers = ["Symbol", "Weight", "Marginal VaR", "Component VaR", "Volatility Contribution"]
+        html.append('<div class="table-container"><table class="trades-table">')
+        html.append("<thead><tr>")
+        for h in headers:
+            html.append(f'<th style="background:{colors["table_header"]}">{h}</th>')
+        html.append("</tr></thead><tbody>")
+        for i, symbol in enumerate(symbols):
+            bg = colors["table_row_even"] if i % 2 == 0 else colors["table_row_odd"]
+            weight = (data.get("weights") or {}).get(symbol)
+            mvar = (data.get("marginal_var") or {}).get(symbol)
+            cvar = (data.get("component_var") or {}).get(symbol)
+            volc = (data.get("volatility_contributions") or {}).get(symbol)
+            html.append(f'<tr style="background:{bg}">')
+            html.append(f"<td>{symbol}</td>")
+            html.append(f"<td>{_format_metric(weight, '{:.4f}')}</td>")
+            html.append(f"<td>{_format_metric(mvar, '{:.6f}')}</td>")
+            html.append(f"<td>{_format_metric(cvar, '{:.6f}')}</td>")
+            html.append(f"<td>{_format_metric(volc, '{:.6f}')}</td>")
+            html.append("</tr>")
+        html.append("</tbody></table></div>")
+
+    html.append("</div>")
+    return "\n".join(html)
+
+
 def generate_html_report(
     result: BacktestResult,
     config: ReportConfig | None = None,
@@ -675,6 +741,9 @@ def generate_html_report(
     # Build metrics table
     metrics_table = _build_metrics_table(result, colors)
 
+    # Build risk attribution table
+    risk_attribution_table = _build_risk_attribution_table(result, colors)
+
     # Build trades table
     trades_table = ""
     if config.include_trade_details:
@@ -705,6 +774,16 @@ def generate_html_report(
         metrics_table,
         "</section>",
     ]
+
+    if risk_attribution_table:
+        html_parts.extend(
+            [
+                '<section class="section">',
+                "<h2>Risk Attribution</h2>",
+                risk_attribution_table,
+                "</section>",
+            ]
+        )
 
     if config.include_charts:
         html_parts.extend(

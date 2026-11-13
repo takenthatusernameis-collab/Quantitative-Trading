@@ -552,7 +552,7 @@ class BacktestResult:
             "portfolio_violations": list(self.portfolio_violations),
         }
 
-        for attr in ("regime_analysis", "monte_carlo", "trade_analysis"):
+        for attr in ("regime_analysis", "monte_carlo", "trade_analysis", "risk_attribution"):
             value = getattr(self, attr)
             if value is not None:
                 data[attr] = value.to_dict() if hasattr(value, "to_dict") else value
@@ -662,6 +662,12 @@ class BacktestResult:
             from quant_trading.backtest.trade_analysis import TradeAnalysis
 
             result.trade_analysis = TradeAnalysis.from_dict(trade_analysis_data)
+
+        risk_attribution_data = data.get("risk_attribution")
+        if isinstance(risk_attribution_data, dict):
+            from quant_trading.risk.manager import RiskAttribution
+
+            result.risk_attribution = RiskAttribution.from_dict(risk_attribution_data)
 
         return result
 

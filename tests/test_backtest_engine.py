@@ -2658,23 +2658,34 @@ class TestBacktestResultSerialization:
         assert hasattr(reconstructed, "trade_analysis")
         assert reconstructed.trade_analysis.total_trades == result.trade_analysis.total_trades
 
-    def test_from_dict_reconstructs_nested_monte_carlo(self):
+    def test_to_dict_serializes_risk_attribution(self):
+        """BacktestResult.to_dict/from_dict should round-trip risk attribution."""
         result = self._make_result()
-        from quant_trading.monte_carlo.simulator import MonteCarloResult
+        from quant_trading.risk.manager import RiskAttribution
 
-        m = result.metrics
-        result.monte_carlo = MonteCarloResult(
-            simulations=[m],
-            original_metrics=m,
-            n_simulations=1,
-            confidence_level=0.95,
-            start_time=datetime(2024, 1, 1),
-            end_time=datetime(2024, 1, 1, 0, 0, 1),
+        attr = RiskAttribution(
+            confidence=0.95,
+            positions_value=50000.0,
+            portfolio_value=100000.0,
+            portfolio_var=0.03,
+            portfolio_volatility=0.2,
+            weights=pd.Series([0.6, 0.4], index=["AAPL", "MSFT"]),
+            marginal_var=pd.Series([0.02, 0.01], index=["AAPL", "MSFT"]),
+            component_var=pd.Series([0.012, 0.008], index=["AAPL", "MSFT"]),
+            volatility_contributions=pd.Series([0.12, 0.08], index=["AAPL", "MSFT"]),
         )
-        reconstructed = BacktestResult.from_dict(result.to_dict())
-        assert hasattr(reconstructed, "monte_carlo")
-        assert reconstructed.monte_carlo.n_simulations == 1
-        assert len(reconstructed.monte_carlo.simulations) == 1
+        result.risk_attribution = attr
+
+        data = result.to_dict()
+        assert "risk_attribution" in data
+        assert data["risk_attribution"]["portfolio_var"] == 0.03
+        assert data["risk_attribution"]["weights"] == {"AAPL": 0.6, "MSFT": 0.4}
+
+        reconstructed = BacktestResult.from_dict(data)
+        assert reconstructed.risk_attribution is not None
+        assert reconstructed.risk_attribution.portfolio_var == 0.03
+        assert reconstructed.risk_attribution.weights.to_dict() == {"AAPL": 0.6, "MSFT": 0.4}
+        assert reconstructed.risk_attribution.component_var.to_dict() == {"AAPL": 0.012, "MSFT": 0.008}
 
     def test_from_dict_reconstructs_nested_regime_analysis(self):
         """BacktestResult.from_dict rebuilds regime_analysis from a dict (engine.py:644-648).

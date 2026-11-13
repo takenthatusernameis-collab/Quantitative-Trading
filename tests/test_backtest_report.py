@@ -1046,6 +1046,57 @@ def test_build_trades_table_missing_quantity_column():
     # quantity column should not appear in output since it was missing
 
 
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_generate_html_report_includes_risk_attribution():
+    """Risk attribution data should render in the HTML report when present."""
+    from quant_trading.risk.manager import RiskAttribution
+
+    result = _create_sample_result()
+    result.risk_attribution = RiskAttribution(
+        confidence=0.95,
+        positions_value=50000.0,
+        portfolio_value=105000.0,
+        portfolio_var=0.0312,
+        portfolio_volatility=0.1825,
+        weights=pd.Series([0.6, 0.4], index=["AAPL", "MSFT"]),
+        marginal_var=pd.Series([0.021, 0.010], index=["AAPL", "MSFT"]),
+        component_var=pd.Series([0.0187, 0.0125], index=["AAPL", "MSFT"]),
+        volatility_contributions=pd.Series([0.109, 0.073], index=["AAPL", "MSFT"]),
+    )
+
+    html = generate_html_report(result, ReportConfig(include_charts=False))
+
+    assert "Risk Attribution" in html
+    assert "Portfolio VaR" in html
+    assert "Component VaR" in html
+    assert "AAPL" in html
+    assert "MSFT" in html
+
+
+def test_generate_report_from_dict_includes_risk_attribution():
+    """generate_report_from_dict should reconstruct and render risk attribution."""
+    result = _create_sample_result()
+    from quant_trading.risk.manager import RiskAttribution
+
+    result.risk_attribution = RiskAttribution(
+        confidence=0.99,
+        positions_value=40000.0,
+        portfolio_value=105000.0,
+        portfolio_var=0.045,
+        portfolio_volatility=0.21,
+        weights=pd.Series([1.0], index=["AAPL"]),
+        marginal_var=pd.Series([0.03], index=["AAPL"]),
+        component_var=pd.Series([0.045], index=["AAPL"]),
+        volatility_contributions=pd.Series([0.21], index=["AAPL"]),
+    )
+    data = result.to_dict()
+
+    html = generate_report_from_dict(data, ReportConfig(include_charts=False))
+    assert "Risk Attribution" in html
+    assert "AAPL" in html
+    assert "0.0450" in html
+
+
 def test_report_config_to_dict_and_from_dict_roundtrip():
     """ReportConfig.to_dict/from_dict must serialize and reconstruct faithfully (report.py:62, 85)."""
     from quant_trading.backtest.report import ReportConfig

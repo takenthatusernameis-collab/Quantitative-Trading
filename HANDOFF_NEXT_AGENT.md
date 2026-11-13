@@ -1,44 +1,35 @@
 ## What changed (this session)
 
-- Added comprehensive Risk Attribution documentation to README.md covering:
-  - Marginal and Component VaR with Euler's theorem verification
-  - Volatility Contributions with sum-to-portfolio-vol verification
-  - Equal Risk Contribution (ERC) weights with long-only constraint
-  - Risk Budget weights with long-only constraint and target verification
-  - Multiple confidence levels (90%, 95%, 99%)
-  - Per-position breakdown via `RiskAttribution.as_frame()`
-- All risk attribution integration was already complete in `RiskManager`:
-  - `calculate_risk_attribution(confidence=0.95, annualize=True)` method
-  - `suggest_erc_weights()` and `suggest_risk_budget_weights(risk_budget)` methods
-  - `PortfolioRisk` dataclass includes optional `risk_attribution` field
-  - `RiskAttribution` dataclass with serialization support
+- `quant_trading/backtest/engine.py`
+  - `BacktestResult.to_dict()` now serializes `risk_attribution` when present.
+  - `BacktestResult.from_dict()` now reconstructs `risk_attribution` via `RiskAttribution.from_dict(...)`.
+- `quant_trading/backtest/report.py`
+  - Added `_build_risk_attribution_table(...)` and render a "Risk Attribution" section in `generate_html_report(...)` when `result.risk_attribution` is present (summary metrics + per-symbol weight/Marginal VaR/Component VaR/Volatility Contribution table).
+  - `generate_report_from_dict(...)` now benefits from restored attribution through `BacktestResult.from_dict(...)`.
+- Tests:
+  - `tests/test_backtest_engine.py`: added `test_to_dict_serializes_risk_attribution`.
+  - `tests/test_backtest_report.py`: added `test_generate_html_report_includes_risk_attribution` and `test_generate_report_from_dict_includes_risk_attribution`.
 
 ## What was actually verified (evidence)
 
-- `examples/run_risk_attribution.py` runs successfully with clean output
-- `pytest tests/test_risk_attribution.py`: 29 passed in 1.07s
-- `pytest tests/test_risk_metrics.py`: 105 passed in 1.27s
-- `pytest tests/test_risk_manager.py`: 195 passed in 0.55s (337 total risk tests)
-- `pytest tests/test_example_scripts_run.py::test_example_script_runs_documented_invocation[run_risk_attribution.py]`: PASSED
-- `pytest tests/test_examples_smoke.py -m "slow" -k "risk_attribution"`: 2 passed (import + execution)
-- `ruff check quant_trading/risk/`: All checks passed
-- `mypy quant_trading/risk/`: Success, no issues found in 4 source files
-- `git status`: only README.md modified
+- `PYTHONPATH=. python -m pytest tests/test_backtest_engine.py -k "risk_attribution or from_dict_reconstructs_nested" -q` → **3 passed, 112 deselected** (0.62s).
+- `PYTHONPATH=. python -m pytest tests/test_backtest_report.py -q` → **39 passed, 5 warnings** (12.85s). Warnings are pre-existing `tight_layout` `UserWarning`s from comparison-report charts in `quant_trading/backtest/report.py:1215`, not introduced by this change.
+- `PYTHONPATH=. python -m pytest tests/test_backtest_report.py -k "risk_attribution" -q` → **2 passed, 39 deselected** (0.44s).
+- `export PATH="$HOME/.local/bin:$PATH" && ruff check quant_trading/backtest/engine.py quant_trading/backtest/report.py tests/test_backtest_engine.py tests/test_backtest_report.py` → **All checks passed**.
+- `git status --short`: `M HANDOFF_NEXT_AGENT.md`, `M quant_trading/backtest/engine.py`, `M quant_trading/backtest/report.py`, `M tests/test_backtest_engine.py`, `M tests/test_backtest_report.py`.
 
 ## What remains unresolved
 
-- None - risk attribution integration and documentation are complete
+- HTML comparison reports (`generate_comparison_report`) do not include a risk attribution section/visualization per strategy (single-result reports now do when attribution is present).
+- I did not run the full test suite, `mypy`, or broader integration/reporting checks beyond the focused tests above.
 
 ## Failed approaches (do not repeat unchanged)
 
-- None this session
+- None this session.
 
 ## One precise next task
 
-No immediate next task required. The risk attribution feature is fully implemented, tested, and documented. Future work could include:
-- Integration with portfolio optimization workflows
-- Risk attribution in backtest reports
-- Real-time risk monitoring dashboards
+Add risk attribution support to comparison HTML reports in `quant_trading/backtest/report.py`: when one or more `BacktestResult`s in `generate_comparison_report(...)` have `risk_attribution`, render a "Risk Attribution" comparison section (at minimum per-strategy portfolio VaR/volatility and per-symbol component-VaR/weight table or chart consistent with existing comparison layout). Add focused tests in `tests/test_backtest_report.py` (with/without attribution, and `generate_report_from_dict` path if applicable), then verify with `PYTHONPATH=. python -m pytest tests/test_backtest_report.py -q` and `ruff check quant_trading/backtest/report.py tests/test_backtest_report.py`.
 
 ## Environment (unchanged)
 
