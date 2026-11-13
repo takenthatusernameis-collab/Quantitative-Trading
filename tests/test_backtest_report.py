@@ -1337,3 +1337,60 @@ def test_generate_comparison_report_from_dict_with_attribution():
     assert "Risk Attribution Comparison" in html
     assert "0.0312" in html
     assert "0.0450" in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_generate_comparison_report_risk_attribution_chart():
+    """Test comparison report includes risk attribution chart when charts enabled."""
+    result1 = _create_sample_result_with_attribution()
+    result2 = _create_sample_result()
+    result2.risk_attribution = RiskAttribution(
+        confidence=0.99,
+        positions_value=40000.0,
+        portfolio_value=105000.0,
+        portfolio_var=0.045,
+        portfolio_volatility=0.21,
+        weights=pd.Series([1.0], index=["AAPL"]),
+        marginal_var=pd.Series([0.03], index=["AAPL"]),
+        component_var=pd.Series([0.045], index=["AAPL"]),
+        volatility_contributions=pd.Series([0.21], index=["AAPL"]),
+    )
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    config = ReportConfig(include_charts=True)
+
+    html = generate_comparison_report(results, config)
+
+    assert "Risk Attribution Comparison" in html
+    assert "Risk Attribution: Portfolio VaR &amp; Volatility" in html
+    assert 'data:image/png;base64,' in html
+    assert 'alt="Risk Attribution Comparison Chart"' in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_generate_comparison_report_risk_attribution_chart_no_attribution():
+    """Test no risk attribution chart when no results have attribution."""
+    result1 = _create_sample_result()
+    result2 = _create_sample_result()
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    config = ReportConfig(include_charts=True)
+
+    html = generate_comparison_report(results, config)
+
+    assert "Risk Attribution Comparison" not in html
+    assert "Risk Attribution: Portfolio VaR &amp; Volatility" not in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_generate_comparison_report_risk_attribution_chart_no_charts():
+    """Test no risk attribution chart when include_charts is False."""
+    result1 = _create_sample_result_with_attribution()
+
+    results = [("Strategy A", result1)]
+    config = ReportConfig(include_charts=False)
+
+    html = generate_comparison_report(results, config)
+
+    assert "Risk Attribution Comparison" in html
+    assert 'data:image/png;base64,' not in html

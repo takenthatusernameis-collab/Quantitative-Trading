@@ -1553,6 +1553,7 @@ def _build_comparison_table(
 def _build_comparison_risk_attribution(
     results: list[tuple[str, BacktestResult]],
     colors: dict[str, str],
+    dpi: int | None = None,
 ) -> str:
     """Build HTML risk attribution comparison section for multiple strategies."""
     has_attribution = any(getattr(result, "risk_attribution", None) for _, result in results)
@@ -1655,8 +1656,86 @@ def _build_comparison_risk_attribution(
             html.append("</tr>")
         html.append("</tbody></table></div>")
 
+    if dpi is not None:
+        chart = _create_comparison_risk_attribution_chart(results, colors, dpi)
+        if chart:
+            html.extend(
+                [
+                    '<div class="chart-card full-width">',
+                    '<h3 style="margin-top:24px;">Risk Attribution: Portfolio VaR &amp; Volatility</h3>',
+                    f'<img src="data:image/png;base64,{chart}" alt="Risk Attribution Comparison Chart">',
+                    "</div>",
+                ]
+            )
+
     html.append("</section>")
     return "\n".join(html)
+
+
+def _create_comparison_risk_attribution_chart(
+    results: list[tuple[str, BacktestResult]],
+    colors: dict[str, str],
+    dpi: int,
+) -> str:
+    """Create comparison risk attribution chart and return as base64 string."""
+    _check_matplotlib()
+    strategy_names: list[str] = []
+    var_values: list[float] = []
+    vol_values: list[float] = []
+    for name, result in results:
+        attr = getattr(result, "risk_attribution", None)
+        if attr is None:
+            continue
+        data = attr.to_dict() if hasattr(attr, "to_dict") else attr
+        if not isinstance(data, dict):
+            continue
+        strategy_names.append(name)
+        var_values.append(float(data.get("portfolio_var", 0) or 0))
+        vol_values.append(float(data.get("portfolio_volatility", 0) or 0))
+    if not strategy_names:
+        return ""
+
+    fig, ax = plt.subplots(figsize=(10, 4), dpi=dpi, facecolor=colors["bg"])
+    ax.set_facecolor(colors["bg"])
+
+    x = np.arange(len(strategy_names))
+    width = 0.35
+    ax.bar(
+        x - width / 2,
+        var_values,
+        width,
+        label="Portfolio VaR",
+        color=colors["negative"],
+        alpha=0.8,
+    )
+    ax.bar(
+        x + width / 2,
+        vol_values,
+        width,
+        label="Portfolio Volatility",
+        color=colors["neutral"],
+        alpha=0.8,
+    )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(strategy_names, color=colors["fg"], fontsize=9)
+    ax.set_ylabel("Value", color=colors["fg"])
+    ax.set_title(
+        "Risk Attribution Comparison", color=colors["fg"], fontsize=14, fontweight="bold"
+    )
+    ax.tick_params(colors=colors["fg"])
+    ax.grid(True, axis="y", color=colors["grid"], alpha=0.3, linestyle="-", linewidth=0.5)
+    ax.legend(
+        facecolor=colors["bg"],
+        edgecolor=colors["grid"],
+        labelcolor=colors["fg"],
+        fontsize=9,
+    )
+    for spine in ax.spines.values():
+        spine.set_color(colors["grid"])
+
+    fig.tight_layout()
+    return _fig_to_base64(fig, dpi)
 
 
 def _build_comparison_summary_cards(
@@ -1748,7 +1827,9 @@ def generate_comparison_report(
     summary_cards = _build_comparison_summary_cards(results, colors)
 
     # Build risk attribution comparison
-    risk_attribution_comparison = _build_comparison_risk_attribution(results, colors)
+    risk_attribution_comparison = _build_comparison_risk_attribution(
+        results, colors, config.dpi if config.include_charts else None
+    )
 
     # Build HTML
     html_parts = [
