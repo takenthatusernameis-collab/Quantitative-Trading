@@ -845,11 +845,14 @@ class Config:
                 continue
             field_type = self.__dataclass_fields__[key].type
             if isinstance(value, dict) and is_dataclass(field_type):
-                merged = {**getattr(self, key).to_dict(), **value}
-                constructor = field_type.from_dict  # type: ignore[union-attr]
-                setattr(self, key, constructor(merged))
-            else:
-                setattr(self, key, value)
+                current = getattr(self, key)
+                to_dict = getattr(current, "to_dict", None)
+                constructor = getattr(field_type, "from_dict", None)
+                if callable(to_dict) and callable(constructor):
+                    merged = {**to_dict(), **value}
+                    setattr(self, key, constructor(merged))
+                    continue
+            setattr(self, key, value)
 
 
 DEFAULT_CONFIG = Config()
