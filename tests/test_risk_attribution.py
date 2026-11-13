@@ -315,6 +315,21 @@ class TestRiskBudgetWeights:
 class TestRiskAttributionIntegration:
     """Integration tests for risk attribution functions."""
 
+    def test_risk_package_exports_attribution_api(self):
+        """Risk attribution helpers are part of the public risk package API."""
+        import quant_trading.risk as risk
+
+        for name in (
+            "calculate_marginal_var",
+            "calculate_component_var",
+            "calculate_volatility_contributions",
+            "calculate_equal_risk_contribution_weights",
+            "calculate_risk_budget_weights",
+        ):
+            assert hasattr(risk, name), f"missing export: {name}"
+            assert name in risk.__all__, f"missing from __all__: {name}"
+            assert getattr(risk, name) is getattr(__import__("quant_trading.risk.metrics", fromlist=[name]), name)
+
     def test_marginal_component_var_consistency(self):
         np.random.seed(42)
         returns = pd.DataFrame(
