@@ -75,7 +75,7 @@ from quant_trading.config.settings import (
 )
 from quant_trading.data.providers import DataManager, create_data_manager_from_config
 from quant_trading.portfolio.portfolio import Holding, Portfolio
-from quant_trading.risk.manager import RiskManager
+from quant_trading.risk.manager import RiskAttribution, RiskManager
 from quant_trading.strategies.base import Signal, Strategy
 
 if TYPE_CHECKING:
@@ -382,6 +382,7 @@ class BacktestResult:
     regime_analysis: BacktestRegimeAnalysis | None = None
     monte_carlo: MonteCarloResult | None = None
     trade_analysis: TradeAnalysis | None = None
+    risk_attribution: RiskAttribution | None = None
 
     @property
     def unrealized_pnl(self) -> float:
@@ -919,6 +920,19 @@ class BacktestEngine:
             else 0.0
         )
 
+        # Calculate risk attribution for the final portfolio
+        risk_attribution = None
+        if positions:
+            try:
+                risk_attribution = self.risk_manager.calculate_risk_attribution(
+                    confidence=0.95,
+                    annualize=True,
+                    periods_per_year=self.config.periods_per_year,
+                )
+            except (ValueError, KeyError):
+                # Insufficient data for risk attribution (e.g., no return history)
+                risk_attribution = None
+
         return BacktestResult(
             equity_curve=equity_series,
             trades=trades_df,
@@ -932,6 +946,7 @@ class BacktestEngine:
             total_return_pct=total_return_pct,
             portfolio_violations=portfolio_violations,
             total_costs=total_costs,
+            risk_attribution=risk_attribution,
         )
 
     def _process_signal(
