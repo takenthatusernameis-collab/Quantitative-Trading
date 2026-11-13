@@ -1,6 +1,7 @@
 """Tests for the backtest report module."""
 
 import tempfile
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -469,6 +470,25 @@ def test_generate_comparison_report_basic():
     assert "Equity Curves Comparison" in html
     assert "Drawdown Comparison" in html
     assert "Strategy Comparison" in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_comparison_report_monthly_heatmap_has_no_layout_warning():
+    """The shared-colorbar heatmap must not trigger tight_layout warnings.
+
+    Matplotlib warns when ``tight_layout`` is applied to axes that host a
+    shared colorbar. The comparison report uses constrained layout instead, so
+    callers running with warnings-as-errors can still render the report.
+    """
+    result1 = _create_sample_result()
+    result2 = _create_sample_result()
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message=".*tight_layout.*")
+        html = generate_comparison_report(results)
+
+    assert "Monthly Returns Comparison" in html
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
