@@ -1,49 +1,28 @@
 ## What changed (this session)
 
-- Replaced the `skipif` on `tests/test_cli.py::TestUserErrorReporting::test_bayesian_optimizer_without_skopt_is_reported` with an in-test simulation of scikit-optimize's absence via `patch.dict(sys.modules, {"skopt": None, "skopt.utils": None})`. The test now runs in every environment instead of being skipped when `skopt` is installed.
-- Removed the now-unused `_module_available` helper and the `importlib.util` import from `tests/test_cli.py`.
-
-## Correction to the previous handoff
-
-The previous handoff claimed the skip condition was "inverted" and should be flipped to `skipif(SKOPT_AVAILABLE)`. That premise was **wrong**: the test verifies the CLI error path when scikit-optimize is *absent*, so skipping when it is *present* is correct. Inverting it would have made the test fail (with `skopt` installed the CLI exits 0, not 1). Instead the goal ("make the test run") was achieved by simulating absence, which is a genuine coverage improvement.
+- Added a separate CI workflow `.github/workflows/slow-tests.yml` that runs `pytest -m slow` (the slow smoke/subprocess suite) on push to `main`, pull requests, a daily schedule, and manual dispatch.
+- Did NOT modify `.github/workflows/main.yml` (the Kilo controller) and did NOT enable `network` tests anywhere.
+- The new workflow installs `requirements.txt` plus `.[dev]` and runs `pytest -m slow` with a 30-minute timeout on `ubuntu-latest` / Python 3.10.
 
 ## What was actually verified (evidence)
 
-- Target test now **runs and passes** (not skipped): `tests/test_cli.py::TestUserErrorReporting::test_bayesian_optimizer_without_skopt_is_reported PASSED`.
-- `TestUserErrorReporting` class: **27 passed, 3 deselected**.
-- Full default fast suite (`-m "not slow and not network"`, `--doctest-modules`):
-  - **3695 passed, 0 skipped** (previously 3694 passed + 1 skipped).
-  - **136 deselected** (`slow` + `network`), 7 benign matplotlib `tight_layout` warnings.
-  - Duration: 524.48s.
-- Slow smoke/subprocess suite (`-m slow`): **136 passed, 0 failed**, duration 436.80s (EXIT_CODE=0).
-- Quality gates all pass:
-  - `ruff check .` -> "All checks passed!"
-  - `black --check .` -> "153 files would be left unchanged."
-  - `mypy quant_trading/` -> "Success: no issues found in 38 source files"
+- `.github/workflows/slow-tests.yml` parses as valid YAML; contains a single `slow` job; contains no `network` marker.
+- `pytest -m slow -q`: **136 passed, 0 failed**, EXIT_CODE=0, duration 428.87s (3695 fast/default tests deselected).
+- Quality gates unaffected (no Python source changed).
 
-## Environment (unchanged)
+## What remains unresolved
 
-Minimal env (Python 3.14.4, pandas 3.1.1, numpy 2.5.4, pytest 9.2.0).
-`ruff` 0.17.5, `mypy` 2.4.1, `black` 26.10.1, `matplotlib` 3.11.2,
-`scikit-optimize` 0.10.2 installed in `$HOME/.local/bin` — prefix commands with `export PATH="$HOME/.local/bin:$PATH"`.
-
-## Unresolved / not completed
-
-- Network tests (`-m network`) still not run; require external APIs (yfinance/AlphaVantage) and cannot run offline.
-- No CI workflow currently runs the `slow`/`network` markers; `.github/workflows/main.yml` is the Kilo controller, not a test job.
-- A separate CI job for `-m slow` is proposed but not implemented (awaiting evidence/approval).
+- The new workflow file is **uncommitted** (`M`? actually untracked: `.github/workflows/slow-tests.yml`). Per the no-commit-unless-asked rule it was left in the working tree; commit it if a checkpoint is required.
+- Network tests (`-m network`) still not run; require external APIs and cannot run offline.
 
 ## Failed approaches (do not repeat unchanged)
 
-- Running the full suite as a single foreground command without raising the timeout: exceeds the 120s shell default. Use an explicit large timeout (~900000 ms) or background execution with output redirection.
-- Assuming the `skipif(_module_available("skopt"))` was inverted and flipping it: incorrect; would break the test (it asserts exit code 1, which only holds when `skopt` is absent).
+- None new this session.
 
 ## One precise next task
 
-The slow suite is now verified passing (136 passed, 0 failed). The remaining gap is network tests, which cannot run offline. Propose (do not implement without evidence) adding a separate CI job with `-m slow` so they run outside the default fast suite.
+Commit `.github/workflows/slow-tests.yml` (single new file, small and isolated) if the workflow requires a checkpoint, then the slow-suite CI job is complete. No further implementation needed for this task.
 
-Constraints: keep changes minimal and reversible; do not enable `network` tests in the default job; do not modify the Kilo controller workflow as part of this task.
+## Environment (unchanged)
 
-## Persistence note
-
-Changes from this session are in the working tree and **not committed**: `M tests/test_cli.py`, `M HANDOFF_NEXT_AGENT.md`. Commit them if the workflow requires a checkpoint; the diff is small and isolated to the one test plus this handoff.
+Python 3.14.4, pandas 3.1.1, numpy 2.5.4, pytest 9.2.0. `ruff` 0.17.5, `mypy` 2.4.1, `black` 26.10.1, `matplotlib` 3.11.2, scikit-optimize 0.10.2 installed (prefix with `export PATH="$HOME/.local/bin:$PATH"`).
