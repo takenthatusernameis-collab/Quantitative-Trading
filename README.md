@@ -1919,6 +1919,97 @@ rm.should_stop_loss("AAPL", 165.0)    # True
 rm.should_take_profit("AAPL", 127.5)  # True
 ```
 
+## Risk Attribution
+
+The risk manager can decompose portfolio risk into per-position contributions
+using historical simulation. This is useful for understanding which positions
+drive portfolio risk and for building risk-balanced portfolios.
+
+### Marginal and Component VaR
+
+Marginal VaR measures how the portfolio VaR changes when a position's weight
+is perturbed. Component VaR is the product of the position weight and its
+marginal VaR. The sum of component VaRs equals the portfolio VaR (Euler's
+theorem for homogeneous functions).
+
+```python
+from quant_trading.risk.manager import RiskManager
+from quant_trading.strategies.base import Position
+import pandas as pd
+import numpy as np
+
+rm = RiskManager(initial_capital=100000.0)
+rm.update_portfolio_value(
+    {
+        "AAPL": Position("AAPL", 100, 150.0, 150.0),
+        "MSFT": Position("MSFT", 100, 300.0, 300.0),
+    },
+    40000.0,
+)
+
+# Provide returns (or record them with record_return/record_returns)
+np.random.seed(42)
+returns = pd.DataFrame({
+    "AAPL": np.random.normal(0.001, 0.02, 200),
+    "MSFT": np.random.normal(0.001, 0.02, 200),
+})
+
+attribution = rm.calculate_risk_attribution(returns, confidence=0.95)
+print(attribution.marginal_var)
+print(attribution.component_var)
+print(f"Portfolio VaR: {attribution.portfolio_var:.4f}")
+print(f"Sum of Component VaR: {attribution.total_component_var():.4f}")
+```
+
+### Volatility Contributions
+
+Each position's contribution to portfolio volatility is computed via the Euler
+decomposition: contributionᵢ = weightᵢ × (Covᵢ · weights) / portfolio_vol.
+The sum of contributions equals the total portfolio volatility.
+
+```python
+attribution = rm.calculate_risk_attribution(returns, confidence=0.95)
+print(attribution.volatility_contributions)
+print(f"Portfolio Volatility: {attribution.portfolio_volatility:.4f}")
+print(f"Sum of Contributions: {attribution.total_volatility_contribution():.4f}")
+```
+
+### Equal Risk Contribution (ERC) Weights
+
+ERC weights assign each position the same share of portfolio volatility. A
+higher-volatility asset receives a smaller weight. This is solved iteratively
+by scaling weights toward the target contribution.
+
+```python
+# Long-only ERC weights (default)
+erc_weights = rm.suggest_erc_weights(returns, annualize=False, long_only=True)
+print(erc_weights)
+# Lower volatility assets receive higher weights
+```
+
+### Risk Budget Weights
+
+Risk budgeting assigns each position a target risk contribution. The weights
+are solved so that actual contributions match the budget.
+
+```python
+budget = {"AAPL": 0.6, "MSFT": 0.4}
+rb_weights = rm.suggest_risk_budget_weights(budget, returns, annualize=False, long_only=True)
+print(rb_weights)
+```
+
+The `RiskAttribution` object returned by `calculate_risk_attribution` also
+provides a convenient `as_frame()` method for a per-position breakdown:
+
+```python
+frame = attribution.as_frame()
+# Columns: weight, marginal_var, component_var, volatility_contribution
+```
+
+All functions support multiple confidence levels (90%, 95%, 99%), optional
+annualization, configurable lookback windows, and both long-only and long-short
+modes.
+
 ## Realized and Unrealized PnL
 
 A run that ends with open positions has two kinds of PnL. The **realized** PnL
