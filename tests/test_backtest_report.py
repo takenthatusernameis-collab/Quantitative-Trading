@@ -1492,3 +1492,52 @@ def test_single_result_report_no_tight_layout_warning():
         w for w in caught if "tight_layout" in str(w.message)
     ]
     assert tight_layout_warnings == []
+
+
+def test_fig_to_base64_skips_bbox_tight_for_constrained_layout(monkeypatch):
+    """_fig_to_base64 must not pass bbox_inches='tight' when constrained_layout is active.
+
+    Combining bbox_inches='tight' with constrained_layout is redundant and can
+    cause layout conflicts/warnings in some Matplotlib versions.
+    """
+    import matplotlib.pyplot as plt
+
+    import quant_trading.backtest.report as report_mod
+
+    report_mod._check_matplotlib()
+
+    captured = {}
+
+    def fake_savefig(self, buf, **kwargs):
+        captured.update(kwargs)
+        buf.write(b"\x89PNG\r\n\x1a\n")
+
+    monkeypatch.setattr(plt.Figure, "savefig", fake_savefig)
+
+    fig, _ = plt.subplots(constrained_layout=True)
+    out = report_mod._fig_to_base64(fig, dpi=100)
+    assert isinstance(out, str) and out
+    assert "bbox_inches" not in captured, captured
+    assert captured.get("format") == "png"
+
+
+def test_fig_to_base64_uses_bbox_tight_without_layout_engine(monkeypatch):
+    """_fig_to_base64 should keep bbox_inches='tight' for figures without layout engine."""
+    import matplotlib.pyplot as plt
+
+    import quant_trading.backtest.report as report_mod
+
+    report_mod._check_matplotlib()
+
+    captured = {}
+
+    def fake_savefig(self, buf, **kwargs):
+        captured.update(kwargs)
+        buf.write(b"\x89PNG\r\n\x1a\n")
+
+    monkeypatch.setattr(plt.Figure, "savefig", fake_savefig)
+
+    fig, _ = plt.subplots()  # default: no constrained_layout
+    out = report_mod._fig_to_base64(fig, dpi=100)
+    assert isinstance(out, str) and out
+    assert captured.get("bbox_inches") == "tight", captured

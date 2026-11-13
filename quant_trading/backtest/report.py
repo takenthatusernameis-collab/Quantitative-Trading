@@ -105,7 +105,17 @@ def _check_matplotlib() -> None:
 def _fig_to_base64(fig: Any, dpi: int = 150) -> str:
     """Convert a matplotlib figure to a base64-encoded PNG string."""
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight", facecolor=fig.get_facecolor())
+    savefig_kwargs: dict[str, Any] = {
+        "format": "png",
+        "dpi": dpi,
+        "facecolor": fig.get_facecolor(),
+    }
+    # constrained_layout manages spacing; bbox_inches="tight" is redundant and
+    # can conflict with the layout engine.
+    layout_engine = fig.get_layout_engine()
+    if layout_engine is None or not layout_engine.__class__.__name__.startswith("Constrained"):
+        savefig_kwargs["bbox_inches"] = "tight"
+    fig.savefig(buf, **savefig_kwargs)
     buf.seek(0)
     img_base64 = base64.b64encode(buf.read()).decode("utf-8")
     plt.close(fig)
