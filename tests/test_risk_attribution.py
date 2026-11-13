@@ -317,7 +317,7 @@ class TestRiskAttributionIntegration:
 
     def test_risk_package_exports_attribution_api(self):
         """Risk attribution helpers are part of the public risk package API."""
-        import quant_trading.risk as risk
+        from quant_trading import risk
 
         for name in (
             "calculate_marginal_var",

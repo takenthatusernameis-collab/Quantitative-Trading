@@ -1357,6 +1357,16 @@ final deviations from the target:
 python examples/run_rebalancer.py
 ```
 
+For a risk attribution demonstration, see `examples/run_risk_attribution.py`.
+It computes marginal VaR, component VaR, and volatility contributions for a
+correlated four-asset portfolio, then derives equal-risk-contribution and
+risk-budget weights and verifies Euler's theorem (component VaRs and volatility
+contributions sum to the portfolio totals):
+
+```bash
+python examples/run_risk_attribution.py
+```
+
 
 ## Data fetching
 
