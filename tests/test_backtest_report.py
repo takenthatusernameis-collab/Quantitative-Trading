@@ -1363,7 +1363,7 @@ def test_generate_comparison_report_risk_attribution_chart():
 
     assert "Risk Attribution Comparison" in html
     assert "Risk Attribution: Portfolio VaR &amp; Volatility" in html
-    assert 'data:image/png;base64,' in html
+    assert "data:image/png;base64," in html
     assert 'alt="Risk Attribution Comparison Chart"' in html
 
 
@@ -1393,7 +1393,7 @@ def test_comparison_report_risk_attribution_chart_no_charts():
     html = generate_comparison_report(results, config)
 
     assert "Risk Attribution Comparison" in html
-    assert 'data:image/png;base64,' not in html
+    assert "data:image/png;base64," not in html
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
@@ -1417,9 +1417,7 @@ def test_comparison_report_risk_attribution_chart_no_tight_layout_warning():
         warnings.simplefilter("always")
         generate_comparison_report(results, config)
 
-    tight_layout_warnings = [
-        w for w in caught if "tight_layout" in str(w.message)
-    ]
+    tight_layout_warnings = [w for w in caught if "tight_layout" in str(w.message)]
     assert tight_layout_warnings == []
 
 
@@ -1444,9 +1442,7 @@ def test_comparison_report_no_tight_layout_warning():
         warnings.simplefilter("always")
         generate_comparison_report(results, config)
 
-    tight_layout_warnings = [
-        w for w in caught if "tight_layout" in str(w.message)
-    ]
+    tight_layout_warnings = [w for w in caught if "tight_layout" in str(w.message)]
     assert tight_layout_warnings == []
 
 
@@ -1464,9 +1460,7 @@ def test_comparison_report_single_strategy_no_tight_layout_warning():
         warnings.simplefilter("always")
         generate_comparison_report(results, config)
 
-    tight_layout_warnings = [
-        w for w in caught if "tight_layout" in str(w.message)
-    ]
+    tight_layout_warnings = [w for w in caught if "tight_layout" in str(w.message)]
     assert tight_layout_warnings == []
 
 
@@ -1488,9 +1482,7 @@ def test_single_result_report_no_tight_layout_warning():
         warnings.simplefilter("always")
         generate_html_report(result, config)
 
-    tight_layout_warnings = [
-        w for w in caught if "tight_layout" in str(w.message)
-    ]
+    tight_layout_warnings = [w for w in caught if "tight_layout" in str(w.message)]
     assert tight_layout_warnings == []
 
 

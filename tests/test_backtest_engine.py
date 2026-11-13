@@ -2685,7 +2685,10 @@ class TestBacktestResultSerialization:
         assert reconstructed.risk_attribution is not None
         assert reconstructed.risk_attribution.portfolio_var == 0.03
         assert reconstructed.risk_attribution.weights.to_dict() == {"AAPL": 0.6, "MSFT": 0.4}
-        assert reconstructed.risk_attribution.component_var.to_dict() == {"AAPL": 0.012, "MSFT": 0.008}
+        assert reconstructed.risk_attribution.component_var.to_dict() == {
+            "AAPL": 0.012,
+            "MSFT": 0.008,
+        }
 
     def test_from_dict_reconstructs_nested_regime_analysis(self):
         """BacktestResult.from_dict rebuilds regime_analysis from a dict (engine.py:644-648).

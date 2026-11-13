@@ -328,7 +328,9 @@ class TestRiskAttributionIntegration:
         ):
             assert hasattr(risk, name), f"missing export: {name}"
             assert name in risk.__all__, f"missing from __all__: {name}"
-            assert getattr(risk, name) is getattr(__import__("quant_trading.risk.metrics", fromlist=[name]), name)
+            assert getattr(risk, name) is getattr(
+                __import__("quant_trading.risk.metrics", fromlist=[name]), name
+            )
 
     def test_marginal_component_var_consistency(self):
         np.random.seed(42)

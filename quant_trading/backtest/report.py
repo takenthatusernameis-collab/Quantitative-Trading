@@ -1651,9 +1651,7 @@ def _build_comparison_risk_attribution(
             continue
 
         color = palette[idx % len(palette)]
-        html.append(
-            f'<h3 style="color:{color}; margin-top:20px;">{name} - Position Breakdown</h3>'
-        )
+        html.append(f'<h3 style="color:{color}; margin-top:20px;">{name} - Position Breakdown</h3>')
         headers = ["Symbol", "Weight", "Marginal VaR", "Component VaR", "Volatility Contribution"]
         html.append('<div class="table-container"><table class="trades-table">')
         html.append("<thead><tr>")
@@ -1741,9 +1739,7 @@ def _create_comparison_risk_attribution_chart(
     ax.set_xticks(x)
     ax.set_xticklabels(strategy_names, color=colors["fg"], fontsize=9)
     ax.set_ylabel("Value", color=colors["fg"])
-    ax.set_title(
-        "Risk Attribution Comparison", color=colors["fg"], fontsize=14, fontweight="bold"
-    )
+    ax.set_title("Risk Attribution Comparison", color=colors["fg"], fontsize=14, fontweight="bold")
     ax.tick_params(colors=colors["fg"])
     ax.grid(True, axis="y", color=colors["grid"], alpha=0.3, linestyle="-", linewidth=0.5)
     ax.legend(

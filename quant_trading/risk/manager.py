@@ -169,9 +169,7 @@ class RiskAttribution:
     weights: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
     marginal_var: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
     component_var: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
-    volatility_contributions: pd.Series = field(
-        default_factory=lambda: pd.Series(dtype=float)
-    )
+    volatility_contributions: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the risk attribution to a plain dictionary.
@@ -407,9 +405,7 @@ class PortfolioRisk:
         """
         attribution = data.get("risk_attribution")
         risk_attribution = (
-            RiskAttribution.from_dict(attribution)
-            if isinstance(attribution, dict)
-            else None
+            RiskAttribution.from_dict(attribution) if isinstance(attribution, dict) else None
         )
         return cls(
             total_market_value=float(data.get("total_market_value", 0.0)),
@@ -1095,9 +1091,7 @@ class RiskManager:
         )
         if lookback is not None:
             if not math.isfinite(lookback) or lookback < 1:
-                raise ValueError(
-                    f"invalid lookback: the value must be at least 1 (got {lookback})"
-                )
+                raise ValueError(f"invalid lookback: the value must be at least 1 (got {lookback})")
             frame = cast(pd.DataFrame, frame.iloc[-int(lookback) :])
         result: pd.DataFrame = frame.copy()
         return result
@@ -1315,9 +1309,7 @@ class RiskManager:
             annualize=annualize,
             periods_per_year=periods_per_year,
         )
-        portfolio_returns = pd.Series(
-            frame.to_numpy(dtype=float) @ weights, index=frame.index
-        )
+        portfolio_returns = pd.Series(frame.to_numpy(dtype=float) @ weights, index=frame.index)
         portfolio_var = float(-np.percentile(portfolio_returns, (1 - confidence) * 100))
         portfolio_volatility = calculate_volatility(
             portfolio_returns,
