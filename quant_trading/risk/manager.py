@@ -13,7 +13,7 @@ True
 import math
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -275,7 +275,7 @@ class RiskAttribution:
             "component_var",
             "volatility_contribution",
         ]
-        return frame.sort_index()
+        return cast(pd.DataFrame, frame.sort_index())
 
     def total_component_var(self) -> float:
         """Sum of the component VaR over all positions.
@@ -338,6 +338,8 @@ class PortfolioRisk:
         current_drawdown: Current drawdown from peak (0.0 = at peak, negative
             while the portfolio is below its peak).
         peak_value: Peak portfolio value observed.
+        risk_attribution: Optional risk attribution breakdown for the current
+            portfolio positions.
 
     Examples:
         >>> pr = PortfolioRisk(total_market_value=100000.0, cash=50000.0, positions_value=50000.0)
@@ -352,14 +354,15 @@ class PortfolioRisk:
     leverage: float = 0.0
     current_drawdown: float = 0.0
     peak_value: float = 0.0
+    risk_attribution: "RiskAttribution | None" = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the portfolio risk state to a plain dictionary.
 
         Returns:
             Dictionary with keys ``total_market_value``, ``cash``,
-            ``positions_value``, ``leverage``, ``current_drawdown``, and
-            ``peak_value``.
+            ``positions_value``, ``leverage``, ``current_drawdown``,
+            ``peak_value``, and ``risk_attribution`` when present.
 
         Examples:
             >>> from quant_trading.risk.manager import PortfolioRisk
@@ -369,7 +372,7 @@ class PortfolioRisk:
             (50000.0, 50000.0)
 
         """
-        return {
+        data: dict[str, Any] = {
             "total_market_value": self.total_market_value,
             "cash": self.cash,
             "positions_value": self.positions_value,
@@ -377,6 +380,9 @@ class PortfolioRisk:
             "current_drawdown": self.current_drawdown,
             "peak_value": self.peak_value,
         }
+        if self.risk_attribution is not None:
+            data["risk_attribution"] = self.risk_attribution.to_dict()
+        return data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "PortfolioRisk":
@@ -399,6 +405,12 @@ class PortfolioRisk:
             0.0
 
         """
+        attribution = data.get("risk_attribution")
+        risk_attribution = (
+            RiskAttribution.from_dict(attribution)
+            if isinstance(attribution, dict)
+            else None
+        )
         return cls(
             total_market_value=float(data.get("total_market_value", 0.0)),
             cash=float(data.get("cash", 0.0)),
@@ -406,6 +418,7 @@ class PortfolioRisk:
             leverage=float(data.get("leverage", 0.0)),
             current_drawdown=float(data.get("current_drawdown", 0.0)),
             peak_value=float(data.get("peak_value", 0.0)),
+            risk_attribution=risk_attribution,
         )
 
     @property
@@ -1061,28 +1074,33 @@ class RiskManager:
 
         """
         if returns is None:
-            frame = pd.DataFrame(
+            frame: pd.DataFrame = pd.DataFrame(
                 {symbol: pd.Series(values, dtype=float) for symbol, values in self._returns.items()}
             )
         else:
             frame = returns.copy()
         if len(frame) == 0:
-            return pd.DataFrame(index=frame.index)
+            empty: pd.DataFrame = pd.DataFrame(index=frame.index)
+            return empty
 
         missing = sorted(symbol for symbol in self.positions if symbol not in frame.columns)
         if missing:
             raise KeyError(f"missing return data for open positions: {missing}")
         if len(self.positions) == 0:
-            return frame.iloc[0:0]
+            return cast(pd.DataFrame, frame.iloc[0:0].copy())
 
-        frame = frame[list(self.positions)].replace([np.inf, -np.inf], np.nan).dropna()
+        frame = cast(
+            pd.DataFrame,
+            frame[list(self.positions)].replace([np.inf, -np.inf], np.nan).dropna(),
+        )
         if lookback is not None:
             if not math.isfinite(lookback) or lookback < 1:
                 raise ValueError(
                     f"invalid lookback: the value must be at least 1 (got {lookback})"
                 )
-            frame = frame.iloc[-int(lookback) :]
-        return frame
+            frame = cast(pd.DataFrame, frame.iloc[-int(lookback) :])
+        result: pd.DataFrame = frame.copy()
+        return result
 
     def _position_weights(self, frame: pd.DataFrame) -> np.ndarray:
         """Portfolio weights of the open positions from the current view.
@@ -1473,7 +1491,7 @@ class RiskManager:
             missing = [symbol for symbol in frame.columns if symbol not in risk_budget]
             if missing:
                 raise KeyError(f"missing risk budget for open positions: {sorted(missing)}")
-            budget = pd.Series(
+            budget: np.ndarray | pd.Series = pd.Series(
                 [float(risk_budget[symbol]) for symbol in frame.columns],
                 index=frame.columns,
                 dtype=float,

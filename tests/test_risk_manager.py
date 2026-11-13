@@ -1,11 +1,17 @@
 """Tests for the risk manager."""
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from quant_trading.risk.limits import CheckResult
-from quant_trading.risk.manager import PortfolioRisk, RiskManager
-from quant_trading.risk.metrics import RiskMetrics, calculate_returns
+from quant_trading.risk.manager import PortfolioRisk, RiskAttribution, RiskManager
+from quant_trading.risk.metrics import (
+    RiskMetrics,
+    calculate_equal_risk_contribution_weights,
+    calculate_returns,
+    calculate_risk_budget_weights,
+)
 from quant_trading.strategies.base import Position, Signal
 
 
@@ -1599,3 +1605,119 @@ class TestLimitsCoverage:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestRiskAttributionIntegration:
+    """Tests for RiskManager risk attribution integration."""
+
+    @staticmethod
+    def _rm_with_positions():
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value(
+            {
+                "AAPL": Position("AAPL", 100, 150.0, 150.0),
+                "MSFT": Position("MSFT", 50, 300.0, 300.0),
+            },
+            70000.0,
+        )
+        return rm
+
+    @staticmethod
+    def _returns(seed=42, n=200):
+        rng = np.random.default_rng(seed)
+        return pd.DataFrame(
+            {
+                "AAPL": rng.normal(0.001, 0.02, n),
+                "MSFT": rng.normal(0.001, 0.015, n),
+            }
+        )
+
+    def test_calculate_risk_attribution_with_returns_frame(self):
+        rm = self._rm_with_positions()
+        data = self._returns()
+        attr = rm.calculate_risk_attribution(data, confidence=0.95, annualize=True)
+        assert isinstance(attr, RiskAttribution)
+        assert attr.confidence == 0.95
+        assert list(attr.weights.index) == ["AAPL", "MSFT"]
+        assert attr.weights.sum() == pytest.approx(1.0)
+        assert attr.positions_value == pytest.approx(30000.0)
+        assert attr.portfolio_value == pytest.approx(100000.0)
+        assert attr.portfolio_var > 0
+        assert attr.portfolio_volatility > 0
+        assert set(attr.marginal_var.index) == {"AAPL", "MSFT"}
+        assert set(attr.component_var.index) == {"AAPL", "MSFT"}
+        assert set(attr.volatility_contributions.index) == {"AAPL", "MSFT"}
+        assert attr.volatility_contributions.sum() == pytest.approx(attr.portfolio_volatility)
+
+    def test_calculate_risk_attribution_uses_recorded_returns(self):
+        rm = self._rm_with_positions()
+        for row in self._returns().itertuples(index=False):
+            rm.record_returns({"AAPL": row.AAPL, "MSFT": row.MSFT})
+        attr = rm.calculate_risk_attribution()
+        assert list(attr.weights.index) == ["AAPL", "MSFT"]
+        assert attr.portfolio_volatility > 0
+
+    def test_calculate_risk_attribution_no_positions_or_insufficient_data(self):
+        rm = RiskManager(initial_capital=100000.0)
+        attr = rm.calculate_risk_attribution()
+        assert attr.weights.empty
+        assert attr.portfolio_var == 0.0
+        rm2 = self._rm_with_positions()
+        attr2 = rm2.calculate_risk_attribution(pd.DataFrame({"AAPL": [0.01], "MSFT": [0.02]}))
+        assert attr2.weights.empty
+
+    def test_suggest_erc_weights(self):
+        rm = self._rm_with_positions()
+        data = self._returns()
+        weights = rm.suggest_erc_weights(data, annualize=False)
+        expected = calculate_equal_risk_contribution_weights(
+            data[["AAPL", "MSFT"]], annualize=False, long_only=True
+        )
+        pd.testing.assert_series_equal(weights, expected)
+        assert weights.sum() == pytest.approx(1.0)
+        assert (weights >= -1e-12).all()
+
+    def test_suggest_risk_budget_weights_mapping(self):
+        rm = self._rm_with_positions()
+        data = self._returns()
+        budget = {"AAPL": 0.5, "MSFT": 0.5}
+        weights = rm.suggest_risk_budget_weights(budget, data, annualize=False)
+        expected = calculate_risk_budget_weights(
+            data[["AAPL", "MSFT"]],
+            pd.Series([0.5, 0.5], index=["AAPL", "MSFT"]),
+            annualize=False,
+            long_only=True,
+        )
+        pd.testing.assert_series_equal(weights, expected)
+        assert weights.sum() == pytest.approx(1.0)
+        assert (weights >= -1e-12).all()
+
+    def test_suggest_risk_budget_weights_missing_symbol_raises(self):
+        rm = self._rm_with_positions()
+        data = self._returns()
+        with pytest.raises(KeyError):
+            rm.suggest_risk_budget_weights({"AAPL": 1.0}, data, annualize=False)
+
+    def test_suggest_weights_empty_without_positions(self):
+        rm = RiskManager(initial_capital=100000.0)
+        assert rm.suggest_erc_weights().empty
+        assert rm.suggest_risk_budget_weights({"AAPL": 1.0}).empty
+
+    def test_portfolio_risk_optional_risk_attribution_roundtrip(self):
+        rm = self._rm_with_positions()
+        attr = rm.calculate_risk_attribution(self._returns(), annualize=False)
+        pr = PortfolioRisk(
+            total_market_value=100000.0,
+            cash=70000.0,
+            positions_value=30000.0,
+            risk_attribution=attr,
+        )
+        data = pr.to_dict()
+        assert "risk_attribution" in data
+        restored = PortfolioRisk.from_dict(data)
+        assert restored.risk_attribution is not None
+        assert restored.risk_attribution.portfolio_var == pytest.approx(attr.portfolio_var)
+        assert restored.risk_attribution.weights.to_dict() == attr.weights.to_dict()
+        # backward compat: no field
+        plain = PortfolioRisk.from_dict({"total_market_value": 1.0})
+        assert plain.risk_attribution is None
