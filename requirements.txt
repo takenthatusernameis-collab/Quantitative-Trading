@@ -15,3 +15,7 @@ mypy>=1.0.0
 # Optional: for Jupyter notebooks
 # jupyter>=1.0.0
 # ipykernel>=6.0.0
+
+# Optional extras (declared in pyproject.toml):
+#   pip install quant-trading[reporting]   # matplotlib>=3.7.0
+#   pip install quant-trading[bayesian]    # scikit-optimize>=0.10.0

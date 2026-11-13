@@ -706,6 +706,10 @@ python examples/cli.py --offline --strategy rsi --report dark.html --report-them
 python examples/cli.py --offline --report nocharts.html --report-no-charts
 ```
 
+Bayesian optimization requires the optional `bayesian` extra
+(`pip install quant-trading[bayesian]`); it is also included in the `dev`
+extra (`pip install -e ".[dev]"`).
+
 In `--combined` mode the report is written for the best strategy (by Sharpe
 ratio). The `--report-no-charts`, `--report-no-trades`, `--report-no-monthly`,
 and `--report-no-rolling` flags disable individual report sections.
