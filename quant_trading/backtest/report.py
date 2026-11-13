@@ -1704,7 +1704,9 @@ def _create_comparison_risk_attribution_chart(
     if not strategy_names:
         return ""
 
-    fig, ax = plt.subplots(figsize=(10, 4), dpi=dpi, facecolor=colors["bg"])
+    fig, ax = plt.subplots(
+        figsize=(10, 4), dpi=dpi, facecolor=colors["bg"], constrained_layout=True
+    )
     ax.set_facecolor(colors["bg"])
 
     x = np.arange(len(strategy_names))
@@ -1743,7 +1745,6 @@ def _create_comparison_risk_attribution_chart(
     for spine in ax.spines.values():
         spine.set_color(colors["grid"])
 
-    fig.tight_layout()
     return _fig_to_base64(fig, dpi)
 
 

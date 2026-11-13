@@ -1368,7 +1368,7 @@ def test_generate_comparison_report_risk_attribution_chart():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_generate_comparison_report_risk_attribution_chart_no_attribution():
+def test_comparison_report_risk_attribution_chart_no_attribution():
     """Test no risk attribution chart when no results have attribution."""
     result1 = _create_sample_result()
     result2 = _create_sample_result()
@@ -1379,11 +1379,11 @@ def test_generate_comparison_report_risk_attribution_chart_no_attribution():
     html = generate_comparison_report(results, config)
 
     assert "Risk Attribution Comparison" not in html
-    assert "Risk Attribution: Portfolio VaR &amp; Volatility" not in html
+    assert "Risk Attribution: Portfolio VaR & Volatility" not in html
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_generate_comparison_report_risk_attribution_chart_no_charts():
+def test_comparison_report_risk_attribution_chart_no_charts():
     """Test no risk attribution chart when include_charts is False."""
     result1 = _create_sample_result_with_attribution()
 
@@ -1394,6 +1394,33 @@ def test_generate_comparison_report_risk_attribution_chart_no_charts():
 
     assert "Risk Attribution Comparison" in html
     assert 'data:image/png;base64,' not in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_comparison_report_risk_attribution_chart_no_tight_layout_warning():
+    """Comparison report with risk attribution chart must not emit tight_layout UserWarnings.
+
+    Regression test for the pre-existing warning raised by
+    ``_create_comparison_risk_attribution_chart`` (report.py:1746) when
+    ``fig.tight_layout()`` was used. The chart now uses ``constrained_layout=True``
+    so no warning is raised.
+    """
+    import warnings
+
+    result1 = _create_sample_result_with_attribution()
+    result2 = _create_sample_result_with_attribution()
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    config = ReportConfig(include_charts=True)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        generate_comparison_report(results, config)
+
+    tight_layout_warnings = [
+        w for w in caught if "tight_layout" in str(w.message)
+    ]
+    assert tight_layout_warnings == []
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
