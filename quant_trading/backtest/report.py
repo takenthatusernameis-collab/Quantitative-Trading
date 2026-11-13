@@ -1102,7 +1102,13 @@ def _create_comparison_monthly_returns_heatmap(
         return ""
 
     fig, axes = plt.subplots(
-        1, n_results, figsize=(8 * n_results, 4), dpi=dpi, facecolor=colors["bg"], squeeze=False
+        1,
+        n_results,
+        figsize=(8 * n_results, 4),
+        dpi=dpi,
+        facecolor=colors["bg"],
+        squeeze=False,
+        constrained_layout=True,
     )
     axes = axes[0]
 
@@ -1208,11 +1214,10 @@ def _create_comparison_monthly_returns_heatmap(
         for spine in ax.spines.values():
             spine.set_color(colors["grid"])
 
-    cbar = plt.colorbar(im, ax=axes, shrink=0.6)
+    cbar = fig.colorbar(im, ax=axes, shrink=0.6)
     cbar.ax.tick_params(colors=colors["fg"])
     cbar.outline.set_edgecolor(colors["grid"])
 
-    plt.tight_layout()
     return _fig_to_base64(fig, dpi)
 
 

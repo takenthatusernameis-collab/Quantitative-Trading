@@ -1394,3 +1394,50 @@ def test_generate_comparison_report_risk_attribution_chart_no_charts():
 
     assert "Risk Attribution Comparison" in html
     assert 'data:image/png;base64,' not in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_comparison_report_no_tight_layout_warning():
+    """Comparison report with monthly heatmap must not emit tight_layout UserWarnings.
+
+    Regression test for the pre-existing warning raised by
+    ``_create_comparison_monthly_returns_heatmap`` (report.py:1215) when a
+    colorbar is attached to a row-array of axes. The chart now uses
+    ``constrained_layout=True`` and ``fig.colorbar`` so no warning is raised.
+    """
+    import warnings
+
+    result1 = _create_sample_result()
+    result2 = _create_sample_result()
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    config = ReportConfig(include_charts=True, include_monthly_heatmap=True)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        generate_comparison_report(results, config)
+
+    tight_layout_warnings = [
+        w for w in caught if "tight_layout" in str(w.message)
+    ]
+    assert tight_layout_warnings == []
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_comparison_report_single_strategy_no_tight_layout_warning():
+    """Single-strategy comparison report with monthly heatmap must not warn."""
+    import warnings
+
+    result1 = _create_sample_result()
+
+    results = [("Strategy A", result1)]
+    config = ReportConfig(include_charts=True, include_monthly_heatmap=True)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        generate_comparison_report(results, config)
+
+    tight_layout_warnings = [
+        w for w in caught if "tight_layout" in str(w.message)
+    ]
+    assert tight_layout_warnings == []
