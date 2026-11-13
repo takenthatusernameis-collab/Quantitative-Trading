@@ -1,52 +1,39 @@
 ## What changed (this session)
 
-- Rejected non-finite `max_positions` in `RiskManager.__init__`:
-  `quant_trading/risk/manager.py:217` is now
-  `if not math.isfinite(max_positions) or max_positions < 1` (previously a naked
-  `max_positions < 1`, which `nan` slips past since `nan < 1` is `False`).
-  The whole validation block was moved ahead of `PositionLimit`/`PortfolioLimit`
-  construction so `RiskManager(initial_capital=nan)` still raises
-  `invalid initial_capital` (existing tests at tests/test_risk_manager.py:66-69
-  depend on that ordering).
-- Added `__post_init__` finite guards to `PositionLimit` and `PortfolioLimit` in
-  `quant_trading/risk/limits.py`, so direct limit construction (and
-  `from_dict` deserialization) rejects `nan`/`inf`/`-inf` on every numeric field
-  with an `invalid <field>: ...` message prefix:
-  - `max_positions` also requires `>= 0` (0 still constructible: it means "no
-    positions may be opened", exercised by
-    tests/test_risk_manager.py::test_portfolio_check_branches).
-  - Zero/negative still allowed for `max_leverage`, `max_portfolio_risk`,
-    `max_drawdown` because existing tests use `0.0` to disable those checks;
-    range enforcement stays at the RiskManager boundary.
-- Tests:
-  - `tests/test_risk_manager.py`: `max_positions` parametrization extended with
-    `nan`/`inf`/`-inf`; same extension for `max_position_size`,
-    `max_portfolio_risk`, `max_drawdown`, `stop_loss_pct`, `take_profit_pct`,
-    `trailing_stop_pct`, `trailing_stop_activation_pct` (guards already reject
-    non-finite via chained comparisons; tests now document it).
-  - `tests/test_limits.py`: new `TestPositionLimitValidation` and
-    `TestPortfolioLimitValidation` (non-finite rejection for every field,
-    `max_positions < 0` rejection, zero still accepted for `max_positions`/
-    `max_leverage`/`max_portfolio_risk`/`max_drawdown`).
-- **Files changed:** `quant_trading/risk/manager.py`,
-  `quant_trading/risk/limits.py`, `tests/test_risk_manager.py`,
-  `tests/test_limits.py`. Changes are **not committed**.
+- Closed the nan-acceptance hole in `quant_trading/config/settings.py`
+  `__post_init__` guards (the same class of bug fixed last session in
+  `RiskManager`/`PositionLimit`/`PortfolioLimit`):
+  - `DataConfig.__post_init__` line 96: `if self.synthetic_days < 1:` →
+    `if not math.isfinite(self.synthetic_days) or self.synthetic_days < 1:`
+    (message now reads "must be at least 1 and finite").
+  - `DataConfig.__post_init__` line 101: `if self.synthetic_seed < 0 or ...` →
+    `if not math.isfinite(self.synthetic_seed) or self.synthetic_seed < 0
+    or self.synthetic_seed > 2**32 - 1:`.
+  - `RiskConfig.__post_init__` line 468: `if self.max_leverage < 1e-9:` →
+    `if not math.isfinite(self.max_leverage) or self.max_leverage < 1e-9:`.
+  - `PortfolioConfig.__post_init__` line 578: `if self.max_positions < 1:` →
+    `if not math.isfinite(self.max_positions) or self.max_positions < 1:`.
+  Range semantics unchanged; only non-finite values are now rejected.
+- Tests: extended `tests/test_config.py` parametrizations with
+  `float("nan")`/`float("inf")`/`float("-inf")` for `synthetic_days`,
+  `synthetic_seed`, `max_leverage`, and `max_positions`.
+- **Files changed:** `quant_trading/config/settings.py`,
+  `tests/test_config.py`. Changes are **not committed**.
 
 ## What was actually verified (evidence)
 
-- Library probes: all of `nan`/`inf`/`-inf` rejected for `RiskManager`
-  (`initial_capital`, `max_positions`, `max_leverage`) and for direct
-  `PositionLimit`/`PortfolioLimit` construction; finite valid values still
-  construct; `max_leverage=0.0`/`max_portfolio_risk=0.0`/`max_drawdown=0.0`
-  still construct.
-- `python -m py_compile` on all changed files: OK.
-- `pytest tests/test_risk_manager.py tests/test_limits.py
-  tests/test_rebalancer_risk_integration.py tests/test_rebalancer_sizing_invariants.py
-  tests/test_serialization_roundtrip.py quant_trading/risk/`: **421 passed**.
-- Full suite: **3535 passed, 17 failed, 131 skipped, 136 deselected**. All 17
+- Library probes: `DataConfig(synthetic_days=nan)`,
+  `DataConfig(synthetic_seed=nan)`, `RiskConfig(max_leverage=nan)`,
+  `PortfolioConfig(max_positions=nan)` all raise `ValueError` with the
+  expected `invalid <field>` prefix; valid finite values still construct.
+- `python -m py_compile` on changed files: OK.
+- `pytest tests/test_config.py tests/test_repository_integrity.py`: **168
+  passed**.
+- Full suite: **3547 passed, 17 failed, 131 skipped, 136 deselected** (up from
+  3535 passed last session — the +12 are the new parametrized cases). All 17
   failures are pre-existing environmental ones (matplotlib not installed ->
-  test_backtest_report.py + TestHtmlReportFlag; scikit-optimize not installed ->
-  bayesian README CLI commands). None touch the changed code.
+  test_backtest_report.py + TestHtmlReportFlag; scikit-optimize not
+  installed -> bayesian README CLI commands). None touch the changed code.
 
 ### Environment caveat (unchanged)
 
@@ -66,25 +53,11 @@ reasons only.
 
 ## One precise next task
 
-- **`quant_trading/config/settings.py` has the same nan-acceptance hole in
-  naked guards in other `__post_init__` methods** (invalid config silently
-  propagates to the portfolio rebalancer):
-  - `DataConfig.__post_init__` line 96: `if self.synthetic_days < 1:` — `nan`
-    accepted.
-  - `DataConfig.__post_init__` line 101: `if self.synthetic_seed < 0 or ...` —
-    `nan` accepted (both comparisons are `False` for `nan`).
-  - `RiskConfig.__post_init__` line 468: `if self.max_leverage < 1e-9:` —
-    `nan` accepted.
-  - `PortfolioConfig.__post_init__` line 578: `if self.max_positions < 1:` —
-    `nan` accepted; its docstring (settings.py:573-576) explicitly says it
-    "Mirrors RiskManager so invalid values are rejected ... instead of silently
-    propagating".
-  - Concrete step: add `not math.isfinite(x) or` to each guard (`synthetic_days`
-    / `max_positions`: `< 1`; `max_leverage`: `< 1e-9`; `synthetic_seed`: `< 0
-    or > 2**32 - 1`). Keep the `invalid <field>` message prefix so existing
-    tests pass. Verify with library probes
-    (`DataConfig(synthetic_days=nan)`, `PortfolioConfig(max_positions=nan)`,
-    `RiskConfig(max_leverage=nan)`) and extend `tests/test_config.py`
-    parametrizations. Run `tests/test_config.py` plus
-    `tests/test_repository_integrity.py`. Constraints: minimal, localized; do
-    not change existing range semantics — only reject non-finite values.
+- No remaining nan-acceptance holes of this exact kind were found in the
+  config layer. If a follow-up is wanted, the next bounded task is to run
+  `ruff check .` / `mypy quant_trading/` once the dev extras are installed
+  (`pip install -e ".[dev]"`), to clean up any lint/type issues the minimal
+  environment cannot surface. Constraints: do not change range semantics;
+  only fix genuine lint/type errors.
+
+(End of file - total 68 lines)

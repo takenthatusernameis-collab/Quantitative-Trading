@@ -93,12 +93,16 @@ class DataConfig:
                 f"invalid default_period: the value must be a non-empty "
                 f"string (got {self.default_period!r})"
             )
-        if self.synthetic_days < 1:
+        if not math.isfinite(self.synthetic_days) or self.synthetic_days < 1:
             raise ValueError(
-                f"invalid synthetic_days: the value must be at least 1 "
+                f"invalid synthetic_days: the value must be at least 1 and finite "
                 f"(got {self.synthetic_days})"
             )
-        if self.synthetic_seed < 0 or self.synthetic_seed > 2**32 - 1:
+        if (
+            not math.isfinite(self.synthetic_seed)
+            or self.synthetic_seed < 0
+            or self.synthetic_seed > 2**32 - 1
+        ):
             raise ValueError(
                 f"invalid synthetic_seed: the value must be between 0 and "
                 f"{2**32 - 1} (got {self.synthetic_seed})"
@@ -465,7 +469,7 @@ class RiskConfig:
                 f"invalid take_profit_pct: the value must be in the range [0, 1] "
                 f"(got {self.take_profit_pct})"
             )
-        if self.max_leverage < 1e-9:
+        if not math.isfinite(self.max_leverage) or self.max_leverage < 1e-9:
             raise ValueError(
                 f"invalid max_leverage: the value must be positive "
                 f"(got {self.max_leverage})"
@@ -575,7 +579,7 @@ class PortfolioConfig:
         dictionary, or from YAML) instead of silently propagating to the
         portfolio rebalancer.
         """
-        if self.max_positions < 1:
+        if not math.isfinite(self.max_positions) or self.max_positions < 1:
             raise ValueError(
                 f"invalid max_positions: the value must be at least 1 "
                 f"(got {self.max_positions})"

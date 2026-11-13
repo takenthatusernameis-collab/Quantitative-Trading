@@ -139,7 +139,9 @@ class TestRiskConfig:
         with pytest.raises(ValueError, match="invalid take_profit_pct"):
             RiskConfig(take_profit_pct=take_profit_pct)
 
-    @pytest.mark.parametrize("max_leverage", [0.0, -1.0])
+    @pytest.mark.parametrize(
+    "max_leverage", [0.0, -1.0, float("nan"), float("inf"), float("-inf")]
+)
     def test_rejects_invalid_max_leverage(self, max_leverage):
         with pytest.raises(ValueError, match="invalid max_leverage"):
             RiskConfig(max_leverage=max_leverage)
@@ -199,7 +201,9 @@ class TestPortfolioConfig:
         assert config.rebalance_frequency == "monthly"
         assert config.max_positions == 20
 
-    @pytest.mark.parametrize("max_positions", [0, -1])
+    @pytest.mark.parametrize(
+    "max_positions", [0, -1, float("nan"), float("inf"), float("-inf")]
+)
     def test_rejects_invalid_max_positions(self, max_positions):
         with pytest.raises(ValueError, match="invalid max_positions"):
             PortfolioConfig(max_positions=max_positions)
@@ -251,12 +255,17 @@ class TestDataConfig:
         with pytest.raises(ValueError, match="invalid default_period"):
             DataConfig(default_period=default_period)
 
-    @pytest.mark.parametrize("synthetic_days", [0, -1, -365])
+    @pytest.mark.parametrize(
+    "synthetic_days", [0, -1, -365, float("nan"), float("inf"), float("-inf")]
+)
     def test_rejects_invalid_synthetic_days(self, synthetic_days):
         with pytest.raises(ValueError, match="invalid synthetic_days"):
             DataConfig(synthetic_days=synthetic_days)
 
-    @pytest.mark.parametrize("synthetic_seed", [-1, -365, 2**32, 2**32 + 100])
+    @pytest.mark.parametrize(
+        "synthetic_seed",
+        [-1, -365, 2**32, 2**32 + 100, float("nan"), float("inf"), float("-inf")],
+    )
     def test_rejects_invalid_synthetic_seed(self, synthetic_seed):
         with pytest.raises(ValueError, match="invalid synthetic_seed"):
             DataConfig(synthetic_seed=synthetic_seed)
