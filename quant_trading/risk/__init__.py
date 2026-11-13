@@ -1,7 +1,7 @@
 """Risk management module."""
 
 from .limits import CheckResult, PortfolioLimit, PositionLimit, gross_exposure
-from .manager import PortfolioRisk, RiskManager
+from .manager import PortfolioRisk, RiskAttribution, RiskManager
 from .metrics import (
     RiskMetrics,
     calculate_component_var,
@@ -16,6 +16,7 @@ __all__ = [
     "PortfolioLimit",
     "PortfolioRisk",
     "PositionLimit",
+    "RiskAttribution",
     "RiskManager",
     "RiskMetrics",
     "calculate_component_var",

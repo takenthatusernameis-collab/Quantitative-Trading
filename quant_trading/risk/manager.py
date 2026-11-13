@@ -11,15 +11,318 @@ True
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from quant_trading.risk.limits import CheckResult, PortfolioLimit, PositionLimit
-from quant_trading.risk.metrics import RiskMetrics, calculate_all_metrics
+from quant_trading.risk.metrics import (
+    RiskMetrics,
+    calculate_all_metrics,
+    calculate_component_var,
+    calculate_equal_risk_contribution_weights,
+    calculate_marginal_var,
+    calculate_risk_budget_weights,
+    calculate_volatility,
+    calculate_volatility_contributions,
+)
 from quant_trading.strategies.base import Position, Signal
+
+
+def _series_to_mapping(series: pd.Series) -> dict[str, float]:
+    """Copy a series into a plain mapping keyed by its index labels.
+
+    Args:
+        series: Series to convert. An empty series yields an empty mapping.
+
+    Returns:
+        Mapping from index label to float value.
+
+    """
+    return {str(label): float(value) for label, value in series.items()}
+
+
+def _mapping_to_series(data: Any) -> pd.Series:
+    """Restore a series from a mapping (or an index/value list).
+
+    Args:
+        data: Mapping keyed by symbol, a two-element list of index labels and
+            values, or None. Anything else yields an empty series.
+
+    Returns:
+        Series indexed by symbol, or an empty float series.
+
+    """
+    if isinstance(data, dict):
+        if not data:
+            return pd.Series(dtype=float)
+        return pd.Series(
+            [float(value) for value in data.values()],
+            index=[str(label) for label in data],
+            dtype=float,
+        )
+    if isinstance(data, (list, tuple)) and len(data) == 2:
+        index, values = data
+        if isinstance(index, (list, tuple)) and isinstance(values, (list, tuple)):
+            return pd.Series(
+                [float(value) for value in values],
+                index=[str(label) for label in index],
+                dtype=float,
+            )
+    return pd.Series(dtype=float)
+
+
+def _validate_confidence(confidence: float) -> None:
+    """Reject a confidence level outside the open interval (0, 1).
+
+    Args:
+        confidence: Confidence level to validate.
+
+    Returns:
+        None.
+
+    Raises:
+        ValueError: When ``confidence`` is not finite or not in (0, 1).
+
+    """
+    if not math.isfinite(confidence) or not (0.0 < confidence < 1.0):
+        raise ValueError(
+            f"invalid confidence: the value must be in the range (0, 1) (got {confidence})"
+        )
+
+
+def _validate_periods_per_year(periods_per_year: int) -> None:
+    """Reject an annualization factor below one.
+
+    Args:
+        periods_per_year: Periods per year to validate.
+
+    Returns:
+        None.
+
+    Raises:
+        ValueError: When ``periods_per_year`` is below one.
+
+    """
+    if not math.isfinite(periods_per_year) or periods_per_year < 1:
+        raise ValueError(
+            f"invalid periods_per_year: the value must be at least 1 (got {periods_per_year})"
+        )
+
+
+@dataclass
+class RiskAttribution:
+    """Risk attribution of the current portfolio positions.
+
+    Produced by :meth:`RiskManager.calculate_risk_attribution`.
+
+    The position weights are the share of the portfolio value each position
+    carries (market value / portfolio value). They sum to 1.0 for a fully
+    invested, long-only portfolio.
+
+    VaR is expressed as a positive loss: a component VaR of ``0.01`` means
+    the position contributes ``0.01`` of portfolio value at risk at the
+    chosen confidence level. The volatility contributions sum exactly to the
+    portfolio volatility (Euler decomposition). The component VaRs sum to the
+    portfolio VaR for a long-only portfolio under the historical simulation
+    convention; they sum to the mean portfolio return in the tail (the
+    expected shortfall) instead of the portfolio VaR when the return
+    distribution is not degenerate, so read ``portfolio_var`` as the
+    quantile loss and the component sum as the tail-decomposition loss.
+
+    Attributes:
+        confidence: Confidence level used for the VaR figures.
+        positions_value: Market value of the positions the attribution
+            covers.
+        portfolio_value: Portfolio value used to size the position weights.
+        portfolio_var: Portfolio Value at Risk as a positive fraction of the
+            portfolio value, measured as the loss at the confidence level
+            (the negative of the lower quantile of the portfolio return).
+        portfolio_volatility: Portfolio volatility, annualized when the
+            attribution was computed with ``annualize=True``.
+        weights: Position weights (share of the portfolio value), indexed by
+            symbol.
+        marginal_var: Marginal VaR of each position (portfolio return change
+            per unit of position return), indexed by symbol.
+        component_var: Component VaR of each position, as a fraction of the
+            portfolio value, indexed by symbol.
+        volatility_contributions: Contribution of each position to the
+            portfolio volatility, indexed by symbol.
+
+    Examples:
+        >>> import pandas as pd
+        >>> attribution = RiskAttribution()
+        >>> empty = pd.Series(dtype=float)
+        >>> attribution.portfolio_var, attribution.component_var.equals(empty)
+        (0.0, True)
+
+    """
+
+    confidence: float = 0.95
+    positions_value: float = 0.0
+    portfolio_value: float = 0.0
+    portfolio_var: float = 0.0
+    portfolio_volatility: float = 0.0
+    weights: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
+    marginal_var: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
+    component_var: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
+    volatility_contributions: pd.Series = field(
+        default_factory=lambda: pd.Series(dtype=float)
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the risk attribution to a plain dictionary.
+
+        The per-position figures are keyed by symbol, so a position that has
+        no history is reported with a zero contribution instead of dropping
+        out of the breakdown.
+
+        Returns:
+            Dictionary with the aggregate figures and one entry per
+            position symbol for ``weights``, ``marginal_var``,
+            ``component_var``, and ``volatility_contributions``.
+
+        Examples:
+            >>> from quant_trading.risk.manager import RiskAttribution
+            >>> import pandas as pd
+            >>> attribution = RiskAttribution(
+            ...     portfolio_var=0.03,
+            ...     component_var=pd.Series([0.03], index=["AAPL"]),
+            ... )
+            >>> attribution.to_dict()["component_var"]
+            {'AAPL': 0.03}
+
+        """
+        return {
+            "confidence": self.confidence,
+            "positions_value": self.positions_value,
+            "portfolio_value": self.portfolio_value,
+            "portfolio_var": self.portfolio_var,
+            "portfolio_volatility": self.portfolio_volatility,
+            "weights": _series_to_mapping(self.weights),
+            "marginal_var": _series_to_mapping(self.marginal_var),
+            "component_var": _series_to_mapping(self.component_var),
+            "volatility_contributions": _series_to_mapping(self.volatility_contributions),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RiskAttribution":
+        """Deserialize a :class:`RiskAttribution` from a dictionary.
+
+        Missing keys fall back to the class defaults. The per-position series
+        accept either a mapping keyed by symbol or an index/value list.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`RiskAttribution`.
+
+        Examples:
+            >>> from quant_trading.risk.manager import RiskAttribution
+            >>> restored = RiskAttribution.from_dict({"portfolio_var": 0.02})
+            >>> restored.portfolio_var
+            0.02
+
+        """
+        return cls(
+            confidence=float(data.get("confidence", 0.95)),
+            positions_value=float(data.get("positions_value", 0.0)),
+            portfolio_value=float(data.get("portfolio_value", 0.0)),
+            portfolio_var=float(data.get("portfolio_var", 0.0)),
+            portfolio_volatility=float(data.get("portfolio_volatility", 0.0)),
+            weights=_mapping_to_series(data.get("weights")),
+            marginal_var=_mapping_to_series(data.get("marginal_var")),
+            component_var=_mapping_to_series(data.get("component_var")),
+            volatility_contributions=_mapping_to_series(data.get("volatility_contributions")),
+        )
+
+    def as_frame(self) -> pd.DataFrame:
+        """Per-position breakdown as a single frame.
+
+        Returns:
+            One row per position symbol with the ``weight``,
+            ``marginal_var``, ``component_var``, and
+            ``volatility_contribution`` columns, ordered by symbol.
+
+        Examples:
+            >>> from quant_trading.risk.manager import RiskAttribution
+            >>> import pandas as pd
+            >>> attribution = RiskAttribution(
+            ...     weights=pd.Series([0.5], index=["AAPL"]),
+            ... )
+            >>> attribution.as_frame().columns.tolist()
+            ['weight', 'marginal_var', 'component_var', 'volatility_contribution']
+
+        """
+        symbols = self.weights.index
+        aligned = [
+            series.reindex(symbols) if isinstance(series, pd.Series) else pd.Series(index=symbols)
+            for series in (
+                self.weights,
+                self.marginal_var,
+                self.component_var,
+                self.volatility_contributions,
+            )
+        ]
+        frame = pd.concat(aligned, axis=1)
+        frame.columns = [
+            "weight",
+            "marginal_var",
+            "component_var",
+            "volatility_contribution",
+        ]
+        return frame.sort_index()
+
+    def total_component_var(self) -> float:
+        """Sum of the component VaR over all positions.
+
+        For a long-only portfolio this equals :attr:`portfolio_var` by the
+        Euler decomposition. A portfolio with short positions reports the
+        net figure: the shorts reduce the sum instead of adding to it.
+
+        Returns:
+            The component VaR summed over every position.
+
+        Examples:
+            >>> from quant_trading.risk.manager import RiskAttribution
+            >>> import pandas as pd
+            >>> attribution = RiskAttribution(
+            ...     component_var=pd.Series([0.01, 0.02], index=["A", "B"]),
+            ... )
+            >>> round(attribution.total_component_var(), 4)
+            0.03
+
+        """
+        if len(self.component_var) == 0:
+            return 0.0
+        return float(self.component_var.sum())
+
+    def total_volatility_contribution(self) -> float:
+        """Sum of the volatility contributions over all positions.
+
+        For a long-only portfolio this equals :attr:`portfolio_volatility`
+        by the Euler decomposition.
+
+        Returns:
+            The volatility contribution summed over every position.
+
+        Examples:
+            >>> from quant_trading.risk.manager import RiskAttribution
+            >>> import pandas as pd
+            >>> attribution = RiskAttribution(
+            ...     volatility_contributions=pd.Series([0.1, 0.2], index=["A", "B"]),
+            ... )
+            >>> round(attribution.total_volatility_contribution(), 4)
+            0.3
+
+        """
+        if len(self.volatility_contributions) == 0:
+            return 0.0
+        return float(self.volatility_contributions.sum())
 
 
 @dataclass
@@ -271,6 +574,7 @@ class RiskManager:
         self.risk_metrics: RiskMetrics | None = None
         self.risk_enabled = True
         self.history: list[dict[str, Any]] = []
+        self._returns: dict[str, list[float]] = {}
         self.trailing_stop_pct = trailing_stop_pct
         self.trailing_stop_activation_pct = trailing_stop_activation_pct
         self._trailing_stops: dict[str, float] = {}
@@ -738,6 +1042,455 @@ class RiskManager:
         )
         return self.risk_metrics
 
+    def _open_returns_frame(
+        self,
+        returns: pd.DataFrame | None,
+        lookback: int | None,
+    ) -> pd.DataFrame:
+        """Returns frame of the open positions, aligned and validated.
+
+        Args:
+            returns: Asset returns keyed by symbol. When None, the frame is
+                built from the tracked portfolio snapshots.
+            lookback: Number of trailing observations to keep.
+
+        Returns:
+            Cleaned return frame holding one column per open position. The
+            frame is empty when no position is open, or when a position has
+            no return data.
+
+        """
+        if returns is None:
+            frame = pd.DataFrame(
+                {symbol: pd.Series(values, dtype=float) for symbol, values in self._returns.items()}
+            )
+        else:
+            frame = returns.copy()
+        if len(frame) == 0:
+            return pd.DataFrame(index=frame.index)
+
+        missing = sorted(symbol for symbol in self.positions if symbol not in frame.columns)
+        if missing:
+            raise KeyError(f"missing return data for open positions: {missing}")
+        if len(self.positions) == 0:
+            return frame.iloc[0:0]
+
+        frame = frame[list(self.positions)].replace([np.inf, -np.inf], np.nan).dropna()
+        if lookback is not None:
+            if not math.isfinite(lookback) or lookback < 1:
+                raise ValueError(
+                    f"invalid lookback: the value must be at least 1 (got {lookback})"
+                )
+            frame = frame.iloc[-int(lookback) :]
+        return frame
+
+    def _position_weights(self, frame: pd.DataFrame) -> np.ndarray:
+        """Portfolio weights of the open positions from the current view.
+
+        The weight of a position is its market value divided by the total
+        market value of the positions, so the weights are scale free and sum
+        to 1.0 even when the snapshot carries no cash.
+
+        Args:
+            frame: Return frame whose columns name the positions.
+
+        Returns:
+            Weight array aligned with ``frame.columns``.
+
+        Raises:
+            ValueError: When the open positions have no market value.
+
+        """
+        total = sum(abs(position.market_value) for position in self.positions.values())
+        if total <= 0:
+            raise ValueError("cannot attribute risk: the open positions carry no market value")
+        return np.array(
+            [abs(self.positions[symbol].market_value) / total for symbol in frame.columns],
+            dtype=float,
+        )
+
+    def record_return(self, symbol: str, value: float) -> None:
+        """Record one period return of a symbol.
+
+        The recorded returns feed :meth:`calculate_risk_attribution` when it
+        is called without a return frame, so a caller that only knows the
+        positions and their returns does not have to assemble a frame.
+
+        Args:
+            symbol: Symbol the return belongs to.
+            value: Simple return of the period (for example ``0.01``).
+
+        Returns:
+            None.
+
+        Raises:
+            ValueError: When ``value`` is not finite.
+
+        Examples:
+            >>> from quant_trading.risk.manager import RiskManager
+            >>> rm = RiskManager()
+            >>> rm.record_return("AAPL", 0.01)
+            >>> rm.returns["AAPL"]
+            [0.01]
+
+        """
+        if not math.isfinite(value):
+            raise ValueError(f"invalid return: the value must be finite (got {value})")
+        self._returns.setdefault(symbol, []).append(float(value))
+
+    def record_returns(self, values: dict[str, float]) -> None:
+        """Record one period return for each symbol of a mapping.
+
+        Args:
+            values: Mapping from symbol to simple return of the period.
+
+        Returns:
+            None.
+
+        Examples:
+            >>> from quant_trading.risk.manager import RiskManager
+            >>> rm = RiskManager()
+            >>> rm.record_returns({"AAPL": 0.01, "MSFT": -0.005})
+            >>> sorted(rm.returns)
+            ['AAPL', 'MSFT']
+
+        """
+        for symbol, value in values.items():
+            self.record_return(symbol, value)
+
+    @property
+    def returns(self) -> dict[str, list[float]]:
+        """Recorded period returns per symbol.
+
+        Returns:
+            Mapping from symbol to the list of recorded returns, in the order
+            they were recorded.
+
+        Examples:
+            >>> from quant_trading.risk.manager import RiskManager
+            >>> rm = RiskManager()
+            >>> rm.record_return("AAPL", 0.01)
+            >>> rm.record_return("AAPL", 0.02)
+            >>> rm.returns
+            {'AAPL': [0.01, 0.02]}
+
+        """
+        return {symbol: list(values) for symbol, values in self._returns.items()}
+
+    def reset_returns(self) -> None:
+        """Drop every recorded return.
+
+        Returns:
+            None.
+
+        """
+        self._returns = {}
+
+    def clear_returns(self) -> None:
+        """Drop every recorded return.
+
+        Alias of :meth:`reset_returns`.
+
+        Returns:
+            None.
+
+        """
+        self.reset_returns()
+
+    def calculate_risk_attribution(
+        self,
+        returns: pd.DataFrame | None = None,
+        confidence: float = 0.95,
+        annualize: bool = True,
+        periods_per_year: int = 252,
+        lookback: int | None = None,
+    ) -> RiskAttribution:
+        """Attribute portfolio risk to the open positions.
+
+        The attribution decomposes the risk of the current positions into a
+        marginal VaR, a component VaR, and a volatility contribution per
+        position, together with the portfolio VaR and volatility.
+
+        Position weights are the share of the gross position value each
+        position carries, measured on the current position view. The VaR
+        figures are reported as positive losses: the portfolio VaR is the
+        loss at the confidence level (the negative of the lower quantile of
+        the portfolio return), and the component VaRs sum to the mean
+        portfolio loss in the tail of the distribution.
+
+        Args:
+            returns: DataFrame of asset returns (columns = symbols, rows =
+                periods). Defaults to the returns recorded with
+                :meth:`record_return` / :meth:`record_returns`.
+            confidence: VaR confidence level, in (0, 1). Default 0.95.
+            annualize: Whether to annualize the volatility. Default True.
+            periods_per_year: Periods per year for annualization (default 252).
+            lookback: Number of trailing observations to use. Defaults to the
+                full history.
+
+        Returns:
+            A :class:`RiskAttribution` covering the open positions. The
+            attribution is empty (all figures zero, empty per-position series)
+            when no position is open, or when the return data does not carry
+            at least two usable observations for every open position.
+
+        Raises:
+            KeyError: When ``returns`` is given but a column of an open
+                position is missing.
+            ValueError: When the confidence, the annualization factor, or the
+                lookback is invalid.
+
+        Notes:
+            The per-position series are aligned with the position weights, so
+            a symbol with no usable return history carries a zero contribution
+            instead of dropping out of the breakdown.
+
+        Examples:
+            >>> import numpy as np
+            >>> import pandas as pd
+            >>> from quant_trading.risk.manager import RiskManager
+            >>> from quant_trading.strategies.base import Position
+            >>> rm = RiskManager(initial_capital=100000.0)
+            >>> rm.update_portfolio_value(
+            ...     {
+            ...         "AAPL": Position("AAPL", 100, 150.0, 150.0),
+            ...         "MSFT": Position("MSFT", 100, 300.0, 300.0),
+            ...     },
+            ...     40000.0,
+            ... )
+            >>> np.random.seed(42)
+            >>> data = pd.DataFrame(
+            ...     {
+            ...         "AAPL": np.random.normal(0.001, 0.02, 200),
+            ...         "MSFT": np.random.normal(0.001, 0.02, 200),
+            ...     }
+            ... )
+            >>> attribution = rm.calculate_risk_attribution(data)
+            >>> sorted(attribution.weights.index)
+            ['AAPL', 'MSFT']
+            >>> bool(round(attribution.weights.sum(), 6) == 1.0)
+            True
+            >>> bool(attribution.component_var.sum() < 0)
+            True
+
+        """
+        _validate_confidence(confidence)
+        _validate_periods_per_year(periods_per_year)
+        empty = RiskAttribution(
+            confidence=confidence,
+            positions_value=self.portfolio_risk.positions_value,
+            portfolio_value=self.portfolio_risk.total_market_value,
+        )
+        if not self.positions:
+            return empty
+
+        frame = self._open_returns_frame(returns, lookback)
+        if len(frame) < 2 or len(frame.columns) == 0:
+            return empty
+
+        weights = self._position_weights(frame)
+        marginal_var = calculate_marginal_var(frame, weights, confidence)
+        component_var = calculate_component_var(frame, weights, confidence)
+        volatility_contributions = calculate_volatility_contributions(
+            frame,
+            weights,
+            annualize=annualize,
+            periods_per_year=periods_per_year,
+        )
+        portfolio_returns = pd.Series(
+            frame.to_numpy(dtype=float) @ weights, index=frame.index
+        )
+        portfolio_var = float(-np.percentile(portfolio_returns, (1 - confidence) * 100))
+        portfolio_volatility = calculate_volatility(
+            portfolio_returns,
+            annualize=annualize,
+            periods_per_year=periods_per_year,
+        )
+
+        symbols = list(self.positions)
+        market_total = sum(abs(position.market_value) for position in self.positions.values())
+        return RiskAttribution(
+            confidence=confidence,
+            positions_value=self.portfolio_risk.positions_value,
+            portfolio_value=self.portfolio_risk.total_market_value,
+            portfolio_var=portfolio_var,
+            portfolio_volatility=portfolio_volatility,
+            weights=pd.Series(
+                [abs(self.positions[symbol].market_value) / market_total for symbol in symbols],
+                index=symbols,
+                dtype=float,
+            ),
+            marginal_var=marginal_var.reindex(symbols).fillna(0.0),
+            component_var=component_var.reindex(symbols).fillna(0.0),
+            volatility_contributions=volatility_contributions.reindex(symbols).fillna(0.0),
+        )
+
+    def suggest_erc_weights(
+        self,
+        returns: pd.DataFrame | None = None,
+        annualize: bool = True,
+        periods_per_year: int = 252,
+        lookback: int | None = None,
+        long_only: bool = True,
+        max_iter: int = 1000,
+        tol: float = 1e-8,
+    ) -> pd.Series:
+        """Weights that equalize the risk contribution of the open positions.
+
+        Equal risk contribution (ERC) weights assign the same share of the
+        portfolio volatility to every position, so a position with a higher
+        volatility receives a smaller weight.
+
+        Args:
+            returns: DataFrame of asset returns (columns = symbols, rows =
+                periods). Defaults to the recorded returns.
+            annualize: Whether to annualize volatility. Default True.
+            periods_per_year: Periods per year for annualization (default 252).
+            lookback: Number of trailing observations to use.
+            long_only: Restrict the weights to be non-negative. Default True.
+            max_iter: Maximum solver iterations.
+            tol: Convergence tolerance of the solver.
+
+        Returns:
+            Series of target weights indexed by symbol, summing to 1.0. The
+            series is empty when no position is open or the return data does
+            not carry at least two usable observations for every position.
+
+        Examples:
+            >>> import numpy as np
+            >>> import pandas as pd
+            >>> from quant_trading.risk.manager import RiskManager
+            >>> from quant_trading.strategies.base import Position
+            >>> rm = RiskManager(initial_capital=100000.0)
+            >>> rm.update_portfolio_value(
+            ...     {
+            ...         "AAPL": Position("AAPL", 100, 150.0, 150.0),
+            ...         "MSFT": Position("MSFT", 100, 300.0, 300.0),
+            ...     },
+            ...     40000.0,
+            ... )
+            >>> np.random.seed(42)
+            >>> data = pd.DataFrame(
+            ...     {
+            ...         "AAPL": np.random.normal(0.001, 0.01, 200),
+            ...         "MSFT": np.random.normal(0.001, 0.03, 200),
+            ...     }
+            ... )
+            >>> weights = rm.suggest_erc_weights(data, annualize=False)
+            >>> bool(weights["AAPL"] > weights["MSFT"])
+            True
+
+        """
+        _validate_periods_per_year(periods_per_year)
+        if not self.positions:
+            return pd.Series(dtype=float)
+        frame = self._open_returns_frame(returns, lookback)
+        if len(frame) < 2 or len(frame.columns) == 0:
+            return pd.Series(dtype=float)
+        return calculate_equal_risk_contribution_weights(
+            frame,
+            max_iter=max_iter,
+            tol=tol,
+            annualize=annualize,
+            periods_per_year=periods_per_year,
+            long_only=long_only,
+        )
+
+    def suggest_risk_budget_weights(
+        self,
+        risk_budget: np.ndarray | pd.Series | dict[str, float],
+        returns: pd.DataFrame | None = None,
+        annualize: bool = True,
+        periods_per_year: int = 252,
+        lookback: int | None = None,
+        long_only: bool = True,
+        max_iter: int = 1000,
+        tol: float = 1e-8,
+    ) -> pd.Series:
+        """Weights that match a target risk budget across the open positions.
+
+        The risk budget is the share of the portfolio volatility each
+        position should contribute. A budget given as a mapping is matched to
+        the open positions by symbol; an array or series is matched
+        positionally against the columns of ``returns``.
+
+        Args:
+            risk_budget: Target risk contribution per position (must sum to
+                1.0).
+            returns: DataFrame of asset returns (columns = symbols, rows =
+                periods). Defaults to the recorded returns.
+            annualize: Whether to annualize volatility. Default True.
+            periods_per_year: Periods per year for annualization (default 252).
+            lookback: Number of trailing observations to use.
+            long_only: Restrict the weights to be non-negative. Default True.
+            max_iter: Maximum solver iterations.
+            tol: Convergence tolerance of the solver.
+
+        Returns:
+            Series of target weights indexed by symbol, summing to 1.0. The
+            series is empty when no position is open or the return data does
+            not carry at least two usable observations for every position.
+
+        Raises:
+            ValueError: When the budget does not sum to 1.0, or when a
+                mapping budget does not name the open positions.
+
+        Examples:
+            >>> import numpy as np
+            >>> import pandas as pd
+            >>> from quant_trading.risk.manager import RiskManager
+            >>> from quant_trading.strategies.base import Position
+            >>> rm = RiskManager(initial_capital=100000.0)
+            >>> rm.update_portfolio_value(
+            ...     {
+            ...         "AAPL": Position("AAPL", 100, 150.0, 150.0),
+            ...         "MSFT": Position("MSFT", 100, 300.0, 300.0),
+            ...     },
+            ...     40000.0,
+            ... )
+            >>> np.random.seed(42)
+            >>> data = pd.DataFrame(
+            ...     {
+            ...         "AAPL": np.random.normal(0.001, 0.01, 200),
+            ...         "MSFT": np.random.normal(0.001, 0.03, 200),
+            ...     }
+            ... )
+            >>> weights = rm.suggest_risk_budget_weights(
+            ...     {"AAPL": 0.5, "MSFT": 0.5}, data, annualize=False
+            ... )
+            >>> bool(round(weights.sum(), 6) == 1.0)
+            True
+
+        """
+        _validate_periods_per_year(periods_per_year)
+        if not self.positions:
+            return pd.Series(dtype=float)
+        frame = self._open_returns_frame(returns, lookback)
+        if len(frame) < 2 or len(frame.columns) == 0:
+            return pd.Series(dtype=float)
+
+        if isinstance(risk_budget, dict):
+            missing = [symbol for symbol in frame.columns if symbol not in risk_budget]
+            if missing:
+                raise KeyError(f"missing risk budget for open positions: {sorted(missing)}")
+            budget = pd.Series(
+                [float(risk_budget[symbol]) for symbol in frame.columns],
+                index=frame.columns,
+                dtype=float,
+            )
+        else:
+            budget = risk_budget
+
+        return calculate_risk_budget_weights(
+            frame,
+            budget,
+            max_iter=max_iter,
+            tol=tol,
+            annualize=annualize,
+            periods_per_year=periods_per_year,
+            long_only=long_only,
+        )
+
     def is_short_position(self, symbol: str) -> bool:
         """Whether the tracked position for a symbol is a short.
 
@@ -1012,6 +1765,7 @@ class RiskManager:
         self.peak_value = self.initial_capital
         self.risk_metrics = None
         self.history = []
+        self._returns = {}
         for symbol in self._tracked_trailing_symbols():
             self._clear_trailing_state(symbol)
 
