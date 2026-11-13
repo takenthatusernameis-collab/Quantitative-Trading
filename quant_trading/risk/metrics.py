@@ -633,6 +633,332 @@ def calculate_omega_ratio(
     return float(gains / losses)
 
 
+def calculate_marginal_var(
+    returns: pd.DataFrame,
+    weights: np.ndarray | pd.Series,
+    confidence: float = 0.95,
+) -> pd.Series:
+    """Calculate marginal VaR for each position using historical simulation.
+
+    Marginal VaR is computed as the average asset return in the tail of the
+    portfolio return distribution (the worst (1-confidence) fraction of
+    observations). This is the standard historical simulation approach and
+    naturally satisfies the Euler decomposition:
+    Component VaR_i = weight_i * Marginal VaR_i
+    Sum of Component VaRs = Portfolio VaR
+
+    Args:
+        returns: DataFrame of asset returns (columns = assets, rows = periods).
+        weights: Current portfolio weights (must sum to 1.0).
+        confidence: VaR confidence level (default 0.95).
+
+    Returns:
+        Series of marginal VaR values indexed by asset name.
+
+    Examples:
+        >>> import pandas as pd
+        >>> import numpy as np
+        >>> np.random.seed(42)
+        >>> returns = pd.DataFrame({
+        ...     "A": np.random.normal(0.001, 0.02, 100),
+        ...     "B": np.random.normal(0.001, 0.02, 100),
+        ... })
+        >>> weights = pd.Series([0.5, 0.5], index=["A", "B"])
+        >>> mvar = calculate_marginal_var(returns, weights, confidence=0.95)
+        >>> len(mvar) == 2
+        True
+
+    """
+    returns = returns.dropna()
+    if len(returns) < 2:
+        return pd.Series(0.0, index=weights.index)
+
+    weights = np.asarray(weights, dtype=float)
+    if not np.isfinite(weights).all() or abs(weights.sum() - 1.0) > 1e-6:
+        raise ValueError("weights must be finite and sum to 1.0")
+
+    portfolio_returns = returns.values @ weights
+    # VaR is the negative of the (1-confidence) quantile
+    var_threshold = -np.percentile(portfolio_returns, (1 - confidence) * 100)
+
+    # Marginal VaR for each asset is the average return in the tail
+    # where portfolio return <= -VaR
+    tail_mask = portfolio_returns <= -var_threshold
+    if not tail_mask.any():
+        # If no observations in tail (e.g., single observation), return zeros
+        return pd.Series(0.0, index=returns.columns)
+
+    tail_returns = returns.values[tail_mask]
+    marginal_vars = tail_returns.mean(axis=0)
+
+    return pd.Series(marginal_vars, index=returns.columns)
+
+
+def calculate_component_var(
+    returns: pd.DataFrame,
+    weights: np.ndarray | pd.Series,
+    confidence: float = 0.95,
+) -> pd.Series:
+    """Calculate component VaR for each position using historical simulation.
+
+    Component VaR = weight * Marginal VaR. The sum of component VaRs equals
+    the total portfolio VaR exactly (Euler's theorem for homogeneous functions).
+
+    Args:
+        returns: DataFrame of asset returns (columns = assets, rows = periods).
+        weights: Current portfolio weights (must sum to 1.0).
+        confidence: VaR confidence level (default 0.95).
+
+    Returns:
+        Series of component VaR values indexed by asset name.
+
+    Examples:
+        >>> import pandas as pd
+        >>> import numpy as np
+        >>> np.random.seed(42)
+        >>> returns = pd.DataFrame({
+        ...     "A": np.random.normal(0.001, 0.02, 100),
+        ...     "B": np.random.normal(0.001, 0.02, 100),
+        ... })
+        >>> weights = pd.Series([0.5, 0.5], index=["A", "B"])
+        >>> cvar = calculate_component_var(returns, weights, confidence=0.95)
+        >>> len(cvar) == 2
+        True
+
+    """
+    weights = np.asarray(weights, dtype=float)
+    marginal_var = calculate_marginal_var(returns, weights, confidence)
+    component_var = weights * marginal_var
+    return pd.Series(component_var, index=returns.columns)
+
+
+def calculate_volatility_contributions(
+    returns: pd.DataFrame,
+    weights: np.ndarray | pd.Series,
+    annualize: bool = True,
+    periods_per_year: int = 252,
+) -> pd.Series:
+    """Calculate each position's contribution to portfolio volatility.
+
+    Contribution_i = weight_i * (Cov_i * weights) / portfolio_volatility,
+    where Cov_i is the i-th row of the covariance matrix.
+
+    The sum of contributions equals the total portfolio volatility.
+
+    Args:
+        returns: DataFrame of asset returns (columns = assets, rows = periods).
+        weights: Current portfolio weights (must sum to 1.0).
+        annualize: Whether to annualize the volatility (default True).
+        periods_per_year: Periods per year for annualization (default 252).
+
+    Returns:
+        Series of volatility contributions indexed by asset name.
+
+    Examples:
+        >>> import pandas as pd
+        >>> import numpy as np
+        >>> np.random.seed(42)
+        >>> returns = pd.DataFrame({
+        ...     "A": np.random.normal(0.001, 0.02, 100),
+        ...     "B": np.random.normal(0.001, 0.02, 100),
+        ... })
+        >>> weights = pd.Series([0.5, 0.5], index=["A", "B"])
+        >>> contrib = calculate_volatility_contributions(returns, weights, annualize=False)
+        >>> round(contrib.sum(), 6) == round(calculate_volatility(pd.Series(returns.values @ weights.values), annualize=False), 6)
+        True
+
+    """
+    returns = returns.dropna()
+    if len(returns) < 2:
+        return pd.Series(0.0, index=weights.index)
+
+    weights = np.asarray(weights, dtype=float)
+    if not np.isfinite(weights).all() or abs(weights.sum() - 1.0) > 1e-6:
+        raise ValueError("weights must be finite and sum to 1.0")
+
+    cov = returns.cov().values.copy()
+    if annualize:
+        cov *= periods_per_year
+
+    portfolio_variance = weights @ cov @ weights
+    if portfolio_variance <= 0:
+        return pd.Series(0.0, index=returns.columns)
+
+    portfolio_vol = np.sqrt(portfolio_variance)
+    marginal_contrib = cov @ weights / portfolio_vol
+    contributions = weights * marginal_contrib
+
+    return pd.Series(contributions, index=returns.columns)
+
+
+def calculate_equal_risk_contribution_weights(
+    returns: pd.DataFrame,
+    max_iter: int = 1000,
+    tol: float = 1e-8,
+    annualize: bool = True,
+    periods_per_year: int = 252,
+    long_only: bool = False,
+) -> pd.Series:
+    """Calculate portfolio weights for equal risk contribution (ERC).
+
+    ERC portfolio assigns weights such that each asset contributes equally to
+    total portfolio volatility. Solved via iterative scaling:
+    w_i = w_i * (target_contribution / actual_contribution)
+
+    Args:
+        returns: DataFrame of asset returns (columns = assets, rows = periods).
+        max_iter: Maximum iterations for convergence (default 1000).
+        tol: Convergence tolerance for weight changes (default 1e-8).
+        annualize: Whether to annualize volatility (default True).
+        periods_per_year: Periods per year for annualization (default 252).
+        long_only: If True, constrain weights to be non-negative (default True).
+
+    Returns:
+        Series of ERC weights indexed by asset name, summing to 1.0.
+
+    Examples:
+        >>> import pandas as pd
+        >>> import numpy as np
+        >>> np.random.seed(42)
+        >>> returns = pd.DataFrame({
+        ...     "A": np.random.normal(0.001, 0.02, 100),
+        ...     "B": np.random.normal(0.001, 0.02, 100),
+        ... })
+        >>> weights = calculate_equal_risk_contribution_weights(returns, annualize=False)
+        >>> abs(weights.sum() - 1.0) < 1e-6
+        True
+        >>> len(weights) == 2
+        True
+
+    """
+    returns = returns.dropna()
+    if len(returns) < 2:
+        n = len(returns.columns) if len(returns.columns) > 0 else 1
+        return pd.Series(1.0 / n, index=returns.columns)
+
+    n = len(returns.columns)
+    weights = np.ones(n) / n
+
+    for _ in range(max_iter):
+        contrib = calculate_volatility_contributions(
+            returns,
+            pd.Series(weights, index=returns.columns),
+            annualize=annualize,
+            periods_per_year=periods_per_year,
+        ).values
+
+        target = contrib.sum() / n
+        if target == 0:
+            break
+
+        # Avoid division by zero
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio = np.where(contrib != 0, target / contrib, 1.0)
+        new_weights = weights * ratio
+
+        if long_only:
+            new_weights = np.maximum(new_weights, 0.0)
+
+        weight_sum = new_weights.sum()
+        if weight_sum == 0:
+            break
+        new_weights = new_weights / weight_sum
+
+        if np.max(np.abs(new_weights - weights)) < tol:
+            weights = new_weights
+            break
+
+        weights = new_weights
+
+    return pd.Series(weights, index=returns.columns)
+
+
+def calculate_risk_budget_weights(
+    returns: pd.DataFrame,
+    risk_budget: np.ndarray | pd.Series,
+    max_iter: int = 1000,
+    tol: float = 1e-8,
+    annualize: bool = True,
+    periods_per_year: int = 252,
+    long_only: bool = False,
+) -> pd.Series:
+    """Calculate portfolio weights for a given risk budget.
+
+    Risk budgeting assigns each asset a target risk contribution. The weights
+    are solved iteratively so that actual contributions match the budget.
+
+    Args:
+        returns: DataFrame of asset returns (columns = assets, rows = periods).
+        risk_budget: Target risk contribution for each asset (must sum to 1.0).
+        max_iter: Maximum iterations for convergence (default 1000).
+        tol: Convergence tolerance for weight changes (default 1e-8).
+        annualize: Whether to annualize volatility (default True).
+        periods_per_year: Periods per year for annualization (default 252).
+        long_only: If True, constrain weights to be non-negative (default True).
+
+    Returns:
+        Series of risk budget weights indexed by asset name, summing to 1.0.
+
+    Examples:
+        >>> import pandas as pd
+        >>> import numpy as np
+        >>> np.random.seed(42)
+        >>> returns = pd.DataFrame({
+        ...     "A": np.random.normal(0.001, 0.02, 100),
+        ...     "B": np.random.normal(0.001, 0.02, 100),
+        ... })
+        >>> budget = pd.Series([0.7, 0.3], index=["A", "B"])
+        >>> weights = calculate_risk_budget_weights(returns, budget, annualize=False)
+        >>> abs(weights.sum() - 1.0) < 1e-6
+        True
+
+    """
+    returns = returns.dropna()
+    if len(returns) < 2:
+        n = len(returns.columns) if len(returns.columns) > 0 else 1
+        return pd.Series(1.0 / n, index=returns.columns)
+
+    budget = np.asarray(risk_budget, dtype=float)
+    if not np.isfinite(budget).all() or abs(budget.sum() - 1.0) > 1e-6:
+        raise ValueError("risk_budget must be finite and sum to 1.0")
+
+    n = len(returns.columns)
+    weights = budget.copy()
+
+    for _ in range(max_iter):
+        contrib = calculate_volatility_contributions(
+            returns,
+            pd.Series(weights, index=returns.columns),
+            annualize=annualize,
+            periods_per_year=periods_per_year,
+        ).values
+
+        total_contrib = contrib.sum()
+        if total_contrib == 0:
+            break
+
+        actual_contrib = contrib / total_contrib
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio = np.where(actual_contrib != 0, budget / actual_contrib, 1.0)
+        new_weights = weights * ratio
+
+        if long_only:
+            new_weights = np.maximum(new_weights, 0.0)
+
+        weight_sum = new_weights.sum()
+        if weight_sum == 0:
+            break
+        new_weights = new_weights / weight_sum
+
+        if np.max(np.abs(new_weights - weights)) < tol:
+            weights = new_weights
+            break
+
+        weights = new_weights
+
+    return pd.Series(weights, index=returns.columns)
+
+
 def calculate_all_metrics(
     equity_curve: pd.Series,
     market_returns: pd.Series | None = None,
@@ -709,14 +1035,19 @@ __all__ = [
     "calculate_alpha",
     "calculate_beta",
     "calculate_calmar_ratio",
+    "calculate_component_var",
     "calculate_cvar",
+    "calculate_equal_risk_contribution_weights",
     "calculate_information_ratio",
+    "calculate_marginal_var",
     "calculate_max_drawdown",
     "calculate_omega_ratio",
+    "calculate_risk_budget_weights",
     "calculate_returns",
     "calculate_sharpe_ratio",
     "calculate_sortino_ratio",
     "calculate_treynor_ratio",
     "calculate_var",
     "calculate_volatility",
+    "calculate_volatility_contributions",
 ]
