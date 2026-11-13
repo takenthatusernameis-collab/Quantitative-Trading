@@ -18,6 +18,7 @@ Examples:
 """
 
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -664,14 +665,14 @@ def calculate_marginal_var(
         ...     "B": np.random.normal(0.001, 0.02, 100),
         ... })
         >>> weights = pd.Series([0.5, 0.5], index=["A", "B"])
-        >>> mvar = calculate_marginal_var(returns, weights, confidence=0.95)
-        >>> len(mvar) == 2
-        True
+    >>> mvar = calculate_marginal_var(returns, weights, confidence=0.95)
+    >>> len(mvar) == 2
+    True
 
     """
     returns = returns.dropna()
     if len(returns) < 2:
-        return pd.Series(0.0, index=weights.index)
+        return cast(pd.Series, pd.Series(0.0, index=returns.columns))
 
     weights = np.asarray(weights, dtype=float)
     if not np.isfinite(weights).all() or abs(weights.sum() - 1.0) > 1e-6:
@@ -686,12 +687,12 @@ def calculate_marginal_var(
     tail_mask = portfolio_returns <= -var_threshold
     if not tail_mask.any():
         # If no observations in tail (e.g., single observation), return zeros
-        return pd.Series(0.0, index=returns.columns)
+        return cast(pd.Series, pd.Series(0.0, index=returns.columns))
 
     tail_returns = returns.values[tail_mask]
     marginal_vars = tail_returns.mean(axis=0)
 
-    return pd.Series(marginal_vars, index=returns.columns)
+    return cast(pd.Series, pd.Series(marginal_vars, index=returns.columns))
 
 
 def calculate_component_var(
@@ -729,7 +730,7 @@ def calculate_component_var(
     weights = np.asarray(weights, dtype=float)
     marginal_var = calculate_marginal_var(returns, weights, confidence)
     component_var = weights * marginal_var
-    return pd.Series(component_var, index=returns.columns)
+    return cast(pd.Series, pd.Series(component_var, index=returns.columns))
 
 
 def calculate_volatility_contributions(
@@ -770,7 +771,7 @@ def calculate_volatility_contributions(
     """
     returns = returns.dropna()
     if len(returns) < 2:
-        return pd.Series(0.0, index=weights.index)
+        return cast(pd.Series, pd.Series(0.0, index=returns.columns))
 
     weights = np.asarray(weights, dtype=float)
     if not np.isfinite(weights).all() or abs(weights.sum() - 1.0) > 1e-6:
@@ -782,13 +783,13 @@ def calculate_volatility_contributions(
 
     portfolio_variance = weights @ cov @ weights
     if portfolio_variance <= 0:
-        return pd.Series(0.0, index=returns.columns)
+        return cast(pd.Series, pd.Series(0.0, index=returns.columns))
 
     portfolio_vol = np.sqrt(portfolio_variance)
     marginal_contrib = cov @ weights / portfolio_vol
     contributions = weights * marginal_contrib
 
-    return pd.Series(contributions, index=returns.columns)
+    return cast(pd.Series, pd.Series(contributions, index=returns.columns))
 
 
 def calculate_equal_risk_contribution_weights(
@@ -834,18 +835,21 @@ def calculate_equal_risk_contribution_weights(
     returns = returns.dropna()
     if len(returns) < 2:
         n = len(returns.columns) if len(returns.columns) > 0 else 1
-        return pd.Series(1.0 / n, index=returns.columns)
+        return cast(pd.Series, pd.Series(1.0 / n, index=returns.columns))
 
     n = len(returns.columns)
     weights = np.ones(n) / n
 
     for _ in range(max_iter):
-        contrib = calculate_volatility_contributions(
-            returns,
-            pd.Series(weights, index=returns.columns),
-            annualize=annualize,
-            periods_per_year=periods_per_year,
-        ).values
+        contrib = np.asarray(
+            calculate_volatility_contributions(
+                returns,
+                pd.Series(weights, index=returns.columns),
+                annualize=annualize,
+                periods_per_year=periods_per_year,
+            ).values,
+            dtype=float,
+        )
 
         target = contrib.sum() / n
         if target == 0:
@@ -870,7 +874,7 @@ def calculate_equal_risk_contribution_weights(
 
         weights = new_weights
 
-    return pd.Series(weights, index=returns.columns)
+    return cast(pd.Series, pd.Series(weights, index=returns.columns))
 
 
 def calculate_risk_budget_weights(
@@ -916,7 +920,7 @@ def calculate_risk_budget_weights(
     returns = returns.dropna()
     if len(returns) < 2:
         n = len(returns.columns) if len(returns.columns) > 0 else 1
-        return pd.Series(1.0 / n, index=returns.columns)
+        return cast(pd.Series, pd.Series(1.0 / n, index=returns.columns))
 
     budget = np.asarray(risk_budget, dtype=float)
     if not np.isfinite(budget).all() or abs(budget.sum() - 1.0) > 1e-6:
@@ -926,12 +930,15 @@ def calculate_risk_budget_weights(
     weights = budget.copy()
 
     for _ in range(max_iter):
-        contrib = calculate_volatility_contributions(
-            returns,
-            pd.Series(weights, index=returns.columns),
-            annualize=annualize,
-            periods_per_year=periods_per_year,
-        ).values
+        contrib = np.asarray(
+            calculate_volatility_contributions(
+                returns,
+                pd.Series(weights, index=returns.columns),
+                annualize=annualize,
+                periods_per_year=periods_per_year,
+            ).values,
+            dtype=float,
+        )
 
         total_contrib = contrib.sum()
         if total_contrib == 0:
@@ -956,7 +963,7 @@ def calculate_risk_budget_weights(
 
         weights = new_weights
 
-    return pd.Series(weights, index=returns.columns)
+    return cast(pd.Series, pd.Series(weights, index=returns.columns))
 
 
 def calculate_all_metrics(
