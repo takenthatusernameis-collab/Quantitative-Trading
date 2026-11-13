@@ -765,7 +765,7 @@ def calculate_volatility_contributions(
         ... })
         >>> weights = pd.Series([0.5, 0.5], index=["A", "B"])
         >>> contrib = calculate_volatility_contributions(returns, weights, annualize=False)
-        >>> round(contrib.sum(), 6) == round(calculate_volatility(pd.Series(returns.values @ weights.values), annualize=False), 6)
+        >>> bool(round(contrib.sum(), 6) == round(calculate_volatility(pd.Series(returns.values @ weights.values), annualize=False), 6))
         True
 
     """
@@ -826,7 +826,7 @@ def calculate_equal_risk_contribution_weights(
         ...     "B": np.random.normal(0.001, 0.02, 100),
         ... })
         >>> weights = calculate_equal_risk_contribution_weights(returns, annualize=False)
-        >>> abs(weights.sum() - 1.0) < 1e-6
+        >>> bool(abs(weights.sum() - 1.0) < 1e-6)
         True
         >>> len(weights) == 2
         True
@@ -913,7 +913,7 @@ def calculate_risk_budget_weights(
         ... })
         >>> budget = pd.Series([0.7, 0.3], index=["A", "B"])
         >>> weights = calculate_risk_budget_weights(returns, budget, annualize=False)
-        >>> abs(weights.sum() - 1.0) < 1e-6
+        >>> bool(abs(weights.sum() - 1.0) < 1e-6)
         True
 
     """
