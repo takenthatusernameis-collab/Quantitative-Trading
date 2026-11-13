@@ -1,9 +1,9 @@
 """Tests for CLI functionality."""
 
 import argparse
-import importlib.util
 import itertools
 import json
+import sys
 import tempfile
 from unittest.mock import MagicMock, patch
 
@@ -41,14 +41,6 @@ from quant_trading.strategies.examples import (
     SuperTrendStrategy,
     VWAPStrategy,
 )
-
-
-def _module_available(name: str) -> bool:
-    """Return True if a top-level module can be imported."""
-    try:
-        return importlib.util.find_spec(name) is not None
-    except (ImportError, ValueError):
-        return False
 
 
 class TestParseArgs:
@@ -5124,10 +5116,6 @@ class TestUserErrorReporting:
         assert "invalid --n-jobs" in output
         assert "Traceback" not in output
 
-    @pytest.mark.skipif(
-        _module_available("skopt"),
-        reason="only relevant when scikit-optimize is not installed",
-    )
     def test_bayesian_optimizer_without_skopt_is_reported(self, capsys):
         """``--optimizer bayesian`` without scikit-optimize is a clean message.
 
@@ -5135,26 +5123,32 @@ class TestUserErrorReporting:
         an install hint. The CLI must surface that as a one-line error and exit
         code 1 instead of a traceback, matching how every other user error is
         reported.
+
+        ``scikit-optimize`` is an optional dependency, so this path is exercised
+        even when it is installed by blocking the import through
+        ``sys.modules``. Setting an entry to ``None`` makes ``import skopt``
+        raise ``ImportError`` while leaving the real package on disk untouched.
         """
-        result, output = self._run(
-            [
-                "--optimize",
-                "--strategy",
-                "ma",
-                "--optimizer",
-                "bayesian",
-                "--ma-fast-range",
-                "5,15,5",
-                "--ma-slow-range",
-                "20,30,10",
-                "--offline",
-                "--symbols",
-                "AAPL",
-                "--days",
-                "30",
-            ],
-            capsys,
-        )
+        with patch.dict(sys.modules, {"skopt": None, "skopt.utils": None}):
+            result, output = self._run(
+                [
+                    "--optimize",
+                    "--strategy",
+                    "ma",
+                    "--optimizer",
+                    "bayesian",
+                    "--ma-fast-range",
+                    "5,15,5",
+                    "--ma-slow-range",
+                    "20,30,10",
+                    "--offline",
+                    "--symbols",
+                    "AAPL",
+                    "--days",
+                    "30",
+                ],
+                capsys,
+            )
         assert result == 1
         assert "scikit-optimize" in output
         assert "Traceback" not in output
