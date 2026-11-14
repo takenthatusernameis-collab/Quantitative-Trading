@@ -136,6 +136,10 @@ module = "tests.test_rebalancer_execution"
 disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
+module = "tests.test_rebalancer"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
 module = "tests.test_utils"
 disallow_untyped_defs = true
 
