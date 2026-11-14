@@ -15,7 +15,7 @@ import dataclasses
 import importlib
 import pkgutil
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import pytest
@@ -186,7 +186,7 @@ def _instances() -> list[tuple[type, Any]]:
 )
 def test_serialization_round_trip(cls: type, instance: Any) -> None:
     """Serializable dataclasses must round-trip through to_dict/from_dict."""
-    restored = cls.from_dict(instance.to_dict())
+    restored = cast(Any, cls).from_dict(instance.to_dict())
     if cls in _DICT_STABLE:
         assert restored.to_dict() == instance.to_dict()
     else:
@@ -305,6 +305,8 @@ def test_walk_forward_window_from_dict_restores_backtest_result_from_dict() -> N
         "test_result": result.to_dict(),
     }
     window = WalkForwardWindow.from_dict(data)
+    assert window.train_result is not None
+    assert window.test_result is not None
     assert window.train_result.to_dict() == result.to_dict()
     assert window.test_result.to_dict() == result.to_dict()
     assert window.best_params == {"fast": 5}
@@ -336,6 +338,7 @@ def test_walk_forward_result_from_dict_restores_combined_test_result_from_dict()
         "anchored": True,
     }
     restored = WalkForwardResult.from_dict(data)
+    assert restored.combined_test_result is not None
     assert restored.combined_test_result.to_dict() == result.to_dict()
     assert restored.anchored is True
     assert restored.windows == []
