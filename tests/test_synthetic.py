@@ -16,7 +16,7 @@ from quant_trading.data.synthetic import (
 )
 
 
-def test_create_synthetic_data_structure():
+def test_create_synthetic_data_structure() -> None:
     """Returned frames have OHLCV columns, a DatetimeIndex, and the requested length."""
     data = create_synthetic_data(["AAPL"], days=10, seed=DEFAULT_SEED)
 
@@ -28,7 +28,7 @@ def test_create_synthetic_data_structure():
     assert df.index.freqstr == "D"
 
 
-def test_create_synthetic_data_is_reproducible():
+def test_create_synthetic_data_is_reproducible() -> None:
     """Same arguments produce byte-identical output."""
     end = datetime(2026, 6, 1)
     first = create_synthetic_data(["AAPL", "MSFT"], days=25, seed=7, end_date=end)
@@ -38,7 +38,7 @@ def test_create_synthetic_data_is_reproducible():
         pd.testing.assert_frame_equal(first[symbol], second[symbol])
 
 
-def test_create_synthetic_data_seed_changes_output():
+def test_create_synthetic_data_seed_changes_output() -> None:
     """Different seeds produce different close series."""
     first = create_synthetic_data(["AAPL"], days=50, seed=1)["AAPL"]["close"]
     second = create_synthetic_data(["AAPL"], days=50, seed=2)["AAPL"]["close"]
@@ -46,7 +46,7 @@ def test_create_synthetic_data_seed_changes_output():
     assert not first.equals(second)
 
 
-def test_create_synthetic_data_ohlc_invariants():
+def test_create_synthetic_data_ohlc_invariants() -> None:
     """Low <= close <= high on every row; volume positive."""
     data = create_synthetic_data(["AAPL", "MSFT"], days=30, seed=3)
 
@@ -57,7 +57,7 @@ def test_create_synthetic_data_ohlc_invariants():
         assert (df["volume"] <= 10_000_000).all()
 
 
-def test_create_synthetic_data_end_date_window():
+def test_create_synthetic_data_end_date_window() -> None:
     """end_date bounds the generated range; last index <= end_date."""
     end = datetime(2026, 1, 15)
     data = create_synthetic_data(["AAPL"], days=40, seed=42, end_date=end)
@@ -67,7 +67,7 @@ def test_create_synthetic_data_end_date_window():
     assert len(df) == 40
 
 
-def test_create_synthetic_provider_fetch_window():
+def test_create_synthetic_provider_fetch_window() -> None:
     """Provider.fetch filters by start/end window."""
     data = create_synthetic_data(["AAPL"], days=30, seed=11, end_date=datetime(2026, 2, 1))
     provider = SyntheticDataProvider(data)
@@ -83,7 +83,7 @@ def test_create_synthetic_provider_fetch_window():
     assert df.index.max() <= pd.Timestamp(end)
 
 
-def test_create_synthetic_provider_missing_symbol():
+def test_create_synthetic_provider_missing_symbol() -> None:
     """Unknown symbols are reported missing and data stays empty."""
     provider = SyntheticDataProvider(create_synthetic_data(["AAPL"], days=10, seed=1))
     result = provider.fetch(["UNKNOWN", "AAPL"])
@@ -93,7 +93,7 @@ def test_create_synthetic_provider_missing_symbol():
     assert not result.is_success
 
 
-def test_create_synthetic_provider_convenience_wrapper():
+def test_create_synthetic_provider_convenience_wrapper() -> None:
     """create_synthetic_provider builds a usable provider with the default name."""
     provider = create_synthetic_provider(["AAPL", "MSFT"], days=20, seed=99)
 
@@ -105,7 +105,7 @@ def test_create_synthetic_provider_convenience_wrapper():
     assert not result.errors
 
 
-def test_synthetic_provider_fetch_latest():
+def test_synthetic_provider_fetch_latest() -> None:
     """fetch_latest uses fetch without a window."""
     provider = create_synthetic_provider(["AAPL"], days=10)
     result = provider.fetch_latest(["AAPL"])
@@ -113,6 +113,6 @@ def test_synthetic_provider_fetch_latest():
     assert "AAPL" in result.data
 
 
-def test_default_seed_constant():
+def test_default_seed_constant() -> None:
     """DEFAULT_SEED is the documented default of 42."""
     assert DEFAULT_SEED == 42
