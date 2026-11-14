@@ -582,16 +582,24 @@ def test_cli_arg_defaults_match_strategy_init_defaults():
     )
 
 
-def _cli_flag_defaults(tree: ast.Module) -> dict[str, str]:
-    """Map each argparse ``dest`` to the ``CLI_ARG_DEFAULTS`` key it defaults to.
+def _cli_flag_defaults(tree: ast.Module) -> dict[str, dict[str, object]]:
+    """Map each argparse ``dest`` to the spec of the flag it defaults from.
 
     Only flags whose ``default=`` is a ``CLI_ARG_DEFAULTS["..."]`` lookup are
     returned, keyed by the resolved ``dest`` (``--foo-bar`` -> ``foo_bar``).
-    Boolean ``store_true`` flags carry no ``CLI_ARG_DEFAULTS`` entry and are
-    therefore excluded. Parsing the AST (rather than importing the CLI) keeps
-    the guard independent of the CLI's optional runtime dependencies.
+    Each value is a dict with three keys:
+
+    * ``"default_key"``: the ``CLI_ARG_DEFAULTS`` key the flag's ``default=``
+      reads from (always a ``str`` here);
+    * ``"type"``: the name of the ``type=`` callable as a string, or ``None``
+      when the flag declares no ``type=`` (e.g. ``store_true``/``store_false``
+      flags, which are the common case for booleans);
+    * ``"action"``: the ``action=`` keyword as a string, or ``None``.
+
+    Parsing the AST (rather than importing the CLI) keeps the guard
+    independent of the CLI's optional runtime dependencies.
     """
-    flags: dict[str, str] = {}
+    flags: dict[str, dict[str, object]] = {}
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -604,9 +612,15 @@ def _cli_flag_defaults(tree: ast.Module) -> dict[str, str]:
             continue
         dest = flag.lstrip("-").replace("-", "_")
         default_key = None
+        type_name: str | None = None
+        action_name: str | None = None
         for keyword in node.keywords:
             if keyword.arg == "dest" and isinstance(keyword.value, ast.Constant):
                 dest = keyword.value.value
+            elif keyword.arg == "action" and isinstance(keyword.value, ast.Constant):
+                action_name = keyword.value.value
+            elif keyword.arg == "type" and isinstance(keyword.value, ast.Name):
+                type_name = keyword.value.id
             if keyword.arg != "default":
                 continue
             value = keyword.value
@@ -618,7 +632,7 @@ def _cli_flag_defaults(tree: ast.Module) -> dict[str, str]:
             ):
                 default_key = value.slice.value
         if default_key is not None:
-            flags[dest] = default_key
+            flags[dest] = {"default_key": default_key, "type": type_name, "action": action_name}
     return flags
 
 
@@ -641,9 +655,10 @@ def test_cli_arg_defaults_entries_are_used_by_a_flag():
         if isinstance(key, ast.Constant) and isinstance(key.value, str)
     }
     flag_defaults = _cli_flag_defaults(tree)
+    used_keys = {spec["default_key"] for spec in flag_defaults.values()}
 
-    unused = sorted(defined - set(flag_defaults.values()))
-    dangling = sorted(set(flag_defaults.values()) - defined)
+    unused = sorted(defined - used_keys)
+    dangling = sorted(used_keys - defined)
 
     failures: list[str] = []
     if unused:
@@ -651,6 +666,105 @@ def test_cli_arg_defaults_entries_are_used_by_a_flag():
     if dangling:
         failures.append(f"flag defaults reference missing CLI_ARG_DEFAULTS keys: {dangling}")
     assert not failures, "CLI_ARG_DEFAULTS wiring is inconsistent:\n" + "\n".join(failures)
+
+
+def _cli_default_type_mismatches(
+    flag_defaults: dict[str, dict[str, object]], cli_defaults: dict[str, object]
+) -> list[str]:
+    """Return every ``type=``/``action=`` vs default incompatibility found.
+
+    A flag whose ``default=`` reads ``CLI_ARG_DEFAULTS[key]`` is only meaningful
+    if the ``type=`` callable it declares can consume that default value. A
+    mismatch (e.g. an ``int`` default wired to a ``type=str`` flag, or a
+    non-boolean default wired to a ``store_true`` flag) is a latent bug: the
+    flag would coerce user input differently from the documented default, so
+    the CLI would silently run with a different value than the class.
+
+    A ``None`` default is allowed for any type: argparse uses the default only
+    when the flag is absent, so ``None`` means "not supplied" (the only such
+    entry in ``CLI_ARG_DEFAULTS`` is ``dc_exit_period``).
+    """
+    failures: list[str] = []
+    for dest, spec in sorted(flag_defaults.items()):
+        key = spec["default_key"]
+        default_value = cli_defaults[key]
+        type_name = spec["type"]
+        action = spec["action"]
+
+        if action in ("store_true", "store_false"):
+            if not isinstance(default_value, bool):
+                failures.append(
+                    f"{dest}: {action} flag defaults to {default_value!r} "
+                    f"({key}), which is not a bool"
+                )
+            continue
+
+        if type_name is None:
+            continue
+
+        if default_value is None:
+            continue
+
+        if type_name == "int":
+            if isinstance(default_value, bool) or not isinstance(default_value, int):
+                failures.append(
+                    f"{dest}: type=int flag defaults to {default_value!r} ({key}), "
+                    "which is not an int"
+                )
+        elif type_name == "float":
+            if isinstance(default_value, bool) or not isinstance(
+                default_value, (int, float)
+            ):
+                failures.append(
+                    f"{dest}: type=float flag defaults to {default_value!r} ({key}), "
+                    "which is not a float"
+                )
+        elif type_name == "str":
+            if not isinstance(default_value, str):
+                failures.append(
+                    f"{dest}: type=str flag defaults to {default_value!r} ({key}), "
+                    "which is not a str"
+                )
+        else:
+            failures.append(
+                f"{dest}: unknown type={type_name!r} for default {default_value!r} ({key})"
+            )
+    return failures
+
+
+def test_cli_arg_defaults_type_matches_default():
+    """Each ``CLI_ARG_DEFAULTS``-backed flag's ``type=`` must fit its default.
+
+    A flag whose ``default=`` reads ``CLI_ARG_DEFAULTS[key]`` is only meaningful
+    if the ``type=`` callable it declares can consume that default value. A
+    mismatch (e.g. an ``int`` default wired to a ``type=str`` flag, or a
+    non-boolean default wired to a ``store_true`` flag) is a latent bug: the
+    flag would coerce user input differently from the documented default, so
+    the CLI would silently run with a different value than the class.
+
+    The check is purely structural (AST), not runtime, so it stays cheap and
+    independent of the CLI's optional runtime dependencies. The only ``None``
+    default in ``CLI_ARG_DEFAULTS`` is ``dc_exit_period``; argparse accepts a
+    ``None`` default for an ``int`` flag because the flag is optional and the
+    default is only used when the flag is absent.
+    """
+    cli_path = REPO_ROOT / "examples" / "cli.py"
+    tree = _parse(cli_path)
+    cli_defaults = _cli_default_values(tree)
+    flag_defaults = _cli_flag_defaults(tree)
+
+    # Negative control: mutate a parsed default in memory (no source edit) and
+    # confirm the guard fires, proving it detects the drift it guards against.
+    original = cli_defaults["rsi_period"]
+    cli_defaults["rsi_period"] = "fourteen"
+    try:
+        injected = _cli_default_type_mismatches(flag_defaults, cli_defaults)
+        assert injected, "guard did not fire on injected type/default drift"
+    finally:
+        cli_defaults["rsi_period"] = original
+
+    failures = _cli_default_type_mismatches(flag_defaults, cli_defaults)
+    assert not failures, "CLI_ARG_DEFAULTS type/default mismatch:\n" + "\n".join(failures)
 
 
 def _tunable_init_params(strategy_cls: type) -> list[str]:
