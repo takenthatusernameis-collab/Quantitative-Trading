@@ -687,6 +687,8 @@ def _cli_default_type_mismatches(
     failures: list[str] = []
     for dest, spec in sorted(flag_defaults.items()):
         key = spec["default_key"]
+        if not isinstance(key, str):
+            continue
         default_value = cli_defaults[key]
         type_name = spec["type"]
         action = spec["action"]
