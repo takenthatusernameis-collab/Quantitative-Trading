@@ -23,7 +23,7 @@ def _make_series(n: int = 100, trend: float = 0.0, vol: float = 0.01, seed: int 
     return pd.Series(prices, index=dates)
 
 
-def test_regime_detector_defaults():
+def test_regime_detector_defaults() -> None:
     detector = RegimeDetector()
     assert detector.window == 20
     assert detector.vol_threshold == 0.0
@@ -31,7 +31,7 @@ def test_regime_detector_defaults():
     assert detector.periods_per_year == 252
 
 
-def test_detect_regimes_returns_result():
+def test_detect_regimes_returns_result() -> None:
     prices = _make_series(n=100, trend=0.001, vol=0.01, seed=42)
     result = detect_regimes(prices, window=20)
 
@@ -42,7 +42,7 @@ def test_detect_regimes_returns_result():
     assert isinstance(result.total_return_pct, float)
 
 
-def test_detect_regimes_up_series_is_bull():
+def test_detect_regimes_up_series_is_bull() -> None:
     prices = _make_series(n=150, trend=0.003, vol=0.005, seed=1)
     result = detect_regimes(prices, window=30)
 
@@ -52,7 +52,7 @@ def test_detect_regimes_up_series_is_bull():
     assert bull_count >= 1
 
 
-def test_detect_regimes_down_series_is_bear():
+def test_detect_regimes_down_series_is_bear() -> None:
     prices = _make_series(n=150, trend=-0.003, vol=0.005, seed=2)
     result = detect_regimes(prices, window=30)
 
@@ -62,7 +62,7 @@ def test_detect_regimes_down_series_is_bear():
     assert bear_count >= 1
 
 
-def test_detect_regimes_sideways_series():
+def test_detect_regimes_sideways_series() -> None:
     prices = _make_series(n=150, trend=0.0, vol=0.008, seed=3)
     result = detect_regimes(prices, window=30)
 
@@ -74,7 +74,7 @@ def test_detect_regimes_sideways_series():
     assert sideways_count >= 1
 
 
-def test_detect_regimes_label_set():
+def test_detect_regimes_label_set() -> None:
     prices = _make_series(n=100, trend=0.001, vol=0.01, seed=4)
     result = detect_regimes(prices, window=20)
 
@@ -90,20 +90,20 @@ def test_detect_regimes_label_set():
         assert regime in valid
 
 
-def test_detect_regimes_empty_input_returns_empty_result():
+def test_detect_regimes_empty_input_returns_empty_result() -> None:
     result = detect_regimes(pd.Series([100.0]), window=20)
     assert isinstance(result, RegimeResult)
     assert result.n_segments == 0
     assert result.current_regime == Regime.UNKNOWN
 
 
-def test_detect_regimes_non_series_input_converted():
+def test_detect_regimes_non_series_input_converted() -> None:
     prices = _make_series(n=80, trend=0.001, vol=0.01, seed=5)
     result = detect_regimes(pd.Series(prices.values), window=20)
     assert result.n_segments >= 1
 
 
-def test_detect_regimes_two_bar_series_returns_empty_result():
+def test_detect_regimes_two_bar_series_returns_empty_result() -> None:
     """A two-bar series yields a single NaN return, so no signal survives."""
     result = detect_regimes(pd.Series([100.0, 101.0]), window=20)
     assert isinstance(result, RegimeResult)
@@ -111,7 +111,7 @@ def test_detect_regimes_two_bar_series_returns_empty_result():
     assert result.current_regime == Regime.UNKNOWN
 
 
-def test_detect_regimes_deterministic_same_seed():
+def test_detect_regimes_deterministic_same_seed() -> None:
     prices = _make_series(n=100, trend=0.001, vol=0.01, seed=6)
     a = detect_regimes(prices, window=20)
     b = detect_regimes(prices, window=20)
@@ -121,13 +121,13 @@ def test_detect_regimes_deterministic_same_seed():
     assert a.total_volatility == b.total_volatility
 
 
-def test_detect_regimes_explicit_thresholds():
+def test_detect_regimes_explicit_thresholds() -> None:
     prices = _make_series(n=100, trend=0.001, vol=0.01, seed=7)
     result = detect_regimes(prices, window=20, vol_threshold=0.1, return_threshold=0.05)
     assert result.n_segments >= 1
 
 
-def test_regime_segment_to_dict():
+def test_regime_segment_to_dict() -> None:
     seg = RegimeSegment(
         regime=Regime.BULL_LOW_VOL,
         start=pd.Timestamp("2024-01-01"),
@@ -143,7 +143,7 @@ def test_regime_segment_to_dict():
     assert d["return_pct"] == 5.0
 
 
-def test_regime_segment_from_dict_round_trip():
+def test_regime_segment_from_dict_round_trip() -> None:
     seg = RegimeSegment(
         regime=Regime.BEAR_HIGH_VOL,
         start=pd.Timestamp("2024-02-01"),
@@ -164,7 +164,7 @@ def test_regime_segment_from_dict_round_trip():
     assert restored.return_pct == -4.5
 
 
-def test_regime_segment_from_dict_defaults_for_missing_keys():
+def test_regime_segment_from_dict_defaults_for_missing_keys() -> None:
     seg = RegimeSegment.from_dict({})
     assert seg.regime == Regime.UNKNOWN
     assert seg.start_index == 0
@@ -173,7 +173,7 @@ def test_regime_segment_from_dict_defaults_for_missing_keys():
     assert seg.return_pct == 0.0
 
 
-def test_regime_segment_from_dict_ignores_extra_keys():
+def test_regime_segment_from_dict_ignores_extra_keys() -> None:
     seg = RegimeSegment.from_dict(
         {
             "regime": "bull_low_vol",
@@ -190,7 +190,7 @@ def test_regime_segment_from_dict_ignores_extra_keys():
     assert seg.return_pct == 5.0
 
 
-def test_regime_result_to_dataframe_has_rows():
+def test_regime_result_to_dataframe_has_rows() -> None:
     prices = _make_series(n=100, trend=0.001, vol=0.01, seed=8)
     result = detect_regimes(prices, window=20)
     df = result.to_dataframe()
@@ -198,7 +198,7 @@ def test_regime_result_to_dataframe_has_rows():
     assert "regime" in df.columns
 
 
-def test_regime_result_summary_contains_keys():
+def test_regime_result_summary_contains_keys() -> None:
     prices = _make_series(n=100, trend=0.001, vol=0.01, seed=9)
     result = detect_regimes(prices, window=20)
     summary = result.summary()
@@ -207,7 +207,7 @@ def test_regime_result_summary_contains_keys():
     assert "regime_counts" in summary
 
 
-def test_regime_result_to_dict():
+def test_regime_result_to_dict() -> None:
     """RegimeResult.to_dict() is callable and returns expected keys (line 59)."""
     prices = _make_series(n=100, trend=0.001, vol=0.01, seed=10)
     result = detect_regimes(prices, window=20)
@@ -218,7 +218,7 @@ def test_regime_result_to_dict():
     assert len(d["regimes"]) == len(result.regimes)
 
 
-def test_regime_result_empty_to_dict_and_to_dataframe():
+def test_regime_result_empty_to_dict_and_to_dataframe() -> None:
     """Empty RegimeResult.to_dict() (line 59) and to_dataframe() empty branch (line 70)."""
     prices = pd.Series([100.0])
     result = detect_regimes(prices, window=20)
@@ -234,7 +234,7 @@ def test_regime_result_empty_to_dict_and_to_dataframe():
     assert df.empty
 
 
-def test_regime_result_from_dict_round_trip():
+def test_regime_result_from_dict_round_trip() -> None:
     prices = _make_series(n=100, trend=0.001, vol=0.01, seed=10)
     result = detect_regimes(prices, window=20)
     restored = RegimeResult.from_dict(result.to_dict())
@@ -249,7 +249,7 @@ def test_regime_result_from_dict_round_trip():
         assert recon == orig
 
 
-def test_regime_result_from_dict_defaults_for_missing_keys():
+def test_regime_result_from_dict_defaults_for_missing_keys() -> None:
     result = RegimeResult.from_dict({})
     assert result.n_segments == 0
     assert result.segments == []
@@ -259,7 +259,7 @@ def test_regime_result_from_dict_defaults_for_missing_keys():
     assert result.total_return_pct == 0.0
 
 
-def test_regime_result_from_dict_ignores_extra_keys():
+def test_regime_result_from_dict_ignores_extra_keys() -> None:
     seg = RegimeSegment(
         regime=Regime.BULL_LOW_VOL,
         start=pd.Timestamp("2024-01-01"),
@@ -286,7 +286,7 @@ def test_regime_result_from_dict_ignores_extra_keys():
     assert result.segments[0] == seg
 
 
-def test_regime_result_from_dict_empty_segments():
+def test_regime_result_from_dict_empty_segments() -> None:
     result = RegimeResult.from_dict({"segments": []})
     assert result.n_segments == 0
     assert result.segments == []
@@ -294,14 +294,14 @@ def test_regime_result_from_dict_empty_segments():
     assert result.current_regime == Regime.UNKNOWN
 
 
-def test_detect_regimes_non_series_input_list():
+def test_detect_regimes_non_series_input_list() -> None:
     """detect() converts a non-Series (list) input to pd.Series (line 107)."""
     prices = [100.0, 101.0, 102.0, 103.0, 100.5, 101.0, 102.5, 103.0, 104.0, 105.0]
-    result = detect_regimes(prices, window=3)
+    result = detect_regimes(prices, window=3)  # type: ignore[arg-type]
     assert result.n_segments >= 1
 
 
-def test_detect_regimes_periods_per_year_affects_annualization():
+def test_detect_regimes_periods_per_year_affects_annualization() -> None:
     """Non-daily periods_per_year changes annualized volatility/thresholds."""
     prices = _make_series(n=150, trend=0.001, vol=0.01, seed=42)
     result_daily = detect_regimes(prices, window=20, periods_per_year=252)
@@ -313,7 +313,7 @@ def test_detect_regimes_periods_per_year_affects_annualization():
     assert result_daily.total_volatility != result_weekly.total_volatility
 
 
-def test_detect_regimes_periods_per_year_scales_volatility_by_sqrt():
+def test_detect_regimes_periods_per_year_scales_volatility_by_sqrt() -> None:
     """The annualized volatility is scaled by the square root of the period count."""
     prices = _make_series(n=150, trend=0.001, vol=0.01, seed=42)
     result_daily = detect_regimes(prices, window=20, periods_per_year=252)
@@ -325,7 +325,7 @@ def test_detect_regimes_periods_per_year_scales_volatility_by_sqrt():
     )
 
 
-def test_detect_regimes_auto_thresholds_keep_labels_across_periods_per_year():
+def test_detect_regimes_auto_thresholds_keep_labels_across_periods_per_year() -> None:
     """Auto-derived thresholds scale with the statistics, so labels do not move.
 
     The auto-derived thresholds are the means of the very statistics they are
@@ -340,7 +340,7 @@ def test_detect_regimes_auto_thresholds_keep_labels_across_periods_per_year():
     assert result_daily.n_segments == result_weekly.n_segments
 
 
-def test_detect_regimes_explicit_thresholds_follow_periods_per_year():
+def test_detect_regimes_explicit_thresholds_follow_periods_per_year() -> None:
     """An explicit annualized threshold is a fixed number, so labels follow it.
 
     The threshold stays put while the statistics it is compared against are
@@ -357,7 +357,7 @@ def test_detect_regimes_explicit_thresholds_follow_periods_per_year():
     assert result_daily.n_segments != result_weekly.n_segments
 
 
-def test_regime_detector_periods_per_year_passed_through():
+def test_regime_detector_periods_per_year_passed_through() -> None:
     """RegimeDetector passes periods_per_year to calculations."""
     prices = _make_series(n=150, trend=0.001, vol=0.01, seed=43)
     det_daily = RegimeDetector(window=20, periods_per_year=252)
@@ -368,7 +368,7 @@ def test_regime_detector_periods_per_year_passed_through():
     assert res_daily.total_volatility != res_weekly.total_volatility
 
 
-def test_merge_segments_all_none_labels():
+def test_merge_segments_all_none_labels() -> None:
     """When every label is None, the loop body is skipped and `current` stays None,
     so the trailing `if current is not None` (202->206) is False and no segment
     is appended."""
@@ -384,7 +384,7 @@ def test_merge_segments_all_none_labels():
     assert segments == []
 
 
-def test_merge_segments_normal():
+def test_merge_segments_normal() -> None:
     """Sanity check that a normal label list produces segments."""
     from quant_trading.regime import Regime
     from quant_trading.regime.detector import RegimeDetector
@@ -394,12 +394,12 @@ def test_merge_segments_normal():
     returns = prices.pct_change().dropna()
     rolling_vol = returns.rolling(window=5).std()
 
-    labels = [Regime.BULL_LOW_VOL, Regime.BULL_LOW_VOL, Regime.BEAR_LOW_VOL]
+    labels: list[Regime | None] = [Regime.BULL_LOW_VOL, Regime.BULL_LOW_VOL, Regime.BEAR_LOW_VOL]
     segments = detector._merge_segments(labels, prices, returns, rolling_vol)
     assert len(segments) == 2
 
 
-def test_window_larger_than_prices():
+def test_window_larger_than_prices() -> None:
     """When window > len(prices), rolling stats are all NaN -> all labels None -> empty result.
     However, total_return_pct should still be computed from the full price series.
     """
@@ -414,7 +414,7 @@ def test_window_larger_than_prices():
     assert result.total_return_pct == expected_return
 
 
-def test_all_same_prices():
+def test_all_same_prices() -> None:
     """Constant prices should produce sideways low vol regime (zero return, zero vol)."""
     prices = pd.Series([100.0] * 20, index=pd.date_range("2024-01-01", periods=20, freq="D"))
     result = detect_regimes(prices, window=5)
@@ -425,7 +425,7 @@ def test_all_same_prices():
     assert result.total_volatility < 1e-9
 
 
-def test_prices_with_nan():
+def test_prices_with_nan() -> None:
     """Prices containing NaN values should not crash; NaNs propagate through returns."""
     # Create a series with a NaN in the middle
     prices = _make_series(n=10)
@@ -439,7 +439,7 @@ def test_prices_with_nan():
     assert isinstance(result.current_regime, Regime)
 
 
-def test_prices_with_inf():
+def test_prices_with_inf() -> None:
     """Prices containing Inf values should not crash."""
     prices = _make_series(n=10)
     prices.iloc[5] = np.inf
@@ -450,7 +450,7 @@ def test_prices_with_inf():
     assert isinstance(result.current_regime, Regime)
 
 
-def test_prices_all_nan_after_first_bar_returns_empty_result():
+def test_prices_all_nan_after_first_bar_returns_empty_result() -> None:
     """When every return is NaN, dropna() yields zero returns and the detector
     short-circuits at the `if len(returns) < 1` guard (detector.py:364).
 
@@ -468,7 +468,7 @@ def test_prices_all_nan_after_first_bar_returns_empty_result():
     assert result.segments == []
 
 
-def test_merge_segments_single_element():
+def test_merge_segments_single_element() -> None:
     """Single element label list should produce one segment."""
     from quant_trading.regime import Regime
     from quant_trading.regime.detector import RegimeDetector
@@ -478,7 +478,7 @@ def test_merge_segments_single_element():
     returns = prices.pct_change().dropna()
     rolling_vol = returns.rolling(window=2).std()
 
-    labels = [Regime.BULL_LOW_VOL]
+    labels: list[Regime | None] = [Regime.BULL_LOW_VOL]
     segments = detector._merge_segments(labels, prices, returns, rolling_vol)
     assert len(segments) == 1
     assert segments[0].regime == Regime.BULL_LOW_VOL
@@ -486,7 +486,7 @@ def test_merge_segments_single_element():
     assert segments[0].end_index == 1
 
 
-def test_merge_segments_two_same():
+def test_merge_segments_two_same() -> None:
     """Two identical labels should produce one segment."""
     from quant_trading.regime import Regime
     from quant_trading.regime.detector import RegimeDetector
@@ -496,7 +496,7 @@ def test_merge_segments_two_same():
     returns = prices.pct_change().dropna()
     rolling_vol = returns.rolling(window=2).std()
 
-    labels = [Regime.BULL_LOW_VOL, Regime.BULL_LOW_VOL]
+    labels: list[Regime | None] = [Regime.BULL_LOW_VOL, Regime.BULL_LOW_VOL]
     segments = detector._merge_segments(labels, prices, returns, rolling_vol)
     assert len(segments) == 1
     assert segments[0].regime == Regime.BULL_LOW_VOL
@@ -504,7 +504,7 @@ def test_merge_segments_two_same():
     assert segments[0].end_index == 2
 
 
-def test_merge_segments_two_different():
+def test_merge_segments_two_different() -> None:
     """Two different labels should produce two segments."""
     from quant_trading.regime import Regime
     from quant_trading.regime.detector import RegimeDetector
@@ -514,7 +514,7 @@ def test_merge_segments_two_different():
     returns = prices.pct_change().dropna()
     rolling_vol = returns.rolling(window=2).std()
 
-    labels = [Regime.BULL_LOW_VOL, Regime.BEAR_LOW_VOL]
+    labels: list[Regime | None] = [Regime.BULL_LOW_VOL, Regime.BEAR_LOW_VOL]
     segments = detector._merge_segments(labels, prices, returns, rolling_vol)
     assert len(segments) == 2
     assert segments[0].regime == Regime.BULL_LOW_VOL
@@ -522,7 +522,7 @@ def test_merge_segments_two_different():
     assert segments[0].end_index == segments[1].start_index == 1
 
 
-def test_merge_segments_alternating():
+def test_merge_segments_alternating() -> None:
     """Alternating labels should produce many segments."""
     from quant_trading.regime import Regime
     from quant_trading.regime.detector import RegimeDetector
@@ -532,7 +532,7 @@ def test_merge_segments_alternating():
     returns = prices.pct_change().dropna()
     rolling_vol = returns.rolling(window=2).std()
 
-    labels = [Regime.BULL_LOW_VOL, Regime.BEAR_LOW_VOL] * 5  # 10 elements
+    labels: list[Regime | None] = [Regime.BULL_LOW_VOL, Regime.BEAR_LOW_VOL] * 5  # 10 elements
     segments = detector._merge_segments(labels, prices, returns, rolling_vol)
     assert len(segments) == 10  # each element is its own segment
     for i, seg in enumerate(segments):
@@ -542,7 +542,7 @@ def test_merge_segments_alternating():
         assert seg.end_index == i + 1
 
 
-def test_segment_boundary_aligns_with_labeled_price_bars():
+def test_segment_boundary_aligns_with_labeled_price_bars() -> None:
     """A segment spanning labels [start_idx, end_idx) covers price bars
     [start_idx + 1, end_idx], because label i derives from returns whose index is
     prices.index[1:] (pct_change drops the first bar).
@@ -570,7 +570,7 @@ def test_segment_boundary_aligns_with_labeled_price_bars():
     assert seg.return_pct == pytest.approx((prices.iloc[5] / prices.iloc[2] - 1) * 100)
 
 
-def test_segment_boundary_at_series_end():
+def test_segment_boundary_at_series_end() -> None:
     """The trailing segment must not index past the last price bar.
 
     When labels run to the end of the series (end_idx == len(labels) ==
@@ -596,7 +596,7 @@ def test_segment_boundary_at_series_end():
     assert seg.return_pct == pytest.approx((prices.iloc[-1] / prices.iloc[2] - 1) * 100)
 
 
-def test_segment_return_pct_matches_labeled_price_range():
+def test_segment_return_pct_matches_labeled_price_range() -> None:
     """return_pct must reflect the price change across the segment's labeled
     bars, not an off-by-one window of it."""
     from quant_trading.regime.detector import RegimeDetector
@@ -617,7 +617,7 @@ def test_segment_return_pct_matches_labeled_price_range():
     assert seg.return_pct == pytest.approx((prices.iloc[-1] / prices.iloc[2] - 1) * 100)
 
 
-def test_one_bar_segment_reports_own_return():
+def test_one_bar_segment_reports_own_return() -> None:
     """A single-bar segment must report that bar's own close-to-close return,
     not 0.0%, since its start and end price bars coincide."""
     from quant_trading.regime.detector import RegimeDetector
@@ -643,7 +643,7 @@ def test_one_bar_segment_reports_own_return():
     assert all(s.return_pct != 0.0 for s in result.segments)
 
 
-def test_short_series_window_larger_than_prices_returns_empty():
+def test_short_series_window_larger_than_prices_returns_empty() -> None:
     prices = pd.Series(
         [100.0, 101.0, 102.0],
         index=pd.date_range("2024-01-01", periods=3, freq="D"),
@@ -655,7 +655,7 @@ def test_short_series_window_larger_than_prices_returns_empty():
     assert result.current_regime == Regime.UNKNOWN
 
 
-def test_flat_prices_single_sideways_low_vol():
+def test_flat_prices_single_sideways_low_vol() -> None:
     prices = pd.Series(
         [100.0] * 30,
         index=pd.date_range("2024-01-01", periods=30, freq="D"),
@@ -665,7 +665,7 @@ def test_flat_prices_single_sideways_low_vol():
     assert all(r == Regime.SIDEWAYS_LOW_VOL for r in result.regimes)
 
 
-def test_monotonic_up_single_bull_segment():
+def test_monotonic_up_single_bull_segment() -> None:
     prices = pd.Series(
         [100.0 + i for i in range(30)],
         index=pd.date_range("2024-01-01", periods=30, freq="D"),
@@ -675,7 +675,7 @@ def test_monotonic_up_single_bull_segment():
     assert result.regimes[0] in (Regime.BULL_LOW_VOL, Regime.BULL_HIGH_VOL)
 
 
-def test_monotonic_down_single_bear_segment():
+def test_monotonic_down_single_bear_segment() -> None:
     prices = pd.Series(
         [100.0 - i for i in range(30)],
         index=pd.date_range("2024-01-01", periods=30, freq="D"),
@@ -685,7 +685,7 @@ def test_monotonic_down_single_bear_segment():
     assert result.regimes[0] in (Regime.BEAR_LOW_VOL, Regime.BEAR_HIGH_VOL)
 
 
-def test_explicit_thresholds_override_auto():
+def test_explicit_thresholds_override_auto() -> None:
     prices = _make_series(n=80, trend=0.001, vol=0.01, seed=7)
     auto = detect_regimes(prices, window=10)
     explicit = detect_regimes(prices, window=10, vol_threshold=100.0, return_threshold=100.0)
@@ -695,7 +695,7 @@ def test_explicit_thresholds_override_auto():
     assert all(r in (Regime.SIDEWAYS_LOW_VOL, Regime.SIDEWAYS_HIGH_VOL) for r in explicit.regimes)
 
 
-def test_single_bar_segment_at_the_first_price_bar_reports_zero_return():
+def test_single_bar_segment_at_the_first_price_bar_reports_zero_return() -> None:
     """A one-bar segment on the very first price bar has no predecessor bar.
 
     Its own close-to-close return is measured against the bar before it, so
@@ -715,7 +715,7 @@ def test_single_bar_segment_at_the_first_price_bar_reports_zero_return():
     assert segment.return_pct == 0.0
 
 
-def test_segment_without_labeled_bars_reports_zero_return():
+def test_segment_without_labeled_bars_reports_zero_return() -> None:
     """A segment that spans no labeled bar has no price range to report.
 
     The start and end price bars would not even exist, so the return is 0.0%
