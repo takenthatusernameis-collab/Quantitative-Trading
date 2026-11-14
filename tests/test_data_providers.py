@@ -1,6 +1,7 @@
 """Tests for data provider interfaces and the DataManager batch fetch API."""
 
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -60,7 +61,7 @@ class CountingProvider(DataProvider):
         return self.fetch(symbols)
 
 
-def test_fetch_many_default_delegates_to_fetch():
+def test_fetch_many_default_delegates_to_fetch() -> None:
     """DataProvider.fetch_many falls back to per-request fetch calls."""
     data = create_synthetic_data(["AAPL", "MSFT"], days=20)
     provider = CountingProvider(data)
@@ -84,7 +85,7 @@ def test_fetch_many_default_delegates_to_fetch():
         assert result.data
 
 
-def test_fetch_many_request_key_is_stable():
+def test_fetch_many_request_key_is_stable() -> None:
     """Request keys are order-independent and deterministic."""
     provider = CountingProvider({})
     end = datetime.now()
@@ -96,7 +97,7 @@ def test_fetch_many_request_key_is_stable():
     assert key1 == "AAPL,MSFT|" + start.isoformat() + "|" + end.isoformat() + "|1d"
 
 
-def test_data_manager_fetch_many_uses_provider_and_cache():
+def test_data_manager_fetch_many_uses_provider_and_cache() -> None:
     """DataManager.fetch_many delegates to the provider and caches per request."""
     data = create_synthetic_data(["AAPL", "MSFT"], days=20)
     provider = CountingProvider(data)
@@ -121,7 +122,7 @@ def test_data_manager_fetch_many_uses_provider_and_cache():
         assert result is results[key]
 
 
-def test_data_manager_fetch_many_use_cache_false_bypasses_cache():
+def test_data_manager_fetch_many_use_cache_false_bypasses_cache() -> None:
     """DataManager.fetch_many(use_cache=False) bypasses the cache (providers.py:493->495)."""
     data = create_synthetic_data(["AAPL", "MSFT"], days=20)
     provider = CountingProvider(data)
@@ -141,7 +142,7 @@ def test_data_manager_fetch_many_use_cache_false_bypasses_cache():
     assert set(second.keys()) == set(first.keys())
 
 
-def test_data_manager_fetch_many_respects_provider_name():
+def test_data_manager_fetch_many_respects_provider_name() -> None:
     """DataManager.fetch_many can target a named provider."""
     data = create_synthetic_data(["AAPL"], days=10)
     provider = CountingProvider(data, name="primary")
@@ -159,7 +160,7 @@ def test_data_manager_fetch_many_respects_provider_name():
     assert results
 
 
-def test_data_manager_fetch_many_no_provider_raises():
+def test_data_manager_fetch_many_no_provider_raises() -> None:
     """DataManager.fetch_many raises when no provider is available."""
     manager = DataManager([])
     with pytest.raises(ValueError):
@@ -170,11 +171,11 @@ def test_data_manager_fetch_many_no_provider_raises():
 class FakeResponse:
     """Mock response for requests.get."""
 
-    def __init__(self, json_data, status_code=200):
+    def __init__(self, json_data: object, status_code: int = 200) -> None:
         self._json_data = json_data
         self.status_code = status_code
 
-    def raise_for_status(self):
+    def raise_for_status(self) -> None:
         if self.status_code >= 400:
 
             class FakeResponseError(Exception):
@@ -182,7 +183,7 @@ class FakeResponse:
 
             raise FakeResponseError(f"HTTP {self.status_code}")
 
-    def json(self):
+    def json(self) -> object:
         return self._json_data
 
 
@@ -196,7 +197,7 @@ GOLD_SPOT_RESPONSE = {
 }
 
 
-def test_data_manager_multi_provider_gold_via_alphavantage(tmp_path):
+def test_data_manager_multi_provider_gold_via_alphavantage(tmp_path: Path) -> None:
     """Register a real AlphaVantageProvider alongside another provider.
 
     Patch requests.get to return GOLD_SPOT_RESPONSE and verify the AV
@@ -238,7 +239,7 @@ def test_data_manager_multi_provider_gold_via_alphavantage(tmp_path):
         assert counting.fetch_calls == 0
 
 
-def test_data_manager_cache_isolation_across_providers(tmp_path):
+def test_data_manager_cache_isolation_across_providers(tmp_path: Path) -> None:
     """Fetch same symbols/interval from two differently-named providers.
 
     Cache entries should be isolated per provider name.
@@ -272,7 +273,7 @@ def test_data_manager_cache_isolation_across_providers(tmp_path):
     assert res1d is res1b
 
 
-def test_create_data_manager_from_config():
+def test_create_data_manager_from_config() -> None:
     """Create DataManager from DataConfig for different providers."""
     from quant_trading.config.settings import DataConfig
     from quant_trading.data.providers import create_data_manager_from_config
@@ -298,7 +299,7 @@ def test_create_data_manager_from_config():
     assert mgr_yf.providers
 
 
-def test_data_manager_fetch_many_with_alphavantage_gold(tmp_path):
+def test_data_manager_fetch_many_with_alphavantage_gold(tmp_path: Path) -> None:
     """DataManager.fetch_many works with AlphaVantageProvider for gold requests."""
     from datetime import datetime, timedelta
     from unittest.mock import patch
@@ -330,7 +331,7 @@ def test_data_manager_fetch_many_with_alphavantage_gold(tmp_path):
         assert mock_get.call_count == 2
 
 
-def test_synthetic_data_provider_missing_symbol():
+def test_synthetic_data_provider_missing_symbol() -> None:
     """SyntheticDataProvider.fetch reports missing symbols (line 88)."""
     data = create_synthetic_data(["AAPL"], days=10)
     provider = SyntheticDataProvider(data)
@@ -340,7 +341,7 @@ def test_synthetic_data_provider_missing_symbol():
     assert not result.is_success
 
 
-def test_synthetic_data_provider_fetch_latest():
+def test_synthetic_data_provider_fetch_latest() -> None:
     """SyntheticDataProvider.fetch_latest delegates to fetch (line 92)."""
     data = create_synthetic_data(["AAPL"], days=10)
     provider = SyntheticDataProvider(data)
@@ -350,7 +351,7 @@ def test_synthetic_data_provider_fetch_latest():
     assert not result.errors
 
 
-def test_create_synthetic_provider():
+def test_create_synthetic_provider() -> None:
     """create_synthetic_provider builds a provider with generated data (lines 102-103)."""
     provider = create_synthetic_provider(["AAPL", "MSFT"], days=20, seed=99)
     assert provider.name == "synthetic"
@@ -362,31 +363,31 @@ def test_create_synthetic_provider():
 # Coverage: close data/providers.py to 100%
 
 
-def test_market_data_to_dict_renders_none_fetched_at_as_none():
+def test_market_data_to_dict_renders_none_fetched_at_as_none() -> None:
     """MarketData.to_dict maps a None fetched_at to None (providers.py:56)."""
     md = MarketData(
         symbol="AAPL",
         data=pd.DataFrame({"close": [1.0]}),
         source="synthetic",
-        fetched_at=None,
+        fetched_at=None,  # type: ignore[arg-type]
     )
     assert md.to_dict()["fetched_at"] is None
 
 
-def test_market_data_from_dict_coerces_datetime_fetched_at():
+def test_market_data_from_dict_coerces_datetime_fetched_at() -> None:
     """MarketData.from_dict keeps a datetime fetched_at as-is (providers.py:65)."""
     fetched = datetime(2024, 1, 1, 12, 0, 0)
     md = MarketData.from_dict({"symbol": "AAPL", "source": "synthetic", "fetched_at": fetched})
     assert md.fetched_at == fetched
 
 
-def test_market_data_from_dict_falls_back_for_uncoercible_fetched_at():
+def test_market_data_from_dict_falls_back_for_uncoercible_fetched_at() -> None:
     """MarketData.from_dict falls back to now for non-datetime fetched_at (providers.py:68)."""
     md = MarketData.from_dict({"symbol": "AAPL", "source": "synthetic", "fetched_at": 12345})
     assert isinstance(md.fetched_at, datetime)
 
 
-def test_market_data_from_dict_keeps_raw_index_when_parse_fails():
+def test_market_data_from_dict_keeps_raw_index_when_parse_fails() -> None:
     """MarketData.from_dict keeps the raw index when pd.to_datetime fails (providers.py:202-203)."""
     md = MarketData.from_dict(
         {
@@ -402,7 +403,7 @@ def test_market_data_from_dict_keeps_raw_index_when_parse_fails():
     assert list(md.data.index) == ["2024-01-01", "not-a-date"]
 
 
-def test_fetch_result_from_dict_falls_back_for_invalid_error_type():
+def test_fetch_result_from_dict_falls_back_for_invalid_error_type() -> None:
     """FetchResult.from_dict falls back to Exception for an invalid error type name (providers.py:333-334)."""
     result = FetchResult.from_dict({"errors": {"X": {"type": "bad\x00name", "message": "boom"}}})
     err = result.errors["X"]
@@ -410,7 +411,7 @@ def test_fetch_result_from_dict_falls_back_for_invalid_error_type():
     assert str(err) == "boom"
 
 
-def test_fetch_result_from_dict_wraps_base_exception_error():
+def test_fetch_result_from_dict_wraps_base_exception_error() -> None:
     """FetchResult.from_dict wraps a BaseException (not Exception) error (providers.py:336-337)."""
     result = FetchResult.from_dict({"errors": {"X": KeyboardInterrupt("boom")}})
     err = result.errors["X"]
@@ -419,7 +420,7 @@ def test_fetch_result_from_dict_wraps_base_exception_error():
     assert str(err) == "boom"
 
 
-def test_fetch_result_from_dict_wraps_plain_error_value():
+def test_fetch_result_from_dict_wraps_plain_error_value() -> None:
     """FetchResult.from_dict wraps a non-exception, non-dict error value (providers.py:338-339)."""
     result = FetchResult.from_dict({"errors": {"X": "just a string"}})
     err = result.errors["X"]
@@ -431,13 +432,13 @@ def test_fetch_result_from_dict_wraps_plain_error_value():
     assert result.has_missing is True
 
 
-def test_fetch_result_has_missing_empty():
+def test_fetch_result_has_missing_empty() -> None:
     """FetchResult.has_missing is False when no missing symbols."""
     result = FetchResult()
     assert result.has_missing is False
 
 
-def test_data_manager_add_provider():
+def test_data_manager_add_provider() -> None:
     """DataManager.add_provider appends to providers list (line 128)."""
     manager = DataManager([])
     provider = CountingProvider({})
@@ -445,20 +446,20 @@ def test_data_manager_add_provider():
     assert provider in manager.providers
 
 
-def test_data_manager_get_provider_returns_none():
+def test_data_manager_get_provider_returns_none() -> None:
     """DataManager.get_provider returns None for unknown name (line 135)."""
     manager = DataManager([])
     assert manager.get_provider("nonexistent") is None
 
 
-def test_data_manager_fetch_no_provider_raises():
+def test_data_manager_fetch_no_provider_raises() -> None:
     """DataManager.fetch raises ValueError when no provider available (line 157)."""
     manager = DataManager([])
     with pytest.raises(ValueError, match="No data provider available"):
         manager.fetch(["AAPL"])
 
 
-def test_data_manager_clear_cache():
+def test_data_manager_clear_cache() -> None:
     """DataManager.clear_cache empties the in-memory cache (line 173)."""
     provider = CountingProvider(create_synthetic_data(["AAPL"], days=10))
     manager = DataManager([provider])
@@ -470,7 +471,7 @@ def test_data_manager_clear_cache():
     assert len(manager._cache) == 0
 
 
-def test_data_manager_get_provider_found():
+def test_data_manager_get_provider_found() -> None:
     """DataManager.get_provider returns the matching provider (covers 133-134)."""
     data = create_synthetic_data(["AAPL"], days=10)
     provider = CountingProvider(data, name="named")
@@ -478,7 +479,7 @@ def test_data_manager_get_provider_found():
     assert manager.get_provider("named") is provider
 
 
-def test_lazy_synthetic_provider_fetch_latest():
+def test_lazy_synthetic_provider_fetch_latest() -> None:
     """LazySyntheticProvider.fetch_latest delegates to super (lines 275-276).
 
     DataManager does not expose fetch_latest directly, so we invoke it on the
@@ -495,7 +496,7 @@ def test_lazy_synthetic_provider_fetch_latest():
     assert not result.missing
 
 
-def test_create_data_manager_from_config_unknown_provider():
+def test_create_data_manager_from_config_unknown_provider() -> None:
     """create_data_manager_from_config raises ValueError for unknown provider (line 293)."""
     from quant_trading.config.settings import DataConfig
     from quant_trading.data.providers import create_data_manager_from_config
@@ -505,7 +506,7 @@ def test_create_data_manager_from_config_unknown_provider():
         create_data_manager_from_config(cfg)
 
 
-def test_data_manager_fetch_no_cache():
+def test_data_manager_fetch_no_cache() -> None:
     """DataManager.fetch(use_cache=False) bypasses the cache (providers.py:166->169)."""
     data = create_synthetic_data(["AAPL"], days=10)
     provider = CountingProvider(data, name="counting")
@@ -521,7 +522,7 @@ def test_data_manager_fetch_no_cache():
 # ---------------------------------------------------------------------------
 
 
-def test_data_manager_clear_cache_is_idempotent():
+def test_data_manager_clear_cache_is_idempotent() -> None:
     """clear_cache can be called repeatedly without error."""
     provider = CountingProvider(create_synthetic_data(["AAPL"], days=10))
     manager = DataManager([provider])
@@ -535,7 +536,7 @@ def test_data_manager_clear_cache_is_idempotent():
     assert len(manager._cache) == 0
 
 
-def test_data_manager_fetch_unknown_provider_raises():
+def test_data_manager_fetch_unknown_provider_raises() -> None:
     """fetch with an unknown provider_name raises ValueError."""
     provider = CountingProvider(create_synthetic_data(["AAPL"], days=10))
     manager = DataManager([provider])
@@ -543,7 +544,7 @@ def test_data_manager_fetch_unknown_provider_raises():
         manager.fetch(["AAPL"], provider_name="nonexistent")
 
 
-def test_data_manager_fetch_many_unknown_provider_raises():
+def test_data_manager_fetch_many_unknown_provider_raises() -> None:
     """fetch_many with an unknown provider_name raises ValueError."""
     provider = CountingProvider(create_synthetic_data(["AAPL"], days=10))
     manager = DataManager([provider])
@@ -551,7 +552,7 @@ def test_data_manager_fetch_many_unknown_provider_raises():
         manager.fetch_many([{"symbols": ["AAPL"]}], provider_name="nonexistent")
 
 
-def test_data_manager_fetch_many_falls_back_to_first_provider():
+def test_data_manager_fetch_many_falls_back_to_first_provider() -> None:
     """fetch_many without provider_name uses the first registered provider."""
     data = create_synthetic_data(["AAPL"], days=10)
     first = CountingProvider(data, name="primary")
@@ -569,14 +570,14 @@ def test_data_manager_fetch_many_falls_back_to_first_provider():
     assert results
 
 
-def test_data_manager_fetch_many_empty_requests():
+def test_data_manager_fetch_many_empty_requests() -> None:
     """fetch_many with no requests returns an empty mapping."""
     provider = CountingProvider(create_synthetic_data(["AAPL"], days=10))
     manager = DataManager([provider])
     assert manager.fetch_many([]) == {}
 
 
-def test_data_manager_fetch_many_partial_results():
+def test_data_manager_fetch_many_partial_results() -> None:
     """fetch_many partitions a result with mixed data/missing symbols."""
     data = create_synthetic_data(["AAPL"], days=10)
     provider = CountingProvider(data, name="counting")
@@ -589,7 +590,7 @@ def test_data_manager_fetch_many_partial_results():
     assert not res.errors
 
 
-def test_fetch_result_has_errors_and_is_success():
+def test_fetch_result_has_errors_and_is_success() -> None:
     """FetchResult.has_errors reports populated errors and is_success is False."""
     result = FetchResult()
     assert not result.has_errors
@@ -600,7 +601,7 @@ def test_fetch_result_has_errors_and_is_success():
     assert not result.is_success
 
 
-def test_data_manager_fetch_many_use_cache_false_does_not_store():
+def test_data_manager_fetch_many_use_cache_false_does_not_store() -> None:
     """fetch_many with use_cache=False returns results without caching them."""
     data = create_synthetic_data(["AAPL"], days=10)
     provider = CountingProvider(data)
