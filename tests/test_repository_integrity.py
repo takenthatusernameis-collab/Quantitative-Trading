@@ -14,6 +14,7 @@ the invariants that would have caught those regressions.
 
 import ast
 import importlib
+import inspect
 import pkgutil
 import re
 from pathlib import Path
@@ -470,6 +471,108 @@ def test_package_reexports_are_listed_in_defining_module_all():
                     f"but it is missing from that module's __all__"
                 )
     assert not failures, "package re-exports missing from defining module __all__:\n" + "\n".join(
+        failures
+    )
+
+
+def _cli_default_values(tree: ast.Module) -> dict[str, object]:
+    """Return the ``CLI_ARG_DEFAULTS`` mapping parsed from ``examples/cli.py``."""
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if (
+                isinstance(target, ast.Name)
+                and target.id == "CLI_ARG_DEFAULTS"
+                and isinstance(node.value, ast.Dict)
+            ):
+                return ast.literal_eval(node.value)
+    raise AssertionError("CLI_ARG_DEFAULTS not found in examples/cli.py")
+
+
+def _cli_strategy_param_map(tree: ast.Module) -> dict[str, list[tuple[str, str]]]:
+    """Return the ``strategy_param_map`` parsed from ``examples/cli.py``.
+
+    The map lives inside ``create_strategy`` and is the single authoritative
+    mapping from CLI argument names to strategy ``__init__`` parameter names for
+    the strategies the CLI exposes with custom flags. It is parsed (not
+    imported) so the CLI's optional runtime dependencies are not required.
+    """
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef) or node.name != "create_strategy":
+            continue
+        for stmt in ast.walk(node):
+            if not isinstance(stmt, ast.Assign):
+                continue
+            for target in stmt.targets:
+                if (
+                    isinstance(target, ast.Name)
+                    and target.id == "strategy_param_map"
+                    and isinstance(stmt.value, ast.Dict)
+                ):
+                    return ast.literal_eval(stmt.value)
+    raise AssertionError("strategy_param_map not found in create_strategy")
+
+
+def test_cli_arg_defaults_match_strategy_init_defaults():
+    """CLI defaults for mapped strategy parameters must match the class defaults.
+
+    ``examples/cli.py`` declares ``CLI_ARG_DEFAULTS`` and maps them onto
+    strategy ``__init__`` parameters in ``strategy_param_map``. A mismatch means
+    the CLI silently runs with different defaults than the library, so users
+    get different behaviour depending on the entry point. This guard locks the
+    two in sync for every mapped (strategy, cli_arg, param) triple.
+
+    A small, explicit allowlist documents the intentional exceptions where the
+    CLI and class defaults are known to diverge: ``ema`` reuses the shared
+    ``--fast-period``/``--slow-period`` flags (whose defaults follow the MA
+    convention, 10/30) while ``EMACrossover`` declares its own canonical class
+    defaults (12/26). The allowlist is keyed by (strategy, cli_arg, param) so a
+    new drift cannot slip in unnoticed.
+    """
+    cli_path = REPO_ROOT / "examples" / "cli.py"
+    tree = _parse(cli_path)
+    cli_defaults = _cli_default_values(tree)
+    param_map = _cli_strategy_param_map(tree)
+
+    # (strategy, cli_arg, param, cli_default, class_default) -> rationale
+    # Intentional, documented drifts only. Add an entry here only after
+    # deciding which side is canonical and documenting why they differ.
+    allowed_drifts: set[tuple[str, str, str]] = {
+        # EMA shares --fast-period/--slow-period (MA-style 10/30) but the
+        # EMACrossover class declares canonical 12/26 defaults.
+        ("ema", "fast_period", "fast_period"),
+        ("ema", "slow_period", "slow_period"),
+    }
+
+    from quant_trading.strategies import get_strategy
+
+    failures: list[str] = []
+    for strategy_key, pairs in sorted(param_map.items()):
+        if not pairs:
+            continue
+        cls = get_strategy(strategy_key)
+        signature = inspect.signature(cls.__init__)
+        for cli_arg, param_name in pairs:
+            if cli_arg not in cli_defaults:
+                failures.append(f"{strategy_key}: {cli_arg} missing from CLI_ARG_DEFAULTS")
+                continue
+            if param_name not in signature.parameters:
+                failures.append(f"{strategy_key}: {param_name} not a parameter of {cls.__name__}")
+                continue
+            class_default = signature.parameters[param_name].default
+            if class_default is inspect.Parameter.empty:
+                continue
+            cli_default = cli_defaults[cli_arg]
+            if cli_default == class_default:
+                continue
+            if (strategy_key, cli_arg, param_name) in allowed_drifts:
+                continue
+            failures.append(
+                f"{strategy_key}: CLI {cli_arg}={cli_default!r} "
+                f"!= {cls.__name__}.{param_name} default {class_default!r}"
+            )
+    assert not failures, "CLI defaults drift from strategy __init__ defaults:\n" + "\n".join(
         failures
     )
 
