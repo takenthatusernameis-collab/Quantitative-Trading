@@ -1,18 +1,22 @@
 ## What changed (this session)
-- Executed the prior handoff's next task using an alternate bounded candidate because `tests/test_validation.py` does not exist in the repo (verified via `ls tests/` and grep; no `quant_trading/validation.py` module either).
-- Extended the targeted mypy-strictness migration to `tests/test_packaging.py` (69 lines, 7 untyped-def errors, all missing `-> None` return annotations):
-  - Added `-> None` to 7 test methods; no runtime behavior changed.
-  - Added a per-module `[[tool.mypy.overrides]]` for `tests.test_packaging` with `disallow_untyped_defs = true` in `pyproject.toml` (after `tests.test_backtest_metrics`).
-- Working tree has uncommitted changes in `pyproject.toml` and `tests/test_packaging.py` (commit/push not requested).
+- Executed the prior handoff's next task using the remaining bounded candidate `tests/test_config.py` (the other two candidates, `tests/test_data_providers.py` and `tests/test_readme.py`, were already migrated in commits c46bd73 and b04cdd8).
+- Extended the targeted mypy-strictness migration to `tests/test_config.py` (705 lines; baseline had 89 mypy errors under `--disallow-untyped-defs`, all untyped-def):
+  - Added `-> None` to 88 test-method defs missing a return annotation.
+  - Added missing param type annotations to 27 defs flagged by mypy (float/int/str/Path/pytest.MonkeyPatch/dict[str, Any]); no runtime behavior changed.
+  - Added `from pathlib import Path` and `from typing import Any` imports.
+  - Wrapped one over-100-char def per `black`.
+  - Added two `# type: ignore[arg-type]` on intentional non-dict inputs to `_filter_fields` (runtime behavior preserved).
+- Added a per-module `[[tool.mypy.overrides]]` for `tests.test_config` with `disallow_untyped_defs = true` in `pyproject.toml` (after `tests.test_readme_cli_commands`).
+- Working tree has uncommitted changes in `pyproject.toml` and `tests/test_config.py` (commit/push not requested).
 
 ## What was actually verified (evidence)
-- `python3 -m pytest tests/test_packaging.py -p no:cacheprovider -q` -> `7 passed in 0.27s` (baseline also 7 passed).
-- `python3 -m mypy quant_trading/ tests/test_packaging.py --show-error-codes` -> `Success: no issues found in 39 source files`.
-- `python3 -m mypy tests/test_packaging.py --disallow-untyped-defs --show-error-codes` -> no `no-untyped-def` errors for `tests/test_packaging.py` (only pre-existing `quant_trading/strategies/base.py:290`).
-- `python3 -m ruff check tests/test_packaging.py pyproject.toml` -> `All checks passed!`.
-- `python3 -m black --check tests/test_packaging.py` -> `1 file would be left unchanged.`
+- `python3 -m pytest tests/test_config.py -p no:cacheprovider -q` -> `143 passed in 0.29s` (baseline also 143 passed).
+- `python3 -m mypy quant_trading/ tests/test_config.py --show-error-codes` -> `Success: no issues found in 39 source files` (exit 0).
+- `python3 -m mypy tests/test_config.py --disallow-untyped-defs --show-error-codes` -> no `no-untyped-def` errors for `tests/test_config.py`.
+- `python3 -m ruff check tests/test_config.py pyproject.toml` -> `All checks passed!`.
+- `python3 -m black --check tests/test_config.py` -> `1 file would be left unchanged.`
 - `git diff --check` -> clean (exit 0).
-- Full `python3 -m mypy quant_trading/ tests/ --show-error-codes` -> 1 error in `tests/test_optimization.py:1542`; confirmed pre-existing on clean tree via `git stash` (count=1 both before and after); unrelated to this change.
+- Diff reviewed: annotations and imports only; no logic/behavior changes.
 
 ## What remains unresolved
 - Pre-existing mypy issue: `quant_trading/strategies/base.py:290` (untyped def, only flagged with `--disallow-untyped-defs`).
@@ -22,11 +26,11 @@
 - Working tree changes uncommitted.
 
 ## Failed or corrected approaches
-- Handoff candidate `tests/test_validation.py` does not exist; switched to `tests/test_packaging.py` (smallest bounded file lacking an override) rather than creating a new file or blocking.
+- First regex-based attempt to add `-> None` produced `): -> None:` (double colon) across 88 defs; reverted `tests/test_config.py` via `git checkout --` and redid with a corrected regex (`\1 -> None:`). No data loss; final tree verified clean.
 
 ## One precise next task
-- Extend the targeted mypy-strictness migration to another test file lacking a `[[tool.mypy.overrides]]` entry. Bounded candidates: `tests/test_data_providers.py`, `tests/test_config.py`, `tests/test_readme.py` (verify baseline untyped-def count first).
-  - Verify baseline: `python3 -m pytest tests/<file>.py -p no:cacheprovider -q` and `python3 -m mypy tests/<file>.py --disallow-untyped-defs --show-error-codes`.
+- Extend the targeted mypy-strictness migration to another test file lacking a `[[tool.mypy.overrides]]` entry. Primary bounded candidate: `tests/test_example_scripts_run.py` (57 lines, smallest non-override test file). Other small candidates: `tests/test_readme_cli.py` (249), `tests/test_serialization_roundtrip.py` (405).
+  - Verify baseline: `python3 -m pytest tests/<file>.py -p no:cacheprovider -q` and `python3 -m mypy tests/<file>.py --disallow-untyped-defs --show-error-codes` (count untyped-def errors).
   - Add missing return annotations (and param annotations only if mypy flags them) with minimal, behavior-preserving edits; keep lines <= 100 chars and run `black` if needed.
   - Add `[[tool.mypy.overrides]]` for `tests.<file>` with `disallow_untyped_defs = true` in `pyproject.toml`. Do not flip the global mypy setting.
   - Verify: `python3 -m pytest tests/<file>.py -p no:cacheprovider -q`, `python3 -m mypy quant_trading/ tests/<file>.py --show-error-codes`, `python3 -m ruff check tests/<file>.py pyproject.toml`, `python3 -m black --check tests/<file>.py`, `git diff --check`.

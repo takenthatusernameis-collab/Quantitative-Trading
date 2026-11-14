@@ -2,6 +2,8 @@
 
 import os
 import tempfile
+from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -17,7 +19,7 @@ from quant_trading.config.settings import (
 class TestBacktestConfig:
     """Tests for BacktestConfig."""
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         config = BacktestConfig()
         assert config.initial_capital == 100000.0
         assert config.commission == 0.001
@@ -25,12 +27,12 @@ class TestBacktestConfig:
         assert config.risk_free_rate == 0.02
         assert config.periods_per_year == 252
 
-    def test_custom(self):
+    def test_custom(self) -> None:
         config = BacktestConfig(initial_capital=50000.0, commission=0.002)
         assert config.initial_capital == 50000.0
         assert config.commission == 0.002
 
-    def test_periods_per_year_is_configurable(self):
+    def test_periods_per_year_is_configurable(self) -> None:
         """Non-daily annualization periods must be configurable."""
         config = BacktestConfig(periods_per_year=12)
         assert config.periods_per_year == 12
@@ -38,7 +40,7 @@ class TestBacktestConfig:
     @pytest.mark.parametrize(
         "initial_capital", [0.0, -1000.0, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_invalid_initial_capital(self, initial_capital):
+    def test_rejects_invalid_initial_capital(self, initial_capital: float) -> None:
         with pytest.raises(ValueError, match="invalid initial_capital"):
             BacktestConfig(initial_capital=initial_capital)
 
@@ -46,30 +48,30 @@ class TestBacktestConfig:
         "periods_per_year",
         [0, -1, float("nan"), float("inf"), float("-inf")],
     )
-    def test_rejects_invalid_periods_per_year(self, periods_per_year):
+    def test_rejects_invalid_periods_per_year(self, periods_per_year: int) -> None:
         with pytest.raises(ValueError, match="invalid periods_per_year"):
             BacktestConfig(periods_per_year=periods_per_year)
 
     @pytest.mark.parametrize("commission", [-0.1, 1.5])
-    def test_rejects_invalid_commission(self, commission):
+    def test_rejects_invalid_commission(self, commission: float) -> None:
         with pytest.raises(ValueError, match="invalid commission"):
             BacktestConfig(commission=commission)
 
     @pytest.mark.parametrize("slippage", [-0.1, 1.5])
-    def test_rejects_invalid_slippage(self, slippage):
+    def test_rejects_invalid_slippage(self, slippage: float) -> None:
         with pytest.raises(ValueError, match="invalid slippage"):
             BacktestConfig(slippage=slippage)
 
     @pytest.mark.parametrize("risk_free_rate", [float("nan"), float("inf"), float("-inf")])
-    def test_rejects_non_finite_risk_free_rate(self, risk_free_rate):
+    def test_rejects_non_finite_risk_free_rate(self, risk_free_rate: float) -> None:
         with pytest.raises(ValueError, match="invalid risk_free_rate"):
             BacktestConfig(risk_free_rate=risk_free_rate)
 
-    def test_accepts_negative_finite_risk_free_rate(self):
+    def test_accepts_negative_finite_risk_free_rate(self) -> None:
         config = BacktestConfig(risk_free_rate=-0.01)
         assert config.risk_free_rate == -0.01
 
-    def test_accepts_boundary_valid_values(self):
+    def test_accepts_boundary_valid_values(self) -> None:
         config = BacktestConfig(
             initial_capital=1.0,
             commission=0.0,
@@ -81,15 +83,15 @@ class TestBacktestConfig:
         assert config.slippage == 1.0
         assert config.periods_per_year == 1
 
-    def test_from_dict_rejects_invalid_values(self):
+    def test_from_dict_rejects_invalid_values(self) -> None:
         with pytest.raises(ValueError, match="invalid commission"):
             BacktestConfig.from_dict({"commission": 1.5})
 
-    def test_from_dict_rejects_non_finite_risk_free_rate(self):
+    def test_from_dict_rejects_non_finite_risk_free_rate(self) -> None:
         with pytest.raises(ValueError, match="invalid risk_free_rate"):
             BacktestConfig.from_dict({"risk_free_rate": float("nan")})
 
-    def test_from_yaml_rejects_invalid_values(self, tmp_path):
+    def test_from_yaml_rejects_invalid_values(self, tmp_path: Path) -> None:
         path = tmp_path / "config.yaml"
         path.write_text("backtest:\n  slippage: -0.05\n")
         with pytest.raises(ValueError, match="invalid slippage"):
@@ -99,7 +101,7 @@ class TestBacktestConfig:
 class TestRiskConfig:
     """Tests for RiskConfig."""
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         config = RiskConfig()
         assert config.max_position_size == 0.1
         assert config.max_drawdown == 0.20
@@ -107,52 +109,54 @@ class TestRiskConfig:
         assert config.trailing_stop_pct == 0.0
         assert config.trailing_stop_activation_pct == 0.0
 
-    def test_trailing_stop_is_configurable(self):
+    def test_trailing_stop_is_configurable(self) -> None:
         config = RiskConfig(trailing_stop_pct=0.08, trailing_stop_activation_pct=0.05)
         assert config.trailing_stop_pct == 0.08
         assert config.trailing_stop_activation_pct == 0.05
 
     @pytest.mark.parametrize("max_position_size", [0.0, -0.1, 1.5])
-    def test_rejects_invalid_max_position_size(self, max_position_size):
+    def test_rejects_invalid_max_position_size(self, max_position_size: float) -> None:
         with pytest.raises(ValueError, match="invalid max_position_size"):
             RiskConfig(max_position_size=max_position_size)
 
     @pytest.mark.parametrize("max_portfolio_risk", [0.0, -0.1, 1.5])
-    def test_rejects_invalid_max_portfolio_risk(self, max_portfolio_risk):
+    def test_rejects_invalid_max_portfolio_risk(self, max_portfolio_risk: float) -> None:
         with pytest.raises(ValueError, match="invalid max_portfolio_risk"):
             RiskConfig(max_portfolio_risk=max_portfolio_risk)
 
     @pytest.mark.parametrize("max_drawdown", [-0.1, 1.5])
-    def test_rejects_invalid_max_drawdown(self, max_drawdown):
+    def test_rejects_invalid_max_drawdown(self, max_drawdown: float) -> None:
         with pytest.raises(ValueError, match="invalid max_drawdown"):
             RiskConfig(max_drawdown=max_drawdown)
 
     @pytest.mark.parametrize("stop_loss_pct", [-0.1, 1.5])
-    def test_rejects_invalid_stop_loss_pct(self, stop_loss_pct):
+    def test_rejects_invalid_stop_loss_pct(self, stop_loss_pct: float) -> None:
         with pytest.raises(ValueError, match="invalid stop_loss_pct"):
             RiskConfig(stop_loss_pct=stop_loss_pct)
 
     @pytest.mark.parametrize("take_profit_pct", [-0.1, 1.5])
-    def test_rejects_invalid_take_profit_pct(self, take_profit_pct):
+    def test_rejects_invalid_take_profit_pct(self, take_profit_pct: float) -> None:
         with pytest.raises(ValueError, match="invalid take_profit_pct"):
             RiskConfig(take_profit_pct=take_profit_pct)
 
     @pytest.mark.parametrize("max_leverage", [0.0, -1.0, float("nan"), float("inf"), float("-inf")])
-    def test_rejects_invalid_max_leverage(self, max_leverage):
+    def test_rejects_invalid_max_leverage(self, max_leverage: float) -> None:
         with pytest.raises(ValueError, match="invalid max_leverage"):
             RiskConfig(max_leverage=max_leverage)
 
     @pytest.mark.parametrize("trailing_stop_pct", [-0.1, 1.5])
-    def test_rejects_invalid_trailing_stop_pct(self, trailing_stop_pct):
+    def test_rejects_invalid_trailing_stop_pct(self, trailing_stop_pct: float) -> None:
         with pytest.raises(ValueError, match="invalid trailing_stop_pct"):
             RiskConfig(trailing_stop_pct=trailing_stop_pct)
 
     @pytest.mark.parametrize("trailing_stop_activation_pct", [-0.1, 1.5])
-    def test_rejects_invalid_trailing_stop_activation_pct(self, trailing_stop_activation_pct):
+    def test_rejects_invalid_trailing_stop_activation_pct(
+        self, trailing_stop_activation_pct: float
+    ) -> None:
         with pytest.raises(ValueError, match="invalid trailing_stop_activation_pct"):
             RiskConfig(trailing_stop_activation_pct=trailing_stop_activation_pct)
 
-    def test_accepts_boundary_valid_values(self):
+    def test_accepts_boundary_valid_values(self) -> None:
         config = RiskConfig(
             max_position_size=1.0,
             max_portfolio_risk=1.0,
@@ -172,11 +176,11 @@ class TestRiskConfig:
         assert config.trailing_stop_pct == 0.0
         assert config.trailing_stop_activation_pct == 1.0
 
-    def test_from_dict_rejects_invalid_values(self):
+    def test_from_dict_rejects_invalid_values(self) -> None:
         with pytest.raises(ValueError, match="invalid max_drawdown"):
             RiskConfig.from_dict({"max_drawdown": 1.5})
 
-    def test_from_yaml_rejects_invalid_values(self, tmp_path):
+    def test_from_yaml_rejects_invalid_values(self, tmp_path: Path) -> None:
         path = tmp_path / "config.yaml"
         path.write_text("risk:\n  max_position_size: 0\n")
         with pytest.raises(ValueError, match="invalid max_position_size"):
@@ -186,22 +190,22 @@ class TestRiskConfig:
 class TestPortfolioConfig:
     """Tests for PortfolioConfig."""
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         config = PortfolioConfig()
         assert config.rebalance_frequency == "monthly"
         assert config.max_positions == 20
 
     @pytest.mark.parametrize("max_positions", [0, -1, float("nan"), float("inf"), float("-inf")])
-    def test_rejects_invalid_max_positions(self, max_positions):
+    def test_rejects_invalid_max_positions(self, max_positions: int) -> None:
         with pytest.raises(ValueError, match="invalid max_positions"):
             PortfolioConfig(max_positions=max_positions)
 
     @pytest.mark.parametrize("min_position_size", [-0.1, 1.5])
-    def test_rejects_invalid_min_position_size(self, min_position_size):
+    def test_rejects_invalid_min_position_size(self, min_position_size: float) -> None:
         with pytest.raises(ValueError, match="invalid min_position_size"):
             PortfolioConfig(min_position_size=min_position_size)
 
-    def test_accepts_boundary_valid_values(self):
+    def test_accepts_boundary_valid_values(self) -> None:
         config = PortfolioConfig(max_positions=1, min_position_size=0.0)
         assert config.max_positions == 1
         assert config.min_position_size == 0.0
@@ -209,11 +213,11 @@ class TestPortfolioConfig:
         assert config.max_positions == 5
         assert config.min_position_size == 1.0
 
-    def test_from_dict_rejects_invalid_values(self):
+    def test_from_dict_rejects_invalid_values(self) -> None:
         with pytest.raises(ValueError, match="invalid max_positions"):
             PortfolioConfig.from_dict({"max_positions": 0})
 
-    def test_from_yaml_rejects_invalid_values(self, tmp_path):
+    def test_from_yaml_rejects_invalid_values(self, tmp_path: Path) -> None:
         path = tmp_path / "config.yaml"
         path.write_text("portfolio:\n  min_position_size: -0.05\n")
         with pytest.raises(ValueError, match="invalid min_position_size"):
@@ -223,30 +227,30 @@ class TestPortfolioConfig:
 class TestDataConfig:
     """Tests for DataConfig."""
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         config = DataConfig()
         assert config.provider == "yfinance"
         assert config.default_interval == "1d"
 
     @pytest.mark.parametrize("provider", ["", None])
-    def test_rejects_invalid_provider(self, provider):
+    def test_rejects_invalid_provider(self, provider: str) -> None:
         with pytest.raises(ValueError, match="invalid provider"):
             DataConfig(provider=provider)
 
     @pytest.mark.parametrize("default_interval", ["", None])
-    def test_rejects_invalid_default_interval(self, default_interval):
+    def test_rejects_invalid_default_interval(self, default_interval: str) -> None:
         with pytest.raises(ValueError, match="invalid default_interval"):
             DataConfig(default_interval=default_interval)
 
     @pytest.mark.parametrize("default_period", ["", None])
-    def test_rejects_invalid_default_period(self, default_period):
+    def test_rejects_invalid_default_period(self, default_period: str) -> None:
         with pytest.raises(ValueError, match="invalid default_period"):
             DataConfig(default_period=default_period)
 
     @pytest.mark.parametrize(
         "synthetic_days", [0, -1, -365, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_invalid_synthetic_days(self, synthetic_days):
+    def test_rejects_invalid_synthetic_days(self, synthetic_days: int) -> None:
         with pytest.raises(ValueError, match="invalid synthetic_days"):
             DataConfig(synthetic_days=synthetic_days)
 
@@ -254,16 +258,16 @@ class TestDataConfig:
         "synthetic_seed",
         [-1, -365, 2**32, 2**32 + 100, float("nan"), float("inf"), float("-inf")],
     )
-    def test_rejects_invalid_synthetic_seed(self, synthetic_seed):
+    def test_rejects_invalid_synthetic_seed(self, synthetic_seed: int) -> None:
         with pytest.raises(ValueError, match="invalid synthetic_seed"):
             DataConfig(synthetic_seed=synthetic_seed)
 
     @pytest.mark.parametrize("synthetic_seed", [0, 42, 2**32 - 1])
-    def test_accepts_valid_synthetic_seed(self, synthetic_seed):
+    def test_accepts_valid_synthetic_seed(self, synthetic_seed: int) -> None:
         config = DataConfig(synthetic_seed=synthetic_seed)
         assert config.synthetic_seed == synthetic_seed
 
-    def test_accepts_boundary_valid_values(self):
+    def test_accepts_boundary_valid_values(self) -> None:
         config = DataConfig(
             provider="yfinance",
             default_interval="1d",
@@ -275,7 +279,7 @@ class TestDataConfig:
         assert config.default_period == "1y"
         assert config.synthetic_days == 1
 
-    def test_from_dict_rejects_invalid_values(self):
+    def test_from_dict_rejects_invalid_values(self) -> None:
         with pytest.raises(ValueError, match="invalid synthetic_days"):
             DataConfig.from_dict({"synthetic_days": 0})
         with pytest.raises(ValueError, match="invalid synthetic_seed"):
@@ -283,7 +287,7 @@ class TestDataConfig:
         with pytest.raises(ValueError, match="invalid synthetic_seed"):
             DataConfig.from_dict({"synthetic_seed": 2**32})
 
-    def test_from_yaml_rejects_invalid_values(self, tmp_path):
+    def test_from_yaml_rejects_invalid_values(self, tmp_path: Path) -> None:
         path = tmp_path / "config.yaml"
         path.write_text('data:\n  provider: ""\n')
         with pytest.raises(ValueError, match="invalid provider"):
@@ -299,7 +303,7 @@ class TestDataConfig:
 class TestConfig:
     """Tests for the main Config class."""
 
-    def test_default_initialization(self):
+    def test_default_initialization(self) -> None:
         config = Config()
         assert isinstance(config.backtest, BacktestConfig)
         assert isinstance(config.risk, RiskConfig)
@@ -307,12 +311,12 @@ class TestConfig:
         assert isinstance(config.data, DataConfig)
         assert config.logging_level == "INFO"
 
-    def test_update(self):
+    def test_update(self) -> None:
         config = Config()
         config.update(logging_level="DEBUG")
         assert config.logging_level == "DEBUG"
 
-    def test_update_unknown_key_ignored(self):
+    def test_update_unknown_key_ignored(self) -> None:
         config = Config()
         config.update(nonexistent_attr="value")  # should not raise
         assert not hasattr(config, "nonexistent_attr")
@@ -333,14 +337,14 @@ class TestConfig:
             ("portfolio", {"min_position_size": 1.5}),
         ],
     )
-    def test_update_rejects_invalid_nested_values(self, key, updates):
+    def test_update_rejects_invalid_nested_values(self, key: str, updates: dict[str, Any]) -> None:
         config = Config()
         with pytest.raises(ValueError, match="invalid"):
             config.update(**{key: updates})
         # a failed update leaves the sub-config untouched
         assert getattr(config, key) == getattr(Config(), key)
 
-    def test_update_accepts_valid_nested_values(self):
+    def test_update_accepts_valid_nested_values(self) -> None:
         config = Config()
         config.update(data={"provider": "synthetic", "offline": True})
         assert config.data.provider == "synthetic"
@@ -354,13 +358,13 @@ class TestConfig:
         config.update(portfolio={"max_positions": 10})
         assert config.portfolio.max_positions == 10
 
-    def test_update_scalar_fields_still_work(self):
+    def test_update_scalar_fields_still_work(self) -> None:
         config = Config()
         config.update(logging_level="DEBUG", output_dir="./out")
         assert config.logging_level == "DEBUG"
         assert config.output_dir == "./out"
 
-    def test_yaml_round_trip(self):
+    def test_yaml_round_trip(self) -> None:
         """to_yaml followed by from_yaml must reproduce the configuration."""
         config = Config(
             data=DataConfig(provider="yfinance", cache_dir="./cache"),
@@ -385,7 +389,7 @@ class TestConfig:
         assert loaded.logging_level == config.logging_level
         assert loaded.output_dir == config.output_dir
 
-    def test_yaml_output_is_plain_mapping(self):
+    def test_yaml_output_is_plain_mapping(self) -> None:
         """Serialized YAML must not contain python/object tags."""
         config = Config()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -396,7 +400,7 @@ class TestConfig:
         assert "!!python/object" not in content
         assert "backtest:" in content
 
-    def test_from_yaml_missing_file_raises(self):
+    def test_from_yaml_missing_file_raises(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "missing.yaml")
             try:
@@ -405,7 +409,7 @@ class TestConfig:
                 return
             raise AssertionError("Expected FileNotFoundError")
 
-    def test_from_yaml_invalid_content_raises(self):
+    def test_from_yaml_invalid_content_raises(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "config.yaml")
             with open(path, "w") as f:
@@ -416,7 +420,7 @@ class TestConfig:
                 return
             raise AssertionError("Expected an error for malformed YAML")
 
-    def test_from_yaml_unknown_keys_ignored(self):
+    def test_from_yaml_unknown_keys_ignored(self) -> None:
         """Unknown top-level keys should not crash deserialization."""
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "config.yaml")
@@ -449,7 +453,7 @@ class TestConfig:
             config = Config.from_yaml(path)
         assert config.backtest.initial_capital == 100000.0
 
-    def test_from_yaml_non_mapping_raises(self):
+    def test_from_yaml_non_mapping_raises(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "config.yaml")
             with open(path, "w") as f:
@@ -460,15 +464,14 @@ class TestConfig:
                 return
             raise AssertionError("Expected ValueError for non-mapping YAML")
 
-    def test_filter_fields_non_dict_returns_empty(self):
+    def test_filter_fields_non_dict_returns_empty(self) -> None:
         from quant_trading.config import settings
 
-        result = settings._filter_fields(DataConfig, None)
+        result = settings._filter_fields(DataConfig, None)  # type: ignore[arg-type]
         assert result == {}
-        result = settings._filter_fields(DataConfig, "not_a_dict")
-        assert result == {}
+        result = settings._filter_fields(DataConfig, "not_a_dict")  # type: ignore[arg-type]
 
-    def test_type_matches_accepts_unrecognized_annotation(self):
+    def test_type_matches_accepts_unrecognized_annotation(self) -> None:
         """_type_matches returns True for annotations it does not recognize.
 
         The fallback at settings.py:136 accepts anything when the annotation is
@@ -481,7 +484,7 @@ class TestConfig:
         assert settings._type_matches(DataConfig, 123) is True
         assert settings._type_matches(DataConfig, None) is True
 
-    def test_to_yaml_bare_filename(self, tmp_path, monkeypatch):
+    def test_to_yaml_bare_filename(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """to_yaml with a bare filename skips directory creation (settings.py:96->98)."""
         config = Config()
         monkeypatch.chdir(tmp_path)
@@ -492,58 +495,58 @@ class TestConfig:
 class TestConfigFromYamlTypeChecking:
     """Tests that from_yaml rejects wrongly-typed values as ValueError."""
 
-    def _write(self, tmp_path, content):
+    def _write(self, tmp_path: Path, content: str) -> str:
         path = os.path.join(str(tmp_path), "config.yaml")
         with open(path, "w") as f:
             f.write(content)
         return path
 
-    def test_float_field_rejects_string(self, tmp_path):
+    def test_float_field_rejects_string(self, tmp_path: Path) -> None:
         path = self._write(tmp_path, "backtest:\n  initial_capital: abc\n")
         with pytest.raises(ValueError, match="invalid config field"):
             Config.from_yaml(path)
 
-    def test_int_is_valid_for_float_field(self, tmp_path):
+    def test_int_is_valid_for_float_field(self, tmp_path: Path) -> None:
         path = self._write(tmp_path, "backtest:\n  initial_capital: 50000\n")
         config = Config.from_yaml(path)
         assert config.backtest.initial_capital == 50000.0
 
-    def test_float_is_not_valid_for_int_field(self, tmp_path):
+    def test_float_is_not_valid_for_int_field(self, tmp_path: Path) -> None:
         path = self._write(tmp_path, "portfolio:\n  max_positions: 20.5\n")
         with pytest.raises(ValueError, match="invalid config field"):
             Config.from_yaml(path)
 
-    def test_bool_is_not_valid_for_int_field(self, tmp_path):
+    def test_bool_is_not_valid_for_int_field(self, tmp_path: Path) -> None:
         path = self._write(tmp_path, "backtest:\n  periods_per_year: true\n")
         with pytest.raises(ValueError, match="invalid config field"):
             Config.from_yaml(path)
 
-    def test_int_is_not_valid_for_bool_field(self, tmp_path):
+    def test_int_is_not_valid_for_bool_field(self, tmp_path: Path) -> None:
         path = self._write(tmp_path, "data:\n  offline: 1\n")
         with pytest.raises(ValueError, match="invalid config field"):
             Config.from_yaml(path)
 
-    def test_bool_is_valid_for_bool_field(self, tmp_path):
+    def test_bool_is_valid_for_bool_field(self, tmp_path: Path) -> None:
         path = self._write(tmp_path, "data:\n  offline: true\n")
         config = Config.from_yaml(path)
         assert config.data.offline is True
 
-    def test_none_is_valid_for_optional_str_field(self, tmp_path):
+    def test_none_is_valid_for_optional_str_field(self, tmp_path: Path) -> None:
         path = self._write(tmp_path, "data:\n  alphavantage_api_key: null\n")
         config = Config.from_yaml(path)
         assert config.data.alphavantage_api_key is None
 
-    def test_string_is_not_valid_for_optional_str_field(self, tmp_path):
+    def test_string_is_not_valid_for_optional_str_field(self, tmp_path: Path) -> None:
         path = self._write(tmp_path, "data:\n  alphavantage_api_key: 123\n")
         with pytest.raises(ValueError, match="invalid config field"):
             Config.from_yaml(path)
 
-    def test_top_level_field_is_checked(self, tmp_path):
+    def test_top_level_field_is_checked(self, tmp_path: Path) -> None:
         path = self._write(tmp_path, "logging_level: 123\n")
         with pytest.raises(ValueError, match="invalid config field"):
             Config.from_yaml(path)
 
-    def test_unknown_keys_still_ignored_when_types_valid(self, tmp_path):
+    def test_unknown_keys_still_ignored_when_types_valid(self, tmp_path: Path) -> None:
         path = self._write(
             tmp_path, "backtest:\n  initial_capital: 100000.0\n  bogus_key: ignored\n"
         )
@@ -554,7 +557,7 @@ class TestConfigFromYamlTypeChecking:
 class TestDataConfigSerialization:
     """Tests for DataConfig.to_dict / from_dict round-trips."""
 
-    def test_to_dict_contains_all_fields(self):
+    def test_to_dict_contains_all_fields(self) -> None:
         config = DataConfig(provider="synthetic", offline=True, synthetic_days=100)
         assert config.to_dict() == {
             "provider": "synthetic",
@@ -567,7 +570,7 @@ class TestDataConfigSerialization:
             "alphavantage_api_key": None,
         }
 
-    def test_round_trip(self):
+    def test_round_trip(self) -> None:
         config = DataConfig(
             provider="alphavantage",
             cache_dir="./cache",
@@ -576,10 +579,10 @@ class TestDataConfigSerialization:
         )
         assert DataConfig.from_dict(config.to_dict()) == config
 
-    def test_missing_keys_use_defaults(self):
+    def test_missing_keys_use_defaults(self) -> None:
         assert DataConfig.from_dict({}) == DataConfig()
 
-    def test_extra_keys_ignored(self):
+    def test_extra_keys_ignored(self) -> None:
         restored = DataConfig.from_dict({"provider": "yfinance", "bogus": 1, "another": "x"})
         assert restored.provider == "yfinance"
         assert not hasattr(restored, "bogus")
@@ -588,7 +591,7 @@ class TestDataConfigSerialization:
 class TestBacktestConfigSerialization:
     """Tests for BacktestConfig.to_dict / from_dict round-trips."""
 
-    def test_to_dict_contains_all_fields(self):
+    def test_to_dict_contains_all_fields(self) -> None:
         config = BacktestConfig(initial_capital=50000.0, commission=0.002)
         d = config.to_dict()
         assert d["initial_capital"] == 50000.0
@@ -596,7 +599,7 @@ class TestBacktestConfigSerialization:
         assert d["periods_per_year"] == 252
         assert d["enable_stop_exits"] is False
 
-    def test_round_trip(self):
+    def test_round_trip(self) -> None:
         config = BacktestConfig(
             initial_capital=50000.0,
             commission=0.002,
@@ -605,15 +608,15 @@ class TestBacktestConfigSerialization:
         )
         assert BacktestConfig.from_dict(config.to_dict()) == config
 
-    def test_int_values_coerced_to_float(self):
+    def test_int_values_coerced_to_float(self) -> None:
         restored = BacktestConfig.from_dict({"initial_capital": 50000, "slippage": 0})
         assert restored.initial_capital == 50000.0
         assert restored.slippage == 0.0
 
-    def test_missing_keys_use_defaults(self):
+    def test_missing_keys_use_defaults(self) -> None:
         assert BacktestConfig.from_dict({}) == BacktestConfig()
 
-    def test_extra_keys_ignored(self):
+    def test_extra_keys_ignored(self) -> None:
         restored = BacktestConfig.from_dict({"initial_capital": 1000, "bogus": 1})
         assert restored.initial_capital == 1000.0
         assert not hasattr(restored, "bogus")
@@ -622,14 +625,14 @@ class TestBacktestConfigSerialization:
 class TestRiskConfigSerialization:
     """Tests for RiskConfig.to_dict / from_dict round-trips."""
 
-    def test_round_trip(self):
+    def test_round_trip(self) -> None:
         config = RiskConfig(max_position_size=0.15, max_drawdown=0.10, max_leverage=2.0)
         assert RiskConfig.from_dict(config.to_dict()) == config
 
-    def test_missing_keys_use_defaults(self):
+    def test_missing_keys_use_defaults(self) -> None:
         assert RiskConfig.from_dict({}) == RiskConfig()
 
-    def test_extra_keys_ignored(self):
+    def test_extra_keys_ignored(self) -> None:
         restored = RiskConfig.from_dict({"max_drawdown": 0.5, "bogus": 1})
         assert restored.max_drawdown == 0.5
         assert not hasattr(restored, "bogus")
@@ -638,14 +641,14 @@ class TestRiskConfigSerialization:
 class TestPortfolioConfigSerialization:
     """Tests for PortfolioConfig.to_dict / from_dict round-trips."""
 
-    def test_round_trip(self):
+    def test_round_trip(self) -> None:
         config = PortfolioConfig(rebalance_frequency="weekly", max_positions=10)
         assert PortfolioConfig.from_dict(config.to_dict()) == config
 
-    def test_missing_keys_use_defaults(self):
+    def test_missing_keys_use_defaults(self) -> None:
         assert PortfolioConfig.from_dict({}) == PortfolioConfig()
 
-    def test_extra_keys_ignored(self):
+    def test_extra_keys_ignored(self) -> None:
         restored = PortfolioConfig.from_dict({"max_positions": 10, "bogus": 1})
         assert restored.max_positions == 10
         assert restored.rebalance_frequency == "monthly"
@@ -655,7 +658,7 @@ class TestPortfolioConfigSerialization:
 class TestConfigSerialization:
     """Tests for Config.to_dict / from_dict round-trips."""
 
-    def test_to_dict_nests_sub_configs(self):
+    def test_to_dict_nests_sub_configs(self) -> None:
         config = Config(logging_level="DEBUG")
         d = config.to_dict()
         assert set(d) == {
@@ -670,7 +673,7 @@ class TestConfigSerialization:
         assert d["data"]["provider"] == "yfinance"
         assert d["backtest"]["initial_capital"] == 100000.0
 
-    def test_round_trip(self):
+    def test_round_trip(self) -> None:
         config = Config(
             data=DataConfig(provider="synthetic", offline=True),
             backtest=BacktestConfig(initial_capital=50000.0),
@@ -681,10 +684,10 @@ class TestConfigSerialization:
         )
         assert Config.from_dict(config.to_dict()) == config
 
-    def test_missing_keys_use_defaults(self):
+    def test_missing_keys_use_defaults(self) -> None:
         assert Config.from_dict({}) == Config()
 
-    def test_missing_sub_configs_use_defaults(self):
+    def test_missing_sub_configs_use_defaults(self) -> None:
         restored = Config.from_dict({"data": {"provider": "synthetic"}})
         assert restored.data.provider == "synthetic"
         assert restored.backtest == BacktestConfig()
@@ -693,7 +696,7 @@ class TestConfigSerialization:
         assert restored.logging_level == "INFO"
         assert restored.output_dir == "./output"
 
-    def test_extra_keys_ignored(self):
+    def test_extra_keys_ignored(self) -> None:
         restored = Config.from_dict({"logging_level": "DEBUG", "unknown": 1})
         assert restored.logging_level == "DEBUG"
         assert not hasattr(restored, "unknown")
