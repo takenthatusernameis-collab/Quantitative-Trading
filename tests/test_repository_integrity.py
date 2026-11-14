@@ -653,6 +653,150 @@ def test_cli_arg_defaults_entries_are_used_by_a_flag():
     assert not failures, "CLI_ARG_DEFAULTS wiring is inconsistent:\n" + "\n".join(failures)
 
 
+def _tunable_init_params(strategy_cls: type) -> list[str]:
+    """Return the ``__init__`` parameters a caller can tune, in declaration order.
+
+    ``name`` and ``parameters`` are framework plumbing rather than strategy
+    tunables, and ``*args``/``**kwargs`` cannot be set by name, so all three are
+    excluded. A parameter counts as tunable when it declares a default; required
+    parameters are also returned because callers must be able to supply them.
+    """
+    signature = inspect.signature(strategy_cls)
+    tunables: list[str] = []
+    for name, parameter in signature.parameters.items():
+        if name in ("self", "name", "parameters"):
+            continue
+        if parameter.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+            continue
+        tunables.append(name)
+    return tunables
+
+
+# Registered strategies that intentionally expose no dedicated CLI flag for
+# their tunable ``__init__`` parameters.
+#
+# ``create_strategy`` only wires custom flags for strategies listed in
+# ``strategy_param_map``; every other registered strategy is constructed via
+# ``factory_create_strategy(args.strategy)`` and therefore always runs with its
+# class defaults. Users tune those strategies through ``--strategy-config``,
+# whose ``parameters`` mapping is forwarded verbatim to the constructor by
+# ``Strategy.from_config``.
+#
+# This is a deliberate design choice, not an oversight: adding a dedicated
+# ``--<name>-period`` flag for each of these strategies would duplicate the
+# class API and bloat the parser. The allowlist makes the choice explicit so a
+# newly registered strategy cannot silently ship with an accidental CLI coverage
+# gap. Add an entry here only after deciding the strategy is intentionally
+# config-file-only; add flags + ``strategy_param_map`` entries instead when the
+# parameter is a common enough knob to deserve a first-class flag.
+_STRATEGIES_WITHOUT_DEDICATED_CLI_FLAGS: frozenset[str] = frozenset(
+    {
+        "adl",
+        "ao",
+        "bbpct",
+        "cci",
+        "cho",
+        "cmf",
+        "cmo",
+        "dpo",
+        "elder_ray",
+        "eom",
+        "force_index",
+        "hma",
+        "klinger",
+        "mfi",
+        "momentum",
+        "nvi",
+        "obv",
+        "ppo",
+        "pvi",
+        "pvo",
+        "roc",
+        "smi",
+        "stochrsi",
+        "trix",
+        "ultimate_oscillator",
+        "vol",
+        "vortex",
+        "vpt",
+        "vroc",
+        "williamsr",
+    }
+)
+
+
+def test_registered_strategies_have_documented_cli_coverage():
+    """Every strategy with tunable defaults is CLI-mapped or allowlisted.
+
+    ``create_strategy`` exposes dedicated flags only for strategies in
+    ``strategy_param_map``; all other registered strategies are built from their
+    class defaults and tuned via ``--strategy-config``. That is a valid design,
+    but the choice must be explicit so a newly registered strategy cannot ship
+    with an accidental coverage gap.
+
+    The guard fails when a registered strategy declares tunable ``__init__``
+    parameters but is neither mapped to dedicated flags nor listed in
+    ``_STRATEGIES_WITHOUT_DEDICATED_CLI_FLAGS``. It also rejects stale allowlist
+    entries (unregistered, already mapped, or no longer tunable) and mapping
+    entries that do not correspond to a registered strategy. For mapped
+    strategies it requires every tunable parameter to be exposed by a flag, so a
+    partial mapping cannot hide a parameter behind the class default.
+    """
+    cli_path = REPO_ROOT / "examples" / "cli.py"
+    tree = _parse(cli_path)
+    param_map = _cli_strategy_param_map(tree)
+
+    from quant_trading.strategies import list_strategies
+
+    registered = list_strategies()
+    failures: list[str] = []
+
+    for strategy_key, pairs in sorted(param_map.items()):
+        strategy_cls = registered.get(strategy_key)
+        if strategy_cls is None:
+            failures.append(f"strategy_param_map key {strategy_key!r} is not a registered strategy")
+            continue
+        tunables = set(_tunable_init_params(strategy_cls))
+        mapped = {param_name for _, param_name in pairs}
+        unmapped = sorted(tunables - mapped)
+        if unmapped:
+            failures.append(
+                f"{strategy_key}: tunable __init__ params not exposed by a dedicated "
+                f"CLI flag: {unmapped}"
+            )
+
+    for strategy_key, strategy_cls in sorted(registered.items()):
+        if strategy_key in param_map:
+            continue
+        tunables = _tunable_init_params(strategy_cls)
+        if not tunables:
+            continue
+        if strategy_key in _STRATEGIES_WITHOUT_DEDICATED_CLI_FLAGS:
+            continue
+        failures.append(
+            f"{strategy_key} ({strategy_cls.__name__}) has tunable __init__ params "
+            f"{tunables} but is neither in strategy_param_map nor in "
+            f"_STRATEGIES_WITHOUT_DEDICATED_CLI_FLAGS"
+        )
+
+    for strategy_key in sorted(_STRATEGIES_WITHOUT_DEDICATED_CLI_FLAGS):
+        strategy_cls = registered.get(strategy_key)
+        if strategy_cls is None:
+            failures.append(f"allowlist entry {strategy_key!r} is not a registered strategy")
+            continue
+        if strategy_key in param_map:
+            failures.append(
+                f"allowlist entry {strategy_key!r} is already wired to dedicated CLI flags"
+            )
+            continue
+        if not _tunable_init_params(strategy_cls):
+            failures.append(
+                f"allowlist entry {strategy_key!r} has no tunable __init__ params; remove it"
+            )
+
+    assert not failures, "CLI strategy coverage is incomplete:\n" + "\n".join(failures)
+
+
 def test_cli_strategy_imports_exist():
     """Names imported from quant_trading.strategies by examples/cli.py must exist."""
     import ast
