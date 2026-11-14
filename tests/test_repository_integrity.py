@@ -18,6 +18,7 @@ import inspect
 import pkgutil
 import re
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -492,7 +493,7 @@ def _cli_arg_defaults_node(tree: ast.Module) -> ast.Dict:
 
 def _cli_default_values(tree: ast.Module) -> dict[str, object]:
     """Return the ``CLI_ARG_DEFAULTS`` mapping parsed from ``examples/cli.py``."""
-    return ast.literal_eval(_cli_arg_defaults_node(tree))
+    return cast(dict[str, object], ast.literal_eval(_cli_arg_defaults_node(tree)))
 
 
 def _cli_strategy_param_map(tree: ast.Module) -> dict[str, list[tuple[str, str]]]:
@@ -515,7 +516,7 @@ def _cli_strategy_param_map(tree: ast.Module) -> dict[str, list[tuple[str, str]]
                     and target.id == "strategy_param_map"
                     and isinstance(stmt.value, ast.Dict)
                 ):
-                    return ast.literal_eval(stmt.value)
+                    return cast(dict[str, list[tuple[str, str]]], ast.literal_eval(stmt.value))
     raise AssertionError("strategy_param_map not found in create_strategy")
 
 
@@ -616,9 +617,9 @@ def _cli_flag_defaults(tree: ast.Module) -> dict[str, dict[str, object]]:
         action_name: str | None = None
         for keyword in node.keywords:
             if keyword.arg == "dest" and isinstance(keyword.value, ast.Constant):
-                dest = keyword.value.value
+                dest = cast(str, keyword.value.value)
             elif keyword.arg == "action" and isinstance(keyword.value, ast.Constant):
-                action_name = keyword.value.value
+                action_name = cast(str | None, keyword.value.value)
             elif keyword.arg == "type" and isinstance(keyword.value, ast.Name):
                 type_name = keyword.value.id
             if keyword.arg != "default":
@@ -686,7 +687,7 @@ def _cli_default_type_mismatches(
     """
     failures: list[str] = []
     for dest, spec in sorted(flag_defaults.items()):
-        key = spec["default_key"]
+        key = cast(str, spec["default_key"])
         default_value = cli_defaults[key]
         type_name = spec["type"]
         action = spec["action"]
