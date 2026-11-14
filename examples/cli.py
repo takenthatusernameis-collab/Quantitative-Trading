@@ -906,6 +906,7 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--macd-zero-line",
         action="store_true",
+        default=CLI_ARG_DEFAULTS["macd_zero_line"],
         help="Use the MACD zero line for crossovers",
     )
     parser.add_argument(
@@ -959,6 +960,7 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--kc-use-middle-cross",
         action="store_true",
+        default=CLI_ARG_DEFAULTS["kc_use_middle_cross"],
         help="Keltner Channel middle cross",
     )
     parser.add_argument(
@@ -1000,6 +1002,7 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--stoch-use-midline",
         action="store_true",
+        default=CLI_ARG_DEFAULTS["stoch_use_midline"],
         help="Stochastic midline",
     )
     parser.add_argument(

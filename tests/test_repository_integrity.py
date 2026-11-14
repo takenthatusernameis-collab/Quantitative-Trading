@@ -475,8 +475,8 @@ def test_package_reexports_are_listed_in_defining_module_all():
     )
 
 
-def _cli_default_values(tree: ast.Module) -> dict[str, object]:
-    """Return the ``CLI_ARG_DEFAULTS`` mapping parsed from ``examples/cli.py``."""
+def _cli_arg_defaults_node(tree: ast.Module) -> ast.Dict:
+    """Return the ``CLI_ARG_DEFAULTS`` dict node parsed from ``examples/cli.py``."""
     for node in tree.body:
         if not isinstance(node, ast.Assign):
             continue
@@ -486,8 +486,13 @@ def _cli_default_values(tree: ast.Module) -> dict[str, object]:
                 and target.id == "CLI_ARG_DEFAULTS"
                 and isinstance(node.value, ast.Dict)
             ):
-                return ast.literal_eval(node.value)
+                return node.value
     raise AssertionError("CLI_ARG_DEFAULTS not found in examples/cli.py")
+
+
+def _cli_default_values(tree: ast.Module) -> dict[str, object]:
+    """Return the ``CLI_ARG_DEFAULTS`` mapping parsed from ``examples/cli.py``."""
+    return ast.literal_eval(_cli_arg_defaults_node(tree))
 
 
 def _cli_strategy_param_map(tree: ast.Module) -> dict[str, list[tuple[str, str]]]:
@@ -575,6 +580,77 @@ def test_cli_arg_defaults_match_strategy_init_defaults():
     assert not failures, "CLI defaults drift from strategy __init__ defaults:\n" + "\n".join(
         failures
     )
+
+
+def _cli_flag_defaults(tree: ast.Module) -> dict[str, str]:
+    """Map each argparse ``dest`` to the ``CLI_ARG_DEFAULTS`` key it defaults to.
+
+    Only flags whose ``default=`` is a ``CLI_ARG_DEFAULTS["..."]`` lookup are
+    returned, keyed by the resolved ``dest`` (``--foo-bar`` -> ``foo_bar``).
+    Boolean ``store_true`` flags carry no ``CLI_ARG_DEFAULTS`` entry and are
+    therefore excluded. Parsing the AST (rather than importing the CLI) keeps
+    the guard independent of the CLI's optional runtime dependencies.
+    """
+    flags: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if not (isinstance(node.func, ast.Attribute) and node.func.attr == "add_argument"):
+            continue
+        if not node.args or not isinstance(node.args[0], ast.Constant):
+            continue
+        flag = node.args[0].value
+        if not isinstance(flag, str) or not flag.startswith("--"):
+            continue
+        dest = flag.lstrip("-").replace("-", "_")
+        default_key = None
+        for keyword in node.keywords:
+            if keyword.arg == "dest" and isinstance(keyword.value, ast.Constant):
+                dest = keyword.value.value
+            if keyword.arg != "default":
+                continue
+            value = keyword.value
+            if (
+                isinstance(value, ast.Subscript)
+                and isinstance(value.value, ast.Name)
+                and value.value.id == "CLI_ARG_DEFAULTS"
+                and isinstance(value.slice, ast.Constant)
+            ):
+                default_key = value.slice.value
+        if default_key is not None:
+            flags[dest] = default_key
+    return flags
+
+
+def test_cli_arg_defaults_entries_are_used_by_a_flag():
+    """Every ``CLI_ARG_DEFAULTS`` entry must back a real argparse flag default.
+
+    ``CLI_ARG_DEFAULTS`` is the single source of truth the CLI's argument
+    defaults are wired from. An entry with no matching ``--flag`` whose
+    ``default=`` reads ``CLI_ARG_DEFAULTS[key]`` is dead configuration: it
+    silently drifts from the flag it was meant to document and misleads anyone
+    auditing CLI/class default parity. This guard fails when an entry is unused
+    or when a flag references a key that no longer exists.
+    """
+    cli_path = REPO_ROOT / "examples" / "cli.py"
+    tree = _parse(cli_path)
+    defaults_node = _cli_arg_defaults_node(tree)
+    defined = {
+        key.value
+        for key in defaults_node.keys
+        if isinstance(key, ast.Constant) and isinstance(key.value, str)
+    }
+    flag_defaults = _cli_flag_defaults(tree)
+
+    unused = sorted(defined - set(flag_defaults.values()))
+    dangling = sorted(set(flag_defaults.values()) - defined)
+
+    failures: list[str] = []
+    if unused:
+        failures.append(f"CLI_ARG_DEFAULTS entries not used by any flag: {unused}")
+    if dangling:
+        failures.append(f"flag defaults reference missing CLI_ARG_DEFAULTS keys: {dangling}")
+    assert not failures, "CLI_ARG_DEFAULTS wiring is inconsistent:\n" + "\n".join(failures)
 
 
 def test_cli_strategy_imports_exist():
