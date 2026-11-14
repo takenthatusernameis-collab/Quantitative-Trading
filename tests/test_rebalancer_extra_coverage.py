@@ -5,7 +5,7 @@ from quant_trading.portfolio.rebalancer import RebalanceAction, Rebalancer
 from quant_trading.risk.manager import RiskManager
 
 
-def test_execute_actions_unknown_action_raises():
+def test_execute_actions_unknown_action_raises() -> None:
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(portfolio)
     with pytest.raises(ValueError):
@@ -14,7 +14,7 @@ def test_execute_actions_unknown_action_raises():
         )
 
 
-def test_execute_actions_hold_and_zero_quantity():
+def test_execute_actions_hold_and_zero_quantity() -> None:
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     portfolio.add_holding("AAPL", 10, 100.0)
     rebalancer = Rebalancer(portfolio)
@@ -30,7 +30,7 @@ def test_execute_actions_hold_and_zero_quantity():
     assert results[0].executed_quantity == 0.0
 
 
-def test_risk_adjust_buy_no_room_left():
+def test_risk_adjust_buy_no_room_left() -> None:
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rm = RiskManager(initial_capital=100000.0, max_position_size=0.01)
     rebalancer = Rebalancer(portfolio, risk_manager=rm)
@@ -46,14 +46,14 @@ def test_risk_adjust_buy_no_room_left():
     assert result == 0.0
 
 
-def test_rebalancer_iso_none_returns_none():
+def test_rebalancer_iso_none_returns_none() -> None:
     """_iso(None) returns None (rebalancer.py:43)."""
     from quant_trading.portfolio.rebalancer import _iso
 
     assert _iso(None) is None
 
 
-def test_rebalancer_iso_datetime_returns_isoformat():
+def test_rebalancer_iso_datetime_returns_isoformat() -> None:
     """_iso(datetime) returns its ISO-8601 string (rebalancer.py:44)."""
     from datetime import datetime
 
@@ -63,7 +63,7 @@ def test_rebalancer_iso_datetime_returns_isoformat():
     assert _iso(dt) == "2024-01-02T03:04:05"
 
 
-def test_rebalancer_coerce_datetime_branches():
+def test_rebalancer_coerce_datetime_branches() -> None:
     """_coerce_datetime covers the None/datetime/str/fallback branches
     (rebalancer.py:50-55)."""
     from datetime import datetime
