@@ -255,14 +255,14 @@ def _documented_example_scripts() -> set[str]:
 class TestReadmeExampleScripts:
     """Every example script must be referenced in the README's Example Scripts section."""
 
-    def test_every_example_script_is_documented(self):
+    def test_every_example_script_is_documented(self) -> None:
         """Each ``examples/run_*.py`` script must appear in the README."""
         documented = _documented_example_scripts()
         actual = {path.name for path in sorted(EXAMPLES_DIR.glob("run_*.py"))}
         missing = sorted(actual - documented)
         assert missing == [], f"example scripts missing from README: {missing}"
 
-    def test_no_undocumented_example_scripts_are_advertised(self):
+    def test_no_undocumented_example_scripts_are_advertised(self) -> None:
         """The README must not reference example scripts that do not exist."""
         documented = _documented_example_scripts()
         actual = {path.name for path in sorted(EXAMPLES_DIR.glob("run_*.py"))}
@@ -360,7 +360,7 @@ def _provider_av_intervals() -> dict[str, set[str]]:
 class TestReadmeAlphaVantageIntervals:
     """The README's Alpha Vantage "Supported intervals" must match the provider."""
 
-    def test_documented_intervals_match_the_provider(self):
+    def test_documented_intervals_match_the_provider(self) -> None:
         """Every concrete README interval category must match the live provider."""
         documented = _documented_av_intervals()
         actual = _provider_av_intervals()
@@ -457,14 +457,14 @@ class TestReadmeAlphaVantageMethods:
     misdirected; this test catches both forms of drift.
     """
 
-    def test_every_documented_method_exists_on_the_provider(self):
+    def test_every_documented_method_exists_on_the_provider(self) -> None:
         """Every method named in the README must exist on ``AlphaVantageProvider``."""
         documented = _documented_av_methods()
         actual = _provider_av_methods()
         missing = sorted(documented - actual)
         assert missing == [], f"README advertises methods missing from provider: {missing}"
 
-    def test_no_undocumented_methods_are_advertised(self):
+    def test_no_undocumented_methods_are_advertised(self) -> None:
         """The README must not advertise methods that do not exist on the provider."""
         documented = _documented_av_methods()
         actual = _provider_av_methods()
@@ -555,7 +555,7 @@ def _pinned_readme_blocks() -> list[tuple[str, list[str], str, str]]:
 class TestReadmeCodeBlockOutputs:
     """Every pinned value in a README ``python`` snippet must match the live code."""
 
-    def test_pinned_readme_outputs_match_live_behavior(self):
+    def test_pinned_readme_outputs_match_live_behavior(self) -> None:
         """Each ``# value`` comment on a bare README expression must be exact."""
         from quant_trading.backtest import analyze_regimes
         from quant_trading.backtest.engine import run_backtest
@@ -664,7 +664,7 @@ def _documented_structure_files() -> list[tuple[str, str]]:
 class TestReadmeProjectStructure:
     """The README "Project Structure" tree must list every source file."""
 
-    def test_every_documented_file_exists_on_disk(self):
+    def test_every_documented_file_exists_on_disk(self) -> None:
         """No tree entry may reference a file that does not exist."""
         documented = _documented_structure_files()
         missing = [
@@ -674,7 +674,7 @@ class TestReadmeProjectStructure:
         ]
         assert missing == [], f"README tree lists files not on disk: {missing}"
 
-    def test_every_source_file_is_documented(self):
+    def test_every_source_file_is_documented(self) -> None:
         """No non-``__init__`` source file may be absent from the tree."""
         documented = {f"{d}/{f}" for d, f in _documented_structure_files()}
         actual = {
