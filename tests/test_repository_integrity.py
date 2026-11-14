@@ -768,6 +768,111 @@ def test_cli_arg_defaults_type_matches_default():
     assert not failures, "CLI_ARG_DEFAULTS type/default mismatch:\n" + "\n".join(failures)
 
 
+def _cli_range_flags(tree: ast.Module) -> dict[str, str]:
+    """Map each ``--*-range`` flag's dest to its string default.
+
+    Range arguments are declared with ``type=str`` and an inline string default
+    such as ``"5,15,5"`` rather than a ``CLI_ARG_DEFAULTS["..."]`` lookup, so
+    they are not covered by the ``CLI_ARG_DEFAULTS`` guards. This helper parses
+    them out directly from the AST.
+    """
+    flags: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if not (isinstance(node.func, ast.Attribute) and node.func.attr == "add_argument"):
+            continue
+        if not node.args or not isinstance(node.args[0], ast.Constant):
+            continue
+        flag = node.args[0].value
+        if (
+            not isinstance(flag, str)
+            or not flag.startswith("--")
+            or not flag.endswith("-range")
+        ):
+            continue
+        dest = flag.lstrip("-").replace("-", "_")
+        default_value: str | None = None
+        for keyword in node.keywords:
+            if (
+                keyword.arg == "default"
+                and isinstance(keyword.value, ast.Constant)
+                and isinstance(keyword.value.value, str)
+            ):
+                default_value = keyword.value.value
+        if default_value is not None:
+            flags[dest] = default_value
+    return flags
+
+
+def _parse_range_default(default: str) -> tuple[float, float, float] | None:
+    """Validate a range default string ``min,max,step`` and return its parts.
+
+    Mirrors the runtime ``parse_range`` contract: exactly three comma-separated
+    numbers, a step greater than zero, and a minimum not greater than the
+    maximum. Returns ``None`` for any malformed value so callers can treat it
+    as a failure.
+    """
+    parts = default.split(",")
+    if len(parts) != 3:
+        return None
+    try:
+        minimum, maximum, step = (float(part) for part in parts)
+    except ValueError:
+        return None
+    if step <= 0:
+        return None
+    if minimum > maximum:
+        return None
+    return minimum, maximum, step
+
+
+def _cli_range_default_failures(range_flags: dict[str, str]) -> list[str]:
+    """Return every ``--*-range`` flag whose default is not a valid range."""
+    failures: list[str] = []
+    for dest, default in sorted(range_flags.items()):
+        if _parse_range_default(default) is None:
+            failures.append(
+                f"--{dest.replace('_', '-')}: default {default!r} "
+                "is not a valid 'min,max,step' range"
+            )
+    return failures
+
+
+def test_cli_range_defaults_match_parse_range_format():
+    """Every ``--*-range`` flag default must be a valid ``min,max,step`` range.
+
+    Range flags are parsed at runtime by ``parse_range``, which requires
+    exactly three comma-separated numbers, a step greater than zero, and a
+    minimum not greater than the maximum. A malformed default would slip past
+    argument parsing and surface as a runtime ``ValueError`` mid-run instead of
+    being caught when the parser is built. This guard validates every
+    ``--*-range`` default at parse time so a drifted default cannot reach a run.
+
+    The check is purely structural (AST): it parses ``examples/cli.py`` without
+    importing it, keeping the guard independent of the CLI's optional runtime
+    dependencies.
+    """
+    cli_path = REPO_ROOT / "examples" / "cli.py"
+    tree = _parse(cli_path)
+    range_flags = _cli_range_flags(tree)
+    assert range_flags, "no --*-range flags found in examples/cli.py"
+
+    # Negative control: corrupt one parsed default in memory (no source edit)
+    # and confirm the guard fires, proving it detects malformed range defaults.
+    first_dest = next(iter(range_flags))
+    original = range_flags[first_dest]
+    range_flags[first_dest] = "not,a,range"
+    try:
+        injected = _cli_range_default_failures(range_flags)
+        assert injected, "guard did not fire on injected malformed range default"
+    finally:
+        range_flags[first_dest] = original
+
+    failures = _cli_range_default_failures(range_flags)
+    assert not failures, "malformed --*-range defaults:\n" + "\n".join(failures)
+
+
 def _tunable_init_params(strategy_cls: type) -> list[str]:
     """Return the ``__init__`` parameters a caller can tune, in declaration order.
 
