@@ -187,6 +187,10 @@ module = "tests.test_example_scripts_run"
 disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
+module = "tests.test_examples_smoke"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
 module = "tests.test_readme_cli"
 disallow_untyped_defs = true
 
