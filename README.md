@@ -7,7 +7,7 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 - **Strategy Framework**: Abstract base class for creating custom trading strategies
 - **Built-in Strategies**: 46 registered strategies (see Strategy Registry below), including MA/EMA crossover, RSI, Stochastic RSI, Bollinger Bands/%B, MACD, SuperTrend, Donchian/Keltner channels, ATR channel breakout, Ichimoku, HMA, Parabolic SAR, VWAP, Vortex, ADX, CCI, Williams %R, OBV/CMF/MFI/Force Index, Elder Ray, momentum/ROC/TRIX/DPO, volume oscillators (VROC, PVO, VPT, NVI/PVI), Aroon, PPO, Chande/Chaikin oscillators, Ultimate Oscillator, SMI, Accumulation/Distribution, and more
 - **Backtesting Engine**: Event-driven backtest with realistic costs (commission, slippage), long and short positions
-- **Data Providers**: Yahoo Finance integration with caching support plus an offline synthetic data provider (`SyntheticDataProvider`, `create_synthetic_data`, `create_synthetic_provider`)
+- **Data Providers**: Yahoo Finance and Alpha Vantage integrations with caching support, plus an offline synthetic data provider (`SyntheticDataProvider`, `create_synthetic_data`, `create_synthetic_provider`)
 - **Portfolio Management**: Position tracking, rebalancing, and allocation
 - **Risk Management**: Position limits, portfolio limits, stop-loss/take-profit
 - **Performance Metrics**: Sharpe, Sortino, Calmar ratios, max drawdown, VaR, win rate, profit factor
@@ -75,7 +75,7 @@ quant_trading/
 ├── data/               # Data providers
 │   ├── providers.py    # Base interfaces
 │   ├── synthetic.py    # Deterministic synthetic data generator
-│   └── yfinance_provider.py  # Yahoo Finance implementation
+│   └── yfinance_provider.py  # Yahoo Finance and Alpha Vantage implementations
 ├── portfolio/          # Portfolio management
 │   ├── portfolio.py    # Portfolio and holdings
 │   └── rebalancer.py   # Rebalancing logic
