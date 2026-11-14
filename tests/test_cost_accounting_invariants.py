@@ -245,7 +245,7 @@ def _assert_cost_accounting_invariants(result: BacktestResult, portfolio: Portfo
 
 
 @pytest.mark.parametrize("seed", range(20))
-def test_randomized_round_trip_invariants(seed: int):
+def test_randomized_round_trip_invariants(seed: int) -> None:
     """A single long position exited in random partial steps reconciles."""
     rng = np.random.default_rng(seed)
     partial_sells = int(rng.integers(1, 4))
@@ -263,7 +263,7 @@ def test_randomized_round_trip_invariants(seed: int):
 
 
 @pytest.mark.parametrize("seed", range(10))
-def test_randomized_add_to_existing_position_invariants(seed: int):
+def test_randomized_add_to_existing_position_invariants(seed: int) -> None:
     """Adding to an open long keeps the weighted-average cost basis consistent."""
     rng = np.random.default_rng(seed)
     partial_sells = int(rng.integers(1, 3))
@@ -285,7 +285,7 @@ def test_randomized_add_to_existing_position_invariants(seed: int):
 
 
 @pytest.mark.parametrize("seed", range(10))
-def test_randomized_multiple_symbol_invariants(seed: int):
+def test_randomized_multiple_symbol_invariants(seed: int) -> None:
     """A run that trades two symbols reconciles symbol by symbol."""
     rng = np.random.default_rng(seed)
     symbols = ["AAA", "BBB"]
@@ -309,7 +309,7 @@ def test_randomized_multiple_symbol_invariants(seed: int):
 
 
 @pytest.mark.parametrize("seed", range(10))
-def test_randomized_risk_enabled_invariants(seed: int):
+def test_randomized_risk_enabled_invariants(seed: int) -> None:
     """Runs where the risk manager rejects signals still reconcile."""
     rng = np.random.default_rng(seed)
     strengths = [float(value) for value in rng.uniform(0.2, 0.9, size=2)]
@@ -326,7 +326,7 @@ def test_randomized_risk_enabled_invariants(seed: int):
     _assert_cost_accounting_invariants(result, portfolio)
 
 
-def test_sell_signal_larger_than_position_records_executed_quantity():
+def test_sell_signal_larger_than_position_records_executed_quantity() -> None:
     """A sell signal with ``strength > 1`` closes only the position it holds.
 
     The portfolio caps the removal at the position size, so the trade log has
@@ -353,7 +353,7 @@ def test_sell_signal_larger_than_position_records_executed_quantity():
 
 
 @pytest.mark.parametrize("seed", range(20))
-def test_randomized_short_round_trip_invariants(seed: int):
+def test_randomized_short_round_trip_invariants(seed: int) -> None:
     """A short position covered in random partial steps reconciles.
 
     A short keeps the raw execution price as its cost basis, so the entry fee
@@ -383,7 +383,7 @@ def test_randomized_short_round_trip_invariants(seed: int):
 
 
 @pytest.mark.parametrize("seed", range(10))
-def test_randomized_open_short_invariants(seed: int):
+def test_randomized_open_short_invariants(seed: int) -> None:
     """A short that is never covered still reconciles while it is open."""
     rng = np.random.default_rng(seed)
     script = [("short", 1.0)]
@@ -400,7 +400,7 @@ def test_randomized_open_short_invariants(seed: int):
     _assert_cost_accounting_invariants(result, portfolio)
 
 
-def test_the_metrics_report_the_unrealized_pnl_of_the_open_positions():
+def test_the_metrics_report_the_unrealized_pnl_of_the_open_positions() -> None:
     """A run that ends with an open long and an open short reports both.
 
     The realized PnL of the run and the mark-to-market PnL of the positions
@@ -433,7 +433,7 @@ def test_the_metrics_report_the_unrealized_pnl_of_the_open_positions():
     _assert_cost_accounting_invariants(result, portfolio)
 
 
-def test_a_fully_liquidated_run_reports_no_unrealized_pnl():
+def test_a_fully_liquidated_run_reports_no_unrealized_pnl() -> None:
     """A run that ends with every position closed reports no unrealized PnL."""
     rng = np.random.default_rng(11)
     script = [("buy", 1.0), ("sell", 1.0)]

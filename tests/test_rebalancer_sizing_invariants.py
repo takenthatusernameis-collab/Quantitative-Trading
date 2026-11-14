@@ -35,7 +35,7 @@ def _portfolio_with_aapl(quantity: float = 100.0, price: float = 100.0) -> Portf
     return portfolio
 
 
-def test_a_sell_releases_exactly_the_dollars_the_deviation_measured():
+def test_a_sell_releases_exactly_the_dollars_the_deviation_measured() -> None:
     """A sell is sized at the price it trades at, not at the holding's mark."""
     portfolio = _portfolio_with_aapl()  # 100 AAPL marked at $100
     rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.25, "MSFT": 0.75})
@@ -58,7 +58,7 @@ def test_a_sell_releases_exactly_the_dollars_the_deviation_measured():
     assert executions[0].cash_effect == pytest.approx(15000.0)
 
 
-def test_a_rebalance_lands_the_position_on_its_target():
+def test_a_rebalance_lands_the_position_on_its_target() -> None:
     """After the batch is executed the position is worth its target."""
     portfolio = _portfolio_with_aapl()  # 100 AAPL marked at $100
     rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.25, "MSFT": 0.75})
@@ -74,7 +74,7 @@ def test_a_rebalance_lands_the_position_on_its_target():
     assert holding.quantity * prices["AAPL"] == pytest.approx(5000.0)
 
 
-def test_a_buy_lands_the_position_on_its_target():
+def test_a_buy_lands_the_position_on_its_target() -> None:
     """A buy that closes a gap leaves the position worth its target."""
     portfolio = _portfolio_with_aapl(quantity=50.0)  # 50 AAPL marked at $100
     rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.75, "MSFT": 0.25})
@@ -91,7 +91,7 @@ def test_a_buy_lands_the_position_on_its_target():
     assert holding.quantity * prices["AAPL"] == pytest.approx(11250.0)
 
 
-def test_two_buy_signals_for_the_same_symbol_buy_one_slice():
+def test_two_buy_signals_for_the_same_symbol_buy_one_slice() -> None:
     """The second signal tops the position up instead of buying another slice."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(portfolio)
@@ -108,7 +108,7 @@ def test_two_buy_signals_for_the_same_symbol_buy_one_slice():
     assert actions[0].quantity == pytest.approx(50.0)  # 5% of $100,000
 
 
-def test_a_stronger_signal_tops_the_position_up_to_its_own_target():
+def test_a_stronger_signal_tops_the_position_up_to_its_own_target() -> None:
     """A stronger signal raises the target of the symbol it tops up."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(portfolio)
@@ -125,7 +125,7 @@ def test_a_stronger_signal_tops_the_position_up_to_its_own_target():
     assert sum(action.quantity for action in actions) == pytest.approx(100.0)
 
 
-def test_a_signal_buy_counts_the_position_the_portfolio_already_holds():
+def test_a_signal_buy_counts_the_position_the_portfolio_already_holds() -> None:
     """A position that is already at the signal's target is not topped up."""
     portfolio = Portfolio(cash=95000.0, initial_capital=100000.0)
     portfolio.add_holding("GOOGL", 50, 100.0)  # $5,000 of a $95,000 portfolio
@@ -138,7 +138,7 @@ def test_a_signal_buy_counts_the_position_the_portfolio_already_holds():
     assert actions == []
 
 
-def test_a_buy_that_cannot_be_funded_is_dropped():
+def test_a_buy_that_cannot_be_funded_is_dropped() -> None:
     """A buy the portfolio cannot pay for produces no action."""
     portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
     portfolio.add_holding("AAPL", 100, 100.0)  # the cash is spent, AAPL is held
@@ -153,7 +153,7 @@ def test_a_buy_that_cannot_be_funded_is_dropped():
     assert actions[0].symbol == "AAPL"
 
 
-def test_a_sell_for_a_symbol_that_is_not_held_produces_no_action():
+def test_a_sell_for_a_symbol_that_is_not_held_produces_no_action() -> None:
     """A negative target for a symbol the portfolio does not hold is not traded."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": -0.5})
@@ -163,7 +163,7 @@ def test_a_sell_for_a_symbol_that_is_not_held_produces_no_action():
     assert actions == []
 
 
-def test_a_signal_buy_the_position_limit_blocks_produces_no_action():
+def test_a_signal_buy_the_position_limit_blocks_produces_no_action() -> None:
     """A signal buy for a position that is already at its limit is dropped."""
     portfolio = Portfolio(cash=99000.0, initial_capital=100000.0)
     portfolio.add_holding("GOOGL", 10, 100.0)  # $1,000, the position limit
@@ -176,14 +176,14 @@ def test_a_signal_buy_the_position_limit_blocks_produces_no_action():
     assert actions == []
 
 
-def test_resolve_sell_quantity_falls_back_to_the_holding_price():
+def test_resolve_sell_quantity_falls_back_to_the_holding_price() -> None:
     """Without a planned price the current price of the holding is used."""
     rebalancer = Rebalancer(_portfolio_with_aapl())  # 100 AAPL marked at $100
 
     assert rebalancer._resolve_sell_quantity("AAPL", 1000.0) == pytest.approx(10.0)
 
 
-def test_set_target_allocation_rejects_a_zero_sum():
+def test_set_target_allocation_rejects_a_zero_sum() -> None:
     """Fractions that sum to zero cannot be normalized and are reported."""
     rebalancer = Rebalancer(Portfolio(cash=100000.0, initial_capital=100000.0))
 
@@ -191,7 +191,7 @@ def test_set_target_allocation_rejects_a_zero_sum():
         rebalancer.set_target_allocation({"AAPL": 0.0})
 
 
-def test_set_target_allocation_accepts_an_empty_allocation():
+def test_set_target_allocation_accepts_an_empty_allocation() -> None:
     """An empty allocation clears the targets."""
     rebalancer = Rebalancer(
         Portfolio(cash=100000.0, initial_capital=100000.0),
@@ -204,7 +204,7 @@ def test_set_target_allocation_accepts_an_empty_allocation():
 
 
 @pytest.mark.parametrize("seed", SEEDS)
-def test_randomized_rebalance_sizes_every_trade_at_the_trade_price(seed: int):
+def test_randomized_rebalance_sizes_every_trade_at_the_trade_price(seed: int) -> None:
     """Every planned trade is sized at the price the trade happens at.
 
     The portfolio holds its positions at marks that differ from the prices
@@ -247,7 +247,7 @@ def test_randomized_rebalance_sizes_every_trade_at_the_trade_price(seed: int):
 
 
 @pytest.mark.parametrize("seed", SEEDS)
-def test_randomized_signals_never_buy_a_symbol_beyond_its_target(seed: int):
+def test_randomized_signals_never_buy_a_symbol_beyond_its_target(seed: int) -> None:
     """Repeated buy signals for one symbol buy it up to its target, not beyond."""
     rng = np.random.default_rng(seed)
     prices = {symbol: float(rng.uniform(20.0, 200.0)) for symbol in SYMBOLS}
