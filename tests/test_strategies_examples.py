@@ -50,6 +50,7 @@ from quant_trading.strategies.examples import (
     VolumeOscillatorStrategy,
     VolumePriceTrendStrategy,
     VolumeRateOfChangeStrategy,
+    VolumeWeightedMovingAverageCrossover,
     VortexStrategy,
     VWAPStrategy,
     WilliamsRStrategy,
@@ -4466,6 +4467,156 @@ class TestVolumePriceTrendStrategy:
         closes = [100.0] * 25 + [float("nan")]
         data = {"AAPL": create_volume_price_trend_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
+
+
+def create_vwma_data(
+    symbol: str, closes: list[float], volumes: list[float] | None = None
+) -> pd.DataFrame:
+    """Create deterministic close/volume data for VWMA crossover tests.
+
+    Volume defaults to a constant 1,000,000 so the VWMA reduces to a simple
+    moving average unless a test supplies explicit per-bar volumes.
+    """
+    dates = pd.date_range(end=datetime.now(), periods=len(closes), freq="D")
+    close = np.asarray(closes, dtype=float)
+    if volumes is None:
+        volumes_list = np.full(len(close), 1_000_000.0)
+    else:
+        volumes_list = np.asarray(volumes, dtype=float)
+    return pd.DataFrame(  # type: ignore[no-any-return]
+        {
+            "open": close,
+            "high": close,
+            "low": close,
+            "close": close,
+            "volume": volumes_list,
+        },
+        index=dates,
+    )
+
+
+class TestVolumeWeightedMovingAverageCrossover:
+    """Tests for the volume-weighted moving average crossover strategy."""
+
+    def test_initialization(self):
+        """Test strategy initialization and exposed parameters."""
+        strategy = VolumeWeightedMovingAverageCrossover(
+            fast_period=5, slow_period=20, name="Test_VWMA"
+        )
+        assert strategy.name == "Test_VWMA"
+        assert strategy.fast_period == 5
+        assert strategy.slow_period == 20
+        assert strategy.parameters["fast_period"] == 5
+        assert strategy.parameters["slow_period"] == 20
+
+    def test_defaults(self):
+        """The default periods are 10/30."""
+        strategy = VolumeWeightedMovingAverageCrossover()
+        assert strategy.fast_period == 10
+        assert strategy.slow_period == 30
+        assert strategy.name == "VWMA_Crossover"
+
+    def test_validate_parameters(self):
+        """Test parameter validation raises for invalid periods."""
+        with pytest.raises(ValueError, match="fast_period must be a positive integer"):
+            VolumeWeightedMovingAverageCrossover(fast_period=0, slow_period=10)
+        with pytest.raises(ValueError, match="slow_period must be a positive integer"):
+            VolumeWeightedMovingAverageCrossover(fast_period=5, slow_period=0)
+        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+            VolumeWeightedMovingAverageCrossover(fast_period=10, slow_period=10)
+
+    def test_generate_signals_insufficient_data(self):
+        """No signals when there are fewer bars than slow_period + 1."""
+        strategy = VolumeWeightedMovingAverageCrossover(fast_period=2, slow_period=3)
+        data = {"AAPL": create_vwma_data("AAPL", [10.0, 20.0, 30.0])}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_golden_cross(self):
+        """A final surge lifts the fast VWMA above the slow VWMA (buy)."""
+        strategy = VolumeWeightedMovingAverageCrossover(fast_period=5, slow_period=10)
+        closes = [100.0] * 15 + [50.0] * 5 + [300.0]
+        data = {"AAPL": create_vwma_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.price == pytest.approx(300.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["crossover_type"] == "golden_cross"
+        assert signal.metadata["fast_vwma"] == pytest.approx(100.0)
+        assert signal.metadata["slow_vwma"] == pytest.approx(95.0)
+
+    def test_generate_signals_death_cross(self):
+        """A final crash pulls the fast VWMA below the slow VWMA (sell)."""
+        strategy = VolumeWeightedMovingAverageCrossover(fast_period=5, slow_period=10)
+        closes = [100.0] * 15 + [200.0] * 20 + [1.0]
+        data = {"AAPL": create_vwma_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "sell"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.price == pytest.approx(1.0)
+        assert signal.metadata["crossover_type"] == "death_cross"
+        assert signal.metadata["fast_vwma"] == pytest.approx(160.2)
+        assert signal.metadata["slow_vwma"] == pytest.approx(180.1)
+
+    def test_vwma_uses_volume_weights(self):
+        """The VWMA values reflect volume weighting, not a simple average."""
+        strategy = VolumeWeightedMovingAverageCrossover(fast_period=2, slow_period=3)
+        closes = [100.0, 100.0, 50.0, 300.0]
+        volumes = [1.0, 1.0, 1.0, 10.0]
+        data = {"AAPL": create_vwma_data("AAPL", closes, volumes)}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "buy"
+        assert signal.metadata["fast_vwma"] == pytest.approx(3050.0 / 11.0)
+        assert signal.metadata["slow_vwma"] == pytest.approx(3150.0 / 12.0)
+
+    def test_flat_prices_no_signals(self):
+        """Constant close and volume produce equal VWMAs and no crossover."""
+        strategy = VolumeWeightedMovingAverageCrossover(fast_period=2, slow_period=3)
+        data = {"AAPL": create_vwma_data("AAPL", [100.0] * 20)}
+        assert strategy.generate_signals(data) == []
+
+    def test_zero_volume_is_skipped(self):
+        """A zero-volume window cannot produce a VWMA and yields no signal."""
+        strategy = VolumeWeightedMovingAverageCrossover(fast_period=2, slow_period=3)
+        data = {"AAPL": create_vwma_data("AAPL", [100.0] * 20, [0.0] * 20)}
+        assert strategy.generate_signals(data) == []
+
+    def test_nan_last_close_is_skipped(self):
+        """A NaN last close is rejected before any signal is derived."""
+        strategy = VolumeWeightedMovingAverageCrossover(fast_period=2, slow_period=3)
+        data = {"AAPL": create_vwma_data("AAPL", [100.0] * 19 + [float("nan")])}
+        assert strategy.generate_signals(data) == []
+
+    def test_missing_columns_are_skipped(self):
+        """A frame without close or volume columns cannot produce signals."""
+        strategy = VolumeWeightedMovingAverageCrossover(fast_period=2, slow_period=3)
+        data = {"AAPL": pd.DataFrame({"close": [1.0, 2.0, 3.0, 4.0]})}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_multiple_symbols(self):
+        """Each symbol is evaluated independently."""
+        strategy = VolumeWeightedMovingAverageCrossover(fast_period=5, slow_period=10)
+        bullish = [100.0] * 15 + [50.0] * 5 + [300.0]
+        bearish = [100.0] * 15 + [200.0] * 20 + [1.0]
+        data = {
+            "AAPL": create_vwma_data("AAPL", bullish),
+            "MSFT": create_vwma_data("MSFT", bearish),
+        }
+        signals = strategy.generate_signals(data)
+        by_symbol = {s.symbol: s for s in signals}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        assert by_symbol["AAPL"].action == "buy"
+        assert by_symbol["MSFT"].action == "sell"
 
 
 def create_bollinger_percent_b_data(symbol: str, closes: list[float]) -> pd.DataFrame:

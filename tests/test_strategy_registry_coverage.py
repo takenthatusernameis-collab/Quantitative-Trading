@@ -1,6 +1,6 @@
 """Registry-level coverage tests for every registered strategy.
 
-The global strategy registry exposes 46 built-in strategies. This module
+The global strategy registry exposes 47 built-in strategies. This module
 provides regression coverage for the whole registry: every registered strategy
 must be constructible via :func:`create_strategy` with default parameters, must
 carry a non-empty ``parameters`` mapping, and must be able to run

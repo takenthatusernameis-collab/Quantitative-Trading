@@ -77,6 +77,7 @@ BUILTIN_STRATEGY_KEYS = [
     "hma",
     "sar",
     "vwap",
+    "vwma",
     "vortex",
     "vroc",
     "vpt",
@@ -858,13 +859,13 @@ def _create_parser() -> argparse.ArgumentParser:
         "--fast-period",
         type=int,
         default=CLI_ARG_DEFAULTS["fast_period"],
-        help="Fast period for moving-average crossover strategies",
+        help="Fast period for moving-average/VWMA crossover strategies",
     )
     parser.add_argument(
         "--slow-period",
         type=int,
         default=CLI_ARG_DEFAULTS["slow_period"],
-        help="Slow period for moving-average crossover strategies",
+        help="Slow period for moving-average/VWMA crossover strategies",
     )
     parser.add_argument(
         "--rsi-period",
@@ -1288,6 +1289,7 @@ def create_strategy(args: argparse.Namespace):
             ("chop_high_threshold", "high_threshold"),
         ],
         "vwap": [],
+        "vwma": [("fast_period", "fast_period"), ("slow_period", "slow_period")],
     }
 
     if args.strategy in strategy_param_map:
@@ -1341,6 +1343,10 @@ def create_strategy(args: argparse.Namespace):
             )
         elif args.strategy == "vwap":
             kwargs["name"] = "VWAP"
+        elif args.strategy == "vwma":
+            kwargs["name"] = (
+                f"VWMA_Crossover_{getattr(args, 'fast_period', CLI_ARG_DEFAULTS.get('fast_period'))}_{getattr(args, 'slow_period', CLI_ARG_DEFAULTS.get('slow_period'))}"
+            )
 
         return factory_create_strategy(args.strategy, **kwargs)
     else:

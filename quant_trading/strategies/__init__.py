@@ -49,6 +49,7 @@ from .examples import (
     VolumeOscillatorStrategy,
     VolumePriceTrendStrategy,
     VolumeRateOfChangeStrategy,
+    VolumeWeightedMovingAverageCrossover,
     VortexStrategy,
     VWAPStrategy,
     WilliamsRStrategy,
@@ -83,6 +84,11 @@ register_strategy("hma", HullMovingAverageStrategy, aliases=["hull_moving_averag
 register_strategy("sar", ParabolicSARStrategy, aliases=["parabolic_sar", "psar"])
 register_strategy("vwap", VWAPStrategy)
 register_strategy("vroc", VolumeRateOfChangeStrategy, aliases=["volume_rate_of_change"])
+register_strategy(
+    "vwma",
+    VolumeWeightedMovingAverageCrossover,
+    aliases=["volume_weighted_ma", "vwma_crossover"],
+)
 register_strategy("ao", AwesomeOscillatorStrategy, aliases=["awesome_oscillator"])
 register_strategy("vol", VolumeOscillatorStrategy, aliases=["volume_oscillator"])
 register_strategy("vortex", VortexStrategy, aliases=["vortex_indicator"])
@@ -177,6 +183,7 @@ __all__ = [
     "VolumeOscillatorStrategy",
     "VolumePriceTrendStrategy",
     "VolumeRateOfChangeStrategy",
+    "VolumeWeightedMovingAverageCrossover",
     "VortexStrategy",
     "WilliamsRStrategy",
     "available_strategies",

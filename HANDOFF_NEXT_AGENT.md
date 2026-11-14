@@ -1,52 +1,68 @@
 ## What changed (this session)
 
-- **Health check completed**: Verified the entire codebase is in excellent working condition.
-- All linting (`ruff check quant_trading/`) passes with no issues.
-- All type checking (`mypy quant_trading/`) passes with no issues across 38 source files.
-- All tested test suites pass:
-  - Backtest engine/report: 172 passed
-  - Portfolio/rebalancer: 386 passed
-  - Optimization/walk-forward: 342 passed
-  - Strategies (all 20+): 177 passed
-  - Data providers (yfinance, AlphaVantage, synthetic): 388 passed
-  - Risk/limits/manager/metrics: 351 passed
-  - CLI/config/utils/readme: 266 passed
-  - Monte Carlo/regime/trade analysis: 80 passed
-  - Serialization roundtrip: 41 passed
-  - Repository integrity: 25 passed
-  - Cost accounting/holding PnL invariants: 98 passed
-  - Integration: 5 passed
-- Example scripts and CLI all execute correctly offline with synthetic data.
+- Added a new built-in strategy, `VolumeWeightedMovingAverageCrossover`
+  (`vwma`), with fast/slow volume-weighted moving averages, golden/death cross
+  signals, parameter validation, and volume/NaN edge-case handling.
+- Registered the strategy under `vwma` with aliases `volume_weighted_ma` and
+  `vwma_crossover`; exported it from `quant_trading.strategies` and
+  `quant_trading.strategies.examples`.
+- Added CLI support: `vwma` is in `BUILTIN_STRATEGY_KEYS`, maps to
+  `--fast-period`/`--slow-period`, and gets a descriptive default name.
+- Added `examples/run_vwma.py`, an offline deterministic synthetic-data demo.
+- Added `TestVolumeWeightedMovingAverageCrossover` to
+  `tests/test_strategies_examples.py` (initialization, validation, insufficient
+  data, golden/death crosses, volume weighting, flat prices, zero volume, NaN
+  close, missing columns, multi-symbol).
+- Updated README: feature count 46 -> 47, registry entry for `vwma`, and an
+  Example Scripts entry for `examples/run_vwma.py`.
+- Updated `tests/test_cli.py`'s combined-mode mock for the new strategy name.
 
 ## What was actually verified (evidence)
 
-- `export PATH="$HOME/.local/bin:$PATH" && ruff check quant_trading/` → **All checks passed**.
-- `export PATH="$HOME/.local/bin:$PATH" && mypy quant_trading/` → **Success: no issues found in 38 source files**.
-- Individual test module runs all show 100% pass rates (evidence above).
-- Example scripts (`run_ma_crossover.py`, `run_rsi.py`, CLI with `--optimize`, `--combined`, `--walk-forward`, `--regime`, `--monte-carlo`, `--trade-analysis`) all execute and produce expected output.
+- `ruff check .` -> **All checks passed**.
+- `mypy quant_trading/` -> **Success: no issues found in 38 source files**.
+- Focused tests:
+  - `pytest -q tests/test_strategies_examples.py::TestVolumeWeightedMovingAverageCrossover ...`
+    -> 59 passed (strategy tests plus VWMA doctests).
+  - Registry/README/repository-integrity/CLI combined tests -> all passed.
+  - `pytest tests/test_examples_smoke.py -m slow -k vwma -vv` -> 2 passed
+    (`run_vwma.py` imports and runs offline).
+- Full suite: `pytest -q` -> **3782 passed, 140 deselected in 472.63s**.
+- Manual CLI run:
+  `python examples/cli.py --offline --strategy vwma --fast-period 5 --slow-period 20 --symbols AAPL --days 120`
+  -> completed and printed a VWMA backtest result.
 
 ## What remains unresolved
 
-- No blocking issues identified. The codebase is stable and all quality gates pass.
-- The full test suite (3513 tests) takes ~5+ minutes to run; individual modules complete in seconds.
+- No blocking issues. The new strategy is fully registered, documented, and
+  covered by tests.
+- `black` was not installed in the environment (`python -m black` fails), but
+  `ruff check` passes and the changed files are `ruff format`-clean. Existing
+  repository-wide `ruff format` output is not clean and was intentionally not
+  reformatted to avoid unrelated churn.
+- The changes are present in the working tree but were **not committed**
+  (no explicit commit request in this session).
 
 ## Failed approaches (do not repeat unchanged)
 
-- None. The previous matplotlib chart layout audit was confirmed complete and correct.
+- None. The only mismatch was the expected README/CLI consistency failure after
+  adding a strategy, resolved by updating the registry docs, example docs, and
+  the combined-mode test mock.
 
 ## One precise next task
 
-The codebase is in a clean, verified state with no outstanding issues. The next agent can:
-1. **Add a new feature** (e.g., new strategy, risk metric, data provider)
-2. **Extend the CLI** with additional analysis capabilities
-3. **Improve documentation** (README, docstrings, examples)
-4. **Add performance benchmarks** for the optimization/backtest engine
-5. **Implement CI/CD enhancements** (coverage thresholds, dependency scanning)
+Review the working-tree diff for the `vwma` feature and commit it if accepted.
+If further verification is desired first, run:
 
-No specific task is required - the project is ready for any high-value enhancement work.
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+ruff check .
+mypy quant_trading/
+pytest -q
+```
 
-## Environment (unchanged)
-
-Python 3.14.4, pandas 3.1.1, numpy 2.5.4, pytest 9.2.0, ruff 0.17.5, mypy 2.4.1, black 26.10.1, matplotlib 3.11.2, scikit-optimize 0.10.2 installed (prefix with `export PATH="$HOME/.local/bin:$PATH"`).
-
-(End of file - total 40 lines)
+Evidence to preserve: the strategy is registered as `vwma`, documented in
+README at the Strategy Registry and Example Scripts sections, and covered by
+`TestVolumeWeightedMovingAverageCrossover`. Do not reformat unrelated files with
+`ruff format`; the repository is intentionally not globally format-clean under
+the installed formatter version.

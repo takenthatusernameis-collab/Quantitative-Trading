@@ -55,6 +55,7 @@ __all__ = [
     "VolumeOscillatorStrategy",
     "VolumePriceTrendStrategy",
     "VolumeRateOfChangeStrategy",
+    "VolumeWeightedMovingAverageCrossover",
     "VortexStrategy",
     "WilliamsRStrategy",
 ]
@@ -266,6 +267,165 @@ class MovingAverageCrossover(Strategy):
                         metadata={
                             "fast_ma": fast_current,
                             "slow_ma": slow_current,
+                            "crossover_type": "death_cross",
+                        },
+                    )
+                )
+
+        return signals
+
+
+class VolumeWeightedMovingAverageCrossover(Strategy):
+    """Volume-weighted moving average (VWMA) crossover strategy.
+
+    The VWMA weights each close by the volume traded in the same bar::
+
+        VWMA_t = sum(close_i * volume_i) / sum(volume_i)
+
+    over the trailing ``n`` bars. A fast VWMA crossing above the slow VWMA is
+    treated as a golden cross (buy), and a fast VWMA crossing below the slow
+    VWMA as a death cross (sell).
+
+    Examples:
+        >>> from quant_trading.strategies.examples import VolumeWeightedMovingAverageCrossover
+        >>> s = VolumeWeightedMovingAverageCrossover(fast_period=5, slow_period=20)
+        >>> s.fast_period, s.slow_period
+        (5, 20)
+
+    """
+
+    def __init__(
+        self,
+        fast_period: int = 10,
+        slow_period: int = 30,
+        name: str = "VWMA_Crossover",
+    ):
+        """Initialize the volume-weighted moving average crossover strategy.
+
+        Args:
+            fast_period: Lookback window for the fast VWMA.
+            slow_period: Lookback window for the slow VWMA; must exceed
+                ``fast_period``.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+
+        """
+        super().__init__(
+            name,
+            {
+                "fast_period": fast_period,
+                "slow_period": slow_period,
+            },
+        )
+        self.fast_period = fast_period
+        self.slow_period = slow_period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``fast_period`` or ``slow_period`` is not a positive
+                integer, or if ``fast_period`` is not less than ``slow_period``.
+
+        """
+        if not isinstance(self.fast_period, int) or self.fast_period <= 0:
+            raise ValueError("fast_period must be a positive integer")
+        if not isinstance(self.slow_period, int) or self.slow_period <= 0:
+            raise ValueError("slow_period must be a positive integer")
+        if self.fast_period >= self.slow_period:
+            raise ValueError("fast_period must be less than slow_period")
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from fast/slow VWMA crossovers.
+
+        The crossover is measured between the last two VWMA values, so the
+        signal describes the move that completed on the most recent bar. Bars
+        with a non-numeric close or volume, or with a zero total volume in the
+        relevant window, cannot produce a VWMA and are skipped.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least
+                ``"close"`` and ``"volume"`` columns indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose VWMA cross
+            between the last two bars.
+
+        """
+        signals = []
+
+        for symbol, df in data.items():
+            if len(df) < self.slow_period + 1:
+                continue
+            if "close" not in df.columns or "volume" not in df.columns:
+                continue
+
+            close = pd.to_numeric(df["close"], errors="coerce")
+            volume = pd.to_numeric(df["volume"], errors="coerce")
+            current_price = close.iloc[-1]
+            if pd.isna(current_price) or pd.isna(volume.iloc[-1]):
+                continue
+
+            close_volume = close * volume
+            fast_vwma = (
+                close_volume.rolling(window=self.fast_period).sum()
+                / volume.rolling(window=self.fast_period).sum()
+            )
+            slow_vwma = (
+                close_volume.rolling(window=self.slow_period).sum()
+                / volume.rolling(window=self.slow_period).sum()
+            )
+
+            fast_current = fast_vwma.iloc[-1]
+            fast_prev = fast_vwma.iloc[-2]
+            slow_current = slow_vwma.iloc[-1]
+            slow_prev = slow_vwma.iloc[-2]
+
+            values = (fast_current, fast_prev, slow_current, slow_prev)
+            if any(pd.isna(value) or not np.isfinite(value) for value in values):
+                continue
+
+            timestamp = df.index[-1]
+
+            if fast_prev <= slow_prev and fast_current > slow_current:
+                strength = (
+                    min(1.0, abs(fast_current - slow_current) / abs(slow_current) * 10)
+                    if slow_current != 0
+                    else 0.5
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "fast_vwma": fast_current,
+                            "slow_vwma": slow_current,
+                            "crossover_type": "golden_cross",
+                        },
+                    )
+                )
+            elif fast_prev >= slow_prev and fast_current < slow_current:
+                strength = (
+                    min(1.0, abs(slow_current - fast_current) / abs(slow_current) * 10)
+                    if slow_current != 0
+                    else 0.5
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "fast_vwma": fast_current,
+                            "slow_vwma": slow_current,
                             "crossover_type": "death_cross",
                         },
                     )
