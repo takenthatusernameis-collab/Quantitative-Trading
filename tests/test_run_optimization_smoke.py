@@ -11,7 +11,7 @@ pytestmark = pytest.mark.slow
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_run_optimization_runs():
+def test_run_optimization_runs() -> None:
     result = subprocess.run(
         [sys.executable, str(REPO_ROOT / "examples" / "run_optimization.py")],
         capture_output=True,

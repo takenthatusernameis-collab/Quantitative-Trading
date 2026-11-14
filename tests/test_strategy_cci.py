@@ -5,25 +5,25 @@ import pytest
 from quant_trading.strategies.examples import CCIStrategy
 
 
-def _valid_cci():
+def _valid_cci() -> CCIStrategy:
     return CCIStrategy(period=20, threshold=100.0)
 
 
-def test_validate_period_must_be_positive():
+def test_validate_period_must_be_positive() -> None:
     s = _valid_cci()
     s.period = 0
     with pytest.raises(ValueError, match="period must be positive"):
         s.validate_parameters()
 
 
-def test_validate_threshold_must_be_positive():
+def test_validate_threshold_must_be_positive() -> None:
     s = _valid_cci()
     s.threshold = 0
     with pytest.raises(ValueError, match="threshold must be positive"):
         s.validate_parameters()
 
 
-def test_validate_threshold_non_finite_rejected():
+def test_validate_threshold_non_finite_rejected() -> None:
     s = _valid_cci()
     s.threshold = float("nan")
     with pytest.raises(ValueError, match="threshold must be positive"):
@@ -40,7 +40,7 @@ def test_validate_threshold_non_finite_rejected():
         s.validate_parameters()
 
 
-def test_constructor_calls_validate():
+def test_constructor_calls_validate() -> None:
     # nan values should be rejected at construction time
     with pytest.raises(ValueError, match="threshold must be positive"):
         CCIStrategy(period=20, threshold=float("nan"))
@@ -57,12 +57,12 @@ def test_constructor_calls_validate():
     assert s.threshold == 100.0
 
 
-def test_cci_constructs_with_defaults():
+def test_cci_constructs_with_defaults() -> None:
     s = CCIStrategy()
     assert s is not None
 
 
-def test_cci_generates_signals():
+def test_cci_generates_signals() -> None:
     import numpy as np
     import pandas as pd
 

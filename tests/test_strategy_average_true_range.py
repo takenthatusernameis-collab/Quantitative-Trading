@@ -5,25 +5,25 @@ import pytest
 from quant_trading.strategies.examples import AverageTrueRangeStrategy
 
 
-def _valid_atr():
+def _valid_atr() -> AverageTrueRangeStrategy:
     return AverageTrueRangeStrategy(period=14, atr_multiplier=2.0)
 
 
-def test_validate_period_must_be_positive():
+def test_validate_period_must_be_positive() -> None:
     s = _valid_atr()
     s.period = 0
     with pytest.raises(ValueError, match="period must be positive"):
         s.validate_parameters()
 
 
-def test_validate_atr_multiplier_must_be_positive():
+def test_validate_atr_multiplier_must_be_positive() -> None:
     s = _valid_atr()
     s.atr_multiplier = 0
     with pytest.raises(ValueError, match="atr_multiplier must be positive"):
         s.validate_parameters()
 
 
-def test_validate_atr_multiplier_non_finite_rejected():
+def test_validate_atr_multiplier_non_finite_rejected() -> None:
     s = _valid_atr()
     s.atr_multiplier = float("nan")
     with pytest.raises(ValueError, match="atr_multiplier must be positive"):
@@ -40,7 +40,7 @@ def test_validate_atr_multiplier_non_finite_rejected():
         s.validate_parameters()
 
 
-def test_constructor_calls_validate():
+def test_constructor_calls_validate() -> None:
     # nan values should be rejected at construction time
     with pytest.raises(ValueError, match="atr_multiplier must be positive"):
         AverageTrueRangeStrategy(period=14, atr_multiplier=float("nan"))
@@ -57,7 +57,7 @@ def test_constructor_calls_validate():
     assert s.atr_multiplier == 2.0
 
 
-def test_validate_accepts_valid_values():
+def test_validate_accepts_valid_values() -> None:
     s = _valid_atr()
     s.validate_parameters()  # Should not raise
 

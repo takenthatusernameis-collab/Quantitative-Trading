@@ -26,13 +26,13 @@ def create_trending_data(symbol: str, days: int = 100, trend: float = 0.001) -> 
 
 
 class TestStochRSIStrategy:
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = StochRSIStrategy(rsi_period=10, name="Test_StochRSI")
         assert strategy.name == "Test_StochRSI"
         assert strategy.rsi_period == 10
         assert strategy.parameters["rsi_period"] == 10
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="rsi_period must be positive"):
             StochRSIStrategy(rsi_period=0)
         with pytest.raises(ValueError, match="stoch_period must be positive"):
@@ -48,13 +48,13 @@ class TestStochRSIStrategy:
         with pytest.raises(ValueError, match="oversold must be less than overbought"):
             StochRSIStrategy(oversold=50, overbought=40)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = StochRSIStrategy()
         data = {"AAPL": create_trending_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_multi_symbol(self):
+    def test_generate_signals_multi_symbol(self) -> None:
         strategy = StochRSIStrategy()
         data = {
             "AAPL": create_trending_data("AAPL", days=60),
@@ -67,7 +67,7 @@ class TestStochRSIStrategy:
             assert s.action in ("buy", "sell")
             assert 0.0 <= s.strength <= 1.0
 
-    def test_use_midline_flag(self):
+    def test_use_midline_flag(self) -> None:
         strategy = StochRSIStrategy(use_midline=True)
         data = {"AAPL": create_trending_data("AAPL", days=60)}
         signals = strategy.generate_signals(data)

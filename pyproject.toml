@@ -206,6 +206,38 @@ disallow_untyped_defs = true
 module = "tests.test_walk_forward"
 disallow_untyped_defs = true
 
+[[tool.mypy.overrides]]
+module = "tests.test_run_optimization_smoke"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.test_strategy_stochrsi"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.test_strategy_average_true_range"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.test_strategy_bollinger_bands"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.test_strategy_momentum"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.test_strategy_supertrend"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.test_strategy_cci"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.test_strategy_keltner_channel"
+disallow_untyped_defs = true
+
 [tool.coverage.run]
 branch = true
 source = ["quant_trading", "examples.cli"]
@@ -216,6 +248,3 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
 ]
-[[tool.mypy.overrides]]
-module = "tests.test_walk_forward"
-disallow_untyped_defs = true

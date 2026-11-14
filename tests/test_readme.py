@@ -84,20 +84,20 @@ def _registry_aliases() -> dict[str, set[str]]:
 class TestReadmeStrategyRegistry:
     """The README registry table must match the real strategy registry."""
 
-    def test_every_registered_strategy_is_documented(self):
+    def test_every_registered_strategy_is_documented(self) -> None:
         """Every primary registry key appears in the README registry table."""
         documented = _documented_entries()
         registry = list_strategies()
         missing = [key for key in registry if key not in documented]
         assert missing == []
 
-    def test_no_undocumented_registry_entries(self):
+    def test_no_undocumented_registry_entries(self) -> None:
         """The README does not advertise keys that are not registered."""
         documented = _documented_entries()
         unknown = [key for key in documented if key not in list_strategies()]
         assert unknown == []
 
-    def test_documented_class_names_match_the_registry(self):
+    def test_documented_class_names_match_the_registry(self) -> None:
         """Each documented key points at the class it is actually registered to."""
         documented = _documented_entries()
         registry = list_strategies()
@@ -108,7 +108,7 @@ class TestReadmeStrategyRegistry:
         ]
         assert mismatched == []
 
-    def test_documented_aliases_match_the_registry(self):
+    def test_documented_aliases_match_the_registry(self) -> None:
         """The aliases documented in the README registry table must match the live registry.
 
         The README lists the aliases of every strategy (e.g. ``ma`` documents
@@ -135,7 +135,7 @@ class TestReadmeStrategyRegistry:
             not offenders
         ), "README strategy aliases out of sync with the registry:\n" + "\n".join(offenders)
 
-    def test_feature_bullet_strategy_count_matches_registry(self):
+    def test_feature_bullet_strategy_count_matches_registry(self) -> None:
         """The README feature bullet's 'N registered strategies' must match the live registry."""
         readme = README_PATH.read_text(encoding="utf-8")
         match = re.search(r"(\d+)\s+registered strategies", readme)
@@ -194,7 +194,7 @@ def _documented_quant_trading_imports() -> dict[str, set[str]]:
 class TestReadmeDataImports:
     """The README's quant_trading.data import snippet must match quant_trading.data.__all__."""
 
-    def test_data_imports_match_data_all(self):
+    def test_data_imports_match_data_all(self) -> None:
         from quant_trading import data
 
         documented = _documented_data_import_names()
@@ -225,7 +225,7 @@ class TestReadmeQuantTradingImports:
     the README documents, so the reverse is not asserted.
     """
 
-    def test_documented_quant_trading_imports_resolve(self):
+    def test_documented_quant_trading_imports_resolve(self) -> None:
         """Each name imported from a ``quant_trading.*`` module in the README exists on that module."""
         imports = _documented_quant_trading_imports()
         offenders: list[str] = []
@@ -571,9 +571,9 @@ class TestReadmeCodeBlockOutputs:
         result = run_backtest(
             strategy=MovingAverageCrossover(fast_period=10, slow_period=30),
             symbols=["AAPL"],
-            start=None,
-            end=None,
-            data_manager=provider,
+            start=None,  # type: ignore[arg-type]
+            end=None,  # type: ignore[arg-type]
+            data_manager=provider,  # type: ignore[arg-type]
             periods_per_year=52,
         )
 
