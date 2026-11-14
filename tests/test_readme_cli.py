@@ -188,14 +188,14 @@ def _coerce_default(actual: object, claimed: str) -> bool:
 class TestReadmeCliFlags:
     """Every CLI flag advertised in the README must be accepted by the parser."""
 
-    def test_every_documented_flag_is_accepted_by_the_parser(self):
+    def test_every_documented_flag_is_accepted_by_the_parser(self) -> None:
         """Each ``--flag`` in the README's CLI section must be a real CLI flag."""
         documented = _documented_cli_flags()
         actual = _parser_cli_flags()
         missing = sorted(documented - actual)
         assert missing == [], f"README advertises flags the CLI rejects: {missing}"
 
-    def test_documented_defaults_match_the_parser(self):
+    def test_documented_defaults_match_the_parser(self) -> None:
         """Every ``default <value>`` claim the README makes must match the parser.
 
         The README annotates flags with their default value, for example
@@ -224,7 +224,7 @@ class TestReadmeCliFlags:
             offenders
         )
 
-    def test_cli_help_default_claims_match_the_parser(self):
+    def test_cli_help_default_claims_match_the_parser(self) -> None:
         """Every ``(default: X)`` claim in a cli.py help string must match the parser default.
 
         Mirrors :meth:`test_documented_defaults_match_the_parser`, but checks
