@@ -63,28 +63,28 @@ def _result(trades: pd.DataFrame) -> BacktestResult:
 class TestSplitTradeLog:
     """The trade log is split into its entries and its completed round trips."""
 
-    def test_empty_log_has_no_round_trips(self):
+    def test_empty_log_has_no_round_trips(self) -> None:
         """An empty log yields empty entries and empty round trips."""
         log = split_trade_log(pd.DataFrame())
 
         assert log.entries.empty
         assert log.round_trips.empty
 
-    def test_log_without_pnl_column_has_no_round_trips(self):
+    def test_log_without_pnl_column_has_no_round_trips(self) -> None:
         """A log without a ``pnl`` column cannot carry a trade."""
         log = split_trade_log(pd.DataFrame({"symbol": ["AAPL"], "action": ["buy"]}))
 
         assert len(log.entries) == 1
         assert log.round_trips.empty
 
-    def test_log_without_action_column_keeps_the_non_zero_pnl_rows(self):
+    def test_log_without_action_column_keeps_the_non_zero_pnl_rows(self) -> None:
         """Without an ``action`` column the rows with a PnL are the trades."""
         log = split_trade_log(pd.DataFrame({"pnl": [0.0, 100.0, -50.0]}))
 
         assert len(log.entries) == 3
         assert log.round_trips["pnl"].tolist() == [100.0, -50.0]
 
-    def test_long_entry_is_not_a_trade(self):
+    def test_long_entry_is_not_a_trade(self) -> None:
         """The opening row of a long round trip carries no PnL and is no trade."""
         log = split_trade_log(
             _log(
@@ -97,7 +97,7 @@ class TestSplitTradeLog:
         assert len(log.round_trips) == 1
         assert log.round_trips["pnl"].tolist() == [100.0]
 
-    def test_short_entry_is_folded_into_the_cover_that_closes_it(self):
+    def test_short_entry_is_folded_into_the_cover_that_closes_it(self) -> None:
         """A short entry books a fee that belongs to the round trip it opens."""
         log = split_trade_log(
             _log(
@@ -115,7 +115,7 @@ class TestSplitTradeLog:
         # Nothing is left open, so no PnL belongs to an open position.
         assert log.open_pnl == 0.0
 
-    def test_short_with_zero_fee_folds_nothing_into_the_cover(self):
+    def test_short_with_zero_fee_folds_nothing_into_the_cover(self) -> None:
         """A short entry that booked no fee folds nothing into its cover.
 
         When the short entry's PnL is zero, the folded fee is zero, so the
@@ -134,7 +134,7 @@ class TestSplitTradeLog:
         assert len(log.round_trips) == 1
         assert log.open_pnl == 0.0
 
-    def test_partial_cover_folds_the_matching_share_of_the_entry_fee(self):
+    def test_partial_cover_folds_the_matching_share_of_the_entry_fee(self) -> None:
         """A cover that closes part of a short folds the matching share only."""
         log = split_trade_log(
             _log(
@@ -149,7 +149,7 @@ class TestSplitTradeLog:
         # that is still open: 6 of the 10 shares, so 6/10 of the fee.
         assert log.open_pnl == pytest.approx(-9.0)
 
-    def test_the_entries_are_the_log_the_run_booked(self):
+    def test_the_entries_are_the_log_the_run_booked(self) -> None:
         """The entries keep the PnL of the log, so the fee is not counted twice.
 
         The fee of a short entry is folded into the round trips only. The
@@ -169,7 +169,7 @@ class TestSplitTradeLog:
         # The round trips and the open positions add up to the same PnL.
         assert float(log.round_trips["pnl"].sum()) + log.open_pnl == pytest.approx(140.0)
 
-    def test_an_open_short_reports_its_fee_as_open_pnl(self):
+    def test_an_open_short_reports_its_fee_as_open_pnl(self) -> None:
         """A short that is never covered booked a fee that is not a trade.
 
         The fee is the PnL of a position that is still open at the end of the
@@ -180,14 +180,14 @@ class TestSplitTradeLog:
         assert log.open_pnl == pytest.approx(-15.0)
         assert log.round_trips.empty
 
-    def test_short_entry_without_a_cover_is_no_trade(self):
+    def test_short_entry_without_a_cover_is_no_trade(self) -> None:
         """A short that is still open at the end of the run is no trade."""
         log = split_trade_log(_log(_trade(action="short", pnl=-15.0)))
 
         assert len(log.entries) == 1
         assert log.round_trips.empty
 
-    def test_cover_without_a_short_closes_nothing_is_not_a_trade(self):
+    def test_cover_without_a_short_closes_nothing_is_not_a_trade(self) -> None:
         """A cover that closes no open short is not a round trip, even though
         it booked a PnL; it closes nothing."""
         log = split_trade_log(_log(_trade(action="cover", day=2, pnl=100.0)))
@@ -195,14 +195,14 @@ class TestSplitTradeLog:
         assert log.entries["pnl"].tolist() == [100.0]
         assert log.round_trips.empty
 
-    def test_sell_without_an_open_entry_closes_nothing_is_not_a_trade(self):
+    def test_sell_without_an_open_entry_closes_nothing_is_not_a_trade(self) -> None:
         """A sell that closes no open long entry is not a round trip."""
         log = split_trade_log(_log(_trade(action="sell", day=2, pnl=55.0)))
 
         assert log.entries["pnl"].tolist() == [55.0]
         assert log.round_trips.empty
 
-    def test_breakeven_long_round_trip_is_counted_as_a_trade(self):
+    def test_breakeven_long_round_trip_is_counted_as_a_trade(self) -> None:
         """A round trip that closes at exactly zero PnL is still a trade: it
         is neither winning nor losing, so it raises num_trades without raising
         num_winning_trades."""
@@ -217,7 +217,7 @@ class TestSplitTradeLog:
         assert len(log.round_trips) == 1
         assert log.round_trips["pnl"].tolist() == [0.0]
 
-    def test_hold_row_closes_nothing_is_not_a_round_trip(self):
+    def test_hold_row_closes_nothing_is_not_a_round_trip(self) -> None:
         """A ``hold`` row closes nothing and is not a round trip; it only
         occupies a row in the entries log."""
         log = split_trade_log(
@@ -232,7 +232,7 @@ class TestSplitTradeLog:
         assert len(log.round_trips) == 1
         assert log.round_trips["pnl"].tolist() == [100.0]
 
-    def test_short_entries_are_paired_per_symbol(self):
+    def test_short_entries_are_paired_per_symbol(self) -> None:
         """The queues that pair a short with its cover are kept per symbol."""
         log = split_trade_log(
             _log(
@@ -246,7 +246,7 @@ class TestSplitTradeLog:
         assert log.entries["pnl"].tolist() == [-10.0, -20.0, 50.0, 60.0]
         assert log.round_trips["pnl"].tolist() == [30.0, 50.0]
 
-    def test_round_trips_are_ordered_by_timestamp(self):
+    def test_round_trips_are_ordered_by_timestamp(self) -> None:
         """The rows are ordered by timestamp before they are paired."""
         log = split_trade_log(
             _log(
@@ -265,7 +265,7 @@ class TestSplitTradeLog:
         # day-2 cover), so only the day-2 cover is a round trip.
         assert log.round_trips["pnl"].tolist() == [40.0]
 
-    def test_log_without_timestamp_pairs_the_shorts_in_the_given_order(self):
+    def test_log_without_timestamp_pairs_the_shorts_in_the_given_order(self) -> None:
         """A log without a timestamp is read in the order it was given."""
         trades = pd.DataFrame(
             {
@@ -281,7 +281,7 @@ class TestSplitTradeLog:
         assert log.entries["pnl"].tolist() == [-15.0, 100.0]
         assert log.round_trips["pnl"].tolist() == [85.0]
 
-    def test_the_caller_frame_is_left_untouched(self):
+    def test_the_caller_frame_is_left_untouched(self) -> None:
         """Splitting a log must not modify the frame it was given."""
         trades = _log(
             _trade(action="short", pnl=-15.0),
@@ -328,7 +328,7 @@ class TestMetricsAndAnalysisAgree:
             ),
         ],
     )
-    def test_both_apis_count_the_same_trades(self, name, trades):
+    def test_both_apis_count_the_same_trades(self, name: str, trades: pd.DataFrame) -> None:
         """Both APIs report the same trade count, win count and win rate."""
         result = _result(trades)
         metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
@@ -344,7 +344,7 @@ class TestMetricsAndAnalysisAgree:
         assert metrics.avg_win == pytest.approx(analysis.avg_win), name
         assert metrics.avg_loss == pytest.approx(analysis.avg_loss), name
 
-    def test_the_loss_figures_are_signed_everywhere(self):
+    def test_the_loss_figures_are_signed_everywhere(self) -> None:
         """A loss is a negative PnL in every place the loss is reported.
 
         The top level figures, the per symbol figures and the metrics of the
@@ -363,6 +363,7 @@ class TestMetricsAndAnalysisAgree:
         metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
         analysis = analyze_trades(result)
 
+        assert analysis.symbol_stats is not None
         assert analysis.avg_loss == pytest.approx(-50.0)
         assert analysis.largest_loss == pytest.approx(-50.0)
         assert analysis.symbol_stats["AAPL"]["avg_loss"] == pytest.approx(-50.0)
@@ -370,7 +371,7 @@ class TestMetricsAndAnalysisAgree:
         assert metrics.avg_loss == pytest.approx(-50.0)
         assert metrics.largest_loss == pytest.approx(-50.0)
 
-    def test_the_per_symbol_figures_agree_with_the_top_level_figures(self):
+    def test_the_per_symbol_figures_agree_with_the_top_level_figures(self) -> None:
         """A run that trades one symbol reports the same numbers twice."""
         trades = _log(
             _trade(action="buy", pnl=0.0),
@@ -380,6 +381,7 @@ class TestMetricsAndAnalysisAgree:
         )
 
         analysis = analyze_trades(_result(trades))
+        assert analysis.symbol_stats is not None
         stats = analysis.symbol_stats["AAPL"]
 
         assert stats["total_trades"] == analysis.total_trades
@@ -393,7 +395,7 @@ class TestMetricsAndAnalysisAgree:
         assert stats["largest_win"] == pytest.approx(analysis.largest_win)
         assert stats["largest_loss"] == pytest.approx(analysis.largest_loss)
 
-    def test_a_short_round_trip_counts_as_one_trade(self):
+    def test_a_short_round_trip_counts_as_one_trade(self) -> None:
         """The short entry is counted with the cover that closes it."""
         trades = _log(
             _trade(action="short", pnl=-15.0),
@@ -412,7 +414,7 @@ class TestMetricsAndAnalysisAgree:
         assert metrics.win_rate == 1.0
         assert analysis.win_rate == 1.0
 
-    def test_the_metrics_of_a_result_match_its_analysis(self):
+    def test_the_metrics_of_a_result_match_its_analysis(self) -> None:
         """The metrics a backtest ships agree with its trade analysis."""
         trades = _log(
             _trade(action="short", pnl=-15.0),
@@ -471,7 +473,7 @@ class TestMetricsAndAnalysisAgreeExtra:
             ),
         ],
     )
-    def test_the_total_pnl_agrees(self, name, trades):
+    def test_the_total_pnl_agrees(self, name: str, trades: pd.DataFrame) -> None:
         result = _result(trades)
         metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
         analysis = analyze_trades(result)
@@ -500,15 +502,16 @@ class TestMetricsAndAnalysisAgreeExtra:
             ),
         ],
     )
-    def test_per_symbol_pnl_adds_up(self, name, trades):
+    def test_per_symbol_pnl_adds_up(self, name: str, trades: pd.DataFrame) -> None:
         result = _result(trades)
         metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
         analysis = analyze_trades(result)
+        assert analysis.symbol_stats is not None
         symbol_total = sum(stats["total_pnl"] for stats in analysis.symbol_stats.values())
         assert symbol_total == pytest.approx(analysis.total_pnl)
         assert metrics.total_pnl == pytest.approx(analysis.total_pnl)
 
-    def test_liquidated_run_metrics_total_pnl_equals_total_return(self):
+    def test_liquidated_run_metrics_total_pnl_equals_total_return(self) -> None:
         trades = _log(
             _trade(action="short", pnl=-15.0),
             _trade(action="cover", day=2, pnl=100.0),
@@ -566,7 +569,7 @@ class TestMetricsAndAnalysisAgreeExtra:
             ),
         ],
     )
-    def test_the_total_pnl_is_the_pnl_the_log_booked(self, name, trades):
+    def test_the_total_pnl_is_the_pnl_the_log_booked(self, name: str, trades: pd.DataFrame) -> None:
         """The total PnL is the sum of the PnL of the trade log.
 
         The engine books the fee of a short on the short row itself, so a run
@@ -601,14 +604,17 @@ class TestMetricsAndAnalysisAgreeExtra:
             ),
         ],
     )
-    def test_the_per_symbol_pnl_adds_up_to_the_total_pnl(self, name, trades):
+    def test_the_per_symbol_pnl_adds_up_to_the_total_pnl(
+        self, name: str, trades: pd.DataFrame
+    ) -> None:
         """The PnL of the symbols adds up to the PnL of the run."""
         analysis = analyze_trades(_result(trades))
 
+        assert analysis.symbol_stats is not None
         symbol_total = sum(stats["total_pnl"] for stats in analysis.symbol_stats.values())
         assert symbol_total == pytest.approx(analysis.total_pnl), name
 
-    def test_the_open_position_pnl_is_reported_apart(self):
+    def test_the_open_position_pnl_is_reported_apart(self) -> None:
         """The PnL of the open positions is visible, not hidden.
 
         The PnL of the run is the PnL of the round trips plus the PnL of the
@@ -626,7 +632,7 @@ class TestMetricsAndAnalysisAgreeExtra:
         assert analysis.total_pnl == pytest.approx(65.0)
         assert analysis.to_dict()["open_position_pnl"] == pytest.approx(-20.0)
 
-    def test_a_liquidated_run_reports_the_pnl_of_its_round_trips(self):
+    def test_a_liquidated_run_reports_the_pnl_of_its_round_trips(self) -> None:
         """A run that closed every position reports the PnL it made.
 
         The PnL of a fully liquidated run is the PnL of its round trips, so
@@ -641,6 +647,7 @@ class TestMetricsAndAnalysisAgreeExtra:
 
         analysis = analyze_trades(_result(trades))
 
+        assert analysis.symbol_stats is not None
         assert analysis.open_position_pnl == 0.0
         assert analysis.total_pnl == pytest.approx(45.0)
         assert analysis.total_pnl == pytest.approx(
@@ -649,7 +656,7 @@ class TestMetricsAndAnalysisAgreeExtra:
 
 
 class TestTradeLogGaps:
-    def test_sell_without_open_long_not_counted_as_trade(self):
+    def test_sell_without_open_long_not_counted_as_trade(self) -> None:
         """A sell with no open long should not create a round trip row."""
         trades = pd.DataFrame(
             [
@@ -669,7 +676,7 @@ class TestTradeLogGaps:
         log = split_trade_log(trades)
         assert len(log.round_trips) == 0
 
-    def test_partial_sell_of_long_keeps_queue_remainder(self):
+    def test_partial_sell_of_long_keeps_queue_remainder(self) -> None:
         """Selling part of a long position should leave remainder in queue."""
         trades = pd.DataFrame(
             [
@@ -711,7 +718,7 @@ class TestTradeLogGaps:
         log = split_trade_log(trades)
         assert len(log.round_trips) == 2
 
-    def test_cover_without_open_short_not_counted_as_trade(self):
+    def test_cover_without_open_short_not_counted_as_trade(self) -> None:
         """A cover with no open short should not create a round trip row."""
         trades = pd.DataFrame(
             [
@@ -731,7 +738,7 @@ class TestTradeLogGaps:
         log = split_trade_log(trades)
         assert len(log.round_trips) == 0
 
-    def test_partial_cover_of_short_keeps_queue_remainder(self):
+    def test_partial_cover_of_short_keeps_queue_remainder(self) -> None:
         """Covering part of a short position should leave remainder in queue."""
         trades = pd.DataFrame(
             [
