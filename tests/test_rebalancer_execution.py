@@ -52,7 +52,7 @@ def _open_positions(portfolio: Portfolio) -> int:
 
 
 @pytest.mark.parametrize("seed", SEEDS)
-def test_randomized_execution_invariants(seed: int):
+def test_randomized_execution_invariants(seed: int) -> None:
     """A random sequence of executed actions keeps every portfolio invariant."""
     rng = np.random.default_rng(seed)
     commission = float(rng.uniform(0.0, 0.01))
@@ -159,7 +159,7 @@ def test_randomized_execution_invariants(seed: int):
 
 
 @pytest.mark.parametrize("seed", SEEDS)
-def test_randomized_execution_never_leaves_zero_quantity_positions(seed: int):
+def test_randomized_execution_never_leaves_zero_quantity_positions(seed: int) -> None:
     """An executed action never leaves a zero-quantity position behind."""
     rng = np.random.default_rng(seed)
     prices = {symbol: float(rng.uniform(20.0, 200.0)) for symbol in SYMBOLS}
@@ -186,7 +186,7 @@ def test_randomized_execution_never_leaves_zero_quantity_positions(seed: int):
         assert portfolio.summary()["num_positions"] == len(portfolio.holdings)
 
 
-def test_execute_actions_buy_opens_a_position():
+def test_execute_actions_buy_opens_a_position() -> None:
     """A buy action buys the requested quantity."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(portfolio)
@@ -203,7 +203,7 @@ def test_execute_actions_buy_opens_a_position():
     assert portfolio.cash == pytest.approx(98500.0)
 
 
-def test_execute_actions_sell_reduces_a_position():
+def test_execute_actions_sell_reduces_a_position() -> None:
     """A sell action sells the requested quantity."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     portfolio.add_holding("AAPL", 10, 100.0)
@@ -220,7 +220,7 @@ def test_execute_actions_sell_reduces_a_position():
     assert portfolio.holdings["AAPL"].avg_cost == pytest.approx(100.0)
 
 
-def test_execute_actions_hold_is_a_noop():
+def test_execute_actions_hold_is_a_noop() -> None:
     """A hold action changes nothing."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     portfolio.add_holding("AAPL", 10, 100.0)
@@ -236,7 +236,7 @@ def test_execute_actions_hold_is_a_noop():
     assert portfolio.summary() == before
 
 
-def test_execute_actions_sell_is_capped_at_the_position_size():
+def test_execute_actions_sell_is_capped_at_the_position_size() -> None:
     """A sell larger than the position only sells what is held."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     portfolio.add_holding("AAPL", 10, 100.0)
@@ -252,7 +252,7 @@ def test_execute_actions_sell_is_capped_at_the_position_size():
     assert portfolio.summary()["num_positions"] == 0
 
 
-def test_execute_actions_uses_the_prices_map_over_the_holding_price():
+def test_execute_actions_uses_the_prices_map_over_the_holding_price() -> None:
     """The prices map wins over the current price of the holding."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     portfolio.add_holding("AAPL", 10, 100.0)
@@ -266,7 +266,7 @@ def test_execute_actions_uses_the_prices_map_over_the_holding_price():
     assert executions[0].cash_effect == pytest.approx(750.0)
 
 
-def test_execute_actions_falls_back_to_the_holding_price():
+def test_execute_actions_falls_back_to_the_holding_price() -> None:
     """Without a price in the map the holding's current price is used."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     portfolio.add_holding("AAPL", 10, 100.0)
@@ -280,7 +280,7 @@ def test_execute_actions_falls_back_to_the_holding_price():
     assert executions[0].executed_quantity == pytest.approx(5.0)
 
 
-def test_execute_actions_skips_an_action_without_a_price():
+def test_execute_actions_skips_an_action_without_a_price() -> None:
     """An action with no resolvable price is skipped, not guessed."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(portfolio)
@@ -295,7 +295,7 @@ def test_execute_actions_skips_an_action_without_a_price():
     assert portfolio.cash == pytest.approx(100000.0)
 
 
-def test_execute_actions_rejects_an_unknown_action():
+def test_execute_actions_rejects_an_unknown_action() -> None:
     """An unrecognized direction is a programming error and is reported."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(portfolio)
@@ -307,7 +307,7 @@ def test_execute_actions_rejects_an_unknown_action():
         )
 
 
-def test_execute_actions_sell_of_an_unheld_symbol_is_a_noop():
+def test_execute_actions_sell_of_an_unheld_symbol_is_a_noop() -> None:
     """Selling a symbol that is not held does nothing."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(portfolio)
@@ -322,7 +322,7 @@ def test_execute_actions_sell_of_an_unheld_symbol_is_a_noop():
     assert portfolio.cash == pytest.approx(100000.0)
 
 
-def test_execute_actions_zero_quantity_is_a_noop():
+def test_execute_actions_zero_quantity_is_a_noop() -> None:
     """A zero-sized action does not open a position."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(portfolio)
@@ -335,7 +335,7 @@ def test_execute_actions_zero_quantity_is_a_noop():
     assert portfolio.holdings == {}
 
 
-def test_execute_actions_buy_covers_an_open_short():
+def test_execute_actions_buy_covers_an_open_short() -> None:
     """A buy against an open short covers it instead of flipping it."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     portfolio.add_holding("AAPL", -10, 100.0)
@@ -354,7 +354,7 @@ def test_execute_actions_buy_covers_an_open_short():
     assert "AAPL" not in portfolio.holdings
 
 
-def test_execute_actions_applies_commission_and_slippage():
+def test_execute_actions_applies_commission_and_slippage() -> None:
     """The fees are charged to cash and to the cost basis of a new position."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(portfolio)
@@ -373,7 +373,7 @@ def test_execute_actions_applies_commission_and_slippage():
     assert portfolio.total_value == pytest.approx(100000.0 - 10 * 100.0 * fees)
 
 
-def test_execute_actions_returns_one_execution_per_action():
+def test_execute_actions_returns_one_execution_per_action() -> None:
     """The executions are reported in the order the actions were given."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(portfolio)
@@ -392,7 +392,7 @@ def test_execute_actions_returns_one_execution_per_action():
     assert [e.executed_quantity for e in executions] == [10.0, 5.0, 0.0]
 
 
-def test_execute_actions_records_the_execution_in_the_history():
+def test_execute_actions_records_the_execution_in_the_history() -> None:
     """The run is recorded in the rebalance history."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(portfolio)
@@ -410,7 +410,7 @@ def test_execute_actions_records_the_execution_in_the_history():
     assert entry["executions"][0]["cash_effect"] == pytest.approx(-1500.0)
 
 
-def test_execute_actions_updates_last_rebalance():
+def test_execute_actions_updates_last_rebalance() -> None:
     """Executing actions stamps the rebalancer and the portfolio."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(portfolio)
@@ -426,7 +426,7 @@ def test_execute_actions_updates_last_rebalance():
     assert portfolio.last_rebalance == rebalancer.last_rebalance
 
 
-def test_execute_actions_applies_the_generated_actions():
+def test_execute_actions_applies_the_generated_actions() -> None:
     """The actions the rebalancer generates can be executed end to end."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(
@@ -451,7 +451,7 @@ def test_execute_actions_applies_the_generated_actions():
 
 
 @pytest.mark.parametrize("seed", SEEDS)
-def test_generated_actions_are_affordable(seed: int):
+def test_generated_actions_are_affordable(seed: int) -> None:
     """A generated batch of actions never drives cash negative.
 
     The buys are sized against the remaining cash (net of fees) and against the
@@ -521,7 +521,7 @@ def test_generated_actions_are_affordable(seed: int):
             )
 
 
-def test_generated_actions_affordable_with_high_fees():
+def test_generated_actions_affordable_with_high_fees() -> None:
     """Even with large fee rates, generated buys stay within available cash."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     rebalancer = Rebalancer(portfolio, frequency="monthly", target_allocation={"AAPL": 1.0})
@@ -540,7 +540,7 @@ def test_generated_actions_affordable_with_high_fees():
     assert all(e.executed_quantity > 0 for e in executions if e.action == "buy")
 
 
-def test_generated_actions_sell_funds_later_buy():
+def test_generated_actions_sell_funds_later_buy() -> None:
     """A sell earlier in the batch releases cash a later buy can use."""
     portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
     portfolio.add_holding("AAPL", 100, 100.0)
@@ -559,7 +559,7 @@ def test_generated_actions_sell_funds_later_buy():
     assert portfolio.cash >= 0.0
 
 
-def test_plan_sell_size_zero_after_prior_sell():
+def test_plan_sell_size_zero_after_prior_sell() -> None:
     """_plan_sell returns early when the position was already sold earlier in
     the batch (size <= 0 branch)."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
@@ -575,7 +575,7 @@ def test_plan_sell_size_zero_after_prior_sell():
     assert portfolio.cash >= 0.0
 
 
-def test_plan_sell_against_short_position_costs_cash():
+def test_plan_sell_against_short_position_costs_cash() -> None:
     """_plan_sell against a short position costs cash (else branch of
     ``if position > 0``)."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
@@ -595,7 +595,7 @@ def test_plan_sell_against_short_position_costs_cash():
     assert portfolio.cash >= 0.0
 
 
-def test_signal_buy_unaffordable_when_cash_exhausted():
+def test_signal_buy_unaffordable_when_cash_exhausted() -> None:
     """A signal buy that _plan_buy sizes to zero produces no action."""
     portfolio = Portfolio(cash=100.0, initial_capital=100.0)
     portfolio.add_holding("AAPL", 1, 100.0)  # cash -> 0, total_value -> 100
@@ -610,7 +610,7 @@ def test_signal_buy_unaffordable_when_cash_exhausted():
     assert all(not (a.symbol == "GOOGL" and a.action == "buy") for a in actions)
 
 
-def test_rebalancer_converges_to_target_allocation_after_backtest():
+def test_rebalancer_converges_to_target_allocation_after_backtest() -> None:
     """A backtest-produced portfolio converges to its target allocation when rebalanced.
 
     Mirrors ``examples/run_rebalancer.py`` end to end: run a backtest against
