@@ -410,6 +410,70 @@ def test_all_package_all_exports_resolve():
     assert not failures, "package __all__ exports not bound:\n" + "\n".join(failures)
 
 
+def test_package_reexports_are_listed_in_defining_module_all():
+    """A name a package re-exports must also be listed in its defining module's __all__.
+
+    ``test_all_package_all_exports_resolve`` guards the other direction: a name
+    advertised by a package ``__init__`` must be bound to an attribute there.
+    This guard covers the re-export hole that direction cannot see. A package
+    can re-export a name it defines in a submodule (``from .base import
+    BaseStrategy``) while that submodule's own ``__all__`` omits it. The
+    package still resolves ``from package import BaseStrategy``, so every
+    existing check passes, but ``from package.base import *`` silently drops
+    the name. The two lists then drift apart and the submodule's declared
+    public surface is wrong.
+
+    The check is one-way (package -> defining module) and only applies when the
+    defining module declares an ``__all__`` at all; a module that relies on the
+    default (every non-underscore global) has no list to keep in sync.
+    """
+    failures: list[str] = []
+    for init in sorted((REPO_ROOT / "quant_trading").rglob("__init__.py")):
+        rel = init.relative_to(REPO_ROOT)
+        pkg = init.parent.relative_to(REPO_ROOT / "quant_trading").as_posix().replace("/", ".")
+        if pkg == ".":
+            pkg = ""
+        modname = "quant_trading" + (f".{pkg}" if pkg else "")
+        try:
+            mod = importlib.import_module(modname)
+        except Exception as exc:  # noqa: BLE001 - report any import-time failure
+            failures.append(f"{modname}: cannot import: {exc!r}")
+            continue
+        pkg_all = getattr(mod, "__all__", None)
+        if pkg_all is None:
+            continue
+
+        # Map each name the package re-exports back to the submodule it was
+        # imported from, using relative ``from .module import name`` statements.
+        tree = _parse(init)
+        origin: dict[str, str] = {}
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom) or node.level != 1 or not node.module:
+                continue
+            for alias in node.names:
+                origin[alias.asname or alias.name] = f"{modname}.{node.module}"
+
+        for name in pkg_all:
+            source_module = origin.get(name)
+            if source_module is None:
+                continue
+            try:
+                source = importlib.import_module(source_module)
+            except Exception:  # noqa: BLE001, S112 - an unimportable module is reported by the test above
+                continue
+            source_all = getattr(source, "__all__", None)
+            if source_all is None:
+                continue
+            if name not in source_all:
+                failures.append(
+                    f"{rel}: re-exports {name} from {source_module}, "
+                    f"but it is missing from that module's __all__"
+                )
+    assert not failures, "package re-exports missing from defining module __all__:\n" + "\n".join(
+        failures
+    )
+
+
 def test_cli_strategy_imports_exist():
     """Names imported from quant_trading.strategies by examples/cli.py must exist."""
     import ast

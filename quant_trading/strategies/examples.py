@@ -9,6 +9,8 @@ import pandas as pd
 from .base import Signal, Strategy
 
 __all__ = [
+    "PPO",
+    "PVO",
     "ADXStrategy",
     "AccumulationDistributionStrategy",
     "AroonStrategy",

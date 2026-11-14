@@ -1800,5 +1800,6 @@ class RiskManager:
 
 __all__ = [
     "PortfolioRisk",
+    "RiskAttribution",
     "RiskManager",
 ]

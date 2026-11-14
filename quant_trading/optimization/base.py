@@ -958,6 +958,7 @@ class BaseOptimizer(ABC):
 
 __all__ = [
     "BaseOptimizer",
+    "ObjectiveFunction",
     "OptimizationResult",
     "ParameterGrid",
     "ParameterSpace",
