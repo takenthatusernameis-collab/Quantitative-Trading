@@ -27,6 +27,7 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -50,7 +51,7 @@ def _cli_section() -> str:
     return remainder if end == -1 else remainder[:end]
 
 
-def _readme_commands() -> list[pytest.param]:
+def _readme_commands() -> list[pytest.ParameterSet]:
     """Extract the ``examples/cli.py`` argument lists documented in the README.
 
     Backslash-continued command lines are joined into a single command.
@@ -61,7 +62,7 @@ def _readme_commands() -> list[pytest.param]:
     excluded from the default coverage run, which otherwise exceeds the session
     timeout on these long-running invocations.
     """
-    params: list[pytest.param] = []
+    params: list[pytest.ParameterSet] = []
     section = _cli_section()
     for block in _CODE_BLOCK.finditer(section):
         logical_lines: list[str] = []
@@ -126,7 +127,13 @@ def _make_ohlcv_frame(symbol: str, start: datetime | None, end: datetime | None)
     )
 
 
-def _mock_fetch(self, symbols, start=None, end=None, interval="1d"):
+def _mock_fetch(
+    self: Any,
+    symbols: list[str],
+    start: datetime | None = None,
+    end: datetime | None = None,
+    interval: str = "1d",
+) -> FetchResult:
     """Stand-in for provider.fetch that returns synthetic OHLCV for every symbol."""
     result = FetchResult()
     for symbol in symbols:
@@ -140,7 +147,7 @@ def _mock_fetch(self, symbols, start=None, end=None, interval="1d"):
     return result
 
 
-def _mock_fetch_many(self, requests):
+def _mock_fetch_many(self: Any, requests: list[dict[str, Any]]) -> dict[str, FetchResult]:
     """Stand-in for provider.fetch_many that delegates to ``_mock_fetch``."""
     out: dict[str, FetchResult] = {}
     for req in requests:
@@ -154,7 +161,7 @@ def _mock_fetch_many(self, requests):
 
 
 @pytest.fixture(autouse=True)
-def mocked_network_providers(monkeypatch: pytest.MonkeyPatch):
+def mocked_network_providers(monkeypatch: pytest.MonkeyPatch) -> None:
     """Mock YFinance/AlphaVantage fetch so network README commands run offline."""
     monkeypatch.setattr(YFinanceProvider, "fetch", _mock_fetch)
     monkeypatch.setattr(YFinanceProvider, "fetch_many", _mock_fetch_many)
@@ -232,7 +239,7 @@ class TestReadmeCliCommands:
     any network access.
     """
 
-    def test_command_runs_with_documented_exit_code(self, args, tmp_path):
+    def test_command_runs_with_documented_exit_code(self, args: list[str], tmp_path: Path) -> None:
         """Every README CLI command exits with the documented code, no traceback."""
         expected_rc = 1 if _expects_failure(args) else 0
 
@@ -259,13 +266,13 @@ class TestReadmeCliCommands:
 
 
 class TestExplicitCombinedAndStrategyConfigErrors:
-    def test_combined_mc_simulations_zero(self, tmp_path):
+    def test_combined_mc_simulations_zero(self, tmp_path: Path) -> None:
         rc, output = _run_cli(["--combined", "--offline", "--mc-simulations", "0"], tmp_path)
         assert rc == 1
         assert "Traceback" not in output
         assert "error" in output.lower()
 
-    def test_combined_missing_strategy_config_file(self, tmp_path):
+    def test_combined_missing_strategy_config_file(self, tmp_path: Path) -> None:
         import contextlib
         import io
         import os
@@ -290,7 +297,7 @@ class TestExplicitCombinedAndStrategyConfigErrors:
         assert "Traceback" not in output.getvalue()
         assert "could not read strategy config" in output.getvalue()
 
-    def test_missing_strategy_config_file(self, tmp_path):
+    def test_missing_strategy_config_file(self, tmp_path: Path) -> None:
         import contextlib
         import io
         import os
@@ -315,7 +322,7 @@ class TestExplicitCombinedAndStrategyConfigErrors:
         assert "Traceback" not in output.getvalue()
         assert "could not read strategy config" in output.getvalue()
 
-    def test_invalid_yaml_config_file_reported(self, tmp_path):
+    def test_invalid_yaml_config_file_reported(self, tmp_path: Path) -> None:
         """A config file that is not valid YAML is reported as a one-line error.
 
         The README's "Error Reporting" section documents that a configuration
@@ -359,7 +366,7 @@ class TestExplicitCombinedAndStrategyConfigErrors:
         assert "Traceback" not in out
         assert "Invalid YAML" in out
 
-    def test_invalid_yaml_strategy_config_file_reported(self, tmp_path):
+    def test_invalid_yaml_strategy_config_file_reported(self, tmp_path: Path) -> None:
         """A strategy config file that is not valid YAML is reported as a one-line error."""
         import contextlib
         import io
