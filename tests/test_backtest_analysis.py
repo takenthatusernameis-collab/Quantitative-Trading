@@ -43,7 +43,7 @@ def _make_equity(n: int = 80, trend: float = 0.001, vol: float = 0.01, seed: int
     return pd.Series(equity, index=dates)
 
 
-def test_analyze_regimes_returns_backtest_regime_analysis():
+def test_analyze_regimes_returns_backtest_regime_analysis() -> None:
     result = _make_result()
     analysis = analyze_regimes(result, window=20)
 
@@ -54,7 +54,7 @@ def test_analyze_regimes_returns_backtest_regime_analysis():
     assert analysis.equity_curve is result.equity_curve
 
 
-def test_analyze_regimes_uses_explicit_thresholds():
+def test_analyze_regimes_uses_explicit_thresholds() -> None:
     result = _make_result()
     analysis = analyze_regimes(result, window=20, vol_threshold=0.15, return_threshold=0.05)
 
@@ -63,7 +63,7 @@ def test_analyze_regimes_uses_explicit_thresholds():
     assert analysis.n_segments >= 1
 
 
-def test_regime_for_backtest_returns_regime_result():
+def test_regime_for_backtest_returns_regime_result() -> None:
     result = _make_result()
     regime_result = regime_for_backtest(result, window=20)
 
@@ -78,7 +78,7 @@ def test_regime_for_backtest_returns_regime_result():
     }
 
 
-def test_backtest_regime_analysis_to_dict_has_segments():
+def test_backtest_regime_analysis_to_dict_has_segments() -> None:
     result = _make_result()
     analysis = analyze_regimes(result, window=20)
 
@@ -89,7 +89,7 @@ def test_backtest_regime_analysis_to_dict_has_segments():
     assert len(data["segments"]) == analysis.n_segments
 
 
-def test_backtest_regime_analysis_to_dataframe_matches_segments():
+def test_backtest_regime_analysis_to_dataframe_matches_segments() -> None:
     result = _make_result()
     analysis = analyze_regimes(result, window=20)
 
@@ -98,7 +98,7 @@ def test_backtest_regime_analysis_to_dataframe_matches_segments():
     assert "regime" in df.columns
 
 
-def test_backtest_regime_analysis_summary_contains_window():
+def test_backtest_regime_analysis_summary_contains_window() -> None:
     result = _make_result()
     analysis = analyze_regimes(result, window=15)
 
@@ -109,7 +109,7 @@ def test_backtest_regime_analysis_summary_contains_window():
     assert summary["return_threshold"] == 0.0
 
 
-def test_analyze_regimes_deterministic():
+def test_analyze_regimes_deterministic() -> None:
     result = _make_result()
     a = analyze_regimes(result, window=20)
     b = analyze_regimes(result, window=20)
@@ -119,7 +119,7 @@ def test_analyze_regimes_deterministic():
     assert a.result.total_volatility == b.result.total_volatility
 
 
-def test_analyze_regimes_empty_equity_yields_no_segments():
+def test_analyze_regimes_empty_equity_yields_no_segments() -> None:
     equity = pd.Series([100_000.0], index=[datetime(2024, 1, 1)])
     result = _make_result(equity=equity)
 
@@ -128,7 +128,7 @@ def test_analyze_regimes_empty_equity_yields_no_segments():
     assert analysis.current_regime == Regime.UNKNOWN
 
 
-def test_analyze_regimes_down_series_is_bear():
+def test_analyze_regimes_down_series_is_bear() -> None:
     equity = _make_equity(n=120, trend=-0.003, vol=0.005, seed=2)
     result = _make_result(equity=equity)
 
@@ -140,7 +140,7 @@ def test_analyze_regimes_down_series_is_bear():
     assert bear_count >= 1
 
 
-def test_analyze_regimes_up_series_is_bull():
+def test_analyze_regimes_up_series_is_bull() -> None:
     equity = _make_equity(n=120, trend=0.003, vol=0.005, seed=1)
     result = _make_result(equity=equity)
 
@@ -152,7 +152,7 @@ def test_analyze_regimes_up_series_is_bull():
     assert bull_count >= 1
 
 
-def test_backtest_regime_analysis_defaults():
+def test_backtest_regime_analysis_defaults() -> None:
     """BacktestRegimeAnalysis defaults to window=20 and zero thresholds."""
     result = _make_result()
     analysis = analyze_regimes(result)
@@ -162,7 +162,7 @@ def test_backtest_regime_analysis_defaults():
     assert analysis.return_threshold == 0.0
 
 
-def test_backtest_regime_analysis_explicit_thresholds_persisted():
+def test_backtest_regime_analysis_explicit_thresholds_persisted() -> None:
     """Explicit vol/return thresholds are stored verbatim on the dataclass."""
     result = _make_result()
     analysis = analyze_regimes(result, window=15, vol_threshold=0.25, return_threshold=0.04)
@@ -172,7 +172,7 @@ def test_backtest_regime_analysis_explicit_thresholds_persisted():
     assert analysis.return_threshold == 0.04
 
 
-def test_backtest_regime_analysis_segments_are_regime_segments():
+def test_backtest_regime_analysis_segments_are_regime_segments() -> None:
     """Every segment exposed by the analysis is a RegimeSegment instance."""
     from quant_trading.regime import RegimeSegment
 
@@ -184,7 +184,7 @@ def test_backtest_regime_analysis_segments_are_regime_segments():
         assert isinstance(segment, RegimeSegment)
 
 
-def test_backtest_regime_analysis_empty_equity():
+def test_backtest_regime_analysis_empty_equity() -> None:
     """A single-point equity curve yields no segments and UNKNOWN current regime."""
     equity = pd.Series([100_000.0], index=[datetime(2024, 1, 1)])
     result = _make_result(equity=equity)
@@ -196,7 +196,7 @@ def test_backtest_regime_analysis_empty_equity():
     assert analysis.current_regime == Regime.UNKNOWN
 
 
-def test_backtest_regime_analysis_to_dict_full_payload():
+def test_backtest_regime_analysis_to_dict_full_payload() -> None:
     """to_dict exposes window, thresholds, regime stats and segment list."""
     result = _make_result()
     analysis = analyze_regimes(result, window=25, vol_threshold=0.12, return_threshold=0.03)
@@ -212,7 +212,7 @@ def test_backtest_regime_analysis_to_dict_full_payload():
     assert len(data["segments"]) == analysis.n_segments
 
 
-def test_backtest_regime_analysis_summary_explicit_thresholds():
+def test_backtest_regime_analysis_summary_explicit_thresholds() -> None:
     """summary() carries the explicitly configured window and thresholds."""
     result = _make_result()
     analysis = analyze_regimes(result, window=15, vol_threshold=0.25, return_threshold=0.04)
@@ -224,7 +224,7 @@ def test_backtest_regime_analysis_summary_explicit_thresholds():
     assert summary["n_segments"] == analysis.n_segments
 
 
-def test_analyze_regimes_periods_per_year_scales_annualized_volatility():
+def test_analyze_regimes_periods_per_year_scales_annualized_volatility() -> None:
     """A non-daily annualization rescales the reported regime volatility."""
     res = _make_result()
 
@@ -239,7 +239,7 @@ def test_analyze_regimes_periods_per_year_scales_annualized_volatility():
     )
 
 
-def test_regime_for_backtest_periods_per_year_scales_annualized_volatility():
+def test_regime_for_backtest_periods_per_year_scales_annualized_volatility() -> None:
     """regime_for_backtest annualizes with the requested period count."""
     res = _make_result()
 
@@ -253,7 +253,7 @@ def test_regime_for_backtest_periods_per_year_scales_annualized_volatility():
     )
 
 
-def test_analyze_regimes_auto_thresholds_keep_labels_across_periods_per_year():
+def test_analyze_regimes_auto_thresholds_keep_labels_across_periods_per_year() -> None:
     """Auto-derived thresholds scale with the statistics, so the labels hold.
 
     The auto-derived thresholds are the means of the very statistics they
@@ -269,7 +269,7 @@ def test_analyze_regimes_auto_thresholds_keep_labels_across_periods_per_year():
     assert daily.result.regimes == weekly.result.regimes
 
 
-def test_analyze_regimes_explicit_thresholds_follow_periods_per_year():
+def test_analyze_regimes_explicit_thresholds_follow_periods_per_year() -> None:
     """An explicit annualized threshold is a fixed number, so labels follow.
 
     The threshold is given in annualized units and therefore does not move with
@@ -287,7 +287,7 @@ def test_analyze_regimes_explicit_thresholds_follow_periods_per_year():
     assert daily.result.n_segments != weekly.result.n_segments
 
 
-def test_backtest_regime_analysis_records_periods_per_year():
+def test_backtest_regime_analysis_records_periods_per_year() -> None:
     """The analysis reports the annualization factor it used."""
     res = _make_result()
 
@@ -301,7 +301,7 @@ def test_backtest_regime_analysis_records_periods_per_year():
 class TestBacktestRegimeAnalysisFromDict:
     """Tests for BacktestRegimeAnalysis.from_dict deserialization."""
 
-    def test_from_dict_round_trips_to_dict(self):
+    def test_from_dict_round_trips_to_dict(self) -> None:
         """from_dict must reconstruct an analysis from its to_dict output."""
         result = _make_result()
         analysis = analyze_regimes(
@@ -327,7 +327,7 @@ class TestBacktestRegimeAnalysisFromDict:
             assert recon_seg.volatility == pytest.approx(orig_seg.volatility)
             assert recon_seg.return_pct == pytest.approx(orig_seg.return_pct)
 
-    def test_from_dict_defaults_missing_keys(self):
+    def test_from_dict_defaults_missing_keys(self) -> None:
         """Missing keys must fall back to defaults."""
         data = {
             "window": 15,
@@ -350,7 +350,7 @@ class TestBacktestRegimeAnalysisFromDict:
         assert reconstructed.result.total_return_pct == 5.5
         assert reconstructed.n_segments == 0
 
-    def test_from_dict_ignores_extra_keys(self):
+    def test_from_dict_ignores_extra_keys(self) -> None:
         """Extra keys in the dictionary must not raise."""
         result = _make_result()
         analysis = analyze_regimes(result, window=20)
@@ -360,7 +360,7 @@ class TestBacktestRegimeAnalysisFromDict:
         reconstructed = BacktestRegimeAnalysis.from_dict(data)
         assert reconstructed.window == analysis.window
 
-    def test_from_dict_empty_segments(self):
+    def test_from_dict_empty_segments(self) -> None:
         """Empty segments list must be handled correctly."""
         data = {
             "window": 20,
