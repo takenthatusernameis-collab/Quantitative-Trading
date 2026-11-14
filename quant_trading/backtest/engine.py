@@ -780,6 +780,7 @@ class BacktestEngine:
         start: datetime,
         end: datetime,
         interval: str = "1d",
+        benchmark: str | None = None,
     ) -> BacktestResult:
         """Run backtest for given symbols and date range.
 
@@ -789,12 +790,23 @@ class BacktestEngine:
                 position whose bar close hit its stop loss, its take profit or its
                 trailing stop is closed at that close before the bar is closed out.
 
+                When ``benchmark`` names a symbol, its close series is fetched
+                over the same range and interval, aligned to the equity curve and
+                passed to the metrics as ``market_returns``. The market-relative
+                metrics (beta, alpha, Treynor and information ratio) are then
+                populated; without a benchmark they stay at their ``0.0`` default.
+                A benchmark that cannot be fetched leaves them at ``0.0`` instead
+                of failing the run.
+
                 Args:
                     symbols: List of symbols to trade.
                     start: Backtest start date.
                     end: Backtest end date.
         interval: Data interval. Defaults to the configured value, or to "1d"
                     when nothing is configured.
+        benchmark: Optional benchmark symbol whose returns the backtest is
+                    compared against (for example ``"SPY"``). When omitted the
+                    market-relative metrics stay at their defaults.
 
                 Returns:
                     BacktestResult containing equity curve, trades, metrics, and metadata.
@@ -885,6 +897,9 @@ class BacktestEngine:
 
         # Create result
         equity_series = pd.Series(equity_curve, index=[start] + processed_dates)
+        benchmark_returns = self._benchmark_returns(
+            benchmark, start, end, interval, equity_series.index
+        )
         trades_df = pd.DataFrame(
             [
                 {
@@ -917,6 +932,7 @@ class BacktestEngine:
             risk_free_rate=self.config.risk_free_rate,
             periods_per_year=self.config.periods_per_year,
             positions=positions,
+            market_returns=benchmark_returns,
         )
 
         initial_capital = self.config.initial_capital
@@ -954,6 +970,56 @@ class BacktestEngine:
             total_costs=total_costs,
             risk_attribution=risk_attribution,
         )
+
+    def _benchmark_returns(
+        self,
+        benchmark: str | None,
+        start: datetime,
+        end: datetime,
+        interval: str,
+        equity_index: pd.Index,
+    ) -> pd.Series | None:
+        """Fetch a benchmark and return its returns aligned to the equity curve.
+
+        The benchmark close series is fetched over the same range and interval
+        as the backtest, forward-filled onto the equity curve's dates so the
+        returns share an index with the equity curve's own returns, and turned
+        into simple returns. A missing benchmark, a fetch error or an empty
+        series yields ``None`` so the market-relative metrics stay at their
+        defaults instead of failing the run.
+
+        Args:
+            benchmark: Benchmark symbol, or ``None`` to skip the fetch.
+            start: Backtest start date.
+            end: Backtest end date.
+            interval: Data interval of the run.
+            equity_index: Index of the equity curve the returns are aligned to.
+
+        Returns:
+            The aligned benchmark return series, or ``None`` when unavailable.
+
+        """
+        if not benchmark or self.data_manager is None:
+            return None
+
+        result = self.data_manager.fetch([benchmark], start=start, end=end, interval=interval)
+        if result.has_errors or not result.data:
+            return None
+
+        market_data = result.data.get(benchmark)
+        if market_data is None or market_data.data.empty or "close" not in market_data.data:
+            return None
+
+        close = market_data.data["close"]
+        try:
+            # Forward-fill the benchmark close onto the equity curve's dates so
+            # each return is measured against the last known benchmark close.
+            aligned = close.reindex(pd.DatetimeIndex(equity_index), method="ffill")
+        except (TypeError, ValueError):
+            return None
+
+        returns = aligned.pct_change().dropna()
+        return returns if len(returns) else None
 
     def _process_signal(
         self,
@@ -1436,6 +1502,7 @@ def run_backtest(
     data_manager: DataManager | None = None,
     config: Config | DataConfig | None = None,
     periods_per_year: int | None = None,
+    benchmark: str | None = None,
 ) -> BacktestResult:
     """Run a single strategy backtest.
 
@@ -1472,6 +1539,10 @@ def run_backtest(
                 return, volatility, Sharpe, Sortino and Calmar metrics. Defaults to
                 the configured value, or to 252 (daily data) when nothing is
                 configured.
+            benchmark: Optional benchmark symbol (for example ``"SPY"``) whose
+                returns the backtest is compared against. When given, the
+                market-relative metrics (beta, alpha, Treynor and information
+                ratio) are populated; otherwise they stay at their defaults.
 
         Returns:
             BacktestResult containing equity curve, trades, metrics, and metadata.
@@ -1549,4 +1620,4 @@ def run_backtest(
 
     engine = BacktestEngine(config=engine_config, data_manager=data_manager)
     engine.add_strategy(strategy)
-    return engine.run(symbols, start, end, interval)
+    return engine.run(symbols, start, end, interval, benchmark=benchmark)

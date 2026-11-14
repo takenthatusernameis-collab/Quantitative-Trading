@@ -2577,6 +2577,73 @@ class TestMetricsAndAnalysisReconciliationOnEngineResults:
         assert metrics.total_pnl == pytest.approx(booked)
 
 
+class TestBenchmarkRelativeMetrics:
+    """The engine wires a benchmark's returns into the market-relative metrics.
+
+    ``calculate_backtest_metrics`` has always accepted ``market_returns`` and
+    populated beta/alpha/Treynor/information ratio, but the engine never passed
+    them, so a real backtest reported ``0.0`` for every market-relative metric.
+    The optional ``benchmark`` argument fetches the benchmark, aligns it to the
+    equity curve and feeds it to the metrics.
+    """
+
+    @staticmethod
+    def _run(data, traded, benchmark, script):
+        """Run a scripted backtest over ``traded`` with an optional benchmark."""
+        provider = MockDataProvider(data)
+        engine = BacktestEngine(
+            config=BacktestConfig(initial_capital=100000.0),
+            data_manager=DataManager([provider]),
+        )
+        engine.add_strategy(ScriptedSignalStrategy(script, traded))
+        index = data[traded[0]].index
+        # Start one day before the data so the equity curve's first return is
+        # measured against the benchmark's first bar, not a duplicated index.
+        start = index[0] - pd.Timedelta(days=1)
+        return engine.run(
+            traded,
+            start.to_pydatetime(),
+            index[-1].to_pydatetime(),
+            "1d",
+            benchmark=benchmark,
+        )
+
+    def test_benchmark_populates_the_market_relative_metrics(self):
+        """A benchmark's returns populate beta/alpha/Treynor/information ratio."""
+        # TEST and BENCH both rise 10% a day, so the equity curve (fully
+        # invested in TEST) tracks the benchmark and beta is non-zero.
+        data = {
+            "TEST": _price_frame([50.0, 55.0, 60.5, 66.55]),
+            "BENCH": _price_frame([100.0, 110.0, 121.0, 133.1]),
+        }
+        result = self._run(data, ["TEST"], "BENCH", [("buy", 1.0)])
+
+        metrics = result.metrics
+        assert metrics.beta != 0.0
+        assert metrics.alpha == metrics.alpha  # not NaN
+        assert metrics.treynor_ratio == metrics.treynor_ratio
+        assert metrics.information_ratio == metrics.information_ratio
+
+    def test_no_benchmark_leaves_the_market_relative_metrics_at_zero(self):
+        """Without a benchmark the market-relative metrics stay at their defaults."""
+        data = {"TEST": _price_frame([50.0, 55.0, 60.5, 66.55])}
+        result = self._run(data, ["TEST"], None, [("buy", 1.0)])
+
+        metrics = result.metrics
+        assert metrics.beta == 0.0
+        assert metrics.alpha == 0.0
+        assert metrics.treynor_ratio == 0.0
+        assert metrics.information_ratio == 0.0
+
+    def test_missing_benchmark_symbol_is_ignored(self):
+        """A benchmark that cannot be fetched leaves the metrics at zero and does not fail."""
+        data = {"TEST": _price_frame([50.0, 55.0, 60.5, 66.55])}
+        result = self._run(data, ["TEST"], "NOPE", [("buy", 1.0)])
+
+        assert result.metrics.beta == 0.0
+        assert result.metrics.alpha == 0.0
+
+
 class TestBacktestResultSerialization:
     """Tests for BacktestResult.to_dict/from_dict."""
 
