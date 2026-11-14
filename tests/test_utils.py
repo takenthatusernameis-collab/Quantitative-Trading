@@ -1,6 +1,7 @@
 """Tests for utility helpers."""
 
 import logging
+from pathlib import Path
 from unittest.mock import patch
 
 from quant_trading.utils import (
@@ -16,34 +17,34 @@ from quant_trading.utils import (
 )
 
 
-def test_format_currency():
+def test_format_currency() -> None:
     assert format_currency(1234.5) == "$1,234.50"
     assert format_currency(0.0) == "$0.00"
     assert format_currency(-500.0, decimals=0) == "-$500"
 
 
-def test_format_currency_custom_symbol():
+def test_format_currency_custom_symbol() -> None:
     assert format_currency(1234.5, currency="€") == "€1,234.50"
 
 
-def test_format_percent():
+def test_format_percent() -> None:
     assert format_percent(0.05) == "5.00%"
     assert format_percent(0.123456, decimals=2) == "12.35%"
     assert format_percent(1.0) == "100.00%"
 
 
-def test_format_number():
+def test_format_number() -> None:
     assert format_number(1234567.89) == "1,234,568"
     assert format_number(1234.5, decimals=2) == "1,234.50"
 
 
-def test_format_basis_points():
+def test_format_basis_points() -> None:
     assert format_basis_points(100) == "1.0%"
     assert format_basis_points(25, decimals=2) == "0.25%"
     assert format_basis_points(150) == "1.5%"
 
 
-def test_format_shares():
+def test_format_shares() -> None:
     assert format_shares(100) == "100"
     assert format_shares(10.5) == "10.5"
     assert format_shares(100, decimals=2) == "100.00"
@@ -53,7 +54,7 @@ def test_format_shares():
     assert format_shares(-10.5) == "-10.5"
 
 
-def test_format_duration_days():
+def test_format_duration_days() -> None:
     assert format_duration_days(3) == "3 days"
     assert format_duration_days(1) == "1 day"
     assert format_duration_days(7) == "1 week"
@@ -71,38 +72,38 @@ def test_format_duration_days():
     assert format_duration_days(-3) == "-3 days"
 
 
-def test_format_currency_negative_and_zero_decimals():
+def test_format_currency_negative_and_zero_decimals() -> None:
     assert format_currency(-1234.5) == "-$1,234.50"
     assert format_currency(1234.5, decimals=0) == "$1,234"
 
 
-def test_format_percent_negative_and_zero_decimals():
+def test_format_percent_negative_and_zero_decimals() -> None:
     assert format_percent(-0.05) == "-5.00%"
     assert format_percent(0.5, decimals=0) == "50%"
 
 
-def test_format_number_negative_and_zero_decimals():
+def test_format_number_negative_and_zero_decimals() -> None:
     assert format_number(-1234.5) == "-1,234"
     assert format_number(1234.5, decimals=0) == "1,234"
 
 
-def test_format_basis_points_negative_zero_and_zero_decimals():
+def test_format_basis_points_negative_zero_and_zero_decimals() -> None:
     assert format_basis_points(-100) == "-1.0%"
     assert format_basis_points(0) == "0.0%"
     assert format_basis_points(100, decimals=0) == "1%"
 
 
-def test_format_shares_whole_with_decimals_and_negative():
+def test_format_shares_whole_with_decimals_and_negative() -> None:
     assert format_shares(100, decimals=2) == "100.00"
     assert format_shares(-100, decimals=2) == "-100.00"
 
 
-def test_format_duration_days_fractional_and_negative_fractional():
+def test_format_duration_days_fractional_and_negative_fractional() -> None:
     assert format_duration_days(2.5) == "2.5 days"
     assert format_duration_days(-2.5) == "-2.5 days"
 
 
-def test_setup_logger_console_only(tmp_path):
+def test_setup_logger_console_only(tmp_path: Path) -> None:
     name = "_test_utils_console_logger"
     logger = setup_logger(name=name, level="WARNING")
     try:
@@ -112,7 +113,7 @@ def test_setup_logger_console_only(tmp_path):
         logging.getLogger(name).handlers.clear()
 
 
-def test_setup_logger_with_file(tmp_path):
+def test_setup_logger_with_file(tmp_path: Path) -> None:
     name = "_test_utils_file_logger"
     log_file = str(tmp_path / "logs" / "test.log")
     logger = setup_logger(name=name, level="DEBUG", log_file=log_file)
@@ -126,7 +127,7 @@ def test_setup_logger_with_file(tmp_path):
         logging.getLogger(name).handlers.clear()
 
 
-def test_setup_logger_idempotent(tmp_path):
+def test_setup_logger_idempotent(tmp_path: Path) -> None:
     name = "_test_utils_idempotent_logger"
     log_file = str(tmp_path / "test.log")
     logger = setup_logger(name=name, level="DEBUG", log_file=log_file)
@@ -139,7 +140,7 @@ def test_setup_logger_idempotent(tmp_path):
         logging.getLogger(name).handlers.clear()
 
 
-def test_get_logger_creates_or_returns_existing():
+def test_get_logger_creates_or_returns_existing() -> None:
     """get_logger exercises both the no-handler and existing-handler arms (logging.py:44)."""
     name = "_test_utils_get_logger_both"
     logging.getLogger(name).handlers.clear()
@@ -153,7 +154,7 @@ def test_get_logger_creates_or_returns_existing():
         logging.getLogger(name).handlers.clear()
 
 
-def test_format_shares_fractional_and_edge_cases():
+def test_format_shares_fractional_and_edge_cases() -> None:
     assert format_shares(10.5, decimals=0) == "10.5"
     assert format_shares(1000.25, decimals=0) == "1000.25"
     assert format_shares(0) == "0"
@@ -161,7 +162,7 @@ def test_format_shares_fractional_and_edge_cases():
     assert format_shares(-10.5, decimals=0) == "-10.5"
 
 
-def test_format_duration_days_weeks_months_years_edge_cases():
+def test_format_duration_days_weeks_months_years_edge_cases() -> None:
     assert format_duration_days(2) == "2 days"
     assert format_duration_days(2.5) == "2.5 days"
     assert format_duration_days(14) == "2 weeks"
@@ -173,7 +174,7 @@ def test_format_duration_days_weeks_months_years_edge_cases():
     assert format_duration_days(365.25) == "1 year"
 
 
-def test_clear_loggers_named_and_root():
+def test_clear_loggers_named_and_root() -> None:
     name = "_test_utils_clear_loggers"
     logger = setup_logger(name=name, level="INFO")
     assert len(logger.handlers) >= 1
@@ -190,7 +191,7 @@ def test_clear_loggers_named_and_root():
         root.handlers.clear()
 
 
-def test_clear_loggers_swallow_handler_close_error():
+def test_clear_loggers_swallow_handler_close_error() -> None:
     """clear_loggers must not propagate an error raised by handler.close().
 
     A handler whose close() raises OSError (or ValueError) is still removed
