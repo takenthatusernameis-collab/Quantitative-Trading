@@ -93,7 +93,7 @@ def _positions(portfolio: Portfolio) -> dict[str, tuple[float, float, float]]:
 
 
 @pytest.mark.parametrize("seed", range(20))
-def test_randomized_trade_sequence_invariants(seed: int):
+def test_randomized_trade_sequence_invariants(seed: int) -> None:
     """A random sequence of trades keeps every portfolio invariant intact."""
     rng = np.random.default_rng(seed)
     commission = float(rng.uniform(0.0, 0.02))
@@ -144,7 +144,7 @@ def test_randomized_trade_sequence_invariants(seed: int):
 
 
 @pytest.mark.parametrize("seed", range(20))
-def test_reduction_never_changes_the_remaining_basis(seed: int):
+def test_reduction_never_changes_the_remaining_basis(seed: int) -> None:
     """Reducing a long leaves the cost basis of the remaining position alone."""
     rng = np.random.default_rng(seed)
     commission = float(rng.uniform(0.0, 0.02))
@@ -171,7 +171,7 @@ def test_reduction_never_changes_the_remaining_basis(seed: int):
 
 
 @pytest.mark.parametrize("seed", range(20))
-def test_add_holding_reduction_matches_remove_holding(seed: int):
+def test_add_holding_reduction_matches_remove_holding(seed: int) -> None:
     """Both public ways of selling a position leave the same portfolio."""
     rng = np.random.default_rng(seed)
     commission = float(rng.uniform(0.0, 0.02))
@@ -210,7 +210,7 @@ def test_add_holding_reduction_matches_remove_holding(seed: int):
 
 
 @pytest.mark.parametrize("seed", range(20))
-def test_covering_a_short_matches_remove_holding(seed: int):
+def test_covering_a_short_matches_remove_holding(seed: int) -> None:
     """Buying back a short leaves the same portfolio as removing it."""
     rng = np.random.default_rng(seed)
     commission = float(rng.uniform(0.0, 0.02))
@@ -246,7 +246,7 @@ def test_covering_a_short_matches_remove_holding(seed: int):
 
 
 @pytest.mark.parametrize("seed", range(10))
-def test_adding_to_a_short_keeps_the_position(seed: int):
+def test_adding_to_a_short_keeps_the_position(seed: int) -> None:
     """Selling more of an open short grows it instead of replacing it."""
     rng = np.random.default_rng(seed)
     commission = float(rng.uniform(0.0, 0.02))
@@ -268,7 +268,7 @@ def test_adding_to_a_short_keeps_the_position(seed: int):
     _assert_portfolio_invariants(portfolio)
 
 
-def test_fully_offset_position_is_removed():
+def test_fully_offset_position_is_removed() -> None:
     """A position that is fully offset disappears from the portfolio."""
     portfolio = Portfolio(cash=INITIAL_CASH, initial_capital=INITIAL_CASH)
     portfolio.add_holding("AAA", 100, 50.0)
@@ -280,7 +280,7 @@ def test_fully_offset_position_is_removed():
     _assert_portfolio_invariants(portfolio)
 
 
-def test_fully_covered_short_is_removed():
+def test_fully_covered_short_is_removed() -> None:
     """A short that is fully covered disappears from the portfolio."""
     portfolio = Portfolio(cash=INITIAL_CASH, initial_capital=INITIAL_CASH)
     portfolio.add_holding("AAA", -100, 50.0)
@@ -291,7 +291,7 @@ def test_fully_covered_short_is_removed():
     _assert_portfolio_invariants(portfolio)
 
 
-def test_zero_quantity_trade_creates_no_position():
+def test_zero_quantity_trade_creates_no_position() -> None:
     """A zero-sized trade must not leave a position behind."""
     portfolio = Portfolio(cash=INITIAL_CASH, initial_capital=INITIAL_CASH)
     portfolio.add_holding("AAA", 0, 50.0)
@@ -302,7 +302,7 @@ def test_zero_quantity_trade_creates_no_position():
     _assert_portfolio_invariants(portfolio)
 
 
-def test_reduction_larger_than_the_position_sells_only_what_is_held():
+def test_reduction_larger_than_the_position_sells_only_what_is_held() -> None:
     """A reduction is capped at the size of the position."""
     portfolio = Portfolio(cash=INITIAL_CASH, initial_capital=INITIAL_CASH)
     portfolio.add_holding("AAA", 100, 50.0)
