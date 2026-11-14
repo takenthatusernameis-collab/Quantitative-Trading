@@ -411,7 +411,7 @@ class TestStrategyValidateParameters:
         """Test default validate_parameters does not raise."""
 
         class NoValidationStrategy(Strategy):
-            def generate_signals(self, data) -> None:
+            def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
                 return []
 
         strategy = NoValidationStrategy(name="Test")
@@ -429,7 +429,7 @@ class TestStrategyValidateParameters:
             def validate_parameters(self) -> None:
                 self.validate_called = True
 
-            def generate_signals(self, data) -> None:
+            def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
                 return []
 
         strategy = TrackingStrategy(name="Test")
@@ -454,7 +454,7 @@ class TestStrategyDescriptionDerivation:
             It buys when RSI is oversold and sells when overbought.
             """
 
-            def generate_signals(self, data) -> None:
+            def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
                 return []
 
         strategy = DocstringStrategy(name="Test")
@@ -468,7 +468,7 @@ class TestStrategyDescriptionDerivation:
 
             description = "Explicitly set description"
 
-            def generate_signals(self, data) -> None:
+            def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
                 return []
 
         strategy = ExplicitDescriptionStrategy(name="Test")
@@ -478,7 +478,7 @@ class TestStrategyDescriptionDerivation:
         """A subclass with no docstring and no description keeps description None."""
 
         class NoDocstringStrategy(Strategy):
-            def generate_signals(self, data) -> None:
+            def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
                 return []
 
         strategy = NoDocstringStrategy(name="Test")
