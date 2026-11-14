@@ -15,6 +15,7 @@ import dataclasses
 import importlib
 import pkgutil
 from datetime import datetime
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -48,7 +49,7 @@ from quant_trading.strategies.base import Position, Signal
 _DICT_STABLE = {BacktestResult, BacktestRegimeAnalysis, MarketData, FetchResult}
 
 
-def _instances():
+def _instances() -> list[tuple[type, Any]]:
     ts = datetime(2024, 1, 1, 12, 0, 0)
     metrics = BacktestMetrics()
     segment = RegimeSegment(
@@ -183,7 +184,7 @@ def _instances():
     _instances(),
     ids=[cls.__name__ for cls, _ in _instances()],
 )
-def test_serialization_round_trip(cls, instance):
+def test_serialization_round_trip(cls: type, instance: Any) -> None:
     """Serializable dataclasses must round-trip through to_dict/from_dict."""
     restored = cls.from_dict(instance.to_dict())
     if cls in _DICT_STABLE:
@@ -192,7 +193,7 @@ def test_serialization_round_trip(cls, instance):
         assert restored == instance
 
 
-def test_walk_forward_window_from_dict_drops_unexpected_result_types():
+def test_walk_forward_window_from_dict_drops_unexpected_result_types() -> None:
     """WalkForwardWindow.from_dict coerces unexpected train/test result values to None.
 
     Covers the defensive branch at quant_trading/optimization/walk_forward.py:176
@@ -217,7 +218,7 @@ def test_walk_forward_window_from_dict_drops_unexpected_result_types():
     assert window.best_params == {"fast": 5}
 
 
-def test_walk_forward_result_from_dict_rejects_unexpected_combined_type():
+def test_walk_forward_result_from_dict_rejects_unexpected_combined_type() -> None:
     """WalkForwardResult.from_dict coerces an unexpected combined_test_result to None.
 
     Covers the defensive branch at quant_trading/optimization/walk_forward.py:278-279
@@ -238,7 +239,7 @@ def test_walk_forward_result_from_dict_rejects_unexpected_combined_type():
     assert result.windows == []
 
 
-def test_walk_forward_window_from_dict_restores_backtest_result_instance():
+def test_walk_forward_window_from_dict_restores_backtest_result_instance() -> None:
     """WalkForwardWindow.from_dict keeps an already-built BacktestResult (line 173).
 
     Covers the ``isinstance(value, BacktestResult)`` branch of ``_restore_result``:
@@ -274,7 +275,7 @@ def test_walk_forward_window_from_dict_restores_backtest_result_instance():
     assert window.best_params == {"fast": 5}
 
 
-def test_walk_forward_window_from_dict_restores_backtest_result_from_dict():
+def test_walk_forward_window_from_dict_restores_backtest_result_from_dict() -> None:
     """WalkForwardWindow.from_dict rebuilds a BacktestResult from a dict (line 175).
 
     Covers the ``isinstance(value, dict)`` branch of ``_restore_result``: a dict
@@ -309,7 +310,7 @@ def test_walk_forward_window_from_dict_restores_backtest_result_from_dict():
     assert window.best_params == {"fast": 5}
 
 
-def test_walk_forward_result_from_dict_restores_combined_test_result_from_dict():
+def test_walk_forward_result_from_dict_restores_combined_test_result_from_dict() -> None:
     """WalkForwardResult.from_dict rebuilds combined_test_result from a dict (line 277).
 
     Covers the ``isinstance(combined, dict)`` branch: a dict payload for
@@ -340,7 +341,7 @@ def test_walk_forward_result_from_dict_restores_combined_test_result_from_dict()
     assert restored.windows == []
 
 
-def test_optimization_result_from_dict_coerces_datetime_start_time():
+def test_optimization_result_from_dict_coerces_datetime_start_time() -> None:
     """OptimizationResult.from_dict keeps a datetime start_time (base.py:755).
 
     Covers the datetime branch of the private ``_coerce_datetime`` helper in
@@ -356,7 +357,7 @@ def test_optimization_result_from_dict_coerces_datetime_start_time():
     assert OptimizationResult.from_dict(result.to_dict()) == result
 
 
-def test_optimization_result_from_dict_drops_uncoercible_start_time():
+def test_optimization_result_from_dict_drops_uncoercible_start_time() -> None:
     """OptimizationResult.from_dict drops a non-coercible start_time (base.py:758).
 
     Covers the fallback branch of the private ``_coerce_datetime`` helper in
@@ -372,7 +373,7 @@ def test_optimization_result_from_dict_drops_uncoercible_start_time():
     assert result.best_score == 1.0
 
 
-def test_every_dataclass_declares_to_dict_and_from_dict():
+def test_every_dataclass_declares_to_dict_and_from_dict() -> None:
     """Every dataclass defined in ``quant_trading/`` must expose ``to_dict``/``from_dict``.
 
     This introspection guard complements the explicit round-trip cases above:
