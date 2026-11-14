@@ -212,3 +212,6 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
 ]
+[[tool.mypy.overrides]]
+module = "tests.test_walk_forward"
+disallow_untyped_defs = true
