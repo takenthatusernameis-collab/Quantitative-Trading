@@ -52,7 +52,16 @@ def _parse(path: Path) -> ast.Module:
     return ast.parse(source, filename=str(rel))
 
 
-def test_all_source_files_parse():
+def _is_docstring_expr(statement: ast.stmt) -> bool:
+    """Return whether a statement is a string-literal expression."""
+    return (
+        isinstance(statement, ast.Expr)
+        and isinstance(statement.value, ast.Constant)
+        and isinstance(statement.value.value, str)
+    )
+
+
+def test_all_source_files_parse() -> None:
     """Every Python file in the package and test tree must be parseable.
 
     A duplicated keyword argument (e.g. ``total_costs=total_costs,`` passed
@@ -65,7 +74,7 @@ def test_all_source_files_parse():
         _parse(path)
 
 
-def test_no_duplicate_module_level_definitions():
+def test_no_duplicate_module_level_definitions() -> None:
     """No module may define the same top-level function or class twice.
 
     A second definition silently replaces the first one, so the earlier
@@ -85,7 +94,7 @@ def test_no_duplicate_module_level_definitions():
     assert not offenders, "duplicate module-level definitions:\n" + "\n".join(offenders)
 
 
-def test_no_duplicate_methods_or_class_fields():
+def test_no_duplicate_methods_or_class_fields() -> None:
     """No class may define the same method or annotated field twice.
 
     Duplicated dataclass fields are legal Python but the later annotation
@@ -117,7 +126,7 @@ def test_no_duplicate_methods_or_class_fields():
     assert not offenders, "duplicate class members:\n" + "\n".join(offenders)
 
 
-def test_all_package_modules_import():
+def test_all_package_modules_import() -> None:
     """Every module of the ``quant_trading`` package must import cleanly."""
     failures: list[str] = []
     for module in pkgutil.walk_packages(quant_trading.__path__, prefix="quant_trading."):
@@ -128,7 +137,7 @@ def test_all_package_modules_import():
     assert not failures, "modules failed to import:\n" + "\n".join(failures)
 
 
-def test_no_duplicate_all_entries():
+def test_no_duplicate_all_entries() -> None:
     """No module may list the same name twice in ``__all__``."""
     offenders: list[str] = []
     for path in _python_files():
@@ -152,7 +161,7 @@ def test_no_duplicate_all_entries():
     assert not offenders, "duplicate __all__ entries:\n" + "\n".join(offenders)
 
 
-def test_validate_parameters_overrides_annotated_none():
+def test_validate_parameters_overrides_annotated_none() -> None:
     """Every override of validate_parameters must declare -> None."""
     offenders: list[str] = []
     for path in _python_files():
@@ -200,7 +209,7 @@ def _cli_strategy_keys(tree: ast.Module) -> set[str]:
     return keys
 
 
-def test_cli_strategy_keys_match_registry():
+def test_cli_strategy_keys_match_registry() -> None:
     """The CLI's hardcoded strategy keys must match the live registry.
 
     ``examples/cli.py`` duplicates the registry's primary keys in the
@@ -255,7 +264,7 @@ def _cli_provider_entries(tree: ast.Module) -> dict[str, str]:
     return entries
 
 
-def test_cli_provider_entries_match_data_providers():
+def test_cli_provider_entries_match_data_providers() -> None:
     import quant_trading.data.providers as providers_mod
     import quant_trading.data.synthetic as synthetic_mod
     import quant_trading.data.yfinance_provider as yf_mod
@@ -277,7 +286,7 @@ def test_cli_provider_entries_match_data_providers():
     assert not offenders, "CLI providers out of sync:\\n" + "\\n".join(offenders)
 
 
-def test_class_docstring_is_first_statement():
+def test_class_docstring_is_first_statement() -> None:
     """A class docstring must be the first statement in the class body.
 
     A docstring placed after assignments or methods is a dead ``Expr``
@@ -292,26 +301,18 @@ def test_class_docstring_is_first_statement():
             if not isinstance(node, ast.ClassDef) or not node.body:
                 continue
             first = node.body[0]
-            first_is_docstring = (
-                isinstance(first, ast.Expr)
-                and isinstance(getattr(first, "value", None), ast.Constant)
-                and isinstance(first.value.value, str)
-            )
+            first_is_docstring = _is_docstring_expr(first)
             if first_is_docstring:
                 continue
             for stmt in node.body[1:]:
-                if (
-                    isinstance(stmt, ast.Expr)
-                    and isinstance(getattr(stmt, "value", None), ast.Constant)
-                    and isinstance(stmt.value.value, str)
-                ):
+                if _is_docstring_expr(stmt):
                     rel = path.relative_to(REPO_ROOT)
                     offenders.append(f"{rel}:{node.lineno} ({node.name})")
                     break
     assert not offenders, "stray class docstring not first:\n" + "\n".join(offenders)
 
 
-def test_module_docstring_is_first_statement():
+def test_module_docstring_is_first_statement() -> None:
     """A module docstring must be the first statement in the module body.
 
     A docstring placed after imports or other statements is a dead ``Expr``
@@ -325,19 +326,11 @@ def test_module_docstring_is_first_statement():
         if not tree.body:
             continue
         first = tree.body[0]
-        first_is_docstring = (
-            isinstance(first, ast.Expr)
-            and isinstance(getattr(first, "value", None), ast.Constant)
-            and isinstance(first.value.value, str)
-        )
+        first_is_docstring = _is_docstring_expr(first)
         if first_is_docstring:
             continue
         for stmt in tree.body[1:]:
-            if (
-                isinstance(stmt, ast.Expr)
-                and isinstance(getattr(stmt, "value", None), ast.Constant)
-                and isinstance(stmt.value.value, str)
-            ):
+            if _is_docstring_expr(stmt):
                 rel = path.relative_to(REPO_ROOT)
                 offenders.append(f"{rel}:{stmt.lineno}")
                 break
@@ -355,7 +348,7 @@ _OPTIMIZER_FEATURE_MARKERS: dict[str, str] = {
 }
 
 
-def test_readme_features_list_advertises_all_optimizers():
+def test_readme_features_list_advertises_all_optimizers() -> None:
     """The README "Features" bullet must name every exported optimizer class.
 
     The Features list is the first thing a reader sees. If an optimizer is
@@ -379,7 +372,7 @@ def test_readme_features_list_advertises_all_optimizers():
     ), "README Features bullet does not advertise every exported optimizer:\n" + "\n".join(missing)
 
 
-def test_strategies_init_all_exports_exist():
+def test_strategies_init_all_exports_exist() -> None:
     """Every name in quant_trading.strategies.__all__ must be importable."""
     import quant_trading.strategies as mod
 
@@ -387,7 +380,7 @@ def test_strategies_init_all_exports_exist():
     assert not missing, "strategies.__all__ names missing from module: " + ", ".join(missing)
 
 
-def test_all_package_all_exports_resolve():
+def test_all_package_all_exports_resolve() -> None:
     """Every name in every package's __all__ must be bound to a module attribute.
 
     A name listed in ``__all__`` that is not defined or imported in the package
@@ -412,7 +405,7 @@ def test_all_package_all_exports_resolve():
     assert not failures, "package __all__ exports not bound:\n" + "\n".join(failures)
 
 
-def test_package_reexports_are_listed_in_defining_module_all():
+def test_package_reexports_are_listed_in_defining_module_all() -> None:
     """A name a package re-exports must also be listed in its defining module's __all__.
 
     ``test_all_package_all_exports_resolve`` guards the other direction: a name
@@ -520,7 +513,7 @@ def _cli_strategy_param_map(tree: ast.Module) -> dict[str, list[tuple[str, str]]
     raise AssertionError("strategy_param_map not found in create_strategy")
 
 
-def test_cli_arg_defaults_match_strategy_init_defaults():
+def test_cli_arg_defaults_match_strategy_init_defaults() -> None:
     """CLI defaults for mapped strategy parameters must match the class defaults.
 
     ``examples/cli.py`` declares ``CLI_ARG_DEFAULTS`` and maps them onto
@@ -558,7 +551,8 @@ def test_cli_arg_defaults_match_strategy_init_defaults():
         if not pairs:
             continue
         cls = get_strategy(strategy_key)
-        signature = inspect.signature(cls.__init__)
+        assert cls is not None
+        signature = inspect.signature(cls)
         for cli_arg, param_name in pairs:
             if cli_arg not in cli_defaults:
                 failures.append(f"{strategy_key}: {cli_arg} missing from CLI_ARG_DEFAULTS")
@@ -637,7 +631,7 @@ def _cli_flag_defaults(tree: ast.Module) -> dict[str, dict[str, object]]:
     return flags
 
 
-def test_cli_arg_defaults_entries_are_used_by_a_flag():
+def test_cli_arg_defaults_entries_are_used_by_a_flag() -> None:
     """Every ``CLI_ARG_DEFAULTS`` entry must back a real argparse flag default.
 
     ``CLI_ARG_DEFAULTS`` is the single source of truth the CLI's argument
@@ -656,7 +650,7 @@ def test_cli_arg_defaults_entries_are_used_by_a_flag():
         if isinstance(key, ast.Constant) and isinstance(key.value, str)
     }
     flag_defaults = _cli_flag_defaults(tree)
-    used_keys = {spec["default_key"] for spec in flag_defaults.values()}
+    used_keys: set[str] = {cast(str, spec["default_key"]) for spec in flag_defaults.values()}
 
     unused = sorted(defined - used_keys)
     dangling = sorted(used_keys - defined)
@@ -733,7 +727,7 @@ def _cli_default_type_mismatches(
     return failures
 
 
-def test_cli_arg_defaults_type_matches_default():
+def test_cli_arg_defaults_type_matches_default() -> None:
     """Each ``CLI_ARG_DEFAULTS``-backed flag's ``type=`` must fit its default.
 
     A flag whose ``default=`` reads ``CLI_ARG_DEFAULTS[key]`` is only meaningful
@@ -839,7 +833,7 @@ def _cli_range_default_failures(range_flags: dict[str, str]) -> list[str]:
     return failures
 
 
-def test_cli_range_defaults_match_parse_range_format():
+def test_cli_range_defaults_match_parse_range_format() -> None:
     """Every ``--*-range`` flag default must be a valid ``min,max,step`` range.
 
     Range flags are parsed at runtime by ``parse_range``, which requires
@@ -945,7 +939,7 @@ _STRATEGIES_WITHOUT_DEDICATED_CLI_FLAGS: frozenset[str] = frozenset(
 )
 
 
-def test_registered_strategies_have_documented_cli_coverage():
+def test_registered_strategies_have_documented_cli_coverage() -> None:
     """Every strategy with tunable defaults is CLI-mapped or allowlisted.
 
     ``create_strategy`` exposes dedicated flags only for strategies in
@@ -976,9 +970,9 @@ def test_registered_strategies_have_documented_cli_coverage():
         if strategy_cls is None:
             failures.append(f"strategy_param_map key {strategy_key!r} is not a registered strategy")
             continue
-        tunables = set(_tunable_init_params(strategy_cls))
+        tunables = _tunable_init_params(strategy_cls)
         mapped = {param_name for _, param_name in pairs}
-        unmapped = sorted(tunables - mapped)
+        unmapped = sorted(set(tunables) - mapped)
         if unmapped:
             failures.append(
                 f"{strategy_key}: tunable __init__ params not exposed by a dedicated "
@@ -1017,7 +1011,7 @@ def test_registered_strategies_have_documented_cli_coverage():
     assert not failures, "CLI strategy coverage is incomplete:\n" + "\n".join(failures)
 
 
-def test_cli_strategy_imports_exist():
+def test_cli_strategy_imports_exist() -> None:
     """Names imported from quant_trading.strategies by examples/cli.py must exist."""
     import ast
 
@@ -1033,7 +1027,7 @@ def test_cli_strategy_imports_exist():
     assert not missing, "examples/cli.py imports missing from strategies: " + ", ".join(missing)
 
 
-def test_example_scripts_import_from_strategies_examples_exist():
+def test_example_scripts_import_from_strategies_examples_exist() -> None:
     """Names imported from quant_trading.strategies.examples by example scripts must exist."""
     import ast
 
@@ -1058,7 +1052,7 @@ def test_example_scripts_import_from_strategies_examples_exist():
     assert not failures, "example script imports missing:\n" + "\n".join(failures)
 
 
-def test_example_scripts_quant_trading_imports_exist():
+def test_example_scripts_quant_trading_imports_exist() -> None:
     """Names imported from quant_trading.* by example scripts must exist."""
     import ast
     import importlib
@@ -1086,7 +1080,7 @@ def test_example_scripts_quant_trading_imports_exist():
     assert not failures, "example script imports missing:\n" + "\n".join(failures)
 
 
-def test_cli_quant_trading_imports_exist():
+def test_cli_quant_trading_imports_exist() -> None:
     """Names imported from quant_trading.* by examples/cli.py must exist."""
     import ast
     import importlib
@@ -1114,7 +1108,7 @@ def test_cli_quant_trading_imports_exist():
     assert not failures, "CLI imports missing:\n" + "\n".join(failures)
 
 
-def test_readme_quant_trading_imports_exist():
+def test_readme_quant_trading_imports_exist() -> None:
     """Names imported from quant_trading.* in README code blocks must exist."""
     import ast
     import importlib
@@ -1203,7 +1197,7 @@ def _example_scripts_section_bounds() -> tuple[int, int]:
     return start, end
 
 
-def test_no_duplicate_example_script_demos():
+def test_no_duplicate_example_script_demos() -> None:
     """Every example script must be documented at most once in the Example Scripts section.
 
     A script advertised twice (once in prose and once in a stray duplicate block,
@@ -1222,7 +1216,7 @@ def test_no_duplicate_example_script_demos():
     assert not duplicates, "example scripts documented more than once:\n" + "\n".join(duplicates)
 
 
-def test_no_example_script_refs_outside_example_scripts_section():
+def test_no_example_script_refs_outside_example_scripts_section() -> None:
     """Every ``examples/run_*.py`` reference must live in the Example Scripts section.
 
     References that appear in other sections (or in a trailing orphaned block
@@ -1245,7 +1239,7 @@ def test_no_example_script_refs_outside_example_scripts_section():
     )
 
 
-def test_example_scripts_section_has_code_block_for_every_ref():
+def test_example_scripts_section_has_code_block_for_every_ref() -> None:
     """Every example script referenced after the section lead must have a runnable code block.
 
     A prose mention without a ``python examples/run_*.py`` line gives readers no
@@ -1274,7 +1268,7 @@ def test_example_scripts_section_has_code_block_for_every_ref():
     )
 
 
-def test_readme_license_is_the_final_section():
+def test_readme_license_is_the_final_section() -> None:
     """The README must end with the License section and nothing after it.
 
     A trailing block of orphaned example-script demos past the final section is
@@ -1297,7 +1291,7 @@ def test_readme_license_is_the_final_section():
         )
 
 
-def test_no_duplicate_section_titles():
+def test_no_duplicate_section_titles() -> None:
     """Every README section title must appear exactly once, at any level.
 
     The same title used at two different heading levels (for example a ``###``
@@ -1342,7 +1336,7 @@ def _readme_opening_fences() -> list[tuple[int, str]]:
     return fences
 
 
-def test_readme_code_block_language_tags_are_supported():
+def test_readme_code_block_language_tags_are_supported() -> None:
     """Every fenced code block must use a supported language tag.
 
     Supported tags are ``bash``, ``python``, ``yaml`` and an untagged block
@@ -1357,7 +1351,7 @@ def test_readme_code_block_language_tags_are_supported():
     assert not offenders, "unsupported README code-block language tags:\n" + "\n".join(offenders)
 
 
-def test_readme_backtick_quant_trading_names_resolve():
+def test_readme_backtick_quant_trading_names_resolve() -> None:
     """Every ``quant_trading.*`` dotted name in README backticks must resolve."""
     import importlib
 
