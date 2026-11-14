@@ -11,7 +11,7 @@ from quant_trading.strategies.base import Position, Signal, Strategy, StrategyMa
 class TestPosition:
     """Tests for Position dataclass."""
 
-    def test_pnl_property(self):
+    def test_pnl_property(self) -> None:
         """Test Position.pnl returns sum of unrealized and realized PnL."""
         pos = Position(
             symbol="AAPL",
@@ -23,12 +23,12 @@ class TestPosition:
         )
         assert pos.pnl == 1500.0
 
-    def test_pnl_property_zero(self):
+    def test_pnl_property_zero(self) -> None:
         """Test Position.pnl returns 0 when both components are zero."""
         pos = Position(symbol="AAPL")
         assert pos.pnl == 0.0
 
-    def test_pnl_property_negative_unrealized(self):
+    def test_pnl_property_negative_unrealized(self) -> None:
         """Test Position.pnl with negative unrealized PnL."""
         pos = Position(
             symbol="AAPL",
@@ -37,12 +37,12 @@ class TestPosition:
         )
         assert pos.pnl == 300.0
 
-    def test_market_value_property(self):
+    def test_market_value_property(self) -> None:
         """Test Position.market_value returns quantity times current price."""
         pos = Position(symbol="AAPL", quantity=100, current_price=160.0)
         assert pos.market_value == 16000.0
 
-    def test_market_value_property_zero(self):
+    def test_market_value_property_zero(self) -> None:
         """Test Position.market_value returns 0 when quantity is zero."""
         pos = Position(symbol="AAPL", quantity=0, current_price=160.0)
         assert pos.market_value == 0.0
@@ -51,12 +51,12 @@ class TestPosition:
 class TestSignal:
     """Tests for the Signal dataclass."""
 
-    def test_timestamp_defaults_to_now(self):
+    def test_timestamp_defaults_to_now(self) -> None:
         """A signal created without a timestamp gets the current time."""
         signal = Signal(symbol="AAPL", action="buy", price=150.0)
         assert signal.timestamp is not None
 
-    def test_explicit_timestamp_is_preserved(self):
+    def test_explicit_timestamp_is_preserved(self) -> None:
         """An explicitly given timestamp is not overridden by __post_init__."""
         fixed = datetime(2024, 1, 1, 12, 0, 0)
         signal = Signal(symbol="AAPL", action="buy", price=150.0, timestamp=fixed)
@@ -66,7 +66,7 @@ class TestSignal:
 class TestPositionSerialization:
     """Tests for Position.to_dict/from_dict serialization."""
 
-    def test_to_dict_exposes_all_fields(self):
+    def test_to_dict_exposes_all_fields(self) -> None:
         pos = Position(
             symbol="AAPL",
             quantity=100,
@@ -84,7 +84,7 @@ class TestPositionSerialization:
             "realized_pnl": 500.0,
         }
 
-    def test_to_dict_defaults(self):
+    def test_to_dict_defaults(self) -> None:
         pos = Position(symbol="MSFT")
         assert pos.to_dict() == {
             "symbol": "MSFT",
@@ -95,11 +95,11 @@ class TestPositionSerialization:
             "realized_pnl": 0.0,
         }
 
-    def test_from_dict_round_trips(self):
+    def test_from_dict_round_trips(self) -> None:
         pos = Position("AAPL", 100, 150.0, 160.0, 1000.0, 500.0)
         assert Position.from_dict(pos.to_dict()) == pos
 
-    def test_from_dict_json_round_trip(self):
+    def test_from_dict_json_round_trip(self) -> None:
         import json
 
         pos = Position("AAPL", 100, 150.0, 160.0)
@@ -107,11 +107,11 @@ class TestPositionSerialization:
         restored = Position.from_dict(decoded)
         assert restored == pos
 
-    def test_from_dict_defaults_missing_keys(self):
+    def test_from_dict_defaults_missing_keys(self) -> None:
         restored = Position.from_dict({})
         assert restored == Position(symbol="")
 
-    def test_from_dict_ignores_extra_keys(self):
+    def test_from_dict_ignores_extra_keys(self) -> None:
         data = Position("AAPL", 10, 100.0).to_dict()
         data["unknown"] = 123
         restored = Position.from_dict(data)
@@ -121,7 +121,7 @@ class TestPositionSerialization:
 class TestSignalSerialization:
     """Tests for Signal.to_dict/from_dict serialization."""
 
-    def test_to_dict_exposes_all_fields(self):
+    def test_to_dict_exposes_all_fields(self) -> None:
         ts = datetime(2024, 1, 1, 12, 0, 0)
         signal = Signal(
             symbol="AAPL",
@@ -140,7 +140,7 @@ class TestSignalSerialization:
             "metadata": {"key": "value"},
         }
 
-    def test_to_dict_serializes_timestamp_as_iso_string(self):
+    def test_to_dict_serializes_timestamp_as_iso_string(self) -> None:
         """A signal created without a timestamp serializes it as an ISO string."""
         signal = Signal(symbol="AAPL", action="hold")
         d = signal.to_dict()
@@ -148,7 +148,7 @@ class TestSignalSerialization:
         assert d["metadata"] == {}
         assert datetime.fromisoformat(d["timestamp"]) == signal.timestamp
 
-    def test_to_dict_metadata_is_copied(self):
+    def test_to_dict_metadata_is_copied(self) -> None:
         metadata = {"key": "value"}
         signal = Signal(symbol="AAPL", action="buy", metadata=metadata)
         d = signal.to_dict()
@@ -156,12 +156,12 @@ class TestSignalSerialization:
         d["metadata"]["mutated"] = True
         assert signal.metadata == {"key": "value"}
 
-    def test_from_dict_round_trips(self):
+    def test_from_dict_round_trips(self) -> None:
         ts = datetime(2024, 1, 1, 12, 0, 0)
         signal = Signal("AAPL", "sell", 0.25, 150.0, ts, {"k": "v"})
         assert Signal.from_dict(signal.to_dict()) == signal
 
-    def test_from_dict_json_round_trip(self):
+    def test_from_dict_json_round_trip(self) -> None:
         import json
 
         ts = datetime(2024, 1, 1, 12, 0, 0)
@@ -170,7 +170,7 @@ class TestSignalSerialization:
         restored = Signal.from_dict(decoded)
         assert restored.timestamp == ts
 
-    def test_from_dict_defaults_missing_keys(self):
+    def test_from_dict_defaults_missing_keys(self) -> None:
         restored = Signal.from_dict({})
         assert restored.symbol == ""
         assert restored.action == "hold"
@@ -178,7 +178,7 @@ class TestSignalSerialization:
         assert restored.price is None
         assert restored.metadata == {}
 
-    def test_from_dict_ignores_extra_keys(self):
+    def test_from_dict_ignores_extra_keys(self) -> None:
         data = Signal("AAPL", "buy").to_dict()
         data["extra"] = 123
         restored = Signal.from_dict(data)
@@ -193,7 +193,7 @@ class TestSignalSerialization:
 class StrategyWithValidation(Strategy):
     """Concrete strategy with parameter validation for testing."""
 
-    def __init__(self, name: str = "Validated", threshold: float = 10.0):
+    def __init__(self, name: str = "Validated", threshold: float = 10.0) -> None:
         super().__init__(name, {"threshold": threshold})
         self.threshold = threshold
 
@@ -201,49 +201,49 @@ class StrategyWithValidation(Strategy):
         if self.threshold <= 0:
             raise ValueError("threshold must be positive")
 
-    def generate_signals(self, data):
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         return []
 
 
 class StrictlyInvalidStrategy(Strategy):
     """Strategy whose validation always fails."""
 
-    def __init__(self, name: str = "StrictlyInvalid"):
+    def __init__(self, name: str = "StrictlyInvalid") -> None:
         super().__init__(name, {"threshold": 10.0})
         self.threshold = 10.0
 
     def validate_parameters(self) -> None:
         raise ValueError("always invalid")
 
-    def generate_signals(self, data):
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         return []
 
 
 class NoneAttributeStrategy(Strategy):
     """Strategy with a parameter key whose instance attribute is None."""
 
-    def __init__(self, name: str = "NoneAttribute"):
+    def __init__(self, name: str = "NoneAttribute") -> None:
         super().__init__(name, {"flag": "original"})
         self.flag = None
 
     def validate_parameters(self) -> None:
         raise ValueError("always invalid")
 
-    def generate_signals(self, data):
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         return []
 
 
 class TestStrategySetParameter:
     """Tests for Strategy.set_parameter with validation and rollback."""
 
-    def test_set_parameter_success(self):
+    def test_set_parameter_success(self) -> None:
         """Test successful parameter update without validation error."""
         strategy = StrategyWithValidation(name="Test", threshold=10.0)
         strategy.set_parameter("threshold", 20.0)
         assert strategy.threshold == 20.0
         assert strategy.parameters["threshold"] == 20.0
 
-    def test_set_parameter_rollback_on_validation_failure(self):
+    def test_set_parameter_rollback_on_validation_failure(self) -> None:
         """Test parameter rollback when validation raises ValueError."""
         strategy = StrategyWithValidation(name="Test", threshold=10.0)
         with pytest.raises(ValueError, match="threshold must be positive"):
@@ -252,7 +252,7 @@ class TestStrategySetParameter:
         assert strategy.threshold == 10.0
         assert strategy.parameters["threshold"] == 10.0
 
-    def test_set_parameter_rollback_removes_new_key(self):
+    def test_set_parameter_rollback_removes_new_key(self) -> None:
         """Test rollback removes a newly added parameter key when validation fails."""
         strategy = StrategyWithValidation(name="Test", threshold=10.0)
         # Add a new parameter that will fail validation (threshold <= 0)
@@ -262,7 +262,7 @@ class TestStrategySetParameter:
         assert strategy.parameters["threshold"] == 10.0
         assert strategy.threshold == 10.0
 
-    def test_set_parameter_rollback_restores_attribute(self):
+    def test_set_parameter_rollback_restores_attribute(self) -> None:
         """Test rollback restores the instance attribute value."""
         strategy = StrategyWithValidation(name="Test", threshold=10.0)
         with pytest.raises(ValueError):
@@ -270,7 +270,7 @@ class TestStrategySetParameter:
         # Attribute should be restored to original value
         assert strategy.threshold == 10.0
 
-    def test_set_parameter_rollback_pops_new_parameter_key(self):
+    def test_set_parameter_rollback_pops_new_parameter_key(self) -> None:
         """Test rollback removes a parameter key that did not exist before.
 
         The key was absent from parameters (old value None), so the
@@ -283,7 +283,7 @@ class TestStrategySetParameter:
         assert strategy.parameters == {"threshold": 10.0}
         assert strategy.threshold == 10.0
 
-    def test_set_parameter_rollback_deletes_none_attribute(self):
+    def test_set_parameter_rollback_deletes_none_attribute(self) -> None:
         """Test rollback deletes an attribute whose old value was None.
 
         The attribute exists but holds None, so there is no old value
@@ -296,7 +296,7 @@ class TestStrategySetParameter:
         assert strategy.parameters["flag"] == "original"
         assert not hasattr(strategy, "flag")
 
-    def test_set_parameter_rollback_restores_none_value_in_real_strategy(self):
+    def test_set_parameter_rollback_restores_none_value_in_real_strategy(self) -> None:
         """Test rollback restores a parameter key whose value was None.
 
         A parameter entry that legitimately holds None must be restored
@@ -318,19 +318,19 @@ class TestStrategySetParameter:
 class TestStrategyManager:
     """Tests for StrategyManager class."""
 
-    def test_init_empty(self):
+    def test_init_empty(self) -> None:
         """Test StrategyManager initializes with empty strategies dict."""
         manager = StrategyManager()
         assert manager.strategies == {}
 
-    def test_add_strategy(self):
+    def test_add_strategy(self) -> None:
         """Test adding a strategy to the manager."""
         manager = StrategyManager()
         strategy = StrategyWithValidation(name="Test1", threshold=5.0)
         manager.add_strategy(strategy)
         assert manager.strategies["Test1"] is strategy
 
-    def test_add_strategy_overwrites(self):
+    def test_add_strategy_overwrites(self) -> None:
         """Test adding a strategy with same name overwrites."""
         manager = StrategyManager()
         strategy1 = StrategyWithValidation(name="Test", threshold=5.0)
@@ -339,7 +339,7 @@ class TestStrategyManager:
         manager.add_strategy(strategy2)
         assert manager.strategies["Test"] is strategy2
 
-    def test_remove_strategy(self):
+    def test_remove_strategy(self) -> None:
         """Test removing a strategy by name."""
         manager = StrategyManager()
         strategy = StrategyWithValidation(name="Test", threshold=5.0)
@@ -347,13 +347,13 @@ class TestStrategyManager:
         manager.remove_strategy("Test")
         assert "Test" not in manager.strategies
 
-    def test_remove_strategy_unknown_is_noop(self):
+    def test_remove_strategy_unknown_is_noop(self) -> None:
         """Test removing unknown strategy does not raise."""
         manager = StrategyManager()
         manager.remove_strategy("NonExistent")  # Should not raise
         assert manager.strategies == {}
 
-    def test_get_strategy_existing(self):
+    def test_get_strategy_existing(self) -> None:
         """Test getting an existing strategy by name."""
         manager = StrategyManager()
         strategy = StrategyWithValidation(name="Test", threshold=5.0)
@@ -361,12 +361,12 @@ class TestStrategyManager:
         retrieved = manager.get_strategy("Test")
         assert retrieved is strategy
 
-    def test_get_strategy_unknown_returns_none(self):
+    def test_get_strategy_unknown_returns_none(self) -> None:
         """Test getting unknown strategy returns None."""
         manager = StrategyManager()
         assert manager.get_strategy("NonExistent") is None
 
-    def test_generate_all_signals(self):
+    def test_generate_all_signals(self) -> None:
         """Test generate_all_signals delegates to each strategy."""
         manager = StrategyManager()
         strategy1 = StrategyWithValidation(name="Strat1", threshold=5.0)
@@ -382,14 +382,14 @@ class TestStrategyManager:
         assert isinstance(signals["Strat1"], list)
         assert isinstance(signals["Strat2"], list)
 
-    def test_generate_all_signals_empty_manager(self):
+    def test_generate_all_signals_empty_manager(self) -> None:
         """Test generate_all_signals with empty manager returns empty dict."""
         manager = StrategyManager()
         data = {"AAPL": pd.DataFrame({"close": [100, 101, 102]})}
         signals = manager.generate_all_signals(data)
         assert signals == {}
 
-    def test_generate_all_signals_with_multiple_strategies(self):
+    def test_generate_all_signals_with_multiple_strategies(self) -> None:
         """Test generate_all_signals with multiple strategies returns all signals."""
         manager = StrategyManager()
         for i in range(3):
@@ -407,29 +407,29 @@ class TestStrategyManager:
 class TestStrategyValidateParameters:
     """Tests for Strategy.validate_parameters."""
 
-    def test_default_validate_parameters_does_nothing(self):
+    def test_default_validate_parameters_does_nothing(self) -> None:
         """Test default validate_parameters does not raise."""
 
         class NoValidationStrategy(Strategy):
-            def generate_signals(self, data):
+            def generate_signals(self, data) -> None:
                 return []
 
         strategy = NoValidationStrategy(name="Test")
         # Should not raise
         strategy.validate_parameters()
 
-    def test_validate_parameters_called_in_set_parameter(self):
+    def test_validate_parameters_called_in_set_parameter(self) -> None:
         """Test validate_parameters is called during set_parameter."""
 
         class TrackingStrategy(Strategy):
-            def __init__(self, name: str = "Tracking"):
+            def __init__(self, name: str = "Tracking") -> None:
                 super().__init__(name)
                 self.validate_called = False
 
             def validate_parameters(self) -> None:
                 self.validate_called = True
 
-            def generate_signals(self, data):
+            def generate_signals(self, data) -> None:
                 return []
 
         strategy = TrackingStrategy(name="Test")
@@ -445,7 +445,7 @@ class TestStrategyDescriptionDerivation:
     silently leaves ``description`` at ``None``.
     """
 
-    def test_description_is_derived_from_docstring_first_line(self):
+    def test_description_is_derived_from_docstring_first_line(self) -> None:
         """A subclass without an explicit description derives it from its docstring."""
 
         class DocstringStrategy(Strategy):
@@ -454,13 +454,13 @@ class TestStrategyDescriptionDerivation:
             It buys when RSI is oversold and sells when overbought.
             """
 
-            def generate_signals(self, data):
+            def generate_signals(self, data) -> None:
                 return []
 
         strategy = DocstringStrategy(name="Test")
         assert strategy.description == "Mean reversion strategy based on RSI levels"
 
-    def test_explicit_description_is_preserved(self):
+    def test_explicit_description_is_preserved(self) -> None:
         """An explicit description attribute is not overridden by the docstring."""
 
         class ExplicitDescriptionStrategy(Strategy):
@@ -468,17 +468,17 @@ class TestStrategyDescriptionDerivation:
 
             description = "Explicitly set description"
 
-            def generate_signals(self, data):
+            def generate_signals(self, data) -> None:
                 return []
 
         strategy = ExplicitDescriptionStrategy(name="Test")
         assert strategy.description == "Explicitly set description"
 
-    def test_description_is_none_without_docstring(self):
+    def test_description_is_none_without_docstring(self) -> None:
         """A subclass with no docstring and no description keeps description None."""
 
         class NoDocstringStrategy(Strategy):
-            def generate_signals(self, data):
+            def generate_signals(self, data) -> None:
                 return []
 
         strategy = NoDocstringStrategy(name="Test")
@@ -488,7 +488,7 @@ class TestStrategyDescriptionDerivation:
 class TestStrategyUpdatePositions:
     """Tests for Strategy.update_positions."""
 
-    def test_update_positions_replaces_tracking(self):
+    def test_update_positions_replaces_tracking(self) -> None:
         """update_positions stores the supplied positions dict."""
         strategy = StrategyWithValidation(name="Test", threshold=10.0)
         positions = {
@@ -502,7 +502,7 @@ class TestStrategyUpdatePositions:
 class TestStrategyGetParameters:
     """Tests for Strategy.get_parameters."""
 
-    def test_get_parameters_returns_a_copy(self):
+    def test_get_parameters_returns_a_copy(self) -> None:
         """get_parameters returns a shallow copy of the parameters dict."""
         strategy = StrategyWithValidation(name="Test", threshold=10.0)
         params = strategy.get_parameters()
@@ -515,7 +515,7 @@ class TestStrategyGetParameters:
 class TestStrategyFromConfig:
     """Tests for Strategy.from_config."""
 
-    def test_from_config_creates_strategy(self):
+    def test_from_config_creates_strategy(self) -> None:
         """from_config builds a registered strategy from name, type, parameters."""
         strategy = Strategy.from_config(
             {
@@ -531,7 +531,7 @@ class TestStrategyFromConfig:
         assert strategy.fast_period == 5
         assert strategy.slow_period == 20
 
-    def test_from_config_without_type_raises(self):
+    def test_from_config_without_type_raises(self) -> None:
         """from_config raises ValueError when the config lacks a 'type' key."""
         with pytest.raises(ValueError, match="must contain 'type' key"):
             Strategy.from_config({"name": "NoType", "parameters": {}})
