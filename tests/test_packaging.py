@@ -15,17 +15,17 @@ ROOT = Path(__file__).resolve().parent.parent
 class TestTypingMarker:
     """PEP 561: package must ship typing information."""
 
-    def test_py_typed_file_exists_in_package(self):
+    def test_py_typed_file_exists_in_package(self) -> None:
         pkg_dir = Path(quant_trading.__file__).resolve().parent
         marker = pkg_dir / "py.typed"
         assert marker.exists(), f"Missing PEP 561 marker: {marker}"
 
-    def test_py_typed_configured_in_package_data(self):
+    def test_py_typed_configured_in_package_data(self) -> None:
         pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         assert "py.typed" in pyproject
         assert "package-data" in pyproject
 
-    def test_typing_typed_classifier_present(self):
+    def test_typing_typed_classifier_present(self) -> None:
         """PEP 561 recommends the Typing :: Typed trove classifier."""
         pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         assert '"Typing :: Typed"' in pyproject
@@ -34,11 +34,11 @@ class TestTypingMarker:
 class TestPackageVersion:
     """Version metadata should stay consistent across package and build config."""
 
-    def test_package_version_matches_pyproject(self):
+    def test_package_version_matches_pyproject(self) -> None:
         pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
         assert quant_trading.__version__ == pyproject["project"]["version"]
 
-    def test_package_version_is_semver_like(self):
+    def test_package_version_is_semver_like(self) -> None:
         """Version should follow a simple MAJOR.MINOR.PATCH numeric form."""
         import re
 
@@ -50,14 +50,14 @@ class TestPackageVersion:
 class TestPackageExports:
     """Public API surface declared in __all__ must resolve to attributes."""
 
-    def test_all_exports_resolve(self):
+    def test_all_exports_resolve(self) -> None:
         import quant_trading
 
         for name in quant_trading.__all__:
             assert hasattr(quant_trading, name), f"Missing public export: {name}"
             assert getattr(quant_trading, name) is not None, f"Null public export: {name}"
 
-    def test_factory_exports_roundtrip(self):
+    def test_factory_exports_roundtrip(self) -> None:
         """Factory functions exported at package root should behave as documented."""
         strategies = quant_trading.list_strategies()
         assert isinstance(strategies, dict)
