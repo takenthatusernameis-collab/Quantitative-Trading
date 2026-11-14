@@ -32,7 +32,7 @@ def _result(metrics: Any) -> BacktestResult:
     )
 
 
-def test_calculate_metrics_no_trades_empty():
+def test_calculate_metrics_no_trades_empty() -> None:
     """Test metrics when there are no trades."""
     equity_curve = pd.Series([100000, 110000, 105000, 115000])
     trades = pd.DataFrame()
@@ -42,7 +42,7 @@ def test_calculate_metrics_no_trades_empty():
     assert metrics.num_trades == 0
 
 
-def test_calculate_metrics_no_trades_none():
+def test_calculate_metrics_no_trades_none() -> None:
     """Test metrics when trades is None."""
     equity_curve = pd.Series([100000, 110000, 105000, 115000])
     metrics = calculate_backtest_metrics(equity_curve, trades=None)
@@ -50,7 +50,7 @@ def test_calculate_metrics_no_trades_none():
     assert metrics.profit_factor == 0
 
 
-def test_calculate_metrics_all_winning_trades():
+def test_calculate_metrics_all_winning_trades() -> None:
     """Test metrics when all trades are winners."""
     equity_curve = pd.Series([100000, 110000])
     trades = pd.DataFrame(
@@ -71,7 +71,7 @@ def test_calculate_metrics_all_winning_trades():
     assert metrics.largest_win == 2000
 
 
-def test_calculate_metrics_all_losing_trades():
+def test_calculate_metrics_all_losing_trades() -> None:
     """Test metrics when all trades are losers."""
     equity_curve = pd.Series([100000, 90000])
     trades = pd.DataFrame(
@@ -92,7 +92,7 @@ def test_calculate_metrics_all_losing_trades():
     assert metrics.profit_factor == 0  # gross_profit is 0
 
 
-def test_calculate_metrics_mixed_trades():
+def test_calculate_metrics_mixed_trades() -> None:
     """Test metrics when trades are mixed (winners and losers)."""
     equity_curve = pd.Series([100000, 105000])
     trades = pd.DataFrame(
@@ -117,7 +117,7 @@ def test_calculate_metrics_mixed_trades():
     assert metrics.largest_loss == -1000
 
 
-def test_calculate_metrics_zero_pnl_trades():
+def test_calculate_metrics_zero_pnl_trades() -> None:
     """Test metrics when there are zero PnL trades."""
     equity_curve = pd.Series([100000, 100000])
     trades = pd.DataFrame(
@@ -136,7 +136,7 @@ def test_calculate_metrics_zero_pnl_trades():
     assert metrics.profit_factor == 1000 / 500  # gross_profit / gross_loss
 
 
-def test_calculate_metrics_short_equity_curve():
+def test_calculate_metrics_short_equity_curve() -> None:
     """Test metrics when equity curve has less than 2 points."""
     equity_curve = pd.Series([100000])
     trades = pd.DataFrame({"pnl": [1000, -500]})
@@ -146,7 +146,7 @@ def test_calculate_metrics_short_equity_curve():
     assert metrics.num_trades == 0
 
 
-def test_backtest_metrics_to_dict():
+def test_backtest_metrics_to_dict() -> None:
     """Test BacktestMetrics to_dict method."""
     metrics = BacktestMetrics(
         total_return=1000,
@@ -164,7 +164,7 @@ def test_backtest_metrics_to_dict():
 class TestBacktestMetricsNanHandling:
     """Test NaN handling in backtest metrics."""
 
-    def test_calculate_backtest_metrics_with_nan_equity(self):
+    def test_calculate_backtest_metrics_with_nan_equity(self) -> None:
         """Test backtest metrics with NaN in equity curve."""
         equity_curve = pd.Series([100000, np.nan, 105000, np.nan, 110000])
         metrics = calculate_backtest_metrics(equity_curve)
@@ -172,7 +172,7 @@ class TestBacktestMetricsNanHandling:
         assert isinstance(metrics.total_return, (int, float))
         assert isinstance(metrics.sharpe_ratio, (int, float))
 
-    def test_calculate_backtest_metrics_with_nan_in_trades(self):
+    def test_calculate_backtest_metrics_with_nan_in_trades(self) -> None:
         """Test backtest metrics with NaN in trades."""
         equity_curve = pd.Series([100000, 105000, 110000])
         trades = pd.DataFrame({"pnl": [1000, np.nan, -500]})
@@ -180,7 +180,7 @@ class TestBacktestMetricsNanHandling:
         # NaN values in pnl don't affect the calculation logic as written
         assert metrics.num_trades == 3
 
-    def test_calculate_backtest_metrics_with_all_zeros_trades(self):
+    def test_calculate_backtest_metrics_with_all_zeros_trades(self) -> None:
         """Test backtest metrics when all trades have pnl == 0."""
         equity_curve = pd.Series([100000, 100000, 100000])
         trades = pd.DataFrame({"pnl": [0, 0, 0]})
@@ -191,7 +191,7 @@ class TestBacktestMetricsNanHandling:
         assert metrics.win_rate == 0
         assert metrics.profit_factor == 0
 
-    def test_calculate_backtest_metrics_with_all_positive_trades(self):
+    def test_calculate_backtest_metrics_with_all_positive_trades(self) -> None:
         """Test backtest metrics when all trades are profitable."""
         equity_curve = pd.Series([100000, 105000, 110000])
         trades = pd.DataFrame({"pnl": [1000, 500, 2000]})
@@ -201,7 +201,7 @@ class TestBacktestMetricsNanHandling:
         assert metrics.win_rate == 1.0
         assert metrics.profit_factor == 0  # gross_loss is 0, so division gives 0 as implemented
 
-    def test_calculate_backtest_metrics_with_all_negative_trades(self):
+    def test_calculate_backtest_metrics_with_all_negative_trades(self) -> None:
         """Test backtest metrics when all trades are losing."""
         equity_curve = pd.Series([100000, 95000, 90000])
         trades = pd.DataFrame({"pnl": [-1000, -500, -2000]})
@@ -211,14 +211,14 @@ class TestBacktestMetricsNanHandling:
         assert metrics.win_rate == 0.0
         assert metrics.profit_factor == 0  # gross_profit is 0
 
-    def test_calculate_backtest_metrics_short_equity_curve_all_zeros(self):
+    def test_calculate_backtest_metrics_short_equity_curve_all_zeros(self) -> None:
         """Test edge cases with short equity curve."""
         # Less than 2 points
         equity_curve = pd.Series([0])
         metrics = calculate_backtest_metrics(equity_curve)
         assert metrics.total_return == 0.0
 
-    def test_calculate_backtest_metrics_zero_initial_value(self):
+    def test_calculate_backtest_metrics_zero_initial_value(self) -> None:
         """Test when initial equity is zero."""
         equity_curve = pd.Series([0, 1000, 2000])
         with warnings.catch_warnings(record=True) as recorded:
@@ -233,7 +233,7 @@ class TestBacktestMetricsNanHandling:
             for w in recorded
         )
 
-    def test_calculate_backtest_metrics_single_return_no_nan(self):
+    def test_calculate_backtest_metrics_single_return_no_nan(self) -> None:
         """A two-point equity curve yields a single return with undefined std.
 
         The Sharpe ratio must be 0.0 rather than NaN.
@@ -249,10 +249,10 @@ class TestBacktestMetricsPeriodsPerYear:
 
     EQUITY = pd.Series([100.0, 102.0, 101.0, 104.0, 103.0, 106.0, 108.0])
 
-    def _returns(self):
+    def _returns(self) -> pd.Series:
         return self.EQUITY.pct_change().dropna()
 
-    def test_periods_per_year_applies_to_every_annualized_metric(self):
+    def test_periods_per_year_applies_to_every_annualized_metric(self) -> None:
         """All annualized metrics must use the same periods_per_year value."""
         returns = self._returns()
         metrics = calculate_backtest_metrics(self.EQUITY, risk_free_rate=0.02, periods_per_year=12)
@@ -272,7 +272,7 @@ class TestBacktestMetricsPeriodsPerYear:
         max_dd = ((self.EQUITY - running_max) / running_max).min()
         assert metrics.calmar_ratio == pytest.approx((returns.mean() * 12) / abs(max_dd))
 
-    def test_default_is_daily_annualization(self):
+    def test_default_is_daily_annualization(self) -> None:
         """The default periods_per_year (252) reproduces daily annualization."""
         returns = self._returns()
         metrics = calculate_backtest_metrics(self.EQUITY, risk_free_rate=0.02)
@@ -283,7 +283,7 @@ class TestBacktestMetricsPeriodsPerYear:
             (returns.mean() - 0.02 / 252) / returns.std() * np.sqrt(252)
         )
 
-    def test_metrics_are_internally_consistent_across_periods(self):
+    def test_metrics_are_internally_consistent_across_periods(self) -> None:
         """Changing only periods_per_year must not desynchronize the metrics."""
         for periods in (12, 52, 252):
             metrics = calculate_backtest_metrics(self.EQUITY, periods_per_year=periods)
@@ -299,14 +299,14 @@ class TestBacktestMetricsUnrealizedPnl:
 
     EQUITY = pd.Series([100.0, 102.0, 101.0, 104.0])
 
-    def test_the_field_defaults_to_zero(self):
+    def test_the_field_defaults_to_zero(self) -> None:
         """A metrics object that nobody filled in reports no unrealized PnL."""
         metrics = BacktestMetrics()
 
         assert metrics.unrealized_pnl == 0.0
         assert metrics.to_dict()["unrealized_pnl"] == 0.0
 
-    def test_the_function_cannot_derive_the_unrealized_pnl(self):
+    def test_the_function_cannot_derive_the_unrealized_pnl(self) -> None:
         """The metrics function only sees an equity curve and a trade log.
 
         Neither of them carries the market value of a position that is still
@@ -319,14 +319,14 @@ class TestBacktestMetricsUnrealizedPnl:
 
         assert metrics.unrealized_pnl == 0.0
 
-    def test_the_field_is_reported_in_the_dictionary(self):
+    def test_the_field_is_reported_in_the_dictionary(self) -> None:
         """The unrealized PnL is part of the reported metrics."""
         metrics = BacktestMetrics(total_pnl=100.0, unrealized_pnl=-25.0)
 
         assert metrics.to_dict()["unrealized_pnl"] == -25.0
         assert metrics.to_dict()["total_pnl"] == 100.0
 
-    def test_function_accepts_unrealized_pnl_parameter(self):
+    def test_function_accepts_unrealized_pnl_parameter(self) -> None:
         """Passing ``unrealized_pnl`` to the function populates the field.
 
         Covers the branch where ``unrealized_pnl is not None``.
@@ -336,7 +336,7 @@ class TestBacktestMetricsUnrealizedPnl:
 
         assert metrics.unrealized_pnl == pytest.approx(42.5)
 
-    def test_function_falls_back_to_zero_when_positions_raise(self):
+    def test_function_falls_back_to_zero_when_positions_raise(self) -> None:
         """When summing position unrealized PnL raises, the field stays 0.0.
 
         Covers the defensive ``except Exception`` branch.
@@ -344,7 +344,7 @@ class TestBacktestMetricsUnrealizedPnl:
 
         class BadPosition:
             @property
-            def unrealized_pnl(self):
+            def unrealized_pnl(self) -> float:
                 raise RuntimeError("boom")
 
         positions = {"AAPL": BadPosition()}
@@ -362,7 +362,7 @@ class TestBacktestResultMetricPassthrough:
     such as ``None``.
     """
 
-    def test_defaults_when_metrics_is_empty(self):
+    def test_defaults_when_metrics_is_empty(self) -> None:
         """A bare ``BacktestMetrics()`` reports zero for every passthrough."""
         result = _result(BacktestMetrics())
 
@@ -372,7 +372,7 @@ class TestBacktestResultMetricPassthrough:
         assert result.sharpe_ratio == 0.0
         assert result.max_drawdown_pct == 0.0
 
-    def test_passes_through_real_values(self):
+    def test_passes_through_real_values(self) -> None:
         """The properties forward the values stored on ``metrics``."""
         metrics = BacktestMetrics(
             num_trades=7,
@@ -388,7 +388,7 @@ class TestBacktestResultMetricPassthrough:
         assert result.sharpe_ratio == 1.25
         assert result.max_drawdown_pct == -12.5
 
-    def test_falls_back_when_metrics_lacks_the_attribute(self):
+    def test_falls_back_when_metrics_lacks_the_attribute(self) -> None:
         """A metrics object missing an attribute is treated as zero."""
         partial = SimpleNamespace(num_trades=4, win_rate=0.5)
         result = _result(partial)
@@ -398,7 +398,7 @@ class TestBacktestResultMetricPassthrough:
         assert result.sharpe_ratio == 0.0
         assert result.max_drawdown_pct == 0.0
 
-    def test_tolerates_falsy_attribute_values(self):
+    def test_tolerates_falsy_attribute_values(self) -> None:
         """``None`` and ``0`` on the metrics object both map to zero."""
         partial = SimpleNamespace(
             num_trades=None,
@@ -413,14 +413,14 @@ class TestBacktestResultMetricPassthrough:
         assert result.sharpe_ratio == 0.0
         assert result.max_drawdown_pct == 0.0
 
-    def test_trade_count_aliases_num_trades(self):
+    def test_trade_count_aliases_num_trades(self) -> None:
         """``trade_count`` mirrors ``num_trades`` even when the source is missing."""
         result = _result(SimpleNamespace())
 
         assert result.trade_count == result.num_trades == 0
 
 
-def test_backtest_result_metric_passthrough_fallback():
+def test_backtest_result_metric_passthrough_fallback() -> None:
     """BacktestResult metric passthrough returns 0 when metrics lacks attrs."""
     result = _result(SimpleNamespace())
     assert result.num_trades == 0
@@ -430,7 +430,7 @@ def test_backtest_result_metric_passthrough_fallback():
     assert result.max_drawdown_pct == 0.0
 
 
-def test_backtest_result_metric_passthrough_zero_values():
+def test_backtest_result_metric_passthrough_zero_values() -> None:
     """Fallback also covers falsy attribute values."""
     result = _result(
         SimpleNamespace(num_trades=0, win_rate=0.0, sharpe_ratio=0.0, max_drawdown_pct=0.0)
@@ -441,7 +441,7 @@ def test_backtest_result_metric_passthrough_zero_values():
     assert result.max_drawdown_pct == 0.0
 
 
-def test_backtest_result_metric_passthrough_remaining_attrs():
+def test_backtest_result_metric_passthrough_remaining_attrs() -> None:
     """Remaining metric passthrough properties fall back when missing."""
     result = _result(SimpleNamespace())
     assert result.sortino_ratio == 0.0
@@ -457,7 +457,7 @@ class TestBacktestMetricsNewRiskMetrics:
 
     EQUITY = pd.Series([100.0, 102.0, 101.0, 104.0, 103.0, 106.0, 108.0])
 
-    def test_var_cvar_metrics_populated(self):
+    def test_var_cvar_metrics_populated(self) -> None:
         """Test that VaR and CVaR metrics are calculated."""
         metrics = calculate_backtest_metrics(self.EQUITY)
 
@@ -471,13 +471,15 @@ class TestBacktestMetricsNewRiskMetrics:
         assert metrics.cvar_95 <= metrics.var_95
         assert metrics.cvar_99 <= metrics.var_99
 
-    def test_omega_ratio_populated(self):
+    def test_omega_ratio_populated(self) -> None:
         """Test that Omega ratio is calculated."""
         metrics = calculate_backtest_metrics(self.EQUITY)
         assert metrics.omega_ratio != 0.0
         assert isinstance(metrics.omega_ratio, float)
 
-    def test_market_relative_metrics_populated_when_market_returns_provided(self):
+    def test_market_relative_metrics_populated_when_market_returns_provided(
+        self,
+    ) -> None:
         """Test that beta, alpha, treynor, information_ratio are calculated when market_returns provided."""
         market_returns = pd.Series([0.01, 0.015, -0.005, 0.012, -0.003, 0.008, 0.01])
         metrics = calculate_backtest_metrics(self.EQUITY, market_returns=market_returns)
@@ -487,7 +489,7 @@ class TestBacktestMetricsNewRiskMetrics:
         assert metrics.treynor_ratio != 0.0
         assert metrics.information_ratio != 0.0
 
-    def test_market_relative_metrics_zero_beta_skips_derived_metrics(self):
+    def test_market_relative_metrics_zero_beta_skips_derived_metrics(self) -> None:
         """When market_returns are provided but beta is zero, alpha/treynor/info stay at defaults.
 
         Covers the ``if beta != 0:`` branch in calculate_backtest_metrics (metrics.py:353).
@@ -501,7 +503,7 @@ class TestBacktestMetricsNewRiskMetrics:
         assert metrics.treynor_ratio == 0.0
         assert metrics.information_ratio == 0.0
 
-    def test_market_relative_metrics_zero_when_no_market_returns(self):
+    def test_market_relative_metrics_zero_when_no_market_returns(self) -> None:
         """Test that market-relative metrics remain zero when market_returns not provided."""
         metrics = calculate_backtest_metrics(self.EQUITY)
 
@@ -510,7 +512,7 @@ class TestBacktestMetricsNewRiskMetrics:
         assert metrics.treynor_ratio == 0.0
         assert metrics.information_ratio == 0.0
 
-    def test_new_metrics_in_to_dict(self):
+    def test_new_metrics_in_to_dict(self) -> None:
         """Test that new metrics are included in to_dict output."""
         metrics = calculate_backtest_metrics(self.EQUITY)
         d = metrics.to_dict()
@@ -524,7 +526,7 @@ class TestBacktestMetricsNewRiskMetrics:
         assert "information_ratio" in d
         assert "omega_ratio" in d
 
-    def test_new_metrics_default_to_zero_in_dataclass(self):
+    def test_new_metrics_default_to_zero_in_dataclass(self) -> None:
         """Test that new metrics default to zero in BacktestMetrics constructor."""
         metrics = BacktestMetrics()
 
@@ -541,7 +543,7 @@ class TestBacktestMetricsNewRiskMetrics:
 class TestBacktestMetricsFromDict:
     """Test BacktestMetrics.from_dict deserialization."""
 
-    def test_from_dict_round_trips_to_dict(self):
+    def test_from_dict_round_trips_to_dict(self) -> None:
         """from_dict must reconstruct a metrics object equal to its to_dict output."""
         metrics = BacktestMetrics(
             total_return=15000.0,
@@ -578,7 +580,7 @@ class TestBacktestMetricsFromDict:
         reconstructed = BacktestMetrics.from_dict(metrics.to_dict())
         assert reconstructed == metrics
 
-    def test_from_dict_defaults_missing_keys_to_zero(self):
+    def test_from_dict_defaults_missing_keys_to_zero(self) -> None:
         """Missing keys must fall back to the dataclass defaults."""
         metrics = BacktestMetrics.from_dict({"sharpe_ratio": 1.5, "num_trades": 3})
 
@@ -613,7 +615,7 @@ class TestBacktestMetricsFromDict:
         assert metrics.omega_ratio == 0.0
         assert metrics.unrealized_pnl == 0.0
 
-    def test_from_dict_ignores_extra_keys(self):
+    def test_from_dict_ignores_extra_keys(self) -> None:
         """Extra keys in the dictionary must not raise."""
         data = BacktestMetrics(total_return=100.0).to_dict()
         data["unknown_metric"] = 42.0
@@ -622,7 +624,7 @@ class TestBacktestMetricsFromDict:
         assert metrics.total_return == 100.0
         assert metrics.num_trades == 0
 
-    def test_from_dict_preserves_integer_trade_counts(self):
+    def test_from_dict_preserves_integer_trade_counts(self) -> None:
         """Integer trade-count fields must survive a dictionary round-trip."""
         metrics = BacktestMetrics(num_trades=7, num_winning_trades=4, num_losing_trades=3)
         reconstructed = BacktestMetrics.from_dict(metrics.to_dict())
