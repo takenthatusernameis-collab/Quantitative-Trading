@@ -7,15 +7,15 @@ from quant_trading.portfolio.rebalancer import Rebalancer
 from quant_trading.risk.manager import RiskManager
 
 
-def _risk_manager():
+def _risk_manager() -> RiskManager:
     return RiskManager(initial_capital=100000.0, max_position_size=0.1, max_drawdown=0.20)
 
 
-def _total_holdings_value(portfolio):
+def _total_holdings_value(portfolio: Portfolio) -> float:
     return sum(holding.market_value for holding in portfolio.holdings.values())
 
 
-def _assert_solvency(portfolio, risk_manager):
+def _assert_solvency(portfolio: Portfolio, risk_manager: RiskManager) -> None:
     total_value = portfolio.total_value
     assert portfolio.cash >= 0
     assert portfolio.cash + _total_holdings_value(portfolio) == pytest.approx(total_value)
@@ -24,7 +24,7 @@ def _assert_solvency(portfolio, risk_manager):
         assert abs(holding.market_value) <= cap + 1e-3
 
 
-def test_multi_round_solvency():
+def test_multi_round_solvency() -> None:
     """Repeated risk-managed rebalance rounds keep the portfolio solvent.
 
     Prices move deterministically between rounds so the portfolio drifts away
@@ -58,7 +58,7 @@ def test_multi_round_solvency():
         _assert_solvency(portfolio, rm)
 
 
-def test_drawdown_breach_stops_buys_allows_sells():
+def test_drawdown_breach_stops_buys_allows_sells() -> None:
     """A breached drawdown limit blocks buys but still permits sells."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     portfolio.add_holding("AAPL", 100, 100.0)
@@ -83,7 +83,7 @@ def test_drawdown_breach_stops_buys_allows_sells():
     _assert_solvency(portfolio, rm)
 
 
-def test_drawdown_breach_blocks_buys():
+def test_drawdown_breach_blocks_buys() -> None:
     """Drawdown breach blocks buys even when rebalancing requires increasing a position."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     portfolio.add_holding("AAPL", 10, 100.0)
