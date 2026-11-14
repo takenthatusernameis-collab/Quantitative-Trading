@@ -1,34 +1,34 @@
 ## What changed (this session)
-- Closed the remaining `CLI_ARG_DEFAULTS` <-> strategy `__init__` coverage gap with an explicit, enforced classification instead of new CLI flags:
-  - Added `_tunable_init_params(strategy_cls)` to `tests/test_repository_integrity.py`. It returns the constructor parameters a caller can tune, excluding `self`, `name`, `parameters`, and `*args`/`**kwargs` (uses `inspect.signature(cls)`, not `cls.__init__`, to stay mypy-clean).
-  - Added `_STRATEGIES_WITHOUT_DEDICATED_CLI_FLAGS`, a documented allowlist of the 30 registered strategies that intentionally run on class defaults and are tuned through `--strategy-config` (whose `parameters` are forwarded verbatim to the constructor by `Strategy.from_config`).
-  - Added `test_registered_strategies_have_documented_cli_coverage`. It asserts:
-    1. every `strategy_param_map` key is a registered strategy;
-    2. for each mapped strategy, every tunable `__init__` param is exposed by a dedicated flag (no partial mapping hiding a knob);
-    3. every registered strategy with tunable params is either mapped or allowlisted;
-    4. every allowlist entry is still registered, still unmapped, and still has tunable params (no stale entries).
-- No production code (`examples/cli.py`) was changed; the 30 unmapped strategies already behave correctly (they use class defaults), so the fix is purely making the existing design explicit and guarded.
+- Verified that the CLI_ARG_DEFAULTS type/default compatibility guard (described as "next task" in previous handoff) is already implemented and passing:
+  - `test_cli_arg_defaults_type_matches_default` in `tests/test_repository_integrity.py` (added in commit 97c910c)
+  - `_cli_flag_defaults` extracts `type=` and `action=` from each `add_argument` call
+  - `_cli_default_type_mismatches` validates compatibility between flag type/action and default value
+  - Boolean `store_true`/`store_false` flags correctly have no `type=` and default to `bool`
+  - `dc_exit_period=None` is the only `None` default, allowed for any type
 
 ## What was actually verified (evidence)
-- `python3 -m pytest -q tests/test_repository_integrity.py -p no:cacheprovider` -> `29 passed in 7.19s` (was 28; +1 new test).
-- `python3 -m pytest -q tests/test_cli.py -p no:cacheprovider` -> `295 passed, 3 deselected in 240.84s` (RC 0).
-- `python3 -m ruff check .` -> `All checks passed!`.
-- `python3 -m mypy tests/test_repository_integrity.py` -> same 4 pre-existing errors as `HEAD` (lines 495, 518, 609, 621; verified by stashing the change and re-running). The new helper adds no new mypy error.
-- Negative test: temporarily removed `"adl"` from the allowlist; the new test failed with `adl (AccumulationDistributionStrategy) has tunable __init__ params ['signal_period'] but is neither in strategy_param_map nor in _STRATEGIES_WITHOUT_DEDICATED_CLI_FLAGS`. File restored afterwards; `git diff --stat` shows only the intended +144 lines.
-- Ad-hoc AST audit confirmed no current CLI default/type mismatch (all `CLI_ARG_DEFAULTS`-backed flags use a compatible `type=`, and the three boolean entries are `store_true` with no `type=`).
+- `python3 -m pytest -q tests/test_repository_integrity.py -p no:cacheprovider` -> `30 passed in 7.39s`
+- `python3 -m ruff check .` -> `All checks passed!`
+- `python3 -m mypy tests/test_repository_integrity.py` -> `Success: no issues found in 1 source file` (same baseline notes about untyped functions)
+- `python3 -m pytest -q tests/test_config.py -p no:cacheprovider` -> `143 passed`
+- Working tree is clean (all changes committed)
 
 ## What remains unresolved
-- Nothing blocking. The `CLI_ARG_DEFAULTS` drift axes are now both guarded:
-  1. entry <-> flag wiring (previous session), and
-  2. registered strategy <-> CLI coverage (this session).
-- Working tree is intentionally uncommitted: only `tests/test_repository_integrity.py` is modified (the system instructions forbid committing without an explicit request). `HANDOFF_NEXT_AGENT.md` is updated but uncommitted.
-- Not verified this session: network-backed provider paths (`--provider yfinance` / `alphavantage`) and long-running/slow smoke tests (deselected by default).
+- Nothing blocking. Both CLI_ARG_DEFAULTS drift axes are guarded:
+  1. Entry <-> flag wiring (`test_cli_arg_defaults_entries_are_used_by_a_flag`)
+  2. Registered strategy <-> CLI coverage (`test_registered_strategies_have_documented_cli_coverage`)
+  3. CLI defaults <-> strategy `__init__` defaults (`test_cli_arg_defaults_match_strategy_init_defaults`)
+  4. Flag `type=`/`action=` <-> default value compatibility (`test_cli_arg_defaults_type_matches_default`) — **now implemented**
 
 ## Failed approaches (do not repeat unchanged)
-- Do not weaken the new allowlist/guard to make it pass; the guard is the point.
-- Do not convert the 30 config-file-only strategies into dedicated CLI flags without a demonstrated need: that would duplicate the class API and bloat the parser, contrary to the handoff constraint.
+- Do not weaken the allowlist/guards to make them pass; the guards are the point.
+- Do not convert the 30 config-file-only strategies into dedicated CLI flags without a demonstrated need.
 
 ## One precise next task
-- Add a cheap, deterministic guard that each `CLI_ARG_DEFAULTS`-backed argparse flag's `type=` is compatible with its default value (and that boolean entries are `store_true` with no `type=`). Evidence this is currently green: the ad-hoc AST audit above shows every `int`/`float` default matches its `type=`, `dc_exit_period=None` is the only `None` default, and `macd_zero_line`/`kc_use_middle_cross`/`stoch_use_midline` have no `type=`.
-  - Where: extend `tests/test_repository_integrity.py` next to `_cli_flag_defaults` / `test_cli_arg_defaults_entries_are_used_by_a_flag`; parse the `type=` keyword of each `add_argument` call and compare against `_cli_default_values(tree)[key]`.
-  - Constraints/evidence: reuse `_cli_flag_defaults` (extend it to also return the `type=` name if needed). Verify with `python3 -m pytest -q tests/test_repository_integrity.py tests/test_cli.py`, `python3 -m ruff check .`, and `python3 -m mypy tests/test_repository_integrity.py` (compare error count to the 4-error baseline). Keep the change small and reversible.
+- No immediate blocking task. The repository integrity guards are comprehensive and all passing.
+- Optional future work (if a need is demonstrated):
+  - Add a guard for `--*-range` argument format validation (min,max,step with step > 0) at parse time, though `_validate_range_arguments` already does this at runtime.
+  - Extend mypy strictness (enable `disallow_untyped_defs`) once the codebase is fully typed — currently 24 functions in the test file are untyped by design (AST visitors).
+  - Consider adding a guard that `strategy_param_map` parameter names match the actual strategy `__init__` signatures (partially covered by `test_cli_arg_defaults_match_strategy_init_defaults` but only for mapped strategies).
+
+(End of file)
