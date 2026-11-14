@@ -35,7 +35,7 @@ def _random_holding(rng: np.random.Generator) -> Holding:
 
 
 @pytest.mark.parametrize("seed", SEEDS)
-def test_unrealized_pnl_pct_is_cost_basis_fraction(seed):
+def test_unrealized_pnl_pct_is_cost_basis_fraction(seed: int) -> None:
     """unrealized_pnl_pct is the PnL as a fraction of the cost basis."""
     rng = np.random.default_rng(seed)
     for _ in range(HOLDINGS_PER_SEED):
@@ -56,7 +56,7 @@ def test_unrealized_pnl_pct_is_cost_basis_fraction(seed):
 
 
 @pytest.mark.parametrize("seed", SEEDS)
-def test_unrealized_pnl_pct_sign_matches_pnl(seed):
+def test_unrealized_pnl_pct_sign_matches_pnl(seed: int) -> None:
     """The sign of unrealized_pnl_pct matches the sign of unrealized_pnl."""
     rng = np.random.default_rng(seed)
     for _ in range(HOLDINGS_PER_SEED):
@@ -69,7 +69,7 @@ def test_unrealized_pnl_pct_sign_matches_pnl(seed):
 
 
 @pytest.mark.parametrize("seed", SEEDS)
-def test_unrealized_pnl_pct_long_short_are_mirror_images(seed):
+def test_unrealized_pnl_pct_long_short_are_mirror_images(seed: int) -> None:
     """A long and a short with the same prices are mirror images."""
     rng = np.random.default_rng(seed)
     for _ in range(HOLDINGS_PER_SEED):
