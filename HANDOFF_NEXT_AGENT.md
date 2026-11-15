@@ -1,42 +1,73 @@
 ## What changed (this session)
-Completed the type-annotation migration of `tests/test_cli.py` (329 defs):
-- Added return annotations (`-> None` for all `test_*` methods/`__init__`/spy/`_raise_*`; specific return types for value-returning helpers: `_make_args`/`_args`/`_regime_args`/`_base_opt_args` -> `argparse.Namespace`, `_make_result`/`get_parameters`/`mock_create_strategy`/`summary`/`segments` -> `Any`, `_synthetic_config` -> `Config`, `_run` -> `tuple[int, str]`).
-- Added parameter annotations for all previously-untyped params (`tmp_path: Path`, `capsys: CaptureFixture[Any]`, `monkeypatch: MonkeyPatch`, `filename`/`content`/`message: str`, `arguments: list[str]`, `days`/`seed`/`param_a`/`param_b: int`, `args`/`overrides: Any`, plus variadic `**overrides`/`*a, **k`/`*args, **kwargs` -> `Any`).
-- No new imports needed (`argparse`, `Path`, `CaptureFixture`, `MonkeyPatch`, `Any`, `Config` already imported).
-- Formatted with `black` (rewrapped over-long signatures).
+Completed the type-annotation migration of `tests/test_strategies_examples.py` (593 defs, 8291 lines):
+- Added return annotations to all 555 previously-untyped functions:
+  - `-> None` for 550 test methods/helpers that never return a value.
+  - Specific return types for the 5 value-returning helpers in `TestExamplesRemainingCoverage`:
+    `_ohlcv` -> `pd.DataFrame`, `_ohlcv_no_volume` -> `pd.DataFrame`,
+    `_ohlcv_prev_nan`/`_ohlcv_last_zero`/`_ohlcv_last_nan` -> `list[float]`.
+- Added the 12 missing parameter annotations:
+  - `test_calculate_sar_trend_is_always_bipolar(self, high: list[float], low: list[float], close: list[float])`
+  - `test_signal_matches_trend_reversal(self, high: list[float], low: list[float], close: list[float])`
+  - `_ohlcv(self, closes: list[float], volume: Any = None)`
+  - `_ohlcv_prev_nan`/`_ohlcv_last_zero`/`_ohlcv_last_nan`/`_ohlcv_no_volume(self, closes: list[float])`
+- Added `from typing import Any` (used by `_ohlcv`).
+- Ran `black` (wrapped two over-long SAR signatures).
 
-Fixed 4 pre-existing call-site type errors that blocked a clean mypy run:
-- `examples/cli.py:278` `_is_supported_interval(interval: str)` -> `(interval: str | None)` (body already handles `None` via `(interval or "")`).
-- `tests/test_cli.py` three `strategy = kwargs.get("strategy")` sites in `side_effect` helpers -> added `assert strategy is not None` narrowing before `strategy.name` (lines ~2439, 2664, 2677).
+Fixed 27 latent body-checking errors that the new override exposed (they were hidden because the
+functions were previously untyped). All fixes are behavior-preserving and prefer real annotations:
+- `list[int]` -> `list[float]` invariance at VROC/Donchian call sites: changed `[1_000_000] * 25 + [2_000_000]`,
+  `[1_000_000] * 25 + [500_000]`, and `closes = [100] * 10 + [150] * 5` literals to floats.
+- `volume = [1000] * 80` -> `[1000.0] * 80` (then `volume[-1] = float("nan")` type-checks).
+- Three Choppiness test loops: annotated `closes`/`highs`/`lows` as `list[float] = []` and changed
+  `c = 100` -> `c = 100.0` so the float branch assignments type-check.
 
-Appended `[[tool.mypy.overrides]] module = "tests.test_cli"` / `disallow_untyped_defs = true` immediately before `[tool.coverage.run]` (now 58 overrides, 0 duplicates).
+Appended `[[tool.mypy.overrides]] module = "tests.test_strategies_examples"` /
+`disallow_untyped_defs = true` immediately before `[tool.coverage.run]` (now 59 overrides, 0 duplicates).
 
 ## What was actually verified (evidence)
-- `python3 -m mypy quant_trading/ tests/ --show-error-codes --no-incremental` -> only 1 pre-existing error: `tests/test_optimization.py:1542` (list-item). `test_cli.py` produces no errors under the new override.
-- `python3 -m pytest tests/test_cli.py -p no:cacheprovider -q` -> `9 failed, 286 passed, 3 deselected` (identical to baseline; the 9 failures are pre-existing `TestHtmlReportFlag` report/matplotlib issues, unrelated to annotations - no regressions).
-- `python3 -m ruff check tests/test_cli.py examples/cli.py pyproject.toml` -> `All checks passed!`
-- `python3 -m black --check tests/test_cli.py examples/cli.py` -> unchanged
-- `git diff --check` -> clean
+- `python3 -m mypy quant_trading/ tests/ --show-error-codes --no-incremental`
+  -> only 1 pre-existing error: `tests/test_optimization.py:1542` (list-item). No errors in the migrated file.
+- `python3 -m pytest tests/test_strategies_examples.py -p no:cacheprovider -q` -> `556 passed` (identical to baseline).
+- `python3 -m ruff check tests/test_strategies_examples.py pyproject.toml` -> `All checks passed!`
+- `python3 -m black --check tests/test_strategies_examples.py` -> `1 file would be left unchanged.`
+- `git diff --check` -> clean.
+- AST re-check: 0 missing return annotations, 0 missing param annotations in the file.
 
 ## What remains unresolved (pre-existing / environment, DO NOT "fix" by editing test code)
-- Missing optional dependency `matplotlib`; `pandas-stubs>=3.0.0` declared but not installed -> known env noise (drives the `TestHtmlReportFlag` failures).
+- `tests/test_optimization.py:1542` list-item error: `DataManager([MockDataProvider(...)])` where
+  `DataManager.__init__` expects `list[DataProvider]` (providers.py:530) and `DataProvider` is an ABC
+  (providers.py:343). `MockDataProvider` (test_optimization.py:68) is a duck-typed stand-in that does NOT
+  subclass `DataProvider` and lacks the abstract `fetch_latest`. This is the ONLY remaining mypy error.
+- `test_optimization.py` also has 2 notes (annotation-unchecked) at 4222/4252 (bodies of still-untyped funcs).
+- Missing optional dep `matplotlib`; `pandas-stubs>=3.0.0` declared but not installed -> env noise (drives
+  `TestHtmlReportFlag` failures in test_cli.py). pandas is treated as `Any` by mypy.
 - `black --check pyproject.toml` parse failure (do not run black on the TOML).
-- Pre-existing `tests/test_optimization.py:1542` list-item type error (file SKIP for migration).
-- `quant_trading/strategies/base.py:290` only under global `--disallow-untyped-defs`.
 
-## Remaining migration candidates (verified counts via AST)
-- `test_strategies_examples.py`: 555 missing return, 12 params (recommended next)
-- `test_optimization.py`: 211 missing return, 76 params (SKIP: pre-existing 1542 error)
+## Remaining migration candidates (verified via AST)
+- `tests/test_optimization.py`: 211 missing return, 76 params. ONLY remaining file without a mypy override.
+  SKIP UNTIL the 1542 list-item error is resolved, or the override will expose many more body errors.
 
 ## One precise next task
-Migrate `tests/test_strategies_examples.py` (currently passing, no mypy override yet).
-1. Baseline: `python3 -m pytest tests/test_strategies_examples.py -p no:cacheprovider -q` and `python3 -m mypy quant_trading/ tests/ --show-error-codes --no-incremental` (confirm only the 1 pre-existing `test_optimization.py:1542` error).
-2. Add return annotations (`-> None` for test functions; specific types for value-returning helpers) and parameter annotations for missing params; check for nested `if __name__ == "__main__":` hiding defs and any def whose body returns a value (do not annotate those `-> None`).
-3. Append `[[tool.mypy.overrides]] module = "tests.test_strategies_examples"` / `disallow_untyped_defs = true` immediately before `[tool.coverage.run]` (expect 59 overrides, 0 duplicates).
-4. Verify: `mypy quant_trading/ tests/` -> only the 1 pre-existing error; `pytest tests/test_strategies_examples.py`; `ruff check tests/test_strategies_examples.py pyproject.toml`; `black --check tests/test_strategies_examples.py`; `git diff --check`.
-Constraints: preserve the working baseline; no unrelated refactors; prefer real annotations over `# type: ignore`; lines <= 100 chars; leave changes uncommitted.
+Migrate `tests/test_optimization.py`, starting by resolving the single blocking error at line 1542.
+1. Baseline: `python3 -m pytest tests/test_optimization.py -p no:cacheprovider -q` and
+   `python3 -m mypy quant_trading/ tests/ --show-error-codes --no-incremental` (confirm only 1542 error).
+2. Resolve 1542 with the smallest real fix, e.g. make `MockDataProvider` subclass `DataProvider` and
+   implement `fetch_latest` (check providers.py:376+ for abstract methods), OR change the call to satisfy
+   the declared type. Do NOT add a blanket `# type: ignore` unless no structural fix is reasonable.
+3. Add return annotations (`-> None` for test functions; specific types for value-returning helpers — run
+   the AST "has_value_return" check first; do NOT annotate value-returning defs as `-> None`) and the 76
+   missing param annotations (watch for nested `if __name__ == "__main__":` defs and pytest fixtures).
+4. Append `[[tool.mypy.overrides]] module = "tests.test_optimization"` / `disallow_untyped_defs = true`
+   immediately before `[tool.coverage.run]` (expect 60 overrides, 0 duplicates).
+5. Verify: mypy -> only pre-existing 1542 (now fixed, so ideally 0 errors); pytest test_optimization.py;
+   ruff check tests/test_optimization.py pyproject.toml; black --check tests/test_optimization.py; git diff --check.
+Constraints: preserve the working baseline; no unrelated refactors; prefer real annotations over
+`# type: ignore`; lines <= 100 chars; leave changes uncommitted.
 
 ## Failed or corrected approaches this session
-- `disallow_untyped_defs` requires annotations on `self` when combined with varargs: `def spy(self, *a: Any, **k: Any) -> None:` was flagged `no-untyped-def`; corrected to `def spy(self: Any, *a: Any, **k: Any) -> None:` (test double replacing `__init__`).
-- mypy flagged unannotated variadic params (`**overrides`, `*args`/`**kwargs`, `*a`/`**k`); corrected all to `: Any`.
-- mypy call-site errors `_is_supported_interval(None)` and `strategy.name` on `Any | None` pre-existed; fixed by widening the signature and adding `assert strategy is not None`, respectively.
+- Adding the `disallow_untyped_defs` override alone is insufficient: mypy then type-checks all now-annotated
+  bodies and surfaced 27 pre-existing latent errors (list[int] vs list[float] invariance, int lists assigned
+  floats). Fixed by converting literals to float and annotating the accumulator lists; do NOT re-add these
+  to the skip list.
+- `list` is invariant; `list[int]` is not assignable to `list[float]`. Prefer float literals (or `Sequence`
+  in helper signatures) over `# type: ignore`.

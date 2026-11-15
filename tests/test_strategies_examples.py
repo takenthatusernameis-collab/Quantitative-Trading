@@ -1,6 +1,7 @@
 """Tests for example trading strategies."""
 
 from datetime import datetime
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -223,7 +224,7 @@ def create_keltner_data(symbol: str, closes: list[float]) -> pd.DataFrame:
 class TestDonchianChannelStrategy:
     """Tests for DonchianChannelStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10, name="Test_DC")
         assert strategy.name == "Test_DC"
@@ -232,13 +233,13 @@ class TestDonchianChannelStrategy:
         assert strategy.parameters["period"] == 20
         assert strategy.parameters["exit_period"] == 10
 
-    def test_initialization_default_exit_period(self):
+    def test_initialization_default_exit_period(self) -> None:
         """Test default exit_period equals period."""
         strategy = DonchianChannelStrategy(period=20, name="Test_DC")
         assert strategy.exit_period == 20
         assert strategy.parameters["exit_period"] is None
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation."""
         with pytest.raises(ValueError, match="period must be positive"):
             DonchianChannelStrategy(period=0)
@@ -249,14 +250,14 @@ class TestDonchianChannelStrategy:
         with pytest.raises(ValueError, match="exit_period must be positive"):
             DonchianChannelStrategy(period=20, exit_period=-1)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with insufficient data."""
         strategy = DonchianChannelStrategy(period=20)
         data = {"AAPL": create_donchian_data("AAPL", [100.0] * 15)}  # Less than period
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_bullish_breakout(self):
+    def test_generate_signals_bullish_breakout(self) -> None:
         """Test generate_signals detects bullish breakout (buy signal)."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
         # Flat range, then a final close well above the prior 20-bar high
@@ -277,7 +278,7 @@ class TestDonchianChannelStrategy:
         assert signal.metadata["exit_upper"] == pytest.approx(100.0 * 1.001)
         assert signal.metadata["exit_lower"] == pytest.approx(100.0 * 0.999)
 
-    def test_generate_signals_bearish_breakdown(self):
+    def test_generate_signals_bearish_breakdown(self) -> None:
         """Test generate_signals detects bearish breakdown (sell signal)."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
         data = {"AAPL": create_donchian_data("AAPL", [100.0] * 40 + [90.0])}
@@ -293,14 +294,14 @@ class TestDonchianChannelStrategy:
         assert signal.metadata["upper_band"] == pytest.approx(100.0 * 1.001)
         assert signal.metadata["lower_band"] == pytest.approx(100.0 * 0.999)
 
-    def test_generate_signals_no_cross_no_signal(self):
+    def test_generate_signals_no_cross_no_signal(self) -> None:
         """Steady trend keeps %B between thresholds, so no signal fires."""
         strategy = BollingerPercentBStrategy(period=5, oversold=0.2, overbought=0.8)
         closes = [100.0 + i for i in range(20)]
         data = {"AAPL": create_bollinger_percent_b_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals with multiple symbols."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
         data = {
@@ -313,14 +314,14 @@ class TestDonchianChannelStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_in_range_no_signals(self):
+    def test_generate_signals_in_range_no_signals(self) -> None:
         """Test generate_signals returns no signals while price stays in channel."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
         data = {"AAPL": create_donchian_data("AAPL", [100.0] * 41)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_exit_long_middle_band(self):
+    def test_generate_signals_exit_long_middle_band(self) -> None:
         """Test generate_signals exits long when price crosses below middle band."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
         # Prior close above the middle band, final close below it but above
@@ -338,7 +339,7 @@ class TestDonchianChannelStrategy:
         assert 0.0 <= signal.strength <= 1.0
         assert signal.metadata["signal_type"] == "middle_band_exit_long"
 
-    def test_generate_signals_exit_long_exit_channel(self):
+    def test_generate_signals_exit_long_exit_channel(self) -> None:
         """Test generate_signals exits long when price breaks exit channel."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
         # A dip inside the 20-bar window but outside the 10-bar exit window,
@@ -360,7 +361,7 @@ class TestDonchianChannelStrategy:
         assert 0.0 <= signal.strength <= 1.0
         assert signal.metadata["signal_type"] == "exit_channel_breakdown"
 
-    def test_generate_signals_exit_short_middle_band(self):
+    def test_generate_signals_exit_short_middle_band(self) -> None:
         """Test generate_signals exits short when price crosses above middle band."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
         data = {"AAPL": create_donchian_data("AAPL", [100.0] * 39 + [99.0, 100.05])}
@@ -376,7 +377,7 @@ class TestDonchianChannelStrategy:
         assert 0.0 <= signal.strength <= 1.0
         assert signal.metadata["signal_type"] == "middle_band_exit_short"
 
-    def test_generate_signals_exit_short_exit_channel(self):
+    def test_generate_signals_exit_short_exit_channel(self) -> None:
         """Test generate_signals exits short when price breaks exit channel."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
         data = {
@@ -396,7 +397,7 @@ class TestDonchianChannelStrategy:
         assert 0.0 <= signal.strength <= 1.0
         assert signal.metadata["signal_type"] == "exit_channel_breakout"
 
-    def test_generate_signals_no_exit_without_position(self):
+    def test_generate_signals_no_exit_without_position(self) -> None:
         """Test that no exit signals are generated without a position."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
         data = {"AAPL": create_donchian_data("AAPL", [100.0] * 40 + [110.0])}
@@ -407,7 +408,7 @@ class TestDonchianChannelStrategy:
         assert signals[0].metadata["signal_type"] == "upper_breakout"
         assert all("exit" not in s.metadata["signal_type"] for s in signals)
 
-    def test_generate_signals_exit_long_no_exit_channel_breakdown(self):
+    def test_generate_signals_exit_long_no_exit_channel_breakdown(self) -> None:
         """With a long position, when the middle-band exit does not fire and the
         price does not break the exit channel lower band, no exit signal is
         produced (the `elif` exit-channel arm is not taken)."""
@@ -420,7 +421,7 @@ class TestDonchianChannelStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_exit_short_no_exit_channel_breakout(self):
+    def test_generate_signals_exit_short_no_exit_channel_breakout(self) -> None:
         """With a short position, when the middle-band exit does not fire and the
         price does not break the exit channel upper band, no exit signal is
         produced (the `elif` exit-channel arm is not taken)."""
@@ -433,7 +434,7 @@ class TestDonchianChannelStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_skips_nan_values(self):
+    def test_generate_signals_skips_nan_values(self) -> None:
         """NaN channel values on the last bar are skipped."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
         data = {"AAPL": create_donchian_data("AAPL", [100.0] * 40 + [101.0])}
@@ -441,7 +442,7 @@ class TestDonchianChannelStrategy:
         df.iloc[-1, df.columns.get_loc("close")] = float("nan")
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_zero_upper_band(self):
+    def test_generate_signals_skips_zero_upper_band(self) -> None:
         """A zero upper band is skipped to avoid division by zero."""
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
         # All-zero highs/lows produce zero bands; last bar must not divide by zero.
@@ -452,7 +453,7 @@ class TestDonchianChannelStrategy:
 class TestMovingAverageCrossover:
     """Tests for MovingAverageCrossover strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = MovingAverageCrossover(fast_period=10, slow_period=30, name="Test_MA")
         assert strategy.name == "Test_MA"
@@ -461,7 +462,7 @@ class TestMovingAverageCrossover:
         assert strategy.parameters["fast_period"] == 10
         assert strategy.parameters["slow_period"] == 30
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
         with pytest.raises(ValueError, match="fast_period must be positive"):
             MovingAverageCrossover(fast_period=0)
@@ -476,14 +477,14 @@ class TestMovingAverageCrossover:
         with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
             MovingAverageCrossover(fast_period=10, slow_period=10)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with insufficient data."""
         strategy = MovingAverageCrossover(fast_period=10, slow_period=30)
         data = {"AAPL": create_trending_data("AAPL", days=20)}  # Less than slow_period
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_golden_cross(self):
+    def test_generate_signals_golden_cross(self) -> None:
         """Test generate_signals detects golden cross (buy signal).
 
         A flat 15-bar base (slow window fills at 100), then a 5-bar dip to 50
@@ -507,7 +508,7 @@ class TestMovingAverageCrossover:
         assert signal.metadata["fast_ma"] == pytest.approx(100.0)
         assert signal.metadata["slow_ma"] == pytest.approx(96.66666666666667)
 
-    def test_generate_signals_death_cross(self):
+    def test_generate_signals_death_cross(self) -> None:
         """Test generate_signals detects death cross (sell signal).
 
         A 15-bar base at 100, a 20-bar run at 200 (filling both MAs at 200),
@@ -530,7 +531,7 @@ class TestMovingAverageCrossover:
         assert signal.metadata["fast_ma"] == pytest.approx(170.0)
         assert signal.metadata["slow_ma"] == pytest.approx(190.0)
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals with multiple symbols."""
         strategy = MovingAverageCrossover(fast_period=5, slow_period=15)
         data = {
@@ -542,7 +543,7 @@ class TestMovingAverageCrossover:
         symbols = {s.symbol for s in signals}
         assert symbols.issubset({"AAPL", "MSFT"})
 
-    def test_generate_signals_skips_a_nan_last_close(self):
+    def test_generate_signals_skips_a_nan_last_close(self) -> None:
         """A last close that is not a number yields no signal.
 
         The signal is emitted at the last close, so a close that is not a
@@ -554,7 +555,7 @@ class TestMovingAverageCrossover:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_skips_an_undefined_previous_ma(self):
+    def test_generate_signals_skips_an_undefined_previous_ma(self) -> None:
         """A previous moving average that is not a number yields no signal.
 
         The crossover is measured between the last two moving averages, so a
@@ -567,7 +568,7 @@ class TestMovingAverageCrossover:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_with_one_bar_windows_yields_no_signals(self):
+    def test_generate_signals_with_one_bar_windows_yields_no_signals(self) -> None:
         """A strategy with one-bar windows cannot detect a crossover.
 
         ``validate_parameters`` requires the slow window to be longer than the
@@ -582,7 +583,7 @@ class TestMovingAverageCrossover:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_golden_cross_with_a_zero_slow_ma_uses_the_fallback_strength(self):
+    def test_golden_cross_with_a_zero_slow_ma_uses_the_fallback_strength(self) -> None:
         """A golden cross on a zero slow MA falls back to a 0.5 strength.
 
         The strength is the distance between the two moving averages relative
@@ -600,7 +601,7 @@ class TestMovingAverageCrossover:
         assert signal.metadata["crossover_type"] == "golden_cross"
         assert signal.metadata["slow_ma"] == 0.0
 
-    def test_death_cross_with_a_zero_slow_ma_uses_the_fallback_strength(self):
+    def test_death_cross_with_a_zero_slow_ma_uses_the_fallback_strength(self) -> None:
         """A death cross on a zero slow MA falls back to a 0.5 strength."""
         strategy = MovingAverageCrossover(fast_period=1, slow_period=2)
         closes = [0.0, 0.0, 10.0, -10.0]
@@ -614,7 +615,7 @@ class TestMovingAverageCrossover:
         assert signal.metadata["crossover_type"] == "death_cross"
         assert signal.metadata["slow_ma"] == 0.0
 
-    def test_generate_signals_incremental_path_growing_windows(self):
+    def test_generate_signals_incremental_path_growing_windows(self) -> None:
         """Incremental updates work while windows are still growing."""
         strategy = MovingAverageCrossover(fast_period=5, slow_period=10)
         df = create_trending_data("AAPL", days=15, trend=0.001)
@@ -625,7 +626,7 @@ class TestMovingAverageCrossover:
         signals = strategy.generate_signals({"AAPL": df})
         assert isinstance(signals, list)
 
-    def test_generate_signals_incremental_slow_window_still_growing(self):
+    def test_generate_signals_incremental_slow_window_still_growing(self) -> None:
         """Incremental path when slow window is still growing (covers line 128)."""
         strategy = MovingAverageCrossover(fast_period=2, slow_period=10)
         closes = [100.0 + i * 0.1 for i in range(20)]
@@ -638,7 +639,7 @@ class TestMovingAverageCrossover:
         signals = strategy.generate_signals({"AAPL": df.iloc[:6]})
         assert isinstance(signals, list)
 
-    def test_generate_signals_incremental_matches_full_compute(self):
+    def test_generate_signals_incremental_matches_full_compute(self) -> None:
         """Bar by bar incremental should match full computation."""
         closes = [100.0] * 15 + [50.0] * 5 + [300.0]
         full_data = {"AAPL": create_donchian_data("AAPL", closes)}
@@ -653,7 +654,7 @@ class TestMovingAverageCrossover:
         assert len(signals_full) >= 0
         assert isinstance(signals_inc, list)
 
-    def test_generate_signals_skips_when_fast_ma_nan(self):
+    def test_generate_signals_skips_when_fast_ma_nan(self) -> None:
         """Skip when fast_ma is NaN."""
         strategy = MovingAverageCrossover(fast_period=2, slow_period=3)
         closes = [100.0, float("nan"), 101.0, 102.0]
@@ -661,7 +662,7 @@ class TestMovingAverageCrossover:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_skips_when_slow_ma_nan(self):
+    def test_generate_signals_skips_when_slow_ma_nan(self) -> None:
         """Skip when slow_ma is NaN."""
         strategy = MovingAverageCrossover(fast_period=2, slow_period=3)
         closes = [float("nan"), 100.0, 101.0, 102.0]
@@ -669,7 +670,7 @@ class TestMovingAverageCrossover:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_incremental_with_full_window_removal(self):
+    def test_generate_signals_incremental_with_full_window_removal(self) -> None:
         """Test incremental path when removing old values from full windows."""
         strategy = MovingAverageCrossover(fast_period=3, slow_period=5)
         df = create_trending_data("AAPL", days=30, trend=0.01)
@@ -680,7 +681,7 @@ class TestMovingAverageCrossover:
         signals = strategy.generate_signals({"AAPL": df})
         assert isinstance(signals, list)
 
-    def test_moving_average_incremental_growing_fast_only(self):
+    def test_moving_average_incremental_growing_fast_only(self) -> None:
         """Hit growing window branch in incremental path."""
         strategy = MovingAverageCrossover(fast_period=3, slow_period=10)
         df = create_trending_data("AAPL", days=12, trend=0.005)
@@ -689,7 +690,7 @@ class TestMovingAverageCrossover:
         signals = strategy.generate_signals({"AAPL": df})
         assert isinstance(signals, list)
 
-    def test_moving_average_incremental_with_full_fast_removal_only(self):
+    def test_moving_average_incremental_with_full_fast_removal_only(self) -> None:
         """Force full window removal for fast but not slow in certain states."""
         strategy = MovingAverageCrossover(fast_period=2, slow_period=15)
         df = create_trending_data("AAPL", days=25, trend=0.001)
@@ -699,7 +700,7 @@ class TestMovingAverageCrossover:
         signals = strategy.generate_signals({"AAPL": df})
         assert isinstance(signals, list)
 
-    def test_generate_signals_incremental_growing_window_branches(self):
+    def test_generate_signals_incremental_growing_window_branches(self) -> None:
         """Force incremental path with growing windows (lines ~124, 128)."""
         strategy = MovingAverageCrossover(fast_period=5, slow_period=10)
         df = create_donchian_data("AAPL", [10.0, 11.0, 12.0, 13.0, 14.0, 15.0])
@@ -721,7 +722,7 @@ class TestMovingAverageCrossover:
         signals = strategy2.generate_signals({"AAPL": df_small2})
         assert isinstance(signals, list)
 
-    def test_generate_signals_incremental_slow_growing_fast_full(self):
+    def test_generate_signals_incremental_slow_growing_fast_full(self) -> None:
         """Hit slow growing window while fast window is full in incremental path."""
         strategy = MovingAverageCrossover(fast_period=3, slow_period=10)
         df = create_donchian_data("AAPL", [1.0, 2.0, 3.0, 4.0, 5.0])  # len 5
@@ -738,7 +739,7 @@ class TestMovingAverageCrossover:
 class TestRSIStrategy:
     """Tests for RSIStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = RSIStrategy(period=14, oversold=30, overbought=70, name="Test_RSI")
         assert strategy.name == "Test_RSI"
@@ -746,7 +747,7 @@ class TestRSIStrategy:
         assert strategy.oversold == 30
         assert strategy.overbought == 70
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid bounds."""
         with pytest.raises(ValueError, match="period must be positive"):
             RSIStrategy(period=0)
@@ -777,7 +778,7 @@ class TestRSIStrategy:
         with pytest.raises(ValueError, match="oversold must be less than overbought"):
             RSIStrategy(oversold=70, overbought=30)
 
-    def test_generate_signals_overbought_rejection(self):
+    def test_generate_signals_overbought_rejection(self) -> None:
         """Test generate_signals detects overbought rejection (sell signal).
 
         Fourteen consecutive up-bars pin RSI at 100; a final 10-point
@@ -797,7 +798,7 @@ class TestRSIStrategy:
         assert signal.metadata["signal_type"] == "overbought_rejection"
         assert signal.metadata["rsi"] == pytest.approx(56.52173913043478)
 
-    def test_generate_signals_oversold_crossover_buy(self):
+    def test_generate_signals_oversold_crossover_buy(self) -> None:
         """Test generate_signals detects oversold crossover (buy signal)."""
         strategy = RSIStrategy(period=2, oversold=30, overbought=70)
         closes = [100.0, 99, 98, 97, 96, 95, 94, 93, 92, 91, 90, 91]
@@ -814,7 +815,7 @@ class TestRSIStrategy:
         assert signal.metadata["signal_type"] == "oversold_bounce"
         assert signal.metadata["rsi"] == pytest.approx(50.0)
 
-    def test_generate_signals_oversold_crossover_buy_full_compute(self):
+    def test_generate_signals_oversold_crossover_buy_full_compute(self) -> None:
         """Test generate_signals detects oversold crossover (buy signal) via full compute path."""
         strategy = RSIStrategy(period=2, oversold=30, overbought=70)
         closes = [100.0, 99, 98, 97, 96, 95, 94, 93, 92, 91, 90, 91]
@@ -829,21 +830,21 @@ class TestRSIStrategy:
         assert signal.metadata["signal_type"] == "oversold_bounce"
         assert signal.metadata["rsi"] == pytest.approx(50.0)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with insufficient data."""
         strategy = RSIStrategy(period=14)
         data = {"AAPL": create_mean_reverting_data("AAPL", days=10)}  # Less than period
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_rsi_insufficient_data_boundary(self):
+    def test_generate_signals_rsi_insufficient_data_boundary(self) -> None:
         """Test RSI with exactly period+1 bars."""
         strategy = RSIStrategy(period=14)
         data = {"AAPL": create_donchian_data("AAPL", [100.0] * 15)}
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
 
-    def test_generate_signals_incremental_rsi_matches_full(self):
+    def test_generate_signals_incremental_rsi_matches_full(self) -> None:
         """RSI incremental path matches full computation."""
         strategy_full = RSIStrategy(period=14, oversold=30, overbought=70)
         closes = [100.0] * 20 + [110.0, 120.0, 115.0]
@@ -858,7 +859,7 @@ class TestRSIStrategy:
         assert isinstance(signals_full, list)
         assert isinstance(signals_inc, list)
 
-    def test_generate_signals_rsi_incremental_edge_cases(self):
+    def test_generate_signals_rsi_incremental_edge_cases(self) -> None:
         """Test RSI incremental edge cases."""
         strategy = RSIStrategy(period=2, oversold=30, overbought=70)
         df = create_donchian_data("AAPL", [100.0, 101.0, 102.0, 101.0])
@@ -867,14 +868,14 @@ class TestRSIStrategy:
         signals = strategy.generate_signals({"AAPL": df})
         assert isinstance(signals, list)
 
-    def test_adx_small_history_no_signal(self):
+    def test_adx_small_history_no_signal(self) -> None:
         """ADX needs sufficient history."""
         strategy = ADXStrategy(period=14, threshold=25.0)
         data = {"AAPL": create_mean_reverting_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_adx_edge_cases(self):
+    def test_adx_edge_cases(self) -> None:
         """Test ADX with various data patterns."""
         strategy = ADXStrategy(period=5, threshold=20.0)
         # trending data
@@ -882,7 +883,7 @@ class TestRSIStrategy:
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
 
-    def test_generate_signals_skips_an_undefined_rsi(self):
+    def test_generate_signals_skips_an_undefined_rsi(self) -> None:
         """A flat price series has no RSI, so no signal is generated.
 
         The RSI is undefined when there are no gains and no losses at all:
@@ -894,7 +895,7 @@ class TestRSIStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_flat_incremental_no_signal(self):
+    def test_generate_signals_flat_incremental_no_signal(self) -> None:
         strategy = RSIStrategy(period=14, oversold=30, overbought=70)
         closes = [100.0] * 15
         data = {"AAPL": create_donchian_data("AAPL", closes)}
@@ -903,7 +904,7 @@ class TestRSIStrategy:
         data2 = {"AAPL": create_donchian_data("AAPL", closes2)}
         assert strategy.generate_signals(data2) == []
 
-    def test_rsi_incremental_skips_when_prev_rsi_none(self):
+    def test_rsi_incremental_skips_when_prev_rsi_none(self) -> None:
         """Force incremental path where prev_rsi becomes None and is skipped."""
         strategy = RSIStrategy(period=3, oversold=30, overbought=70)
         df = create_donchian_data("AAPL", [100.0, 101.0, 102.0, 103.0, 104.0])
@@ -916,7 +917,7 @@ class TestRSIStrategy:
         signals = strategy.generate_signals({"AAPL": df})
         assert isinstance(signals, list)
 
-    def test_rsi_incremental_skips_when_current_rsi_none_or_nan(self):
+    def test_rsi_incremental_skips_when_current_rsi_none_or_nan(self) -> None:
         """Incremental path with None/NaN current RSI values triggers skips."""
         strategy = RSIStrategy(period=2, oversold=30, overbought=70)
         # Sequence that can lead to flat/undefined in some incremental cases
@@ -931,14 +932,14 @@ class TestRSIStrategy:
 class TestBollingerBandsStrategy:
     """Tests for BollingerBandsStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = BollingerBandsStrategy(period=20, std_dev=2.0, name="Test_BB")
         assert strategy.name == "Test_BB"
         assert strategy.period == 20
         assert strategy.std_dev == 2.0
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid inputs."""
         with pytest.raises(ValueError, match="period must be positive"):
             BollingerBandsStrategy(period=0)
@@ -953,7 +954,7 @@ class TestBollingerBandsStrategy:
         with pytest.raises(ValueError, match="std_dev must be positive"):
             BollingerBandsStrategy(std_dev=float("inf"))
 
-    def test_generate_signals_lower_band_touch(self):
+    def test_generate_signals_lower_band_touch(self) -> None:
         """Test generate_signals detects lower band touch (buy signal).
 
         Alternating closes give a ~97.4 lower band; a final close of 95
@@ -974,7 +975,7 @@ class TestBollingerBandsStrategy:
         assert signal.metadata["lower_band"] == pytest.approx(97.38610501446847)
         assert signal.metadata["upper_band"] == pytest.approx(104.11389498553154)
 
-    def test_generate_signals_upper_band_touch(self):
+    def test_generate_signals_upper_band_touch(self) -> None:
         """Test generate_signals detects upper band touch (sell signal).
 
         Alternating closes give a ~106.0 upper band; a final close of 110
@@ -995,14 +996,14 @@ class TestBollingerBandsStrategy:
         assert signal.metadata["upper_band"] == pytest.approx(105.97213595499957)
         assert signal.metadata["lower_band"] == pytest.approx(97.02786404500042)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with insufficient data."""
         strategy = BollingerBandsStrategy(period=20)
         data = {"AAPL": create_trending_data("AAPL", days=15)}  # Less than period
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_one_bar_window_uses_nan_std(self):
+    def test_generate_signals_one_bar_window_uses_nan_std(self) -> None:
         """A one-bar incremental window keeps the std NaN and skips the bar.
 
         With ``period=1`` the incremental update has a single-sample window,
@@ -1016,7 +1017,7 @@ class TestBollingerBandsStrategy:
         signals = strategy.generate_signals({"AAPL": create_donchian_data("AAPL", [100.0, 101.0])})
         assert signals == []
 
-    def test_generate_signals_band_touch(self):
+    def test_generate_signals_band_touch(self) -> None:
         """Test generate_signals detects band touches."""
         strategy = BollingerBandsStrategy(period=20, std_dev=2.0)
         data = {"AAPL": create_mean_reverting_data("AAPL", days=60)}
@@ -1031,13 +1032,13 @@ class TestBollingerBandsStrategy:
             elif signal.action == "sell":
                 assert signal.metadata.get("signal_type") == "upper_band_touch"
 
-    def test_generate_signals_percent_b_zero_price_skipped(self):
+    def test_generate_signals_percent_b_zero_price_skipped(self) -> None:
         """PercentBStrategy skips when current price is 0."""
         strategy = BollingerPercentBStrategy(period=20, oversold=0.2, overbought=0.8)
         data = {"AAPL": create_donchian_data("AAPL", [100.0, 102.0] * 10 + [0.0])}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_nan_values(self):
+    def test_generate_signals_skips_nan_values(self) -> None:
         """NaN indicator values on the last bar are skipped."""
         strategy = BollingerBandsStrategy(period=20, std_dev=2.0)
         data = {"AAPL": create_donchian_data("AAPL", [100.0, 102.0] * 10 + [95.0])}
@@ -1045,13 +1046,13 @@ class TestBollingerBandsStrategy:
         df.iloc[-1, df.columns.get_loc("close")] = float("nan")
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_zero_price(self):
+    def test_generate_signals_skips_zero_price(self) -> None:
         """A zero close on the last bar is skipped to avoid division by zero."""
         strategy = BollingerBandsStrategy(period=20, std_dev=2.0)
         data = {"AAPL": create_donchian_data("AAPL", [100.0, 102.0] * 10 + [0.0])}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_period_one(self):
+    def test_generate_signals_period_one(self) -> None:
         """A one-bar window yields NaN bands: no crash, no signals."""
         strategy = BollingerBandsStrategy(period=1, std_dev=2.0)
         data = {"AAPL": create_donchian_data("AAPL", [100.0, 102.0] * 10 + [95.0])}
@@ -1064,7 +1065,7 @@ class TestBollingerBandsStrategy:
             signals += incremental.generate_signals({"AAPL": df.iloc[: i + 1]})
         assert signals == []
 
-    def test_generate_signals_incremental_matches_full_recompute(self):
+    def test_generate_signals_incremental_matches_full_recompute(self) -> None:
         """Bar-by-bar incremental updates match full recomputation exactly."""
         strategy = BollingerBandsStrategy(period=20, std_dev=2.0)
         df = create_mean_reverting_data("AAPL", days=120)
@@ -1089,7 +1090,7 @@ class TestBollingerBandsStrategy:
             assert inc.metadata["upper_band"] == pytest.approx(full.metadata["upper_band"])
             assert inc.metadata["lower_band"] == pytest.approx(full.metadata["lower_band"])
 
-    def test_bollinger_incremental_with_full_window_removal(self):
+    def test_bollinger_incremental_with_full_window_removal(self) -> None:
         """Hit BB incremental path with window trimming."""
         strategy = BollingerBandsStrategy(period=5, std_dev=2.0)
         df = create_trending_data("AAPL", days=40, trend=0.01)
@@ -1098,7 +1099,7 @@ class TestBollingerBandsStrategy:
         signals = strategy.generate_signals({"AAPL": df})
         assert isinstance(signals, list)
 
-    def test_bollinger_incremental_variance_floor_and_period_one(self):
+    def test_bollinger_incremental_variance_floor_and_period_one(self) -> None:
         """Ensure incremental/edge cases for BB."""
         strategy = BollingerBandsStrategy(period=3, std_dev=1.5)
         df = create_donchian_data("AAPL", [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
@@ -1468,7 +1469,7 @@ def create_stochrsi_ohlcv(closes: list[float]) -> pd.DataFrame:
 class TestMACDStrategy:
     """Tests for MACDStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = MACDStrategy(fast_period=12, slow_period=26, signal_period=9, name="Test_MACD")
         assert strategy.name == "Test_MACD"
@@ -1480,7 +1481,7 @@ class TestMACDStrategy:
         assert strategy.parameters["signal_period"] == 9
         assert strategy.use_zero_line is False
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
         with pytest.raises(ValueError, match="fast_period must be positive"):
             MACDStrategy(fast_period=0)
@@ -1499,14 +1500,14 @@ class TestMACDStrategy:
         with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
             MACDStrategy(fast_period=12, slow_period=12)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with insufficient data."""
         strategy = MACDStrategy(fast_period=12, slow_period=26, signal_period=9)
         data = {"AAPL": create_macd_data("AAPL", days=20)}  # Less than slow+signal
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_bullish_crossover(self):
+    def test_generate_signals_bullish_crossover(self) -> None:
         """Test generate_signals detects MACD bullish crossover (buy signal)."""
         strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5)
         data = {"AAPL": create_macd_data("AAPL", days=100)}
@@ -1526,7 +1527,7 @@ class TestMACDStrategy:
                 assert "signal" in signal.metadata
                 assert "histogram" in signal.metadata
 
-    def test_generate_signals_bearish_crossover(self):
+    def test_generate_signals_bearish_crossover(self) -> None:
         """Test generate_signals detects MACD bearish crossover (sell signal)."""
         strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5)
         data = {"AAPL": create_macd_falling_data("AAPL", days=100)}
@@ -1539,7 +1540,7 @@ class TestMACDStrategy:
             if signal.action == "sell":
                 assert signal.metadata.get("crossover_type") == "bearish"
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals with multiple symbols."""
         strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5)
         data = {
@@ -1550,7 +1551,7 @@ class TestMACDStrategy:
         symbols = {s.symbol for s in signals}
         assert symbols.issubset({"AAPL", "MSFT"})
 
-    def test_zero_line_option(self):
+    def test_zero_line_option(self) -> None:
         """Test that use_zero_line enables zero-line crossovers."""
         strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5, use_zero_line=True)
         assert strategy.use_zero_line is True
@@ -1560,7 +1561,7 @@ class TestMACDStrategy:
         for signal in signals:
             assert signal.action in ("buy", "sell")
 
-    def test_generate_signals_zero_line_bullish(self):
+    def test_generate_signals_zero_line_bullish(self) -> None:
         """Test zero-line crossover generates buy when MACD crosses up.
 
         The MACD line crosses zero on the final bar while staying above
@@ -1582,7 +1583,7 @@ class TestMACDStrategy:
         assert signal.metadata["signal"] == pytest.approx(0.8573973709901881)
         assert "zero_line" not in signal.metadata
 
-    def test_generate_signals_zero_line_bearish(self):
+    def test_generate_signals_zero_line_bearish(self) -> None:
         """Test zero-line crossover generates sell when MACD crosses down.
 
         The MACD line has just crossed above zero (signal line still
@@ -1604,7 +1605,7 @@ class TestMACDStrategy:
         assert signal.metadata["signal"] == pytest.approx(-0.22968375683171027)
         assert "zero_line" not in signal.metadata
 
-    def test_generate_signals_bearish_crossover_zero_line_metadata(self):
+    def test_generate_signals_bearish_crossover_zero_line_metadata(self) -> None:
         """Test use_zero_line annotates bearish crossovers below zero."""
         strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5, use_zero_line=True)
         data = {"AAPL": create_macd_falling_data("AAPL", days=100)}
@@ -1617,7 +1618,7 @@ class TestMACDStrategy:
         assert signal.metadata["macd"] < 0
         assert signal.metadata["zero_line"] == "below"
 
-    def test_generate_signals_zero_line_disabled(self):
+    def test_generate_signals_zero_line_disabled(self) -> None:
         """When use_zero_line is False and no signal-line crossover fires on the
         final bar, the `elif self.use_zero_line` arm (595->534 and 615->534) is
         False and no signal is produced."""
@@ -1629,7 +1630,7 @@ class TestMACDStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_skips_nan_values(self):
+    def test_generate_signals_skips_nan_values(self) -> None:
         """NaN MACD/signal values on the last bar are skipped."""
         strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5)
         data = {"AAPL": create_macd_falling_data("AAPL", days=100)}
@@ -1637,7 +1638,7 @@ class TestMACDStrategy:
         df.iloc[-1, df.columns.get_loc("close")] = float("nan")
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_zero_price(self):
+    def test_generate_signals_skips_zero_price(self) -> None:
         """A zero close on the last bar is skipped to avoid division by zero."""
         strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5)
         data = {"AAPL": create_macd_falling_data("AAPL", days=100)}
@@ -1649,7 +1650,7 @@ class TestMACDStrategy:
 class TestSuperTrendStrategy:
     """Tests for SuperTrendStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = SuperTrendStrategy(period=10, multiplier=3.0, name="Test_ST")
         assert strategy.name == "Test_ST"
@@ -1658,7 +1659,7 @@ class TestSuperTrendStrategy:
         assert strategy.parameters["period"] == 10
         assert strategy.parameters["multiplier"] == 3.0
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation."""
         with pytest.raises(ValueError, match="period must be positive"):
             SuperTrendStrategy(period=0)
@@ -1673,14 +1674,14 @@ class TestSuperTrendStrategy:
         with pytest.raises(ValueError, match="multiplier must be positive"):
             SuperTrendStrategy(multiplier=float("inf"))
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with insufficient data."""
         strategy = SuperTrendStrategy(period=10, multiplier=3.0)
         data = {"AAPL": create_supertrend_data("AAPL", days=5)}  # Less than period
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_bullish_trend(self):
+    def test_generate_signals_bullish_trend(self) -> None:
         """Test generate_signals detects bullish trend (buy signal)."""
         strategy = SuperTrendStrategy(period=10, multiplier=3.0)
         # Create steady uptrend data
@@ -1701,7 +1702,7 @@ class TestSuperTrendStrategy:
                 assert signal.metadata.get("trend") == "bearish"
                 assert signal.metadata.get("signal_type") == "trend_reversal_bearish"
 
-    def test_generate_signals_bearish_trend(self):
+    def test_generate_signals_bearish_trend(self) -> None:
         """Test generate_signals detects bearish trend (sell signal)."""
         strategy = SuperTrendStrategy(period=10, multiplier=3.0)
         # Create steady downtrend data
@@ -1716,7 +1717,7 @@ class TestSuperTrendStrategy:
                 assert signal.metadata.get("trend") == "bearish"
                 assert signal.metadata.get("signal_type") == "trend_reversal_bearish"
 
-    def test_generate_signals_bullish_reversal(self):
+    def test_generate_signals_bullish_reversal(self) -> None:
         """Test generate_signals detects bullish reversal (buy signal).
 
         Flat data keeps SuperTrend bearish; a final jump above the
@@ -1736,7 +1737,7 @@ class TestSuperTrendStrategy:
         assert signal.metadata["trend"] == "bullish"
         assert signal.metadata["supertrend"] == pytest.approx(107.818)
 
-    def test_generate_signals_bearish_reversal(self):
+    def test_generate_signals_bearish_reversal(self) -> None:
         """Test generate_signals detects bearish reversal (sell signal).
 
         Flat data, a jump that turns the trend bullish, then a final
@@ -1756,7 +1757,7 @@ class TestSuperTrendStrategy:
         assert signal.metadata["trend"] == "bearish"
         assert signal.metadata["supertrend"] == pytest.approx(104.174)
 
-    def test_supertrend_no_valid_atr(self):
+    def test_supertrend_no_valid_atr(self) -> None:
         """Test _calculate_supertrend returns all-NaN when ATR is invalid.
 
         Data shorter than the ATR period yields an all-NaN ATR, so
@@ -1772,7 +1773,7 @@ class TestSuperTrendStrategy:
         assert supertrend.isna().all()
         assert (trend == -1).all()
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals with multiple symbols."""
         strategy = SuperTrendStrategy(period=10, multiplier=3.0)
         data = {
@@ -1783,7 +1784,7 @@ class TestSuperTrendStrategy:
         symbols = {s.symbol for s in signals}
         assert symbols.issubset({"AAPL", "MSFT"})
 
-    def test_atr_calculation(self):
+    def test_atr_calculation(self) -> None:
         """Test ATR calculation internally."""
         strategy = SuperTrendStrategy(period=10, multiplier=3.0)
         data = {"AAPL": create_supertrend_data("AAPL", days=60, trend=0.003)}
@@ -1792,7 +1793,7 @@ class TestSuperTrendStrategy:
         assert len(atr) == len(df)
         assert atr.notna().sum() > 10  # ATR should have values after period
 
-    def test_supertrend_calculation(self):
+    def test_supertrend_calculation(self) -> None:
         """Test SuperTrend calculation internally."""
         strategy = SuperTrendStrategy(period=10, multiplier=3.0)
         data = {"AAPL": create_supertrend_data("AAPL", days=60, trend=0.003)}
@@ -1805,7 +1806,7 @@ class TestSuperTrendStrategy:
         # SuperTrend should be positive
         assert (supertrend.dropna() > 0).all()
 
-    def test_generate_signals_skips_nan_values(self):
+    def test_generate_signals_skips_nan_values(self) -> None:
         """NaN supertrend/trend values on the last bar are skipped."""
         strategy = SuperTrendStrategy(period=10, multiplier=3.0)
         data = {"AAPL": create_supertrend_data("AAPL", days=60, trend=0.003)}
@@ -1813,7 +1814,7 @@ class TestSuperTrendStrategy:
         df.iloc[-1, df.columns.get_loc("close")] = float("nan")
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_zero_price(self):
+    def test_generate_signals_skips_zero_price(self) -> None:
         """A zero close on the last bar is skipped to avoid division by zero."""
         strategy = SuperTrendStrategy(period=10, multiplier=3.0)
         data = {"AAPL": create_supertrend_data("AAPL", days=60, trend=0.003)}
@@ -1825,7 +1826,7 @@ class TestSuperTrendStrategy:
 class TestStrategyParameters:
     """Tests for strategy parameter handling."""
 
-    def test_get_parameters(self):
+    def test_get_parameters(self) -> None:
         """Test get_parameters returns copy."""
         strategy = MovingAverageCrossover(fast_period=10, slow_period=30)
         params = strategy.get_parameters()
@@ -1834,14 +1835,14 @@ class TestStrategyParameters:
         params["fast_period"] = 999
         assert strategy.parameters["fast_period"] == 10
 
-    def test_set_parameter(self):
+    def test_set_parameter(self) -> None:
         """Test set_parameter updates parameter."""
         strategy = MovingAverageCrossover(fast_period=10, slow_period=30)
         strategy.set_parameter("fast_period", 20)
         assert strategy.parameters["fast_period"] == 20
         assert strategy.fast_period == 20  # Instance attribute is now updated
 
-    def test_update_positions(self):
+    def test_update_positions(self) -> None:
         """Test update_positions."""
         from quant_trading.strategies.base import Position
 
@@ -1854,7 +1855,7 @@ class TestStrategyParameters:
 class TestKeltnerChannelStrategy:
     """Tests for KeltnerChannelStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = KeltnerChannelStrategy(
             ema_period=20, atr_period=10, multiplier=2.0, name="Test_KC"
@@ -1867,7 +1868,7 @@ class TestKeltnerChannelStrategy:
         assert strategy.parameters["atr_period"] == 10
         assert strategy.parameters["multiplier"] == 2.0
 
-    def test_initialization_defaults(self):
+    def test_initialization_defaults(self) -> None:
         """Test default parameter values."""
         strategy = KeltnerChannelStrategy(name="Test_KC_Default")
         assert strategy.ema_period == 20
@@ -1875,7 +1876,7 @@ class TestKeltnerChannelStrategy:
         assert strategy.multiplier == 2.0
         assert strategy.use_middle_cross is False
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation."""
         with pytest.raises(ValueError, match="ema_period must be positive"):
             KeltnerChannelStrategy(ema_period=0)
@@ -1894,7 +1895,7 @@ class TestKeltnerChannelStrategy:
         with pytest.raises(ValueError, match="multiplier must be positive"):
             KeltnerChannelStrategy(multiplier=float("inf"))
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with insufficient data."""
         strategy = KeltnerChannelStrategy(ema_period=5, atr_period=5)
         # Need at least max(ema_period, atr_period) + 1 = 11 data points
@@ -1904,7 +1905,7 @@ class TestKeltnerChannelStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_upper_breakout(self):
+    def test_generate_signals_upper_breakout(self) -> None:
         """Test generate_signals detects upper channel breakout (buy signal)."""
         strategy = KeltnerChannelStrategy(ema_period=5, atr_period=5, multiplier=2.0)
         # Create data that will break above the upper channel
@@ -1922,7 +1923,7 @@ class TestKeltnerChannelStrategy:
         assert signal.price == pytest.approx(120.0)
         assert signal.metadata["signal_type"] == "upper_breakout"
 
-    def test_generate_signals_lower_breakout(self):
+    def test_generate_signals_lower_breakout(self) -> None:
         """Test generate_signals detects lower channel breakout (sell signal)."""
         strategy = KeltnerChannelStrategy(ema_period=5, atr_period=5, multiplier=2.0)
         # Create data that will break below the lower channel
@@ -1940,7 +1941,7 @@ class TestKeltnerChannelStrategy:
         assert signal.price == pytest.approx(80.0)
         assert signal.metadata["signal_type"] == "lower_breakout"
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals with multiple symbols."""
         strategy = KeltnerChannelStrategy(ema_period=5, atr_period=5, multiplier=2.0)
         # Symbol A: breakout above upper channel (buy)
@@ -1959,7 +1960,7 @@ class TestKeltnerChannelStrategy:
         assert by_symbol["AAPL"].metadata["signal_type"] == "upper_breakout"
         assert by_symbol["MSFT"].metadata["signal_type"] == "lower_breakout"
 
-    def test_generate_signals_with_middle_cross(self):
+    def test_generate_signals_with_middle_cross(self) -> None:
         """Test generate_signals with middle line crossover enabled."""
         strategy = KeltnerChannelStrategy(
             ema_period=5, atr_period=5, multiplier=2.0, use_middle_cross=True
@@ -1981,7 +1982,7 @@ class TestKeltnerChannelStrategy:
         ]
         assert len(middle_cross_signals) >= 1
 
-    def test_generate_signals_with_middle_cross_down(self):
+    def test_generate_signals_with_middle_cross_down(self) -> None:
         """Test generate_signals with middle line crossover down (sell signal)."""
         strategy = KeltnerChannelStrategy(
             ema_period=5, atr_period=5, multiplier=2.0, use_middle_cross=True
@@ -2003,7 +2004,7 @@ class TestKeltnerChannelStrategy:
         ]
         assert len(middle_cross_down_signals) >= 1
 
-    def test_generate_signals_middle_cross_no_signal_when_above_ema(self):
+    def test_generate_signals_middle_cross_no_signal_when_above_ema(self) -> None:
         """Test no middle-cross signal when price stays above the EMA.
 
         With ``use_middle_cross=True`` and a steady rise that keeps price above
@@ -2025,7 +2026,7 @@ class TestKeltnerChannelStrategy:
         ]
         assert middle_cross_signals == []
 
-    def test_generate_signals_skips_nan_values(self):
+    def test_generate_signals_skips_nan_values(self) -> None:
         """NaN EMA/channel values on the last bar are skipped."""
         strategy = KeltnerChannelStrategy(ema_period=5, atr_period=5, multiplier=2.0)
         data = {"AAPL": create_keltner_data("AAPL", [100.0] * 20 + [120.0])}
@@ -2033,7 +2034,7 @@ class TestKeltnerChannelStrategy:
         df.iloc[-1, df.columns.get_loc("close")] = float("nan")
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_zero_ema(self):
+    def test_generate_signals_skips_zero_ema(self) -> None:
         """A zero EMA on the last bar is skipped to avoid division by zero."""
         strategy = KeltnerChannelStrategy(ema_period=5, atr_period=5, multiplier=2.0)
         data = {"AAPL": create_keltner_data("AAPL", [0.0] * 20 + [0.0])}
@@ -2043,7 +2044,7 @@ class TestKeltnerChannelStrategy:
 class TestStochasticOscillatorStrategy:
     """Tests for StochasticOscillatorStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization with default parameters."""
         strategy = StochasticOscillatorStrategy()
         assert strategy.name == "Stochastic_Oscillator"
@@ -2059,7 +2060,7 @@ class TestStochasticOscillatorStrategy:
         assert params["overbought"] == 80
         assert params["use_midline"] is False
 
-    def test_initialization_custom_parameters(self):
+    def test_initialization_custom_parameters(self) -> None:
         """Test strategy initialization with custom parameters."""
         strategy = StochasticOscillatorStrategy(
             k_period=10,
@@ -2076,12 +2077,12 @@ class TestStochasticOscillatorStrategy:
         assert strategy.overbought == 85
         assert strategy.use_midline is True
 
-    def test_validate_parameters_valid(self):
+    def test_validate_parameters_valid(self) -> None:
         """Test parameter validation with valid parameters."""
         # Should not raise
         StochasticOscillatorStrategy(k_period=14, d_period=3, oversold=20, overbought=80)
 
-    def test_validate_parameters_finite_oversold(self):
+    def test_validate_parameters_finite_oversold(self) -> None:
         """Test parameter validation rejects non-finite oversold."""
         with pytest.raises(ValueError, match="oversold must be finite"):
             StochasticOscillatorStrategy(oversold=float("nan"))
@@ -2090,7 +2091,7 @@ class TestStochasticOscillatorStrategy:
         with pytest.raises(ValueError, match="oversold must be finite"):
             StochasticOscillatorStrategy(oversold=float("-inf"))
 
-    def test_validate_parameters_finite_overbought(self):
+    def test_validate_parameters_finite_overbought(self) -> None:
         """Test parameter validation rejects non-finite overbought."""
         with pytest.raises(ValueError, match="overbought must be finite"):
             StochasticOscillatorStrategy(overbought=float("nan"))
@@ -2099,21 +2100,21 @@ class TestStochasticOscillatorStrategy:
         with pytest.raises(ValueError, match="overbought must be finite"):
             StochasticOscillatorStrategy(overbought=float("-inf"))
 
-    def test_validate_parameters_invalid_k_period(self):
+    def test_validate_parameters_invalid_k_period(self) -> None:
         """Test parameter validation with invalid k_period."""
         with pytest.raises(ValueError, match="k_period must be positive"):
             StochasticOscillatorStrategy(k_period=0)
         with pytest.raises(ValueError, match="k_period must be positive"):
             StochasticOscillatorStrategy(k_period=-1)
 
-    def test_validate_parameters_invalid_d_period(self):
+    def test_validate_parameters_invalid_d_period(self) -> None:
         """Test parameter validation with invalid d_period."""
         with pytest.raises(ValueError, match="d_period must be positive"):
             StochasticOscillatorStrategy(d_period=0)
         with pytest.raises(ValueError, match="d_period must be positive"):
             StochasticOscillatorStrategy(d_period=-1)
 
-    def test_validate_parameters_invalid_oversold(self):
+    def test_validate_parameters_invalid_oversold(self) -> None:
         """Test parameter validation with invalid oversold."""
         with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
             StochasticOscillatorStrategy(oversold=0)
@@ -2122,7 +2123,7 @@ class TestStochasticOscillatorStrategy:
         with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
             StochasticOscillatorStrategy(oversold=-10)
 
-    def test_validate_parameters_invalid_overbought(self):
+    def test_validate_parameters_invalid_overbought(self) -> None:
         """Test parameter validation with invalid overbought."""
         with pytest.raises(ValueError, match="overbought must be between 0 and 100"):
             StochasticOscillatorStrategy(overbought=0)
@@ -2131,7 +2132,7 @@ class TestStochasticOscillatorStrategy:
         with pytest.raises(ValueError, match="overbought must be between 0 and 100"):
             StochasticOscillatorStrategy(overbought=110)
 
-    def test_validate_parameters_oversold_ge_overbought(self):
+    def test_validate_parameters_oversold_ge_overbought(self) -> None:
         """Test parameter validation when oversold >= overbought."""
         with pytest.raises(ValueError, match="oversold must be less than overbought"):
             StochasticOscillatorStrategy(oversold=50, overbought=50)
@@ -2239,7 +2240,7 @@ class TestStochasticOscillatorStrategy:
             index=dates,
         )
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with insufficient data."""
         strategy = StochasticOscillatorStrategy(k_period=14, d_period=3)
         # Need at least k_period + d_period + 1 = 18 data points
@@ -2259,7 +2260,7 @@ class TestStochasticOscillatorStrategy:
         signals = strategy.generate_signals(data)
         assert len(signals) == 0
 
-    def test_generate_signals_oversold_crossover(self):
+    def test_generate_signals_oversold_crossover(self) -> None:
         """Test generate_signals detects oversold crossover (buy signal)."""
         strategy = StochasticOscillatorStrategy(k_period=5, d_period=3, oversold=20, overbought=80)
         data = {"AAPL": self.create_stochastic_oversold_data("AAPL")}
@@ -2273,7 +2274,7 @@ class TestStochasticOscillatorStrategy:
         ]
         assert len(oversold_crossover_signals) >= 1
 
-    def test_generate_signals_overbought_crossover(self):
+    def test_generate_signals_overbought_crossover(self) -> None:
         """Test generate_signals detects overbought crossover (sell signal)."""
         strategy = StochasticOscillatorStrategy(k_period=5, d_period=3, oversold=20, overbought=80)
         data = {"AAPL": self.create_stochastic_overbought_data("AAPL")}
@@ -2287,7 +2288,7 @@ class TestStochasticOscillatorStrategy:
         ]
         assert len(overbought_crossover_signals) >= 1
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals with multiple symbols."""
         strategy = StochasticOscillatorStrategy(k_period=5, d_period=3, oversold=20, overbought=80)
         # Symbol A: oversold crossover (buy)
@@ -2305,7 +2306,7 @@ class TestStochasticOscillatorStrategy:
         assert by_symbol["AAPL"].metadata["signal_type"] == "oversold_crossover"
         assert by_symbol["MSFT"].metadata["signal_type"] == "overbought_crossover"
 
-    def test_generate_signals_with_midline_cross_up(self):
+    def test_generate_signals_with_midline_cross_up(self) -> None:
         """Test generate_signals with midline crossover up (buy signal)."""
         strategy = StochasticOscillatorStrategy(k_period=5, d_period=3, use_midline=True)
         data = {"AAPL": self.create_stochastic_midline_up_data("AAPL")}
@@ -2318,7 +2319,7 @@ class TestStochasticOscillatorStrategy:
         ]
         assert len(midline_signals) >= 1
 
-    def test_generate_signals_with_midline_cross_down(self):
+    def test_generate_signals_with_midline_cross_down(self) -> None:
         """Test generate_signals with midline crossover down (sell signal)."""
         strategy = StochasticOscillatorStrategy(k_period=5, d_period=3, use_midline=True)
         data = {"AAPL": self.create_stochastic_midline_down_data("AAPL")}
@@ -2331,7 +2332,7 @@ class TestStochasticOscillatorStrategy:
         ]
         assert len(midline_signals) >= 1
 
-    def test_generate_signals_no_signal_when_midline_disabled(self):
+    def test_generate_signals_no_signal_when_midline_disabled(self) -> None:
         """Test generate_signals doesn't generate midline signals when disabled."""
         strategy = StochasticOscillatorStrategy(k_period=5, d_period=3, use_midline=False)
         # Create data that would cross 50
@@ -2381,7 +2382,7 @@ class TestStochasticOscillatorStrategy:
         ]
         assert len(midline_signals) == 0
 
-    def test_generate_signals_nan_values_skipped(self):
+    def test_generate_signals_nan_values_skipped(self) -> None:
         """Test generate_signals skips bars with NaN k/d values.
 
         Feeding OHLC data with NaN in the final rows leaves %K/%D undefined on
@@ -2404,7 +2405,7 @@ class TestStochasticOscillatorStrategy:
         signals = strategy.generate_signals({"AAPL": df})
         assert signals == []
 
-    def test_generate_signals_midline_no_cross_stays_above(self):
+    def test_generate_signals_midline_no_cross_stays_above(self) -> None:
         """Test no midline signal when %K stays above 50 on the final bars.
 
         With ``use_midline=True`` and %K well above 50 on the final two bars
@@ -2434,7 +2435,7 @@ class TestStochasticOscillatorStrategy:
         ]
         assert midline_signals == []
 
-    def test_generate_signals_trending_crossovers(self):
+    def test_generate_signals_trending_crossovers(self) -> None:
         strategy = StochRSIStrategy(
             oversold=20, overbought=80, use_midline=True, name="Test_StochRSI"
         )
@@ -2442,7 +2443,7 @@ class TestStochasticOscillatorStrategy:
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
 
-    def test_generate_signals_skips_nan_k_d(self):
+    def test_generate_signals_skips_nan_k_d(self) -> None:
         """Flat prices make the Stochastic %K/%D NaN, skipping signals."""
         dates = pd.date_range(end=datetime.now(), periods=30, freq="D")
         df = pd.DataFrame(
@@ -2462,7 +2463,7 @@ class TestStochasticOscillatorStrategy:
 class TestIchimokuCloudStrategy:
     """Tests for IchimokuCloudStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization with explicit parameters."""
         strategy = IchimokuCloudStrategy(
             tenkan_period=9, kijun_period=26, senkou_b_period=52, name="Test_Ichimoku"
@@ -2476,7 +2477,7 @@ class TestIchimokuCloudStrategy:
         assert params["kijun_period"] == 26
         assert params["senkou_b_period"] == 52
 
-    def test_initialization_defaults(self):
+    def test_initialization_defaults(self) -> None:
         """Test default parameter values."""
         strategy = IchimokuCloudStrategy()
         assert strategy.name == "Ichimoku_Cloud"
@@ -2484,7 +2485,7 @@ class TestIchimokuCloudStrategy:
         assert strategy.kijun_period == 26
         assert strategy.senkou_b_period == 52
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises on non-positive periods."""
         with pytest.raises(ValueError, match="tenkan_period must be positive"):
             IchimokuCloudStrategy(tenkan_period=0)
@@ -2493,7 +2494,7 @@ class TestIchimokuCloudStrategy:
         with pytest.raises(ValueError, match="senkou_b_period must be positive"):
             IchimokuCloudStrategy(tenkan_period=9, kijun_period=26, senkou_b_period=0)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with insufficient data (continue at line 1434)."""
         strategy = IchimokuCloudStrategy(tenkan_period=3, kijun_period=5, senkou_b_period=7)
         # min_required = max(7, 5) + 5 = 12; supply only 10 rows.
@@ -2501,7 +2502,7 @@ class TestIchimokuCloudStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_nan_values_skipped(self):
+    def test_generate_signals_nan_values_skipped(self) -> None:
         """Test generate_signals skips rows with NaN indicator values."""
         strategy = IchimokuCloudStrategy(tenkan_period=3, kijun_period=5, senkou_b_period=7)
         df = create_donchian_data("AAPL", [100.0] * 20)
@@ -2509,7 +2510,7 @@ class TestIchimokuCloudStrategy:
         signals = strategy.generate_signals({"AAPL": df})
         assert signals == []
 
-    def test_generate_signals_bullish_crossover(self):
+    def test_generate_signals_bullish_crossover(self) -> None:
         """Test generate_signals detects a bullish Tenkan/Kijun crossover."""
         strategy = IchimokuCloudStrategy(tenkan_period=3, kijun_period=5, senkou_b_period=7)
         closes = [100.0] * 20 + [110.0, 120.0, 130.0]
@@ -2521,7 +2522,7 @@ class TestIchimokuCloudStrategy:
         assert signal.price == pytest.approx(130.0)
         assert signal.metadata["signal_type"] == "tenkan_kijun_bullish_crossover"
 
-    def test_generate_signals_bearish_crossover(self):
+    def test_generate_signals_bearish_crossover(self) -> None:
         """Test generate_signals detects a bearish Tenkan/Kijun crossover."""
         strategy = IchimokuCloudStrategy(tenkan_period=3, kijun_period=5, senkou_b_period=7)
         closes = [100.0] * 20 + [90.0, 80.0, 70.0]
@@ -2533,7 +2534,7 @@ class TestIchimokuCloudStrategy:
         assert signal.price == pytest.approx(70.0)
         assert signal.metadata["signal_type"] == "tenkan_kijun_bearish_crossover"
 
-    def test_generate_signals_no_crossover(self):
+    def test_generate_signals_no_crossover(self) -> None:
         """Test generate_signals emits nothing when Tenkan stays above Kijun."""
         strategy = IchimokuCloudStrategy(tenkan_period=3, kijun_period=5, senkou_b_period=7)
         # Steady rise: Tenkan is already above Kijun on the final two bars, so
@@ -2542,7 +2543,7 @@ class TestIchimokuCloudStrategy:
         signals = strategy.generate_signals({"AAPL": create_donchian_data("AAPL", closes)})
         assert signals == []
 
-    def test_generate_signals_skips_nan_values(self):
+    def test_generate_signals_skips_nan_values(self) -> None:
         """NaN Tenkan/Kijun values on the last bar are skipped."""
         strategy = IchimokuCloudStrategy(tenkan_period=3, kijun_period=5, senkou_b_period=7)
         closes = [100.0] * 20 + [110.0, 120.0, 130.0, 140.0, 150.0, 160.0]
@@ -2551,7 +2552,7 @@ class TestIchimokuCloudStrategy:
         df.iloc[-1, df.columns.get_loc("close")] = float("nan")
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_zero_kijun(self):
+    def test_generate_signals_skips_zero_kijun(self) -> None:
         """A zero Kijun-sen on the last bar is skipped to avoid division by zero."""
         strategy = IchimokuCloudStrategy(tenkan_period=3, kijun_period=5, senkou_b_period=7)
         # All-zero highs/lows produce zero Kijun-sen; last bar must not divide by zero.
@@ -2603,7 +2604,7 @@ SAR_SCENARIOS: list[tuple[list[float], list[float], list[float]]] = [
 class TestParabolicSARStrategy:
     """Tests for ParabolicSARStrategy (examples.py lines 1539-1736)."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization and parameter storage."""
         strategy = ParabolicSARStrategy(step=0.02, max_step=0.20, name="Test_SAR")
         assert strategy.name == "Test_SAR"
@@ -2612,14 +2613,14 @@ class TestParabolicSARStrategy:
         assert strategy.parameters["step"] == 0.02
         assert strategy.parameters["max_step"] == 0.20
 
-    def test_initialization_defaults(self):
+    def test_initialization_defaults(self) -> None:
         """Test default parameter values."""
         strategy = ParabolicSARStrategy()
         assert strategy.name == "Parabolic_SAR"
         assert strategy.step == 0.02
         assert strategy.max_step == 0.20
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation (lines 1578, 1580, 1582)."""
         with pytest.raises(ValueError, match="step must be positive"):
             ParabolicSARStrategy(step=0)
@@ -2640,7 +2641,7 @@ class TestParabolicSARStrategy:
         with pytest.raises(ValueError, match="max_step must be positive"):
             ParabolicSARStrategy(max_step=float("-inf"))
 
-    def test_calculate_sar_insufficient_data(self):
+    def test_calculate_sar_insufficient_data(self) -> None:
         """_calculate_sar returns NaN SAR / zero trend with fewer than 2 points (lines 1593-1607)."""
         strategy = ParabolicSARStrategy()
         high = pd.Series([100.0], index=[0])
@@ -2649,13 +2650,13 @@ class TestParabolicSARStrategy:
         assert sar.isna().all()
         assert (trend == 0).all()
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """A single-row frame is skipped before indicator calculation (line 1681-1682)."""
         strategy = ParabolicSARStrategy()
         data = {"AAPL": create_parabolic_data("AAPL", [100.0], [90.0], [95.0])}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_nan_sar(self):
+    def test_generate_signals_skips_nan_sar(self) -> None:
         """A degenerate (all-NaN) 2-row frame yields a NaN last SAR which is skipped (lines 1697-1698)."""
         strategy = ParabolicSARStrategy()
         df = create_parabolic_data(
@@ -2666,7 +2667,7 @@ class TestParabolicSARStrategy:
         )
         assert strategy.generate_signals({"AAPL": df}) == []
 
-    def test_calculate_sar_short_to_long_reversal(self):
+    def test_calculate_sar_short_to_long_reversal(self) -> None:
         """Hand-traced short->long reversal (scenario A).
 
         Covers in _calculate_sar: init short, continue-short-no-new-low,
@@ -2681,7 +2682,7 @@ class TestParabolicSARStrategy:
         assert trend.iloc[-2] == -1
         assert sar.iloc[-1] == pytest.approx(88.0)
 
-    def test_generate_signals_bullish_reversal(self):
+    def test_generate_signals_bullish_reversal(self) -> None:
         """Buy signal on a short->long trend reversal (scenario A, lines 1701-1717)."""
         strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
         data = {
@@ -2704,7 +2705,7 @@ class TestParabolicSARStrategy:
         assert signal.metadata["trend"] == "bullish"
         assert signal.metadata["sar"] == pytest.approx(88.0)
 
-    def test_generate_signals_bearish_reversal(self):
+    def test_generate_signals_bearish_reversal(self) -> None:
         """Sell signal on a long->short trend reversal (scenario B, lines 1636-1734).
 
         Covers in _calculate_sar: init long, continue-long-new-high,
@@ -2732,7 +2733,7 @@ class TestParabolicSARStrategy:
         assert signal.metadata["trend"] == "bearish"
         assert signal.metadata["sar"] == pytest.approx(105.0)
 
-    def test_generate_signals_no_trend_change(self):
+    def test_generate_signals_no_trend_change(self) -> None:
         """No signal when the trend does not reverse over the last two bars (scenario C)."""
         strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
         data = {
@@ -2745,7 +2746,7 @@ class TestParabolicSARStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Each symbol is evaluated independently for reversals."""
         strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
         data = {
@@ -2768,7 +2769,7 @@ class TestParabolicSARStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_bearish_reversal_after_sustained_uptrend(self):
+    def test_generate_signals_bearish_reversal_after_sustained_uptrend(self) -> None:
         """A long->short reversal that follows a sustained uptrend still sells."""
         strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
         high, low, close = SAR_SCENARIOS[3]
@@ -2780,7 +2781,9 @@ class TestParabolicSARStrategy:
         assert signals[0].metadata["trend"] == "bearish"
 
     @pytest.mark.parametrize(("high", "low", "close"), SAR_SCENARIOS)
-    def test_calculate_sar_trend_is_always_bipolar(self, high, low, close):
+    def test_calculate_sar_trend_is_always_bipolar(
+        self, high: list[float], low: list[float], close: list[float]
+    ) -> None:
         """The SAR trend only ever takes the values +1 and -1.
 
         That invariant is what makes the fall-through of the bearish ``elif`` in
@@ -2792,7 +2795,9 @@ class TestParabolicSARStrategy:
         assert set(trend.tolist()) <= {-1.0, 1.0}
 
     @pytest.mark.parametrize(("high", "low", "close"), SAR_SCENARIOS)
-    def test_signal_matches_trend_reversal(self, high, low, close):
+    def test_signal_matches_trend_reversal(
+        self, high: list[float], low: list[float], close: list[float]
+    ) -> None:
         """A trend change always produces exactly one signal of the right side.
 
         The bullish and bearish patterns in generate_signals between them cover
@@ -2808,7 +2813,7 @@ class TestParabolicSARStrategy:
             assert len(signals) == 1
             assert signals[0].action == ("buy" if trend.iloc[-1] == 1 else "sell")
 
-    def test_generate_signals_skips_nan_price(self):
+    def test_generate_signals_skips_nan_price(self) -> None:
         """A NaN close on the last bar is skipped by the guard."""
         strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
         data = {
@@ -2821,7 +2826,7 @@ class TestParabolicSARStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_zero_price(self):
+    def test_generate_signals_skips_zero_price(self) -> None:
         """A zero close on the last bar is skipped by the guard."""
         strategy = ParabolicSARStrategy(step=0.02, max_step=0.20)
         data = {
@@ -2851,12 +2856,12 @@ class TestEMACrossover:
             }
         )
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = EMACrossover(fast_period=2, slow_period=4)
         data = {"AAPL": self._ohlcv([100.0, 100.0, 100.0])}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_golden_cross(self):
+    def test_generate_signals_golden_cross(self) -> None:
         strategy = EMACrossover(fast_period=2, slow_period=4)
         data = {"AAPL": self._ohlcv([100.0, 100.0, 100.0, 100.0, 100.0, 200.0])}
         signals = strategy.generate_signals(data)
@@ -2864,7 +2869,7 @@ class TestEMACrossover:
         assert signals[0].action == "buy"
         assert signals[0].price == pytest.approx(200.0)
 
-    def test_generate_signals_death_cross(self):
+    def test_generate_signals_death_cross(self) -> None:
         strategy = EMACrossover(fast_period=2, slow_period=4)
         data = {"AAPL": self._ohlcv([200.0, 200.0, 200.0, 200.0, 200.0, 100.0])}
         signals = strategy.generate_signals(data)
@@ -2872,12 +2877,12 @@ class TestEMACrossover:
         assert signals[0].action == "sell"
         assert signals[0].price == pytest.approx(100.0)
 
-    def test_generate_signals_no_crossover(self):
+    def test_generate_signals_no_crossover(self) -> None:
         strategy = EMACrossover(fast_period=2, slow_period=4)
         data = {"AAPL": self._ohlcv([100.0, 105.0, 110.0, 115.0, 120.0, 125.0])}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_nan_close_skipped(self):
+    def test_generate_signals_nan_close_skipped(self) -> None:
         strategy = EMACrossover(fast_period=2, slow_period=4)
         # All-NaN closes yield NaN EWM values, which are skipped (line 2275).
         data = {"AAPL": self._ohlcv([float("nan")] * 6)}
@@ -2908,31 +2913,31 @@ def create_vwap_data(symbol: str, closes: list[float]) -> pd.DataFrame:
 class TestVWAPStrategy:
     """Tests for VWAPStrategy (examples.py lines 1539-1614)."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization and default name."""
         strategy = VWAPStrategy()
         assert strategy.name == "VWAP"
         assert strategy.parameters == {}
 
-    def test_initialization_custom_name(self):
+    def test_initialization_custom_name(self) -> None:
         """Test strategy initialization with a custom name."""
         strategy = VWAPStrategy(name="Custom_VWAP")
         assert strategy.name == "Custom_VWAP"
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """A single-row frame is skipped before VWAP calculation (line 1582-1583)."""
         strategy = VWAPStrategy()
         data = {"AAPL": create_vwap_data("AAPL", [100.0])}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_nan_vwap(self):
+    def test_generate_signals_skips_nan_vwap(self) -> None:
         """A NaN close on the last bar yields a NaN VWAP which is skipped (line 1597-1598)."""
         strategy = VWAPStrategy()
         df = create_vwap_data("AAPL", [100.0, 100.0])
         df.iloc[-1, df.columns.get_loc("close")] = float("nan")
         assert strategy.generate_signals({"AAPL": df}) == []
 
-    def test_generate_signals_buy(self):
+    def test_generate_signals_buy(self) -> None:
         """Buy signal when price crosses above the VWAP (lines 1600-1614)."""
         strategy = VWAPStrategy()
         # Bar 3: VWAP = mean(100,100,100,100) = 100, price = 100 (<= VWAP).
@@ -2947,7 +2952,7 @@ class TestVWAPStrategy:
         assert signal.metadata["signal_type"] == "price_above_vwap"
         assert signal.metadata["vwap"] == pytest.approx(102.0)
 
-    def test_generate_signals_sell(self):
+    def test_generate_signals_sell(self) -> None:
         """Sell signal when price crosses below the VWAP (lines 1615-1630)."""
         strategy = VWAPStrategy()
         # Bar 3: VWAP = mean(110 x4) = 110, price = 110 (>= VWAP).
@@ -2962,14 +2967,14 @@ class TestVWAPStrategy:
         assert signal.metadata["signal_type"] == "price_below_vwap"
         assert signal.metadata["vwap"] == pytest.approx(108.0)
 
-    def test_generate_signals_no_crossover(self):
+    def test_generate_signals_no_crossover(self) -> None:
         """No signal when price stays on the same side of the VWAP."""
         strategy = VWAPStrategy()
         # Rising price that stays above the VWAP on the final two bars.
         data = {"AAPL": create_vwap_data("AAPL", [100.0, 105.0, 110.0, 115.0, 120.0])}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_zero_vwap(self):
+    def test_generate_signals_skips_zero_vwap(self) -> None:
         """A zero VWAP on the last bar is skipped to avoid division by zero."""
         strategy = VWAPStrategy()
         # All-zero closes produce a zero VWAP; the guard must skip the bar.
@@ -2980,7 +2985,7 @@ class TestVWAPStrategy:
 class TestEMACrossoverStrategy:
     """Tests for EMACrossover strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = EMACrossover(fast_period=12, slow_period=26, name="Test_EMA")
         assert strategy.name == "Test_EMA"
@@ -2989,14 +2994,14 @@ class TestEMACrossoverStrategy:
         assert strategy.parameters["fast_period"] == 12
         assert strategy.parameters["slow_period"] == 26
 
-    def test_initialization_defaults(self):
+    def test_initialization_defaults(self) -> None:
         """Test strategy initialization with default parameters."""
         strategy = EMACrossover()
         assert strategy.fast_period == 12
         assert strategy.slow_period == 26
         assert strategy.name == "EMA_Crossover"
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
         with pytest.raises(ValueError, match="fast_period must be a positive integer"):
             EMACrossover(fast_period=0)
@@ -3011,7 +3016,7 @@ class TestEMACrossoverStrategy:
         with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
             EMACrossover(fast_period=10, slow_period=10)
 
-    def test_validate_parameters_type_errors(self):
+    def test_validate_parameters_type_errors(self) -> None:
         """Test parameter validation raises for invalid types."""
         with pytest.raises(ValueError, match="fast_period must be a positive integer"):
             EMACrossover(fast_period=None)  # type: ignore
@@ -3022,14 +3027,14 @@ class TestEMACrossoverStrategy:
         with pytest.raises(ValueError, match="slow_period must be a positive integer"):
             EMACrossover(slow_period=26.5)  # type: ignore
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with insufficient data."""
         strategy = EMACrossover(fast_period=5, slow_period=15)
         data = {"AAPL": create_donchian_data("AAPL", [100.0] * 10)}  # Less than slow_period
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_bullish_crossover(self):
+    def test_generate_signals_bullish_crossover(self) -> None:
         """Test generate_signals detects bullish EMA crossover (buy signal)."""
         strategy = EMACrossover(fast_period=5, slow_period=15)
         data = {"AAPL": create_donchian_data("AAPL", [100.0] * 15 + [50.0] * 5 + [300.0])}
@@ -3045,7 +3050,7 @@ class TestEMACrossoverStrategy:
         assert "fast_ema" in signal.metadata
         assert "slow_ema" in signal.metadata
 
-    def test_generate_signals_bearish_crossover(self):
+    def test_generate_signals_bearish_crossover(self) -> None:
         """Test generate_signals detects bearish EMA crossover (sell signal)."""
         strategy = EMACrossover(fast_period=5, slow_period=15)
         data = {"AAPL": create_donchian_data("AAPL", [100.0] * 15 + [200.0] * 20 + [50.0])}
@@ -3061,7 +3066,7 @@ class TestEMACrossoverStrategy:
         assert "fast_ema" in signal.metadata
         assert "slow_ema" in signal.metadata
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals with multiple symbols."""
         strategy = EMACrossover(fast_period=5, slow_period=15)
         data = {
@@ -3072,14 +3077,14 @@ class TestEMACrossoverStrategy:
         symbols = {s.symbol for s in signals}
         assert symbols == {"AAPL", "MSFT"}
 
-    def test_generate_signals_no_crossover(self):
+    def test_generate_signals_no_crossover(self) -> None:
         """Test generate_signals with no crossover."""
         strategy = EMACrossover(fast_period=5, slow_period=15)
         data = {"AAPL": create_donchian_data("AAPL", [100.0] * 50)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_nan_values_skipped_ma(self):
+    def test_generate_signals_nan_values_skipped_ma(self) -> None:
         """Test generate_signals skips bars with NaN values."""
         strategy = MovingAverageCrossover(fast_period=5, slow_period=15)
         dates = pd.date_range(end=datetime.now(), periods=25, freq="D")
@@ -3097,7 +3102,7 @@ class TestEMACrossoverStrategy:
         signals = strategy.generate_signals({"AAPL": df})
         assert signals == []
 
-    def test_generate_signals_nan_values_skipped(self):
+    def test_generate_signals_nan_values_skipped(self) -> None:
         """Test generate_signals skips bars with NaN values."""
         strategy = EMACrossover(fast_period=5, slow_period=15)
         dates = pd.date_range(end=pd.Timestamp.now(), periods=25, freq="D")
@@ -3115,7 +3120,7 @@ class TestEMACrossoverStrategy:
         signals = strategy.generate_signals({"AAPL": df})
         assert signals == []
 
-    def test_generate_signals_price_zero_handling(self):
+    def test_generate_signals_price_zero_handling(self) -> None:
         """Test strength calculation when price is zero."""
         strategy = EMACrossover(fast_period=3, slow_period=8)
         dates = pd.date_range("2023-01-01", periods=12, freq="D")
@@ -3152,7 +3157,7 @@ def create_momentum_data(closes: list[float]) -> pd.DataFrame:
 class TestMomentumStrategy:
     """Tests for MomentumStrategy (examples.py lines 2323-2438)."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization and parameter storage."""
         strategy = MomentumStrategy(period=10, threshold=0.01, name="Test_Momentum")
         assert strategy.name == "Test_Momentum"
@@ -3161,14 +3166,14 @@ class TestMomentumStrategy:
         assert strategy.parameters["period"] == 10
         assert strategy.parameters["threshold"] == 0.01
 
-    def test_initialization_defaults(self):
+    def test_initialization_defaults(self) -> None:
         """Test default parameter values."""
         strategy = MomentumStrategy()
         assert strategy.period == 10
         assert strategy.threshold == 0.01
         assert strategy.name == "Momentum"
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises on invalid period or threshold."""
         with pytest.raises(ValueError, match="period must be positive"):
             MomentumStrategy(period=0)
@@ -3181,13 +3186,13 @@ class TestMomentumStrategy:
         with pytest.raises(ValueError, match="threshold must be non-negative"):
             MomentumStrategy(threshold=float("inf"))
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals returns empty when fewer than period + 1 bars."""
         strategy = MomentumStrategy(period=10)
         data = {"AAPL": create_momentum_data([100.0] * 10)}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_buy_positive_momentum(self):
+    def test_generate_signals_buy_positive_momentum(self) -> None:
         """Test buy signal when momentum exceeds the threshold."""
         strategy = MomentumStrategy(period=10, threshold=0.01)
         # momentum = 110 / 100 - 1 = 0.10 > 0.01 -> buy, strength capped at 1.0
@@ -3204,7 +3209,7 @@ class TestMomentumStrategy:
         assert signal.metadata["momentum"] == pytest.approx(0.10)
         assert signal.metadata["period"] == 10
 
-    def test_generate_signals_sell_negative_momentum(self):
+    def test_generate_signals_sell_negative_momentum(self) -> None:
         """Test sell signal when momentum is below the negative threshold."""
         strategy = MomentumStrategy(period=10, threshold=0.01)
         # momentum = 90 / 100 - 1 = -0.10 < -0.01 -> sell
@@ -3220,14 +3225,14 @@ class TestMomentumStrategy:
         assert signal.metadata["signal_type"] == "negative_momentum"
         assert signal.metadata["momentum"] == pytest.approx(-0.10)
 
-    def test_generate_signals_no_signal_within_threshold(self):
+    def test_generate_signals_no_signal_within_threshold(self) -> None:
         """Test no signal when momentum magnitude is within the threshold."""
         strategy = MomentumStrategy(period=10, threshold=0.01)
         # momentum = 100.5 / 100 - 1 = 0.005, within [-0.01, 0.01]
         data = {"AAPL": create_momentum_data([100.0] * 10 + [100.5])}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = MomentumStrategy(period=10, threshold=0.01)
         data = {
@@ -3242,19 +3247,19 @@ class TestMomentumStrategy:
         assert by_symbol["AAPL"].metadata["signal_type"] == "positive_momentum"
         assert by_symbol["MSFT"].metadata["signal_type"] == "negative_momentum"
 
-    def test_generate_signals_skips_nan_current_price(self):
+    def test_generate_signals_skips_nan_current_price(self) -> None:
         """A NaN last close is skipped by the guard before momentum is computed."""
         strategy = MomentumStrategy(period=2, threshold=0.01)
         data = {"AAPL": create_momentum_data([100.0, 100.0, float("nan")])}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_nan_prev_price(self):
+    def test_generate_signals_skips_nan_prev_price(self) -> None:
         """A NaN price `period + 1` bars back is skipped by the guard."""
         strategy = MomentumStrategy(period=2, threshold=0.01)
         data = {"AAPL": create_momentum_data([float("nan"), 100.0, 100.0])}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_zero_prev_price(self):
+    def test_generate_signals_skips_zero_prev_price(self) -> None:
         """A zero reference price is skipped instead of dividing by zero."""
         strategy = MomentumStrategy(period=2, threshold=0.01)
         data = {"AAPL": create_momentum_data([0.0, 100.0, 100.0])}
@@ -3283,21 +3288,21 @@ def create_adx_data(symbol: str, closes: list[float]) -> pd.DataFrame:
 class TestADXStrategy:
     """Tests for ADXStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = ADXStrategy(period=14, threshold=25.0, name="Test_ADX")
         assert strategy.name == "Test_ADX"
         assert strategy.period == 14
         assert strategy.threshold == 25.0
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         """Test default parameters."""
         strategy = ADXStrategy()
         assert strategy.name == "ADX"
         assert strategy.period == 14
         assert strategy.threshold == 25.0
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid bounds."""
         with pytest.raises(ValueError, match="period must be positive"):
             ADXStrategy(period=0)
@@ -3316,7 +3321,7 @@ class TestADXStrategy:
         with pytest.raises(ValueError, match="threshold must be between 0 and 100"):
             ADXStrategy(threshold=-10)
 
-    def test_generate_signals_bullish_trend(self):
+    def test_generate_signals_bullish_trend(self) -> None:
         """Test a strong uptrend emits a buy signal."""
         strategy = ADXStrategy(period=14, threshold=25.0)
         closes = [100.0 + 2.0 * i for i in range(40)]
@@ -3334,7 +3339,7 @@ class TestADXStrategy:
         assert signal.metadata["minus_di"] == pytest.approx(0.0)
         assert signal.metadata["plus_di"] > 50.0
 
-    def test_generate_signals_bearish_trend(self):
+    def test_generate_signals_bearish_trend(self) -> None:
         """Test a strong downtrend emits a sell signal."""
         strategy = ADXStrategy(period=14, threshold=25.0)
         closes = [100.0 - 2.0 * i for i in range(40)]
@@ -3352,7 +3357,7 @@ class TestADXStrategy:
         assert signal.metadata["plus_di"] == pytest.approx(0.0)
         assert signal.metadata["minus_di"] > 50.0
 
-    def test_generate_signals_no_signal_without_trend(self):
+    def test_generate_signals_no_signal_without_trend(self) -> None:
         """A flat price series has no trend, so no signal is emitted."""
         strategy = ADXStrategy(period=14, threshold=25.0)
         closes = [100.0] * 40
@@ -3360,14 +3365,14 @@ class TestADXStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with insufficient data."""
         strategy = ADXStrategy(period=14)
         data = {"AAPL": create_adx_data("AAPL", [100.0 + i for i in range(20)])}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = ADXStrategy(period=14, threshold=25.0)
         data = {
@@ -3380,7 +3385,7 @@ class TestADXStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_skips_nan_close(self):
+    def test_generate_signals_skips_nan_close(self) -> None:
         """A NaN last close is skipped before any signal is derived."""
         strategy = ADXStrategy(period=14, threshold=25.0)
         closes = [100.0 + 2.0 * i for i in range(39)] + [float("nan")]
@@ -3409,7 +3414,7 @@ def create_williams_r_data(symbol: str, closes: list[float]) -> pd.DataFrame:
 class TestWilliamsRStrategy:
     """Tests for WilliamsRStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = WilliamsRStrategy(
             period=14, overbought=-20.0, oversold=-80.0, name="Test_WilliamsR"
@@ -3419,7 +3424,7 @@ class TestWilliamsRStrategy:
         assert strategy.overbought == -20.0
         assert strategy.oversold == -80.0
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         """Test default parameters."""
         strategy = WilliamsRStrategy()
         assert strategy.name == "Williams %R"
@@ -3427,7 +3432,7 @@ class TestWilliamsRStrategy:
         assert strategy.overbought == -20.0
         assert strategy.oversold == -80.0
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid bounds."""
         with pytest.raises(ValueError, match="period must be positive"):
             WilliamsRStrategy(period=0)
@@ -3460,7 +3465,7 @@ class TestWilliamsRStrategy:
         with pytest.raises(ValueError, match="oversold must be below overbought"):
             WilliamsRStrategy(overbought=-20.0, oversold=-20.0)
 
-    def test_generate_signals_oversold_buy(self):
+    def test_generate_signals_oversold_buy(self) -> None:
         """An oversold reading emits a buy signal."""
         strategy = WilliamsRStrategy(period=14, overbought=-20.0, oversold=-80.0)
         closes = [100.0] * 12 + [108.0, 92.0]
@@ -3476,7 +3481,7 @@ class TestWilliamsRStrategy:
         assert signal.metadata["signal_type"] == "oversold"
         assert signal.metadata["williams_r"] == pytest.approx(-90.0)
 
-    def test_generate_signals_overbought_sell(self):
+    def test_generate_signals_overbought_sell(self) -> None:
         """An overbought reading emits a sell signal."""
         strategy = WilliamsRStrategy(period=14, overbought=-20.0, oversold=-80.0)
         closes = [100.0] * 12 + [92.0, 108.0]
@@ -3492,7 +3497,7 @@ class TestWilliamsRStrategy:
         assert signal.metadata["signal_type"] == "overbought"
         assert signal.metadata["williams_r"] == pytest.approx(-10.0)
 
-    def test_generate_signals_no_signal_in_middle(self):
+    def test_generate_signals_no_signal_in_middle(self) -> None:
         """A reading between the bounds emits no signal."""
         strategy = WilliamsRStrategy(period=14, overbought=-20.0, oversold=-80.0)
         closes = [100.0] * 14
@@ -3500,14 +3505,14 @@ class TestWilliamsRStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with insufficient data."""
         strategy = WilliamsRStrategy(period=14)
         data = {"AAPL": create_williams_r_data("AAPL", [100.0] * 13)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = WilliamsRStrategy(period=14, overbought=-20.0, oversold=-80.0)
         data = {
@@ -3520,7 +3525,7 @@ class TestWilliamsRStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_skips_nan_close(self):
+    def test_generate_signals_skips_nan_close(self) -> None:
         """A NaN last close is skipped before any signal is derived."""
         strategy = WilliamsRStrategy(period=14, overbought=-20.0, oversold=-80.0)
         closes = [100.0] * 13 + [float("nan")]
@@ -3552,28 +3557,28 @@ def create_obv_data(symbol: str, closes: list[float]) -> pd.DataFrame:
 class TestOBVStrategy:
     """Tests for OBVStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = OBVStrategy(signal_period=20, name="Test_OBV")
         assert strategy.name == "Test_OBV"
         assert strategy.signal_period == 20
         assert strategy.parameters["signal_period"] == 20
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
         with pytest.raises(ValueError, match="signal_period must be positive"):
             OBVStrategy(signal_period=0)
         with pytest.raises(ValueError, match="signal_period must be positive"):
             OBVStrategy(signal_period=-5)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than signal_period + 1."""
         strategy = OBVStrategy(signal_period=20)
         data = {"AAPL": create_obv_data("AAPL", [100.0] * 20)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_obv_crosses_above_signal_line(self):
+    def test_generate_signals_obv_crosses_above_signal_line(self) -> None:
         """An up-day on flat data pushes OBV above its signal line (buy)."""
         strategy = OBVStrategy(signal_period=20)
         # 25 flat bars keep OBV at zero; the final up-bar lifts OBV above
@@ -3592,7 +3597,7 @@ class TestOBVStrategy:
         assert signal.metadata["obv"] == pytest.approx(1_000_000.0)
         assert signal.metadata["signal_line"] == pytest.approx(1_000_000.0 / 20.0)
 
-    def test_generate_signals_obv_crosses_below_signal_line(self):
+    def test_generate_signals_obv_crosses_below_signal_line(self) -> None:
         """A down-day on flat data pushes OBV below its signal line (sell)."""
         strategy = OBVStrategy(signal_period=20)
         data = {"AAPL": create_obv_data("AAPL", [100.0] * 25 + [95.0])}
@@ -3609,14 +3614,14 @@ class TestOBVStrategy:
         assert signal.metadata["obv"] == pytest.approx(-1_000_000.0)
         assert signal.metadata["signal_line"] == pytest.approx(-1_000_000.0 / 20.0)
 
-    def test_generate_signals_flat_data_no_signals(self):
+    def test_generate_signals_flat_data_no_signals(self) -> None:
         """Flat closes keep OBV flat, so it never crosses its signal line."""
         strategy = OBVStrategy(signal_period=20)
         data = {"AAPL": create_obv_data("AAPL", [100.0] * 30)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = OBVStrategy(signal_period=20)
         data = {
@@ -3629,14 +3634,14 @@ class TestOBVStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_skips_nan_close(self):
+    def test_generate_signals_skips_nan_close(self) -> None:
         """A NaN last close is skipped before any signal is derived."""
         strategy = OBVStrategy(signal_period=20)
         closes = [100.0] * 25 + [float("nan")]
         data = {"AAPL": create_obv_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
 
-    def test_obv_buy_cross_zero_signal_line_strength(self):
+    def test_obv_buy_cross_zero_signal_line_strength(self) -> None:
         """Buy cross with current_signal == 0 uses the 0.5 strength fallback."""
         strategy = OBVStrategy(signal_period=2)
         close = np.array([100.0, 100.0, 100.0, 100.0, 99.0, 100.0], dtype=float)
@@ -3661,7 +3666,7 @@ class TestOBVStrategy:
         assert signal.metadata["signal_type"] == "obv_cross_above"
         assert signal.metadata["signal_line"] == pytest.approx(0.0)
 
-    def test_obv_sell_cross_zero_signal_line_strength(self):
+    def test_obv_sell_cross_zero_signal_line_strength(self) -> None:
         """Sell cross with current_signal == 0 uses the 0.5 strength fallback."""
         strategy = OBVStrategy(signal_period=2)
         close = np.array([100.0, 100.0, 100.0, 100.0, 101.0, 99.0], dtype=float)
@@ -3729,28 +3734,28 @@ def create_mfi_data(symbol: str, bars: list[tuple[float, float, float]]) -> pd.D
 class TestChaikinMoneyFlowStrategy:
     """Tests for ChaikinMoneyFlowStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = ChaikinMoneyFlowStrategy(period=20, name="Test_CMF")
         assert strategy.name == "Test_CMF"
         assert strategy.period == 20
         assert strategy.parameters["period"] == 20
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
         with pytest.raises(ValueError, match="period must be positive"):
             ChaikinMoneyFlowStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             ChaikinMoneyFlowStrategy(period=-5)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than period + 1."""
         strategy = ChaikinMoneyFlowStrategy(period=5)
         data = {"AAPL": create_cmf_data("AAPL", [(100.0, 101.0, 100.0)] * 5)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_cmf_crosses_above_zero(self):
+    def test_generate_signals_cmf_crosses_above_zero(self) -> None:
         """A final buying-pressure bar flips CMF from negative to positive."""
         strategy = ChaikinMoneyFlowStrategy(period=5)
         # 5 selling bars, 4 neutral bars, 1 buying bar -> the last 5-bar
@@ -3770,7 +3775,7 @@ class TestChaikinMoneyFlowStrategy:
         assert signal.metadata["cmf"] == pytest.approx(0.2)
         assert signal.metadata["period"] == 5
 
-    def test_generate_signals_cmf_crosses_below_zero(self):
+    def test_generate_signals_cmf_crosses_below_zero(self) -> None:
         """A final selling-pressure bar flips CMF from positive to negative."""
         strategy = ChaikinMoneyFlowStrategy(period=5)
         bars = [(105.0, 105.0, 104.0)] * 5 + [(100.0, 101.0, 99.0)] * 4 + [(100.0, 101.0, 100.0)]
@@ -3788,7 +3793,7 @@ class TestChaikinMoneyFlowStrategy:
         assert signal.metadata["cmf"] == pytest.approx(-0.2)
         assert signal.metadata["period"] == 5
 
-    def test_generate_signals_flat_range_no_signals(self):
+    def test_generate_signals_flat_range_no_signals(self) -> None:
         """Close always at the range midpoint -> zero pressure, no signals."""
         strategy = ChaikinMoneyFlowStrategy(period=5)
         bars = [(100.0, 101.0, 99.0)] * 15
@@ -3796,7 +3801,7 @@ class TestChaikinMoneyFlowStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = ChaikinMoneyFlowStrategy(period=5)
         buy_bars = (
@@ -3815,7 +3820,7 @@ class TestChaikinMoneyFlowStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_skips_nan_cmf(self):
+    def test_generate_signals_skips_nan_cmf(self) -> None:
         """Bars where high == low == close yield NaN CMF and are skipped.
 
         With every bar's high, low, and close equal, the money-flow
@@ -3833,29 +3838,29 @@ class TestChaikinMoneyFlowStrategy:
 class TestForceIndexStrategy:
     """Tests for the Force Index strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = ForceIndexStrategy()
         assert strategy.name == "Force_Index"
         assert strategy.period == 13
 
-    def test_initialization_custom_params(self):
+    def test_initialization_custom_params(self) -> None:
         strategy = ForceIndexStrategy(period=14, name="FI_Custom")
         assert strategy.period == 14
         assert strategy.name == "FI_Custom"
 
-    def test_validate_parameters_invalid_period(self):
+    def test_validate_parameters_invalid_period(self) -> None:
         with pytest.raises(ValueError, match="period must be positive"):
             ForceIndexStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             ForceIndexStrategy(period=-5)
 
-    def test_insufficient_data(self):
+    def test_insufficient_data(self) -> None:
         strategy = ForceIndexStrategy(period=13)
         dates = pd.date_range("2023-01-01", periods=14)
         data = {"AAPL": pd.DataFrame({"close": [100] * 14, "volume": [1000] * 14}, index=dates)}
         assert strategy.generate_signals(data) == []
 
-    def test_cross_above_zero_buy(self):
+    def test_cross_above_zero_buy(self) -> None:
         """Force Index crosses above zero emits a buy signal."""
         strategy = ForceIndexStrategy(period=2)
         dates = pd.date_range("2023-01-01", periods=6, freq="D")
@@ -3867,7 +3872,7 @@ class TestForceIndexStrategy:
         assert signals[0].action == "buy"
         assert signals[0].metadata["signal_type"] == "force_index_cross_above_zero"
 
-    def test_cross_below_zero_sell(self):
+    def test_cross_below_zero_sell(self) -> None:
         """Force Index crosses below zero emits a sell signal."""
         strategy = ForceIndexStrategy(period=2)
         dates = pd.date_range("2023-01-01", periods=6, freq="D")
@@ -3879,7 +3884,7 @@ class TestForceIndexStrategy:
         assert signals[0].action == "sell"
         assert signals[0].metadata["signal_type"] == "force_index_cross_below_zero"
 
-    def test_generate_signals_skips_nan_close(self):
+    def test_generate_signals_skips_nan_close(self) -> None:
         strategy = ForceIndexStrategy(period=2)
         dates = pd.date_range("2023-01-01", periods=10)
         closes = [100, 99, 98, 97, 96, 95, 94, 93, 95, float("nan")]
@@ -3887,7 +3892,7 @@ class TestForceIndexStrategy:
         data = {"AAPL": pd.DataFrame({"close": closes, "volume": volumes}, index=dates)}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_nan_prev_force_index(self):
+    def test_generate_signals_skips_nan_prev_force_index(self) -> None:
         strategy = ForceIndexStrategy(period=2)
         dates = pd.date_range("2023-01-01", periods=10)
         closes = [100, float("nan"), 98, 97, 96, 95, 94, 93, 95, 96]
@@ -3899,28 +3904,28 @@ class TestForceIndexStrategy:
 class TestMoneyFlowIndexStrategy:
     """Tests for the Money Flow Index (MFI) strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = MoneyFlowIndexStrategy(period=14, name="Test_MFI")
         assert strategy.name == "Test_MFI"
         assert strategy.period == 14
         assert strategy.parameters["period"] == 14
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
         with pytest.raises(ValueError, match="period must be positive"):
             MoneyFlowIndexStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             MoneyFlowIndexStrategy(period=-5)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than period + 1."""
         strategy = MoneyFlowIndexStrategy(period=5)
         data = {"AAPL": create_mfi_data("AAPL", [(100.0, 101.0, 100.0)] * 5)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_mfi_crosses_above_50(self):
+    def test_generate_signals_mfi_crosses_above_50(self) -> None:
         """A final buying-pressure bar flips MFI from below 50 to above 50."""
         strategy = MoneyFlowIndexStrategy(period=5)
         # 4 down-sell bars (close at low extreme, mfm -1) then 3 up-buy bars
@@ -3943,7 +3948,7 @@ class TestMoneyFlowIndexStrategy:
         assert signal.metadata["mfi"] == pytest.approx(290.06622516556286)
         assert signal.metadata["period"] == 5
 
-    def test_generate_signals_mfi_crosses_below_50(self):
+    def test_generate_signals_mfi_crosses_below_50(self) -> None:
         """A final selling-pressure bar flips MFI from above 50 to below 50."""
         strategy = MoneyFlowIndexStrategy(period=5)
         down = lambda c: (c, c + 2.0, c)
@@ -3963,7 +3968,7 @@ class TestMoneyFlowIndexStrategy:
         assert signal.metadata["mfi"] == pytest.approx(-210.06711409395984)
         assert signal.metadata["period"] == 5
 
-    def test_generate_signals_flat_range_no_signals(self):
+    def test_generate_signals_flat_range_no_signals(self) -> None:
         """Close always at the range midpoint -> zero money flow, no signals."""
         strategy = MoneyFlowIndexStrategy(period=5)
         bars = [(100.0, 101.0, 99.0)] * 15
@@ -3971,7 +3976,7 @@ class TestMoneyFlowIndexStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = MoneyFlowIndexStrategy(period=5)
         down = lambda c: (c, c + 2.0, c)
@@ -3988,7 +3993,7 @@ class TestMoneyFlowIndexStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_skips_nan_close(self):
+    def test_generate_signals_skips_nan_close(self) -> None:
         """A NaN last close is rejected before any signal is derived."""
         strategy = MoneyFlowIndexStrategy(period=5)
         down = lambda c: (c, c + 2.0, c)
@@ -4027,33 +4032,33 @@ def create_vroc_data(symbol: str, volumes: list[float], close: float = 100.0) ->
 class TestVolumeRateOfChangeStrategy:
     """Tests for the Volume Rate of Change (VROC) strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = VolumeRateOfChangeStrategy(period=14, name="Test_VROC")
         assert strategy.name == "Test_VROC"
         assert strategy.period == 14
         assert strategy.parameters["period"] == 14
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
         with pytest.raises(ValueError, match="period must be positive"):
             VolumeRateOfChangeStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             VolumeRateOfChangeStrategy(period=-5)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than period + 2."""
         strategy = VolumeRateOfChangeStrategy(period=5)
         data = {"AAPL": create_vroc_data("AAPL", [1_000_000] * 6)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_vroc_crosses_above_zero(self):
+    def test_generate_signals_vroc_crosses_above_zero(self) -> None:
         """A final volume surge flips VROC from zero to +100 (buy)."""
         strategy = VolumeRateOfChangeStrategy(period=5)
         # 25 flat bars keep VROC at zero; the final bar doubles volume,
         # pushing VROC from 0 to +100 on the last bar only.
-        data = {"AAPL": create_vroc_data("AAPL", [1_000_000] * 25 + [2_000_000])}
+        data = {"AAPL": create_vroc_data("AAPL", [1_000_000.0] * 25 + [2_000_000.0])}
         signals = strategy.generate_signals(data)
 
         assert len(signals) == 1
@@ -4067,10 +4072,10 @@ class TestVolumeRateOfChangeStrategy:
         assert signal.metadata["vroc"] == pytest.approx(100.0)
         assert signal.metadata["period"] == 5
 
-    def test_generate_signals_vroc_crosses_below_zero(self):
+    def test_generate_signals_vroc_crosses_below_zero(self) -> None:
         """A final volume drop halves volume, flipping VROC to -50 (sell)."""
         strategy = VolumeRateOfChangeStrategy(period=5)
-        data = {"AAPL": create_vroc_data("AAPL", [1_000_000] * 25 + [500_000])}
+        data = {"AAPL": create_vroc_data("AAPL", [1_000_000.0] * 25 + [500_000.0])}
         signals = strategy.generate_signals(data)
 
         assert len(signals) == 1
@@ -4084,19 +4089,19 @@ class TestVolumeRateOfChangeStrategy:
         assert signal.metadata["vroc"] == pytest.approx(-50.0)
         assert signal.metadata["period"] == 5
 
-    def test_generate_signals_flat_volume_no_signals(self):
+    def test_generate_signals_flat_volume_no_signals(self) -> None:
         """Constant volume keeps VROC at zero, so no crossover fires."""
         strategy = VolumeRateOfChangeStrategy(period=5)
         data = {"AAPL": create_vroc_data("AAPL", [1_000_000] * 30)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = VolumeRateOfChangeStrategy(period=5)
         data = {
-            "AAPL": create_vroc_data("AAPL", [1_000_000] * 25 + [2_000_000]),
-            "MSFT": create_vroc_data("MSFT", [1_000_000] * 25 + [500_000]),
+            "AAPL": create_vroc_data("AAPL", [1_000_000.0] * 25 + [2_000_000.0]),
+            "MSFT": create_vroc_data("MSFT", [1_000_000.0] * 25 + [500_000.0]),
         }
         signals = strategy.generate_signals(data)
         by_symbol = {s.symbol: s for s in signals}
@@ -4104,13 +4109,13 @@ class TestVolumeRateOfChangeStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_skips_nan_volume(self):
+    def test_generate_signals_skips_nan_volume(self) -> None:
         """A NaN last volume is rejected before any signal is derived."""
         strategy = VolumeRateOfChangeStrategy(period=5)
         data = {"AAPL": create_vroc_data("AAPL", [1_000_000] * 25 + [float("nan")])}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_nan_vroc_current_price(self):
+    def test_generate_signals_skips_nan_vroc_current_price(self) -> None:
         """A NaN current close price is rejected before signal generation."""
         strategy = VolumeRateOfChangeStrategy(period=5)
         data = {"AAPL": create_vroc_data("AAPL", [1_000_000] * 30)}
@@ -4139,28 +4144,28 @@ def create_cmo_data(symbol: str, closes: list[float]) -> pd.DataFrame:
 class TestChandeMomentumOscillatorStrategy:
     """Tests for the Chande Momentum Oscillator (CMO) strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = ChandeMomentumOscillatorStrategy(period=14, name="Test_CMO")
         assert strategy.name == "Test_CMO"
         assert strategy.period == 14
         assert strategy.parameters["period"] == 14
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
         with pytest.raises(ValueError, match="period must be positive"):
             ChandeMomentumOscillatorStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             ChandeMomentumOscillatorStrategy(period=-5)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than period + 2."""
         strategy = ChandeMomentumOscillatorStrategy(period=5)
         data = {"AAPL": create_cmo_data("AAPL", [100.0] * 6)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_cmo_crosses_above_zero(self):
+    def test_generate_signals_cmo_crosses_above_zero(self) -> None:
         """A momentum upturn flips CMO from zero to positive (buy)."""
         strategy = ChandeMomentumOscillatorStrategy(period=5)
         # 25 flat bars keep CMO at zero, then a decline followed by a rally
@@ -4180,7 +4185,7 @@ class TestChandeMomentumOscillatorStrategy:
         assert signal.metadata["cmo"] == pytest.approx(100.0 / 3.0)
         assert signal.metadata["period"] == 5
 
-    def test_generate_signals_cmo_crosses_below_zero(self):
+    def test_generate_signals_cmo_crosses_below_zero(self) -> None:
         """A momentum downturn flips CMO from zero to negative (sell)."""
         strategy = ChandeMomentumOscillatorStrategy(period=5)
         closes = [100.0] * 25 + [110.0, 115.0, 120.0, 125.0, 100.0, 95.0]
@@ -4198,14 +4203,14 @@ class TestChandeMomentumOscillatorStrategy:
         assert signal.metadata["cmo"] == pytest.approx(-100.0 / 3.0)
         assert signal.metadata["period"] == 5
 
-    def test_generate_signals_flat_close_no_signals(self):
+    def test_generate_signals_flat_close_no_signals(self) -> None:
         """Constant close keeps CMO undefined, so no crossover fires."""
         strategy = ChandeMomentumOscillatorStrategy(period=5)
         data = {"AAPL": create_cmo_data("AAPL", [100.0] * 30)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = ChandeMomentumOscillatorStrategy(period=5)
         data = {
@@ -4220,14 +4225,14 @@ class TestChandeMomentumOscillatorStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_skips_nan_close(self):
+    def test_generate_signals_skips_nan_close(self) -> None:
         """A NaN last close is rejected before any signal is derived."""
         strategy = ChandeMomentumOscillatorStrategy(period=5)
         closes = [100.0] * 25 + [90.0, 85.0, 80.0, 75.0, 100.0, float("nan")]
         data = {"AAPL": create_cmo_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_no_cross_no_signal(self):
+    def test_generate_signals_no_cross_no_signal(self) -> None:
         """No signal when CMO stays on the same side of zero."""
         strategy = ChandeMomentumOscillatorStrategy(period=5)
         closes = [100.0] * 25 + [110.0, 115.0, 120.0, 125.0, 130.0]
@@ -4259,7 +4264,7 @@ def create_volume_oscillator_data(
 class TestVolumeOscillatorStrategy:
     """Tests for the Volume Oscillator strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13, name="Test_VOL")
         assert strategy.name == "Test_VOL"
@@ -4268,7 +4273,7 @@ class TestVolumeOscillatorStrategy:
         assert strategy.parameters["fast_period"] == 5
         assert strategy.parameters["slow_period"] == 13
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
         with pytest.raises(ValueError, match="fast_period must be positive"):
             VolumeOscillatorStrategy(fast_period=0, slow_period=13)
@@ -4277,14 +4282,14 @@ class TestVolumeOscillatorStrategy:
         with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
             VolumeOscillatorStrategy(fast_period=13, slow_period=13)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than slow_period + 2."""
         strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": create_volume_oscillator_data("AAPL", [1_000_000.0] * 15)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_vol_crosses_above_zero(self):
+    def test_generate_signals_vol_crosses_above_zero(self) -> None:
         """A final volume surge flips VOL from zero to +16.67 (buy)."""
         strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
         # 25 flat bars keep VOL at zero; the final bar doubles volume,
@@ -4304,7 +4309,7 @@ class TestVolumeOscillatorStrategy:
         assert signal.metadata["fast_period"] == 5
         assert signal.metadata["slow_period"] == 13
 
-    def test_generate_signals_vol_crosses_below_zero(self):
+    def test_generate_signals_vol_crosses_below_zero(self) -> None:
         """A final volume drop halves volume, flipping VOL to -10.26 (sell)."""
         strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": create_volume_oscillator_data("AAPL", [1_000_000.0] * 25 + [500_000.0])}
@@ -4322,14 +4327,14 @@ class TestVolumeOscillatorStrategy:
         assert signal.metadata["fast_period"] == 5
         assert signal.metadata["slow_period"] == 13
 
-    def test_generate_signals_flat_volume_no_signals(self):
+    def test_generate_signals_flat_volume_no_signals(self) -> None:
         """Constant volume keeps VOL at zero, so no crossover fires."""
         strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": create_volume_oscillator_data("AAPL", [1_000_000.0] * 30)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
         data = {
@@ -4342,7 +4347,7 @@ class TestVolumeOscillatorStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_skips_nan_volume(self):
+    def test_generate_signals_skips_nan_volume(self) -> None:
         """A NaN last volume is rejected before any signal is derived."""
         strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": create_volume_oscillator_data("AAPL", [1_000_000.0] * 25 + [float("nan")])}
@@ -4374,7 +4379,7 @@ def create_volume_price_trend_data(
 class TestVolumePriceTrendStrategy:
     """Tests for the Volume Price Trend strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = VolumePriceTrendStrategy(fast_period=5, slow_period=13, name="Test_VPT")
         assert strategy.name == "Test_VPT"
@@ -4383,7 +4388,7 @@ class TestVolumePriceTrendStrategy:
         assert strategy.parameters["fast_period"] == 5
         assert strategy.parameters["slow_period"] == 13
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
         with pytest.raises(ValueError, match="fast_period must be positive"):
             VolumePriceTrendStrategy(fast_period=0, slow_period=13)
@@ -4392,14 +4397,14 @@ class TestVolumePriceTrendStrategy:
         with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
             VolumePriceTrendStrategy(fast_period=13, slow_period=13)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than slow_period + 2."""
         strategy = VolumePriceTrendStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": create_volume_price_trend_data("AAPL", [100.0] * 15)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_vpt_bullish_crossover(self):
+    def test_generate_signals_vpt_bullish_crossover(self) -> None:
         """A final price surge flips the fast VPT EMA above the slow EMA (buy)."""
         strategy = VolumePriceTrendStrategy(fast_period=5, slow_period=13)
         # 25 flat bars keep both EMAs at zero; the final bar jumps to 300,
@@ -4421,7 +4426,7 @@ class TestVolumePriceTrendStrategy:
         assert signal.metadata["fast_period"] == 5
         assert signal.metadata["slow_period"] == 13
 
-    def test_generate_signals_vpt_bearish_crossover(self):
+    def test_generate_signals_vpt_bearish_crossover(self) -> None:
         """A final price drop flips the fast VPT EMA below the slow EMA (sell)."""
         strategy = VolumePriceTrendStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": create_volume_price_trend_data("AAPL", [100.0] * 25 + [1.0])}
@@ -4441,14 +4446,14 @@ class TestVolumePriceTrendStrategy:
         assert signal.metadata["fast_period"] == 5
         assert signal.metadata["slow_period"] == 13
 
-    def test_generate_signals_flat_price_no_signals(self):
+    def test_generate_signals_flat_price_no_signals(self) -> None:
         """Constant price keeps the VPT series at zero, so no crossover fires."""
         strategy = VolumePriceTrendStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": create_volume_price_trend_data("AAPL", [100.0] * 30)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = VolumePriceTrendStrategy(fast_period=5, slow_period=13)
         data = {
@@ -4461,7 +4466,7 @@ class TestVolumePriceTrendStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_skips_nan_last_close(self):
+    def test_generate_signals_skips_nan_last_close(self) -> None:
         """A NaN last close is rejected before any signal is derived."""
         strategy = VolumePriceTrendStrategy(fast_period=5, slow_period=13)
         closes = [100.0] * 25 + [float("nan")]
@@ -4498,7 +4503,7 @@ def create_vwma_data(
 class TestVolumeWeightedMovingAverageCrossover:
     """Tests for the volume-weighted moving average crossover strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization and exposed parameters."""
         strategy = VolumeWeightedMovingAverageCrossover(
             fast_period=5, slow_period=20, name="Test_VWMA"
@@ -4509,14 +4514,14 @@ class TestVolumeWeightedMovingAverageCrossover:
         assert strategy.parameters["fast_period"] == 5
         assert strategy.parameters["slow_period"] == 20
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         """The default periods are 10/30."""
         strategy = VolumeWeightedMovingAverageCrossover()
         assert strategy.fast_period == 10
         assert strategy.slow_period == 30
         assert strategy.name == "VWMA_Crossover"
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
         with pytest.raises(ValueError, match="fast_period must be a positive integer"):
             VolumeWeightedMovingAverageCrossover(fast_period=0, slow_period=10)
@@ -4525,13 +4530,13 @@ class TestVolumeWeightedMovingAverageCrossover:
         with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
             VolumeWeightedMovingAverageCrossover(fast_period=10, slow_period=10)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """No signals when there are fewer bars than slow_period + 1."""
         strategy = VolumeWeightedMovingAverageCrossover(fast_period=2, slow_period=3)
         data = {"AAPL": create_vwma_data("AAPL", [10.0, 20.0, 30.0])}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_golden_cross(self):
+    def test_generate_signals_golden_cross(self) -> None:
         """A final surge lifts the fast VWMA above the slow VWMA (buy)."""
         strategy = VolumeWeightedMovingAverageCrossover(fast_period=5, slow_period=10)
         closes = [100.0] * 15 + [50.0] * 5 + [300.0]
@@ -4549,7 +4554,7 @@ class TestVolumeWeightedMovingAverageCrossover:
         assert signal.metadata["fast_vwma"] == pytest.approx(100.0)
         assert signal.metadata["slow_vwma"] == pytest.approx(95.0)
 
-    def test_generate_signals_death_cross(self):
+    def test_generate_signals_death_cross(self) -> None:
         """A final crash pulls the fast VWMA below the slow VWMA (sell)."""
         strategy = VolumeWeightedMovingAverageCrossover(fast_period=5, slow_period=10)
         closes = [100.0] * 15 + [200.0] * 20 + [1.0]
@@ -4565,7 +4570,7 @@ class TestVolumeWeightedMovingAverageCrossover:
         assert signal.metadata["fast_vwma"] == pytest.approx(160.2)
         assert signal.metadata["slow_vwma"] == pytest.approx(180.1)
 
-    def test_vwma_uses_volume_weights(self):
+    def test_vwma_uses_volume_weights(self) -> None:
         """The VWMA values reflect volume weighting, not a simple average."""
         strategy = VolumeWeightedMovingAverageCrossover(fast_period=2, slow_period=3)
         closes = [100.0, 100.0, 50.0, 300.0]
@@ -4579,31 +4584,31 @@ class TestVolumeWeightedMovingAverageCrossover:
         assert signal.metadata["fast_vwma"] == pytest.approx(3050.0 / 11.0)
         assert signal.metadata["slow_vwma"] == pytest.approx(3150.0 / 12.0)
 
-    def test_flat_prices_no_signals(self):
+    def test_flat_prices_no_signals(self) -> None:
         """Constant close and volume produce equal VWMAs and no crossover."""
         strategy = VolumeWeightedMovingAverageCrossover(fast_period=2, slow_period=3)
         data = {"AAPL": create_vwma_data("AAPL", [100.0] * 20)}
         assert strategy.generate_signals(data) == []
 
-    def test_zero_volume_is_skipped(self):
+    def test_zero_volume_is_skipped(self) -> None:
         """A zero-volume window cannot produce a VWMA and yields no signal."""
         strategy = VolumeWeightedMovingAverageCrossover(fast_period=2, slow_period=3)
         data = {"AAPL": create_vwma_data("AAPL", [100.0] * 20, [0.0] * 20)}
         assert strategy.generate_signals(data) == []
 
-    def test_nan_last_close_is_skipped(self):
+    def test_nan_last_close_is_skipped(self) -> None:
         """A NaN last close is rejected before any signal is derived."""
         strategy = VolumeWeightedMovingAverageCrossover(fast_period=2, slow_period=3)
         data = {"AAPL": create_vwma_data("AAPL", [100.0] * 19 + [float("nan")])}
         assert strategy.generate_signals(data) == []
 
-    def test_missing_columns_are_skipped(self):
+    def test_missing_columns_are_skipped(self) -> None:
         """A frame without close or volume columns cannot produce signals."""
         strategy = VolumeWeightedMovingAverageCrossover(fast_period=2, slow_period=3)
         data = {"AAPL": pd.DataFrame({"close": [1.0, 2.0, 3.0, 4.0]})}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Each symbol is evaluated independently."""
         strategy = VolumeWeightedMovingAverageCrossover(fast_period=5, slow_period=10)
         bullish = [100.0] * 15 + [50.0] * 5 + [300.0]
@@ -4640,7 +4645,7 @@ def create_bollinger_percent_b_data(symbol: str, closes: list[float]) -> pd.Data
 class TestBollingerPercentBStrategy:
     """Tests for the Bollinger Bands %B strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = BollingerPercentBStrategy(
             period=20,
@@ -4659,7 +4664,7 @@ class TestBollingerPercentBStrategy:
         assert strategy.parameters["oversold"] == 0.2
         assert strategy.parameters["overbought"] == 0.8
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid parameters."""
         with pytest.raises(ValueError, match="period must be positive"):
             BollingerPercentBStrategy(period=0, std_dev=2.0)
@@ -4674,19 +4679,19 @@ class TestBollingerPercentBStrategy:
         with pytest.raises(ValueError, match="oversold"):
             BollingerPercentBStrategy(period=20, std_dev=2.0, oversold=-0.1, overbought=0.8)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than period + 1."""
         strategy = BollingerPercentBStrategy(period=20)
         data = {"AAPL": create_bollinger_percent_b_data("AAPL", [100.0] * 20)}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_flat_price_no_signals(self):
+    def test_generate_signals_flat_price_no_signals(self) -> None:
         """Constant price collapses the bands, so %B is undefined and no signal fires."""
         strategy = BollingerPercentBStrategy(period=20)
         data = {"AAPL": create_bollinger_percent_b_data("AAPL", [100.0] * 30)}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_percent_b_oversold_buy(self):
+    def test_generate_signals_percent_b_oversold_buy(self) -> None:
         """A final crash pushes %B below the oversold threshold (buy)."""
         strategy = BollingerPercentBStrategy(period=20, oversold=0.2, overbought=0.8)
         # 28 flat bars, a small bump, then a crash: %B crosses below oversold.
@@ -4707,7 +4712,7 @@ class TestBollingerPercentBStrategy:
         assert signal.metadata["oversold"] == 0.2
         assert signal.metadata["overbought"] == 0.8
 
-    def test_generate_signals_percent_b_overbought_sell(self):
+    def test_generate_signals_percent_b_overbought_sell(self) -> None:
         """A final spike pushes %B above the overbought threshold (sell)."""
         strategy = BollingerPercentBStrategy(period=20, oversold=0.2, overbought=0.8)
         # A declining run then a moderate bar and a spike: %B crosses above overbought.
@@ -4728,7 +4733,7 @@ class TestBollingerPercentBStrategy:
         assert signal.metadata["oversold"] == 0.2
         assert signal.metadata["overbought"] == 0.8
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = BollingerPercentBStrategy(period=20)
         data = {
@@ -4770,7 +4775,7 @@ def create_klinger_oscillator_data(
 class TestKlingerOscillatorStrategy:
     """Tests for the Klinger Oscillator strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = KlingerOscillatorStrategy(fast_period=55, slow_period=200, name="Test_Klinger")
         assert strategy.name == "Test_Klinger"
@@ -4779,7 +4784,7 @@ class TestKlingerOscillatorStrategy:
         assert strategy.parameters["fast_period"] == 55
         assert strategy.parameters["slow_period"] == 200
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
         with pytest.raises(ValueError, match="fast_period must be positive"):
             KlingerOscillatorStrategy(fast_period=0, slow_period=200)
@@ -4788,14 +4793,14 @@ class TestKlingerOscillatorStrategy:
         with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
             KlingerOscillatorStrategy(fast_period=200, slow_period=200)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than slow_period + 2."""
         strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": create_klinger_oscillator_data("AAPL", [100.0] * 14)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_klinger_bullish_crossover(self):
+    def test_generate_signals_klinger_bullish_crossover(self) -> None:
         """A final price surge flips the fast Klinger EMA above the slow EMA (buy)."""
         strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
         # 25 flat bars keep both EMAs at zero; the final bar jumps to 300,
@@ -4818,7 +4823,7 @@ class TestKlingerOscillatorStrategy:
         assert signal.metadata["fast_period"] == 5
         assert signal.metadata["slow_period"] == 13
 
-    def test_generate_signals_klinger_bearish_crossover(self):
+    def test_generate_signals_klinger_bearish_crossover(self) -> None:
         """A final price drop flips the fast Klinger EMA below the slow EMA (sell)."""
         strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": create_klinger_oscillator_data("AAPL", [100.0] * 25 + [1.0])}
@@ -4838,14 +4843,14 @@ class TestKlingerOscillatorStrategy:
         assert signal.metadata["fast_period"] == 5
         assert signal.metadata["slow_period"] == 13
 
-    def test_generate_signals_flat_price_no_signals(self):
+    def test_generate_signals_flat_price_no_signals(self) -> None:
         """Constant price keeps the Klinger series at zero, so no crossover fires."""
         strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": create_klinger_oscillator_data("AAPL", [100.0] * 30)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
         data = {
@@ -4858,7 +4863,7 @@ class TestKlingerOscillatorStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_skips_nan_last_close(self):
+    def test_generate_signals_skips_nan_last_close(self) -> None:
         """A NaN last close is rejected before any signal is derived."""
         strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
         closes = [100.0] * 25 + [float("nan")]
@@ -4888,28 +4893,28 @@ def create_hull_moving_average_data(symbol: str, closes: list[float]) -> pd.Data
 class TestHullMovingAverageStrategy:
     """Tests for the Hull Moving Average strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = HullMovingAverageStrategy(period=16, name="Test_HMA")
         assert strategy.name == "Test_HMA"
         assert strategy.period == 16
         assert strategy.parameters["period"] == 16
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
         with pytest.raises(ValueError, match="period must be positive"):
             HullMovingAverageStrategy(period=0)
         with pytest.raises(ValueError, match="period must be at least 2"):
             HullMovingAverageStrategy(period=1)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than period + 2."""
         strategy = HullMovingAverageStrategy(period=16)
         data = {"AAPL": create_hull_moving_average_data("AAPL", [100.0] * 17)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_hma_bullish_crossover(self):
+    def test_generate_signals_hma_bullish_crossover(self) -> None:
         """A final price surge flips the close above the HMA (buy)."""
         strategy = HullMovingAverageStrategy(period=16)
         # 20 flat bars keep the HMA at 100; the final bar jumps to 160,
@@ -4930,7 +4935,7 @@ class TestHullMovingAverageStrategy:
         assert signal.metadata["period"] == 16
         assert signal.metadata["close"] == pytest.approx(160.0)
 
-    def test_generate_signals_hma_bearish_crossover(self):
+    def test_generate_signals_hma_bearish_crossover(self) -> None:
         """A final price drop flips the close below the HMA (sell)."""
         strategy = HullMovingAverageStrategy(period=16)
         data = {"AAPL": create_hull_moving_average_data("AAPL", [100.0] * 20 + [40.0])}
@@ -4949,14 +4954,14 @@ class TestHullMovingAverageStrategy:
         assert signal.metadata["period"] == 16
         assert signal.metadata["close"] == pytest.approx(40.0)
 
-    def test_generate_signals_flat_price_no_signals(self):
+    def test_generate_signals_flat_price_no_signals(self) -> None:
         """Constant price keeps the close on the HMA, so no crossover fires."""
         strategy = HullMovingAverageStrategy(period=16)
         data = {"AAPL": create_hull_moving_average_data("AAPL", [100.0] * 22)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = HullMovingAverageStrategy(period=16)
         data = {
@@ -4969,14 +4974,14 @@ class TestHullMovingAverageStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_skips_nan_last_close(self):
+    def test_generate_signals_skips_nan_last_close(self) -> None:
         """A NaN last close is rejected before any signal is derived."""
         strategy = HullMovingAverageStrategy(period=16)
         closes = [100.0] * 21 + [float("nan")]
         data = {"AAPL": create_hull_moving_average_data("AAPL", closes)}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_nan_hma(self):
+    def test_generate_signals_skips_nan_hma(self) -> None:
         """NaN HMA values skip signal generation."""
         strategy = HullMovingAverageStrategy(period=16)
         closes = [100.0] * 22
@@ -5012,19 +5017,19 @@ def create_ease_of_movement_data(
 class TestEaseOfMovementStrategy:
     """Tests for the Ease of Movement strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = EaseOfMovementStrategy(period=14, name="Test_EOM")
         assert strategy.name == "Test_EOM"
         assert strategy.period == 14
         assert strategy.parameters["period"] == 14
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for a non-positive period."""
         with pytest.raises(ValueError, match="period must be positive"):
             EaseOfMovementStrategy(period=0)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than period + 2."""
         strategy = EaseOfMovementStrategy(period=2)
         data = {
@@ -5035,7 +5040,7 @@ class TestEaseOfMovementStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_eom_crosses_above_zero(self):
+    def test_generate_signals_eom_crosses_above_zero(self) -> None:
         """A final upward move flips EOM from below to above zero (buy)."""
         strategy = EaseOfMovementStrategy(period=2)
         data = {
@@ -5057,7 +5062,7 @@ class TestEaseOfMovementStrategy:
         assert signal.metadata["eom"] == pytest.approx(0.013333333333333332)
         assert signal.metadata["period"] == 2
 
-    def test_generate_signals_eom_crosses_below_zero(self):
+    def test_generate_signals_eom_crosses_below_zero(self) -> None:
         """A final downward move flips EOM from above to below zero (sell)."""
         strategy = EaseOfMovementStrategy(period=2)
         data = {
@@ -5079,14 +5084,14 @@ class TestEaseOfMovementStrategy:
         assert signal.metadata["eom"] == pytest.approx(-0.015555555555555552)
         assert signal.metadata["period"] == 2
 
-    def test_generate_signals_flat_price_no_signals(self):
+    def test_generate_signals_flat_price_no_signals(self) -> None:
         """Constant price keeps EOM at zero, so no crossover fires."""
         strategy = EaseOfMovementStrategy(period=2)
         data = {"AAPL": create_ease_of_movement_data("AAPL", [(10.0, 8.0, 100.0)] * 30)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = EaseOfMovementStrategy(period=2)
         data = {
@@ -5105,7 +5110,7 @@ class TestEaseOfMovementStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_skips_nan_volume(self):
+    def test_generate_signals_skips_nan_volume(self) -> None:
         """A NaN final volume is rejected before any signal is derived."""
         strategy = EaseOfMovementStrategy(period=2)
         data = {
@@ -5147,25 +5152,25 @@ def create_vortex_data(symbol: str, rows: list[tuple[float, float, float]]) -> p
 class TestVortexStrategy:
     """Tests for the Vortex strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = VortexStrategy(period=14, name="Test_Vortex")
         assert strategy.name == "Test_Vortex"
         assert strategy.period == 14
         assert strategy.parameters["period"] == 14
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for non-positive periods."""
         with pytest.raises(ValueError, match="period must be positive"):
             VortexStrategy(period=0)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than period + 2."""
         strategy = VortexStrategy(period=14)
         data = {"AAPL": create_vortex_data("AAPL", [(10, 8, 9)] * 15)}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_vip_plus_crosses_above_vip_minus(self):
+    def test_generate_signals_vip_plus_crosses_above_vip_minus(self) -> None:
         """A final upward surge flips VIP+ above VIP- (buy)."""
         strategy = VortexStrategy(period=2)
         # 4 quiet bars keep VIP- above VIP+; the final bar surges high
@@ -5190,7 +5195,7 @@ class TestVortexStrategy:
         assert signal.metadata["vip_minus"] == pytest.approx(0.875)
         assert signal.metadata["period"] == 2
 
-    def test_generate_signals_vip_minus_crosses_above_vip_plus(self):
+    def test_generate_signals_vip_minus_crosses_above_vip_plus(self) -> None:
         """A final downward plunge flips VIP- above VIP+ (sell)."""
         strategy = VortexStrategy(period=2)
         # 4 quiet bars keep VIP+ above VIP-; the final bar plunges low
@@ -5215,7 +5220,7 @@ class TestVortexStrategy:
         assert signal.metadata["vip_minus"] == pytest.approx(0.7333333333333333)
         assert signal.metadata["period"] == 2
 
-    def test_generate_signals_no_crossover(self):
+    def test_generate_signals_no_crossover(self) -> None:
         """Constant price keeps both Vortex lines flat, so no signal fires."""
         strategy = VortexStrategy(period=2)
         data = {
@@ -5226,7 +5231,7 @@ class TestVortexStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = VortexStrategy(period=2)
         data = {
@@ -5245,7 +5250,7 @@ class TestVortexStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_skips_nan_price(self):
+    def test_generate_signals_skips_nan_price(self) -> None:
         """A NaN close is rejected before any signal is derived."""
         strategy = VortexStrategy(period=2)
         data = {
@@ -5264,7 +5269,7 @@ if __name__ == "__main__":
 class TestStochasticMomentumIndexStrategy:
     """Tests for StochasticMomentumIndexStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
 
         strategy = StochasticMomentumIndexStrategy()
@@ -5272,7 +5277,7 @@ class TestStochasticMomentumIndexStrategy:
         assert strategy.signal_period == 3
         assert strategy.name == "Stochastic_Momentum_Index"
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
 
         with pytest.raises(ValueError):
@@ -5280,7 +5285,7 @@ class TestStochasticMomentumIndexStrategy:
         with pytest.raises(ValueError):
             StochasticMomentumIndexStrategy(signal_period=0)
 
-    def test_insufficient_data_returns_empty(self):
+    def test_insufficient_data_returns_empty(self) -> None:
         from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
 
         strategy = StochasticMomentumIndexStrategy()
@@ -5299,7 +5304,7 @@ class TestStochasticMomentumIndexStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_buy_on_cross_above_zero(self):
+    def test_generate_signals_buy_on_cross_above_zero(self) -> None:
         from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
 
         strategy = StochasticMomentumIndexStrategy(k_period=2, signal_period=2)
@@ -5317,7 +5322,7 @@ class TestStochasticMomentumIndexStrategy:
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
 
-    def test_generate_signals_sell_on_cross_below_zero(self):
+    def test_generate_signals_sell_on_cross_below_zero(self) -> None:
         from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
 
         strategy = StochasticMomentumIndexStrategy(k_period=2, signal_period=2)
@@ -5334,7 +5339,7 @@ class TestStochasticMomentumIndexStrategy:
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
 
         strategy = StochasticMomentumIndexStrategy(k_period=2, signal_period=2)
@@ -5361,7 +5366,7 @@ class TestStochasticMomentumIndexStrategy:
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
 
-    def test_generate_signals_skips_nan_price(self):
+    def test_generate_signals_skips_nan_price(self) -> None:
         from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
 
         strategy = StochasticMomentumIndexStrategy(k_period=2, signal_period=2)
@@ -5377,7 +5382,7 @@ class TestStochasticMomentumIndexStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_nan_smi(self):
+    def test_generate_signals_skips_nan_smi(self) -> None:
         """Flat high/low on the final two bars makes SMI NaN (0/0), skipping signals."""
         from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
 
@@ -5397,7 +5402,7 @@ class TestStochasticMomentumIndexStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_zero_price(self):
+    def test_generate_signals_skips_zero_price(self) -> None:
         from quant_trading.strategies.examples import StochasticMomentumIndexStrategy
 
         strategy = StochasticMomentumIndexStrategy(k_period=2, signal_period=2)
@@ -5417,7 +5422,7 @@ class TestStochasticMomentumIndexStrategy:
 class TestUltimateOscillatorStrategy:
     """Tests for UltimateOscillatorStrategy."""
 
-    def test_init_default_parameters(self):
+    def test_init_default_parameters(self) -> None:
         from quant_trading.strategies.examples import UltimateOscillatorStrategy
 
         strategy = UltimateOscillatorStrategy()
@@ -5426,7 +5431,7 @@ class TestUltimateOscillatorStrategy:
         assert strategy.long_period == 28
         assert strategy.name == "Ultimate_Oscillator"
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         from quant_trading.strategies.examples import UltimateOscillatorStrategy
 
         with pytest.raises(ValueError):
@@ -5436,7 +5441,7 @@ class TestUltimateOscillatorStrategy:
         with pytest.raises(ValueError):
             UltimateOscillatorStrategy(short_period=10, medium_period=20, long_period=15)
 
-    def test_insufficient_data_returns_empty(self):
+    def test_insufficient_data_returns_empty(self) -> None:
         from quant_trading.strategies.examples import UltimateOscillatorStrategy
 
         strategy = UltimateOscillatorStrategy()
@@ -5455,7 +5460,7 @@ class TestUltimateOscillatorStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_buy_when_oversold_rising(self):
+    def test_generate_signals_buy_when_oversold_rising(self) -> None:
         import pandas as pd
 
         from quant_trading.strategies.examples import UltimateOscillatorStrategy
@@ -5475,7 +5480,7 @@ class TestUltimateOscillatorStrategy:
         signals = strategy.generate_signals({"AAPL": data})
         assert len(signals) >= 0  # Allow for calculation specifics
 
-    def test_generate_signals_sell_when_overbought_falling(self):
+    def test_generate_signals_sell_when_overbought_falling(self) -> None:
         import pandas as pd
 
         from quant_trading.strategies.examples import UltimateOscillatorStrategy
@@ -5515,23 +5520,23 @@ def create_negative_volume_index_data(
 
 
 class TestNegativeVolumeIndexStrategy:
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = NegativeVolumeIndexStrategy(period=255, name="Test_NVI")
         assert strategy.name == "Test_NVI"
         assert strategy.period == 255
         assert strategy.parameters["period"] == 255
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="period must be positive"):
             NegativeVolumeIndexStrategy(period=0)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = NegativeVolumeIndexStrategy(period=255)
         data = {"AAPL": create_negative_volume_index_data("AAPL", [100.0] * 10, [1000.0] * 10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_nvi_bullish_crossover(self):
+    def test_generate_signals_nvi_bullish_crossover(self) -> None:
         strategy = NegativeVolumeIndexStrategy(period=5)
         # 6 flat bars keep NVI at 1000 (= EMA); the final bar drops volume
         # (1500 < 2000) and rises to 101, so NVI crosses above its EMA (buy).
@@ -5544,7 +5549,7 @@ class TestNegativeVolumeIndexStrategy:
         assert signals[0].metadata["nvi"] == pytest.approx(1010.0)
         assert signals[0].metadata["ema"] == pytest.approx(1003.3333333333334)
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         strategy = NegativeVolumeIndexStrategy(period=5)
         closes = [100.0, 100.0, 101.0, 101.0, 101.0, 101.0, 102.0]
         volumes = [1000.0, 2000.0, 1500.0, 1500.0, 1500.0, 1500.0, 1400.0]
@@ -5555,14 +5560,14 @@ class TestNegativeVolumeIndexStrategy:
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
 
-    def test_generate_signals_skips_nan_last_close(self):
+    def test_generate_signals_skips_nan_last_close(self) -> None:
         strategy = NegativeVolumeIndexStrategy(period=5)
         closes = [100.0] * 6 + [float("nan")]
         volumes = [1000.0] * 7
         data = {"AAPL": create_negative_volume_index_data("AAPL", closes, volumes)}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_nvi_bearish_crossover(self):
+    def test_generate_signals_nvi_bearish_crossover(self) -> None:
         """NVI crosses below its EMA emits a sell signal."""
         strategy = NegativeVolumeIndexStrategy(period=5)
         closes = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 99.0]
@@ -5574,7 +5579,7 @@ class TestNegativeVolumeIndexStrategy:
         assert signals[0].metadata["nvi"] == pytest.approx(990.0)
         assert signals[0].metadata["ema"] == pytest.approx(996.6666666666667)
 
-    def test_generate_signals_nvi_nan_propagates_to_ema(self):
+    def test_generate_signals_nvi_nan_propagates_to_ema(self) -> None:
         """NaN previous close with decreasing volume makes NVI/ema NaN (line 7067)."""
         strategy = NegativeVolumeIndexStrategy(period=5)
         closes = [100.0, 100.0, 100.0, 100.0, 100.0, float("nan"), 100.0]
@@ -5582,7 +5587,7 @@ class TestNegativeVolumeIndexStrategy:
         data = {"AAPL": create_negative_volume_index_data("AAPL", closes, volumes)}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_nvi_zero_last_close(self):
+    def test_generate_signals_nvi_zero_last_close(self) -> None:
         """Zero last close is skipped before NVI calculation (line 7052)."""
         strategy = NegativeVolumeIndexStrategy(period=5)
         closes = [100.0] * 6 + [0.0]
@@ -5590,7 +5595,7 @@ class TestNegativeVolumeIndexStrategy:
         data = {"AAPL": create_negative_volume_index_data("AAPL", closes, volumes)}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_nvi_zero_previous_close(self):
+    def test_generate_signals_nvi_zero_previous_close(self) -> None:
         """Zero previous close takes the unchanged-NVI branch (line 7042)."""
         strategy = NegativeVolumeIndexStrategy(period=5)
         closes = [100.0, 0.0, 100.0, 100.0, 100.0, 100.0, 100.0]
@@ -5619,23 +5624,23 @@ def create_positive_volume_index_data(
 
 
 class TestPositiveVolumeIndexStrategy:
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = PositiveVolumeIndexStrategy(period=255, name="Test_PVI")
         assert strategy.name == "Test_PVI"
         assert strategy.period == 255
         assert strategy.parameters["period"] == 255
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="period must be positive"):
             PositiveVolumeIndexStrategy(period=0)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = PositiveVolumeIndexStrategy(period=255)
         data = {"AAPL": create_positive_volume_index_data("AAPL", [100.0] * 10, [1000.0] * 10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_pvi_bullish_crossover(self):
+    def test_generate_signals_pvi_bullish_crossover(self) -> None:
         strategy = PositiveVolumeIndexStrategy(period=5)
         # 5 flat bars keep PVI at 1000 (= EMA); the final bar rises volume
         # (1100 > 1000) and price to 101, so PVI crosses above its EMA (buy).
@@ -5648,7 +5653,7 @@ class TestPositiveVolumeIndexStrategy:
         assert signals[0].metadata["pvi"] == pytest.approx(1010.0)
         assert signals[0].metadata["ema"] == pytest.approx(1003.3333333333334)
 
-    def test_generate_signals_pvi_bearish_crossover(self):
+    def test_generate_signals_pvi_bearish_crossover(self) -> None:
         """PVI crosses below its EMA emits a sell signal."""
         strategy = PositiveVolumeIndexStrategy(period=5)
         closes = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 99.0]
@@ -5660,7 +5665,7 @@ class TestPositiveVolumeIndexStrategy:
         assert signals[0].metadata["pvi"] == pytest.approx(990.0)
         assert signals[0].metadata["ema"] == pytest.approx(996.6666666666667)
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         strategy = PositiveVolumeIndexStrategy(period=5)
         closes = [100.0, 100.0, 101.0, 101.0, 101.0, 101.0, 102.0]
         volumes = [1000.0, 900.0, 1000.0, 1000.0, 1000.0, 1000.0, 1100.0]
@@ -5671,14 +5676,14 @@ class TestPositiveVolumeIndexStrategy:
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
 
-    def test_generate_signals_skips_nan_last_close(self):
+    def test_generate_signals_skips_nan_last_close(self) -> None:
         strategy = PositiveVolumeIndexStrategy(period=5)
         closes = [100.0] * 6 + [float("nan")]
         volumes = [1000.0] * 7
         data = {"AAPL": create_positive_volume_index_data("AAPL", closes, volumes)}
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_pvi_nan_propagates_to_ema(self):
+    def test_generate_signals_pvi_nan_propagates_to_ema(self) -> None:
         """NaN previous close with increasing volume makes PVI/ema NaN (line 7171)."""
         strategy = PositiveVolumeIndexStrategy(period=5)
         closes = [100.0, 100.0, 100.0, 100.0, 100.0, float("nan"), 100.0]
@@ -5717,7 +5722,7 @@ def create_average_true_range_data(
 class TestAverageTrueRangeStrategy:
     """Tests for the Average True Range Channel Breakout strategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0, name="Test_ATR")
         assert strategy.name == "Test_ATR"
@@ -5726,7 +5731,7 @@ class TestAverageTrueRangeStrategy:
         assert strategy.parameters["period"] == 2
         assert strategy.parameters["atr_multiplier"] == 1.0
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid values."""
         with pytest.raises(ValueError, match="period must be positive"):
             AverageTrueRangeStrategy(period=0, atr_multiplier=1.0)
@@ -5737,14 +5742,14 @@ class TestAverageTrueRangeStrategy:
         with pytest.raises(ValueError, match="atr_multiplier must be positive"):
             AverageTrueRangeStrategy(period=2, atr_multiplier=float("inf"))
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than period + 2."""
         strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
         data = {"AAPL": create_average_true_range_data("AAPL", [100.0] * 3)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_atr_bullish_breakout(self):
+    def test_generate_signals_atr_bullish_breakout(self) -> None:
         """A sharp close above the prior close + ATR band fires a buy."""
         strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
         data = {"AAPL": create_average_true_range_data("AAPL", [100.0, 100.0, 100.0, 110.0])}
@@ -5761,7 +5766,7 @@ class TestAverageTrueRangeStrategy:
         assert signal.metadata["period"] == 2
         assert signal.metadata["atr_multiplier"] == 1.0
 
-    def test_generate_signals_atr_bearish_breakout(self):
+    def test_generate_signals_atr_bearish_breakout(self) -> None:
         """A sharp close below the prior close - ATR band fires a sell."""
         strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
         data = {"AAPL": create_average_true_range_data("AAPL", [100.0, 100.0, 100.0, 90.0])}
@@ -5777,27 +5782,27 @@ class TestAverageTrueRangeStrategy:
         assert signal.metadata["signal_type"] == "atr_bearish_breakout"
         assert signal.metadata["period"] == 2
 
-    def test_generate_signals_flat_price_no_signals(self):
+    def test_generate_signals_flat_price_no_signals(self) -> None:
         """Constant price keeps the close inside the ATR band, so no breakout."""
         strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
         data = {"AAPL": create_average_true_range_data("AAPL", [100.0] * 10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_atr_breakout_skips_zero_price(self):
+    def test_atr_breakout_skips_zero_price(self) -> None:
         """Skip when current price is zero."""
         strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
         data = {"AAPL": create_average_true_range_data("AAPL", [10.0, 11.0, 12.0, 0.0])}
         assert strategy.generate_signals(data) == []
 
-    def test_atr_breakout_skips_nan_bands(self):
+    def test_atr_breakout_skips_nan_bands(self) -> None:
         """Skip when any band/values are NaN."""
         strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
         data = {"AAPL": create_average_true_range_data("AAPL", [1.0, float("nan"), 2.0, 3.0])}
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals evaluates each symbol independently."""
         strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
         data = {
@@ -5810,7 +5815,7 @@ class TestAverageTrueRangeStrategy:
         assert by_symbol["AAPL"].action == "buy"
         assert by_symbol["MSFT"].action == "sell"
 
-    def test_generate_signals_skips_nan_last_close(self):
+    def test_generate_signals_skips_nan_last_close(self) -> None:
         """A NaN last close is rejected before any signal is derived."""
         strategy = AverageTrueRangeStrategy(period=2, atr_multiplier=1.0)
         closes = [100.0, 100.0, 100.0, float("nan")]
@@ -5821,13 +5826,13 @@ class TestAverageTrueRangeStrategy:
 class TestCCIStrategy:
     """Tests for CCIStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = CCIStrategy(period=20, threshold=100.0, name="Test_CCI")
         assert strategy.name == "Test_CCI"
         assert strategy.period == 20
         assert strategy.threshold == 100.0
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="period must be positive"):
             CCIStrategy(period=0)
         with pytest.raises(ValueError, match="threshold must be positive"):
@@ -5837,15 +5842,15 @@ class TestCCIStrategy:
         with pytest.raises(ValueError, match="threshold must be positive"):
             CCIStrategy(threshold=float("inf"))
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = CCIStrategy(period=20)
         data = {"AAPL": create_trending_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_overbought(self):
+    def test_generate_signals_overbought(self) -> None:
         strategy = CCIStrategy(period=5, threshold=10)
-        closes = [100] * 10 + [150] * 5  # strong move up at end
+        closes = [100.0] * 10 + [150.0] * 5  # strong move up at end
         data = {"AAPL": create_donchian_data("AAPL", closes)}
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
@@ -5853,7 +5858,7 @@ class TestCCIStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
-    def test_generate_signals_multi_symbol(self):
+    def test_generate_signals_multi_symbol(self) -> None:
         strategy = CCIStrategy(period=20, threshold=100)
         data = {
             "AAPL": create_trending_data("AAPL", days=60),
@@ -5864,7 +5869,7 @@ class TestCCIStrategy:
         for s in signals:
             assert s.symbol in ("AAPL", "MSFT")
 
-    def test_generate_signals_skips_nan_cci(self):
+    def test_generate_signals_skips_nan_cci(self) -> None:
         """Flat typical prices make mean deviation zero, so CCI is NaN and skipped."""
         strategy = CCIStrategy(period=20, threshold=100.0)
         dates = pd.date_range(end=datetime.now(), periods=20, freq="D")
@@ -5880,7 +5885,7 @@ class TestCCIStrategy:
         )
         assert strategy.generate_signals({"AAPL": df}) == []
 
-    def test_generate_signals_bullish(self):
+    def test_generate_signals_bullish(self) -> None:
         """A strong upward move pushes CCI above +threshold -> buy."""
         strategy = CCIStrategy(period=5, threshold=10.0)
         closes = [100.0 + 2.0 * i for i in range(10)] + [200.0]
@@ -5896,7 +5901,7 @@ class TestCCIStrategy:
         assert signal.metadata["signal_type"] == "bullish"
         assert signal.metadata["cci"] == pytest.approx(166.66666666666669)
 
-    def test_generate_signals_bearish(self):
+    def test_generate_signals_bearish(self) -> None:
         """A strong downward move pushes CCI below -threshold -> sell."""
         strategy = CCIStrategy(period=5, threshold=10.0)
         closes = [200.0 - 2.0 * i for i in range(10)] + [100.0]
@@ -5916,22 +5921,22 @@ class TestCCIStrategy:
 class TestAroonStrategy:
     """Tests for AroonStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = AroonStrategy(period=25, name="Test_Aroon")
         assert strategy.name == "Test_Aroon"
         assert strategy.period == 25
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="period must be positive"):
             AroonStrategy(period=0)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = AroonStrategy(period=25)
         data = {"AAPL": create_trending_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_returns_list(self):
+    def test_generate_signals_returns_list(self) -> None:
         strategy = AroonStrategy(period=14)
         data = {"AAPL": create_trending_data("AAPL", days=60)}
         signals = strategy.generate_signals(data)
@@ -5940,7 +5945,7 @@ class TestAroonStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
-    def test_generate_signals_skips_nan_aroon(self):
+    def test_generate_signals_skips_nan_aroon(self) -> None:
         """NaN Aroon values skip signal generation."""
         strategy = AroonStrategy(period=14)
         dates = pd.date_range(start="2023-01-01", periods=30, freq="D")
@@ -5958,7 +5963,7 @@ class TestAroonStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_bullish_crossover(self):
+    def test_generate_signals_bullish_crossover(self) -> None:
         """Aroon Up crosses above Aroon Down - bullish signal (buy).
 
         A declining price sequence followed by a sharp spike makes the
@@ -5980,7 +5985,7 @@ class TestAroonStrategy:
         assert signal.metadata["crossover_type"] == "bullish"
         assert signal.metadata["aroon_up"] == pytest.approx(100.0)
 
-    def test_generate_signals_bearish_crossover(self):
+    def test_generate_signals_bearish_crossover(self) -> None:
         """Aroon Down crosses above Aroon Up - bearish signal (sell).
 
         A rising price sequence followed by a sharp drop makes the most-recent
@@ -6005,14 +6010,14 @@ class TestAroonStrategy:
 class TestStochRSIStrategy:
     """Tests for StochRSIStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = StochRSIStrategy(
             rsi_period=14, stoch_period=14, k_period=3, d_period=3, name="Test_StochRSI"
         )
         assert strategy.name == "Test_StochRSI"
         assert strategy.rsi_period == 14
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="rsi_period must be positive"):
             StochRSIStrategy(rsi_period=0)
         with pytest.raises(ValueError, match="stoch_period must be positive"):
@@ -6040,13 +6045,13 @@ class TestStochRSIStrategy:
         with pytest.raises(ValueError, match="oversold must be less than overbought"):
             StochRSIStrategy(oversold=50, overbought=40)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = StochRSIStrategy()
         data = {"AAPL": create_trending_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_multi_symbol(self):
+    def test_generate_signals_multi_symbol(self) -> None:
         strategy = StochRSIStrategy()
         data = {
             "AAPL": create_trending_data("AAPL", days=80),
@@ -6058,7 +6063,7 @@ class TestStochRSIStrategy:
             assert s.symbol in ("AAPL", "MSFT")
             assert s.action in ("buy", "sell")
 
-    def test_generate_signals_midline_cross_up(self):
+    def test_generate_signals_midline_cross_up(self) -> None:
         """%K crossing up through the 50 midline emits a midline_cross_up buy.
 
         With use_midline=True and %K below 50 on the previous bar and above
@@ -6079,7 +6084,7 @@ class TestStochRSIStrategy:
         assert signal.strength == pytest.approx(0.36222465388145225)
         assert signal.price == pytest.approx(81.39)
 
-    def test_generate_signals_midline_cross_down(self):
+    def test_generate_signals_midline_cross_down(self) -> None:
         """%K crossing down through the 50 midline emits a midline_cross_down sell.
 
         With use_midline=True and %K above 50 on the previous bar and below
@@ -6100,7 +6105,7 @@ class TestStochRSIStrategy:
         assert signal.strength == pytest.approx(0.4732452817047088)
         assert signal.price == pytest.approx(91.67)
 
-    def test_generate_signals_midline_disabled(self):
+    def test_generate_signals_midline_disabled(self) -> None:
         """When use_midline is False and no oversold/overbought crossover
         fires, the midline arm is skipped and no signal is produced."""
         strategy = StochRSIStrategy(use_midline=False, name="Test_StochRSI")
@@ -6108,7 +6113,7 @@ class TestStochRSIStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_skips_nan_k_d(self):
+    def test_generate_signals_skips_nan_k_d(self) -> None:
         """NaN %K/%D (flat price) triggers the NaN guard and skips the symbol.
 
         A constant close series makes RSI (and thus %K/%D) NaN, so
@@ -6120,7 +6125,7 @@ class TestStochRSIStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_oversold_crossover_strength_branch(self):
+    def test_generate_signals_oversold_crossover_strength_branch(self) -> None:
         """%K crosses up through %D below the oversold threshold with a
         non-capped strength (the ``strength = min(1.0, ...)`` expression at
         examples.py:7315-7316 is exercised with a value strictly between 0.5
@@ -6172,7 +6177,7 @@ class TestStochRSIStrategy:
         assert signal.metadata["signal_type"] == "oversold_crossover"
         assert 0.5 < signal.strength < 1.0
 
-    def test_generate_signals_overbought_crossover_strength_branch(self):
+    def test_generate_signals_overbought_crossover_strength_branch(self) -> None:
         """%K crosses down through %D above the overbought threshold with a
         non-capped strength (the ``strength = min(1.0, ...)`` expression at
         examples.py:7331-7332 is exercised with a value strictly between 0.5
@@ -6222,13 +6227,13 @@ class TestStochRSIStrategy:
 class TestPercentagePriceOscillatorStrategy:
     """Tests for PercentagePriceOscillatorStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = PercentagePriceOscillatorStrategy(
             fast_period=12, slow_period=26, signal_period=9, name="Test_PPO"
         )
         assert strategy.name == "Test_PPO"
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """validate_parameters rejects every invalid period combination.
 
         PPO shares the same validation contract as MACD (positive periods,
@@ -6252,13 +6257,13 @@ class TestPercentagePriceOscillatorStrategy:
         with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
             PercentagePriceOscillatorStrategy(fast_period=12, slow_period=12)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = PercentagePriceOscillatorStrategy()
         data = {"AAPL": create_trending_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_returns_list(self):
+    def test_generate_signals_returns_list(self) -> None:
         strategy = PercentagePriceOscillatorStrategy()
         data = {"AAPL": create_trending_data("AAPL", days=80)}
         signals = strategy.generate_signals(data)
@@ -6267,7 +6272,7 @@ class TestPercentagePriceOscillatorStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
-    def test_zero_line_option(self):
+    def test_zero_line_option(self) -> None:
         """Test that use_zero_line enables zero-line crossovers."""
         strategy = PercentagePriceOscillatorStrategy(
             fast_period=5, slow_period=13, signal_period=5, use_zero_line=True
@@ -6279,7 +6284,7 @@ class TestPercentagePriceOscillatorStrategy:
         for signal in signals:
             assert signal.action in ("buy", "sell")
 
-    def test_generate_signals_zero_line_bullish(self):
+    def test_generate_signals_zero_line_bullish(self) -> None:
         """Test zero-line crossover generates buy when PPO crosses up.
 
         The PPO line crosses zero on the final bar while staying above the
@@ -6303,7 +6308,7 @@ class TestPercentagePriceOscillatorStrategy:
         assert signal.metadata["signal"] == pytest.approx(1.0104568937649043)
         assert "zero_line" not in signal.metadata
 
-    def test_generate_signals_zero_line_bearish(self):
+    def test_generate_signals_zero_line_bearish(self) -> None:
         """Test zero-line crossover generates sell when PPO crosses down.
 
         The PPO line has just crossed above zero (signal line still lags
@@ -6327,7 +6332,7 @@ class TestPercentagePriceOscillatorStrategy:
         assert signal.metadata["signal"] == pytest.approx(-0.28104965986088726)
         assert "zero_line" not in signal.metadata
 
-    def test_generate_signals_zero_line_disabled(self):
+    def test_generate_signals_zero_line_disabled(self) -> None:
         """When use_zero_line is False and no signal-line crossover fires on
         the final bar, the ``elif self.use_zero_line`` arm is False and no
         signal is produced."""
@@ -6338,7 +6343,7 @@ class TestPercentagePriceOscillatorStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_skips_nan_ppo(self):
+    def test_generate_signals_skips_nan_ppo(self) -> None:
         """NaN PPO values skip signal generation."""
         strategy = PercentagePriceOscillatorStrategy(fast_period=5, slow_period=13, signal_period=5)
         dates = pd.date_range(start="2023-01-01", periods=50, freq="D")
@@ -6358,7 +6363,7 @@ class TestPercentagePriceOscillatorStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_signal_line_cross_above(self):
+    def test_generate_signals_signal_line_cross_above(self) -> None:
         """PPO line crossing above its signal line emits a buy signal."""
         strategy = PercentagePriceOscillatorStrategy(fast_period=5, slow_period=13, signal_period=5)
         close = [100.0] * 59 + [110.0]
@@ -6380,7 +6385,7 @@ class TestPercentagePriceOscillatorStrategy:
         assert signals[0].action == "buy"
         assert signals[0].metadata["signal_type"] == "ppo_signal_cross_above"
 
-    def test_generate_signals_signal_line_cross_below(self):
+    def test_generate_signals_signal_line_cross_below(self) -> None:
         """PPO line crossing below its signal line emits a sell signal."""
         strategy = PercentagePriceOscillatorStrategy(fast_period=5, slow_period=13, signal_period=5)
         close = [100.0] * 59 + [90.0]
@@ -6406,12 +6411,12 @@ class TestPercentagePriceOscillatorStrategy:
 class TestChoppinessIndexStrategy:
     """Tests for ChoppinessIndexStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = ChoppinessIndexStrategy(period=14, name="Test_CHOP")
         assert strategy.name == "Test_CHOP"
         assert strategy.period == 14
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="period must be positive"):
             ChoppinessIndexStrategy(period=0)
 
@@ -6424,19 +6429,19 @@ class TestChoppinessIndexStrategy:
         with pytest.raises(ValueError, match="high_threshold must be at most 100"):
             ChoppinessIndexStrategy(period=14, low_threshold=50.0, high_threshold=101.0)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = ChoppinessIndexStrategy(period=14)
         data = {"AAPL": create_trending_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_returns_list(self):
+    def test_generate_signals_returns_list(self) -> None:
         strategy = ChoppinessIndexStrategy(period=14)
         data = {"AAPL": create_trending_data("AAPL", days=60)}
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
 
-    def test_generate_signals_skips_nan_chop(self):
+    def test_generate_signals_skips_nan_chop(self) -> None:
         """NaN Choppiness values skip signal generation."""
         strategy = ChoppinessIndexStrategy(period=14)
         dates = pd.date_range(start="2023-01-01", periods=50, freq="D")
@@ -6453,7 +6458,7 @@ class TestChoppinessIndexStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_nan_chop_skipped(self):
+    def test_generate_signals_nan_chop_skipped(self) -> None:
         strategy = ChoppinessIndexStrategy(period=14)
         dates = pd.date_range("2023-01-01", periods=20)
         df = pd.DataFrame(
@@ -6469,7 +6474,7 @@ class TestChoppinessIndexStrategy:
         signals = strategy.generate_signals({"AAPL": df})
         assert signals == []
 
-    def test_generate_signals_nan_chop_last_two_bars_skipped(self):
+    def test_generate_signals_nan_chop_last_two_bars_skipped(self) -> None:
         """NaN CHOP on the final two bars triggers the continue guard."""
         strategy = ChoppinessIndexStrategy(period=14)
         dates = pd.date_range("2023-01-01", periods=30)
@@ -6497,22 +6502,22 @@ class TestChoppinessIndexStrategy:
 class TestAccumulationDistributionStrategy:
     """Tests for AccumulationDistributionStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = AccumulationDistributionStrategy(signal_period=21, name="Test_ADL")
         assert strategy.name == "Test_ADL"
         assert strategy.signal_period == 21
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="signal_period must be positive"):
             AccumulationDistributionStrategy(signal_period=0)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = AccumulationDistributionStrategy(signal_period=21)
         data = {"AAPL": create_trending_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_returns_list(self):
+    def test_generate_signals_returns_list(self) -> None:
         strategy = AccumulationDistributionStrategy(signal_period=21)
         data = {"AAPL": create_trending_data("AAPL", days=80)}
         signals = strategy.generate_signals(data)
@@ -6521,7 +6526,7 @@ class TestAccumulationDistributionStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
-    def test_generate_signals_skips_nan_adl(self):
+    def test_generate_signals_skips_nan_adl(self) -> None:
         """NaN ADL values skip signal generation."""
         strategy = AccumulationDistributionStrategy(signal_period=21)
         dates = pd.date_range(start="2023-01-01", periods=50, freq="D")
@@ -6538,7 +6543,7 @@ class TestAccumulationDistributionStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_nan_adl_signal(self):
+    def test_generate_signals_skips_nan_adl_signal(self) -> None:
         """NaN ADL signal line values skip signal generation."""
         strategy = AccumulationDistributionStrategy(signal_period=21)
         dates = pd.date_range(start="2023-01-01", periods=50, freq="D")
@@ -6557,7 +6562,7 @@ class TestAccumulationDistributionStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_adl_buy_cross(self):
+    def test_generate_signals_adl_buy_cross(self) -> None:
         """ADL crosses above its signal line emits a buy signal."""
         strategy = AccumulationDistributionStrategy(signal_period=2)
         dates = pd.date_range(start="2023-01-01", periods=6, freq="D")
@@ -6575,7 +6580,7 @@ class TestAccumulationDistributionStrategy:
         assert signals[0].action == "buy"
         assert signals[0].metadata["signal_type"] == "adl_cross_above"
 
-    def test_generate_signals_adl_sell_cross(self):
+    def test_generate_signals_adl_sell_cross(self) -> None:
         """ADL crosses below its signal line emits a sell signal."""
         strategy = AccumulationDistributionStrategy(signal_period=2)
         dates = pd.date_range(start="2023-01-01", periods=6, freq="D")
@@ -6593,7 +6598,7 @@ class TestAccumulationDistributionStrategy:
         assert signals[0].action == "sell"
         assert signals[0].metadata["signal_type"] == "adl_cross_below"
 
-    def test_generate_signals_adl_buy_cross_signal_zero(self):
+    def test_generate_signals_adl_buy_cross_signal_zero(self) -> None:
         """ADL crosses above zero signal line uses strength 0.5."""
         strategy = AccumulationDistributionStrategy(signal_period=2)
         dates = pd.date_range(start="2023-01-01", periods=4, freq="D")
@@ -6632,7 +6637,7 @@ class TestAccumulationDistributionStrategy:
             signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
 
-    def test_generate_signals_adl_sell_cross_signal_zero(self):
+    def test_generate_signals_adl_sell_cross_signal_zero(self) -> None:
         """ADL crosses below zero signal line uses strength 0.5."""
         strategy = AccumulationDistributionStrategy(signal_period=2)
         dates = pd.date_range(start="2023-01-01", periods=6, freq="D")
@@ -6649,7 +6654,7 @@ class TestAccumulationDistributionStrategy:
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
 
-    def test_generate_signals_adl_buy_cross_signal_line_zero(self):
+    def test_generate_signals_adl_buy_cross_signal_line_zero(self) -> None:
         """ADL crosses above signal line at zero uses strength 0.5."""
         strategy = AccumulationDistributionStrategy(signal_period=2)
         dates = pd.date_range(start="2023-01-01", periods=3, freq="D")
@@ -6669,7 +6674,7 @@ class TestAccumulationDistributionStrategy:
         assert signals[0].strength == 0.5
         assert signals[0].metadata["signal_type"] == "adl_cross_above"
 
-    def test_generate_signals_adl_sell_cross_signal_line_zero(self):
+    def test_generate_signals_adl_sell_cross_signal_line_zero(self) -> None:
         """ADL crosses below signal line at zero uses strength 0.5."""
         strategy = AccumulationDistributionStrategy(signal_period=2)
         dates = pd.date_range(start="2023-01-01", periods=3, freq="D")
@@ -6693,13 +6698,13 @@ class TestAccumulationDistributionStrategy:
 class TestAwesomeOscillatorStrategy:
     """Tests for AwesomeOscillatorStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34, name="Test_AO")
         assert strategy.name == "Test_AO"
         assert strategy.short_period == 5
         assert strategy.long_period == 34
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="short_period must be positive"):
             AwesomeOscillatorStrategy(short_period=0)
         with pytest.raises(ValueError, match="long_period must be positive"):
@@ -6707,13 +6712,13 @@ class TestAwesomeOscillatorStrategy:
         with pytest.raises(ValueError, match="short_period must be less than long_period"):
             AwesomeOscillatorStrategy(short_period=10, long_period=5)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34)
         data = {"AAPL": create_trending_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_returns_list(self):
+    def test_generate_signals_returns_list(self) -> None:
         strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34, name="Test_AO")
         data = {"AAPL": create_trending_data("AAPL", days=80)}
         signals = strategy.generate_signals(data)
@@ -6722,7 +6727,7 @@ class TestAwesomeOscillatorStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
-    def test_generate_signals_skips_nan_ao(self):
+    def test_generate_signals_skips_nan_ao(self) -> None:
         """NaN AO values skip signal generation."""
         strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34)
         dates = pd.date_range(start="2023-01-01", periods=80, freq="D")
@@ -6741,7 +6746,7 @@ class TestAwesomeOscillatorStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_buy_cross(self):
+    def test_generate_signals_buy_cross(self) -> None:
         """AO crosses above zero emits a buy signal."""
         strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34)
         close = [100.0] * 84 + [115.0]
@@ -6763,7 +6768,7 @@ class TestAwesomeOscillatorStrategy:
         assert signals[0].action == "buy"
         assert signals[0].metadata["signal_type"] == "ao_cross_above_zero"
 
-    def test_generate_signals_sell_cross(self):
+    def test_generate_signals_sell_cross(self) -> None:
         """AO crosses below zero emits a sell signal."""
         strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34)
         close = [100.0] * 84 + [85.0]
@@ -6789,13 +6794,13 @@ class TestAwesomeOscillatorStrategy:
 class TestChaikinOscillatorStrategy:
     """Tests for ChaikinOscillatorStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10, name="Test_CHO")
         assert strategy.name == "Test_CHO"
         assert strategy.fast_period == 3
         assert strategy.slow_period == 10
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="fast_period must be positive"):
             ChaikinOscillatorStrategy(fast_period=0)
         with pytest.raises(ValueError, match="slow_period must be positive"):
@@ -6803,13 +6808,13 @@ class TestChaikinOscillatorStrategy:
         with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
             ChaikinOscillatorStrategy(fast_period=10, slow_period=5)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
         data = {"AAPL": create_trending_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_returns_list(self):
+    def test_generate_signals_returns_list(self) -> None:
         strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
         data = {"AAPL": create_trending_data("AAPL", days=80)}
         signals = strategy.generate_signals(data)
@@ -6818,14 +6823,14 @@ class TestChaikinOscillatorStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
-    def test_generate_signals_skips_nan_cho(self):
+    def test_generate_signals_skips_nan_cho(self) -> None:
         """NaN CHO values skip signal generation."""
         strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
         dates = pd.date_range(start="2023-01-01", periods=80, freq="D")
         close = [100 + i * 0.5 for i in range(80)]
         high = [c + 1 for c in close]
         low = [c - 1 for c in close]
-        volume = [1000] * 80
+        volume = [1000.0] * 80
         volume[-1] = float("nan")
         data = {
             "AAPL": pd.DataFrame(
@@ -6835,7 +6840,7 @@ class TestChaikinOscillatorStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_buy_cross(self):
+    def test_generate_signals_buy_cross(self) -> None:
         """CHO crosses above zero emits a buy signal."""
         strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
         dates = pd.date_range(start="2023-01-01", periods=14, freq="D")
@@ -6853,7 +6858,7 @@ class TestChaikinOscillatorStrategy:
         assert signals[0].action == "buy"
         assert signals[0].metadata["signal_type"] == "cho_cross_above_zero"
 
-    def test_generate_signals_sell_cross(self):
+    def test_generate_signals_sell_cross(self) -> None:
         """CHO crosses below zero emits a sell signal."""
         strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
         dates = pd.date_range(start="2023-01-01", periods=14, freq="D")
@@ -6875,22 +6880,22 @@ class TestChaikinOscillatorStrategy:
 class TestDetrendedPriceOscillatorStrategy:
     """Tests for DetrendedPriceOscillatorStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = DetrendedPriceOscillatorStrategy(period=20, name="Test_DPO")
         assert strategy.name == "Test_DPO"
         assert strategy.period == 20
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="period must be positive"):
             DetrendedPriceOscillatorStrategy(period=0)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = DetrendedPriceOscillatorStrategy(period=20)
         data = {"AAPL": create_trending_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_returns_list(self):
+    def test_generate_signals_returns_list(self) -> None:
         strategy = DetrendedPriceOscillatorStrategy(period=20)
         data = {"AAPL": create_trending_data("AAPL", days=80)}
         signals = strategy.generate_signals(data)
@@ -6899,7 +6904,7 @@ class TestDetrendedPriceOscillatorStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
-    def test_generate_signals_skips_nan_dpo(self):
+    def test_generate_signals_skips_nan_dpo(self) -> None:
         """NaN DPO values skip signal generation."""
         strategy = DetrendedPriceOscillatorStrategy(period=20)
         dates = pd.date_range(start="2023-01-01", periods=80, freq="D")
@@ -6918,7 +6923,7 @@ class TestDetrendedPriceOscillatorStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_buy_cross(self):
+    def test_generate_signals_buy_cross(self) -> None:
         """DPO crosses above zero emits a buy signal."""
         strategy = DetrendedPriceOscillatorStrategy(period=2)
         dates = pd.date_range(start="2023-01-01", periods=8, freq="D")
@@ -6934,7 +6939,7 @@ class TestDetrendedPriceOscillatorStrategy:
         assert signals[0].action == "buy"
         assert signals[0].metadata["signal_type"] == "dpo_cross_above_zero"
 
-    def test_generate_signals_sell_cross(self):
+    def test_generate_signals_sell_cross(self) -> None:
         """DPO crosses below zero emits a sell signal."""
         strategy = DetrendedPriceOscillatorStrategy(period=2)
         dates = pd.date_range(start="2023-01-01", periods=8, freq="D")
@@ -6954,22 +6959,22 @@ class TestDetrendedPriceOscillatorStrategy:
 class TestElderRayStrategy:
     """Tests for ElderRayStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = ElderRayStrategy(period=13, name="Test_ELDER")
         assert strategy.name == "Test_ELDER"
         assert strategy.period == 13
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="period must be positive"):
             ElderRayStrategy(period=0)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = ElderRayStrategy(period=13)
         data = {"AAPL": create_trending_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_returns_list(self):
+    def test_generate_signals_returns_list(self) -> None:
         strategy = ElderRayStrategy(period=13)
         data = {"AAPL": create_trending_data("AAPL", days=80)}
         signals = strategy.generate_signals(data)
@@ -6978,7 +6983,7 @@ class TestElderRayStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
-    def test_generate_signals_skips_nan_bull_bear(self):
+    def test_generate_signals_skips_nan_bull_bear(self) -> None:
         strategy = ElderRayStrategy(period=13)
         df = create_trending_data("AAPL", days=80).copy()
         df.loc[df.index[-1], "high"] = float("nan")
@@ -6989,7 +6994,7 @@ class TestElderRayStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_buy_cross(self):
+    def test_generate_signals_buy_cross(self) -> None:
         """Bull Power crosses above zero emits a buy signal."""
         strategy = ElderRayStrategy(period=2)
         dates = pd.date_range(start="2023-01-01", periods=4, freq="D")
@@ -7013,7 +7018,7 @@ class TestElderRayStrategy:
         assert signals[0].action == "buy"
         assert signals[0].metadata["signal_type"] == "elder_ray_bull_cross"
 
-    def test_generate_signals_sell_cross(self):
+    def test_generate_signals_sell_cross(self) -> None:
         """Bear Power crosses below zero emits a sell signal."""
         strategy = ElderRayStrategy(period=2)
         dates = pd.date_range(start="2023-01-01", periods=4, freq="D")
@@ -7037,7 +7042,7 @@ class TestElderRayStrategy:
         assert signals[0].action == "sell"
         assert signals[0].metadata["signal_type"] == "elder_ray_bear_cross"
 
-    def test_generate_signals_no_cross_no_signal(self):
+    def test_generate_signals_no_cross_no_signal(self) -> None:
         """No signal when neither bull nor bear power crosses zero."""
         strategy = ElderRayStrategy(period=2)
         dates = pd.date_range(start="2023-01-01", periods=4, freq="D")
@@ -7062,22 +7067,22 @@ class TestElderRayStrategy:
 class TestRateOfChangeStrategy:
     """Tests for RateOfChangeStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = RateOfChangeStrategy(period=12, name="Test_ROC")
         assert strategy.name == "Test_ROC"
         assert strategy.period == 12
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="period must be positive"):
             RateOfChangeStrategy(period=0)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = RateOfChangeStrategy(period=12)
         data = {"AAPL": create_trending_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_returns_list(self):
+    def test_generate_signals_returns_list(self) -> None:
         strategy = RateOfChangeStrategy(period=12)
         data = {"AAPL": create_trending_data("AAPL", days=80)}
         signals = strategy.generate_signals(data)
@@ -7086,7 +7091,7 @@ class TestRateOfChangeStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
-    def test_generate_signals_skips_nan_roc(self):
+    def test_generate_signals_skips_nan_roc(self) -> None:
         """NaN ROC values skip signal generation."""
         strategy = RateOfChangeStrategy(period=12)
         dates = pd.date_range(start="2023-01-01", periods=80, freq="D")
@@ -7106,7 +7111,7 @@ class TestRateOfChangeStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_skips_nan_roc_current_price(self):
+    def test_generate_signals_skips_nan_roc_current_price(self) -> None:
         """NaN current price skips ROC signal generation before calculation."""
         strategy = RateOfChangeStrategy(period=12)
         dates = pd.date_range(start="2023-01-01", periods=80, freq="D")
@@ -7126,7 +7131,7 @@ class TestRateOfChangeStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_buy_cross(self):
+    def test_generate_signals_buy_cross(self) -> None:
         """ROC crosses above zero emits a buy signal."""
         strategy = RateOfChangeStrategy(period=2)
         dates = pd.date_range(start="2023-01-01", periods=4, freq="D")
@@ -7148,7 +7153,7 @@ class TestRateOfChangeStrategy:
         assert signals[0].action == "buy"
         assert signals[0].metadata["signal_type"] == "roc_cross_above_zero"
 
-    def test_generate_signals_sell_cross(self):
+    def test_generate_signals_sell_cross(self) -> None:
         """ROC crosses below zero emits a sell signal."""
         strategy = RateOfChangeStrategy(period=2)
         dates = pd.date_range(start="2023-01-01", periods=4, freq="D")
@@ -7170,7 +7175,7 @@ class TestRateOfChangeStrategy:
         assert signals[0].action == "sell"
         assert signals[0].metadata["signal_type"] == "roc_cross_below_zero"
 
-    def test_generate_signals_no_cross_no_signal(self):
+    def test_generate_signals_no_cross_no_signal(self) -> None:
         """No signal when ROC stays on the same side of zero."""
         strategy = RateOfChangeStrategy(period=2)
         dates = pd.date_range(start="2023-01-01", periods=4, freq="D")
@@ -7193,22 +7198,22 @@ class TestRateOfChangeStrategy:
 class TestTrixStrategy:
     """Tests for TrixStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = TrixStrategy(period=14, name="Test_TRIX")
         assert strategy.name == "Test_TRIX"
         assert strategy.period == 14
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="period must be positive"):
             TrixStrategy(period=0)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = TrixStrategy(period=14)
         data = {"AAPL": create_trending_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_returns_list(self):
+    def test_generate_signals_returns_list(self) -> None:
         strategy = TrixStrategy(period=14)
         data = {"AAPL": create_trending_data("AAPL", days=80)}
         signals = strategy.generate_signals(data)
@@ -7217,7 +7222,7 @@ class TestTrixStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
-    def test_generate_signals_skips_nan_trix(self):
+    def test_generate_signals_skips_nan_trix(self) -> None:
         """NaN TRIX values skip signal generation."""
         strategy = TrixStrategy(period=14)
         dates = pd.date_range(start="2023-01-01", periods=90, freq="D")
@@ -7237,7 +7242,7 @@ class TestTrixStrategy:
         }
         assert strategy.generate_signals(data) == []
 
-    def test_generate_signals_buy_cross(self):
+    def test_generate_signals_buy_cross(self) -> None:
         """TRIX crosses above zero emits a buy signal."""
         strategy = TrixStrategy(period=1)
         dates = pd.date_range(start="2023-01-01", periods=5, freq="D")
@@ -7259,7 +7264,7 @@ class TestTrixStrategy:
         assert signals[0].action == "buy"
         assert signals[0].metadata["signal_type"] == "trix_cross_above_zero"
 
-    def test_generate_signals_sell_cross(self):
+    def test_generate_signals_sell_cross(self) -> None:
         """TRIX crosses below zero emits a sell signal."""
         strategy = TrixStrategy(period=1)
         dates = pd.date_range(start="2023-01-01", periods=5, freq="D")
@@ -7285,13 +7290,13 @@ class TestTrixStrategy:
 class TestPercentageVolumeOscillatorStrategy:
     """Tests for PercentageVolumeOscillatorStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         strategy = PercentageVolumeOscillatorStrategy(
             fast_period=12, slow_period=26, signal_period=9, name="Test_PVO"
         )
         assert strategy.name == "Test_PVO"
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """validate_parameters rejects every invalid period combination.
 
         PVO shares the same validation contract as MACD/PPO (positive
@@ -7315,13 +7320,13 @@ class TestPercentageVolumeOscillatorStrategy:
         with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
             PercentageVolumeOscillatorStrategy(fast_period=12, slow_period=12)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         strategy = PercentageVolumeOscillatorStrategy()
         data = {"AAPL": create_trending_data("AAPL", days=10)}
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_returns_list(self):
+    def test_generate_signals_returns_list(self) -> None:
         strategy = PercentageVolumeOscillatorStrategy()
         data = {"AAPL": create_trending_data("AAPL", days=80)}
         signals = strategy.generate_signals(data)
@@ -7330,7 +7335,7 @@ class TestPercentageVolumeOscillatorStrategy:
             assert s.symbol == "AAPL"
             assert s.action in ("buy", "sell")
 
-    def test_zero_line_option(self):
+    def test_zero_line_option(self) -> None:
         """Test that use_zero_line enables zero-line crossovers."""
         strategy = PercentageVolumeOscillatorStrategy(
             fast_period=5, slow_period=13, signal_period=5, use_zero_line=True
@@ -7342,7 +7347,7 @@ class TestPercentageVolumeOscillatorStrategy:
         for signal in signals:
             assert signal.action in ("buy", "sell")
 
-    def test_generate_signals_zero_line_bullish(self):
+    def test_generate_signals_zero_line_bullish(self) -> None:
         """Test zero-line crossover generates buy when PVO crosses up.
 
         The PVO line crosses zero on the final bar while staying above the
@@ -7366,7 +7371,7 @@ class TestPercentageVolumeOscillatorStrategy:
         assert signal.metadata["signal"] == pytest.approx(1.010456893764923)
         assert "zero_line" not in signal.metadata
 
-    def test_generate_signals_zero_line_bearish(self):
+    def test_generate_signals_zero_line_bearish(self) -> None:
         """Test zero-line crossover generates sell when PVO crosses down.
 
         The PVO line has just crossed above zero (signal line still lags
@@ -7390,7 +7395,7 @@ class TestPercentageVolumeOscillatorStrategy:
         assert signal.metadata["signal"] == pytest.approx(-0.28104965986087066)
         assert "zero_line" not in signal.metadata
 
-    def test_generate_signals_zero_line_disabled(self):
+    def test_generate_signals_zero_line_disabled(self) -> None:
         """When use_zero_line is False and no signal-line crossover fires on
         the final bar, the ``elif self.use_zero_line`` arm is False and no
         signal is produced."""
@@ -7401,7 +7406,7 @@ class TestPercentageVolumeOscillatorStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_zero_line_no_cross(self):
+    def test_generate_signals_zero_line_no_cross(self) -> None:
         """use_zero_line=True with no zero-line cross on the final bar yields no signal."""
         strategy = PercentageVolumeOscillatorStrategy(
             fast_period=5, slow_period=13, signal_period=5, use_zero_line=True
@@ -7423,7 +7428,7 @@ class TestPercentageVolumeOscillatorStrategy:
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_skips_nan_ppo_signal(self):
+    def test_generate_signals_skips_nan_ppo_signal(self) -> None:
         """NaN PPO signal line values skip signal generation."""
         strategy = PercentagePriceOscillatorStrategy(
             fast_period=12, slow_period=26, signal_period=9
@@ -7449,7 +7454,7 @@ class TestPercentageVolumeOscillatorStrategy:
 class TestMovingAverageCrossoverIncremental:
     """Tests for MovingAverageCrossover incremental update path."""
 
-    def test_incremental_path_golden_cross(self):
+    def test_incremental_path_golden_cross(self) -> None:
         strategy = MovingAverageCrossover(fast_period=5, slow_period=15)
         # First call initializes state
         closes1 = [100.0] * 15 + [50.0] * 5  # ends below, no cross yet
@@ -7464,7 +7469,7 @@ class TestMovingAverageCrossoverIncremental:
         assert signals2[0].action == "buy"
         assert signals2[0].metadata["crossover_type"] == "golden_cross"
 
-    def test_incremental_path_death_cross(self):
+    def test_incremental_path_death_cross(self) -> None:
         strategy = MovingAverageCrossover(fast_period=5, slow_period=15)
         closes1 = [100.0] * 15 + [200.0] * 20
         data1 = {"AAPL": create_donchian_data("AAPL", closes1)}
@@ -7476,7 +7481,7 @@ class TestMovingAverageCrossoverIncremental:
         assert signals2[0].action == "sell"
         assert signals2[0].metadata["crossover_type"] == "death_cross"
 
-    def test_incremental_path_window_still_growing_fast(self):
+    def test_incremental_path_window_still_growing_fast(self) -> None:
         strategy = MovingAverageCrossover(fast_period=10, slow_period=20)
         # Build up gradually
         closes1 = [100.0] * 5
@@ -7487,7 +7492,7 @@ class TestMovingAverageCrossoverIncremental:
         signals2 = strategy.generate_signals(data2)
         assert isinstance(signals2, list)
 
-    def test_incremental_path_nan_current_price_skipped(self):
+    def test_incremental_path_nan_current_price_skipped(self) -> None:
         strategy = MovingAverageCrossover(fast_period=5, slow_period=15)
         closes1 = [100.0] * 15 + [50.0] * 5
         data1 = {"AAPL": create_donchian_data("AAPL", closes1)}
@@ -7497,7 +7502,7 @@ class TestMovingAverageCrossoverIncremental:
         signals2 = strategy.generate_signals(data2)
         assert signals2 == []
 
-    def test_incremental_path_window_still_growing_slow(self):
+    def test_incremental_path_window_still_growing_slow(self) -> None:
         strategy = MovingAverageCrossover(fast_period=3, slow_period=10)
         # Initialize via rolling path
         closes1 = [100.0] * 10
@@ -7509,7 +7514,7 @@ class TestMovingAverageCrossoverIncremental:
         signals2 = strategy.generate_signals(data2)
         assert isinstance(signals2, list)
 
-    def test_incremental_path_window_still_growing_both(self):
+    def test_incremental_path_window_still_growing_both(self) -> None:
         strategy = MovingAverageCrossover(fast_period=10, slow_period=20)
         strategy._ma_state["AAPL"] = {
             "n": 5,
@@ -7531,7 +7536,7 @@ class TestExamplesRemainingCoverage:
     defensive or signal branch that the existing suite does not reach.
     """
 
-    def _ohlcv(self, closes, volume=None):
+    def _ohlcv(self, closes: list[float], volume: Any = None) -> pd.DataFrame:
         close = np.asarray(closes, dtype=float)
         if volume is None:
             volume = np.full(len(close), 1_000_000)
@@ -7545,29 +7550,29 @@ class TestExamplesRemainingCoverage:
             },
         )
 
-    def _ohlcv_prev_nan(self, closes):
+    def _ohlcv_prev_nan(self, closes: list[float]) -> list[float]:
         """Valid last close but a NaN previous close, so an indicator value is NaN."""
         closes = list(closes)
         closes[-2] = float("nan")
         return closes
 
-    def _ohlcv_last_zero(self, closes):
+    def _ohlcv_last_zero(self, closes: list[float]) -> list[float]:
         closes = list(closes)
         closes[-1] = 0.0
         return closes
 
-    def _ohlcv_last_nan(self, closes):
+    def _ohlcv_last_nan(self, closes: list[float]) -> list[float]:
         closes = list(closes)
         closes[-1] = float("nan")
         return closes
 
-    def _ohlcv_no_volume(self, closes):
+    def _ohlcv_no_volume(self, closes: list[float]) -> pd.DataFrame:
         df = self._ohlcv(closes)
         df = df.drop(columns=["volume"])
         return df
 
     # --- MovingAverageCrossover: incremental "window still growing" arm (lines 124/128) ---
-    def test_ma_incremental_growing_window(self):
+    def test_ma_incremental_growing_window(self) -> None:
         strategy = MovingAverageCrossover(fast_period=5, slow_period=10)
         # Bypass validate_parameters so the fast window exceeds the slow window.
         strategy.fast_period = 15
@@ -7578,7 +7583,7 @@ class TestExamplesRemainingCoverage:
         assert isinstance(strategy.generate_signals({"AAPL": df2}), list)
 
     # --- MovingAverageCrossover: incremental slow window still growing (line 128) ---
-    def test_ma_incremental_slow_window_still_growing(self):
+    def test_ma_incremental_slow_window_still_growing(self) -> None:
         strategy = MovingAverageCrossover(fast_period=5, slow_period=10)
         # Pre-seed state with n = slow_period - 1. The next call has n =
         # slow_period, passes the length guard, is incremental, and slow_old is
@@ -7593,7 +7598,7 @@ class TestExamplesRemainingCoverage:
         assert isinstance(strategy.generate_signals({"AAPL": self._ohlcv([100.0] * 10)}), list)
 
     # --- RSI: incremental gain/loss histogram trimming (lines 341-345) ---
-    def test_rsi_incremental_hist_trimming(self):
+    def test_rsi_incremental_hist_trimming(self) -> None:
         strategy = RSIStrategy(period=3, oversold=30, overbought=70)
         closes = [100.0, 102.0, 101.0, 103.0, 105.0, 104.0, 106.0, 108.0]
         df = self._ohlcv(closes)
@@ -7602,7 +7607,7 @@ class TestExamplesRemainingCoverage:
         assert isinstance(strategy.generate_signals({"AAPL": df}), list)
 
     # --- RSI: incremental histogram below period (line 341->345, no-trim arc) ---
-    def test_rsi_incremental_hist_below_period(self):
+    def test_rsi_incremental_hist_below_period(self) -> None:
         strategy = RSIStrategy(period=3, oversold=30, overbought=70)
         # Pre-seed state with n = period and a gain_hist shorter than the
         # period so the incremental step reaches line 341 with
@@ -7622,7 +7627,7 @@ class TestExamplesRemainingCoverage:
         )
 
     # --- RSI: full-recompute oversold bounce (line 431) ---
-    def test_rsi_full_recompute_oversold_bounce(self):
+    def test_rsi_full_recompute_oversold_bounce(self) -> None:
         # A fresh strategy per call always takes the full-recompute path.
         closes = [100.0 - i for i in range(14)] + [110.0]
         signals = RSIStrategy(period=14, oversold=30, overbought=70).generate_signals(
@@ -7631,7 +7636,7 @@ class TestExamplesRemainingCoverage:
         assert isinstance(signals, list)
 
     # --- BollingerBands: incremental histogram trimming (lines 547-551) ---
-    def test_bb_incremental_hist_trimming(self):
+    def test_bb_incremental_hist_trimming(self) -> None:
         strategy = BollingerBandsStrategy(period=5, std_dev=2.0)
         closes = [100.0 + i * 0.1 for i in range(20)]
         df = self._ohlcv(closes)
@@ -7640,7 +7645,7 @@ class TestExamplesRemainingCoverage:
         assert isinstance(strategy.generate_signals({"AAPL": df}), list)
 
     # --- BollingerBands: incremental window below period (line 547->551, no-trim arc) ---
-    def test_bb_incremental_window_below_period(self):
+    def test_bb_incremental_window_below_period(self) -> None:
         strategy = BollingerBandsStrategy(period=5, std_dev=2.0)
         # Pre-seed state with n = period - 1 and a last_closes shorter than the
         # period so the incremental step reaches line 547 with
@@ -7654,7 +7659,7 @@ class TestExamplesRemainingCoverage:
         assert isinstance(strategy.generate_signals({"AAPL": self._ohlcv([100.0] * 5)}), list)
 
     # --- BollingerBands: incremental variance floor var = 0.0 (line 560) ---
-    def test_bb_incremental_variance_floor(self):
+    def test_bb_incremental_variance_floor(self) -> None:
         strategy = BollingerBandsStrategy(period=5, std_dev=2.0)
         df = self._ohlcv([100.0] * 30)
         for i in range(5, len(df)):
@@ -7662,13 +7667,13 @@ class TestExamplesRemainingCoverage:
         assert isinstance(strategy.generate_signals({"AAPL": df}), list)
 
     # --- ADX: Wilder smoothing loop (lines 3340-3342) ---
-    def test_adx_wilder_smoothing_loop(self):
+    def test_adx_wilder_smoothing_loop(self) -> None:
         strategy = ADXStrategy(period=5, threshold=20.0)
         data = {"AAPL": self._ohlcv([100.0 + i for i in range(40)])}
         assert isinstance(strategy.generate_signals(data), list)
 
     # --- ADX: ADX recursion loop (lines 3359-3364) and bearish trend (line 3432) ---
-    def test_adx_recursion_and_bearish_trend(self):
+    def test_adx_recursion_and_bearish_trend(self) -> None:
         strategy = ADXStrategy(period=5, threshold=20.0)
         # Strong downtrend: minus_di > plus_di -> bearish_trend (line 3432).
         data = {"AAPL": self._ohlcv([100.0 - i for i in range(40)])}
@@ -7676,7 +7681,7 @@ class TestExamplesRemainingCoverage:
         assert any(s.metadata.get("signal_type") == "bearish_trend" for s in signals)
 
     # --- ADX: series shorter than the period (arcs 3336->3342, 3359->3364) ---
-    def test_adx_series_shorter_than_period(self):
+    def test_adx_series_shorter_than_period(self) -> None:
         strategy = ADXStrategy(period=5, threshold=20.0)
         # Fewer bars than the period: Wilder smoothing never starts
         # (3336->3342) and the ADX recursion never begins (3359->3364).
@@ -7690,68 +7695,68 @@ class TestExamplesRemainingCoverage:
         assert (plus_di == 0.0).all() and (minus_di == 0.0).all()
 
     # --- ChaikinMoneyFlow: last close zero (line 3942) ---
-    def test_cmf_last_close_zero(self):
+    def test_cmf_last_close_zero(self) -> None:
         strategy = ChaikinMoneyFlowStrategy(period=20)
         data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 21))}
         assert strategy.generate_signals(data) == []
 
     # --- ForceIndex: previous force index NaN (line 4085) ---
-    def test_force_index_prev_nan(self):
+    def test_force_index_prev_nan(self) -> None:
         strategy = ForceIndexStrategy(period=13)
         closes = [100.0 + i * 0.1 for i in range(20)]
         data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
         assert strategy.generate_signals(data) == []
 
     # --- ElderRay: last close zero (line 4333) ---
-    def test_elder_ray_last_close_zero(self):
+    def test_elder_ray_last_close_zero(self) -> None:
         strategy = ElderRayStrategy(period=13)
         data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 20))}
         assert strategy.generate_signals(data) == []
 
     # --- VolumeOscillator: last close zero (4849) and NaN volume EMA (4857) ---
-    def test_volume_oscillator_last_close_zero(self):
+    def test_volume_oscillator_last_close_zero(self) -> None:
         strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 20))}
         assert strategy.generate_signals(data) == []
 
-    def test_volume_oscillator_nan_vol(self):
+    def test_volume_oscillator_nan_vol(self) -> None:
         strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
         # Zero volume makes the slow EMA zero, producing a NaN PVO line.
         data = {"AAPL": self._ohlcv([100.0] * 20, volume=np.zeros(20))}
         assert strategy.generate_signals(data) == []
 
-    def test_volume_oscillator_insufficient_data(self):
+    def test_volume_oscillator_insufficient_data(self) -> None:
         strategy = VolumeOscillatorStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": self._ohlcv([100.0] * 5)}
         assert strategy.generate_signals(data) == []
 
     # --- VolumePriceTrend: NaN indicator values (line 5045) ---
-    def test_vpt_nan_indicator(self):
+    def test_vpt_nan_indicator(self) -> None:
         strategy = VolumePriceTrendStrategy(fast_period=5, slow_period=13)
         closes = [100.0 + i * 0.1 for i in range(30)]
         data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
         assert strategy.generate_signals(data) == []
 
     # --- VolumePriceTrend: insufficient data (line 5020) ---
-    def test_vpt_insufficient_data(self):
+    def test_vpt_insufficient_data(self) -> None:
         strategy = VolumePriceTrendStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": self._ohlcv([100.0] * 10)}
         assert strategy.generate_signals(data) == []
 
     # --- KlingerOscillator: NaN indicator values (line 5261) ---
-    def test_klinger_nan_indicator(self):
+    def test_klinger_nan_indicator(self) -> None:
         strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
         closes = [100.0 + i * 0.1 for i in range(30)]
         data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
         assert strategy.generate_signals(data) == []
 
     # --- ChaikinOscillator: last close zero (5572) and NaN CHO (5578) ---
-    def test_chaikin_oscillator_last_close_zero(self):
+    def test_chaikin_oscillator_last_close_zero(self) -> None:
         strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
         data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 20))}
         assert strategy.generate_signals(data) == []
 
-    def test_chaikin_oscillator_nan_cho(self):
+    def test_chaikin_oscillator_nan_cho(self) -> None:
         strategy = ChaikinOscillatorStrategy(fast_period=3, slow_period=10)
         # Flat high==low makes hl_range zero -> ADL zero -> CHO NaN guard.
         closes = [100.0] * 30
@@ -7767,45 +7772,45 @@ class TestExamplesRemainingCoverage:
         assert strategy.generate_signals({"AAPL": df}) == []
 
     # --- EaseOfMovement: last close zero (5719) and NaN EOM (5727) ---
-    def test_eom_last_close_zero(self):
+    def test_eom_last_close_zero(self) -> None:
         strategy = EaseOfMovementStrategy(period=14)
         data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 20))}
         assert strategy.generate_signals(data) == []
 
-    def test_eom_nan_eom(self):
+    def test_eom_nan_eom(self) -> None:
         strategy = EaseOfMovementStrategy(period=14)
         closes = [100.0 + i * 0.1 for i in range(30)]
         data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
         assert strategy.generate_signals(data) == []
 
     # --- AwesomeOscillator: last close zero (line 5819) ---
-    def test_ao_last_close_zero(self):
+    def test_ao_last_close_zero(self) -> None:
         strategy = AwesomeOscillatorStrategy(short_period=5, long_period=34)
         data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 40))}
         assert strategy.generate_signals(data) == []
 
     # --- TRIX: NaN indicator values (line 6091) ---
-    def test_trix_nan_indicator(self):
+    def test_trix_nan_indicator(self) -> None:
         strategy = TrixStrategy(period=14)
         closes = [100.0 + i * 0.1 for i in range(60)]
         data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
         assert strategy.generate_signals(data) == []
 
     # --- UltimateOscillator: last close zero (6198) ---
-    def test_ultimate_oscillator_last_close_zero(self):
+    def test_ultimate_oscillator_last_close_zero(self) -> None:
         strategy = UltimateOscillatorStrategy(short_period=7, medium_period=14, long_period=28)
         data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 40))}
         assert strategy.generate_signals(data) == []
 
     # --- UltimateOscillator: NaN UO values skip (line 6204) ---
-    def test_ultimate_oscillator_nan_uo_skipped(self):
+    def test_ultimate_oscillator_nan_uo_skipped(self) -> None:
         # Flat prices make every buying-pressure/true-range term zero, so UO is NaN.
         strategy = UltimateOscillatorStrategy(short_period=7, medium_period=14, long_period=28)
         data = {"AAPL": self._ohlcv([100.0] * 40)}
         assert strategy.generate_signals(data) == []
 
     # --- UltimateOscillator: oversold rising (6206-6207) ---
-    def test_ultimate_oscillator_oversold_rising(self):
+    def test_ultimate_oscillator_oversold_rising(self) -> None:
         strategy = UltimateOscillatorStrategy(short_period=7, medium_period=14, long_period=28)
         # Sustain UO below 30 then rise while still below 30 on the last bar.
         base = [100.0 - i * 0.5 for i in range(40)]
@@ -7815,7 +7820,7 @@ class TestExamplesRemainingCoverage:
         assert isinstance(signals, list)
 
     # --- UltimateOscillator: overbought falling (6224-6225) ---
-    def test_ultimate_oscillator_overbought_falling(self):
+    def test_ultimate_oscillator_overbought_falling(self) -> None:
         strategy = UltimateOscillatorStrategy(short_period=7, medium_period=14, long_period=28)
         base = [100.0 + i * 0.5 for i in range(40)]
         closes = base + [base[-1] - 1.0]
@@ -7824,7 +7829,7 @@ class TestExamplesRemainingCoverage:
         assert isinstance(signals, list)
 
     # --- PercentagePriceOscillator: NaN indicator values (line 6329) ---
-    def test_ppo_nan_indicator(self):
+    def test_ppo_nan_indicator(self) -> None:
         strategy = PercentagePriceOscillatorStrategy(
             fast_period=12, slow_period=26, signal_period=9
         )
@@ -7834,21 +7839,21 @@ class TestExamplesRemainingCoverage:
 
     # --- PercentageVolumeOscillator: volume missing (6492), last close zero (6496),
     # --- NaN indicator (6509), zero-line cross below (6571) ---
-    def test_pvo_no_volume(self):
+    def test_pvo_no_volume(self) -> None:
         strategy = PercentageVolumeOscillatorStrategy(
             fast_period=5, slow_period=13, signal_period=9
         )
         data = {"AAPL": self._ohlcv_no_volume([100.0] * 30)}
         assert strategy.generate_signals(data) == []
 
-    def test_pvo_last_close_zero(self):
+    def test_pvo_last_close_zero(self) -> None:
         strategy = PercentageVolumeOscillatorStrategy(
             fast_period=5, slow_period=13, signal_period=9
         )
         data = {"AAPL": self._ohlcv(self._ohlcv_last_zero([100.0] * 30))}
         assert strategy.generate_signals(data) == []
 
-    def test_pvo_nan_indicator(self):
+    def test_pvo_nan_indicator(self) -> None:
         strategy = PercentageVolumeOscillatorStrategy(
             fast_period=5, slow_period=13, signal_period=9
         )
@@ -7856,7 +7861,7 @@ class TestExamplesRemainingCoverage:
         data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
         assert strategy.generate_signals(data) == []
 
-    def test_pvo_zero_line_below(self):
+    def test_pvo_zero_line_below(self) -> None:
         strategy = PercentageVolumeOscillatorStrategy(
             fast_period=5, slow_period=13, signal_period=9, use_zero_line=True
         )
@@ -7867,20 +7872,20 @@ class TestExamplesRemainingCoverage:
         assert isinstance(signals, list)
 
     # --- DetrendedPriceOscillator: NaN last close (line 6640) ---
-    def test_dpo_last_close_nan(self):
+    def test_dpo_last_close_nan(self) -> None:
         strategy = DetrendedPriceOscillatorStrategy(period=20)
         closes = [100.0 + i * 0.1 for i in range(40)]
         data = {"AAPL": self._ohlcv(self._ohlcv_last_nan(closes))}
         assert strategy.generate_signals(data) == []
 
     # --- AccumulationDistribution: volume missing (line 6926) ---
-    def test_adl_no_volume(self):
+    def test_adl_no_volume(self) -> None:
         strategy = AccumulationDistributionStrategy(signal_period=20)
         data = {"AAPL": self._ohlcv_no_volume([100.0] * 30)}
         assert strategy.generate_signals(data) == []
 
     # --- AccumulationDistribution: zero signal line strength fallback (6955, 6978) ---
-    def test_adl_zero_signal_line_strength(self):
+    def test_adl_zero_signal_line_strength(self) -> None:
         strategy = AccumulationDistributionStrategy(signal_period=20)
         # Flat high==low->high==low makes every money flow multiplier zero,
         # so ADL and its signal line are zero; a cross then uses strength 0.5.
@@ -7898,14 +7903,14 @@ class TestExamplesRemainingCoverage:
         assert isinstance(signals, list)
 
     # --- NegativeVolumeIndex: NaN indicator values (line 7067) ---
-    def test_nvi_nan_indicator(self):
+    def test_nvi_nan_indicator(self) -> None:
         strategy = NegativeVolumeIndexStrategy(period=14)
         closes = [100.0 + i * 0.1 for i in range(30)]
         data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
         assert strategy.generate_signals(data) == []
 
     # --- NegativeVolumeIndex: bearish cross (lines 7085-7090) ---
-    def test_nvi_bearish_cross(self):
+    def test_nvi_bearish_cross(self) -> None:
         strategy = NegativeVolumeIndexStrategy(period=14)
         # Volume decreasing on every bar drives NVI down through its EMA.
         closes = [100.0 - i * 0.1 for i in range(40)]
@@ -7915,14 +7920,14 @@ class TestExamplesRemainingCoverage:
         assert isinstance(signals, list)
 
     # --- PositiveVolumeIndex: NaN indicator values (line 7171) ---
-    def test_pvi_nan_indicator(self):
+    def test_pvi_nan_indicator(self) -> None:
         strategy = PositiveVolumeIndexStrategy(period=14)
         closes = [100.0 + i * 0.1 for i in range(30)]
         data = {"AAPL": self._ohlcv(self._ohlcv_prev_nan(closes))}
         assert strategy.generate_signals(data) == []
 
     # --- PositiveVolumeIndex: buy and sell cross strength (7173-7178, 7189-7194) ---
-    def test_pvi_crosses(self):
+    def test_pvi_crosses(self) -> None:
         strategy = PositiveVolumeIndexStrategy(period=14)
         closes = [100.0 + i * 0.1 for i in range(40)]
         volume = np.arange(1, 41, dtype=float) * 10000.0
@@ -7931,28 +7936,28 @@ class TestExamplesRemainingCoverage:
         assert isinstance(signals, list)
 
     # --- ChoppinessIndex: missing OHLC columns (7462) and NaN last close (7464) ---
-    def test_choppiness_missing_columns(self):
+    def test_choppiness_missing_columns(self) -> None:
         strategy = ChoppinessIndexStrategy(period=14, low_threshold=38.2, high_threshold=61.8)
         df = self._ohlcv([100.0] * 30).drop(columns=["high"])
         assert strategy.generate_signals({"AAPL": df}) == []
 
-    def test_choppiness_last_close_nan(self):
+    def test_choppiness_last_close_nan(self) -> None:
         strategy = ChoppinessIndexStrategy(period=14, low_threshold=38.2, high_threshold=61.8)
         closes = [100.0 + i * 0.1 for i in range(30)]
         data = {"AAPL": self._ohlcv(self._ohlcv_last_nan(closes))}
         assert strategy.generate_signals(data) == []
 
-    def test_choppiness_cross_below_low_threshold_buy(self):
+    def test_choppiness_cross_below_low_threshold_buy(self) -> None:
         """Test buy signal when CHOP crosses below low threshold."""
         strategy = ChoppinessIndexStrategy(period=14, low_threshold=38.2, high_threshold=61.8)
         dates = pd.date_range("2023-01-01", periods=90)
         df = pd.DataFrame(index=dates)
-        closes = []
-        highs = []
-        lows = []
+        closes: list[float] = []
+        highs: list[float] = []
+        lows: list[float] = []
         for i in range(90):
             if i < 55:
-                c = 100
+                c = 100.0
                 closes.append(c)
                 highs.append(c + 7)
                 lows.append(c - 7)
@@ -7980,16 +7985,16 @@ class TestExamplesRemainingCoverage:
         assert isinstance(signals, list)
         assert any(s.action == "buy" for s in signals)
 
-    def test_choppiness_zero_low_threshold_strength(self):
+    def test_choppiness_zero_low_threshold_strength(self) -> None:
         strategy = ChoppinessIndexStrategy(period=14, low_threshold=0.0, high_threshold=50.0)
         dates = pd.date_range("2023-01-01", periods=90)
         df = pd.DataFrame(index=dates)
-        closes = []
-        highs = []
-        lows = []
+        closes: list[float] = []
+        highs: list[float] = []
+        lows: list[float] = []
         for i in range(90):
             if i < 55:
-                c = 100
+                c = 100.0
                 closes.append(c)
                 highs.append(c + 7)
                 lows.append(c - 7)
@@ -8016,7 +8021,7 @@ class TestExamplesRemainingCoverage:
         res = strategy.generate_signals({"AAPL": df.iloc[:73]})
         assert isinstance(res, list)
 
-    def test_choppiness_high_threshold_100_strength(self):
+    def test_choppiness_high_threshold_100_strength(self) -> None:
         strategy = ChoppinessIndexStrategy(period=14, low_threshold=10.0, high_threshold=100.0)
         dates = pd.date_range("2023-01-01", periods=80)
         prices = np.ones(80) * 100.0
@@ -8038,7 +8043,7 @@ class TestExamplesRemainingCoverage:
         res = strategy.generate_signals({"AAPL": df.iloc[:60]})
         assert isinstance(res, list)
 
-    def test_choppiness_cross_above_high_threshold_sell(self):
+    def test_choppiness_cross_above_high_threshold_sell(self) -> None:
         """Test sell signal when CHOP crosses above high threshold."""
         strategy = ChoppinessIndexStrategy(period=14, low_threshold=38.2, high_threshold=61.8)
         dates = pd.date_range("2023-01-01", periods=80)
@@ -8065,7 +8070,7 @@ class TestExamplesRemainingCoverage:
         assert signals[0].action == "sell"
 
     # --- OBV: zero signal line strength fallback (lines 3793, 3817) ---
-    def test_obv_zero_signal_line_strength(self):
+    def test_obv_zero_signal_line_strength(self) -> None:
         strategy = OBVStrategy(signal_period=20)
         closes = [100.0] * 40
         df = pd.DataFrame(
@@ -8081,7 +8086,7 @@ class TestExamplesRemainingCoverage:
         assert isinstance(signals, list)
 
     # --- Additional coverage for uncovered branches in examples.py ---
-    def test_rsi_incremental_nan_current_rsi(self):
+    def test_rsi_incremental_nan_current_rsi(self) -> None:
         strategy = RSIStrategy(period=3, oversold=30, overbought=70)
         df = create_donchian_data("AAPL", [100.0, 101.0, 102.0, 103.0])
         for i in range(2, len(df)):
@@ -8096,7 +8101,7 @@ class TestExamplesRemainingCoverage:
         signals = strategy.generate_signals({"AAPL": df})
         assert isinstance(signals, list)
 
-    def test_bollinger_incremental_var_negative_floor(self):
+    def test_bollinger_incremental_var_negative_floor(self) -> None:
         strategy = BollingerBandsStrategy(period=3, std_dev=2.0)
         df = create_donchian_data("AAPL", [1.0, 2.0, 3.0, 4.0])
         for i in range(3, len(df)):
@@ -8108,14 +8113,14 @@ class TestExamplesRemainingCoverage:
         signals = strategy.generate_signals({"AAPL": df})
         assert isinstance(signals, list)
 
-    def test_bollinger_incremental_period_one_branch(self):
+    def test_bollinger_incremental_period_one_branch(self) -> None:
         strategy = BollingerBandsStrategy(period=1, std_dev=2.0)
         df = create_donchian_data("AAPL", [5.0, 6.0, 7.0])
         for i in range(len(df)):
             signals = strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
         assert isinstance(signals, list)
 
-    def test_bollinger_incremental_full_nan_skips(self):
+    def test_bollinger_incremental_full_nan_skips(self) -> None:
         strategy = BollingerBandsStrategy(period=3, std_dev=2.0)
         df = create_donchian_data("AAPL", [1.0, 2.0, 3.0, 4.0])
         for i in range(3, len(df)):
@@ -8131,7 +8136,7 @@ class TestExamplesRemainingCoverage:
         assert isinstance(signals, list)
 
     # --- More coverage for other uncovered branches ---
-    def test_accumulation_distribution_line_signal_zero(self):
+    def test_accumulation_distribution_line_signal_zero(self) -> None:
         strategy = AccumulationDistributionStrategy(signal_period=10)
         import pandas as pd
 
@@ -8149,28 +8154,28 @@ class TestExamplesRemainingCoverage:
         signals = strategy.generate_signals({"AAPL": df2})
         assert isinstance(signals, list)
 
-    def test_mfi_incremental_state(self):
+    def test_mfi_incremental_state(self) -> None:
         strategy = MoneyFlowIndexStrategy(period=14)
         df = create_mean_reverting_data("AAPL", days=80)
         for i in range(30, len(df)):
             strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
         assert isinstance(strategy.generate_signals({"AAPL": df}), list)
 
-    def test_ultimate_oscillator_incremental(self):
+    def test_ultimate_oscillator_incremental(self) -> None:
         strategy = UltimateOscillatorStrategy()
         df = create_mean_reverting_data("AAPL", days=100)
         for i in range(40, len(df)):
             strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
         assert isinstance(strategy.generate_signals({"AAPL": df}), list)
 
-    def test_stochastic_momentum_index_incremental(self):
+    def test_stochastic_momentum_index_incremental(self) -> None:
         strategy = StochasticMomentumIndexStrategy()
         df = create_mean_reverting_data("AAPL", days=100)
         for i in range(40, len(df)):
             strategy.generate_signals({"AAPL": df.iloc[: i + 1]})
         assert isinstance(strategy.generate_signals({"AAPL": df}), list)
 
-    def test_on_balance_volume_signal_zero(self):
+    def test_on_balance_volume_signal_zero(self) -> None:
         strategy = OBVStrategy(signal_period=10)
         df = create_trending_data("AAPL", days=80, trend=0.01)
         strategy.generate_signals({"AAPL": df})
@@ -8190,7 +8195,7 @@ class TestExamplesRemainingCoverage:
         signals2 = strategy.generate_signals({"AAPL": df2})
         assert isinstance(signals2, list)
 
-    def test_rsi_incremental_hist_overflow_and_none_cases(self):
+    def test_rsi_incremental_hist_overflow_and_none_cases(self) -> None:
         strategy = RSIStrategy(period=2, oversold=30, overbought=70)
         df = create_donchian_data("AAPL", [10.0, 11.0, 12.0, 13.0])
         for i in range(2, len(df)):
@@ -8227,14 +8232,14 @@ class TestExamplesRemainingCoverage:
         signals = st2.generate_signals({"AAPL": df2})
         assert isinstance(signals, list)
 
-    def test_ma_incremental_slow_growing_window_coverage(self):
+    def test_ma_incremental_slow_growing_window_coverage(self) -> None:
         strategy = MovingAverageCrossover(fast_period=3, slow_period=15)
         df1 = self._ohlcv([100.0] * 15)
         strategy.generate_signals({"AAPL": df1})
         df2 = self._ohlcv([100.0] * 16)
         assert isinstance(strategy.generate_signals({"AAPL": df2}), list)
 
-    def test_rsi_none_prev_rsi_skip(self):
+    def test_rsi_none_prev_rsi_skip(self) -> None:
         strategy = RSIStrategy(period=2)
         df2 = create_donchian_data("AAPL", [10.0, 11.0])
         strategy._rsi_state["AAPL"] = {
@@ -8249,16 +8254,16 @@ class TestExamplesRemainingCoverage:
         signals = strategy.generate_signals({"AAPL": df2})
         assert isinstance(signals, list)
 
-    def test_choppiness_buy_sell_crosses_coverage(self):
+    def test_choppiness_buy_sell_crosses_coverage(self) -> None:
         strategy = ChoppinessIndexStrategy(period=14, low_threshold=38.2, high_threshold=61.8)
         dates = pd.date_range("2023-01-01", periods=90)
         df = pd.DataFrame(index=dates)
-        closes = []
-        highs = []
-        lows = []
+        closes: list[float] = []
+        highs: list[float] = []
+        lows: list[float] = []
         for i in range(90):
             if i < 55:
-                c = 100
+                c = 100.0
                 closes.append(c)
                 highs.append(c + 7)
                 lows.append(c - 7)
