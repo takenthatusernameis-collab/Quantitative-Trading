@@ -1,5 +1,6 @@
 """Tests for the strategy factory and registry."""
 
+import pandas as pd
 import pytest
 
 from quant_trading.strategies import (
@@ -7,6 +8,7 @@ from quant_trading.strategies import (
     MACDStrategy,
     MovingAverageCrossover,
     RSIStrategy,
+    Signal,
     Strategy,
     available_strategies,
     create_strategy,
@@ -24,66 +26,66 @@ from quant_trading.strategies.factory import StrategyRegistry
 class DummyStrategy(Strategy):
     """Minimal concrete strategy for registry tests."""
 
-    def __init__(self, name: str = "Dummy", factor: float = 1.0):
+    def __init__(self, name: str = "Dummy", factor: float = 1.0) -> None:
         super().__init__(name, {"factor": factor})
         self.factor = factor
 
-    def generate_signals(self, data):
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         return []
 
 
 class OtherStrategy(Strategy):
     """Second concrete strategy for overwrite tests."""
 
-    def __init__(self, name: str = "Other"):
+    def __init__(self, name: str = "Other") -> None:
         super().__init__(name)
 
-    def generate_signals(self, data):
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         return []
 
 
 class TestStrategyRegistry:
     """Tests for StrategyRegistry using isolated instances."""
 
-    def test_register_and_get(self):
+    def test_register_and_get(self) -> None:
         registry = StrategyRegistry()
         registry.register("dummy", DummyStrategy)
         assert registry.get("dummy") is DummyStrategy
 
-    def test_register_with_aliases(self):
+    def test_register_with_aliases(self) -> None:
         registry = StrategyRegistry()
         registry.register("dummy", DummyStrategy, aliases=["d", "dummy_s"])
         assert registry.get("dummy") is DummyStrategy
         assert registry.get("d") is DummyStrategy
         assert registry.get("dummy_s") is DummyStrategy
 
-    def test_register_non_strategy_raises_typeerror(self):
+    def test_register_non_strategy_raises_typeerror(self) -> None:
         registry = StrategyRegistry()
         with pytest.raises(TypeError, match="must be a subclass of Strategy"):
-            registry.register("bad", dict)
+            registry.register("bad", dict)  # type: ignore[arg-type]
 
-    def test_get_unknown_returns_none(self):
+    def test_get_unknown_returns_none(self) -> None:
         registry = StrategyRegistry()
         assert registry.get("missing") is None
 
-    def test_get_all_returns_copy(self):
+    def test_get_all_returns_copy(self) -> None:
         registry = StrategyRegistry()
         registry.register("dummy", DummyStrategy)
         all_strategies = registry.get_all()
         all_strategies["injected"] = OtherStrategy
         assert "injected" not in registry.get_all()
 
-    def test_keys_includes_aliases(self):
+    def test_keys_includes_aliases(self) -> None:
         registry = StrategyRegistry()
         registry.register("dummy", DummyStrategy, aliases=["d"])
         assert set(registry.keys()) == {"dummy", "d"}
 
-    def test_primary_keys_excludes_aliases(self):
+    def test_primary_keys_excludes_aliases(self) -> None:
         registry = StrategyRegistry()
         registry.register("dummy", DummyStrategy, aliases=["d"])
         assert registry.primary_keys() == ["dummy"]
 
-    def test_unregister_removes_key_and_aliases(self):
+    def test_unregister_removes_key_and_aliases(self) -> None:
         registry = StrategyRegistry()
         registry.register("dummy", DummyStrategy, aliases=["d"])
         registry.unregister("dummy")
@@ -91,13 +93,13 @@ class TestStrategyRegistry:
         assert registry.get("d") is None
         assert registry.primary_keys() == []
 
-    def test_unregister_unknown_is_noop(self):
+    def test_unregister_unknown_is_noop(self) -> None:
         registry = StrategyRegistry()
         registry.register("dummy", DummyStrategy)
         registry.unregister("missing")
         assert registry.get("dummy") is DummyStrategy
 
-    def test_reregister_overwrites(self):
+    def test_reregister_overwrites(self) -> None:
         registry = StrategyRegistry()
         registry.register("dummy", DummyStrategy, aliases=["d"])
         registry.register("dummy", OtherStrategy)
@@ -105,7 +107,7 @@ class TestStrategyRegistry:
         # Stale alias from the first registration remains pointing to the key
         assert registry.get("d") is OtherStrategy
 
-    def test_create_instantiates_with_kwargs(self):
+    def test_create_instantiates_with_kwargs(self) -> None:
         registry = StrategyRegistry()
         registry.register("dummy", DummyStrategy)
         strategy = registry.create("dummy", name="Custom", factor=2.5)
@@ -113,18 +115,18 @@ class TestStrategyRegistry:
         assert strategy.name == "Custom"
         assert strategy.factor == 2.5
 
-    def test_create_via_alias(self):
+    def test_create_via_alias(self) -> None:
         registry = StrategyRegistry()
         registry.register("dummy", DummyStrategy, aliases=["d"])
         assert isinstance(registry.create("d"), DummyStrategy)
 
-    def test_create_unknown_raises_valueerror(self):
+    def test_create_unknown_raises_valueerror(self) -> None:
         registry = StrategyRegistry()
         registry.register("dummy", DummyStrategy)
         with pytest.raises(ValueError, match="Unknown strategy: missing"):
             registry.create("missing")
 
-    def test_create_error_message_lists_available(self):
+    def test_create_error_message_lists_available(self) -> None:
         registry = StrategyRegistry()
         registry.register("dummy", DummyStrategy)
         registry.register("other", OtherStrategy)
@@ -135,14 +137,14 @@ class TestStrategyRegistry:
 class TestGlobalRegistry:
     """Tests for the module-level global registry functions."""
 
-    def test_builtin_strategies_registered(self):
+    def test_builtin_strategies_registered(self) -> None:
         strategies = list_strategies()
         assert strategies["ma"] is MovingAverageCrossover
         assert strategies["rsi"] is RSIStrategy
         assert strategies["bb"] is BollingerBandsStrategy
         assert strategies["macd"] is MACDStrategy
 
-    def test_builtin_aliases_resolve(self):
+    def test_builtin_aliases_resolve(self) -> None:
         assert get_strategy("moving_average") is MovingAverageCrossover
         assert get_strategy("ma_crossover") is MovingAverageCrossover
         assert get_strategy("rsi_mean_reversion") is RSIStrategy
@@ -150,12 +152,12 @@ class TestGlobalRegistry:
         assert get_strategy("bollinger") is BollingerBandsStrategy
         assert get_strategy("macd_crossover") is MACDStrategy
 
-    def test_strategy_keys_include_builtins_and_aliases(self):
+    def test_strategy_keys_include_builtins_and_aliases(self) -> None:
         keys = strategy_keys()
         for key in ("ma", "rsi", "bb", "macd", "moving_average", "bollinger"):
             assert key in keys
 
-    def test_strategy_keys_are_unique(self):
+    def test_strategy_keys_are_unique(self) -> None:
         """``strategy_keys()`` must not contain duplicates.
 
         A duplicate arises when a primary key is also listed as one of its own
@@ -167,7 +169,7 @@ class TestGlobalRegistry:
         duplicates = sorted({k for k in keys if keys.count(k) > 1})
         assert duplicates == [], f"duplicate strategy keys: {duplicates}"
 
-    def test_no_alias_collides_with_a_primary_key(self):
+    def test_no_alias_collides_with_a_primary_key(self) -> None:
         """An alias must not shadow a primary key of another strategy.
 
         If an alias resolves to a primary key that is also a primary key, the
@@ -179,21 +181,21 @@ class TestGlobalRegistry:
         offenders = sorted(set(registry._aliases) & primaries)
         assert offenders == [], f"aliases colliding with primary keys: {offenders}"
 
-    def test_get_strategy_unknown_returns_none(self):
+    def test_get_strategy_unknown_returns_none(self) -> None:
         assert get_strategy("not_a_real_strategy") is None
 
-    def test_create_strategy_builtin(self):
+    def test_create_strategy_builtin(self) -> None:
         strategy = create_strategy("ma", fast_period=5, slow_period=20)
         assert isinstance(strategy, MovingAverageCrossover)
         assert strategy.fast_period == 5
         assert strategy.slow_period == 20
 
-    def test_create_strategy_default_parameters(self):
+    def test_create_strategy_default_parameters(self) -> None:
         strategy = create_strategy("rsi")
         assert isinstance(strategy, RSIStrategy)
         assert strategy.period == 14
 
-    def test_register_strategy_roundtrip(self):
+    def test_register_strategy_roundtrip(self) -> None:
         key = "test_unique_strategy_key"
         try:
             register_strategy(key, DummyStrategy, aliases=["test_unique_alias"])
@@ -207,13 +209,13 @@ class TestGlobalRegistry:
         assert get_strategy(key) is None
         assert get_strategy("test_unique_alias") is None
 
-    def test_get_registry_is_global_instance(self):
+    def test_get_registry_is_global_instance(self) -> None:
         registry = get_registry()
         assert isinstance(registry, StrategyRegistry)
         assert registry is get_registry()
         assert registry.get("ma") is MovingAverageCrossover
 
-    def test_create_strategy_unknown_raises(self):
+    def test_create_strategy_unknown_raises(self) -> None:
         with pytest.raises(ValueError, match="Unknown strategy"):
             create_strategy("not_a_real_strategy")
 
@@ -221,21 +223,21 @@ class TestGlobalRegistry:
 class TestStrategyConvenienceHelpers:
     """Tests for the convenience helpers exported by the strategies package."""
 
-    def test_get_available_strategies_returns_the_registered_strategies(self):
+    def test_get_available_strategies_returns_the_registered_strategies(self) -> None:
         assert get_available_strategies() == list_strategies()
         assert get_available_strategies()["ma"] is MovingAverageCrossover
 
-    def test_available_strategies_returns_the_registered_strategies(self):
+    def test_available_strategies_returns_the_registered_strategies(self) -> None:
         assert available_strategies() == list_strategies()
 
-    def test_get_strategy_factory_returns_the_global_registry(self):
+    def test_get_strategy_factory_returns_the_global_registry(self) -> None:
         assert get_strategy_factory() is get_registry()
 
 
 class TestStrategyFromConfig:
     """Tests for Strategy.from_config, which delegates to the factory."""
 
-    def test_from_config_creates_strategy(self):
+    def test_from_config_creates_strategy(self) -> None:
         config = {
             "type": "ma",
             "name": "MyCrossover",
@@ -247,16 +249,16 @@ class TestStrategyFromConfig:
         assert strategy.fast_period == 5
         assert strategy.slow_period == 15
 
-    def test_from_config_defaults_name_to_type(self):
+    def test_from_config_defaults_name_to_type(self) -> None:
         strategy = Strategy.from_config({"type": "bb", "parameters": {}})
         assert isinstance(strategy, BollingerBandsStrategy)
         assert strategy.name == "bb"
 
-    def test_from_config_missing_type_raises(self):
+    def test_from_config_missing_type_raises(self) -> None:
         with pytest.raises(ValueError, match="must contain 'type'"):
             Strategy.from_config({"parameters": {}})
 
-    def test_from_config_unknown_type_raises(self):
+    def test_from_config_unknown_type_raises(self) -> None:
         with pytest.raises(ValueError, match="Unknown strategy"):
             Strategy.from_config({"type": "not_a_real_strategy"})
 
@@ -264,12 +266,12 @@ class TestStrategyFromConfig:
 class TestStrategyBase:
     """Tests for the Strategy base class (base.py)."""
 
-    def test_generate_signals_abstract_body_executed(self):
+    def test_generate_signals_abstract_body_executed(self) -> None:
         """A subclass delegating to super() runs the abstract body (base.py:179)."""
 
         class DelegatingStrategy(Strategy):
-            def generate_signals(self, data):
-                return super().generate_signals(data)
+            def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+                return super().generate_signals(data)  # type: ignore[safe-super]
 
         strategy = DelegatingStrategy(name="Delegating")
         assert strategy.generate_signals({}) is None

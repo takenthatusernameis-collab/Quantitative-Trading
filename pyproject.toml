@@ -266,6 +266,10 @@ disallow_untyped_defs = true
 module = "tests.test_strategy_aroon"
 disallow_untyped_defs = true
 
+[[tool.mypy.overrides]]
+module = "tests.test_strategy_factory"
+disallow_untyped_defs = true
+
 [tool.coverage.run]
 branch = true
 source = ["quant_trading", "examples.cli"]
