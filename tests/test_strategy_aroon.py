@@ -149,28 +149,28 @@ def create_aroon_bearish_data(symbol: str, days: int = 50) -> pd.DataFrame:
 class TestAroonStrategy:
     """Tests for AroonStrategy."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test strategy initialization."""
         strategy = AroonStrategy(period=25, name="Test_Aroon")
         assert strategy.name == "Test_Aroon"
         assert strategy.period == 25
         assert strategy.parameters["period"] == 25
 
-    def test_validate_parameters(self):
+    def test_validate_parameters(self) -> None:
         """Test parameter validation."""
         with pytest.raises(ValueError, match="period must be positive"):
             AroonStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             AroonStrategy(period=-5)
 
-    def test_generate_signals_insufficient_data(self):
+    def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with insufficient data."""
         strategy = AroonStrategy(period=25)
         data = {"AAPL": create_trending_data("AAPL", days=20)}  # Less than period
         signals = strategy.generate_signals(data)
         assert signals == []
 
-    def test_generate_signals_bullish_crossover(self):
+    def test_generate_signals_bullish_crossover(self) -> None:
         """Test generate_signals detects Aroon bullish crossover (buy signal)."""
         strategy = AroonStrategy(period=25)
         data = {"AAPL": create_aroon_bullish_data("AAPL", days=50)}
@@ -189,7 +189,7 @@ class TestAroonStrategy:
                 assert "aroon_up" in signal.metadata
                 assert "aroon_down" in signal.metadata
 
-    def test_generate_signals_bearish_crossover(self):
+    def test_generate_signals_bearish_crossover(self) -> None:
         """Test generate_signals detects Aroon bearish crossover (sell signal)."""
         strategy = AroonStrategy(period=25)
         data = {"AAPL": create_aroon_bearish_data("AAPL", days=50)}
@@ -203,7 +203,7 @@ class TestAroonStrategy:
             if signal.action == "sell":
                 assert signal.metadata.get("crossover_type") == "bearish"
 
-    def test_generate_signals_multiple_symbols(self):
+    def test_generate_signals_multiple_symbols(self) -> None:
         """Test generate_signals with multiple symbols."""
         strategy = AroonStrategy(period=25)
         data = {
@@ -214,7 +214,7 @@ class TestAroonStrategy:
         symbols = {s.symbol for s in signals}
         assert symbols.issubset({"AAPL", "MSFT"})
 
-    def test_aroon_calculation(self):
+    def test_aroon_calculation(self) -> None:
         """Test Aroon calculation internally."""
         strategy = AroonStrategy(period=5)
         # Create simple test data
@@ -239,7 +239,7 @@ class TestAroonStrategy:
         assert aroon_up.iloc[-2] == 80.0
         assert aroon_down.iloc[-2] == 100.0
 
-    def test_aroon_calculation_edge_case(self):
+    def test_aroon_calculation_edge_case(self) -> None:
         """Test Aroon calculation with all same values."""
         strategy = AroonStrategy(period=5)
         high = pd.Series([10, 10, 10, 10, 10, 10, 10])
@@ -263,7 +263,7 @@ if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
 
-def test_generate_signals_nan_aroon_skipped():
+def test_generate_signals_nan_aroon_skipped() -> None:
     """generate_signals skips symbols whose Aroon values are NaN (line 979)."""
     strategy = AroonStrategy(period=5)
     # Exactly period+1 rows, but with NaN highs so rolling Aroon is NaN.
@@ -274,7 +274,7 @@ def test_generate_signals_nan_aroon_skipped():
     assert signals == []
 
 
-def test_generate_signals_no_crossover():
+def test_generate_signals_no_crossover() -> None:
     """generate_signals produces no signal when neither Aroon crossover fires
     (the bearish `elif` at line 994 is False, so control falls through to the
     return at line 948)."""
@@ -286,7 +286,7 @@ def test_generate_signals_no_crossover():
     assert signals == []
 
 
-def test_aroon_calculation_nan_in_window():
+def test_aroon_calculation_nan_in_window() -> None:
     """A NaN inside the rolling window yields NaN Aroon values (the inner loop
     never matches, so the `for` completes without `break`)."""
     strategy = AroonStrategy(period=5)
