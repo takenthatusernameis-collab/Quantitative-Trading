@@ -946,14 +946,17 @@ class Rebalancer:
             return quantity
 
         drawdown_limit = self.risk_manager.portfolio_limit.max_drawdown
+        current_position = plan.positions.get(symbol, 0.0)
         if (
             drawdown_limit > 0
             and self.risk_manager.portfolio_risk.current_drawdown <= -drawdown_limit
+            and current_position >= 0
         ):
+            # A buy that covers an open short reduces gross exposure, so it is
+            # not halted by a drawdown breach (mirrors RiskManager.check_signal).
             return 0.0
 
         limit = self.risk_manager.position_limit
-        current_position = plan.positions.get(symbol, 0.0)
         max_position_value = min(limit.max_size * total_value, limit.max_value)
         room = max_position_value - current_position * price
         if room <= 0:

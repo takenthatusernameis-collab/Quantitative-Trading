@@ -97,3 +97,37 @@ def test_drawdown_breach_blocks_buys() -> None:
     buys = [a for a in actions if a.action == "buy"]
     assert buys == []  # drawdown halt blocks all buying
     _assert_solvency(portfolio, rm)
+
+
+def test_drawdown_breach_allows_short_covering_buy_blocks_exposure_increasing_buy() -> None:
+    """A breached drawdown limit blocks exposure-increasing buys but permits a
+    buy that covers an open short, mirroring RiskManager.check_signal.
+
+    RiskManager.check_signal returns before the drawdown gate for a buy that
+    covers an open short (manager.py:882-885), so the rebalancer must not halt
+    such a buy either; it only caps it at the short size in _plan_buy.
+    """
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    portfolio.add_holding("AAPL", -100, 100.0)  # open short to be covered
+    portfolio.add_holding("MSFT", 10, 100.0)    # long the target wants to grow
+    rm = RiskManager(initial_capital=100000.0, max_position_size=0.1, max_drawdown=0.05)
+    rm.portfolio_risk.current_drawdown = -0.5  # breach the loss limit
+    rebalancer = Rebalancer(
+        portfolio,
+        target_allocation={"AAPL": 0.0, "MSFT": 0.5},
+        risk_manager=rm,
+    )
+    prices = {"AAPL": 100.0, "MSFT": 100.0}
+    actions = rebalancer.generate_rebalance_actions(prices=prices)
+    buys = [a for a in actions if a.action == "buy"]
+    sells = [a for a in actions if a.action == "sell"]
+
+    # The AAPL short is covered by an exposure-reducing buy despite the breach.
+    aapl_buys = [a for a in buys if a.symbol == "AAPL"]
+    assert len(aapl_buys) == 1
+    assert aapl_buys[0].quantity == pytest.approx(100.0)
+
+    # The MSFT buy that increases exposure is halted by the drawdown breach.
+    assert [a for a in buys if a.symbol == "MSFT"] == []
+    assert sells == []
+    _assert_solvency(portfolio, rm)
