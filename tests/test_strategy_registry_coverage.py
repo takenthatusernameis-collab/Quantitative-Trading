@@ -67,7 +67,7 @@ def _synthetic_data() -> dict:
     return create_synthetic_data(symbols=["AAPL", "MSFT"], days=120, seed=7)
 
 
-def test_every_registered_strategy_is_constructible_and_runnable():
+def test_every_registered_strategy_is_constructible_and_runnable() -> None:
     """Each registered strategy builds with defaults and generates signals."""
     registry = get_registry()
     data = _synthetic_data()
@@ -83,13 +83,13 @@ def test_every_registered_strategy_is_constructible_and_runnable():
             assert 0.0 <= signal.strength <= 1.0
 
 
-def test_primary_keys_match_list_strategies():
+def test_primary_keys_match_list_strategies() -> None:
     """list_strategies() exposes exactly the primary keys."""
     registry = get_registry()
     assert set(list_strategies().keys()) == set(registry.primary_keys())
 
 
-def test_strategy_keys_include_aliases():
+def test_strategy_keys_include_aliases() -> None:
     """strategy_keys() contains every primary key plus every alias."""
     registry = get_registry()
     keys = set(strategy_keys())
@@ -97,7 +97,7 @@ def test_strategy_keys_include_aliases():
     assert len(keys) >= len(registry.primary_keys())
 
 
-def test_aliases_for_returns_sorted_alias_list():
+def test_aliases_for_returns_sorted_alias_list() -> None:
     """aliases_for() returns the aliases registered for a primary key.
 
     The accessor accepts either the primary key or an alias (resolved
@@ -117,7 +117,7 @@ def test_aliases_for_returns_sorted_alias_list():
     assert registry.aliases_for("does_not_exist") == []
 
 
-def test_aliases_resolve_to_primary_class():
+def test_aliases_resolve_to_primary_class() -> None:
     """Each alias resolves to the same class as its primary key."""
     registry = get_registry()
     aliases = {
@@ -190,7 +190,7 @@ def test_aliases_resolve_to_primary_class():
         ), f"alias {alias!r} does not resolve to {primary}"
 
 
-def test_unknown_strategy_reports_available_keys():
+def test_unknown_strategy_reports_available_keys() -> None:
     """create_strategy raises a ValueError listing available keys."""
     import pytest
 
@@ -198,12 +198,12 @@ def test_unknown_strategy_reports_available_keys():
         create_strategy("no_such_strategy")
 
 
-def test_get_strategy_returns_none_for_unknown_key():
+def test_get_strategy_returns_none_for_unknown_key() -> None:
     """get_strategy returns None instead of raising for unknown keys."""
     assert get_registry().get("does_not_exist") is None
 
 
-def test_every_registered_strategy_has_an_example_script():
+def test_every_registered_strategy_has_an_example_script() -> None:
     """Each registered strategy is imported by at least one ``examples/run_*.py`` script.
 
     The example scripts are the documented, offline, deterministic way each
@@ -223,7 +223,7 @@ def test_every_registered_strategy_has_an_example_script():
     )
 
 
-def test_every_registered_strategy_has_a_test_class():
+def test_every_registered_strategy_has_a_test_class() -> None:
     """Each registered strategy has a ``Test<ClassName>`` in test_strategies_examples.
 
     The shared parametrized suite in :mod:`test_strategies_examples` is the
