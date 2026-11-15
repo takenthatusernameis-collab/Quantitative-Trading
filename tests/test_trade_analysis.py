@@ -1,6 +1,7 @@
 """Tests for trade analysis module."""
 
 from datetime import datetime
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -148,7 +149,7 @@ def _create_mock_result() -> BacktestResult:
     )
 
 
-def test_analyze_trades_basic():
+def test_analyze_trades_basic() -> None:
     """Test basic trade analysis."""
     import numpy as np
 
@@ -164,7 +165,7 @@ def test_analyze_trades_basic():
     assert analysis.total_pnl == 140.0  # 95 - 55 + 72 + 28
 
 
-def test_analyze_trades_pnl_stats():
+def test_analyze_trades_pnl_stats() -> None:
     """Test PnL statistics calculation."""
     import numpy as np
 
@@ -181,7 +182,7 @@ def test_analyze_trades_pnl_stats():
     assert analysis.avg_loss == pytest.approx(-55.0)  # the mean of the losing PnL
 
 
-def test_analyze_trades_holding_periods():
+def test_analyze_trades_holding_periods() -> None:
     """Test holding period calculation."""
     import numpy as np
 
@@ -195,7 +196,7 @@ def test_analyze_trades_holding_periods():
     assert analysis.max_holding_period == 19.0
 
 
-def test_analyze_trades_streaks():
+def test_analyze_trades_streaks() -> None:
     """Test consecutive streaks calculation."""
     import numpy as np
 
@@ -210,7 +211,7 @@ def test_analyze_trades_streaks():
     assert analysis.current_streak_type == "win"
 
 
-def test_analyze_trades_symbol_stats():
+def test_analyze_trades_symbol_stats() -> None:
     """Test per-symbol statistics."""
     import numpy as np
 
@@ -234,7 +235,7 @@ def test_analyze_trades_symbol_stats():
     assert analysis.symbol_stats["MSFT"]["total_pnl"] == -55.0
 
 
-def test_analyze_trades_monthly_returns():
+def test_analyze_trades_monthly_returns() -> None:
     """Test monthly returns calculation."""
     import numpy as np
 
@@ -246,7 +247,7 @@ def test_analyze_trades_monthly_returns():
     assert len(analysis.monthly_returns) > 0
 
 
-def test_analyze_trades_empty():
+def test_analyze_trades_empty() -> None:
     """Test analysis with empty trades."""
     import numpy as np
 
@@ -275,7 +276,7 @@ def test_analyze_trades_empty():
     assert analysis.losing_trades == 0
 
 
-def test_analyze_trades_only_opening():
+def test_analyze_trades_only_opening() -> None:
     """Test analysis with only opening trades (no PnL)."""
     import numpy as np
 
@@ -316,7 +317,7 @@ def test_analyze_trades_only_opening():
     assert analysis.total_trades == 0  # Only opening trades, no closed trades with PnL
 
 
-def test_trade_analysis_to_dict():
+def test_trade_analysis_to_dict() -> None:
     """Test TradeAnalysis to_dict method."""
     import numpy as np
 
@@ -330,7 +331,7 @@ def test_trade_analysis_to_dict():
     assert d["win_rate"] == 0.75
 
 
-def test_print_trade_analysis():
+def test_print_trade_analysis() -> None:
     """Test print_trade_analysis runs without error."""
     import numpy as np
 
@@ -345,7 +346,7 @@ import numpy as np
 # Additional tests for coverage
 
 
-def test_calculate_holding_periods_empty():
+def test_calculate_holding_periods_empty() -> None:
     """Test _calculate_holding_periods with empty trades."""
     import pandas as pd
 
@@ -362,7 +363,7 @@ def test_calculate_holding_periods_empty():
     assert result == []
 
 
-def test_calculate_holding_periods_partial_fill_executes():
+def test_calculate_holding_periods_partial_fill_executes() -> None:
     """Ensure partial fill else branch executes (lines 124-125)."""
     from datetime import datetime
 
@@ -404,7 +405,7 @@ def test_calculate_holding_periods_partial_fill_executes():
     assert abs(result[1] - 20.0) < 0.001  # Jan 1 -> Jan 21
 
 
-def test_calculate_consecutive_streaks_empty():
+def test_calculate_consecutive_streaks_empty() -> None:
     """Test _calculate_consecutive_streaks with empty/no-pnl cases."""
     import pandas as pd
 
@@ -424,7 +425,7 @@ def test_calculate_consecutive_streaks_empty():
     assert result == (0, 0, 0, "")
 
 
-def test_calculate_consecutive_streaks_loss_streak():
+def test_calculate_consecutive_streaks_loss_streak() -> None:
     """Test _calculate_consecutive_streaks with loss streak branch."""
     from datetime import datetime
 
@@ -445,7 +446,7 @@ def test_calculate_consecutive_streaks_loss_streak():
     assert result[3] == "loss"
 
 
-def test_calculate_monthly_returns_short():
+def test_calculate_monthly_returns_short() -> None:
     """Test _calculate_monthly_returns with short series."""
     from datetime import datetime
 
@@ -465,7 +466,7 @@ def test_calculate_monthly_returns_short():
     assert isinstance(result, dict)
 
 
-def test_calculate_weekly_returns_short():
+def test_calculate_weekly_returns_short() -> None:
     """Test _calculate_weekly_returns with short series."""
     from datetime import datetime
 
@@ -484,7 +485,7 @@ def test_calculate_weekly_returns_short():
     assert isinstance(result, dict)
 
 
-def test_analyze_trades_single_trade():
+def test_analyze_trades_single_trade() -> None:
     """Test analyze_trades with single completed trade (to hit len<=1 sharpe case)."""
     from datetime import datetime
 
@@ -544,7 +545,7 @@ def test_analyze_trades_single_trade():
     assert analysis.total_trades == 1
 
 
-def test_calculate_symbol_stats_empty_cases():
+def test_calculate_symbol_stats_empty_cases() -> None:
     """Test _calculate_symbol_stats edge cases."""
     import pandas as pd
 
@@ -558,7 +559,7 @@ def test_calculate_symbol_stats_empty_cases():
     assert _calculate_symbol_stats(pd.DataFrame(), pd.DataFrame({"pnl": [10.0]})) == {}
 
 
-def test_calculate_holding_periods_sell_without_entry():
+def test_calculate_holding_periods_sell_without_entry() -> None:
     """A sell with no prior buy leaves entry_times empty, so the
     `elif trade["action"] == "sell" and entry_times` guard is False (110->105)."""
     from datetime import datetime
@@ -581,7 +582,7 @@ def test_calculate_holding_periods_sell_without_entry():
     assert _calculate_holding_periods(trades) == []
 
 
-def test_calculate_consecutive_streaks_zero_pnl():
+def test_calculate_consecutive_streaks_zero_pnl() -> None:
     """Trades with pnl == 0 fall through both `if pnl > 0` and `elif pnl < 0`,
     leaving current_wins and current_losses at 0 (148->142 and 156->160)."""
     from datetime import datetime
@@ -600,7 +601,7 @@ def test_calculate_consecutive_streaks_zero_pnl():
     assert result == (0, 0, 0, "")
 
 
-def test_print_trade_analysis_empty_report():
+def test_print_trade_analysis_empty_report() -> None:
     """print_trade_analysis with no monthly_returns or symbol_stats exercises the
     `if analysis.monthly_returns` (354->359) and `if analysis.symbol_stats`
     (359->exit) False branches."""
@@ -609,7 +610,7 @@ def test_print_trade_analysis_empty_report():
     print_trade_analysis(TradeAnalysis())  # Should not raise
 
 
-def test_calculate_consecutive_streaks_with_zeros():
+def test_calculate_consecutive_streaks_with_zeros() -> None:
     """Zeros should not break or count as part of streaks."""
     from datetime import datetime
 
@@ -651,7 +652,7 @@ def test_calculate_consecutive_streaks_with_zeros():
     assert result == (2, 0, 2, "win")
 
 
-def test_calculate_holding_periods_partial_sell_records_each_leg():
+def test_calculate_holding_periods_partial_sell_records_each_leg() -> None:
     """Regression: a partial sell must record a holding period for the sold
     portion, not silently drop it (previously only the final full sell was
     recorded, undercounting round-trip holding periods).
@@ -696,7 +697,9 @@ def test_calculate_holding_periods_partial_sell_records_each_leg():
     assert abs(result[1] - 20.0) < 0.001
 
 
-def _result_with_trades(pnls, equity_values=None):
+def _result_with_trades(
+    pnls: list[float], equity_values: list[float] | None = None
+) -> BacktestResult:
     """Build a BacktestResult with one completed round trip per PnL.
 
     Each PnL is a buy (opening entry, no PnL) followed by a sell that closes
@@ -759,7 +762,7 @@ def _result_with_trades(pnls, equity_values=None):
     )
 
 
-def test_expectancy_is_positive_when_every_trade_wins():
+def test_expectancy_is_positive_when_every_trade_wins() -> None:
     """Regression: expectancy must not collapse to zero when no trade lost.
 
     The expectancy is ``win_rate * avg_win + loss_rate * avg_loss``, with
@@ -774,7 +777,7 @@ def test_expectancy_is_positive_when_every_trade_wins():
     assert analysis.expectancy == pytest.approx(62.5)
 
 
-def test_expectancy_is_negative_when_every_trade_loses():
+def test_expectancy_is_negative_when_every_trade_loses() -> None:
     """Every trade losing must give the negative average loss as expectancy."""
     analysis = analyze_trades(_result_with_trades([-50.0, -20.0]))
 
@@ -783,14 +786,14 @@ def test_expectancy_is_negative_when_every_trade_loses():
     assert analysis.expectancy == pytest.approx(-35.0)
 
 
-def test_expectancy_matches_the_weighted_average():
+def test_expectancy_matches_the_weighted_average() -> None:
     """The expectancy is the win rate weighted average of wins and losses."""
     analysis = analyze_trades(_result_with_trades([50.0, -20.0]))
 
     assert analysis.expectancy == pytest.approx(0.5 * 50.0 + 0.5 * -20.0)
 
 
-def test_trade_sharpe_changes_with_the_risk_free_rate():
+def test_trade_sharpe_changes_with_the_risk_free_rate() -> None:
     """Regression: the documented risk_free_rate must reach the trade Sharpe."""
     result = _result_with_trades([50.0, -20.0, -30.0, 10.0])
 
@@ -801,7 +804,7 @@ def test_trade_sharpe_changes_with_the_risk_free_rate():
     assert with_risk_free.sharpe_ratio < without_risk_free.sharpe_ratio
 
 
-def test_trade_sharpe_uses_the_per_trade_return_series():
+def test_trade_sharpe_uses_the_per_trade_return_series() -> None:
     """The trade-level Sharpe is the Sharpe of the per-trade return series."""
     from quant_trading.risk.metrics import calculate_sharpe_ratio
 
@@ -816,7 +819,7 @@ def test_trade_sharpe_uses_the_per_trade_return_series():
     assert analysis.sharpe_ratio == pytest.approx(expected)
 
 
-def test_trade_sortino_uses_the_per_trade_return_series():
+def test_trade_sortino_uses_the_per_trade_return_series() -> None:
     """The trade-level Sortino is the Sortino of the per-trade return series."""
     from quant_trading.risk.metrics import calculate_sortino_ratio
 
@@ -831,7 +834,7 @@ def test_trade_sortino_uses_the_per_trade_return_series():
     assert analysis.sortino_ratio == pytest.approx(expected)
 
 
-def test_trade_risk_metrics_are_zero_without_a_usable_equity_curve():
+def test_trade_risk_metrics_are_zero_without_a_usable_equity_curve() -> None:
     """An unusable equity curve yields zero risk metrics instead of raising."""
     result = _result_with_trades([50.0, -20.0, -30.0])
     result.equity_curve = pd.Series(dtype=float)
@@ -842,7 +845,7 @@ def test_trade_risk_metrics_are_zero_without_a_usable_equity_curve():
     assert analysis.sortino_ratio == 0.0
 
 
-def test_trade_risk_metrics_survive_an_equity_curve_without_dates():
+def test_trade_risk_metrics_survive_an_equity_curve_without_dates() -> None:
     """An equity curve that is not indexed by time yields zero risk metrics."""
     result = _result_with_trades([50.0, -20.0, -30.0])
     result.equity_curve = pd.Series([10000.0, 10000.0, 10000.0], index=[0, 1, 2])
@@ -853,7 +856,7 @@ def test_trade_risk_metrics_survive_an_equity_curve_without_dates():
     assert analysis.sortino_ratio == 0.0
 
 
-def test_calculate_consecutive_streaks_uses_chronological_order():
+def test_calculate_consecutive_streaks_uses_chronological_order() -> None:
     """Regression: streaks are temporal, so trades are ordered by timestamp."""
     from datetime import datetime
 
@@ -875,7 +878,7 @@ def test_calculate_consecutive_streaks_uses_chronological_order():
     assert current_type == "loss"
 
 
-def test_analyze_trades_reports_the_chronological_current_streak():
+def test_analyze_trades_reports_the_chronological_current_streak() -> None:
     """The reported current streak follows the order the trades happened in."""
     from datetime import datetime, timedelta
 
@@ -932,7 +935,7 @@ def test_analyze_trades_reports_the_chronological_current_streak():
     assert analysis.current_streak_type == "loss"
 
 
-def _short_result(trades_rows):
+def _short_result(trades_rows: list[dict[str, Any]]) -> BacktestResult:
     """Build a BacktestResult whose trades are the given short/cover rows."""
     from quant_trading.backtest.engine import BacktestResult
     from quant_trading.backtest.metrics import BacktestMetrics
@@ -956,7 +959,14 @@ def _short_result(trades_rows):
     )
 
 
-def _trade(symbol, action, quantity, price, timestamp, pnl):
+def _trade(
+    symbol: str,
+    action: str,
+    quantity: float,
+    price: float,
+    timestamp: datetime,
+    pnl: float,
+) -> dict[str, Any]:
     return {
         "symbol": symbol,
         "action": action,
@@ -970,7 +980,7 @@ def _trade(symbol, action, quantity, price, timestamp, pnl):
     }
 
 
-def test_short_round_trip_that_wins_counts_as_one_trade():
+def test_short_round_trip_that_wins_counts_as_one_trade() -> None:
     """A short entered below the exit price is a winner: one trade, one holding
     period, and the entry fee is folded into the cover rather than counted as a
     separate losing trade."""
@@ -994,7 +1004,7 @@ def test_short_round_trip_that_wins_counts_as_one_trade():
     assert analysis.max_holding_period == 2.0
 
 
-def test_short_round_trip_that_loses_counts_as_one_trade():
+def test_short_round_trip_that_loses_counts_as_one_trade() -> None:
     """A short exited above the entry price is a loser: one trade, one holding
     period."""
     from datetime import datetime
@@ -1015,7 +1025,7 @@ def test_short_round_trip_that_loses_counts_as_one_trade():
     assert analysis.avg_holding_period == 2.0
 
 
-def test_partially_covered_short_records_one_holding_period_per_cover():
+def test_partially_covered_short_records_one_holding_period_per_cover() -> None:
     """Several covers against one short: each cover is its own trade (mirrors
     the long side selling in parts) and each cover records its own holding
     period against the FIFO short entry."""
@@ -1038,12 +1048,13 @@ def test_partially_covered_short_records_one_holding_period_per_cover():
     assert abs(analysis.avg_holding_period - 15.0) < 0.001
     assert analysis.min_holding_period == 10.0
     assert analysis.max_holding_period == 20.0
+    assert analysis.symbol_stats is not None
     stats = analysis.symbol_stats["TEST"]
     assert stats["total_trades"] == 2
     assert stats["winning_trades"] == 2
 
 
-def test_short_never_covered_is_not_counted():
+def test_short_never_covered_is_not_counted() -> None:
     """A short with no cover is not a round trip: it contributes no trade even
     though its entry booked a (fee) PnL.
 
@@ -1060,10 +1071,11 @@ def test_short_never_covered_is_not_counted():
     assert analysis.losing_trades == 0
     assert analysis.total_pnl == -5.0
     assert analysis.open_position_pnl == -5.0
+    assert analysis.symbol_stats is not None
     assert analysis.symbol_stats["TEST"]["total_pnl"] == -5.0
 
 
-def test_short_entry_fee_is_folded_into_the_cover():
+def test_short_entry_fee_is_folded_into_the_cover() -> None:
     """The short's entry fee belongs to the cover that closes it.
 
     The entry fee is booked on the short row, but the short row is dropped
@@ -1088,7 +1100,7 @@ def test_short_entry_fee_is_folded_into_the_cover():
     assert analysis.avg_holding_period == 2.0
 
 
-def test_calculate_consecutive_streaks_without_a_timestamp_column():
+def test_calculate_consecutive_streaks_without_a_timestamp_column() -> None:
     """Trades that carry no timestamp are counted in the order they are given.
 
     There is no chronology to sort by, so the given order is the order the
@@ -1112,7 +1124,7 @@ def test_calculate_consecutive_streaks_without_a_timestamp_column():
     assert current_type == "loss"
 
 
-def test_equity_at_trade_times_returns_nan_for_an_unusable_timestamp():
+def test_equity_at_trade_times_returns_nan_for_an_unusable_timestamp() -> None:
     """A trade timestamp that cannot be matched to the equity curve yields NaN.
 
     The lookup must not raise when a trade carries a timestamp the equity
@@ -1129,7 +1141,7 @@ def test_equity_at_trade_times_returns_nan_for_an_unusable_timestamp():
     assert pd.isna(resolved.iloc[1])
 
 
-def test_calculate_trade_returns_without_a_timestamp_column():
+def test_calculate_trade_returns_without_a_timestamp_column() -> None:
     """Trades without a timestamp cannot be turned into per-trade returns."""
     from quant_trading.backtest.trade_analysis import _calculate_trade_returns
 
@@ -1142,7 +1154,7 @@ def test_calculate_trade_returns_without_a_timestamp_column():
     assert returns.isna().all()
 
 
-def test_analyze_trades_without_an_action_column():
+def test_analyze_trades_without_an_action_column() -> None:
     """A trades frame without an action column is analysed instead of raising.
 
     Without an action column there are no entries and exits to pair, so there
@@ -1197,7 +1209,7 @@ def test_analyze_trades_without_an_action_column():
 class TestTradeAnalysisFromDict:
     """Tests for TradeAnalysis.from_dict deserialization."""
 
-    def test_from_dict_round_trips_to_dict(self):
+    def test_from_dict_round_trips_to_dict(self) -> None:
         """from_dict must reconstruct a metrics object equal to its to_dict output."""
         analysis = TradeAnalysis(
             total_trades=4,
@@ -1284,7 +1296,7 @@ class TestTradeAnalysisFromDict:
         assert reconstructed.sharpe_ratio == analysis.sharpe_ratio
         assert reconstructed.sortino_ratio == analysis.sortino_ratio
 
-    def test_from_dict_defaults_missing_keys_to_zero(self):
+    def test_from_dict_defaults_missing_keys_to_zero(self) -> None:
         """Missing keys must fall back to the dataclass defaults."""
         analysis = TradeAnalysis.from_dict({"total_trades": 5, "sharpe_ratio": 1.5})
 
@@ -1317,7 +1329,7 @@ class TestTradeAnalysisFromDict:
         assert analysis.sharpe_ratio == 1.5
         assert analysis.sortino_ratio == 0.0
 
-    def test_from_dict_ignores_extra_keys(self):
+    def test_from_dict_ignores_extra_keys(self) -> None:
         """Extra keys in the dictionary must not raise."""
         data = TradeAnalysis(total_trades=3).to_dict()
         data["unknown_metric"] = 42.0
@@ -1325,7 +1337,7 @@ class TestTradeAnalysisFromDict:
         analysis = TradeAnalysis.from_dict(data)
         assert analysis.total_trades == 3
 
-    def test_from_dict_preserves_integer_trade_counts(self):
+    def test_from_dict_preserves_integer_trade_counts(self) -> None:
         """Integer trade-count fields must survive a dictionary round-trip."""
         analysis = TradeAnalysis(total_trades=7, winning_trades=4, losing_trades=3)
         reconstructed = TradeAnalysis.from_dict(analysis.to_dict())
