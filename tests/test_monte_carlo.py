@@ -55,7 +55,7 @@ def _make_empty_result() -> MonteCarloResult:
     )
 
 
-def test_monte_carlo_result_runs_n_simulations():
+def test_monte_carlo_result_runs_n_simulations() -> None:
     result = _make_result()
     mc = MonteCarloSimulator(n_simulations=50, random_state=42)
     sim = mc.run(result, method="bootstrap")
@@ -68,7 +68,7 @@ def test_monte_carlo_result_runs_n_simulations():
     assert sim.original_metrics is result.metrics
 
 
-def test_run_monte_carlo_convenience_function():
+def test_run_monte_carlo_convenience_function() -> None:
     result = _make_result()
     sim = run_monte_carlo(result, n_simulations=25, random_state=7)
 
@@ -77,7 +77,7 @@ def test_run_monte_carlo_convenience_function():
     assert sim.duration_seconds >= 0.0
 
 
-def test_monte_carlo_periods_per_year_annualizes_simulated_metrics():
+def test_monte_carlo_periods_per_year_annualizes_simulated_metrics() -> None:
     """The simulated metrics must be annualized with the requested period count."""
     result = _make_result()
     daily = run_monte_carlo(result, n_simulations=10, random_state=7, periods_per_year=252)
@@ -87,7 +87,7 @@ def test_monte_carlo_periods_per_year_annualizes_simulated_metrics():
     assert daily.simulations[0].sharpe_ratio != pytest.approx(monthly.simulations[0].sharpe_ratio)
 
 
-def test_monte_carlo_simulator_stores_periods_per_year():
+def test_monte_carlo_simulator_stores_periods_per_year() -> None:
     result = _make_result()
     simulator = MonteCarloSimulator(n_simulations=5, random_state=7, periods_per_year=52)
     assert simulator.periods_per_year == 52
@@ -95,7 +95,7 @@ def test_monte_carlo_simulator_stores_periods_per_year():
     assert len(sim.simulations) == 5
 
 
-def test_monte_carlo_reproducible_with_seed():
+def test_monte_carlo_reproducible_with_seed() -> None:
     result = _make_result()
     a = run_monte_carlo(result, n_simulations=30, random_state=123)
     b = run_monte_carlo(result, n_simulations=30, random_state=123)
@@ -105,7 +105,7 @@ def test_monte_carlo_reproducible_with_seed():
         assert ma.total_return_pct == pytest.approx(mb.total_return_pct)
 
 
-def test_monte_carlo_confidence_interval_bounds():
+def test_monte_carlo_confidence_interval_bounds() -> None:
     result = _make_result()
     sim = run_monte_carlo(result, n_simulations=100, random_state=1)
 
@@ -113,7 +113,7 @@ def test_monte_carlo_confidence_interval_bounds():
     assert lower <= upper
 
 
-def test_monte_carlo_probability_of_profit_in_range():
+def test_monte_carlo_probability_of_profit_in_range() -> None:
     result = _make_result()
     sim = run_monte_carlo(result, n_simulations=100, random_state=5)
 
@@ -121,7 +121,7 @@ def test_monte_carlo_probability_of_profit_in_range():
     assert 0.0 <= p <= 1.0
 
 
-def test_monte_carlo_probability_of_beat_benchmark():
+def test_monte_carlo_probability_of_beat_benchmark() -> None:
     result = _make_result()
     sim = run_monte_carlo(result, n_simulations=100, random_state=5)
 
@@ -129,7 +129,7 @@ def test_monte_carlo_probability_of_beat_benchmark():
     assert 0.0 <= p <= 1.0
 
 
-def test_monte_carlo_expected_shortfall_is_float():
+def test_monte_carlo_expected_shortfall_is_float() -> None:
     result = _make_result()
     sim = run_monte_carlo(result, n_simulations=100, random_state=5)
 
@@ -137,7 +137,7 @@ def test_monte_carlo_expected_shortfall_is_float():
     assert isinstance(es, float)
 
 
-def test_monte_carlo_get_percentile_returns_float():
+def test_monte_carlo_get_percentile_returns_float() -> None:
     result = _make_result()
     sim = run_monte_carlo(result, n_simulations=50, random_state=9)
 
@@ -145,7 +145,7 @@ def test_monte_carlo_get_percentile_returns_float():
     assert isinstance(val, float)
 
 
-def test_monte_carlo_to_dataframe_has_rows():
+def test_monte_carlo_to_dataframe_has_rows() -> None:
     result = _make_result()
     sim = run_monte_carlo(result, n_simulations=20, random_state=3)
 
@@ -154,7 +154,7 @@ def test_monte_carlo_to_dataframe_has_rows():
     assert "sharpe_ratio" in df.columns
 
 
-def test_monte_carlo_summary_contains_keys():
+def test_monte_carlo_summary_contains_keys() -> None:
     result = _make_result()
     sim = run_monte_carlo(result, n_simulations=20, random_state=3)
 
@@ -165,7 +165,7 @@ def test_monte_carlo_summary_contains_keys():
     assert "sharpe_ratio_ci_lower" in summary
 
 
-def test_monte_carlo_unknown_method_raises():
+def test_monte_carlo_unknown_method_raises() -> None:
     result = _make_result()
     sim = MonteCarloSimulator(n_simulations=10, random_state=1)
 
@@ -173,7 +173,7 @@ def test_monte_carlo_unknown_method_raises():
         sim.run(result, method="bogus")
 
 
-def test_monte_carlo_insufficient_data_raises():
+def test_monte_carlo_insufficient_data_raises() -> None:
     equity = pd.Series([100_000.0])
     result = _make_result(equity=equity)
 
@@ -182,14 +182,14 @@ def test_monte_carlo_insufficient_data_raises():
         sim.run(result)
 
 
-def test_monte_carlo_parametric_method_runs():
+def test_monte_carlo_parametric_method_runs() -> None:
     result = _make_result()
     sim = run_monte_carlo(result, n_simulations=20, method="parametric", random_state=11)
 
     assert len(sim.simulations) == 20
 
 
-def test_monte_carlo_result_to_dataframe_empty():
+def test_monte_carlo_result_to_dataframe_empty() -> None:
     from datetime import datetime
 
     from quant_trading.backtest.metrics import BacktestMetrics
@@ -208,7 +208,7 @@ def test_monte_carlo_result_to_dataframe_empty():
     assert df.empty
 
 
-def test_monte_carlo_result_summary_empty():
+def test_monte_carlo_result_summary_empty() -> None:
     from datetime import datetime
 
     from quant_trading.backtest.metrics import BacktestMetrics
@@ -227,42 +227,42 @@ def test_monte_carlo_result_summary_empty():
     assert summary == {}
 
 
-def test_monte_carlo_result_probability_of_profit_empty_raises():
+def test_monte_carlo_result_probability_of_profit_empty_raises() -> None:
     """probability_of_profit raises on an empty result instead of dividing by zero."""
     res = _make_empty_result()
     with pytest.raises(ValueError, match="No simulations available"):
         res.probability_of_profit()
 
 
-def test_monte_carlo_result_probability_of_beat_benchmark_empty_raises():
+def test_monte_carlo_result_probability_of_beat_benchmark_empty_raises() -> None:
     """probability_of_beat_benchmark raises on an empty result."""
     res = _make_empty_result()
     with pytest.raises(ValueError, match="No simulations available"):
         res.probability_of_beat_benchmark(0.0)
 
 
-def test_monte_carlo_result_get_percentile_empty_raises():
+def test_monte_carlo_result_get_percentile_empty_raises() -> None:
     """get_percentile raises on an empty result instead of an opaque numpy error."""
     res = _make_empty_result()
     with pytest.raises(ValueError, match="No simulations available"):
         res.get_percentile("total_return_pct", 50)
 
 
-def test_monte_carlo_result_get_confidence_interval_empty_raises():
+def test_monte_carlo_result_get_confidence_interval_empty_raises() -> None:
     """get_confidence_interval raises on an empty result."""
     res = _make_empty_result()
     with pytest.raises(ValueError, match="No simulations available"):
         res.get_confidence_interval("total_return_pct")
 
 
-def test_monte_carlo_result_expected_shortfall_empty_raises():
+def test_monte_carlo_result_expected_shortfall_empty_raises() -> None:
     """expected_shortfall raises on an empty result instead of an opaque numpy error."""
     res = _make_empty_result()
     with pytest.raises(ValueError, match="No simulations available"):
         res.expected_shortfall("total_return_pct", confidence=0.95)
 
 
-def test_monte_carlo_parametric_constant_returns():
+def test_monte_carlo_parametric_constant_returns() -> None:
     """Parametric method handles a degenerate (zero-variance) return distribution."""
     # A flat equity curve yields all-zero returns (std == 0).
     equity = pd.Series([100_000.0] * 60)
@@ -275,7 +275,7 @@ def test_monte_carlo_parametric_constant_returns():
     assert all(m.total_return_pct == 0.0 for m in sim.simulations)
 
 
-def test_monte_carlo_parametric_negative_returns():
+def test_monte_carlo_parametric_negative_returns() -> None:
     """Parametric method handles an extreme all-negative return distribution."""
     import numpy as np
 
@@ -293,7 +293,7 @@ def test_monte_carlo_parametric_negative_returns():
     assert sim.summary()["probability_of_profit"] == 0.0
 
 
-def test_monte_carlo_summary_is_json_serializable():
+def test_monte_carlo_summary_is_json_serializable() -> None:
     """summary() output must be JSON-serializable for result serialization."""
     import json
 
@@ -304,7 +304,7 @@ def test_monte_carlo_summary_is_json_serializable():
     json.dumps(summary)  # should not raise
 
 
-def test_monte_carlo_probability_of_beat_benchmark_extremes():
+def test_monte_carlo_probability_of_beat_benchmark_extremes() -> None:
     """probability_of_beat_benchmark returns 0.0 and 1.0 at extremes."""
     result = _make_result()
     sim = run_monte_carlo(result, n_simulations=50, random_state=5)
@@ -316,36 +316,36 @@ def test_monte_carlo_probability_of_beat_benchmark_extremes():
     assert sim.probability_of_beat_benchmark(low_benchmark) == 1.0
 
 
-def test_monte_carlo_simulator_stores_risk_free_rate():
+def test_monte_carlo_simulator_stores_risk_free_rate() -> None:
     """The simulator stores the configured risk-free rate."""
     simulator = MonteCarloSimulator(n_simulations=5, random_state=7, risk_free_rate=0.05)
     assert simulator.risk_free_rate == 0.05
 
 
-def test_monte_carlo_default_risk_free_rate_is_002():
+def test_monte_carlo_default_risk_free_rate_is_002() -> None:
     simulator = MonteCarloSimulator(n_simulations=5, random_state=7)
     assert simulator.risk_free_rate == 0.02
 
 
 @pytest.mark.parametrize("n_simulations", [0, -1, -5])
-def test_monte_carlo_rejects_invalid_n_simulations(n_simulations):
+def test_monte_carlo_rejects_invalid_n_simulations(n_simulations: int) -> None:
     with pytest.raises(ValueError, match="invalid n_simulations"):
         MonteCarloSimulator(n_simulations=n_simulations, random_state=7)
 
 
 @pytest.mark.parametrize("confidence_level", [0.0, -0.5, 1.0, 1.5])
-def test_monte_carlo_rejects_invalid_confidence_level(confidence_level):
+def test_monte_carlo_rejects_invalid_confidence_level(confidence_level: float) -> None:
     with pytest.raises(ValueError, match="invalid confidence_level"):
         MonteCarloSimulator(n_simulations=10, confidence_level=confidence_level, random_state=7)
 
 
 @pytest.mark.parametrize("periods_per_year", [0, -1, -252])
-def test_monte_carlo_rejects_invalid_periods_per_year(periods_per_year):
+def test_monte_carlo_rejects_invalid_periods_per_year(periods_per_year: int) -> None:
     with pytest.raises(ValueError, match="invalid periods_per_year"):
         MonteCarloSimulator(n_simulations=10, periods_per_year=periods_per_year, random_state=7)
 
 
-def test_monte_carlo_accepts_minimal_valid_values():
+def test_monte_carlo_accepts_minimal_valid_values() -> None:
     simulator = MonteCarloSimulator(
         n_simulations=1,
         confidence_level=0.5,
@@ -357,13 +357,13 @@ def test_monte_carlo_accepts_minimal_valid_values():
     assert simulator.periods_per_year == 1
 
 
-def test_monte_carlo_run_monte_carlo_rejects_invalid_n_simulations():
+def test_monte_carlo_run_monte_carlo_rejects_invalid_n_simulations() -> None:
     result = _make_result()
     with pytest.raises(ValueError, match="invalid n_simulations"):
         run_monte_carlo(result, n_simulations=0, random_state=7)
 
 
-def test_monte_carlo_risk_free_rate_reaches_simulated_metrics():
+def test_monte_carlo_risk_free_rate_reaches_simulated_metrics() -> None:
     """A non-default risk-free rate must change the simulated Sharpe/Sortino.
 
     Regression test: the simulator previously hardcoded ``risk_free_rate=0.02``
@@ -384,7 +384,7 @@ def test_monte_carlo_risk_free_rate_reaches_simulated_metrics():
         assert h.sortino_ratio != pytest.approx(d.sortino_ratio)
 
 
-def test_monte_carlo_risk_free_rate_parametric_method():
+def test_monte_carlo_risk_free_rate_parametric_method() -> None:
     """The risk-free rate is honoured by the parametric method too."""
     result = _make_result()
 
@@ -407,7 +407,7 @@ if __name__ == "__main__":
 class TestMonteCarloResultSerialization:
     """Tests for MonteCarloResult.to_dict/from_dict."""
 
-    def test_to_dict_round_trips(self):
+    def test_to_dict_round_trips(self) -> None:
         result = _make_result()
         sim = run_monte_carlo(result, n_simulations=12, random_state=42)
         data = sim.to_dict()
@@ -426,7 +426,7 @@ class TestMonteCarloResultSerialization:
             assert recon.sharpe_ratio == pytest.approx(orig.sharpe_ratio)
             assert recon.num_trades == orig.num_trades
 
-    def test_to_dict_is_json_serializable(self):
+    def test_to_dict_is_json_serializable(self) -> None:
         result = _make_result()
         sim = run_monte_carlo(result, n_simulations=5, random_state=1)
         data = sim.to_dict()
@@ -436,7 +436,7 @@ class TestMonteCarloResultSerialization:
         assert reconstructed.n_simulations == 5
         assert len(reconstructed.simulations) == 5
 
-    def test_from_dict_defaults_missing_keys(self):
+    def test_from_dict_defaults_missing_keys(self) -> None:
         mc = MonteCarloResult.from_dict({})
         assert mc.n_simulations == 0
         assert mc.confidence_level == 0.95
@@ -444,7 +444,7 @@ class TestMonteCarloResultSerialization:
         assert mc.start_time == datetime(1970, 1, 1)
         assert mc.end_time == datetime(1970, 1, 1)
 
-    def test_from_dict_ignores_extra_keys(self):
+    def test_from_dict_ignores_extra_keys(self) -> None:
         m = BacktestMetrics(total_return=1.0)
         mc = MonteCarloResult(
             simulations=[m],
@@ -460,7 +460,7 @@ class TestMonteCarloResultSerialization:
         assert reconstructed.n_simulations == 1
         assert len(reconstructed.simulations) == 1
 
-    def test_from_dict_empty_simulations(self):
+    def test_from_dict_empty_simulations(self) -> None:
         m = BacktestMetrics()
         mc = MonteCarloResult([], m, 0, 0.95, datetime(2024, 1, 1), datetime(2024, 1, 1))
         reconstructed = MonteCarloResult.from_dict(mc.to_dict())
