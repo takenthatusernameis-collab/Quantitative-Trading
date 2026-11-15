@@ -2660,6 +2660,58 @@ class TestBenchmarkRelativeMetrics:
         assert result.metrics.beta == 0.0
         assert result.metrics.alpha == 0.0
 
+    def test_empty_benchmark_series_is_ignored(self) -> None:
+        """A benchmark that resolves to an empty frame leaves the metrics at zero."""
+        data = {
+            "TEST": _price_frame([50.0, 55.0, 60.5, 66.55]),
+            "BENCH": pd.DataFrame(),
+        }
+        result = self._run(data, ["TEST"], "BENCH", [("buy", 1.0)])
+
+        assert result.metrics.beta == 0.0
+        assert result.metrics.alpha == 0.0
+
+    def test_benchmark_without_close_column_is_ignored(self) -> None:
+        """A benchmark frame with no ``close`` column leaves the metrics at zero."""
+        index = pd.date_range("2024-01-01", periods=4, freq="D")
+        data = {
+            "TEST": _price_frame([50.0, 55.0, 60.5, 66.55]),
+            "BENCH": pd.DataFrame({"open": [100.0, 110.0, 121.0, 133.1]}, index=index),
+        }
+        result = self._run(data, ["TEST"], "BENCH", [("buy", 1.0)])
+
+        assert result.metrics.beta == 0.0
+        assert result.metrics.alpha == 0.0
+
+    def test_non_monotonic_benchmark_index_is_ignored(self) -> None:
+        """A benchmark whose index cannot be reindexed leaves the metrics at zero."""
+        shuffled = _price_frame([100.0, 110.0, 121.0, 133.1]).iloc[[2, 0, 3, 1]]
+        data = {
+            "TEST": _price_frame([50.0, 55.0, 60.5, 66.55]),
+            "BENCH": shuffled,
+        }
+        result = self._run(data, ["TEST"], "BENCH", [("buy", 1.0)])
+
+        assert result.metrics.beta == 0.0
+        assert result.metrics.alpha == 0.0
+
+
+class TestRiskAttributionFallback:
+    """The engine degrades gracefully when risk attribution cannot be computed."""
+
+    def test_risk_attribution_failure_leaves_result_none(self) -> None:
+        """A risk manager that raises during attribution yields ``risk_attribution`` None."""
+        risk_manager = RiskManager(initial_capital=100000.0)
+        risk_manager.calculate_risk_attribution = MagicMock(  # type: ignore[method-assign]
+            side_effect=ValueError("insufficient return history")
+        )
+        data = {"TEST": _price_frame([50.0, 55.0, 60.5, 66.55])}
+        result, _ = _run_script([("buy", 1.0)], data, risk_manager=risk_manager)
+
+        # A position is open at the end, so attribution was attempted and failed.
+        assert result.positions
+        assert result.risk_attribution is None
+
 
 class TestBacktestResultSerialization:
     """Tests for BacktestResult.to_dict/from_dict."""
