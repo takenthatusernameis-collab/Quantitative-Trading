@@ -624,6 +624,28 @@ class TestDrawdownGate:
         assert result.passed is True
         assert result.violations == []
 
+    def test_a_buy_that_covers_a_synced_short_is_allowed_in_a_drawdown_breach(self) -> None:
+        """Covering a synced short stays allowed during a drawdown breach.
+
+        The breach is established by a full portfolio refresh, then the short is
+        synced in as an executed trade. ``sync_position`` refreshes only the
+        position view, so the drawdown the gate reads is the one from the earlier
+        refresh. The buy still reduces the gross exposure and must not be gated.
+        """
+        rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
+        rm.update_portfolio_value({}, 75000.0)
+        assert rm.portfolio_risk.current_drawdown == pytest.approx(-0.25)
+
+        rm.sync_position("AAPL", Position("AAPL", -100, 150.0, 150.0))
+        assert rm.positions["AAPL"].quantity < 0
+        # sync_position does not recompute the totals, so the breach still stands.
+        assert rm.portfolio_risk.current_drawdown == pytest.approx(-0.25)
+
+        signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=150.0)
+        result = rm.check_signal(signal)
+        assert result.passed is True
+        assert result.violations == []
+
     def test_a_sell_is_not_gated_by_a_drawdown_breach(self) -> None:
         """A sell reduces a long, so it stays allowed while the breach lasts."""
         rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
