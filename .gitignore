@@ -54,3 +54,6 @@ node_modules/
 
 # Test data cache (yfinance fixtures/caches; do not commit)
 tests/data/cache/
+
+# Generated example output (HTML reports, charts) from examples/run_sensitivity.py
+examples/output/

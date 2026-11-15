@@ -911,6 +911,19 @@ sliding walk-forward windows to measure out-of-sample parameter stability:
 python examples/run_optimization.py
 ```
 
+For a parameter sensitivity analysis demonstration, see
+`examples/run_sensitivity.py`. It runs the same grid search as the
+optimization example, then feeds the resulting scores into the sensitivity
+analysis module: `prepare_sensitivity_data` builds a tidy DataFrame,
+`create_1d_sensitivity_plot` and `create_2d_sensitivity_heatmap` render
+individual charts, and `generate_sensitivity_report_html` writes a standalone
+HTML report (1D plots, 2D heatmaps, a parameter-interaction heatmap, and a
+summary table) to `examples/output/sensitivity_report.html`:
+
+```bash
+python examples/run_sensitivity.py
+```
+
 For a trend-following demonstration using the Parabolic SAR indicator, see
 `examples/run_parabolic_sar.py`. It runs the `ParabolicSARStrategy` against
 seeded synthetic data, generating buy signals when price crosses above the
