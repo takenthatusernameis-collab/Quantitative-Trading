@@ -1,5 +1,7 @@
 """Tests for the risk manager."""
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -18,7 +20,7 @@ from quant_trading.strategies.base import Position, Signal
 class TestRiskManagerInit:
     """Tests for RiskManager initialization."""
 
-    def test_default_initialization(self):
+    def test_default_initialization(self) -> None:
         rm = RiskManager()
         assert rm.initial_capital == 100000.0
         assert rm.risk_enabled is True
@@ -31,7 +33,7 @@ class TestRiskManagerInit:
         assert rm.portfolio_risk.cash == 100000.0
         assert rm.portfolio_risk.peak_value == 100000.0
 
-    def test_custom_initialization(self):
+    def test_custom_initialization(self) -> None:
         rm = RiskManager(
             initial_capital=50000.0,
             max_position_size=0.2,
@@ -51,16 +53,16 @@ class TestRiskManagerInit:
         assert rm.portfolio_limit.max_drawdown == 0.30
         assert rm.portfolio_risk.total_market_value == 50000.0
 
-    def test_portfolio_risk_total_value_property(self):
+    def test_portfolio_risk_total_value_property(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         assert rm.portfolio_risk.total_value == rm.portfolio_risk.total_market_value == 100000.0
 
-    def test_portfolio_limit_receives_stop_loss_pct(self):
+    def test_portfolio_limit_receives_stop_loss_pct(self) -> None:
         """The stop loss distance is shared with the portfolio risk limit."""
         rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10)
         assert rm.portfolio_limit.stop_loss_pct == 0.10
 
-    def test_portfolio_limit_receives_max_leverage(self):
+    def test_portfolio_limit_receives_max_leverage(self) -> None:
         """The leverage limit is forwarded to the portfolio limit."""
         rm = RiskManager(initial_capital=100000.0, max_leverage=2.5)
         assert rm.portfolio_limit.max_leverage == 2.5
@@ -72,99 +74,103 @@ class TestRiskManagerInitValidation:
     @pytest.mark.parametrize(
         "initial_capital", [0.0, -1000.0, -1.0, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_invalid_initial_capital(self, initial_capital):
+    def test_rejects_invalid_initial_capital(self, initial_capital: Any) -> None:
         with pytest.raises(ValueError, match="invalid initial_capital"):
             RiskManager(initial_capital=initial_capital)
 
     @pytest.mark.parametrize(
         "max_position_size", [0.0, -0.1, 1.5, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_invalid_max_position_size(self, max_position_size):
+    def test_rejects_invalid_max_position_size(self, max_position_size: Any) -> None:
         with pytest.raises(ValueError, match="invalid max_position_size"):
             RiskManager(max_position_size=max_position_size)
 
     @pytest.mark.parametrize(
         "max_portfolio_risk", [0.0, -0.5, 1.5, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_invalid_max_portfolio_risk(self, max_portfolio_risk):
+    def test_rejects_invalid_max_portfolio_risk(self, max_portfolio_risk: Any) -> None:
         with pytest.raises(ValueError, match="invalid max_portfolio_risk"):
             RiskManager(max_portfolio_risk=max_portfolio_risk)
 
     @pytest.mark.parametrize("max_drawdown", [-0.1, 1.5, float("nan"), float("inf"), float("-inf")])
-    def test_rejects_invalid_max_drawdown(self, max_drawdown):
+    def test_rejects_invalid_max_drawdown(self, max_drawdown: Any) -> None:
         with pytest.raises(ValueError, match="invalid max_drawdown"):
             RiskManager(max_drawdown=max_drawdown)
 
     @pytest.mark.parametrize("max_drawdown", [0.0, 1.0])
-    def test_accepts_max_drawdown_boundaries(self, max_drawdown):
+    def test_accepts_max_drawdown_boundaries(self, max_drawdown: float) -> None:
         rm = RiskManager(max_drawdown=max_drawdown)
         assert rm.portfolio_limit.max_drawdown == max_drawdown
 
     @pytest.mark.parametrize(
         "max_positions", [0, -1, -5, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_invalid_max_positions(self, max_positions):
+    def test_rejects_invalid_max_positions(self, max_positions: Any) -> None:
         with pytest.raises(ValueError, match="invalid max_positions"):
             RiskManager(max_positions=max_positions)
 
     @pytest.mark.parametrize(
         "stop_loss_pct", [-0.1, 1.5, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_invalid_stop_loss_pct(self, stop_loss_pct):
+    def test_rejects_invalid_stop_loss_pct(self, stop_loss_pct: Any) -> None:
         with pytest.raises(ValueError, match="invalid stop_loss_pct"):
             RiskManager(stop_loss_pct=stop_loss_pct)
 
     @pytest.mark.parametrize("stop_loss_pct", [0.0, 1.0])
-    def test_accepts_stop_loss_pct_boundaries(self, stop_loss_pct):
+    def test_accepts_stop_loss_pct_boundaries(self, stop_loss_pct: float) -> None:
         rm = RiskManager(stop_loss_pct=stop_loss_pct)
         assert rm.position_limit.stop_loss_pct == stop_loss_pct
 
     @pytest.mark.parametrize(
         "take_profit_pct", [-0.1, 1.5, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_invalid_take_profit_pct(self, take_profit_pct):
+    def test_rejects_invalid_take_profit_pct(self, take_profit_pct: Any) -> None:
         with pytest.raises(ValueError, match="invalid take_profit_pct"):
             RiskManager(take_profit_pct=take_profit_pct)
 
     @pytest.mark.parametrize("take_profit_pct", [0.0, 1.0])
-    def test_accepts_take_profit_pct_boundaries(self, take_profit_pct):
+    def test_accepts_take_profit_pct_boundaries(self, take_profit_pct: float) -> None:
         rm = RiskManager(take_profit_pct=take_profit_pct)
         assert rm.position_limit.take_profit_pct == take_profit_pct
 
     @pytest.mark.parametrize("max_leverage", [0.0, -1.0, float("nan"), float("inf"), float("-inf")])
-    def test_rejects_invalid_max_leverage(self, max_leverage):
+    def test_rejects_invalid_max_leverage(self, max_leverage: Any) -> None:
         with pytest.raises(ValueError, match="invalid max_leverage"):
             RiskManager(max_leverage=max_leverage)
 
-    def test_accepts_minimal_positive_max_leverage(self):
+    def test_accepts_minimal_positive_max_leverage(self) -> None:
         rm = RiskManager(max_leverage=1e-9)
         assert rm.portfolio_limit.max_leverage == 1e-9
 
     @pytest.mark.parametrize(
         "trailing_stop_pct", [-0.1, 1.5, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_invalid_trailing_stop_pct(self, trailing_stop_pct):
+    def test_rejects_invalid_trailing_stop_pct(self, trailing_stop_pct: Any) -> None:
         with pytest.raises(ValueError, match="invalid trailing_stop_pct"):
             RiskManager(trailing_stop_pct=trailing_stop_pct)
 
     @pytest.mark.parametrize("trailing_stop_pct", [0.0, 1.0])
-    def test_accepts_trailing_stop_pct_boundaries(self, trailing_stop_pct):
+    def test_accepts_trailing_stop_pct_boundaries(self, trailing_stop_pct: float) -> None:
         rm = RiskManager(trailing_stop_pct=trailing_stop_pct)
         assert rm.trailing_stop_pct == trailing_stop_pct
 
     @pytest.mark.parametrize(
         "trailing_stop_activation_pct", [-0.1, 1.5, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_invalid_trailing_stop_activation_pct(self, trailing_stop_activation_pct):
+    def test_rejects_invalid_trailing_stop_activation_pct(
+        self, trailing_stop_activation_pct: Any
+    ) -> None:
         with pytest.raises(ValueError, match="invalid trailing_stop_activation_pct"):
             RiskManager(trailing_stop_activation_pct=trailing_stop_activation_pct)
 
     @pytest.mark.parametrize("trailing_stop_activation_pct", [0.0, 1.0])
-    def test_accepts_trailing_stop_activation_pct_boundaries(self, trailing_stop_activation_pct):
+    def test_accepts_trailing_stop_activation_pct_boundaries(
+        self, trailing_stop_activation_pct: float
+    ) -> None:
         rm = RiskManager(trailing_stop_activation_pct=trailing_stop_activation_pct)
         assert rm.trailing_stop_activation_pct == trailing_stop_activation_pct
 
-    def test_accepts_all_boundary_valid_values(self):
+    def test_accepts_all_boundary_valid_values(self) -> None:
         rm = RiskManager(
             initial_capital=1.0,
             max_position_size=1.0,
@@ -188,7 +194,7 @@ class TestRiskManagerInitValidation:
 class TestPortfolioRiskSerialization:
     """Tests for PortfolioRisk.to_dict/from_dict serialization."""
 
-    def test_to_dict_exposes_all_fields(self):
+    def test_to_dict_exposes_all_fields(self) -> None:
         pr = PortfolioRisk(
             total_market_value=100000.0,
             cash=50000.0,
@@ -206,7 +212,7 @@ class TestPortfolioRiskSerialization:
             "peak_value": 110000.0,
         }
 
-    def test_to_dict_defaults(self):
+    def test_to_dict_defaults(self) -> None:
         pr = PortfolioRisk()
         assert pr.to_dict() == {
             "total_market_value": 0.0,
@@ -217,11 +223,11 @@ class TestPortfolioRiskSerialization:
             "peak_value": 0.0,
         }
 
-    def test_from_dict_round_trips(self):
+    def test_from_dict_round_trips(self) -> None:
         pr = PortfolioRisk(100000.0, 50000.0, 50000.0, 0.5, -0.1, 110000.0)
         assert PortfolioRisk.from_dict(pr.to_dict()) == pr
 
-    def test_from_dict_json_round_trip(self):
+    def test_from_dict_json_round_trip(self) -> None:
         import json
 
         pr = PortfolioRisk(100000.0, 50000.0, 50000.0)
@@ -229,11 +235,11 @@ class TestPortfolioRiskSerialization:
         restored = PortfolioRisk.from_dict(decoded)
         assert restored == pr
 
-    def test_from_dict_defaults_missing_keys(self):
+    def test_from_dict_defaults_missing_keys(self) -> None:
         restored = PortfolioRisk.from_dict({})
         assert restored == PortfolioRisk()
 
-    def test_from_dict_ignores_extra_keys(self):
+    def test_from_dict_ignores_extra_keys(self) -> None:
         data = PortfolioRisk(100000.0, 50000.0, 50000.0).to_dict()
         data["unknown"] = 123
         restored = PortfolioRisk.from_dict(data)
@@ -243,7 +249,7 @@ class TestPortfolioRiskSerialization:
 class TestUpdatePortfolioValue:
     """Tests for update_portfolio_value."""
 
-    def test_update_with_empty_positions(self):
+    def test_update_with_empty_positions(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         rm.update_portfolio_value({}, 100000.0)
         assert rm.portfolio_risk.positions_value == 0.0
@@ -254,7 +260,7 @@ class TestUpdatePortfolioValue:
         assert rm.peak_value == 100000.0
         assert len(rm.history) == 1
 
-    def test_update_with_positions(self):
+    def test_update_with_positions(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         positions = {
             "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)
@@ -267,7 +273,7 @@ class TestUpdatePortfolioValue:
         assert rm.equity_curve[-1] == 40000.0
         assert len(rm.history) == 1
 
-    def test_update_tracks_drawdown_and_peak(self):
+    def test_update_tracks_drawdown_and_peak(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         rm.update_portfolio_value({}, 120000.0)
         assert rm.peak_value == 120000.0
@@ -279,7 +285,7 @@ class TestUpdatePortfolioValue:
         assert rm.peak_value == 120000.0
         assert rm.portfolio_risk.current_drawdown == pytest.approx((90000 - 120000) / 120000)
 
-    def test_update_at_new_peak_reports_no_drawdown(self):
+    def test_update_at_new_peak_reports_no_drawdown(self) -> None:
         """A portfolio at a new high reports a zero drawdown, never a positive one."""
         rm = RiskManager(initial_capital=100000.0)
         for value in (120000.0, 150000.0, 200000.0):
@@ -289,7 +295,7 @@ class TestUpdatePortfolioValue:
             assert rm.peak_value == value
             assert rm.history[-1]["drawdown"] == 0.0
 
-    def test_update_reports_drawdown_below_the_peak(self):
+    def test_update_reports_drawdown_below_the_peak(self) -> None:
         """Below the peak the drawdown is negative and matches the peak."""
         rm = RiskManager(initial_capital=100000.0)
         rm.update_portfolio_value({}, 120000.0)
@@ -298,13 +304,13 @@ class TestUpdatePortfolioValue:
         assert rm.portfolio_risk.current_drawdown < 0.0
         assert rm.portfolio_risk.peak_value == 120000.0
 
-    def test_update_zero_value_no_leverage(self):
+    def test_update_zero_value_no_leverage(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         rm.update_portfolio_value({}, 0.0)
         assert rm.portfolio_risk.leverage == 0.0
         assert rm.portfolio_risk.current_drawdown == pytest.approx((0 - 100000) / 100000)
 
-    def test_short_position_reports_gross_leverage(self):
+    def test_short_position_reports_gross_leverage(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         positions = {"AAPL": Position("AAPL", -100, 150.0, 152.0)}
         rm.update_portfolio_value(positions, 50000.0)
@@ -317,7 +323,7 @@ class TestUpdatePortfolioValue:
 class TestCheckSignal:
     """Tests for check_signal."""
 
-    def test_risk_disabled_returns_passed(self):
+    def test_risk_disabled_returns_passed(self) -> None:
         rm = RiskManager()
         rm.disable()
         signal = Signal(symbol="AAPL", action="buy", price=150.0)
@@ -326,14 +332,14 @@ class TestCheckSignal:
         assert result.passed is True
         assert result.violations == []
 
-    def test_portfolio_value_zero_or_negative(self):
+    def test_portfolio_value_zero_or_negative(self) -> None:
         rm = RiskManager()
         signal = Signal(symbol="AAPL", action="buy", price=150.0)
         result = rm.check_signal(signal, portfolio_value=-1.0)
         assert result.passed is False
         assert any("zero or negative" in v for v in result.violations)
 
-    def test_explicit_zero_portfolio_value_is_rejected(self):
+    def test_explicit_zero_portfolio_value_is_rejected(self) -> None:
         """An explicit portfolio value of 0.0 is rejected, not treated as unset.
 
         The internal portfolio value is only used when the argument is None,
@@ -346,7 +352,7 @@ class TestCheckSignal:
         assert result.passed is False
         assert any("zero or negative" in v for v in result.violations)
 
-    def test_missing_portfolio_value_uses_the_internal_value(self):
+    def test_missing_portfolio_value_uses_the_internal_value(self) -> None:
         """A None portfolio value falls back to the manager's own value."""
         rm = RiskManager(initial_capital=100000.0)
         rm.update_portfolio_value({}, 100000.0)
@@ -355,7 +361,7 @@ class TestCheckSignal:
         assert result.passed is True
         assert result.violations == []
 
-    def test_buy_no_price(self):
+    def test_buy_no_price(self) -> None:
         rm = RiskManager()
         rm.positions = {}
         signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=None)
@@ -363,14 +369,14 @@ class TestCheckSignal:
         assert result.passed is False
         assert any("no price" in v for v in result.violations)
 
-    def test_buy_within_limits(self):
+    def test_buy_within_limits(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         signal = Signal(symbol="AAPL", action="buy", strength=0.5, price=150.0)
         result = rm.check_signal(signal)
         assert result.passed is True
         assert result.violations == []
 
-    def test_buy_exceeds_max_position_value(self):
+    def test_buy_exceeds_max_position_value(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         signal = Signal(symbol="AAPL", action="buy", strength=2.0, price=150.0)
         result = rm.check_signal(signal)
@@ -378,7 +384,7 @@ class TestCheckSignal:
         assert any("exceed max position value" in v for v in result.violations)
         assert any("exceed max position size" in v for v in result.violations)
 
-    def test_buy_exceeds_max_position_size_only(self):
+    def test_buy_exceeds_max_position_size_only(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         signal = Signal(symbol="AAPL", action="buy", strength=1.1, price=150.0)
         result = rm.check_signal(signal, portfolio_value=50000.0)
@@ -386,7 +392,7 @@ class TestCheckSignal:
         assert any("exceed max position size" in v for v in result.violations)
         assert not any("exceed max position value" in v for v in result.violations)
 
-    def test_buy_with_an_oversized_existing_position(self):
+    def test_buy_with_an_oversized_existing_position(self) -> None:
         """A position that is already over the position limit is reported.
 
         The exposure is measured after the trade, so a position that is
@@ -402,7 +408,7 @@ class TestCheckSignal:
         assert result.passed is False
         assert any("exceed max position value" in v for v in result.violations)
 
-    def test_sell_no_holdings(self):
+    def test_sell_no_holdings(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         rm.positions = {}
         signal = Signal(symbol="AAPL", action="sell", strength=1.0, price=150.0)
@@ -410,7 +416,7 @@ class TestCheckSignal:
         assert result.passed is False
         assert any("no holdings" in v for v in result.violations)
 
-    def test_sell_with_holdings(self):
+    def test_sell_with_holdings(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         rm.positions = {
             "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)
@@ -420,14 +426,14 @@ class TestCheckSignal:
         assert result.passed is True
         assert result.violations == []
 
-    def test_hold_signal_passes(self):
+    def test_hold_signal_passes(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         signal = Signal(symbol="AAPL", action="hold", price=150.0)
         result = rm.check_signal(signal)
         assert result.passed is True
         assert result.violations == []
 
-    def test_buy_exceeds_portfolio_risk_budget(self):
+    def test_buy_exceeds_portfolio_risk_budget(self) -> None:
         """A buy that would push open risk above the budget is rejected at the signal gate."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -445,7 +451,7 @@ class TestCheckSignal:
         assert result.passed is False
         assert any("exceed max portfolio risk" in v for v in result.violations)
 
-    def test_buy_exceeds_leverage_limit(self):
+    def test_buy_exceeds_leverage_limit(self) -> None:
         """A buy that would push gross exposure above the leverage limit is rejected at the signal gate."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -481,7 +487,7 @@ class TestMaxPositionsGate:
     allowed too.
     """
 
-    def test_buy_that_would_open_a_position_beyond_the_limit_is_rejected(self):
+    def test_buy_that_would_open_a_position_beyond_the_limit_is_rejected(self) -> None:
         rm = RiskManager(initial_capital=100000.0, max_positions=1)
         rm.positions = {
             "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0),
@@ -491,7 +497,7 @@ class TestMaxPositionsGate:
         assert result.passed is False
         assert any("exceed max positions" in v for v in result.violations)
 
-    def test_short_that_would_open_a_position_beyond_the_limit_is_rejected(self):
+    def test_short_that_would_open_a_position_beyond_the_limit_is_rejected(self) -> None:
         rm = RiskManager(initial_capital=100000.0, max_positions=1)
         rm.positions = {
             "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0),
@@ -501,7 +507,7 @@ class TestMaxPositionsGate:
         assert result.passed is False
         assert any("exceed max positions" in v for v in result.violations)
 
-    def test_buy_that_tops_up_an_open_position_is_allowed_at_the_limit(self):
+    def test_buy_that_tops_up_an_open_position_is_allowed_at_the_limit(self) -> None:
         """Topping up a position that is already open does not add a position."""
         rm = RiskManager(initial_capital=100000.0, max_positions=1)
         rm.positions = {
@@ -512,7 +518,7 @@ class TestMaxPositionsGate:
         assert result.passed is True
         assert result.violations == []
 
-    def test_buy_that_covers_an_open_short_is_allowed_at_the_limit(self):
+    def test_buy_that_covers_an_open_short_is_allowed_at_the_limit(self) -> None:
         """Covering a short reduces gross exposure, so it is not gated."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -529,7 +535,7 @@ class TestMaxPositionsGate:
         assert result.passed is True
         assert result.violations == []
 
-    def test_buy_that_opens_a_position_below_the_limit_is_allowed(self):
+    def test_buy_that_opens_a_position_below_the_limit_is_allowed(self) -> None:
         rm = RiskManager(initial_capital=100000.0, max_positions=2)
         rm.positions = {
             "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0),
@@ -539,7 +545,7 @@ class TestMaxPositionsGate:
         assert result.passed is True
         assert result.violations == []
 
-    def test_short_that_tops_up_an_open_short_is_allowed_at_the_limit(self):
+    def test_short_that_tops_up_an_open_short_is_allowed_at_the_limit(self) -> None:
         """A short is topped up to its target like a long, without adding a position."""
         rm = RiskManager(initial_capital=100000.0, max_positions=1, max_position_size=0.1)
         rm.positions = {
@@ -550,7 +556,7 @@ class TestMaxPositionsGate:
         assert result.passed is True
         assert result.violations == []
 
-    def test_gate_uses_the_positions_the_manager_currently_knows_about(self):
+    def test_gate_uses_the_positions_the_manager_currently_knows_about(self) -> None:
         """The gate counts ``self.positions``, refreshed by ``sync_position``."""
         rm = RiskManager(initial_capital=100000.0, max_positions=1)
         rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
@@ -576,7 +582,7 @@ class TestDrawdownGate:
     the breach lasts.
     """
 
-    def test_a_buy_that_would_add_exposure_is_rejected_in_a_drawdown_breach(self):
+    def test_a_buy_that_would_add_exposure_is_rejected_in_a_drawdown_breach(self) -> None:
         rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
         rm.update_portfolio_value({}, 75000.0)
         assert rm.portfolio_risk.current_drawdown == pytest.approx(-0.25)
@@ -585,7 +591,7 @@ class TestDrawdownGate:
         assert result.passed is False
         assert any("portfolio drawdown" in v for v in result.violations)
 
-    def test_a_short_that_would_add_exposure_is_rejected_in_a_drawdown_breach(self):
+    def test_a_short_that_would_add_exposure_is_rejected_in_a_drawdown_breach(self) -> None:
         rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
         rm.update_portfolio_value({}, 75000.0)
         signal = Signal(symbol="AAPL", action="short", strength=1.0, price=150.0)
@@ -593,7 +599,7 @@ class TestDrawdownGate:
         assert result.passed is False
         assert any("portfolio drawdown" in v for v in result.violations)
 
-    def test_a_buy_that_tops_up_an_open_long_is_rejected_in_a_drawdown_breach(self):
+    def test_a_buy_that_tops_up_an_open_long_is_rejected_in_a_drawdown_breach(self) -> None:
         """Topping up a long adds exposure, so it is gated like a new position."""
         rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
         rm.update_portfolio_value(
@@ -605,7 +611,7 @@ class TestDrawdownGate:
         assert result.passed is False
         assert any("portfolio drawdown" in v for v in result.violations)
 
-    def test_a_buy_that_covers_an_open_short_is_allowed_in_a_drawdown_breach(self):
+    def test_a_buy_that_covers_an_open_short_is_allowed_in_a_drawdown_breach(self) -> None:
         """Covering a short reduces the gross exposure, so it is not gated."""
         rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
         rm.update_portfolio_value(
@@ -618,7 +624,7 @@ class TestDrawdownGate:
         assert result.passed is True
         assert result.violations == []
 
-    def test_a_sell_is_not_gated_by_a_drawdown_breach(self):
+    def test_a_sell_is_not_gated_by_a_drawdown_breach(self) -> None:
         """A sell reduces a long, so it stays allowed while the breach lasts."""
         rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
         rm.update_portfolio_value(
@@ -630,7 +636,7 @@ class TestDrawdownGate:
         assert result.passed is True
         assert result.violations == []
 
-    def test_a_buy_is_allowed_inside_the_drawdown_limit(self):
+    def test_a_buy_is_allowed_inside_the_drawdown_limit(self) -> None:
         rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
         rm.update_portfolio_value({}, 85000.0)
         assert rm.portfolio_risk.current_drawdown == pytest.approx(-0.15)
@@ -639,7 +645,7 @@ class TestDrawdownGate:
         assert result.passed is True
         assert result.violations == []
 
-    def test_a_max_drawdown_of_zero_disables_the_check(self):
+    def test_a_max_drawdown_of_zero_disables_the_check(self) -> None:
         rm = RiskManager(initial_capital=100000.0, max_drawdown=0.0)
         rm.update_portfolio_value({}, 10000.0)
         assert rm.portfolio_risk.current_drawdown == pytest.approx(-0.9)
@@ -648,7 +654,7 @@ class TestDrawdownGate:
         assert result.passed is True
         assert result.violations == []
 
-    def test_the_gate_reads_the_drawdown_of_the_current_view(self):
+    def test_the_gate_reads_the_drawdown_of_the_current_view(self) -> None:
         """A refresh that moves the portfolio decides the next signal."""
         rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
         signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=150.0)
@@ -660,7 +666,7 @@ class TestDrawdownGate:
         rm.update_portfolio_value({}, 100000.0)
         assert rm.check_signal(signal).passed is True
 
-    def test_the_violation_reports_the_drawdown_and_the_limit(self):
+    def test_the_violation_reports_the_drawdown_and_the_limit(self) -> None:
         rm = RiskManager(initial_capital=100000.0, max_drawdown=0.20)
         rm.update_portfolio_value({}, 75000.0)
         signal = Signal(symbol="AAPL", action="buy", strength=1.0, price=150.0)
@@ -673,35 +679,35 @@ class TestDrawdownGate:
 class TestSyncPosition:
     """Tests for sync_position."""
 
-    def test_sync_position_adds_to_the_position_view(self):
+    def test_sync_position_adds_to_the_position_view(self) -> None:
         """A synced position becomes visible in the manager's position view."""
         rm = RiskManager(initial_capital=100000.0)
         rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
         assert "AAPL" in rm.positions
         assert rm.positions["AAPL"].quantity == 100
 
-    def test_sync_position_replaces_an_existing_position(self):
+    def test_sync_position_replaces_an_existing_position(self) -> None:
         """A synced position replaces the one the manager already held."""
         rm = RiskManager(initial_capital=100000.0)
         rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
         rm.sync_position("AAPL", Position("AAPL", 200, 150.0, 150.0))
         assert rm.positions["AAPL"].quantity == 200
 
-    def test_sync_position_none_removes_the_position(self):
+    def test_sync_position_none_removes_the_position(self) -> None:
         """A closed position is dropped from the position view."""
         rm = RiskManager(initial_capital=100000.0)
         rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
         rm.sync_position("AAPL", None)
         assert "AAPL" not in rm.positions
 
-    def test_sync_position_does_not_record_equity(self):
+    def test_sync_position_does_not_record_equity(self) -> None:
         """Syncing a position does not add a point to the equity curve."""
         rm = RiskManager(initial_capital=100000.0)
         rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
         assert rm.equity_curve == [100000.0]
         assert rm.history == []
 
-    def test_synced_position_counts_towards_the_leverage_limit(self):
+    def test_synced_position_counts_towards_the_leverage_limit(self) -> None:
         """A buy is rejected when a synced position already fills the leverage budget."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -716,7 +722,7 @@ class TestSyncPosition:
         assert result.passed is False
         assert any("exceed max leverage" in v for v in result.violations)
 
-    def test_synced_position_allows_a_sell_of_that_position(self):
+    def test_synced_position_allows_a_sell_of_that_position(self) -> None:
         """A position opened earlier in the same cycle can be sold."""
         rm = RiskManager(initial_capital=100000.0)
         rm.sync_position("AAPL", Position("AAPL", 100, 150.0, 150.0))
@@ -729,7 +735,7 @@ class TestSyncPosition:
 class TestShortSignals:
     """Tests for the short signal gate."""
 
-    def test_short_within_limits(self):
+    def test_short_within_limits(self) -> None:
         """A short inside the position limit is allowed."""
         rm = RiskManager(initial_capital=100000.0, max_position_size=0.1)
         signal = Signal(symbol="AAPL", action="short", strength=1.0, price=150.0)
@@ -737,7 +743,7 @@ class TestShortSignals:
         assert result.passed is True
         assert result.violations == []
 
-    def test_short_no_price(self):
+    def test_short_no_price(self) -> None:
         """A short signal without a price is rejected."""
         rm = RiskManager(initial_capital=100000.0)
         signal = Signal(symbol="AAPL", action="short", strength=1.0, price=None)
@@ -745,7 +751,7 @@ class TestShortSignals:
         assert result.passed is False
         assert any("no price" in v for v in result.violations)
 
-    def test_short_exceeds_max_position_size(self):
+    def test_short_exceeds_max_position_size(self) -> None:
         """An oversized short is rejected like an oversized long."""
         rm = RiskManager(initial_capital=100000.0, max_position_size=0.1)
         signal = Signal(symbol="AAPL", action="short", strength=2.0, price=150.0)
@@ -754,7 +760,7 @@ class TestShortSignals:
         assert any("exceed max position value" in v for v in result.violations)
         assert any("exceed max position size" in v for v in result.violations)
 
-    def test_short_exceeds_portfolio_risk_budget(self):
+    def test_short_exceeds_portfolio_risk_budget(self) -> None:
         """A short that would push open risk above the budget is rejected."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -772,7 +778,7 @@ class TestShortSignals:
         assert result.passed is False
         assert any("exceed max portfolio risk" in v for v in result.violations)
 
-    def test_short_exceeds_leverage_limit(self):
+    def test_short_exceeds_leverage_limit(self) -> None:
         """A short is measured on gross exposure, so it cannot hide behind a long."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -790,7 +796,7 @@ class TestShortSignals:
         assert result.passed is False
         assert any("exceed max leverage" in v for v in result.violations)
 
-    def test_short_against_a_long_position_is_rejected(self):
+    def test_short_against_a_long_position_is_rejected(self) -> None:
         """A short signal does not flip an open long position."""
         rm = RiskManager(initial_capital=100000.0, max_position_size=0.1)
         rm.positions = {
@@ -801,7 +807,7 @@ class TestShortSignals:
         assert result.passed is False
         assert any("long holdings" in v for v in result.violations)
 
-    def test_short_can_add_to_an_open_short(self):
+    def test_short_can_add_to_an_open_short(self) -> None:
         """A short is measured on the gross exposure, like a long."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -818,7 +824,7 @@ class TestShortSignals:
         assert result.passed is False
         assert any("exceed max position value" in v for v in result.violations)
 
-    def test_buy_against_an_open_short_is_allowed(self):
+    def test_buy_against_an_open_short_is_allowed(self) -> None:
         """A buy covers an open short, which cannot breach a position limit."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -834,7 +840,7 @@ class TestShortSignals:
         assert result.passed is True
         assert result.violations == []
 
-    def test_sell_against_an_open_short_is_rejected(self):
+    def test_sell_against_an_open_short_is_rejected(self) -> None:
         """A sell is not a way to add to a short."""
         rm = RiskManager(initial_capital=100000.0)
         rm.positions = {
@@ -855,7 +861,7 @@ class TestTargetExposureGate:
     are increased by the increment alone.
     """
 
-    def test_buy_against_a_position_at_its_target_passes(self):
+    def test_buy_against_a_position_at_its_target_passes(self) -> None:
         """A position that already holds its full target does not block the signal."""
         rm = RiskManager(initial_capital=100000.0)
         rm.positions = {
@@ -866,7 +872,7 @@ class TestTargetExposureGate:
         assert result.passed is True
         assert result.violations == []
 
-    def test_buy_against_a_position_below_its_target_passes(self):
+    def test_buy_against_a_position_below_its_target_passes(self) -> None:
         """A position that is part of the way to its target is not rejected.
 
         The signal would bring the position to its target, which is within
@@ -881,7 +887,7 @@ class TestTargetExposureGate:
         assert result.passed is True
         assert result.violations == []
 
-    def test_short_against_a_position_below_its_target_passes(self):
+    def test_short_against_a_position_below_its_target_passes(self) -> None:
         """A short is topped up to its target like a long."""
         rm = RiskManager(initial_capital=100000.0)
         rm.positions = {
@@ -892,7 +898,7 @@ class TestTargetExposureGate:
         assert result.passed is True
         assert result.violations == []
 
-    def test_leverage_limit_is_increased_by_the_increment_only(self):
+    def test_leverage_limit_is_increased_by_the_increment_only(self) -> None:
         """The leverage limit counts the exposure the trade adds, not the whole target."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -911,7 +917,7 @@ class TestTargetExposureGate:
         assert result.passed is True
         assert result.violations == []
 
-    def test_risk_budget_is_increased_by_the_increment_only(self):
+    def test_risk_budget_is_increased_by_the_increment_only(self) -> None:
         """The risk budget counts the risk the trade adds, not the whole target."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -930,7 +936,7 @@ class TestTargetExposureGate:
         assert result.passed is True
         assert result.violations == []
 
-    def test_a_target_above_the_position_limit_is_rejected(self):
+    def test_a_target_above_the_position_limit_is_rejected(self) -> None:
         """A target that is above the position limit is still rejected."""
         rm = RiskManager(initial_capital=100000.0)
         rm.positions = {
@@ -942,7 +948,7 @@ class TestTargetExposureGate:
         assert any("exceed max position value" in v for v in result.violations)
         assert any("exceed max position size" in v for v in result.violations)
 
-    def test_a_signal_above_the_risk_budget_is_rejected(self):
+    def test_a_signal_above_the_risk_budget_is_rejected(self) -> None:
         """A trade that would really breach the risk budget is still rejected."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -959,7 +965,7 @@ class TestTargetExposureGate:
         assert result.passed is False
         assert any("exceed max portfolio risk" in v for v in result.violations)
 
-    def test_a_signal_above_the_leverage_limit_is_rejected(self):
+    def test_a_signal_above_the_leverage_limit_is_rejected(self) -> None:
         """A trade that would really breach the leverage limit is still rejected."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -980,17 +986,17 @@ class TestTargetExposureGate:
 class TestCheckPortfolio:
     """Tests for check_portfolio."""
 
-    def test_risk_disabled(self):
+    def test_risk_disabled(self) -> None:
         rm = RiskManager()
         rm.disable()
         assert rm.check_portfolio().passed is True
 
-    def test_no_violations(self):
+    def test_no_violations(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         rm.positions = {}
         assert rm.check_portfolio().passed is True
 
-    def test_too_many_positions(self):
+    def test_too_many_positions(self) -> None:
         rm = RiskManager(initial_capital=100000.0, max_positions=1)
         rm.positions = {
             "AAPL": Position(symbol="AAPL", quantity=1, avg_price=100, current_price=100),
@@ -1000,7 +1006,7 @@ class TestCheckPortfolio:
         assert result.passed is False
         assert any("exceeds max" in v for v in result.violations)
 
-    def test_drawdown_violation(self):
+    def test_drawdown_violation(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         rm.positions = {}
         rm.portfolio_risk = PortfolioRisk(
@@ -1011,7 +1017,7 @@ class TestCheckPortfolio:
         assert result.passed is False
         assert any("Drawdown" in v for v in result.violations)
 
-    def test_uses_default_max_drawdown(self):
+    def test_uses_default_max_drawdown(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         rm.positions = {}
         rm.portfolio_risk = PortfolioRisk(
@@ -1021,7 +1027,7 @@ class TestCheckPortfolio:
         result = rm.check_portfolio()
         assert result.passed is True
 
-    def test_check_portfolio_drawdown_limit_of_zero_is_disabled(self):
+    def test_check_portfolio_drawdown_limit_of_zero_is_disabled(self) -> None:
         """check_portfolio agrees with the signal gate: max_drawdown=0.0 disables it.
 
         A deep drawdown must not be reported when the drawdown limit is
@@ -1037,7 +1043,7 @@ class TestCheckPortfolio:
         assert result.passed is True
         assert not any("Drawdown" in v for v in result.violations)
 
-    def test_leverage_violation(self):
+    def test_leverage_violation(self) -> None:
         """Gross exposure above the leverage limit fails the portfolio check."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -1053,7 +1059,7 @@ class TestCheckPortfolio:
         assert result.passed is False
         assert any("Portfolio leverage 1.20x" in v for v in result.violations)
 
-    def test_portfolio_risk_violation(self):
+    def test_portfolio_risk_violation(self) -> None:
         """Open risk above the risk budget fails the portfolio check."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -1067,7 +1073,7 @@ class TestCheckPortfolio:
         assert result.passed is False
         assert any("Portfolio risk 3.00%" in v for v in result.violations)
 
-    def test_portfolio_risk_uses_configured_stop_loss(self):
+    def test_portfolio_risk_uses_configured_stop_loss(self) -> None:
         """The risk budget is sized with the configured stop loss distance."""
         rm = RiskManager(
             initial_capital=100000.0,
@@ -1086,7 +1092,7 @@ class TestCheckPortfolio:
 class TestCalculateMetrics:
     """Tests for calculate_metrics."""
 
-    def test_calculate_metrics_without_market_returns(self):
+    def test_calculate_metrics_without_market_returns(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         rm.update_portfolio_value({}, 110000.0)
         rm.update_portfolio_value({}, 105000.0)
@@ -1096,7 +1102,7 @@ class TestCalculateMetrics:
         assert metrics.beta == 0.0
         assert metrics.alpha == 0.0
 
-    def test_calculate_metrics_with_market_returns(self):
+    def test_calculate_metrics_with_market_returns(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         rm.update_portfolio_value({}, 110000.0)
         rm.update_portfolio_value({}, 105000.0)
@@ -1106,7 +1112,7 @@ class TestCalculateMetrics:
         assert isinstance(metrics.beta, float)
         assert isinstance(metrics.alpha, float)
 
-    def test_calculate_metrics_nonzero_beta_for_moving_benchmark(self):
+    def test_calculate_metrics_nonzero_beta_for_moving_benchmark(self) -> None:
         """A benchmark that moves with the strategy yields a non-zero beta.
 
         The equity curve carries a RangeIndex (no dates) while the benchmark
@@ -1126,15 +1132,15 @@ class TestCalculateMetrics:
 class TestRiskFreeRate:
     """Tests for the risk_free_rate handling in RiskManager."""
 
-    def test_init_stores_risk_free_rate(self):
+    def test_init_stores_risk_free_rate(self) -> None:
         rm = RiskManager(risk_free_rate=0.05)
         assert rm.risk_free_rate == 0.05
 
-    def test_default_risk_free_rate_is_002(self):
+    def test_default_risk_free_rate_is_002(self) -> None:
         rm = RiskManager()
         assert rm.risk_free_rate == 0.02
 
-    def test_calculate_metrics_uses_configured_rate(self):
+    def test_calculate_metrics_uses_configured_rate(self) -> None:
         """A non-default risk-free rate must reach the computed Sharpe/Sortino."""
         rm_default = RiskManager(initial_capital=100000.0)
         rm_high = RiskManager(initial_capital=100000.0, risk_free_rate=0.10)
@@ -1166,7 +1172,7 @@ class TestRiskFreeRate:
         assert high_metrics.sharpe_ratio != pytest.approx(default_metrics.sharpe_ratio)
         assert high_metrics.sortino_ratio != pytest.approx(default_metrics.sortino_ratio)
 
-    def test_calculate_metrics_explicit_argument_overrides_config(self):
+    def test_calculate_metrics_explicit_argument_overrides_config(self) -> None:
         """An explicit risk_free_rate argument overrides the configured rate."""
         rm = RiskManager(initial_capital=100000.0, risk_free_rate=0.10)
         rm.update_portfolio_value({}, 110000.0)
@@ -1185,26 +1191,26 @@ class TestRiskFreeRate:
 class TestStopLossTakeProfit:
     """Tests for stop-loss and take-profit helpers."""
 
-    def test_get_position_stop_loss_no_position(self):
+    def test_get_position_stop_loss_no_position(self) -> None:
         rm = RiskManager(stop_loss_pct=0.05)
         rm.positions = {}
         assert rm.get_position_stop_loss("AAPL") is None
 
-    def test_get_position_stop_loss_zero_avg_price(self):
+    def test_get_position_stop_loss_zero_avg_price(self) -> None:
         rm = RiskManager(stop_loss_pct=0.05)
         rm.positions = {
             "AAPL": Position(symbol="AAPL", quantity=100, avg_price=0.0, current_price=160)
         }
         assert rm.get_position_stop_loss("AAPL") is None
 
-    def test_get_position_stop_loss(self):
+    def test_get_position_stop_loss(self) -> None:
         rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10)
         rm.positions = {
             "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)
         }
         assert rm.get_position_stop_loss("AAPL") == 150 * 0.9
 
-    def test_should_stop_loss_triggered(self):
+    def test_should_stop_loss_triggered(self) -> None:
         rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10)
         rm.positions = {
             "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)
@@ -1213,19 +1219,19 @@ class TestStopLossTakeProfit:
         assert rm.should_stop_loss("AAPL", 200.0) is False
         assert rm.should_stop_loss("UNKNOWN", 100.0) is False
 
-    def test_get_position_take_profit_no_position(self):
+    def test_get_position_take_profit_no_position(self) -> None:
         rm = RiskManager(take_profit_pct=0.15)
         rm.positions = {}
         assert rm.get_position_take_profit("AAPL") is None
 
-    def test_get_position_take_profit(self):
+    def test_get_position_take_profit(self) -> None:
         rm = RiskManager(initial_capital=100000.0, take_profit_pct=0.15)
         rm.positions = {
             "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)
         }
         assert rm.get_position_take_profit("AAPL") == 150 * 1.15
 
-    def test_should_take_profit_triggered(self):
+    def test_should_take_profit_triggered(self) -> None:
         rm = RiskManager(initial_capital=100000.0, take_profit_pct=0.15)
         rm.positions = {
             "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)
@@ -1234,7 +1240,7 @@ class TestStopLossTakeProfit:
         assert rm.should_take_profit("AAPL", 160.0) is False
         assert rm.should_take_profit("UNKNOWN", 200.0) is False
 
-    def test_is_short_position(self):
+    def test_is_short_position(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         rm.positions = {
             "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160),
@@ -1246,7 +1252,7 @@ class TestStopLossTakeProfit:
         assert rm.is_short_position("FLAT") is False
         assert rm.is_short_position("UNKNOWN") is False
 
-    def test_get_position_stop_loss_short(self):
+    def test_get_position_stop_loss_short(self) -> None:
         """A short's stop loss sits above its entry price."""
         rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10)
         rm.positions = {
@@ -1254,7 +1260,7 @@ class TestStopLossTakeProfit:
         }
         assert rm.get_position_stop_loss("AAPL") == 150 * 1.1
 
-    def test_should_stop_loss_short_triggered(self):
+    def test_should_stop_loss_short_triggered(self) -> None:
         """A short stops out when the price rises to the stop level."""
         rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10)
         rm.positions = {
@@ -1266,7 +1272,7 @@ class TestStopLossTakeProfit:
         assert rm.should_stop_loss("AAPL", 100.0) is False
         assert rm.should_stop_loss("UNKNOWN", 100.0) is False
 
-    def test_get_position_take_profit_short(self):
+    def test_get_position_take_profit_short(self) -> None:
         """A short's take profit sits below its entry price."""
         rm = RiskManager(initial_capital=100000.0, take_profit_pct=0.15)
         rm.positions = {
@@ -1274,7 +1280,7 @@ class TestStopLossTakeProfit:
         }
         assert rm.get_position_take_profit("AAPL") == 150 * 0.85
 
-    def test_should_take_profit_short_triggered(self):
+    def test_should_take_profit_short_triggered(self) -> None:
         """A short takes profit when the price falls to the target level."""
         rm = RiskManager(initial_capital=100000.0, take_profit_pct=0.15)
         rm.positions = {
@@ -1286,7 +1292,7 @@ class TestStopLossTakeProfit:
         assert rm.should_take_profit("AAPL", 200.0) is False
         assert rm.should_take_profit("UNKNOWN", 200.0) is False
 
-    def test_short_stop_loss_and_take_profit_do_not_overlap(self):
+    def test_short_stop_loss_and_take_profit_do_not_overlap(self) -> None:
         """A short's stop is above its target, so the two levels are distinct."""
         rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10, take_profit_pct=0.15)
         rm.positions = {
@@ -1297,7 +1303,7 @@ class TestStopLossTakeProfit:
         assert stop is not None and target is not None
         assert stop > target
 
-    def test_short_thresholds_use_the_mirrored_direction(self):
+    def test_short_thresholds_use_the_mirrored_direction(self) -> None:
         """The mirrored levels are exactly the mirror image of the long ones."""
         rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10, take_profit_pct=0.15)
         rm.positions = {
@@ -1313,7 +1319,7 @@ class TestStopLossTakeProfit:
         assert long_stop + short_stop == pytest.approx(300.0)
         assert long_target + short_target == pytest.approx(300.0)
 
-    def test_short_thresholds_follow_a_synchronized_short_position(self):
+    def test_short_thresholds_follow_a_synchronized_short_position(self) -> None:
         """The helpers read the manager's position view, as the signal gate does."""
         rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10, take_profit_pct=0.15)
         rm.sync_position("AAPL", Position("AAPL", -100, 150.0, 150.0))
@@ -1326,14 +1332,14 @@ class TestStopLossTakeProfit:
 class TestResetEnableDisable:
     """Tests for reset, enable, and disable."""
 
-    def test_enable_disable(self):
+    def test_enable_disable(self) -> None:
         rm = RiskManager()
         rm.disable()
         assert rm.risk_enabled is False
         rm.enable()
         assert rm.risk_enabled is True
 
-    def test_reset_clears_state(self):
+    def test_reset_clears_state(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         positions = {
             "AAPL": Position(symbol="AAPL", quantity=100, avg_price=150, current_price=160)
@@ -1350,7 +1356,7 @@ class TestResetEnableDisable:
         assert rm.portfolio_risk.peak_value == 100000.0
         assert rm.risk_metrics is None
 
-    def test_reset_clears_computed_metrics(self):
+    def test_reset_clears_computed_metrics(self) -> None:
         """Metrics computed before a reset describe the discarded equity curve."""
         rm = RiskManager(initial_capital=100000.0)
         rm.update_portfolio_value({}, 50000.0)
@@ -1359,7 +1365,7 @@ class TestResetEnableDisable:
         rm.reset()
         assert rm.risk_metrics is None
 
-    def test_disable_during_check_signal(self):
+    def test_disable_during_check_signal(self) -> None:
         rm = RiskManager(initial_capital=100000.0, max_position_size=0.01)
         rm.disable()
         signal = Signal(symbol="AAPL", action="buy", strength=10.0, price=150.0)
@@ -1371,21 +1377,21 @@ class TestResetEnableDisable:
 class TestTrailingStop:
     """Tests for trailing stops."""
 
-    def test_trailing_stop_is_disabled_by_default(self):
+    def test_trailing_stop_is_disabled_by_default(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
         rm.update_trailing_stop("AAPL", 120.0)
         assert rm.get_trailing_stop("AAPL") is None
         assert rm.get_position_stop_loss("AAPL") == pytest.approx(95.0)
 
-    def test_long_trailing_stop_follows_the_highest_price(self):
+    def test_long_trailing_stop_follows_the_highest_price(self) -> None:
         rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
         rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
         rm.update_trailing_stop("AAPL", 120.0)
         assert rm.get_trailing_stop("AAPL") == pytest.approx(114.0)
         assert rm.get_position_stop_loss("AAPL") == pytest.approx(114.0)
 
-    def test_long_trailing_stop_never_loosens(self):
+    def test_long_trailing_stop_never_loosens(self) -> None:
         rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
         rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
         rm.update_trailing_stop("AAPL", 120.0)
@@ -1394,14 +1400,14 @@ class TestTrailingStop:
         assert rm.should_stop_loss("AAPL", 113.0) is True
         assert rm.should_stop_loss("AAPL", 115.0) is False
 
-    def test_short_trailing_stop_follows_the_lowest_price(self):
+    def test_short_trailing_stop_follows_the_lowest_price(self) -> None:
         rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
         rm.sync_position("AAPL", Position("AAPL", -100, 100.0, 100.0))
         rm.update_trailing_stop("AAPL", 80.0)
         assert rm.get_trailing_stop("AAPL") == pytest.approx(84.0)
         assert rm.get_position_stop_loss("AAPL") == pytest.approx(84.0)
 
-    def test_short_trailing_stop_never_loosens(self):
+    def test_short_trailing_stop_never_loosens(self) -> None:
         rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
         rm.sync_position("AAPL", Position("AAPL", -100, 100.0, 100.0))
         rm.update_trailing_stop("AAPL", 80.0)
@@ -1410,7 +1416,7 @@ class TestTrailingStop:
         assert rm.should_stop_loss("AAPL", 85.0) is True
         assert rm.should_stop_loss("AAPL", 83.0) is False
 
-    def test_fixed_stop_is_used_until_the_trailing_stop_is_tighter(self):
+    def test_fixed_stop_is_used_until_the_trailing_stop_is_tighter(self) -> None:
         rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.10, stop_loss_pct=0.05)
         rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
         rm.update_trailing_stop("AAPL", 100.0)
@@ -1421,7 +1427,7 @@ class TestTrailingStop:
         # 110 * 0.90 = 99.0 is tighter than the fixed 95.0 stop.
         assert rm.get_position_stop_loss("AAPL") == pytest.approx(99.0)
 
-    def test_short_fixed_stop_is_used_until_the_trailing_stop_is_tighter(self):
+    def test_short_fixed_stop_is_used_until_the_trailing_stop_is_tighter(self) -> None:
         rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.10, stop_loss_pct=0.05)
         rm.sync_position("AAPL", Position("AAPL", -100, 100.0, 100.0))
         rm.update_trailing_stop("AAPL", 100.0)
@@ -1432,7 +1438,7 @@ class TestTrailingStop:
         # 90 * 1.10 = 99.0 is tighter than the fixed 105.0 stop.
         assert rm.get_position_stop_loss("AAPL") == pytest.approx(99.0)
 
-    def test_trailing_stop_waits_for_the_activation_threshold(self):
+    def test_trailing_stop_waits_for_the_activation_threshold(self) -> None:
         rm = RiskManager(
             initial_capital=100000.0,
             trailing_stop_pct=0.05,
@@ -1445,7 +1451,7 @@ class TestTrailingStop:
         rm.update_trailing_stop("AAPL", 111.0)
         assert rm.get_trailing_stop("AAPL") == pytest.approx(105.45)
 
-    def test_short_trailing_stop_waits_for_the_activation_threshold(self):
+    def test_short_trailing_stop_waits_for_the_activation_threshold(self) -> None:
         rm = RiskManager(
             initial_capital=100000.0,
             trailing_stop_pct=0.05,
@@ -1457,13 +1463,13 @@ class TestTrailingStop:
         rm.update_trailing_stop("AAPL", 89.0)
         assert rm.get_trailing_stop("AAPL") == pytest.approx(93.45)
 
-    def test_portfolio_update_feeds_the_price_to_the_tracker(self):
+    def test_portfolio_update_feeds_the_price_to_the_tracker(self) -> None:
         rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
         positions = {"AAPL": Position("AAPL", 100, 100.0, 120.0)}
         rm.update_portfolio_value(positions, 50000.0)
         assert rm.get_trailing_stop("AAPL") == pytest.approx(114.0)
 
-    def test_closing_a_position_clears_the_trailing_stop(self):
+    def test_closing_a_position_clears_the_trailing_stop(self) -> None:
         rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
         rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
         rm.update_trailing_stop("AAPL", 120.0)
@@ -1471,7 +1477,7 @@ class TestTrailingStop:
         rm.sync_position("AAPL", None)
         assert rm.get_trailing_stop("AAPL") is None
 
-    def test_a_dropped_position_clears_the_trailing_stop(self):
+    def test_a_dropped_position_clears_the_trailing_stop(self) -> None:
         rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
         positions = {"AAPL": Position("AAPL", 100, 100.0, 120.0)}
         rm.update_portfolio_value(positions, 50000.0)
@@ -1479,7 +1485,7 @@ class TestTrailingStop:
         rm.update_portfolio_value({}, 50000.0)
         assert rm.get_trailing_stop("AAPL") is None
 
-    def test_portfolio_update_keeps_the_trailing_stop_of_a_position_that_stays(self):
+    def test_portfolio_update_keeps_the_trailing_stop_of_a_position_that_stays(self) -> None:
         """A position that stays in the portfolio keeps its trailing state.
 
         Calling :meth:`update_portfolio_value` twice with the same symbol leaves
@@ -1495,7 +1501,7 @@ class TestTrailingStop:
         rm.update_portfolio_value(positions, 50000.0)
         assert rm.get_trailing_stop("AAPL") == pytest.approx(123.5)
 
-    def test_flipping_the_direction_clears_the_trailing_stop(self):
+    def test_flipping_the_direction_clears_the_trailing_stop(self) -> None:
         rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
         rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
         rm.update_trailing_stop("AAPL", 120.0)
@@ -1503,19 +1509,19 @@ class TestTrailingStop:
         # The long stop (114.0) does not carry over to the short.
         assert rm.get_trailing_stop("AAPL") == pytest.approx(126.0)
 
-    def test_reset_clears_the_trailing_stop(self):
+    def test_reset_clears_the_trailing_stop(self) -> None:
         rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
         rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
         rm.update_trailing_stop("AAPL", 120.0)
         rm.reset()
         assert rm.get_trailing_stop("AAPL") is None
 
-    def test_trailing_stop_ignores_symbols_without_a_position(self):
+    def test_trailing_stop_ignores_symbols_without_a_position(self) -> None:
         rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
         assert rm.update_trailing_stop("AAPL", 120.0) is None
         assert rm.get_trailing_stop("AAPL") is None
 
-    def test_trailing_stop_ignores_non_positive_prices(self):
+    def test_trailing_stop_ignores_non_positive_prices(self) -> None:
         rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
         rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 0.0))
         rm.update_trailing_stop("AAPL", 0.0)
@@ -1525,7 +1531,7 @@ class TestTrailingStop:
 
 
 class TestLimitsCoverage:
-    def test_position_limit_size_exceeds_only(self):
+    def test_position_limit_size_exceeds_only(self) -> None:
         from quant_trading.risk.limits import PositionLimit
         from quant_trading.strategies.base import Position
 
@@ -1539,7 +1545,7 @@ class TestLimitsCoverage:
         pos = Position(symbol="AAPL", quantity=0, avg_price=100.0, current_price=100.0)
         assert pl.check(pos, portfolio_value=100000.0) == []
 
-    def test_position_limit_value_exceeds(self):
+    def test_position_limit_value_exceeds(self) -> None:
         from quant_trading.risk.limits import PositionLimit
         from quant_trading.strategies.base import Position
 
@@ -1548,7 +1554,7 @@ class TestLimitsCoverage:
         violations = pl.check(pos, portfolio_value=100000.0)
         assert any("Position value" in v for v in violations)
 
-    def test_position_risk_zero_and_no_basis(self):
+    def test_position_risk_zero_and_no_basis(self) -> None:
         from quant_trading.risk.limits import PortfolioLimit
         from quant_trading.strategies.base import Position
 
@@ -1564,7 +1570,7 @@ class TestLimitsCoverage:
             == 0.0
         )
 
-    def test_portfolio_risk_pct_nonpositive(self):
+    def test_portfolio_risk_pct_nonpositive(self) -> None:
         from quant_trading.risk.limits import PortfolioLimit
         from quant_trading.strategies.base import Position
 
@@ -1575,7 +1581,7 @@ class TestLimitsCoverage:
         assert pl.portfolio_risk_pct(positions, 0.0) == 0.0
         assert pl.leverage(positions, 0.0) == 0.0
 
-    def test_portfolio_check_branches(self):
+    def test_portfolio_check_branches(self) -> None:
         from quant_trading.risk.limits import PortfolioLimit
         from quant_trading.strategies.base import Position
 
@@ -1593,7 +1599,7 @@ class TestLimitsCoverage:
         violations = pl.check(positions, portfolio_value=1000.0, peak_value=2000.0)
         assert len(violations) > 0
 
-    def test_check_result(self):
+    def test_check_result(self) -> None:
         from quant_trading.risk.limits import CheckResult
 
         res = CheckResult(passed=True)
@@ -1611,7 +1617,7 @@ class TestRiskAttributionIntegration:
     """Tests for RiskManager risk attribution integration."""
 
     @staticmethod
-    def _rm_with_positions():
+    def _rm_with_positions() -> RiskManager:
         rm = RiskManager(initial_capital=100000.0)
         rm.update_portfolio_value(
             {
@@ -1623,7 +1629,7 @@ class TestRiskAttributionIntegration:
         return rm
 
     @staticmethod
-    def _returns(seed=42, n=200):
+    def _returns(seed: int = 42, n: int = 200) -> pd.DataFrame:
         rng = np.random.default_rng(seed)
         return pd.DataFrame(
             {
@@ -1632,7 +1638,7 @@ class TestRiskAttributionIntegration:
             }
         )
 
-    def test_calculate_risk_attribution_with_returns_frame(self):
+    def test_calculate_risk_attribution_with_returns_frame(self) -> None:
         rm = self._rm_with_positions()
         data = self._returns()
         attr = rm.calculate_risk_attribution(data, confidence=0.95, annualize=True)
@@ -1649,7 +1655,7 @@ class TestRiskAttributionIntegration:
         assert set(attr.volatility_contributions.index) == {"AAPL", "MSFT"}
         assert attr.volatility_contributions.sum() == pytest.approx(attr.portfolio_volatility)
 
-    def test_calculate_risk_attribution_uses_recorded_returns(self):
+    def test_calculate_risk_attribution_uses_recorded_returns(self) -> None:
         rm = self._rm_with_positions()
         for row in self._returns().itertuples(index=False):
             rm.record_returns({"AAPL": row.AAPL, "MSFT": row.MSFT})
@@ -1657,7 +1663,7 @@ class TestRiskAttributionIntegration:
         assert list(attr.weights.index) == ["AAPL", "MSFT"]
         assert attr.portfolio_volatility > 0
 
-    def test_calculate_risk_attribution_no_positions_or_insufficient_data(self):
+    def test_calculate_risk_attribution_no_positions_or_insufficient_data(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         attr = rm.calculate_risk_attribution()
         assert attr.weights.empty
@@ -1666,7 +1672,7 @@ class TestRiskAttributionIntegration:
         attr2 = rm2.calculate_risk_attribution(pd.DataFrame({"AAPL": [0.01], "MSFT": [0.02]}))
         assert attr2.weights.empty
 
-    def test_suggest_erc_weights(self):
+    def test_suggest_erc_weights(self) -> None:
         rm = self._rm_with_positions()
         data = self._returns()
         weights = rm.suggest_erc_weights(data, annualize=False)
@@ -1677,7 +1683,7 @@ class TestRiskAttributionIntegration:
         assert weights.sum() == pytest.approx(1.0)
         assert (weights >= -1e-12).all()
 
-    def test_suggest_risk_budget_weights_mapping(self):
+    def test_suggest_risk_budget_weights_mapping(self) -> None:
         rm = self._rm_with_positions()
         data = self._returns()
         budget = {"AAPL": 0.5, "MSFT": 0.5}
@@ -1692,18 +1698,18 @@ class TestRiskAttributionIntegration:
         assert weights.sum() == pytest.approx(1.0)
         assert (weights >= -1e-12).all()
 
-    def test_suggest_risk_budget_weights_missing_symbol_raises(self):
+    def test_suggest_risk_budget_weights_missing_symbol_raises(self) -> None:
         rm = self._rm_with_positions()
         data = self._returns()
         with pytest.raises(KeyError):
             rm.suggest_risk_budget_weights({"AAPL": 1.0}, data, annualize=False)
 
-    def test_suggest_weights_empty_without_positions(self):
+    def test_suggest_weights_empty_without_positions(self) -> None:
         rm = RiskManager(initial_capital=100000.0)
         assert rm.suggest_erc_weights().empty
         assert rm.suggest_risk_budget_weights({"AAPL": 1.0}).empty
 
-    def test_portfolio_risk_optional_risk_attribution_roundtrip(self):
+    def test_portfolio_risk_optional_risk_attribution_roundtrip(self) -> None:
         rm = self._rm_with_positions()
         attr = rm.calculate_risk_attribution(self._returns(), annualize=False)
         pr = PortfolioRisk(
