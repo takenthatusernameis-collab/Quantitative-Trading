@@ -454,7 +454,7 @@ def test_package_reexports_are_listed_in_defining_module_all() -> None:
                 continue
             try:
                 source = importlib.import_module(source_module)
-            except Exception:  # noqa: BLE001, S112 - an unimportable module is reported by the test above
+            except Exception:  # noqa: BLE001, S112 - unimportable module reported by test above
                 continue
             source_all = getattr(source, "__all__", None)
             if source_all is None:
@@ -707,9 +707,7 @@ def _cli_default_type_mismatches(
                     "which is not an int"
                 )
         elif type_name == "float":
-            if isinstance(default_value, bool) or not isinstance(
-                default_value, (int, float)
-            ):
+            if isinstance(default_value, bool) or not isinstance(default_value, (int, float)):
                 failures.append(
                     f"{dest}: type=float flag defaults to {default_value!r} ({key}), "
                     "which is not a float"
@@ -779,11 +777,7 @@ def _cli_range_flags(tree: ast.Module) -> dict[str, str]:
         if not node.args or not isinstance(node.args[0], ast.Constant):
             continue
         flag = node.args[0].value
-        if (
-            not isinstance(flag, str)
-            or not flag.startswith("--")
-            or not flag.endswith("-range")
-        ):
+        if not isinstance(flag, str) or not flag.startswith("--") or not flag.endswith("-range"):
             continue
         dest = flag.lstrip("-").replace("-", "_")
         default_value: str | None = None
