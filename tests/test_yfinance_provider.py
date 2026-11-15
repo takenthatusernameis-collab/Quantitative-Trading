@@ -16,16 +16,14 @@ from quant_trading.data.yfinance_provider import YFinanceProvider
 
 def _hist_df() -> pd.DataFrame:
     idx = pd.date_range("2024-01-01", periods=3, freq="D")
-    return pd.DataFrame(
-        {
-            "Open": [1.0, 2.0, 3.0],
-            "High": [1.5, 2.5, 3.5],
-            "Low": [0.5, 1.5, 2.5],
-            "Close": [1.2, 2.2, 3.2],
-            "Volume": [100, 200, 300],
-        },
-        index=idx,
-    )
+    data: dict[str, list[float]] = {
+        "Open": [1.0, 2.0, 3.0],
+        "High": [1.5, 2.5, 3.5],
+        "Low": [0.5, 1.5, 2.5],
+        "Close": [1.2, 2.2, 3.2],
+        "Volume": [100, 200, 300],
+    }
+    return pd.DataFrame(data=data, index=idx)  # type: ignore[no-any-return]
 
 
 class FakeTicker:
@@ -42,7 +40,10 @@ class FakeTicker:
         FakeTicker.last_history_kwargs = {"start": start, "end": end, "interval": interval}
         FakeTicker.history_call_count = getattr(FakeTicker, "history_call_count", 0) + 1
         if self.symbol == "EMPTY":
-            return pd.DataFrame()
+            return pd.DataFrame(  # type: ignore[no-any-return]
+                columns=["Open", "High", "Low", "Close", "Volume"],
+                index=pd.DatetimeIndex([]),
+            )
         if self.symbol == "BAD":
             raise ValueError("boom")
         return _hist_df()

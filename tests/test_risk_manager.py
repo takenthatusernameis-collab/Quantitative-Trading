@@ -1631,12 +1631,11 @@ class TestRiskAttributionIntegration:
     @staticmethod
     def _returns(seed: int = 42, n: int = 200) -> pd.DataFrame:
         rng = np.random.default_rng(seed)
-        return pd.DataFrame(
-            {
-                "AAPL": rng.normal(0.001, 0.02, n),
-                "MSFT": rng.normal(0.001, 0.015, n),
-            }
-        )
+        data: dict[str, np.ndarray] = {
+            "AAPL": rng.normal(0.001, 0.02, n),
+            "MSFT": rng.normal(0.001, 0.015, n),
+        }
+        return pd.DataFrame(data)  # type: ignore[no-any-return]
 
     def test_calculate_risk_attribution_with_returns_frame(self) -> None:
         rm = self._rm_with_positions()
@@ -1658,7 +1657,7 @@ class TestRiskAttributionIntegration:
     def test_calculate_risk_attribution_uses_recorded_returns(self) -> None:
         rm = self._rm_with_positions()
         for row in self._returns().itertuples(index=False):
-            rm.record_returns({"AAPL": row.AAPL, "MSFT": row.MSFT})
+            rm.record_returns({"AAPL": float(row.AAPL), "MSFT": float(row.MSFT)})  # type: ignore[arg-type]
         attr = rm.calculate_risk_attribution()
         assert list(attr.weights.index) == ["AAPL", "MSFT"]
         assert attr.portfolio_volatility > 0

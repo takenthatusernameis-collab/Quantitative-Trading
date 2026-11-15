@@ -10,16 +10,14 @@ from quant_trading.strategies.examples import MovingAverageCrossover
 
 def _df(prices: list[float]) -> pd.DataFrame:
     dates = pd.date_range(end=datetime.now(), periods=len(prices), freq="D")
-    return pd.DataFrame(
-        {
-            "open": prices,
-            "high": prices,
-            "low": prices,
-            "close": prices,
-            "volume": [1000000] * len(prices),
-        },
-        index=dates,
-    )
+    data: dict[str, list[float | int]] = {
+        "open": prices,
+        "high": prices,
+        "low": prices,
+        "close": prices,
+        "volume": [1000000] * len(prices),
+    }
+    return pd.DataFrame(data=data, index=dates)  # type: ignore[no-any-return]
 
 
 def test_init_defaults() -> None:

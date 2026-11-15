@@ -8,16 +8,14 @@ from quant_trading.strategies.examples import RSIStrategy
 
 def _df(prices: list[float]) -> pd.DataFrame:
     dates = pd.date_range(end=pd.Timestamp.now(), periods=len(prices), freq="D")
-    return pd.DataFrame(
-        {
-            "open": prices,
-            "high": prices,
-            "low": prices,
-            "close": prices,
-            "volume": [1000000] * len(prices),
-        },
-        index=dates,
-    )
+    data: dict[str, list[float | int]] = {
+        "open": prices,
+        "high": prices,
+        "low": prices,
+        "close": prices,
+        "volume": [1000000] * len(prices),
+    }
+    return pd.DataFrame(data=data, index=dates)  # type: ignore[no-any-return]
 
 
 def _valid_rsi() -> RSIStrategy:

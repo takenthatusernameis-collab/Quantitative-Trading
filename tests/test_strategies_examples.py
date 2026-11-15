@@ -439,7 +439,9 @@ class TestDonchianChannelStrategy:
         strategy = DonchianChannelStrategy(period=20, exit_period=10)
         data = {"AAPL": create_donchian_data("AAPL", [100.0] * 40 + [101.0])}
         df = data["AAPL"]
-        df.iloc[-1, df.columns.get_loc("close")] = float("nan")
+        col_idx = df.columns.get_loc("close")
+        assert isinstance(col_idx, int)
+        df.iat[-1, col_idx] = float("nan")
         assert strategy.generate_signals(data) == []
 
     def test_generate_signals_skips_zero_upper_band(self) -> None:
@@ -1043,7 +1045,9 @@ class TestBollingerBandsStrategy:
         strategy = BollingerBandsStrategy(period=20, std_dev=2.0)
         data = {"AAPL": create_donchian_data("AAPL", [100.0, 102.0] * 10 + [95.0])}
         df = data["AAPL"]
-        df.iloc[-1, df.columns.get_loc("close")] = float("nan")
+        col_idx = df.columns.get_loc("close")
+        assert isinstance(col_idx, int)
+        df.iat[-1, col_idx] = float("nan")
         assert strategy.generate_signals(data) == []
 
     def test_generate_signals_skips_zero_price(self) -> None:
@@ -1635,7 +1639,9 @@ class TestMACDStrategy:
         strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5)
         data = {"AAPL": create_macd_falling_data("AAPL", days=100)}
         df = data["AAPL"]
-        df.iloc[-1, df.columns.get_loc("close")] = float("nan")
+        col_idx = df.columns.get_loc("close")
+        assert isinstance(col_idx, int)
+        df.iat[-1, col_idx] = float("nan")
         assert strategy.generate_signals(data) == []
 
     def test_generate_signals_skips_zero_price(self) -> None:
@@ -1643,7 +1649,9 @@ class TestMACDStrategy:
         strategy = MACDStrategy(fast_period=5, slow_period=13, signal_period=5)
         data = {"AAPL": create_macd_falling_data("AAPL", days=100)}
         df = data["AAPL"]
-        df.iloc[-1, df.columns.get_loc("close")] = 0.0
+        col_idx = df.columns.get_loc("close")
+        assert isinstance(col_idx, int)
+        df.iat[-1, col_idx] = 0.0
         assert strategy.generate_signals(data) == []
 
 
@@ -1811,7 +1819,9 @@ class TestSuperTrendStrategy:
         strategy = SuperTrendStrategy(period=10, multiplier=3.0)
         data = {"AAPL": create_supertrend_data("AAPL", days=60, trend=0.003)}
         df = data["AAPL"]
-        df.iloc[-1, df.columns.get_loc("close")] = float("nan")
+        col_idx = df.columns.get_loc("close")
+        assert isinstance(col_idx, int)
+        df.iat[-1, col_idx] = float("nan")
         assert strategy.generate_signals(data) == []
 
     def test_generate_signals_skips_zero_price(self) -> None:
@@ -1819,7 +1829,9 @@ class TestSuperTrendStrategy:
         strategy = SuperTrendStrategy(period=10, multiplier=3.0)
         data = {"AAPL": create_supertrend_data("AAPL", days=60, trend=0.003)}
         df = data["AAPL"]
-        df.iloc[-1, df.columns.get_loc("close")] = 0.0
+        col_idx = df.columns.get_loc("close")
+        assert isinstance(col_idx, int)
+        df.iat[-1, col_idx] = 0.0
         assert strategy.generate_signals(data) == []
 
 
@@ -2031,7 +2043,9 @@ class TestKeltnerChannelStrategy:
         strategy = KeltnerChannelStrategy(ema_period=5, atr_period=5, multiplier=2.0)
         data = {"AAPL": create_keltner_data("AAPL", [100.0] * 20 + [120.0])}
         df = data["AAPL"]
-        df.iloc[-1, df.columns.get_loc("close")] = float("nan")
+        col_idx = df.columns.get_loc("close")
+        assert isinstance(col_idx, int)
+        df.iat[-1, col_idx] = float("nan")
         assert strategy.generate_signals(data) == []
 
     def test_generate_signals_skips_zero_ema(self) -> None:
@@ -2549,7 +2563,9 @@ class TestIchimokuCloudStrategy:
         closes = [100.0] * 20 + [110.0, 120.0, 130.0, 140.0, 150.0, 160.0]
         data = {"AAPL": create_donchian_data("AAPL", closes)}
         df = data["AAPL"]
-        df.iloc[-1, df.columns.get_loc("close")] = float("nan")
+        col_idx = df.columns.get_loc("close")
+        assert isinstance(col_idx, int)
+        df.iat[-1, col_idx] = float("nan")
         assert strategy.generate_signals(data) == []
 
     def test_generate_signals_skips_zero_kijun(self) -> None:
@@ -2934,7 +2950,9 @@ class TestVWAPStrategy:
         """A NaN close on the last bar yields a NaN VWAP which is skipped (line 1597-1598)."""
         strategy = VWAPStrategy()
         df = create_vwap_data("AAPL", [100.0, 100.0])
-        df.iloc[-1, df.columns.get_loc("close")] = float("nan")
+        col_idx = df.columns.get_loc("close")
+        assert isinstance(col_idx, int)
+        df.iat[-1, col_idx] = float("nan")
         assert strategy.generate_signals({"AAPL": df}) == []
 
     def test_generate_signals_buy(self) -> None:
@@ -7540,15 +7558,14 @@ class TestExamplesRemainingCoverage:
         close = np.asarray(closes, dtype=float)
         if volume is None:
             volume = np.full(len(close), 1_000_000)
-        return pd.DataFrame(
-            {
-                "open": close,
-                "high": close * 1.001,
-                "low": close * 0.999,
-                "close": close,
-                "volume": volume,
-            },
-        )
+        data: dict[str, np.ndarray] = {
+            "open": close,
+            "high": close * 1.001,
+            "low": close * 0.999,
+            "close": close,
+            "volume": volume,
+        }
+        return pd.DataFrame(data)  # type: ignore[no-any-return]
 
     def _ohlcv_prev_nan(self, closes: list[float]) -> list[float]:
         """Valid last close but a NaN previous close, so an indicator value is NaN."""
@@ -7569,7 +7586,7 @@ class TestExamplesRemainingCoverage:
     def _ohlcv_no_volume(self, closes: list[float]) -> pd.DataFrame:
         df = self._ohlcv(closes)
         df = df.drop(columns=["volume"])
-        return df
+        return df  # type: ignore[no-any-return]
 
     # --- MovingAverageCrossover: incremental "window still growing" arm (lines 124/128) ---
     def test_ma_incremental_growing_window(self) -> None:

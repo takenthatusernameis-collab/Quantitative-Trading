@@ -115,16 +115,14 @@ def _make_ohlcv_frame(symbol: str, start: datetime | None, end: datetime | None)
     idx = pd.date_range(start=start_ts, end=end_ts, freq="D")
     n = len(idx)
     base = [100.0 + i * 0.25 for i in range(n)]
-    return pd.DataFrame(
-        {
-            "open": base,
-            "high": [b + 1.0 for b in base],
-            "low": [b - 1.0 for b in base],
-            "close": [b + 0.5 for b in base],
-            "volume": [1000] * n,
-        },
-        index=idx,
-    )
+    data: dict[str, list[float]] = {
+        "open": base,
+        "high": [b + 1.0 for b in base],
+        "low": [b - 1.0 for b in base],
+        "close": [b + 0.5 for b in base],
+        "volume": [1000] * n,
+    }
+    return pd.DataFrame(data=data, index=idx)  # type: ignore[no-any-return]
 
 
 def _mock_fetch(
