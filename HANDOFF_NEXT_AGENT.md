@@ -1,51 +1,62 @@
 ## What changed (this session)
-- Added a "Parameter Sensitivity Analysis" bullet to the README Features list
-  (`README.md:17`), advertising the previously-documented-but-unlisted
-  `quant_trading.optimization.sensitivity` module. The module was exported via
-  `quant_trading.optimization.__init__` and listed in the project tree, but the
-  user-facing Features bullet omitted it — a silent gap for every other
-  optimization feature.
-- Added a regression guard mirroring the existing
-  `test_readme_features_list_advertises_all_optimizers` pattern:
-  `test_readme_features_list_advertises_sensitivity_analysis` in
-  `tests/test_repository_integrity.py:375-410`. It asserts that every name in
-  `quant_trading.optimization.sensitivity.__all__` is mentioned in the README
-  Features block (scanning the whole block, not just the Parameter Optimization
-  line, because the sensitivity bullet sits on its own line).
+
+- Added `examples/run_sensitivity.py`, an offline, deterministic demo for the
+  previously-documented-but-unexercised `quant_trading.optimization.sensitivity`
+  module. It runs a small grid search over MA fast/slow periods on seeded
+  synthetic data, then feeds the scores into `prepare_sensitivity_data`,
+  `create_1d_sensitivity_plot`, `create_2d_sensitivity_heatmap`, and
+  `generate_sensitivity_report_html`, writing a standalone HTML report to
+  `examples/output/sensitivity_report.html`.
+- Documented the new script in the README "Example Scripts" section
+  (`README.md`), right after the `run_optimization.py` block.
+- Added `examples/output/` to `.gitignore` so the generated HTML report is
+  not committed.
 
 ## What was actually verified (evidence)
-- `python3 -m pytest -q` -> `3818 passed, 140 deselected` (was 3817, +1 new test).
-- Targeted: `pytest tests/test_repository_integrity.py tests/test_sensitivity.py
-  tests/test_readme.py tests/test_readme_cli.py tests/test_readme_cli_commands.py -q`
-  -> 149 passed, 3 deselected.
-- Negative control: removing the whole sensitivity bullet from README.md in
-  memory makes the new guard fail with the expected message; restoring it
-  passes. Proves the guard detects the regression it guards against.
-- `python3 -m ruff check quant_trading/ tests/test_repository_integrity.py
-  tests/test_sensitivity.py` -> All checks passed.
-- `python3 -m black --check quant_trading/ tests/test_repository_integrity.py
-  tests/test_sensitivity.py` -> 41 files unchanged.
-- `python3 -m mypy tests/test_repository_integrity.py --disallow-untyped-defs`
-  -> Success. Note: `test_sensitivity.py` has 15 pre-existing
-  `no-untyped-def` errors (lines 114-184, untouched this session); it is not in
-  the project's mypy `disallow_untyped_defs` override list, so those are
-  pre-existing and not a regression from this change.
+
+- `python3 examples/run_sensitivity.py` exits 0 cleanly; prints the sensitivity
+  summary table and reports the 1D plot / 2D heatmap / HTML report sizes.
+- `python3 -m pytest -q` -> `3819 passed, 142 deselected` (was 3818, +1 from the
+  new script's documented-invocation test in `tests/test_example_scripts_run.py`).
+- Targeted: `pytest tests/test_readme.py::TestReadmeExampleScripts
+  tests/test_example_scripts_run.py tests/test_examples_smoke.py
+  tests/test_repository_integrity.py tests/test_sensitivity.py -q`
+  -> 104 passed, 135 deselected.
+- The existing `TestReadmeExampleScripts` guard (`tests/test_readme.py:255-270`)
+  already enforces bidirectional README<->script sync, so the new script is
+  covered without a new guard: it detects both a missing README entry and a
+  README entry pointing at a nonexistent script.
+- `python3 -m ruff check examples/run_sensitivity.py` -> All checks passed.
+- `python3 -m black --check examples/run_sensitivity.py` -> unchanged.
+- `python3 -m mypy quant_trading/ examples/` -> Success, no issues in 96 files.
+  (Note: `mypy --disallow-untyped-defs` on `examples/run_sensitivity.py`
+  flags the untyped `df` param of `_print_summary_table`, exactly matching
+  the pre-existing pattern in `examples/run_parabolic_sar.py:29`; example
+  scripts are not in the project's `disallow_untyped_defs` override list, so
+  this is consistent with the repo convention, not a regression.)
 
 ## What remains unresolved
+
 Nothing for this change. The suite is green, ruff/black/mypy clean on the
-changed files, and the working tree contains only the intended README bullet +
-guard.
+changed files, and the working tree contains only the intended additions.
 
 ## Failed or corrected approaches this session
-- First attempt at the guard used `readme.index("\n", features_start)` to bound
-  the scan to a single line, which missed the sensitivity bullet on its own
-  line. Corrected to `readme.index("\n## ", features_start)` so the whole
-  Features block is scanned.
+
+- First write of `examples/run_sensitivity.py` introduced a stray character on
+  the `sys.path.insert(...)` line that made the file fail to parse; rewrote the
+  line and re-verified with `ast.parse`.
+- The `_print_summary_table` helper initially tried to derive min/max from
+  `mean ± std`, which is not meaningful; replaced it with the summary_df's own
+  `mean_score`, `score_std`, `sensitivity_range`, `n_values` columns.
+- Moved a late `import pandas as pd` to the module top to match the other
+  example scripts.
 
 ## One precise next task
+
 No further work required for correctness. A future session need only re-run
-`python3 -m pytest -q` and
-`mypy tests/test_repository_integrity.py --disallow-untyped-defs` to confirm no
+`python3 -m pytest -q` and `mypy quant_trading/ examples/` to confirm no
 regression. If more coverage is desired, the only remaining gaps are the same
 defensive branches noted in the prior handoff (engine.py TYPE_CHECKING imports
 and guards).
+
+(End of file - total 59 lines)
