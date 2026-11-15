@@ -19,7 +19,7 @@ from quant_trading.strategies.examples import MovingAverageCrossover
 from .test_backtest_engine import MockDataProvider
 
 
-def test_config_from_yaml_feeds_engine():
+def test_config_from_yaml_feeds_engine() -> None:
     """A Config loaded from YAML must drive BacktestEngine settings."""
     yaml_content = (
         "data:\n"
@@ -81,7 +81,7 @@ def test_config_from_yaml_feeds_engine():
         assert (result.trades["slippage"] == 0.001).all()
 
 
-def test_default_config_feeds_engine():
+def test_default_config_feeds_engine() -> None:
     """The default Config must also drive the engine with its defaults."""
     config = Config()
 
@@ -104,7 +104,7 @@ def test_default_config_feeds_engine():
     assert result.final_value > 0
 
 
-def test_full_config_drives_risk_manager():
+def test_full_config_drives_risk_manager() -> None:
     """A full Config wires its risk/portfolio sub-configs into the engine's RiskManager.
 
     A tight risk budget must actually reject buys that a default config would
@@ -139,7 +139,7 @@ def test_full_config_drives_risk_manager():
     assert engine.risk_manager.portfolio_limit.max_portfolio_risk == 0.001
 
 
-def test_backtest_config_only_uses_risk_defaults():
+def test_backtest_config_only_uses_risk_defaults() -> None:
     """A bare BacktestConfig still builds a RiskManager with default limits."""
     config = BacktestConfig(initial_capital=100000.0)
 
@@ -155,7 +155,7 @@ def test_backtest_config_only_uses_risk_defaults():
     assert engine.risk_manager.portfolio_limit.max_positions == 20
 
 
-def test_caller_supplied_risk_manager_wins_over_config():
+def test_caller_supplied_risk_manager_wins_over_config() -> None:
     """An explicit risk_manager argument overrides the config-driven default."""
     config = Config(
         backtest=BacktestConfig(initial_capital=100000.0),
