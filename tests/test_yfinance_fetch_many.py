@@ -95,7 +95,7 @@ class FakeYf:
         )
         available = [t for t in tickers_list if t in self._frames]
         if not available:
-            return pd.DataFrame()
+            return pd.DataFrame()  # type: ignore[no-any-return]
         pieces = [self._frames[t] for t in available]
         result_df = pd.concat(pieces, axis=1, keys=available, names=["Ticker", "Price"])
         assert isinstance(result_df, pd.DataFrame)
