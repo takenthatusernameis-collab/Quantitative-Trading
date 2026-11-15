@@ -1,37 +1,70 @@
 ## What changed (this session)
-Verified that `tests/test_risk_manager.py` is already fully migrated with type annotations and its mypy override enabled.
-- All 203 test functions have `-> None` return annotations.
-- All helper methods (`_rm_with_positions`, `_returns`) have proper return type annotations.
-- The mypy override `[[tool.mypy.overrides]] module = "tests.test_risk_manager"` / `disallow_untyped_defs = true` is already present in `pyproject.toml` (lines 301-303).
-- No accidentally-nested `if __name__ == "__main__":` blocks hiding untyped functions.
+Completed the type-annotation migration of `tests/test_backtest_engine.py`:
+- Added return annotations to all 134 defs that were missing them (all 159 defs now typed).
+  Test functions / `__init__` -> `-> None`; helpers -> concrete types
+  (`_run`/`_engine_run`/`_make_result` -> `BacktestResult`, `to_dict` -> `dict`,
+  nested `generate_signals` -> `list[Signal]`).
+- Added parameter annotations for 15 previously-untyped params: `tmp_path: Path`,
+  `monkeypatch: pytest.MonkeyPatch`, helper args (`strategy`, `data`, `traded`,
+  `benchmark`, `script`), widened `_run(config: Config | DataConfig [| None])`,
+  and `**kwargs: Any`.
+- Added imports `from pathlib import Path` and `from typing import Any, cast`.
+- Fixed 18 latent mypy errors that surfaced only once the function bodies became
+  type-checked: `cast(Any, ...)` for deliberately out-of-contract test values
+  (fake regime analysis, `metrics=None`, `Dummy` metrics), `assert x is not None`
+  guards before reading Optional attributes, and local `MagicMock` managers in the
+  fetch-error tests.
+- Added `[[tool.mypy.overrides]] module = "tests.test_backtest_engine"` /
+  `disallow_untyped_defs = true` immediately before `[tool.coverage.run]`
+  (now 55 overrides, 0 duplicates).
+- Ran `black` on the file (it only re-wrapped the over-length signatures I added).
 
 ## What was actually verified (evidence)
-- `python3 -m pytest tests/test_risk_manager.py -p no:cacheprovider -q` -> `203 passed`
-- `python3 -m mypy quant_trading/ tests/ --show-error-codes --no-incremental` -> only 1 pre-existing error in `test_optimization.py:1542` (list-item type mismatch); `test_risk_manager` NOT in the error list
-- `python3 -m mypy tests/test_risk_manager.py --show-error-codes --no-incremental` -> `Success` (direct mode shows override as unused, which is expected)
-- `python3 -m ruff check tests/test_risk_manager.py pyproject.toml` -> `All checks passed!`
-- `python3 -m black --check tests/test_risk_manager.py` -> unchanged
+- `python3 -m pytest tests/test_backtest_engine.py -p no:cacheprovider -q` -> `118 passed`
+- `python3 -m mypy quant_trading/ tests/ --show-error-codes --no-incremental` -> only
+  1 pre-existing error: `tests/test_optimization.py:1542` (list-item). `test_backtest_engine`
+  is NOT in the error list. The override is active: enabling it made mypy check the
+  previously-unchecked bodies, which is how the 18 latent errors were found and fixed.
+- `python3 -m ruff check tests/test_backtest_engine.py pyproject.toml` -> `All checks passed!`
+- `python3 -m black --check tests/test_backtest_engine.py` -> unchanged
 - `git diff --check` -> clean
+- AST audit (ast-based analyzer, not regex): 159 defs, 0 missing return, 0 missing params.
 
 ## What remains unresolved (pre-existing / environment, DO NOT "fix" by editing test code)
-- Missing optional dependency `matplotlib` (not hit this run; full suite passed).
-- `pandas-stubs>=3.0.0` declared but not installed -> 4 pre-existing `no-any-return` modules (see prior handoffs); treat as known env noise.
-- Pre-existing `black --check pyproject.toml` parse failure. Do not run black on the TOML.
-- Pre-existing `quant_trading/strategies/base.py:290` issue only under global `--disallow-untyped-defs`; not triggered by per-module overrides.
-- Pre-existing `test_optimization.py:1542` list-item type error.
+- Missing optional dependency `matplotlib`; `pandas-stubs>=3.0.0` declared but not
+  installed -> known env noise.
+- `black --check pyproject.toml` parse failure (do not run black on the TOML).
+- Pre-existing `tests/test_optimization.py:1542` list-item type error (file SKIPPED for migration).
+- `quant_trading/strategies/base.py:290` only under global `--disallow-untyped-defs`.
 
-## Remaining candidates for the same migration (missing `->` counts from earlier survey)
-`test_backtest_engine` 134, `test_integration` 5, `test_alphavantage_provider` 305, `test_cli` 324, `test_strategies_examples` 555. `test_optimization` 211 (SKIP, pre-existing `test_optimization.py:1542`).
+## Remaining migration candidates (verified counts via AST)
+- `test_integration.py`: 5/5 missing return, 0 params (smallest -> recommended next)
+- `test_alphavantage_provider.py`: 305 missing return, 313 params
+- `test_cli.py`: 324 missing return, 157 params
+- `test_strategies_examples.py`: 555 missing return, 12 params
+- `test_optimization.py`: 211 missing return, 76 params (SKIP: pre-existing 1542 error)
 
 ## One precise next task
-Continue the migration with `tests/test_backtest_engine.py` (est. 134 missing return annotations). Concrete plan:
-1. Baseline: `python3 -m pytest tests/test_backtest_engine.py -p no:cacheprovider -q` and `python3 -m mypy quant_trading/ tests/ --show-error-codes --no-incremental` (confirm only the 1 pre-existing error).
-2. Add `-> None` / concrete annotations to all defs missing a return annotation. Also check for any defs with untyped *parameters* (the override enforces both) and any accidentally-nested `if __name__ == "__main__":` blocks that hide untyped `self` (as happened in `test_risk_metrics.py`).
-3. Append `[[tool.mypy.overrides]] module = "tests.test_backtest_engine"` / `disallow_untyped_defs = true` immediately before `[tool.coverage.run]` (expect 54 overrides, 0 duplicates).
-4. Verify: `mypy quant_trading/ tests/` -> only 1 pre-existing error; `pytest tests/test_backtest_engine.py` -> all pass; `ruff check tests/test_backtest_engine.py pyproject.toml`; `black --check tests/test_backtest_engine.py`; `git diff --check`.
-Constraints: preserve the working baseline; no unrelated refactors; prefer fixing annotations over `# type: ignore`; lines <= 100 chars; do not touch `test_optimization.py:1542`, `quant_trading/strategies/base.py:290`, or the pre-existing matplotlib failures; changes stay uncommitted unless asked.
+Migrate `tests/test_integration.py` (5 defs; currently 5 passed, no mypy override).
+1. Baseline: `python3 -m pytest tests/test_integration.py -p no:cacheprovider -q`
+   (expect 5 passed) and `python3 -m mypy quant_trading/ tests/ --show-error-codes --no-incremental`
+   (confirm only the 1 pre-existing `test_optimization.py:1542` error).
+2. Add `-> None` to the 5 test functions at approx lines 22, 84, 107, 142, 158.
+   No params are missing. Check for any nested `if __name__ == "__main__":` hiding defs.
+3. Append `[[tool.mypy.overrides]] module = "tests.test_integration"` /
+   `disallow_untyped_defs = true` immediately before `[tool.coverage.run]`
+   (expect 56 overrides, 0 duplicates).
+4. Verify: `mypy quant_trading/ tests/` -> only the 1 pre-existing error; `pytest
+   tests/test_integration.py` -> 5 passed; `ruff check tests/test_integration.py pyproject.toml`;
+   `black --check tests/test_integration.py`; `git diff --check`.
+Constraints: preserve the working baseline; no unrelated refactors; prefer real
+annotations over `# type: ignore`; lines <= 100 chars; leave changes uncommitted.
 
 ## Failed or corrected approaches this session
-- None needed; `test_risk_manager.py` was already fully annotated when created. The prior handoff's count of "156 missing" reflected an earlier plan/state, not the current file.
-
-(End of file)
+- Initial `grep`/regex attempts to locate missing return annotations were unreliable
+  (they matched every def and missed multi-line signatures). Switched to an AST-based
+  analyzer (walk `FunctionDef`/`AsyncFunctionDef`, check `node.returns` and arg
+  annotations) for an accurate list.
+- Enabling the mypy override revealed 18 latent body errors (expected consequence of
+  newly checking typed bodies). Fixed them with `cast`/`assert` rather than blanket
+  `# type: ignore`, per the "prefer real annotations" constraint.

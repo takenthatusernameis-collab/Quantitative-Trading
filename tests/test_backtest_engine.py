@@ -2,6 +2,8 @@
 
 import json
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -33,7 +35,7 @@ from quant_trading.strategies.examples import MovingAverageCrossover
 class MockDataProvider(DataProvider):
     """Mock data provider for testing."""
 
-    def __init__(self, data: dict):
+    def __init__(self, data: dict) -> None:
         self._data = data
         self._name = "mock"
 
@@ -68,7 +70,7 @@ class MockDataProvider(DataProvider):
 class FirstDayBuyStrategy(Strategy):
     """Buys once on the first simulated date, then holds."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name="FirstDayBuy")
         self._bought = False
 
@@ -90,7 +92,7 @@ class FirstDayBuyStrategy(Strategy):
 class BuyThenSellStrategy(Strategy):
     """Buys the full position on the first date, sells it all on the second."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name="BuyThenSell")
         self._phase = 0
 
@@ -109,7 +111,7 @@ class BuyThenSellStrategy(Strategy):
 class NoTradeStrategy(Strategy):
     """Never emits a signal."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name="NoTrade")
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
@@ -119,7 +121,7 @@ class NoTradeStrategy(Strategy):
 class BuyAllSymbolsStrategy(Strategy):
     """Buys every symbol on the first simulated date, all in the same bar."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name="BuyAllSymbols")
         self._bought = False
 
@@ -141,7 +143,7 @@ class BuyAllSymbolsStrategy(Strategy):
 class BuyThenSellSameBarStrategy(Strategy):
     """Buys and then sells the same symbol inside a single bar."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name="BuyThenSellSameBar")
         self._done = False
 
@@ -157,7 +159,7 @@ class BuyThenSellSameBarStrategy(Strategy):
         ]
 
 
-def test_trade_cost_calculation():
+def test_trade_cost_calculation() -> None:
     """Test Trade cost calculation with commission and slippage."""
     trade = Trade(
         symbol="AAPL",
@@ -184,7 +186,7 @@ def test_trade_cost_calculation():
     assert abs(trade_sell.cost - expected_cost_sell) < 0.01
 
 
-def test_trade_fee_property():
+def test_trade_fee_property() -> None:
     """Trade.fee is the commission plus slippage charged on the gross value."""
     buy = Trade(
         symbol="AAPL",
@@ -209,7 +211,7 @@ def test_trade_fee_property():
     assert sell.fee == pytest.approx(100 * 150.0 * 0.0015)
 
 
-def test_backtest_engine_initialization():
+def test_backtest_engine_initialization() -> None:
     """Test BacktestEngine initialization."""
     config = BacktestConfig(initial_capital=50000.0)
     engine = BacktestEngine(config=config)
@@ -220,7 +222,7 @@ def test_backtest_engine_initialization():
     assert len(engine.strategies) == 0
 
 
-def test_add_remove_strategy():
+def test_add_remove_strategy() -> None:
     """Test adding and removing strategies."""
     engine = BacktestEngine()
     strategy = MovingAverageCrossover(name="Test_MA")
@@ -233,7 +235,7 @@ def test_add_remove_strategy():
     assert "Test_MA" not in engine.strategies
 
 
-def test_backtest_result_dataclass():
+def test_backtest_result_dataclass() -> None:
     """Test BacktestResult dataclass creation."""
     equity_curve = pd.Series([100000, 101000, 102000])
     trades = pd.DataFrame(
@@ -275,7 +277,7 @@ def test_backtest_result_dataclass():
     assert result.total_costs == 0.0
 
 
-def test_backtest_result_to_dataframe_includes_total_pnl():
+def test_backtest_result_to_dataframe_includes_total_pnl() -> None:
     """to_dataframe() exposes total_pnl alongside the other headline totals."""
     from quant_trading.backtest.metrics import BacktestMetrics
 
@@ -299,7 +301,7 @@ def test_backtest_result_to_dataframe_includes_total_pnl():
     assert frame["unrealized_pnl"].iloc[0] == 250.0
 
 
-def test_backtest_result_to_json_returns_object_not_list():
+def test_backtest_result_to_json_returns_object_not_list() -> None:
     """to_json() serializes a JSON object, not a list of records."""
     from quant_trading.backtest.metrics import BacktestMetrics
 
@@ -328,7 +330,7 @@ def test_backtest_result_to_json_returns_object_not_list():
     assert payload["portfolio_violations"] == []
 
 
-def test_backtest_result_to_json_includes_attached_analyses():
+def test_backtest_result_to_json_includes_attached_analyses() -> None:
     """to_json() conditionally includes regime/monte-carlo/trade analysis."""
     from quant_trading.backtest.metrics import BacktestMetrics
 
@@ -347,11 +349,11 @@ def test_backtest_result_to_json_includes_attached_analyses():
     )
 
     class FakeAnalysis:
-        def to_dict(self):
+        def to_dict(self) -> dict:
             return {"current_regime": "bull"}
 
-    result.regime_analysis = FakeAnalysis()
-    result.monte_carlo = {"summary": "mocked"}
+    result.regime_analysis = cast(Any, FakeAnalysis())
+    result.monte_carlo = cast(Any, {"summary": "mocked"})
     result.trade_analysis = None
 
     payload = json.loads(result.to_json())
@@ -360,7 +362,7 @@ def test_backtest_result_to_json_includes_attached_analyses():
     assert "trade_analysis" not in payload
 
 
-def test_backtest_result_to_csv_writes_file(tmp_path):
+def test_backtest_result_to_csv_writes_file(tmp_path: Path) -> None:
     """to_csv() returns a CSV string and optionally writes it to a file."""
     from quant_trading.backtest.metrics import BacktestMetrics
 
@@ -389,7 +391,9 @@ def test_backtest_result_to_csv_writes_file(tmp_path):
     assert out_path.read_text(encoding="utf-8") == csv_text
 
 
-def test_backtest_result_to_csv_writes_to_current_dir(tmp_path, monkeypatch):
+def test_backtest_result_to_csv_writes_to_current_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """to_csv() writes to files in current directory (no parent mkdir)."""
     from quant_trading.backtest.metrics import BacktestMetrics
 
@@ -414,7 +418,9 @@ def test_backtest_result_to_csv_writes_to_current_dir(tmp_path, monkeypatch):
     assert returned == result.to_csv()
 
 
-def test_backtest_result_to_json_writes_to_current_dir(tmp_path, monkeypatch):
+def test_backtest_result_to_json_writes_to_current_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """to_json() writes to files in current directory (no parent mkdir)."""
     from quant_trading.backtest.metrics import BacktestMetrics
 
@@ -438,13 +444,13 @@ def test_backtest_result_to_json_writes_to_current_dir(tmp_path, monkeypatch):
     assert isinstance(json.loads(returned), dict)
 
 
-def test_backtest_result_total_pnl_when_metrics_none():
+def test_backtest_result_total_pnl_when_metrics_none() -> None:
     """total_pnl returns 0.0 when metrics is None."""
     result = BacktestResult(
         equity_curve=pd.Series([100000.0]),
         trades=pd.DataFrame(),
         positions={},
-        metrics=None,
+        metrics=cast(Any, None),
         start_date=datetime(2023, 1, 1),
         end_date=datetime(2023, 1, 1),
         initial_capital=100000.0,
@@ -455,7 +461,7 @@ def test_backtest_result_total_pnl_when_metrics_none():
     assert result.total_pnl == 0.0
 
 
-def test_backtest_result_metric_properties_fallbacks_with_falsey_metrics():
+def test_backtest_result_metric_properties_fallbacks_with_falsey_metrics() -> None:
     """Metric properties return zeros when metrics values are falsy."""
 
     class Dummy:
@@ -474,7 +480,7 @@ def test_backtest_result_metric_properties_fallbacks_with_falsey_metrics():
         equity_curve=pd.Series([100000.0]),
         trades=pd.DataFrame(),
         positions={},
-        metrics=Dummy(),
+        metrics=cast(Any, Dummy()),
         start_date=datetime(2023, 1, 1),
         end_date=datetime(2023, 1, 1),
         initial_capital=100000.0,
@@ -495,7 +501,7 @@ def test_backtest_result_metric_properties_fallbacks_with_falsey_metrics():
     assert result.total_pnl == 0.0
 
 
-def test_backtest_result_to_json_writes_file(tmp_path):
+def test_backtest_result_to_json_writes_file(tmp_path: Path) -> None:
     """to_json() writes the serialized object to ``path`` and returns the same text."""
     from quant_trading.backtest.metrics import BacktestMetrics
 
@@ -523,7 +529,7 @@ def test_backtest_result_to_json_writes_file(tmp_path):
     assert payload["total_costs"] == 12.5
 
 
-def test_mock_backtest_run():
+def test_mock_backtest_run() -> None:
     """Test a full backtest run with mock data."""
     symbols = ["AAPL", "MSFT"]
     mock_data = create_synthetic_data(symbols, days=60)
@@ -549,7 +555,7 @@ def test_mock_backtest_run():
     assert result.metrics is not None
 
 
-def test_engine_applies_config_periods_per_year():
+def test_engine_applies_config_periods_per_year() -> None:
     """The engine must annualize metrics with the configured periods per year."""
     symbols = ["AAPL"]
     mock_data = create_synthetic_data(symbols, days=60)
@@ -560,7 +566,7 @@ def test_engine_applies_config_periods_per_year():
     start_date = datetime.now() - timedelta(days=50)
     end_date = datetime.now()
 
-    def _run(periods_per_year: int):
+    def _run(periods_per_year: int) -> BacktestResult:
         config = BacktestConfig(initial_capital=100000.0, periods_per_year=periods_per_year)
         engine = BacktestEngine(config=config, data_manager=data_manager)
         engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=15, name="Test_MA"))
@@ -578,7 +584,7 @@ def test_engine_applies_config_periods_per_year():
     assert monthly.metrics.annual_return == pytest.approx(returns.mean() * 12)
 
 
-def test_run_backtest_periods_per_year_argument():
+def test_run_backtest_periods_per_year_argument() -> None:
     """The run_backtest convenience function must expose periods_per_year."""
     symbols = ["AAPL"]
     mock_data = create_synthetic_data(symbols, days=60)
@@ -605,7 +611,7 @@ def test_run_backtest_periods_per_year_argument():
     assert result.metrics.volatility == pytest.approx(returns.std() * (12**0.5))
 
 
-def test_run_backtest_convenience_function():
+def test_run_backtest_convenience_function() -> None:
     symbols = ["AAPL"]
     mock_data = create_synthetic_data(symbols, days=60)
 
@@ -629,7 +635,7 @@ def test_run_backtest_convenience_function():
     assert result.final_value > 0
 
 
-def test_trade_realized_pnl_property():
+def test_trade_realized_pnl_property() -> None:
     """Test that Trade.pnl returns realized PnL (0 for opens, set on closes)."""
     trade = Trade(
         symbol="AAPL",
@@ -647,7 +653,7 @@ def test_trade_realized_pnl_property():
     assert buy.pnl == 0.0
 
 
-def test_backtest_traces_realized_pnl():
+def test_backtest_traces_realized_pnl() -> None:
     """Test that realized PnL is recorded per trade and feeds the metrics."""
     symbols = ["AAPL", "MSFT"]
     mock_data = create_synthetic_data(symbols, days=60)
@@ -678,7 +684,7 @@ def test_backtest_traces_realized_pnl():
     assert result.metrics.num_trades == len(sells)
 
 
-def test_portfolio_violations_collected_without_halt():
+def test_portfolio_violations_collected_without_halt() -> None:
     """Portfolio violations are recorded but the backtest runs to completion.
 
     The violation is forced with a ``max_drawdown`` that the fee paid on the
@@ -715,7 +721,7 @@ def test_portfolio_violations_collected_without_halt():
     assert result.equity_curve.index[0] == start_date
 
 
-def test_halt_on_portfolio_violation_stops_backtest():
+def test_halt_on_portfolio_violation_stops_backtest() -> None:
     """halt_on_portfolio_violation=True stops the backtest on the first violation.
 
     The violation is forced with a ``max_drawdown`` that the fee paid on the
@@ -756,7 +762,7 @@ def test_halt_on_portfolio_violation_stops_backtest():
     assert len(result.equity_curve.index) == len(result.equity_curve)
 
 
-def test_config_driven_max_drawdown_halts_backtest():
+def test_config_driven_max_drawdown_halts_backtest() -> None:
     """A config-driven ``max_drawdown`` halts a multi-symbol backtest.
 
     The violation is forced with a ``max_drawdown`` that the fee paid on the
@@ -792,7 +798,7 @@ def test_config_driven_max_drawdown_halts_backtest():
     assert len(result.equity_curve) < len(mock_data["AAPL"]) + 1
 
 
-def test_portfolio_at_its_position_limit_does_not_open_a_new_position():
+def test_portfolio_at_its_position_limit_does_not_open_a_new_position() -> None:
     """A portfolio at ``max_positions`` does not open a new position.
 
     With ``max_positions=1`` the first bar opens AAPL and the MSFT buy is
@@ -822,7 +828,7 @@ def test_portfolio_at_its_position_limit_does_not_open_a_new_position():
     assert set(result.positions) == {"AAPL"}
 
 
-def test_same_bar_buys_are_measured_against_the_exposure_they_add():
+def test_same_bar_buys_are_measured_against_the_exposure_they_add() -> None:
     """A second buy in the same bar is rejected when it breaks the leverage limit."""
     symbols = ["AAPL", "MSFT"]
     mock_data = create_synthetic_data(symbols, days=60)
@@ -854,7 +860,7 @@ def test_same_bar_buys_are_measured_against_the_exposure_they_add():
     assert gross / result.final_value <= 0.5
 
 
-def test_position_opened_in_the_same_bar_can_be_sold_again():
+def test_position_opened_in_the_same_bar_can_be_sold_again() -> None:
     """A sell in the same bar as its buy is executed instead of being rejected."""
     symbols = ["AAPL"]
     mock_data = create_synthetic_data(symbols, days=60)
@@ -879,32 +885,34 @@ def test_position_opened_in_the_same_bar_can_be_sold_again():
     assert result.positions == {}
 
 
-def test_run_without_data_manager_raises():
+def test_run_without_data_manager_raises() -> None:
     """run() raises ValueError when no data_manager is configured."""
     engine = BacktestEngine()
     with pytest.raises(ValueError, match="No data_manager configured"):
         engine.run(["AAPL"], datetime.now(), datetime.now())
 
 
-def test_run_raises_on_fetch_errors():
+def test_run_raises_on_fetch_errors() -> None:
     """run() raises RuntimeError when the data manager reports fetch errors."""
-    engine = BacktestEngine(data_manager=MagicMock())
-    engine.data_manager.fetch.return_value = FetchResult(
+    manager = MagicMock()
+    manager.fetch.return_value = FetchResult(
         errors={"AAPL": RuntimeError("network down")},
     )
+    engine = BacktestEngine(data_manager=manager)
     with pytest.raises(RuntimeError, match="Data fetch errors"):
         engine.run(["AAPL"], datetime.now(), datetime.now())
 
 
-def test_run_raises_on_no_data():
+def test_run_raises_on_no_data() -> None:
     """run() raises ValueError when the data manager returns no data."""
-    engine = BacktestEngine(data_manager=MagicMock())
-    engine.data_manager.fetch.return_value = FetchResult()
+    manager = MagicMock()
+    manager.fetch.return_value = FetchResult()
+    engine = BacktestEngine(data_manager=manager)
     with pytest.raises(ValueError, match="No market data retrieved"):
         engine.run(["AAPL"], datetime.now(), datetime.now())
 
 
-def test_run_skips_dates_with_no_comparable_data():
+def test_run_skips_dates_with_no_comparable_data() -> None:
     """A NaT entry in the index yields an empty current_data slice, hitting the
     defensive ``continue`` in the run loop."""
     symbols = ["AAPL"]
@@ -929,7 +937,7 @@ def test_run_skips_dates_with_no_comparable_data():
     assert len(result.equity_curve) > 0
 
 
-def test_default_data_manager_creation_and_reset():
+def test_default_data_manager_creation_and_reset() -> None:
     """get_default_data_manager lazily builds (and caches) a DataManager and
     reset_default_data_manager clears it."""
     from quant_trading.backtest import engine as engine_module
@@ -952,7 +960,7 @@ def test_default_data_manager_creation_and_reset():
     assert engine_module._default_data_manager is None
 
 
-def test_process_signal_skipped_when_price_missing():
+def test_process_signal_skipped_when_price_missing() -> None:
     """A buy signal whose resolved price is None/<=0 is skipped."""
     config = BacktestConfig(initial_capital=100000.0, commission=0.001, slippage=0.0005)
     engine = BacktestEngine(config=config)
@@ -962,7 +970,7 @@ def test_process_signal_skipped_when_price_missing():
     assert trades == []
 
 
-def test_process_signal_buy_partial_fill_when_cost_exceeds_cash():
+def test_process_signal_buy_partial_fill_when_cost_exceeds_cash() -> None:
     """When cost exceeds cash, quantity is trimmed to fit available cash."""
     config = BacktestConfig(initial_capital=1000.0, commission=0.001, slippage=0.0005)
     engine = BacktestEngine(config=config)
@@ -977,7 +985,7 @@ def test_process_signal_buy_partial_fill_when_cost_exceeds_cash():
     assert trades[0].quantity < 10.0
 
 
-def test_process_signal_buy_aborted_when_no_cash_for_partial_fill():
+def test_process_signal_buy_aborted_when_no_cash_for_partial_fill() -> None:
     """When cash is exhausted, the partial fill quantity is <=0 and returns."""
     config = BacktestConfig(initial_capital=1000.0, commission=0.001, slippage=0.0005)
     engine = BacktestEngine(config=config)
@@ -989,7 +997,7 @@ def test_process_signal_buy_aborted_when_no_cash_for_partial_fill():
     assert trades == []
 
 
-def test_process_signal_sell_without_holding():
+def test_process_signal_sell_without_holding() -> None:
     """A sell signal for a symbol with no holding is a no-op."""
     config = BacktestConfig(initial_capital=100000.0)
     engine = BacktestEngine(config=config)
@@ -1000,7 +1008,7 @@ def test_process_signal_sell_without_holding():
     assert trades == []
 
 
-def test_process_signal_sell_with_zero_strength():
+def test_process_signal_sell_with_zero_strength() -> None:
     """A sell signal whose strength yields zero quantity is a no-op."""
     config = BacktestConfig(initial_capital=100000.0)
     engine = BacktestEngine(config=config)
@@ -1012,7 +1020,7 @@ def test_process_signal_sell_with_zero_strength():
     assert trades == []
 
 
-def test_process_signal_sell_executes():
+def test_process_signal_sell_executes() -> None:
     """A sell signal with a positive strength and an existing holding executes
     the `elif signal.action == "sell"` branch (295->exit)."""
     config = BacktestConfig(initial_capital=100000.0)
@@ -1027,7 +1035,7 @@ def test_process_signal_sell_executes():
     assert trades[0].pnl > 0
 
 
-def test_process_signal_hold_action_skips_branches():
+def test_process_signal_hold_action_skips_branches() -> None:
     """A signal whose action is neither 'buy' nor 'sell' (e.g. 'hold') falls
     through both the `if` and `elif` arms, hitting the 295->exit branch."""
     config = BacktestConfig(initial_capital=100000.0)
@@ -1040,7 +1048,7 @@ def test_process_signal_hold_action_skips_branches():
     assert trades == []
 
 
-def test_run_backtest_uses_default_data_manager():
+def test_run_backtest_uses_default_data_manager() -> None:
     """run_backtest with no data_manager/config falls back to the default DM."""
     from quant_trading.backtest import engine as engine_module
 
@@ -1063,7 +1071,9 @@ def test_run_backtest_uses_default_data_manager():
     engine_module.reset_default_data_manager()
 
 
-def _engine_run(strategy, data, commission: float, slippage: float):
+def _engine_run(
+    strategy: Strategy, data: dict[str, pd.DataFrame], commission: float, slippage: float
+) -> BacktestResult:
     """Run one backtest over deterministic mock data with the given costs."""
     symbols = list(data.keys())
     provider = MockDataProvider(data)
@@ -1075,7 +1085,7 @@ def _engine_run(strategy, data, commission: float, slippage: float):
     return engine.run(symbols, start, end, "1d")
 
 
-def test_costed_equity_below_zero_cost_run():
+def test_costed_equity_below_zero_cost_run() -> None:
     """Commission and slippage must push the equity curve below a zero-cost run.
 
     Covers invariant 1: a costed run's equity is weakly below the zero-cost
@@ -1103,7 +1113,7 @@ def test_costed_equity_below_zero_cost_run():
     assert costed.equity_curve.iloc[-1] < zero.equity_curve.iloc[-1]
 
 
-def test_signed_trade_cost_reconciles_with_final_value():
+def test_signed_trade_cost_reconciles_with_final_value() -> None:
     """For a fully liquidated round trip, signed trade cost equals PnL.
 
     Covers invariant 3: ``final_value - initial_capital`` equals the sum of
@@ -1158,7 +1168,7 @@ def _round_trip_data() -> dict[str, pd.DataFrame]:
     }
 
 
-def test_total_costs_equals_sum_of_per_trade_fees():
+def test_total_costs_equals_sum_of_per_trade_fees() -> None:
     """total_costs is the commission + slippage paid on every executed trade."""
     data = _round_trip_data()
     costed = _engine_run(BuyThenSellStrategy(), data, 0.01, 0.005)
@@ -1177,7 +1187,7 @@ def test_total_costs_equals_sum_of_per_trade_fees():
     assert zero.total_costs == pytest.approx(0.0)
 
 
-def test_total_costs_is_zero_when_no_trades_execute():
+def test_total_costs_is_zero_when_no_trades_execute() -> None:
     """A run that never trades pays no costs."""
     data = _round_trip_data()
     result = _engine_run(NoTradeStrategy(), data, 0.01, 0.005)
@@ -1186,7 +1196,7 @@ def test_total_costs_is_zero_when_no_trades_execute():
     assert result.total_costs == 0.0
 
 
-def test_total_costs_reconciles_with_pnl_and_final_value():
+def test_total_costs_reconciles_with_pnl_and_final_value() -> None:
     """The headline numbers reconcile against the trade log.
 
     - ``total_costs`` splits into the buy-side and sell-side fees.
@@ -1228,7 +1238,7 @@ def test_total_costs_reconciles_with_pnl_and_final_value():
     assert len(costed.positions) == 0
 
 
-def test_buy_signal_with_existing_position_at_target_does_not_trade():
+def test_buy_signal_with_existing_position_at_target_does_not_trade() -> None:
     """available_value <= 0 branch: no trade when position already at target."""
     data = create_synthetic_data(["AAPL"], days=5)
     provider = MockDataProvider(data)
@@ -1250,7 +1260,7 @@ def test_buy_signal_with_existing_position_at_target_does_not_trade():
     assert engine.portfolio.cash == initial_cash
 
 
-def test_run_backtest_with_config_creates_data_manager():
+def test_run_backtest_with_config_creates_data_manager() -> None:
     """config is not None branch: create_data_manager_from_config path runs."""
     from quant_trading.config.settings import Config
 
@@ -1273,7 +1283,7 @@ def test_run_backtest_with_config_creates_data_manager():
     assert result.metrics is not None
 
 
-def test_buy_returns_when_available_value_non_positive():
+def test_buy_returns_when_available_value_non_positive() -> None:
     """Test buy returns early when available_value <= 0."""
     end = datetime(2023, 12, 31)
     start = end - timedelta(days=30)
@@ -1283,10 +1293,10 @@ def test_buy_returns_when_available_value_non_positive():
     engine = BacktestEngine(config=BacktestConfig(initial_capital=100000.0), data_manager=dm)
 
     class LargeBuyStrategy(Strategy):
-        def __init__(self):
+        def __init__(self) -> None:
             super().__init__(name="LargeBuyStrategy")
 
-        def generate_signals(self, data: dict):
+        def generate_signals(self, data: dict) -> list[Signal]:
             symbol = next(iter(data.keys()))
             df = data[symbol]
             return [
@@ -1299,7 +1309,7 @@ def test_buy_returns_when_available_value_non_positive():
     assert result is not None
 
 
-def test_run_backtest_with_config_and_no_data_manager():
+def test_run_backtest_with_config_and_no_data_manager() -> None:
     """Test run_backtest creates data_manager from config when None."""
     from quant_trading.config.settings import Config, DataConfig
 
@@ -1318,7 +1328,7 @@ def test_run_backtest_with_config_and_no_data_manager():
     assert result is not None
 
 
-def test_trade_to_dict_serializes_all_fields():
+def test_trade_to_dict_serializes_all_fields() -> None:
     """Trade.to_dict() returns a JSON-safe dict with all fields."""
     ts = datetime(2024, 1, 1, 12, 0, 0)
     trade = Trade(
@@ -1344,7 +1354,7 @@ def test_trade_to_dict_serializes_all_fields():
     }
 
 
-def test_trade_from_dict_deserializes_all_fields():
+def test_trade_from_dict_deserializes_all_fields() -> None:
     """Trade.from_dict() rebuilds a Trade from a dictionary."""
     trade = Trade.from_dict(
         {
@@ -1368,7 +1378,7 @@ def test_trade_from_dict_deserializes_all_fields():
     assert trade.realized_pnl == -100.0
 
 
-def test_trade_from_dict_defaults_missing_optional_keys():
+def test_trade_from_dict_defaults_missing_optional_keys() -> None:
     """Trade.from_dict() falls back to defaults for missing optional keys."""
     trade = Trade.from_dict(
         {
@@ -1384,7 +1394,7 @@ def test_trade_from_dict_defaults_missing_optional_keys():
     assert trade.realized_pnl == 0.0
 
 
-def test_trade_to_dict_from_dict_round_trip():
+def test_trade_to_dict_from_dict_round_trip() -> None:
     """Trade.from_dict(trade.to_dict()) reproduces the original trade."""
     ts = datetime(2024, 2, 28, 14, 30, 0)
     original = Trade(
@@ -1412,7 +1422,7 @@ if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
 
-def test_run_with_zero_initial_capital_is_rejected():
+def test_run_with_zero_initial_capital_is_rejected() -> None:
     """A zero initial capital is rejected at construction instead of producing a degenerate run.
 
     The percentage return is undefined without a starting capital, so the risk
@@ -1437,7 +1447,7 @@ def test_run_with_zero_initial_capital_is_rejected():
 class ScriptedSignalStrategy(Strategy):
     """Emits a scripted sequence of ``(action, strength)`` signals, one per bar."""
 
-    def __init__(self, script: list[tuple[str, float]], symbols: list[str]):
+    def __init__(self, script: list[tuple[str, float]], symbols: list[str]) -> None:
         super().__init__(name="Scripted")
         self._script = list(script)
         self._symbols = list(symbols)
@@ -1456,7 +1466,7 @@ class ScriptedSignalStrategy(Strategy):
 class SameBarSignalStrategy(Strategy):
     """Emits every scripted signal inside the first bar it is called for."""
 
-    def __init__(self, script: list[tuple[str, float]], symbols: list[str]):
+    def __init__(self, script: list[tuple[str, float]], symbols: list[str]) -> None:
         super().__init__(name="SameBar")
         self._script = list(script)
         self._symbols = list(symbols)
@@ -1528,7 +1538,7 @@ def _short_config(**risk: float) -> Config:
     )
 
 
-def test_short_signal_opens_a_short_sized_by_the_position_limit():
+def test_short_signal_opens_a_short_sized_by_the_position_limit() -> None:
     """A short signal opens a short of the size the position limit allows."""
     data = {"TEST": _price_frame([50.0, 50.0])}
     config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
@@ -1546,7 +1556,7 @@ def test_short_signal_opens_a_short_sized_by_the_position_limit():
     assert result.positions["TEST"].avg_price == pytest.approx(50.0)
 
 
-def test_short_entry_books_the_fee_it_pays():
+def test_short_entry_books_the_fee_it_pays() -> None:
     """The entry fee of a short is charged to cash and booked as realized PnL."""
     data = {"TEST": _price_frame([50.0, 50.0])}
     config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
@@ -1567,7 +1577,7 @@ def test_short_entry_books_the_fee_it_pays():
     )
 
 
-def test_short_round_trip_reconciles_cash_pnl_and_equity():
+def test_short_round_trip_reconciles_cash_pnl_and_equity() -> None:
     """A short that is covered again books the PnL, the cash and the equity."""
     data = {"TEST": _price_frame([50.0, 50.0, 40.0])}
     config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
@@ -1596,7 +1606,7 @@ def test_short_round_trip_reconciles_cash_pnl_and_equity():
     assert result.equity_curve.iloc[-1] == pytest.approx(result.final_value)
 
 
-def test_buy_signal_covers_an_open_short():
+def test_buy_signal_covers_an_open_short() -> None:
     """A buy signal against an open short buys it back."""
     data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
     config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
@@ -1611,7 +1621,7 @@ def test_buy_signal_covers_an_open_short():
     assert engine.portfolio.holdings == {}
 
 
-def test_cover_can_be_smaller_than_the_open_short():
+def test_cover_can_be_smaller_than_the_open_short() -> None:
     """A cover with a strength below one closes only that part of the short."""
     data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
     config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
@@ -1625,7 +1635,7 @@ def test_cover_can_be_smaller_than_the_open_short():
     assert result.positions["TEST"].quantity == pytest.approx(-short["quantity"] / 2)
 
 
-def test_cover_short_with_zero_cash_records_no_trade():
+def test_cover_short_with_zero_cash_records_no_trade() -> None:
     """A cover that cannot afford even a fractional share returns without trading.
 
     Exercises the ``if quantity <= 0: return`` guard at engine.py:1030: when
@@ -1646,7 +1656,7 @@ def test_cover_short_with_zero_cash_records_no_trade():
     assert engine.portfolio.cash == 0.0
 
 
-def test_oversized_short_is_rejected_by_the_signal_gate():
+def test_oversized_short_is_rejected_by_the_signal_gate() -> None:
     """A short that would breach the position limit is not traded."""
     data = {"TEST": _price_frame([50.0, 50.0])}
     config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
@@ -1657,7 +1667,7 @@ def test_oversized_short_is_rejected_by_the_signal_gate():
     assert engine.portfolio.holdings == {}
 
 
-def test_short_that_would_breach_the_leverage_limit_is_rejected():
+def test_short_that_would_breach_the_leverage_limit_is_rejected() -> None:
     """A short is measured on gross exposure, so it cannot hide behind a long."""
     data = {
         "AAA": _price_frame([50.0, 50.0]),
@@ -1675,7 +1685,7 @@ def test_short_that_would_breach_the_leverage_limit_is_rejected():
     assert "BBB" not in result.positions
 
 
-def test_long_and_short_pair_is_measured_on_gross_exposure():
+def test_long_and_short_pair_is_measured_on_gross_exposure() -> None:
     """An equally sized long and short do not cancel each other out."""
     data = {
         "AAA": _price_frame([50.0, 50.0]),
@@ -1693,7 +1703,7 @@ def test_long_and_short_pair_is_measured_on_gross_exposure():
     assert "BBB" not in result.positions
 
 
-def test_second_short_in_the_same_bar_is_measured_against_the_first():
+def test_second_short_in_the_same_bar_is_measured_against_the_first() -> None:
     """A second short in the same bar is measured against the exposure it adds."""
     data = {"TEST": _price_frame([50.0, 50.0])}
     config = _short_config(max_position_size=0.25, max_leverage=1.0, max_portfolio_risk=1.0)
@@ -1706,7 +1716,7 @@ def test_second_short_in_the_same_bar_is_measured_against_the_first():
     assert result.positions["TEST"].quantity == pytest.approx(-500.0)
 
 
-def test_sell_signal_does_not_add_to_an_open_short():
+def test_sell_signal_does_not_add_to_an_open_short() -> None:
     """A sell signal is not a way to short: an open short is left alone."""
     data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
     config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
@@ -1717,7 +1727,7 @@ def test_sell_signal_does_not_add_to_an_open_short():
     assert result.positions["TEST"].quantity < 0
 
 
-def test_short_signal_is_rejected_while_a_long_position_is_open():
+def test_short_signal_is_rejected_while_a_long_position_is_open() -> None:
     """A short signal does not flip an open long position."""
     data = {"TEST": _price_frame([50.0, 50.0])}
     config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
@@ -1729,7 +1739,7 @@ def test_short_signal_is_rejected_while_a_long_position_is_open():
     assert result.positions["TEST"].quantity > 0
 
 
-def test_engine_short_gets_mirrored_stop_loss_and_take_profit():
+def test_engine_short_gets_mirrored_stop_loss_and_take_profit() -> None:
     """The risk manager's thresholds follow the direction of a short."""
     data = {"TEST": _price_frame([50.0, 50.0])}
     config = _short_config(
@@ -1757,7 +1767,7 @@ def test_engine_short_gets_mirrored_stop_loss_and_take_profit():
     assert rm.should_stop_loss("TEST", avg_price * 0.80) is False
 
 
-def test_trailing_stop_config_reaches_the_risk_manager():
+def test_trailing_stop_config_reaches_the_risk_manager() -> None:
     """The trailing stop settings of the risk config are forwarded to the manager."""
     data = {"TEST": _price_frame([50.0, 50.0])}
     config = _short_config(
@@ -1775,7 +1785,7 @@ def test_trailing_stop_config_reaches_the_risk_manager():
     assert rm.trailing_stop_activation_pct == 0.02
 
 
-def test_engine_tracks_a_trailing_stop_while_the_price_rises():
+def test_engine_tracks_a_trailing_stop_while_the_price_rises() -> None:
     """The trailing stop of a long follows the price the engine observes."""
     data = {"TEST": _price_frame([50.0, 60.0, 70.0])}
     config = _short_config(
@@ -1798,7 +1808,7 @@ def test_engine_tracks_a_trailing_stop_while_the_price_rises():
     assert rm.should_stop_loss("TEST", 64.0) is False
 
 
-def test_short_and_cover_in_the_same_bar_end_flat():
+def test_short_and_cover_in_the_same_bar_end_flat() -> None:
     """A short that is covered inside the same bar leaves no position behind."""
     data = {"TEST": _price_frame([50.0, 50.0])}
     config = _short_config(max_position_size=0.1, max_leverage=1.0, max_portfolio_risk=1.0)
@@ -1813,7 +1823,7 @@ def test_short_and_cover_in_the_same_bar_end_flat():
     assert result.final_value == pytest.approx(result.initial_capital - result.total_costs)
 
 
-def test_process_signal_short_executes_a_trade():
+def test_process_signal_short_executes_a_trade() -> None:
     """A short signal is executed directly against the engine."""
     config = BacktestConfig(initial_capital=100000.0, commission=0.001, slippage=0.0005)
     engine = BacktestEngine(config=config)
@@ -1826,10 +1836,12 @@ def test_process_signal_short_executes_a_trade():
     assert len(trades) == 1
     assert trades[0].action == "short"
     assert trades[0].quantity > 0
-    assert engine.portfolio.get_position("AAPL").quantity == pytest.approx(-trades[0].quantity)
+    position = engine.portfolio.get_position("AAPL")
+    assert position is not None
+    assert position.quantity == pytest.approx(-trades[0].quantity)
 
 
-def test_process_signal_short_without_price_is_skipped():
+def test_process_signal_short_without_price_is_skipped() -> None:
     """A short signal without a usable price is skipped."""
     config = BacktestConfig(initial_capital=100000.0)
     engine = BacktestEngine(config=config)
@@ -1842,7 +1854,7 @@ def test_process_signal_short_without_price_is_skipped():
     assert trades == []
 
 
-def test_process_signal_buy_covers_an_open_short():
+def test_process_signal_buy_covers_an_open_short() -> None:
     """A buy signal against an open short covers it instead of flipping it."""
     config = BacktestConfig(initial_capital=100000.0, commission=0.001, slippage=0.0005)
     engine = BacktestEngine(config=config)
@@ -1868,7 +1880,7 @@ def _top_up_config() -> Config:
     )
 
 
-def test_buy_signal_tops_up_a_position_below_its_target():
+def test_buy_signal_tops_up_a_position_below_its_target() -> None:
     """A position that is part of the way to its target is topped up.
 
     The signal gate measures the exposure the position carries after the
@@ -1886,7 +1898,7 @@ def test_buy_signal_tops_up_a_position_below_its_target():
     assert result.positions["TEST"].quantity == pytest.approx(200.0)
 
 
-def test_short_signal_tops_up_a_short_below_its_target():
+def test_short_signal_tops_up_a_short_below_its_target() -> None:
     """A short that is part of the way to its target is topped up."""
     data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
 
@@ -1925,7 +1937,7 @@ def _stop_exit_config(
     )
 
 
-def test_stop_loss_closes_a_long_at_the_bar_close():
+def test_stop_loss_closes_a_long_at_the_bar_close() -> None:
     """A long whose close falls to its stop loss is closed at that close."""
     data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
     config = _stop_exit_config(stop_loss_pct=0.05, take_profit_pct=0.15)
@@ -1945,7 +1957,7 @@ def test_stop_loss_closes_a_long_at_the_bar_close():
     assert result.positions == {}
 
 
-def test_take_profit_closes_a_long_at_the_bar_close():
+def test_take_profit_closes_a_long_at_the_bar_close() -> None:
     """A long whose close rises to its take profit is closed at that close."""
     data = {"TEST": _price_frame([50.0, 50.0, 60.0])}
     config = _stop_exit_config(stop_loss_pct=0.05, take_profit_pct=0.15)
@@ -1960,7 +1972,7 @@ def test_take_profit_closes_a_long_at_the_bar_close():
     assert result.positions == {}
 
 
-def test_stop_loss_covers_a_short_at_the_bar_close():
+def test_stop_loss_covers_a_short_at_the_bar_close() -> None:
     """A short whose close rises to its stop loss is covered at that close."""
     data = {"TEST": _price_frame([50.0, 50.0, 55.0])}
     config = _stop_exit_config(stop_loss_pct=0.05, take_profit_pct=0.15)
@@ -1978,7 +1990,7 @@ def test_stop_loss_covers_a_short_at_the_bar_close():
     assert result.positions == {}
 
 
-def test_take_profit_covers_a_short_at_the_bar_close():
+def test_take_profit_covers_a_short_at_the_bar_close() -> None:
     """A short whose close falls to its take profit is covered at that close."""
     data = {"TEST": _price_frame([50.0, 50.0, 40.0])}
     config = _stop_exit_config(stop_loss_pct=0.05, take_profit_pct=0.15)
@@ -1993,7 +2005,7 @@ def test_take_profit_covers_a_short_at_the_bar_close():
     assert result.positions == {}
 
 
-def test_trailing_stop_closes_a_long_on_a_later_bar():
+def test_trailing_stop_closes_a_long_on_a_later_bar() -> None:
     """A trailing stop closes a long on a bar after the one that ratcheted it."""
     data = {"TEST": _price_frame([50.0, 60.0, 55.0])}
     config = _stop_exit_config(
@@ -2014,7 +2026,7 @@ def test_trailing_stop_closes_a_long_on_a_later_bar():
     assert result.positions == {}
 
 
-def test_stop_exit_keeps_the_accounting_invariant():
+def test_stop_exit_keeps_the_accounting_invariant() -> None:
     """A run that is closed by a stop still reconciles cash, PnL and equity."""
     data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
     config = _stop_exit_config(commission=0.001, slippage=0.0005)
@@ -2030,7 +2042,7 @@ def test_stop_exit_keeps_the_accounting_invariant():
     assert result.equity_curve.iloc[-1] == pytest.approx(result.final_value)
 
 
-def test_stop_exits_are_off_by_default():
+def test_stop_exits_are_off_by_default() -> None:
     """Without the flag the stop levels stay advisory and the position stays open."""
     data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
     config = Config(
@@ -2046,7 +2058,7 @@ def test_stop_exits_are_off_by_default():
     assert result.positions["TEST"].quantity == pytest.approx(200.0)
 
 
-def test_negative_take_profit_pct_is_rejected():
+def test_negative_take_profit_pct_is_rejected() -> None:
     """A negative take profit is rejected at construction."""
     with pytest.raises(ValueError, match="invalid take_profit_pct"):
         RiskManager(
@@ -2075,11 +2087,11 @@ class TestRunBacktestAppliesConfig:
 
     @staticmethod
     def _run(
-        config,
+        config: Config | DataConfig,
         script: list[tuple[str, float]],
         data: dict[str, pd.DataFrame],
         same_bar: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> BacktestResult:
         """Run a scripted backtest through ``run_backtest()``."""
         symbols = list(data.keys())
@@ -2099,7 +2111,7 @@ class TestRunBacktestAppliesConfig:
             **kwargs,
         )
 
-    def test_the_risk_section_of_the_config_sizes_the_positions(self):
+    def test_the_risk_section_of_the_config_sizes_the_positions(self) -> None:
         """The configured position limit sizes the positions of the run."""
         data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
         config = Config(
@@ -2114,7 +2126,7 @@ class TestRunBacktestAppliesConfig:
         # 1% of a portfolio of 100000.00, at a price of 50.00 a unit.
         assert trade["quantity"] * trade["price"] == pytest.approx(1000.0)
 
-    def test_the_portfolio_section_of_the_config_limits_the_number_of_positions(self):
+    def test_the_portfolio_section_of_the_config_limits_the_number_of_positions(self) -> None:
         """The configured position limit caps the number of open positions."""
         data = {
             "A": _price_frame([50.0, 50.0, 50.0]),
@@ -2134,7 +2146,7 @@ class TestRunBacktestAppliesConfig:
         assert len(result.trades) == 1
         assert set(result.positions) == {"A"}
 
-    def test_the_portfolio_section_allows_the_positions_it_permits(self):
+    def test_the_portfolio_section_allows_the_positions_it_permits(self) -> None:
         """The same run opens both positions when the limit allows them."""
         data = {
             "A": _price_frame([50.0, 50.0, 50.0]),
@@ -2152,7 +2164,7 @@ class TestRunBacktestAppliesConfig:
         assert len(result.trades) == 2
         assert set(result.positions) == {"A", "B"}
 
-    def test_the_backtest_section_of_the_config_switches_the_stop_exits_on(self):
+    def test_the_backtest_section_of_the_config_switches_the_stop_exits_on(self) -> None:
         """The configured switch closes the position whose stop was hit."""
         data = {"TEST": _price_frame([50.0, 50.0, 45.0])}
         config = Config(
@@ -2174,7 +2186,7 @@ class TestRunBacktestAppliesConfig:
         assert exit_trade["price"] == pytest.approx(45.0)
         assert result.positions == {}
 
-    def test_the_configured_initial_capital_is_used(self):
+    def test_the_configured_initial_capital_is_used(self) -> None:
         """The configured starting capital is the one the run is driven by."""
         data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
         config = Config(
@@ -2189,7 +2201,7 @@ class TestRunBacktestAppliesConfig:
         # 10% of a portfolio of 50000.00, at a price of 50.00 a unit.
         assert trade["quantity"] * trade["price"] == pytest.approx(5000.0)
 
-    def test_an_explicit_value_wins_over_the_configured_one(self):
+    def test_an_explicit_value_wins_over_the_configured_one(self) -> None:
         """A value that is passed explicitly wins over the configured one."""
         data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
         config = Config(
@@ -2212,7 +2224,7 @@ class TestRunBacktestAppliesConfig:
         assert trade["quantity"] * trade["price"] == pytest.approx(10000.0)
         assert trade["fee"] == pytest.approx(200.0 * 50.0 * 0.0015)
 
-    def test_the_configured_periods_per_year_is_used(self):
+    def test_the_configured_periods_per_year_is_used(self) -> None:
         """The configured annualization period reaches the metrics."""
         data = {"TEST": _price_frame([50.0, 51.0, 52.0])}
         config = Config(
@@ -2226,7 +2238,7 @@ class TestRunBacktestAppliesConfig:
         assert result.metrics.annual_return == pytest.approx(returns.mean() * 12)
         assert result.metrics.volatility == pytest.approx(returns.std() * (12**0.5))
 
-    def test_the_config_is_not_modified_by_the_run(self):
+    def test_the_config_is_not_modified_by_the_run(self) -> None:
         """The configuration of the caller is left untouched by the run."""
         data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
         config = Config(
@@ -2245,7 +2257,7 @@ class TestRunBacktestAppliesConfig:
         assert config.backtest.initial_capital == 100000.0
         assert config.backtest.periods_per_year == 252
 
-    def test_a_data_config_leaves_the_backtest_settings_at_their_defaults(self):
+    def test_a_data_config_leaves_the_backtest_settings_at_their_defaults(self) -> None:
         """A data configuration does not change the backtest settings."""
         data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
         data_config = DataConfig(provider="synthetic", offline=True)
@@ -2295,7 +2307,7 @@ class TestDrawdownGateEndToEnd:
             ),
         )
 
-    def test_a_run_in_a_drawdown_breach_opens_no_new_position(self):
+    def test_a_run_in_a_drawdown_breach_opens_no_new_position(self) -> None:
         script = [("buy", 1.0), ("buy", 1.0), ("buy", 1.0), ("sell", 1.0)]
 
         result, _ = _run_script(script, self._data(), self._config(0.20))
@@ -2309,14 +2321,14 @@ class TestDrawdownGateEndToEnd:
         assert "A" not in result.positions
         assert result.positions["B"].quantity > 0
 
-    def test_the_drawdown_breach_is_reported_by_the_portfolio_check(self):
+    def test_the_drawdown_breach_is_reported_by_the_portfolio_check(self) -> None:
         script = [("buy", 1.0), ("buy", 1.0), ("buy", 1.0), ("sell", 1.0)]
 
         result, _ = _run_script(script, self._data(), self._config(0.20))
 
         assert any("Drawdown" in violation for violation in result.portfolio_violations)
 
-    def test_a_run_without_a_drawdown_limit_opens_the_position(self):
+    def test_a_run_without_a_drawdown_limit_opens_the_position(self) -> None:
         """The control: the same run opens "C" when the limit is disabled."""
         script = [("buy", 1.0), ("buy", 1.0), ("buy", 1.0), ("sell", 1.0)]
 
@@ -2329,7 +2341,7 @@ class TestDrawdownGateEndToEnd:
 class RecordingMockDataProvider(DataProvider):
     """Mock data provider that records the intervals it was fetched with."""
 
-    def __init__(self, data: dict):
+    def __init__(self, data: dict) -> None:
         self._data = data
         self._name = "mock"
         self.fetched_intervals: list[str] = []
@@ -2375,7 +2387,7 @@ class TestDataIntervalConfig:
     """
 
     @staticmethod
-    def _run(config, interval=None) -> list[str]:
+    def _run(config: Config | DataConfig | None, interval: str | None = None) -> list[str]:
         data = {"TEST": _price_frame([50.0, 50.0, 50.0])}
         provider = RecordingMockDataProvider(data)
         manager = DataManager([provider])
@@ -2392,26 +2404,26 @@ class TestDataIntervalConfig:
         )
         return provider.fetched_intervals
 
-    def test_the_configured_default_interval_is_used(self):
+    def test_the_configured_default_interval_is_used(self) -> None:
         """The configured interval is the one the run fetches with."""
         config = Config(data=DataConfig(default_interval="1wk"))
         assert self._run(config) == ["1wk"]
 
-    def test_an_explicit_interval_wins_over_the_configured_one(self):
+    def test_an_explicit_interval_wins_over_the_configured_one(self) -> None:
         """An explicit interval overrides the configured one."""
         config = Config(data=DataConfig(default_interval="1wk"))
         assert self._run(config, interval="1d") == ["1d"]
 
-    def test_a_data_config_configures_the_interval(self):
+    def test_a_data_config_configures_the_interval(self) -> None:
         """A DataConfig alone carries the interval for the run."""
         config = DataConfig(default_interval="1h")
         assert self._run(config) == ["1h"]
 
-    def test_the_built_in_default_is_used_when_nothing_is_configured(self):
+    def test_the_built_in_default_is_used_when_nothing_is_configured(self) -> None:
         """No configuration falls back to the built-in default of "1d"."""
         assert self._run(None) == ["1d"]
 
-    def test_the_configuration_of_the_caller_is_not_modified(self):
+    def test_the_configuration_of_the_caller_is_not_modified(self) -> None:
         """The resolved interval does not touch the caller's configuration."""
         config = Config(data=DataConfig(default_interval="1wk"))
         self._run(config, interval="1d")
@@ -2435,7 +2447,7 @@ class TestStopExitAndShortCoveringEdges:
     def _timestamp(self) -> datetime:
         return datetime(2024, 1, 1)
 
-    def test_process_stop_exits_skips_symbol_without_price(self):
+    def test_process_stop_exits_skips_symbol_without_price(self) -> None:
         """A held symbol missing from the bar's prices is skipped (line 647)."""
         engine = self._engine()
         engine.portfolio.holdings["AAPL"] = Holding(
@@ -2448,7 +2460,7 @@ class TestStopExitAndShortCoveringEdges:
         assert trades == []
         assert "AAPL" in engine.portfolio.holdings
 
-    def test_process_stop_exits_skips_zero_quantity_holding(self):
+    def test_process_stop_exits_skips_zero_quantity_holding(self) -> None:
         """A holding with zero quantity is skipped (line 651)."""
         engine = self._engine()
         engine.portfolio.holdings["AAPL"] = Holding(
@@ -2461,7 +2473,7 @@ class TestStopExitAndShortCoveringEdges:
         assert trades == []
         assert engine.portfolio.holdings["AAPL"].quantity == 0
 
-    def test_open_short_returns_when_no_available_value(self):
+    def test_open_short_returns_when_no_available_value(self) -> None:
         """A short with no available position value is not opened (line 845)."""
         engine = self._engine()
         signal = Signal(symbol="AAPL", action="sell", strength=0.0, price=100.0)
@@ -2476,7 +2488,7 @@ class TestStopExitAndShortCoveringEdges:
         assert trades == []
         assert "AAPL" not in engine.portfolio.holdings
 
-    def test_cover_short_returns_when_zero_quantity(self):
+    def test_cover_short_returns_when_zero_quantity(self) -> None:
         """A cover signal with zero strength covers nothing (line 906)."""
         engine = self._engine()
         engine.portfolio.holdings["AAPL"] = Holding(
@@ -2496,7 +2508,7 @@ class TestStopExitAndShortCoveringEdges:
         assert trades == []
         assert engine.portfolio.holdings["AAPL"].quantity == -100
 
-    def test_cover_short_returns_when_cash_constrained_to_zero(self):
+    def test_cover_short_returns_when_cash_constrained_to_zero(self) -> None:
         """A cover trimmed to zero cash is not executed (lines 910-914)."""
         engine = self._engine()
         engine.portfolio.cash = 0.0
@@ -2517,7 +2529,7 @@ class TestStopExitAndShortCoveringEdges:
         assert trades == []
         assert engine.portfolio.holdings["AAPL"].quantity == -100
 
-    def test_cover_short_trims_to_positive_quantity_when_partially_funded(self):
+    def test_cover_short_trims_to_positive_quantity_when_partially_funded(self) -> None:
         """A cover trimmed by cash but still positive executes (line 1030 false branch)."""
         engine = self._engine()
         engine.portfolio.cash = 50.0
@@ -2542,7 +2554,7 @@ class TestStopExitAndShortCoveringEdges:
 class TestMetricsAndAnalysisReconciliationOnEngineResults:
     """The public APIs must agree on engine-generated results."""
 
-    def test_metrics_analysis_and_booked_pnl_agree_for_fully_liquidated_run(self):
+    def test_metrics_analysis_and_booked_pnl_agree_for_fully_liquidated_run(self) -> None:
         """A fully liquidated run reconciles on all sides."""
         data = {"AAPL": _price_frame([100.0, 110.0, 108.0])}
         config = _short_config(max_position_size=1.0, max_leverage=1.0, max_portfolio_risk=1.0)
@@ -2554,7 +2566,7 @@ class TestMetricsAndAnalysisReconciliationOnEngineResults:
         assert metrics.total_pnl == pytest.approx(booked)
         assert metrics.total_pnl == pytest.approx(metrics.total_return)
 
-    def test_metrics_analysis_and_booked_pnl_agree_for_open_short(self):
+    def test_metrics_analysis_and_booked_pnl_agree_for_open_short(self) -> None:
         """A run that ends with an open short still reconciles."""
         data = {"AAPL": _price_frame([100.0, 100.0])}
         config = _short_config(max_position_size=1.0, max_leverage=1.0, max_portfolio_risk=1.0)
@@ -2565,7 +2577,7 @@ class TestMetricsAndAnalysisReconciliationOnEngineResults:
         assert metrics.total_pnl == pytest.approx(analysis.total_pnl)
         assert metrics.total_pnl == pytest.approx(booked)
 
-    def test_metrics_analysis_and_booked_pnl_agree_with_partially_covered_short(self):
+    def test_metrics_analysis_and_booked_pnl_agree_with_partially_covered_short(self) -> None:
         """Partial covering leaves an open position but the APIs still agree."""
         data = {"AAPL": _price_frame([100.0, 90.0])}
         config = _short_config(max_position_size=1.0, max_leverage=1.0, max_portfolio_risk=1.0)
@@ -2588,7 +2600,12 @@ class TestBenchmarkRelativeMetrics:
     """
 
     @staticmethod
-    def _run(data, traded, benchmark, script):
+    def _run(
+        data: dict[str, pd.DataFrame],
+        traded: list[str],
+        benchmark: str | None,
+        script: list[tuple[str, float]],
+    ) -> BacktestResult:
         """Run a scripted backtest over ``traded`` with an optional benchmark."""
         provider = MockDataProvider(data)
         engine = BacktestEngine(
@@ -2608,7 +2625,7 @@ class TestBenchmarkRelativeMetrics:
             benchmark=benchmark,
         )
 
-    def test_benchmark_populates_the_market_relative_metrics(self):
+    def test_benchmark_populates_the_market_relative_metrics(self) -> None:
         """A benchmark's returns populate beta/alpha/Treynor/information ratio."""
         # TEST and BENCH both rise 10% a day, so the equity curve (fully
         # invested in TEST) tracks the benchmark and beta is non-zero.
@@ -2624,7 +2641,7 @@ class TestBenchmarkRelativeMetrics:
         assert metrics.treynor_ratio == metrics.treynor_ratio
         assert metrics.information_ratio == metrics.information_ratio
 
-    def test_no_benchmark_leaves_the_market_relative_metrics_at_zero(self):
+    def test_no_benchmark_leaves_the_market_relative_metrics_at_zero(self) -> None:
         """Without a benchmark the market-relative metrics stay at their defaults."""
         data = {"TEST": _price_frame([50.0, 55.0, 60.5, 66.55])}
         result = self._run(data, ["TEST"], None, [("buy", 1.0)])
@@ -2635,7 +2652,7 @@ class TestBenchmarkRelativeMetrics:
         assert metrics.treynor_ratio == 0.0
         assert metrics.information_ratio == 0.0
 
-    def test_missing_benchmark_symbol_is_ignored(self):
+    def test_missing_benchmark_symbol_is_ignored(self) -> None:
         """A benchmark that cannot be fetched leaves the metrics at zero and does not fail."""
         data = {"TEST": _price_frame([50.0, 55.0, 60.5, 66.55])}
         result = self._run(data, ["TEST"], "NOPE", [("buy", 1.0)])
@@ -2647,7 +2664,7 @@ class TestBenchmarkRelativeMetrics:
 class TestBacktestResultSerialization:
     """Tests for BacktestResult.to_dict/from_dict."""
 
-    def _make_result(self):
+    def _make_result(self) -> BacktestResult:
         dates = pd.date_range("2024-01-01", periods=5, freq="D")
         equity = pd.Series([100000.0, 101000.0, 100500.0, 102000.0, 103000.0], index=dates)
         metrics = calculate_backtest_metrics(equity)
@@ -2666,7 +2683,7 @@ class TestBacktestResultSerialization:
             total_costs=12.5,
         )
 
-    def test_from_dict_round_trips_summary(self):
+    def test_from_dict_round_trips_summary(self) -> None:
         result = self._make_result()
         data = result.to_dict()
         reconstructed = BacktestResult.from_dict(data)
@@ -2682,7 +2699,7 @@ class TestBacktestResultSerialization:
         assert reconstructed.metrics.sharpe_ratio == pytest.approx(result.metrics.sharpe_ratio)
         assert reconstructed.metrics.total_return == pytest.approx(result.metrics.total_return)
 
-    def test_from_dict_defaults_missing_keys(self):
+    def test_from_dict_defaults_missing_keys(self) -> None:
         result = BacktestResult.from_dict({})
         assert result.initial_capital == 0.0
         assert result.final_value == 0.0
@@ -2693,13 +2710,13 @@ class TestBacktestResultSerialization:
         assert result.trades.empty
         assert result.positions == {}
 
-    def test_from_dict_ignores_extra_keys(self):
+    def test_from_dict_ignores_extra_keys(self) -> None:
         data = self._make_result().to_dict()
         data["unknown"] = 123
         result = BacktestResult.from_dict(data)
         assert result.initial_capital == 100000.0
 
-    def test_from_dict_json_round_trip(self):
+    def test_from_dict_json_round_trip(self) -> None:
         result = self._make_result()
         payload = result.to_json()
         decoded = json.loads(payload)
@@ -2707,7 +2724,7 @@ class TestBacktestResultSerialization:
         assert reconstructed.final_value == 103000.0
         assert reconstructed.start_date.year == 2024
 
-    def test_from_dict_reconstructs_nested_trade_analysis(self):
+    def test_from_dict_reconstructs_nested_trade_analysis(self) -> None:
         result = self._make_result()
         result.trades = pd.DataFrame(
             {
@@ -2723,9 +2740,11 @@ class TestBacktestResultSerialization:
         data = result.to_dict()
         reconstructed = BacktestResult.from_dict(data)
         assert hasattr(reconstructed, "trade_analysis")
+        assert reconstructed.trade_analysis is not None
+        assert result.trade_analysis is not None
         assert reconstructed.trade_analysis.total_trades == result.trade_analysis.total_trades
 
-    def test_to_dict_serializes_risk_attribution(self):
+    def test_to_dict_serializes_risk_attribution(self) -> None:
         """BacktestResult.to_dict/from_dict should round-trip risk attribution."""
         result = self._make_result()
         from quant_trading.risk.manager import RiskAttribution
@@ -2757,7 +2776,7 @@ class TestBacktestResultSerialization:
             "MSFT": 0.008,
         }
 
-    def test_from_dict_reconstructs_nested_regime_analysis(self):
+    def test_from_dict_reconstructs_nested_regime_analysis(self) -> None:
         """BacktestResult.from_dict rebuilds regime_analysis from a dict (engine.py:644-648).
 
         The sibling branches for ``trade_analysis`` and ``monte_carlo`` are
@@ -2774,6 +2793,8 @@ class TestBacktestResultSerialization:
 
         reconstructed = BacktestResult.from_dict(data)
         assert hasattr(reconstructed, "regime_analysis")
+        assert reconstructed.regime_analysis is not None
+        assert result.regime_analysis is not None
         assert reconstructed.regime_analysis.current_regime == result.regime_analysis.current_regime
         assert reconstructed.regime_analysis.n_segments == result.regime_analysis.n_segments
         assert reconstructed.regime_analysis.window == result.regime_analysis.window
