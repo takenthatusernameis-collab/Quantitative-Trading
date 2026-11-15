@@ -3,6 +3,7 @@
 import os
 import pickle
 from datetime import datetime
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -12,7 +13,7 @@ from quant_trading.data.providers import FetchResult
 from quant_trading.data.yfinance_provider import YFinanceProvider
 
 
-def _hist_df():
+def _hist_df() -> pd.DataFrame:
     idx = pd.date_range("2024-01-01", periods=3, freq="D")
     return pd.DataFrame(
         {
@@ -27,11 +28,16 @@ def _hist_df():
 
 
 class FakeTicker:
-    def __init__(self, symbol):
+    last_history_kwargs: dict[str, Any]
+    history_call_count: int
+
+    def __init__(self, symbol: str) -> None:
         self.symbol = symbol
         self.info = {"currency": "USD", "exchange": "NMS"}
 
-    def history(self, start=None, end=None, interval="1d"):
+    def history(
+        self, start=None, end=None, interval: str = "1d"
+    ) -> pd.DataFrame:
         FakeTicker.last_history_kwargs = {"start": start, "end": end, "interval": interval}
         FakeTicker.history_call_count = getattr(FakeTicker, "history_call_count", 0) + 1
         if self.symbol == "EMPTY":
@@ -41,20 +47,20 @@ class FakeTicker:
         return _hist_df()
 
 
-def _fake_yf():
+def _fake_yf() -> MagicMock:
     m = MagicMock()
     m.Ticker.side_effect = lambda s: FakeTicker(s)
     m.download.return_value = None
     return m
 
 
-def test_name_and_init(tmp_path):
+def test_name_and_init(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path), cache_ttl_hours=2.0)
     assert p.name == "yfinance"
     assert os.path.isdir(str(tmp_path))
 
 
-def test_cache_key_order_independent():
+def test_cache_key_order_independent() -> None:
     p = YFinanceProvider(cache_dir="")
     a = p._cache_key(["MSFT", "AAPL"], None, None, "1d")
     b = p._cache_key(["AAPL", "MSFT"], None, None, "1d")
@@ -62,9 +68,9 @@ def test_cache_key_order_independent():
     assert "AAPL,MSFT" in a
 
 
-def test_fetch_success_and_missing_and_error(tmp_path):
+def test_fetch_success_and_missing_and_error(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path))
-    p._yf = _fake_yf()
+    p._yf = _fake_yf()  # type: ignore[assignment]
     res = p.fetch(["AAPL", "EMPTY", "BAD"])
     assert "AAPL" in res.data
     assert "EMPTY" in res.missing
@@ -73,26 +79,26 @@ def test_fetch_success_and_missing_and_error(tmp_path):
     assert list(df.columns) == ["open", "high", "low", "close", "volume"]
 
 
-def test_fetch_cache_roundtrip(tmp_path):
+def test_fetch_cache_roundtrip(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path))
-    p._yf = _fake_yf()
+    p._yf = _fake_yf()  # type: ignore[assignment]
     p.fetch(["AAPL"])
     # second fetch should load from cache (no yf call needed)
     p2 = YFinanceProvider(cache_dir=str(tmp_path))
-    p2._yf = MagicMock()  # should not be called
+    p2._yf = MagicMock()  # type: ignore[assignment]  # should not be called
     r2 = p2.fetch(["AAPL"])
     assert "AAPL" in r2.data
     p2._yf.Ticker.assert_not_called()
 
 
-def test_fetch_latest(tmp_path):
+def test_fetch_latest(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path))
-    p._yf = _fake_yf()
+    p._yf = _fake_yf()  # type: ignore[assignment]
     res = p.fetch_latest(["AAPL"])
     assert "AAPL" in res.data
 
 
-def test_parse_download_multi_and_single():
+def test_parse_download_multi_and_single() -> None:
     p = YFinanceProvider(cache_dir="")
     # empty
     r = p._parse_download(None, ["AAPL"])
@@ -104,13 +110,13 @@ def test_parse_download_multi_and_single():
     assert "AAPL" in r2.data
 
 
-def test_group_cache_key():
+def test_group_cache_key() -> None:
     p = YFinanceProvider(cache_dir="")
     k = p._group_cache_key(["AAPL"], None, None, "1d")
     assert k.startswith("yfinance_group_")
 
 
-def test_slice_group_result():
+def test_slice_group_result() -> None:
     p = YFinanceProvider(cache_dir="")
     from quant_trading.data.providers import FetchResult, MarketData
 
@@ -125,7 +131,7 @@ def test_slice_group_result():
     assert "MISS" in sliced.missing
 
 
-def test_is_cache_valid(tmp_path):
+def test_is_cache_valid(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path))
     path = os.path.join(str(tmp_path), "x.pkl")
     assert not p._is_cache_valid(path)
@@ -136,7 +142,7 @@ def test_is_cache_valid(tmp_path):
     assert p._is_cache_valid(path)
 
 
-def test_load_cache_invalid(tmp_path):
+def test_load_cache_invalid(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path))
     path = os.path.join(str(tmp_path), "bad.pkl")
     with open(path, "wb") as f:
@@ -144,7 +150,7 @@ def test_load_cache_invalid(tmp_path):
     assert p._load_cache(path) is None
 
 
-def test_parse_download_multiindex_columns():
+def test_parse_download_multiindex_columns() -> None:
     p = YFinanceProvider(cache_dir="")
     idx = pd.date_range("2024-01-01", periods=2, freq="D")
     # MultiIndex (Ticker, Field)
@@ -155,7 +161,7 @@ def test_parse_download_multiindex_columns():
     assert list(r.data["AAPL"].data.columns) == ["open", "high", "low", "close", "volume"]
 
 
-def test_parse_download_multiindex_missing_symbol():
+def test_parse_download_multiindex_missing_symbol() -> None:
     p = YFinanceProvider(cache_dir="")
     idx = pd.date_range("2024-01-01", periods=2, freq="D")
     cols = pd.MultiIndex.from_product([["AAPL"], ["Open", "High", "Low", "Close", "Volume"]])
@@ -165,7 +171,7 @@ def test_parse_download_multiindex_missing_symbol():
     assert "TSLA" in r.missing
 
 
-def test_parse_download_multiindex_empty_after_dropna():
+def test_parse_download_multiindex_empty_after_dropna() -> None:
     p = YFinanceProvider(cache_dir="")
     idx = pd.date_range("2024-01-01", periods=2, freq="D")
     cols = pd.MultiIndex.from_product([["AAPL"], ["Open", "High", "Low", "Close", "Volume"]])
@@ -175,7 +181,7 @@ def test_parse_download_multiindex_empty_after_dropna():
     assert "AAPL" not in r.data
 
 
-def test_parse_download_single_empty():
+def test_parse_download_single_empty() -> None:
     p = YFinanceProvider(cache_dir="")
     hist = _hist_df()
     hist = hist * float("nan")
@@ -183,14 +189,14 @@ def test_parse_download_single_empty():
     assert "AAPL" in r.missing
 
 
-def test_fetch_many_via_provider(tmp_path):
+def test_fetch_many_via_provider(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path))
     yf = _fake_yf()
-    p._yf = yf
+    p._yf = yf  # type: ignore[assignment]
 
     # Use download path
     idx = pd.date_range("2024-01-01", periods=3, freq="D")
-    frames = {}
+    frames: dict[str, pd.DataFrame] = {}
     for sym in ["AAPL", "MSFT"]:
         df = pd.DataFrame(
             {
@@ -223,7 +229,7 @@ def test_fetch_many_via_provider(tmp_path):
     assert yf.download.called
 
 
-def test_fetch_many_group_exception_records_errors(tmp_path):
+def test_fetch_many_group_exception_records_errors(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path))
     yf = _fake_yf()
     yf.download.side_effect = ValueError("boom")
@@ -238,7 +244,7 @@ def test_fetch_many_group_exception_records_errors(tmp_path):
     assert isinstance(result.errors["AAPL"], ValueError)
 
 
-def test_get_yf_import_error():
+def test_get_yf_import_error() -> None:
     p = YFinanceProvider(cache_dir="")
     with patch("builtins.__import__", side_effect=ImportError("no")), pytest.raises(ImportError):
         p._get_yf()
@@ -246,7 +252,7 @@ def test_get_yf_import_error():
     p._yf = None
 
 
-def test_fetch_with_dates_and_interval(tmp_path):
+def test_fetch_with_dates_and_interval(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path))
     p._yf = _fake_yf()
     start = datetime(2024, 1, 1)
@@ -261,7 +267,7 @@ def test_fetch_with_dates_and_interval(tmp_path):
     assert call_kwargs.get("interval") == "1h"
 
 
-def test_fetch_normalizes_columns(tmp_path):
+def test_fetch_normalizes_columns(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path))
     p._yf = _fake_yf()
     res = p.fetch(["AAPL"])
@@ -272,7 +278,7 @@ def test_fetch_normalizes_columns(tmp_path):
         assert " " not in col
 
 
-def test_fetch_missing_data_records_in_missing(tmp_path):
+def test_fetch_missing_data_records_in_missing(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path))
     p._yf = _fake_yf()
     res = p.fetch(["EMPTY"])
@@ -281,7 +287,7 @@ def test_fetch_missing_data_records_in_missing(tmp_path):
     assert "EMPTY" not in res.errors
 
 
-def test_fetch_exception_records_in_errors(tmp_path):
+def test_fetch_exception_records_in_errors(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path))
     p._yf = _fake_yf()
     res = p.fetch(["BAD"])
@@ -291,7 +297,7 @@ def test_fetch_exception_records_in_errors(tmp_path):
     assert "BAD" not in res.missing
 
 
-def test_fetch_multiple_symbols_mixed(tmp_path):
+def test_fetch_multiple_symbols_mixed(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path))
     p._yf = _fake_yf()
     res = p.fetch(["AAPL", "MSFT", "EMPTY", "BAD"])
@@ -301,7 +307,7 @@ def test_fetch_multiple_symbols_mixed(tmp_path):
     assert "BAD" in res.errors
 
 
-def test_cache_expiration(tmp_path):
+def test_cache_expiration(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path), cache_ttl_hours=0.001)  # very short TTL
     p._yf = _fake_yf()
     p.fetch(["AAPL"])
@@ -321,14 +327,14 @@ def test_cache_expiration(tmp_path):
     assert p2._yf.Ticker.called
 
 
-def test_fetch_without_cache_dir():
+def test_fetch_without_cache_dir() -> None:
     p = YFinanceProvider(cache_dir="")
     p._yf = _fake_yf()
     res = p.fetch(["AAPL"])
     assert "AAPL" in res.data
 
 
-def test_fetch_metadata(tmp_path):
+def test_fetch_metadata(tmp_path) -> None:
     p = YFinanceProvider(cache_dir=str(tmp_path))
     p._yf = _fake_yf()
     res = p.fetch(["AAPL"])
@@ -337,7 +343,7 @@ def test_fetch_metadata(tmp_path):
     assert md["exchange"] == "NMS"
 
 
-def test_parse_download_multiindex_single_field_series():
+def test_parse_download_multiindex_single_field_series() -> None:
     p = YFinanceProvider(cache_dir="")
     idx = pd.date_range("2024-01-01", periods=2, freq="D")
     cols = pd.MultiIndex.from_product([["AAPL"], ["Close"]])
@@ -347,7 +353,7 @@ def test_parse_download_multiindex_single_field_series():
     assert list(r.data["AAPL"].data.columns) == ["close"]
 
 
-def test_get_yf_success(tmp_path):
+def test_get_yf_success(tmp_path) -> None:
     """_get_yf imports and caches yfinance on first use."""
     pytest.importorskip("yfinance", reason="test requires the yfinance package")
     p = YFinanceProvider(cache_dir=str(tmp_path))
@@ -357,7 +363,7 @@ def test_get_yf_success(tmp_path):
     assert p._yf is yf
 
 
-def test_load_cache_invalid_data_type(tmp_path):
+def test_load_cache_invalid_data_type(tmp_path) -> None:
     """_load_cache returns None when the cache holds a non-FetchResult."""
     import pickle
 
@@ -368,7 +374,7 @@ def test_load_cache_invalid_data_type(tmp_path):
     assert p._load_cache(path) is None
 
 
-def test_save_cache_swallows_errors(tmp_path):
+def test_save_cache_swallows_errors(tmp_path) -> None:
     """_save_cache does not propagate pickle/OS errors."""
     p = YFinanceProvider(cache_dir=str(tmp_path))
     path = os.path.join(str(tmp_path), "save.pkl")
@@ -376,7 +382,7 @@ def test_save_cache_swallows_errors(tmp_path):
         p._save_cache(path, FetchResult())
 
 
-def test_parse_download_swapped_multiindex_columns():
+def test_parse_download_swapped_multiindex_columns() -> None:
     """_parse_download swaps levels when tickers live in level 1."""
     p = YFinanceProvider(cache_dir="")
     idx = pd.date_range("2024-01-01", periods=2, freq="D")
@@ -391,7 +397,7 @@ def test_parse_download_swapped_multiindex_columns():
     assert "MSFT" in r.data
 
 
-def test_fetch_many_no_cache_dir(tmp_path):
+def test_fetch_many_no_cache_dir(tmp_path) -> None:
     """fetch_many with no cache_dir skips the group cache block."""
     p = YFinanceProvider(cache_dir="")
     yf = _fake_yf()
@@ -402,7 +408,7 @@ def test_fetch_many_no_cache_dir(tmp_path):
     yf.download.assert_called_once()
 
 
-def test_fetch_many_cache_hit(tmp_path):
+def test_fetch_many_cache_hit(tmp_path) -> None:
     """fetch_many returns a cached group result without calling yfinance."""
     p = YFinanceProvider(cache_dir=str(tmp_path))
     p._yf = MagicMock()
