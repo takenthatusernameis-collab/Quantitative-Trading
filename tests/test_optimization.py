@@ -4,7 +4,7 @@ import importlib.util
 import itertools
 import json
 import os
-from concurrent.futures import _base
+from concurrent.futures import _base, Future
 from concurrent.futures.process import BrokenProcessPool, ProcessPoolExecutor
 from datetime import datetime, timedelta
 from types import SimpleNamespace
@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from quant_trading.data.providers import DataManager
+from quant_trading.data.providers import DataManager, DataProvider, FetchResult
 from quant_trading.optimization import (
     BaseOptimizer,
     GridSearch,
@@ -65,10 +65,10 @@ skip_if_no_skopt = pytest.mark.skipif(
 skip_if_no_yfinance = pytest.mark.skipif(not _HAS_YFINANCE, reason="yfinance is not installed")
 
 
-class MockDataProvider:
+class MockDataProvider(DataProvider):
     """Mock data provider for testing."""
 
-    def __init__(self, data: dict):
+    def __init__(self, data: dict[str, pd.DataFrame]) -> None:
         self._data = data
         self._name = "mock"
 
@@ -78,12 +78,12 @@ class MockDataProvider:
 
     def fetch(
         self,
-        symbols: list,
+        symbols: list[str],
         start: datetime | None = None,
         end: datetime | None = None,
         interval: str = "1d",
-    ):
-        from quant_trading.data.providers import FetchResult, MarketData
+    ) -> FetchResult:
+        from quant_trading.data.providers import MarketData
 
         result = FetchResult()
         for symbol in symbols:
@@ -103,10 +103,13 @@ class MockDataProvider:
                 result.missing.append(symbol)
         return result
 
-    def fetch_latest(self, symbols: list):
+    def fetch_latest(self, symbols: list[str]) -> FetchResult:
         return self.fetch(symbols)
 
-    def fetch_many(self, requests: list[dict]):
+    def fetch_many(
+        self,
+        requests: list[dict[str, Any]],
+    ) -> dict[str, FetchResult]:
         results = {}
         for req in requests:
             symbols = req.get("symbols", [])
@@ -116,15 +119,6 @@ class MockDataProvider:
             key = self._request_key(symbols, start, end, interval)
             results[key] = self.fetch(symbols, start, end, interval)
         return results
-
-    @staticmethod
-    def _request_key(
-        symbols: list, start: datetime | None, end: datetime | None, interval: str
-    ) -> str:
-        symbols_str = ",".join(sorted(symbols))
-        start_str = start.isoformat() if start else "none"
-        end_str = end.isoformat() if end else "none"
-        return f"{symbols_str}|{start_str}|{end_str}|{interval}"
 
 
 def create_test_data(symbol: str, days: int = 100, end: datetime | None = None) -> pd.DataFrame:
@@ -147,7 +141,7 @@ def create_test_data(symbol: str, days: int = 100, end: datetime | None = None) 
     return df
 
 
-def test_parameter_space_grid():
+def test_parameter_space_grid() -> None:
     """Test ParameterSpace grid generation."""
     space = ParameterSpace("test", min_val=1, max_val=5, step=1, param_type=int)
     values = space.generate_grid()
@@ -162,7 +156,7 @@ def test_parameter_space_grid():
     assert values == [1, 2, 3, 5, 8]
 
 
-def test_parameter_space_random():
+def test_parameter_space_random() -> None:
     """Test ParameterSpace random sampling."""
     space = ParameterSpace("test", min_val=0, max_val=10, param_type=int)
     samples = space.sample_random(5)
@@ -176,7 +170,7 @@ def test_parameter_space_random():
     assert all(s in [1, 2, 3] for s in samples)
 
 
-def test_parameter_grid():
+def test_parameter_grid() -> None:
     """Test ParameterGrid combination generation."""
     grid = ParameterGrid()
     grid.add(ParameterSpace("a", values=[1, 2]))
@@ -190,7 +184,7 @@ def test_parameter_grid():
     assert {"a": 2, "b": 20} in combos
 
 
-def test_parameter_grid_validator():
+def test_parameter_grid_validator() -> None:
     """Test ParameterGrid with cross-parameter validator."""
     grid = ParameterGrid()
     grid.add(ParameterSpace("fast_period", values=[5, 10, 15], param_type=int))
@@ -205,7 +199,7 @@ def test_parameter_grid_validator():
     assert len(combos) == 7
 
 
-def test_parameter_grid_random():
+def test_parameter_grid_random() -> None:
     """Test ParameterGrid random sampling."""
     grid = ParameterGrid()
     grid.add(ParameterSpace("a", min_val=1, max_val=10, param_type=int))
@@ -220,7 +214,7 @@ def test_parameter_grid_random():
         assert combo["b"] in [10, 20, 30]
 
 
-def test_parameter_space_to_dict():
+def test_parameter_space_to_dict() -> None:
     """Test ParameterSpace.to_dict serialization."""
     space = ParameterSpace(
         "test_param",
@@ -242,7 +236,7 @@ def test_parameter_space_to_dict():
     assert data["param_type"] == "int"
 
 
-def test_parameter_space_to_dict_none_values():
+def test_parameter_space_to_dict_none_values() -> None:
     """Test ParameterSpace.to_dict with None values."""
     space = ParameterSpace("test_param", min_val=0.0, max_val=10.0, step=1.0, param_type=float)
     data = space.to_dict()
@@ -256,7 +250,7 @@ def test_parameter_space_to_dict_none_values():
     assert data["param_type"] == "float"
 
 
-def test_parameter_space_from_dict():
+def test_parameter_space_from_dict() -> None:
     """Test ParameterSpace.from_dict deserialization."""
     data = {
         "name": "test_param",
@@ -278,7 +272,7 @@ def test_parameter_space_from_dict():
     assert space.param_type == int
 
 
-def test_parameter_space_from_dict_defaults():
+def test_parameter_space_from_dict_defaults() -> None:
     """Test ParameterSpace.from_dict with missing optional fields."""
     data = {"name": "test_param", "values": []}
     space = ParameterSpace.from_dict(data)
@@ -292,7 +286,7 @@ def test_parameter_space_from_dict_defaults():
     assert space.param_type == float
 
 
-def test_parameter_space_round_trip():
+def test_parameter_space_round_trip() -> None:
     """Test ParameterSpace round-trip serialization."""
     original = ParameterSpace(
         "test_param",
@@ -315,7 +309,7 @@ def test_parameter_space_round_trip():
     assert restored.param_type == original.param_type
 
 
-def test_parameter_grid_to_dict():
+def test_parameter_grid_to_dict() -> None:
     """Test ParameterGrid.to_dict serialization."""
     grid = ParameterGrid()
     grid.add(ParameterSpace("a", values=[1, 2], param_type=int))
@@ -336,7 +330,7 @@ def test_parameter_grid_to_dict():
     assert data["spaces"]["b"]["param_type"] == "float"
 
 
-def test_parameter_grid_from_dict():
+def test_parameter_grid_from_dict() -> None:
     """Test ParameterGrid.from_dict deserialization."""
     data = {
         "spaces": {
@@ -358,7 +352,7 @@ def test_parameter_grid_from_dict():
     assert grid.spaces["b"].param_type == float
 
 
-def test_parameter_grid_round_trip():
+def test_parameter_grid_round_trip() -> None:
     """Test ParameterGrid round-trip serialization."""
     original = ParameterGrid()
     original.add(ParameterSpace("a", values=[1, 2], param_type=int))
@@ -380,7 +374,7 @@ def test_parameter_grid_round_trip():
         assert rest_space.param_type == orig_space.param_type
 
 
-def test_parameter_grid_from_dict_empty():
+def test_parameter_grid_from_dict_empty() -> None:
     """Test ParameterGrid.from_dict with empty spaces."""
     grid = ParameterGrid.from_dict({})
     assert grid.spaces == {}
@@ -389,7 +383,7 @@ def test_parameter_grid_from_dict_empty():
     assert grid.spaces == {}
 
 
-def test_objective_functions():
+def test_objective_functions() -> None:
     """Test objective functions."""
     from quant_trading.backtest.metrics import BacktestMetrics
 
@@ -436,7 +430,7 @@ def test_objective_functions():
     assert maximize_sortino(result) == 3.0
 
 
-def test_maximize_sortino_none_returns_zero():
+def test_maximize_sortino_none_returns_zero() -> None:
     """maximize_sortino returns 0.0 when the Sortino ratio is unset."""
     from quant_trading.backtest.engine import BacktestResult
     from quant_trading.backtest.metrics import BacktestMetrics
@@ -458,7 +452,7 @@ def test_maximize_sortino_none_returns_zero():
     assert maximize_sortino(result) == 0.0
 
 
-def test_grid_search():
+def test_grid_search() -> None:
     """Test GridSearch optimization."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -490,7 +484,7 @@ def test_grid_search():
     assert len(result.all_results) == 4
 
 
-def test_grid_search_periods_per_year_is_threaded():
+def test_grid_search_periods_per_year_is_threaded() -> None:
     """The optimizer must annualize its backtests with the requested period count."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -519,7 +513,7 @@ def test_grid_search_periods_per_year_is_threaded():
     assert _score(12) != pytest.approx(_score(252))
 
 
-def test_random_search():
+def test_random_search() -> None:
     """Test RandomSearch optimization."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -553,7 +547,7 @@ def test_random_search():
     assert len(result.all_results) == 5
 
 
-def test_optimization_result_to_dataframe():
+def test_optimization_result_to_dataframe() -> None:
     """Test OptimizationResult to_dataframe method."""
     from quant_trading.optimization.base import OptimizationResult
 
@@ -571,7 +565,7 @@ def test_optimization_result_to_dataframe():
     assert list(df.columns) == ["params", "score"]
 
 
-def test_optimization_result_get_top_n():
+def test_optimization_result_get_top_n() -> None:
     """Test OptimizationResult get_top_n method."""
     from quant_trading.optimization.base import OptimizationResult
 
@@ -591,7 +585,7 @@ def test_optimization_result_get_top_n():
     assert top[1]["score"] == 0.8
 
 
-def test_walk_forward_optimizer():
+def test_walk_forward_optimizer() -> None:
     """Test WalkForwardOptimizer."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=200)}
@@ -636,7 +630,7 @@ def test_walk_forward_optimizer():
     assert summary["n_windows"] == 3
 
 
-def test_grid_search_with_multiple_symbols():
+def test_grid_search_with_multiple_symbols() -> None:
     """Test GridSearch with multiple symbols."""
     symbols = ["AAPL", "MSFT"]
     mock_data = {
@@ -668,7 +662,7 @@ def test_grid_search_with_multiple_symbols():
     assert len(result.all_results) == 4
 
 
-def test_random_search_different_objectives():
+def test_random_search_different_objectives() -> None:
     """Test RandomSearch with different objective functions."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -711,7 +705,7 @@ if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
 
-def test_walk_forward_combine_with_partial_windows():
+def test_walk_forward_combine_with_partial_windows() -> None:
     """Test WalkForwardOptimizer _combine_test_results with some None test results."""
     from quant_trading.backtest.engine import run_backtest
     from quant_trading.optimization.walk_forward import WalkForwardWindow
@@ -772,7 +766,7 @@ def test_walk_forward_combine_with_partial_windows():
     assert combined is not None
 
 
-def test_parameter_space_log_distribution():
+def test_parameter_space_log_distribution() -> None:
     """Test ParameterSpace log distribution sampling."""
     space = ParameterSpace("test", min_val=1, max_val=100, distribution="log")
     samples = space.sample_random(5, rng=np.random.default_rng(42))
@@ -782,7 +776,7 @@ def test_parameter_space_log_distribution():
 
 
 @skip_if_no_skopt
-def test_bayesian_optimizer():
+def test_bayesian_optimizer() -> None:
     """Test BayesianOptimizer optimization."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -818,7 +812,7 @@ def test_bayesian_optimizer():
 
 
 @skip_if_no_skopt
-def test_bayesian_optimizer_categorical():
+def test_bayesian_optimizer_categorical() -> None:
     """Test BayesianOptimizer with categorical parameters."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -854,7 +848,7 @@ def test_bayesian_optimizer_categorical():
 
 
 @skip_if_no_skopt
-def test_bayesian_optimizer_multiple_symbols():
+def test_bayesian_optimizer_multiple_symbols() -> None:
     """Test BayesianOptimizer with multiple symbols."""
     symbols = ["AAPL", "MSFT"]
     mock_data = {
@@ -890,7 +884,7 @@ def test_bayesian_optimizer_multiple_symbols():
 
 
 @skip_if_no_skopt
-def test_bayesian_optimizer_different_objectives():
+def test_bayesian_optimizer_different_objectives() -> None:
     """Test BayesianOptimizer with different objective functions."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -931,7 +925,7 @@ def test_bayesian_optimizer_different_objectives():
 
 
 @skip_if_no_skopt
-def test_walk_forward_with_bayesian():
+def test_walk_forward_with_bayesian() -> None:
     """Test WalkForwardOptimizer with Bayesian optimizer."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=200)}
@@ -980,78 +974,78 @@ def test_walk_forward_with_bayesian():
 class RaisingStrategy(Strategy):
     """Strategy that raises ValueError in generate_signals for error handling tests."""
 
-    def __init__(self, name: str = "Raising", **kwargs):
+    def __init__(self, name: str = "Raising", **kwargs) -> None:
         super().__init__(name, kwargs)
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         raise ValueError("boom")
 
 
-def test_parameter_space_requires_values_or_min():
+def test_parameter_space_requires_values_or_min() -> None:
     """Test ParameterSpace __post_init__ raises when neither values nor min_val provided."""
     with pytest.raises(ValueError, match="Either values or min_val must be provided"):
         ParameterSpace("test")
 
 
-def test_parameter_space_generate_grid_fallback():
+def test_parameter_space_generate_grid_fallback() -> None:
     """Test generate_grid returns empty list when min_val set but max_val/step not."""
     space = ParameterSpace("test", min_val=1.0)
     assert space.generate_grid() == []
 
 
 @pytest.mark.parametrize("step", [0, 0.0, -1, -0.5])
-def test_parameter_space_generate_grid_rejects_a_non_positive_step(step):
+def test_parameter_space_generate_grid_rejects_a_non_positive_step(step: float) -> None:
     """A step of zero would make the grid loop forever, so it is rejected."""
     space = ParameterSpace("test", min_val=1.0, max_val=5.0, step=step)
     with pytest.raises(ValueError, match="step must be greater than 0"):
         space.generate_grid()
 
 
-def test_parameter_space_generate_grid_with_values_ignores_the_step():
+def test_parameter_space_generate_grid_with_values_ignores_the_step() -> None:
     """An explicit list of values is used as it is, whatever the step is."""
     space = ParameterSpace("test", values=[1, 2, 3], step=0)
     assert space.generate_grid() == [1, 2, 3]
 
 
-def test_parameter_space_generate_grid_rejects_an_inverted_range():
+def test_parameter_space_generate_grid_rejects_an_inverted_range() -> None:
     """A minimum above the maximum cannot generate a grid."""
     space = ParameterSpace("test", min_val=5.0, max_val=2.0, step=1.0)
     with pytest.raises(ValueError, match="minimum.*greater than the maximum"):
         space.generate_grid()
 
 
-def test_parameter_space_generate_grid_rejects_an_inverted_range_with_float_step():
+def test_parameter_space_generate_grid_rejects_an_inverted_range_with_float_step() -> None:
     """An inverted range is rejected whatever the step size is."""
     space = ParameterSpace("test", min_val=10.0, max_val=1.0, step=0.5)
     with pytest.raises(ValueError, match="minimum.*greater than the maximum"):
         space.generate_grid()
 
 
-def test_parameter_space_sample_random_fallback():
+def test_parameter_space_sample_random_fallback() -> None:
     """Test sample_random returns empty list when min_val set but max_val not."""
     space = ParameterSpace("test", min_val=1.0)
     assert space.sample_random(3) == []
 
 
-def test_parameter_grid_empty_generate_combinations():
+def test_parameter_grid_empty_generate_combinations() -> None:
     """Test empty ParameterGrid generates a single empty combination."""
     grid = ParameterGrid()
     assert grid.generate_combinations() == [{}]
 
 
-def test_parameter_grid_empty_sample_random():
+def test_parameter_grid_empty_sample_random() -> None:
     """Test empty ParameterGrid samples empty dicts."""
     grid = ParameterGrid()
     assert grid.sample_random(3) == [{}, {}, {}]
 
 
-def test_optimization_result_duration_none():
+def test_optimization_result_duration_none() -> None:
     """Test duration_seconds is None when start/end not set."""
     result = OptimizationResult(best_params={}, best_score=0.0)
     assert result.duration_seconds is None
 
 
-def test_optimization_result_duration_set():
+def test_optimization_result_duration_set() -> None:
     """Test duration_seconds calculates when start/end set."""
     start = datetime(2026, 1, 15)
     end = start + timedelta(seconds=5)
@@ -1059,14 +1053,14 @@ def test_optimization_result_duration_set():
     assert result.duration_seconds == pytest.approx(5.0, abs=0.1)
 
 
-def test_optimization_result_to_dataframe_empty():
+def test_optimization_result_to_dataframe_empty() -> None:
     """Test to_dataframe returns empty DataFrame when no results."""
     result = OptimizationResult(best_params={}, best_score=0.0)
     df = result.to_dataframe()
     assert df.empty
 
 
-def test_base_optimizer_evaluate_params_error():
+def test_base_optimizer_evaluate_params_error() -> None:
     """Test _evaluate_params catches ValueError and returns -inf score."""
     from quant_trading.optimization.base import BaseOptimizer, ParameterGrid, ParameterSpace
 
@@ -1101,7 +1095,7 @@ def test_base_optimizer_evaluate_params_error():
     assert result is None
 
 
-def test_base_optimizer_evaluate_params_error_quiet():
+def test_base_optimizer_evaluate_params_error_quiet() -> None:
     """_evaluate_params with verbose=False skips the error print (265->267)."""
     from quant_trading.optimization.base import BaseOptimizer, ParameterGrid, ParameterSpace
 
@@ -1135,7 +1129,7 @@ def test_base_optimizer_evaluate_params_error_quiet():
     assert result is None
 
 
-def test_base_optimizer_n_jobs_minus_one_uses_cpu_count():
+def test_base_optimizer_n_jobs_minus_one_uses_cpu_count() -> None:
     """n_jobs=-1 resolves to os.cpu_count() (base.py:640-641)."""
     from quant_trading.optimization.base import BaseOptimizer, ParameterGrid, ParameterSpace
 
@@ -1166,7 +1160,7 @@ def test_base_optimizer_n_jobs_minus_one_uses_cpu_count():
     assert optimizer.n_jobs == max(expected, 1)
 
 
-def test_grid_search_verbose(capsys):
+def test_grid_search_verbose(capsys: pytest.CaptureFixture[Any]) -> None:
     """Test GridSearch verbose prints progress."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -1196,7 +1190,7 @@ def test_grid_search_verbose(capsys):
     assert "GridSearch complete" in out
 
 
-def test_grid_search_n_combinations():
+def test_grid_search_n_combinations() -> None:
     """Test n_combinations property returns total count."""
     param_grid = ParameterGrid()
     param_grid.add(ParameterSpace("a", values=[1, 2]))
@@ -1215,7 +1209,7 @@ def test_grid_search_n_combinations():
     assert optimizer.n_combinations == 4
 
 
-def test_grid_search_pytest_time_cap_respects_env(monkeypatch):
+def test_grid_search_pytest_time_cap_respects_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """The pytest-time combination cap is read from ``QT_TEST_MAX_GRID_COMBINATIONS``.
 
     The grid cap is only applied when ``PYTEST_CURRENT_TEST`` is set (i.e. under
@@ -1246,7 +1240,7 @@ def test_grid_search_pytest_time_cap_respects_env(monkeypatch):
     assert optimizer.n_combinations == 7
 
 
-def test_random_search_pytest_time_cap_respects_env(monkeypatch):
+def test_random_search_pytest_time_cap_respects_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """The pytest-time iteration cap is read from ``QT_TEST_MAX_RANDOM_ITERATIONS``.
 
     The random-search cap is only applied under pytest (``PYTEST_CURRENT_TEST``
@@ -1284,7 +1278,7 @@ def test_random_search_pytest_time_cap_respects_env(monkeypatch):
 
 
 @skip_if_no_skopt
-def test_bayesian_pytest_time_cap_respects_env(monkeypatch):
+def test_bayesian_pytest_time_cap_respects_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """The pytest-time Bayesian caps are read from the env vars.
 
     Both ``QT_TEST_MAX_BAYESIAN_CALLS`` and ``QT_TEST_MAX_BAYESIAN_INIT`` are
@@ -1328,7 +1322,7 @@ def test_bayesian_pytest_time_cap_respects_env(monkeypatch):
 
 
 @skip_if_no_skopt
-def test_bayesian_pytest_time_cap_disabled_outside_pytest(monkeypatch):
+def test_bayesian_pytest_time_cap_disabled_outside_pytest(monkeypatch: pytest.MonkeyPatch) -> None:
     """When ``PYTEST_CURRENT_TEST`` is unset the caps are not applied.
 
     pytest itself sets ``PYTEST_CURRENT_TEST`` for every test, so the
@@ -1370,7 +1364,7 @@ def test_bayesian_pytest_time_cap_disabled_outside_pytest(monkeypatch):
     assert len(result.all_results) == 8
 
 
-def test_random_search_verbose(capsys):
+def test_random_search_verbose(capsys: pytest.CaptureFixture[Any]) -> None:
     """Test RandomSearch verbose prints progress."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -1402,7 +1396,7 @@ def test_random_search_verbose(capsys):
     assert "RandomSearch complete" in out
 
 
-def test_walk_forward_rolling_mode():
+def test_walk_forward_rolling_mode() -> None:
     """Test WalkForwardOptimizer with rolling (non-anchored) windows."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=200)}
@@ -1437,7 +1431,7 @@ def test_walk_forward_rolling_mode():
         assert window.test_result is not None
 
 
-def test_walk_forward_step_size_override():
+def test_walk_forward_step_size_override() -> None:
     """Test WalkForwardOptimizer with explicit step_size override."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=200)}
@@ -1471,7 +1465,7 @@ def test_walk_forward_step_size_override():
 
 @pytest.mark.parametrize("anchored", [True, False])
 @pytest.mark.parametrize("step_size", [0.3, 0.5, 0.75])
-def test_walk_forward_windows_tile_the_full_period_for_sub_window_steps(anchored, step_size):
+def test_walk_forward_windows_tile_the_full_period_for_sub_window_steps(anchored: bool, step_size) -> None:
     """A step smaller than one window still tiles start to end.
 
     ``--wf-step-size`` is documented as a fraction of a window's span, and the
@@ -1486,6 +1480,8 @@ def test_walk_forward_windows_tile_the_full_period_for_sub_window_steps(anchored
     windows = optimizer._generate_windows()
 
     assert windows, "expected at least one window"
+    assert optimizer.start is not None
+    assert optimizer.end is not None
     assert windows[0].test_start >= optimizer.start
     # The out-of-sample spans tile the requested period: the last window's test
     # span reaches the end, and consecutive test spans never overlap.
@@ -1495,7 +1491,7 @@ def test_walk_forward_windows_tile_the_full_period_for_sub_window_steps(anchored
         assert current.test_start == current.train_end
 
 
-def test_walk_forward_unknown_optimizer():
+def test_walk_forward_unknown_optimizer() -> None:
     """Test WalkForwardOptimizer raises for unknown optimizer type."""
     optimizer = WalkForwardOptimizer(
         strategy_cls=MovingAverageCrossover,
@@ -1512,7 +1508,7 @@ def test_walk_forward_unknown_optimizer():
         optimizer.run()
 
 
-def test_walk_forward_no_dates():
+def test_walk_forward_no_dates() -> None:
     """Test WalkForwardOptimizer _generate_windows raises when dates not set."""
     optimizer = WalkForwardOptimizer(
         strategy_cls=MovingAverageCrossover,
@@ -1546,27 +1542,27 @@ def _base_walk_forward_optimizer(**overrides: Any) -> WalkForwardOptimizer:
 
 
 @pytest.mark.parametrize("step_size", [0.0, -0.5, 1.5])
-def test_walk_forward_rejects_invalid_step_size(step_size: float):
+def test_walk_forward_rejects_invalid_step_size(step_size: float) -> None:
     """WalkForwardOptimizer rejects step sizes outside the documented (0, 1] fraction."""
     with pytest.raises(ValueError, match="invalid step_size"):
         _base_walk_forward_optimizer(step_size=step_size)
 
 
 @pytest.mark.parametrize("train_size", [0.0, -0.5, 1.5])
-def test_walk_forward_rejects_invalid_train_size(train_size: float):
+def test_walk_forward_rejects_invalid_train_size(train_size: float) -> None:
     """WalkForwardOptimizer rejects train sizes outside the documented (0, 1] range."""
     with pytest.raises(ValueError, match="invalid train_size"):
         _base_walk_forward_optimizer(train_size=train_size)
 
 
 @pytest.mark.parametrize("n_windows", [0, -1])
-def test_walk_forward_rejects_invalid_n_windows(n_windows: int):
+def test_walk_forward_rejects_invalid_n_windows(n_windows: int) -> None:
     """WalkForwardOptimizer rejects n_windows below 1."""
     with pytest.raises(ValueError, match="invalid n_windows"):
         _base_walk_forward_optimizer(n_windows=n_windows)
 
 
-def test_walk_forward_accepts_boundary_values():
+def test_walk_forward_accepts_boundary_values() -> None:
     """Boundary step_size=1.0, train_size=1.0, and n_windows=1 construct cleanly."""
     optimizer = _base_walk_forward_optimizer(step_size=1.0, train_size=1.0, n_windows=1)
     assert optimizer.step_size == 1.0
@@ -1574,7 +1570,7 @@ def test_walk_forward_accepts_boundary_values():
     assert optimizer.n_windows == 1
 
 
-def test_walk_forward_combine_no_valid_windows():
+def test_walk_forward_combine_no_valid_windows() -> None:
     """Test _combine_test_results returns None when no windows have test results."""
     from quant_trading.optimization.walk_forward import WalkForwardOptimizer, WalkForwardWindow
 
@@ -1603,7 +1599,7 @@ def test_walk_forward_combine_no_valid_windows():
     assert combined is None
 
 
-def test_walk_forward_combine_no_equity():
+def test_walk_forward_combine_no_equity() -> None:
     """Test _combine_test_results returns None when equity curves have no data."""
     from quant_trading.backtest.engine import BacktestResult
     from quant_trading.backtest.metrics import BacktestMetrics
@@ -1649,7 +1645,7 @@ def test_walk_forward_combine_no_equity():
     assert combined is None
 
 
-def test_walk_forward_combine_chains_equity_across_windows():
+def test_walk_forward_combine_chains_equity_across_windows() -> None:
     """Test _combine_test_results chains window equity curves instead of resetting.
 
     Each window's backtest starts fresh at initial_capital, so the combined
@@ -1739,7 +1735,7 @@ def test_walk_forward_combine_chains_equity_across_windows():
     assert abs(combined.total_return_pct - 5.0) < 1e-9
 
 
-def test_walk_forward_combine_sums_window_costs():
+def test_walk_forward_combine_sums_window_costs() -> None:
     """The combined walk-forward result reports the total costs of all windows.
 
     Each window pays its own commission and slippage, so the combined result
@@ -1822,7 +1818,7 @@ WALK_FORWARD_START = datetime(2024, 1, 1)
 WALK_FORWARD_END = datetime(2024, 6, 28)
 
 
-def _walk_forward_optimizer(**overrides):
+def _walk_forward_optimizer(**overrides: Any) -> WalkForwardOptimizer:
     """Build a walk-forward optimizer over deterministic mock data."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=200, end=WALK_FORWARD_END)}
@@ -1832,7 +1828,7 @@ def _walk_forward_optimizer(**overrides):
     param_grid.add(ParameterSpace("fast_period", values=[2], param_type=int))
     param_grid.add(ParameterSpace("slow_period", values=[5], param_type=int))
 
-    settings = {
+    settings: dict[str, Any] = {
         "strategy_cls": MovingAverageCrossover,
         "param_grid": param_grid,
         "objective": maximize_sharpe,
@@ -1845,11 +1841,11 @@ def _walk_forward_optimizer(**overrides):
         "train_size": 0.6,
     }
     settings.update(overrides)
-    return WalkForwardOptimizer(**settings)
+    return WalkForwardOptimizer(**settings)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("anchored", [True, False])
-def test_walk_forward_test_periods_do_not_overlap(anchored):
+def test_walk_forward_test_periods_do_not_overlap(anchored: bool) -> None:
     """The out-of-sample periods of two windows never overlap.
 
     A period that is evaluated out-of-sample by two windows would be counted
@@ -1860,6 +1856,8 @@ def test_walk_forward_test_periods_do_not_overlap(anchored):
     windows = optimizer._generate_windows()
 
     assert len(windows) == optimizer.n_windows
+    assert optimizer.start is not None
+    assert optimizer.end is not None
     for previous, current in itertools.pairwise(windows):
         # The out-of-sample periods are chronological and never overlap.
         assert current.test_start >= previous.test_end
@@ -1878,7 +1876,7 @@ def test_walk_forward_test_periods_do_not_overlap(anchored):
 
 
 @pytest.mark.parametrize("anchored", [True, False])
-def test_walk_forward_combined_equity_is_strictly_increasing(anchored):
+def test_walk_forward_combined_equity_is_strictly_increasing(anchored: bool) -> None:
     """The combined out-of-sample equity curve is a valid time series.
 
     The combined curve is the chain of the windows' equity curves, so its
@@ -1904,7 +1902,7 @@ def test_walk_forward_combined_equity_is_strictly_increasing(anchored):
     assert len(combined.equity_curve) == expected_bars + 1
 
 
-def test_walk_forward_combined_pnl_is_the_chained_realized_pnl():
+def test_walk_forward_combined_pnl_is_the_chained_realized_pnl() -> None:
     """The combined result's realized PnL is the chained PnL of the windows.
 
     Every window's backtest starts fresh at the initial capital, so its PnL is
@@ -1934,7 +1932,7 @@ def test_walk_forward_combined_pnl_is_the_chained_realized_pnl():
     assert combined.final_value == pytest.approx(cumulative)
 
 
-def test_walk_forward_combined_result_can_be_analyzed():
+def test_walk_forward_combined_result_can_be_analyzed() -> None:
     """The combined out-of-sample result can be analyzed like any other result.
 
     The trade analysis looks equity values up by timestamp, which needs an
@@ -1953,7 +1951,7 @@ def test_walk_forward_combined_result_can_be_analyzed():
     assert analysis.total_pnl == pytest.approx(combined.metrics.total_pnl)
 
 
-def test_walk_forward_to_dataframe_is_json_safe():
+def test_walk_forward_to_dataframe_is_json_safe() -> None:
     """``WalkForwardResult.to_dataframe()`` must be JSON-serializable.
 
     The frame's four date-boundary columns hold raw ``datetime`` objects, which
@@ -1984,7 +1982,7 @@ def test_walk_forward_to_dataframe_is_json_safe():
         datetime.fromisoformat(first[column])
 
 
-def test_walk_forward_combine_drops_overlapping_points():
+def test_walk_forward_combine_drops_overlapping_points() -> None:
     """Overlapping out-of-sample periods are combined into one time series.
 
     The combined curve is a time series, so a point that is not later than the
@@ -2053,7 +2051,7 @@ def test_walk_forward_combine_drops_overlapping_points():
     assert index.is_unique
 
 
-def test_walk_forward_combine_window_with_no_new_points_does_not_update_cumulative():
+def test_walk_forward_combine_window_with_no_new_points_does_not_update_cumulative() -> None:
     """A window whose every bar is already covered leaves cumulative_final unchanged.
 
     When a later window's test period is entirely contained in the previous
@@ -2130,7 +2128,7 @@ def test_walk_forward_combine_window_with_no_new_points_does_not_update_cumulati
     ]
 
 
-def test_walk_forward_combine_skips_short_curve_before_valid_window():
+def test_walk_forward_combine_skips_short_curve_before_valid_window() -> None:
     """A single-point window is skipped before a window that contributes data.
 
     The first window's equity curve has only one bar, so ``len(eq) < 2``
@@ -2206,7 +2204,7 @@ def test_walk_forward_combine_skips_short_curve_before_valid_window():
     ]
 
 
-def test_walk_forward_verbose(capsys):
+def test_walk_forward_verbose(capsys: pytest.CaptureFixture[Any]) -> None:
     """Test WalkForwardOptimizer verbose prints window progress."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=200)}
@@ -2244,7 +2242,7 @@ def test_walk_forward_verbose(capsys):
     assert "Test Sharpe" in out
 
 
-def test_walk_forward_random_optimizer():
+def test_walk_forward_random_optimizer() -> None:
     """Test WalkForwardOptimizer with the RandomSearch optimizer branch."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=200)}
@@ -2280,7 +2278,7 @@ def test_walk_forward_random_optimizer():
         assert window.test_result is not None
 
 
-def test_walk_forward_degenerate_break():
+def test_walk_forward_degenerate_break() -> None:
     """Test _generate_windows breaks when test_start >= test_end (empty testing window).
 
     With train_size=1.0, non-anchored, each window's testing period collapses to
@@ -2317,7 +2315,7 @@ def test_walk_forward_degenerate_break():
     assert result.combined_test_result is None
 
 
-def test_convert_to_native():
+def test_convert_to_native() -> None:
     """Test _convert_to_native converts numpy/dict/list to native types."""
     from quant_trading.optimization.bayesian import _convert_to_native
 
@@ -2328,7 +2326,7 @@ def test_convert_to_native():
     assert _convert_to_native("scalar") == "scalar"
 
 
-def test_bayesian_optimizer_import_error(monkeypatch):
+def test_bayesian_optimizer_import_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test BayesianOptimizer raises ImportError when scikit-optimize is missing."""
     import sys
 
@@ -2348,7 +2346,7 @@ def test_bayesian_optimizer_import_error(monkeypatch):
 
 
 @skip_if_no_skopt
-def test_bayesian_optimizer_default_objective():
+def test_bayesian_optimizer_default_objective() -> None:
     """Test BayesianOptimizer defaults to maximize_sharpe when objective is None."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -2377,7 +2375,7 @@ def test_bayesian_optimizer_default_objective():
 
 
 @skip_if_no_skopt
-def test_bayesian_optimizer_log_prior():
+def test_bayesian_optimizer_log_prior() -> None:
     """Test BayesianOptimizer builds a log-uniform Real space for log distribution."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -2410,7 +2408,7 @@ def test_bayesian_optimizer_log_prior():
 
 
 @skip_if_no_skopt
-def test_bayesian_optimizer_verbose(capsys):
+def test_bayesian_optimizer_verbose(capsys: pytest.CaptureFixture[Any]) -> None:
     """Test BayesianOptimizer verbose prints progress."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -2443,11 +2441,11 @@ def test_bayesian_optimizer_verbose(capsys):
 
 
 @skip_if_no_skopt
-def test_bayesian_optimizer_error_handling(monkeypatch, capsys):
+def test_bayesian_optimizer_error_handling(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]) -> None:
     """Test BayesianOptimizer handles errors from the optimizer gracefully."""
     import skopt
 
-    def raise_error(*args, **kwargs):
+    def raise_error(*args, **kwargs) -> None:
         raise ValueError("simulated skopt failure")
 
     monkeypatch.setattr(skopt, "gp_minimize", raise_error)
@@ -2483,7 +2481,7 @@ def test_bayesian_optimizer_error_handling(monkeypatch, capsys):
     assert result.best_params == {}
 
 
-def test_walk_forward_result_to_dataframe_without_best_params():
+def test_walk_forward_result_to_dataframe_without_best_params() -> None:
     """WalkForwardResult.to_dataframe skips the param update when a window has no
     best_params (the `if w.best_params` False branch, 64->66)."""
     from quant_trading.optimization.walk_forward import WalkForwardResult, WalkForwardWindow
@@ -2501,7 +2499,7 @@ def test_walk_forward_result_to_dataframe_without_best_params():
     assert not any(c.startswith("param_") for c in df.columns)
 
 
-def test_walk_forward_window_to_dict():
+def test_walk_forward_window_to_dict() -> None:
     """WalkForwardWindow.to_dict returns every field as JSON-safe values.
 
     The four date boundaries are serialized as ISO-8601 strings (consistent
@@ -2535,7 +2533,7 @@ def test_walk_forward_window_to_dict():
     json.dumps(result)
 
 
-def test_walk_forward_with_failing_strategy_skips_test():
+def test_walk_forward_with_failing_strategy_skips_test() -> None:
     """When every window's optimization yields an empty best_params dict (the
     strategy raises during backtesting), the test backtest is skipped for every
     window (the `if window.best_params` False branch, 299->279)."""
@@ -2569,7 +2567,7 @@ def test_walk_forward_with_failing_strategy_skips_test():
         assert window.test_result is None
 
 
-def test_walk_forward_risk_free_rate_reaches_combined_metrics():
+def test_walk_forward_risk_free_rate_reaches_combined_metrics() -> None:
     """The configured risk-free rate must reach the combined test result's metrics.
 
     Regression test: the combined walk-forward result previously hardcoded
@@ -2687,12 +2685,12 @@ def test_walk_forward_risk_free_rate_reaches_combined_metrics():
 
 
 @skip_if_no_skopt
-def test_bayesian_optimizer_error_handling_quiet(monkeypatch):
+def test_bayesian_optimizer_error_handling_quiet(monkeypatch: pytest.MonkeyPatch) -> None:
     """When skopt fails and verbose is False, the except branch runs without
     printing (the `if self.verbose` False branch, 206->209)."""
     import skopt
 
-    def raise_error(*args, **kwargs):
+    def raise_error(*args, **kwargs) -> None:
         raise RuntimeError("simulated skopt failure")
 
     monkeypatch.setattr(skopt, "gp_minimize", raise_error)
@@ -2727,7 +2725,7 @@ def test_bayesian_optimizer_error_handling_quiet(monkeypatch):
 
 
 @skip_if_no_skopt
-def test_bayesian_create_skopt_space_min_val_without_max():
+def test_bayesian_create_skopt_space_min_val_without_max() -> None:
     """A parameter space with min_val set but max_val None is skipped in
     _create_skopt_space (the `elif` fall-through, 119->115)."""
     param_grid = ParameterGrid()
@@ -2749,7 +2747,7 @@ def test_bayesian_create_skopt_space_min_val_without_max():
 
 
 @skip_if_no_yfinance
-def test_grid_search_parallel_verbose(capsys):
+def test_grid_search_parallel_verbose(capsys: pytest.CaptureFixture[Any]) -> None:
     """Test GridSearch parallel path prints progress and 'New best'."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -2783,7 +2781,7 @@ def test_grid_search_parallel_verbose(capsys):
 
 
 @skip_if_no_yfinance
-def test_grid_search_parallel_error_handling(capsys):
+def test_grid_search_parallel_error_handling(capsys: pytest.CaptureFixture[Any]) -> None:
     """Test GridSearch parallel path catches worker errors and prints them."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -2816,7 +2814,7 @@ def test_grid_search_parallel_error_handling(capsys):
 
 
 @skip_if_no_yfinance
-def test_random_search_parallel_verbose(capsys):
+def test_random_search_parallel_verbose(capsys: pytest.CaptureFixture[Any]) -> None:
     """Test RandomSearch parallel path prints progress and 'New best'."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -2852,7 +2850,7 @@ def test_random_search_parallel_verbose(capsys):
 
 
 @skip_if_no_yfinance
-def test_random_search_parallel_error_handling(capsys):
+def test_random_search_parallel_error_handling(capsys: pytest.CaptureFixture[Any]) -> None:
     """Test RandomSearch parallel path catches worker errors and prints them."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -2887,7 +2885,7 @@ def test_random_search_parallel_error_handling(capsys):
 
 
 @skip_if_no_yfinance
-def test_grid_search_parallel_error_handling_quiet():
+def test_grid_search_parallel_error_handling_quiet() -> None:
     """Test GridSearch parallel path catches worker errors silently (verbose=False)."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -2917,7 +2915,7 @@ def test_grid_search_parallel_error_handling_quiet():
     assert len(result.all_results) == 4
 
 
-def test_grid_search_parallel_with_config():
+def test_grid_search_parallel_with_config() -> None:
     """Test GridSearch parallel path unwraps a Config into its DataConfig (line 173)."""
     from quant_trading.config.settings import Config, DataConfig
 
@@ -2957,7 +2955,7 @@ def test_grid_search_parallel_with_config():
 
 
 @skip_if_no_yfinance
-def test_random_search_parallel_error_handling_quiet():
+def test_random_search_parallel_error_handling_quiet() -> None:
     """Test RandomSearch parallel path catches worker errors silently (verbose=False)."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -2989,7 +2987,7 @@ def test_random_search_parallel_error_handling_quiet():
     assert len(result.all_results) == 4
 
 
-def test_random_search_parallel_with_config():
+def test_random_search_parallel_with_config() -> None:
     """Test RandomSearch parallel path unwraps a Config into its DataConfig (line 185)."""
     from quant_trading.config.settings import Config, DataConfig
 
@@ -3030,7 +3028,7 @@ def test_random_search_parallel_with_config():
     assert len(result.all_results) == 4
 
 
-def test_evaluate_params_worker_grid():
+def test_evaluate_params_worker_grid() -> None:
     """Test grid_search._evaluate_params_worker with offline DataConfig (lines 30-62)."""
     from quant_trading.config.settings import DataConfig
     from quant_trading.optimization.grid_search import _evaluate_params_worker
@@ -3056,7 +3054,7 @@ def test_evaluate_params_worker_grid():
 
 
 @patch("quant_trading.backtest.engine.get_default_data_manager")
-def test_evaluate_params_worker_grid_none_config(mock_get_default):
+def test_evaluate_params_worker_grid_none_config(mock_get_default) -> None:
     """Test grid_search._evaluate_params_worker with data_config=None (line 39 False branch)."""
     from quant_trading.data.providers import DataManager
     from quant_trading.data.synthetic import create_synthetic_provider
@@ -3083,7 +3081,7 @@ def test_evaluate_params_worker_grid_none_config(mock_get_default):
     assert result is not None
 
 
-def test_evaluate_params_worker_grid_config_branch():
+def test_evaluate_params_worker_grid_config_branch() -> None:
     """Test grid_search._evaluate_params_worker with a Config instance (line 40-41 branch)."""
     from quant_trading.config.settings import Config, DataConfig
     from quant_trading.optimization.grid_search import _evaluate_params_worker
@@ -3113,7 +3111,7 @@ def test_evaluate_params_worker_grid_config_branch():
     assert result is not None
 
 
-def test_evaluate_params_worker_grid_fallthrough_branch():
+def test_evaluate_params_worker_grid_fallthrough_branch() -> None:
     """Test grid_search._evaluate_params_worker with an unrecognized config object (fall-through branch)."""
     from types import SimpleNamespace
 
@@ -3143,7 +3141,7 @@ def test_evaluate_params_worker_grid_fallthrough_branch():
 
 
 @skip_if_no_yfinance
-def test_evaluate_params_worker_grid_error():
+def test_evaluate_params_worker_grid_error() -> None:
     """Test grid_search._evaluate_params_worker propagates worker errors."""
     from quant_trading.optimization.grid_search import _evaluate_params_worker
 
@@ -3164,7 +3162,7 @@ def test_evaluate_params_worker_grid_error():
         )
 
 
-def test_evaluate_params_worker_random():
+def test_evaluate_params_worker_random() -> None:
     """Test random_search._evaluate_params_worker with offline DataConfig (lines 32-64)."""
     from quant_trading.config.settings import DataConfig
     from quant_trading.optimization.random_search import _evaluate_params_worker
@@ -3189,7 +3187,7 @@ def test_evaluate_params_worker_random():
 
 
 @patch("quant_trading.backtest.engine.get_default_data_manager")
-def test_evaluate_params_worker_random_none_config(mock_get_default):
+def test_evaluate_params_worker_random_none_config(mock_get_default) -> None:
     """Test random_search._evaluate_params_worker with data_config=None (line 41 False branch)."""
     from quant_trading.data.providers import DataManager
     from quant_trading.data.synthetic import create_synthetic_provider
@@ -3216,7 +3214,7 @@ def test_evaluate_params_worker_random_none_config(mock_get_default):
     assert result is not None
 
 
-def test_evaluate_params_worker_random_config_branch():
+def test_evaluate_params_worker_random_config_branch() -> None:
     """Test random_search._evaluate_params_worker with a Config instance (line 42-43 branch)."""
     from quant_trading.config.settings import Config, DataConfig
     from quant_trading.optimization.random_search import _evaluate_params_worker
@@ -3246,7 +3244,7 @@ def test_evaluate_params_worker_random_config_branch():
     assert result is not None
 
 
-def test_evaluate_params_worker_random_fallthrough_branch():
+def test_evaluate_params_worker_random_fallthrough_branch() -> None:
     """Test random_search._evaluate_params_worker with an unrecognized config object (fall-through branch)."""
     from types import SimpleNamespace
 
@@ -3276,7 +3274,7 @@ def test_evaluate_params_worker_random_fallthrough_branch():
 
 
 @skip_if_no_yfinance
-def test_evaluate_params_worker_random_error():
+def test_evaluate_params_worker_random_error() -> None:
     """Test random_search._evaluate_params_worker propagates worker errors."""
     from quant_trading.optimization.random_search import _evaluate_params_worker
 
@@ -3298,7 +3296,7 @@ def test_evaluate_params_worker_random_error():
 
 
 @skip_if_no_yfinance
-def test_grid_search_parallel():
+def test_grid_search_parallel() -> None:
     """Test GridSearch optimization with parallel execution."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -3334,8 +3332,8 @@ def test_grid_search_parallel():
 class _WorkerDeathExecutor(ProcessPoolExecutor):
     """Executor whose workers die before running any task."""
 
-    def submit(self, fn, *args, **kwargs):
-        future = _base.Future()
+    def submit(self, fn, *args, **kwargs) -> Future[Any]:  # type: ignore[override]
+        future: Future[Any] = _base.Future()
         future.set_exception(BrokenProcessPool("worker died"))
         return future
 
@@ -3343,15 +3341,15 @@ class _WorkerDeathExecutor(ProcessPoolExecutor):
 class _PartialWorkerDeathExecutor(ProcessPoolExecutor):
     """Executor whose first task succeeds but whose workers then die."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._submitted = 0
 
-    def submit(self, fn, *args, **kwargs):
+    def submit(self, fn, *args, **kwargs) -> Future[Any]:  # type: ignore[override]
         self._submitted += 1
         if self._submitted == 1:
             return super().submit(fn, *args, **kwargs)
-        future = _base.Future()
+        future: Future[Any] = _base.Future()
         future.set_exception(BrokenProcessPool("worker died"))
         return future
 
@@ -3386,7 +3384,7 @@ def _make_parallel_optimizer(cls, n_iter=None, verbose=True):
 
 
 @skip_if_no_yfinance
-def test_random_search_parallel():
+def test_random_search_parallel() -> None:
     """Test RandomSearch optimization with parallel execution."""
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
@@ -3420,7 +3418,7 @@ def test_random_search_parallel():
     assert len(result.all_results) == 4
 
 
-def test_grid_search_parallel_worker_death_fallback(monkeypatch):
+def test_grid_search_parallel_worker_death_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test GridSearch falls back to sequential execution when all workers die."""
     import quant_trading.optimization.grid_search as grid_search_module
 
@@ -3436,7 +3434,7 @@ def test_grid_search_parallel_worker_death_fallback(monkeypatch):
     assert len(result.all_results) == 4
 
 
-def test_random_search_parallel_worker_death_fallback(monkeypatch):
+def test_random_search_parallel_worker_death_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test RandomSearch falls back to sequential execution when all workers die."""
     import quant_trading.optimization.random_search as random_search_module
 
@@ -3453,7 +3451,7 @@ def test_random_search_parallel_worker_death_fallback(monkeypatch):
 
 
 @skip_if_no_yfinance
-def test_grid_search_parallel_partial_worker_death_fallback(monkeypatch):
+def test_grid_search_parallel_partial_worker_death_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test GridSearch mixes successful parallel results with sequential retries."""
     import quant_trading.optimization.grid_search as grid_search_module
 
@@ -3472,17 +3470,17 @@ def test_grid_search_parallel_partial_worker_death_fallback(monkeypatch):
 class _WorkerErrorExecutor(ProcessPoolExecutor):
     """Executor whose workers raise a regular error instead of dying."""
 
-    def submit(self, fn, *args, **kwargs):
-        future = _base.Future()
+    def submit(self, fn, *args, **kwargs) -> Future[Any]:  # type: ignore[override]
+        future: Future[Any] = _base.Future()
         future.set_exception(ValueError("worker error"))
         return future
 
 
-def _raise_broken_as_completed(fs, *args, **kwargs):
+def _raise_broken_as_completed(fs, *args, **kwargs) -> None:
     raise BrokenProcessPool("as_completed failed")
 
 
-def test_grid_search_parallel_worker_error(monkeypatch, capsys):
+def test_grid_search_parallel_worker_error(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]) -> None:
     """Test GridSearch records worker errors (non-fatal) for every combination."""
     import quant_trading.optimization.grid_search as grid_search_module
 
@@ -3498,7 +3496,7 @@ def test_grid_search_parallel_worker_error(monkeypatch, capsys):
     assert "-> Error:" in out
 
 
-def test_random_search_parallel_worker_error(monkeypatch, capsys):
+def test_random_search_parallel_worker_error(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]) -> None:
     """Test RandomSearch records worker errors (non-fatal) for every combination."""
     import quant_trading.optimization.random_search as random_search_module
 
@@ -3514,7 +3512,7 @@ def test_random_search_parallel_worker_error(monkeypatch, capsys):
     assert "-> Error:" in out
 
 
-def test_grid_search_parallel_as_completed_broken(monkeypatch):
+def test_grid_search_parallel_as_completed_broken(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test GridSearch falls back sequentially when as_completed itself fails."""
     import quant_trading.optimization.grid_search as grid_search_module
 
@@ -3530,7 +3528,7 @@ def test_grid_search_parallel_as_completed_broken(monkeypatch):
     assert len(result.all_results) == 4
 
 
-def test_random_search_parallel_as_completed_broken(monkeypatch):
+def test_random_search_parallel_as_completed_broken(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test RandomSearch falls back sequentially when as_completed itself fails."""
     import quant_trading.optimization.random_search as random_search_module
 
@@ -3546,7 +3544,7 @@ def test_random_search_parallel_as_completed_broken(monkeypatch):
     assert len(result.all_results) == 4
 
 
-def _make_scripted_result(params, score=1.0):
+def _make_scripted_result(params: dict[str, Any], score: float = 1.0) -> tuple[dict[str, Any], float, SimpleNamespace]:
     return (
         params,
         score,
@@ -3566,31 +3564,31 @@ def _make_scripted_result(params, score=1.0):
 class _ScriptedExecutor:
     """Executor substitute that returns pre-scripted futures without a pool."""
 
-    def __init__(self, scripts):
+    def __init__(self, scripts: list[tuple[str, Any]]) -> None:
         self._scripts = list(scripts)
         self._calls = 0
 
-    def submit(self, fn, *args, **kwargs):
+    def submit(self, fn, *args, **kwargs) -> Future[Any]:
         kind, value = self._scripts[self._calls]
         self._calls += 1
-        future = _base.Future()
+        future: Future[Any] = _base.Future()
         if kind == "result":
             future.set_result(value)
         else:
             future.set_exception(value)
         return future
 
-    def shutdown(self, wait=True, cancel_futures=False):
+    def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
         return None
 
-    def __enter__(self):
+    def __enter__(self) -> "_ScriptedExecutor":
         return self
 
-    def __exit__(self, *exc_info):
-        return False
+    def __exit__(self, *exc_info: Any) -> None:
+        return None
 
 
-def _scripted_results(params_list, scripts):
+def _scripted_results(params_list: list[dict[str, Any]], scripts: list[tuple]) -> list[tuple[str, Any]]:
     """Zip params with scripts into (kind, value) pairs for the scripted executor."""
     results = []
     for params, script in zip(params_list, scripts):
@@ -3602,7 +3600,7 @@ def _scripted_results(params_list, scripts):
     return results
 
 
-def test_grid_search_parallel_scripted(monkeypatch):
+def test_grid_search_parallel_scripted(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test GridSearch mixes parallel successes, worker errors, and worker deaths."""
     import quant_trading.optimization.grid_search as grid_search_module
 
@@ -3630,7 +3628,7 @@ def test_grid_search_parallel_scripted(monkeypatch):
     assert len(result.all_results) == 4
 
 
-def test_grid_search_parallel_scripted_quiet(monkeypatch):
+def test_grid_search_parallel_scripted_quiet(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test GridSearch parallel/error paths with verbose=False."""
     import quant_trading.optimization.grid_search as grid_search_module
 
@@ -3658,7 +3656,7 @@ def test_grid_search_parallel_scripted_quiet(monkeypatch):
     assert len(result.all_results) == 4
 
 
-def test_random_search_parallel_scripted(monkeypatch):
+def test_random_search_parallel_scripted(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test RandomSearch mixes parallel successes, worker errors, and worker deaths."""
     import quant_trading.optimization.random_search as random_search_module
 
@@ -3686,7 +3684,7 @@ def test_random_search_parallel_scripted(monkeypatch):
     assert len(result.all_results) == 4
 
 
-def test_random_search_parallel_scripted_quiet(monkeypatch):
+def test_random_search_parallel_scripted_quiet(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test RandomSearch parallel/error paths with verbose=False."""
     import quant_trading.optimization.random_search as random_search_module
 
@@ -3706,7 +3704,7 @@ def test_random_search_parallel_scripted_quiet(monkeypatch):
     assert len(result.all_results) == 2
 
 
-def test_grid_search_parallel_worker_death_fallback_quiet(monkeypatch, capsys):
+def test_grid_search_parallel_worker_death_fallback_quiet(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]) -> None:
     """Test GridSearch silent fallback when all workers die (verbose=False).
 
     Exercises the verbose=False branches inside the BrokenProcessPool
@@ -3728,7 +3726,7 @@ def test_grid_search_parallel_worker_death_fallback_quiet(monkeypatch, capsys):
     assert out == ""  # No output expected in quiet mode
 
 
-def test_random_search_parallel_worker_death_fallback_quiet(monkeypatch, capsys):
+def test_random_search_parallel_worker_death_fallback_quiet(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]) -> None:
     """Test RandomSearch silent fallback when all workers die (verbose=False).
 
     Exercises the verbose=False branches inside the BrokenProcessPool
@@ -3759,7 +3757,7 @@ class TestWalkForwardSerialization:
     guard the round trip so a future change to either direction is caught.
     """
 
-    def test_walk_forward_window_round_trip(self):
+    def test_walk_forward_window_round_trip(self) -> None:
         """from_dict(to_dict(window)) restores every field, including datetimes."""
         from quant_trading.optimization.walk_forward import WalkForwardWindow
 
@@ -3778,7 +3776,7 @@ class TestWalkForwardSerialization:
         assert restored.test_end == datetime(2024, 3, 1)
         assert restored.best_params == {"fast_period": 5, "slow_period": 20}
 
-    def test_walk_forward_window_round_trip_with_string_datetimes(self):
+    def test_walk_forward_window_round_trip_with_string_datetimes(self) -> None:
         """from_dict accepts ISO-8601 strings, as JSON round-trips would emit.
 
         ``to_dict`` keeps the raw ``datetime`` objects rather than serializing
@@ -3806,7 +3804,7 @@ class TestWalkForwardSerialization:
         assert restored.test_end == datetime(2024, 3, 1)
         assert restored.best_params is None
 
-    def test_walk_forward_window_from_dict_defaults_missing_fields(self):
+    def test_walk_forward_window_from_dict_defaults_missing_fields(self) -> None:
         """from_dict tolerates a dict that omits optional fields."""
         from quant_trading.optimization.walk_forward import WalkForwardWindow
 
@@ -3822,7 +3820,7 @@ class TestWalkForwardSerialization:
         assert restored.train_result is None
         assert restored.test_result is None
 
-    def test_walk_forward_window_from_dict_passes_through_non_datetime_values(self):
+    def test_walk_forward_window_from_dict_passes_through_non_datetime_values(self) -> None:
         """from_dict passes non-datetime/non-string values through unchanged.
 
         ``_coerce_datetime`` only converts ``datetime`` and ``str`` inputs; any
@@ -3842,7 +3840,7 @@ class TestWalkForwardSerialization:
         assert restored.train_start is None
         assert restored.test_end is None
 
-    def test_walk_forward_result_round_trip(self):
+    def test_walk_forward_result_round_trip(self) -> None:
         """from_dict(to_dict(result)) restores windows and the anchored flag."""
         from quant_trading.optimization.walk_forward import (
             WalkForwardResult,
@@ -3865,7 +3863,7 @@ class TestWalkForwardSerialization:
         assert restored.windows[0].best_params == {"fast_period": 5}
         assert restored.combined_test_result is None
 
-    def test_walk_forward_result_round_trip_empty(self):
+    def test_walk_forward_result_round_trip_empty(self) -> None:
         """from_dict(to_dict(result)) works for a result with no windows."""
         from quant_trading.optimization.walk_forward import WalkForwardResult
 
@@ -3876,7 +3874,7 @@ class TestWalkForwardSerialization:
         assert restored.anchored is True
         assert restored.combined_test_result is None
 
-    def test_walk_forward_result_from_dict_accepts_window_objects(self):
+    def test_walk_forward_result_from_dict_accepts_window_objects(self) -> None:
         """from_dict passes through WalkForwardWindow instances unchanged."""
         from quant_trading.optimization.walk_forward import (
             WalkForwardResult,
@@ -3894,7 +3892,7 @@ class TestWalkForwardSerialization:
         assert restored.windows[0] is window
         assert restored.anchored is True
 
-    def test_walk_forward_result_from_dict_defaults_missing_fields(self):
+    def test_walk_forward_result_from_dict_defaults_missing_fields(self) -> None:
         """from_dict tolerates a dict that omits optional fields."""
         from quant_trading.optimization.walk_forward import WalkForwardResult
 
@@ -3903,7 +3901,7 @@ class TestWalkForwardSerialization:
         assert restored.anchored is True
         assert restored.combined_test_result is None
 
-    def test_walk_forward_result_from_dict_skips_non_window_entries(self):
+    def test_walk_forward_result_from_dict_skips_non_window_entries(self) -> None:
         """from_dict ignores window entries that are neither dicts nor windows.
 
         A malformed ``windows`` list (e.g. one that round-tripped through a
@@ -3938,7 +3936,7 @@ class TestOptimizationResultSerialization:
     JSON had no supported path. These tests guard the round trip.
     """
 
-    def test_to_dict_contains_all_fields(self):
+    def test_to_dict_contains_all_fields(self) -> None:
         """to_dict exposes every OptimizationResult field."""
         start = datetime(2024, 1, 1, 9, 0, 0)
         end = datetime(2024, 1, 1, 10, 0, 0)
@@ -3957,12 +3955,12 @@ class TestOptimizationResultSerialization:
         assert data["start_time"] == start.isoformat()
         assert data["end_time"] == end.isoformat()
 
-    def test_to_dict_none_best_result(self):
+    def test_to_dict_none_best_result(self) -> None:
         """to_dict emits None for best_result when absent."""
         result = OptimizationResult(best_params={"x": 1}, best_score=0.0)
         assert result.to_dict()["best_result"] is None
 
-    def test_round_trip_restores_fields(self):
+    def test_round_trip_restores_fields(self) -> None:
         """from_dict(to_dict(result)) restores every scalar field."""
         start = datetime(2024, 1, 1, 9, 0, 0)
         end = datetime(2024, 1, 1, 10, 0, 0)
@@ -3982,7 +3980,7 @@ class TestOptimizationResultSerialization:
         assert restored.end_time == end
         assert restored.duration_seconds == 3600.0
 
-    def test_round_trip_json_safe(self):
+    def test_round_trip_json_safe(self) -> None:
         """to_dict output is JSON-serializable and from_dict accepts it."""
         result = OptimizationResult(
             best_params={"fast_period": 5},
@@ -3998,7 +3996,7 @@ class TestOptimizationResultSerialization:
         assert restored.best_score == 1.5
         assert restored.start_time == datetime(2024, 1, 1, 9, 0, 0)
 
-    def test_from_dict_defaults_missing_fields(self):
+    def test_from_dict_defaults_missing_fields(self) -> None:
         """from_dict tolerates a dict that omits optional fields."""
         restored = OptimizationResult.from_dict({"best_params": {"x": 1}, "best_score": 0.5})
         assert restored.best_params == {"x": 1}
@@ -4009,7 +4007,7 @@ class TestOptimizationResultSerialization:
         assert restored.end_time is None
         assert restored.duration_seconds is None
 
-    def test_from_dict_empty_dict(self):
+    def test_from_dict_empty_dict(self) -> None:
         """from_dict({}) yields a fully-defaulted result."""
         restored = OptimizationResult.from_dict({})
         assert restored.best_params == {}
@@ -4017,7 +4015,7 @@ class TestOptimizationResultSerialization:
         assert restored.best_result is None
         assert restored.all_results == []
 
-    def test_from_dict_extra_keys_ignored(self):
+    def test_from_dict_extra_keys_ignored(self) -> None:
         """from_dict ignores unknown keys."""
         restored = OptimizationResult.from_dict(
             {"best_params": {"x": 1}, "best_score": 0.5, "bogus": 99}
@@ -4025,7 +4023,7 @@ class TestOptimizationResultSerialization:
         assert restored.best_params == {"x": 1}
         assert restored.best_score == 0.5
 
-    def test_round_trip_with_best_result_dict(self):
+    def test_round_trip_with_best_result_dict(self) -> None:
         """A dict best_result is reconstructed via BacktestResult.from_dict."""
         result = OptimizationResult(
             best_params={"x": 1},
@@ -4040,7 +4038,7 @@ class TestOptimizationResultSerialization:
         assert restored.best_result.total_return_pct == 5.0
         assert restored.best_result.metrics.num_trades == 10
 
-    def test_from_dict_passes_through_non_dict_best_result(self):
+    def test_from_dict_passes_through_non_dict_best_result(self) -> None:
         """A non-dict best_result is passed through unchanged."""
         sentinel = object()
         restored = OptimizationResult.from_dict(
@@ -4048,7 +4046,7 @@ class TestOptimizationResultSerialization:
         )
         assert restored.best_result is sentinel
 
-    def test_round_trip_with_datetimes_as_strings(self):
+    def test_round_trip_with_datetimes_as_strings(self) -> None:
         """from_dict accepts ISO-8601 strings, as JSON round-trips emit."""
         restored = OptimizationResult.from_dict(
             {
@@ -4061,7 +4059,7 @@ class TestOptimizationResultSerialization:
         assert restored.start_time == datetime(2024, 1, 1, 9, 0, 0)
         assert restored.end_time == datetime(2024, 1, 1, 10, 0, 0)
 
-    def test_to_dict_copies_all_results(self):
+    def test_to_dict_copies_all_results(self) -> None:
         """to_dict copies all_results entries so mutations do not leak."""
         result = OptimizationResult(
             best_params={"x": 1},
@@ -4082,7 +4080,7 @@ class TestBayesianOptimizerConfigSerialization:
     path. These tests guard the round trip.
     """
 
-    def test_to_dict_contains_all_fields(self):
+    def test_to_dict_contains_all_fields(self) -> None:
         """to_dict exposes every BayesianOptimizerConfig field."""
         cfg = BayesianOptimizerConfig(
             n_initial_points=5,
@@ -4101,12 +4099,12 @@ class TestBayesianOptimizerConfigSerialization:
         assert data["random_state"] == 42
         assert data["noise"] == 1e-5
 
-    def test_to_dict_none_random_state(self):
+    def test_to_dict_none_random_state(self) -> None:
         """to_dict emits None for random_state when absent."""
         cfg = BayesianOptimizerConfig()
         assert cfg.to_dict()["random_state"] is None
 
-    def test_round_trip_restores_fields(self):
+    def test_round_trip_restores_fields(self) -> None:
         """from_dict(to_dict(cfg)) restores every scalar field."""
         cfg = BayesianOptimizerConfig(
             n_initial_points=5,
@@ -4125,7 +4123,7 @@ class TestBayesianOptimizerConfigSerialization:
         assert restored.random_state == 42
         assert restored.noise == 1e-5
 
-    def test_round_trip_json_safe(self):
+    def test_round_trip_json_safe(self) -> None:
         """to_dict output is JSON-serializable and from_dict accepts it."""
         cfg = BayesianOptimizerConfig(n_calls=20, random_state=42, noise=1e-5)
         data = json.loads(json.dumps(cfg.to_dict()))
@@ -4135,7 +4133,7 @@ class TestBayesianOptimizerConfigSerialization:
         assert restored.random_state == 42
         assert restored.noise == 1e-5
 
-    def test_from_dict_defaults_missing_fields(self):
+    def test_from_dict_defaults_missing_fields(self) -> None:
         """from_dict tolerates a dict that omits optional fields."""
         restored = BayesianOptimizerConfig.from_dict({"n_calls": 20, "random_state": 42})
         assert restored.n_calls == 20
@@ -4145,7 +4143,7 @@ class TestBayesianOptimizerConfigSerialization:
         assert restored.acq_optimizer == "auto"
         assert restored.noise == 1e-6
 
-    def test_from_dict_empty_dict(self):
+    def test_from_dict_empty_dict(self) -> None:
         """from_dict({}) yields a fully-defaulted config."""
         restored = BayesianOptimizerConfig.from_dict({})
         assert restored.n_initial_points == 10
@@ -4155,7 +4153,7 @@ class TestBayesianOptimizerConfigSerialization:
         assert restored.random_state is None
         assert restored.noise == 1e-6
 
-    def test_from_dict_extra_keys_ignored(self):
+    def test_from_dict_extra_keys_ignored(self) -> None:
         """from_dict ignores unknown keys."""
         restored = BayesianOptimizerConfig.from_dict(
             {"n_calls": 20, "random_state": 42, "bogus": 99}
@@ -4163,7 +4161,7 @@ class TestBayesianOptimizerConfigSerialization:
         assert restored.n_calls == 20
         assert restored.random_state == 42
 
-    def test_from_dict_random_state_none_explicit(self):
+    def test_from_dict_random_state_none_explicit(self) -> None:
         """from_dict accepts an explicit None for random_state."""
         restored = BayesianOptimizerConfig.from_dict({"random_state": None})
         assert restored.random_state is None
@@ -4179,7 +4177,7 @@ class TestBayesianOptimizerNoise:
     reaches the Gaussian Process kernel.
     """
 
-    def _make_optimizer(self, **overrides):
+    def _make_optimizer(self, **overrides: Any) -> BayesianOptimizer:
         from quant_trading.data.synthetic import create_synthetic_provider
 
         provider = create_synthetic_provider(["AAPL"], days=60, seed=42)
@@ -4200,19 +4198,19 @@ class TestBayesianOptimizerNoise:
             "n_calls": 3,
         }
         kwargs.update(overrides)
-        return BayesianOptimizer(**kwargs)
+        return BayesianOptimizer(**kwargs)  # type: ignore[arg-type]
 
-    def test_constructor_accepts_noise_kwarg(self):
+    def test_constructor_accepts_noise_kwarg(self) -> None:
         """BayesianOptimizer accepts a ``noise`` keyword argument."""
         optimizer = self._make_optimizer(noise=1e-3)
         assert optimizer.noise == 1e-3
 
-    def test_default_noise_matches_config_default(self):
+    def test_default_noise_matches_config_default(self) -> None:
         """The optimizer's default noise mirrors BayesianOptimizerConfig."""
         optimizer = self._make_optimizer()
         assert optimizer.noise == BayesianOptimizerConfig().noise
 
-    def test_configured_noise_reaches_gp_minimize(self, monkeypatch):
+    def test_configured_noise_reaches_gp_minimize(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The configured ``noise`` value is forwarded to ``gp_minimize``.
 
         Regression test: previously ``gp_minimize`` was called with a hardcoded
@@ -4221,7 +4219,7 @@ class TestBayesianOptimizerNoise:
         """
         captured: dict[str, Any] = {}
 
-        def fake_gp_minimize(*args, **kwargs):
+        def fake_gp_minimize(*args: Any, **kwargs: Any) -> SimpleNamespace:
             captured.update(kwargs)
             # gp_minimize returns an OptimizeResult; the optimizer only reads
             # ``x``/``fun`` indirectly through the objective, so an empty stub
@@ -4247,11 +4245,11 @@ class TestBayesianOptimizerNoise:
             f"gp_minimize received noise={captured.get('noise')!r}, " "expected the configured 1e-3"
         )
 
-    def test_default_noise_reaches_gp_minimize(self, monkeypatch):
+    def test_default_noise_reaches_gp_minimize(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When unset, the optimizer's default noise is forwarded."""
         captured: dict[str, Any] = {}
 
-        def fake_gp_minimize(*args, **kwargs):
+        def fake_gp_minimize(*args: Any, **kwargs: Any) -> SimpleNamespace:
             captured.update(kwargs)
             return SimpleNamespace(
                 x=[0],
@@ -4274,7 +4272,7 @@ class TestBayesianOptimizerNoise:
 class TestBaseOptimizationUtilities:
     """Tests for internal utility functions in optimization.base."""
 
-    def test_coerce_datetime_with_datetime(self):
+    def test_coerce_datetime_with_datetime(self) -> None:
         """_coerce_datetime returns datetime objects unchanged."""
         from quant_trading.optimization.base import _coerce_datetime
 
@@ -4282,21 +4280,21 @@ class TestBaseOptimizationUtilities:
         result = _coerce_datetime(dt)
         assert result is dt
 
-    def test_coerce_datetime_with_string(self):
+    def test_coerce_datetime_with_string(self) -> None:
         """_coerce_datetime parses ISO-8601 strings."""
         from quant_trading.optimization.base import _coerce_datetime
 
         result = _coerce_datetime("2024-01-01T09:00:00")
         assert result == datetime(2024, 1, 1, 9, 0, 0)
 
-    def test_coerce_datetime_with_none(self):
+    def test_coerce_datetime_with_none(self) -> None:
         """_coerce_datetime returns None for None input."""
         from quant_trading.optimization.base import _coerce_datetime
 
         result = _coerce_datetime(None)
         assert result is None
 
-    def test_coerce_datetime_with_other_type(self):
+    def test_coerce_datetime_with_other_type(self) -> None:
         """_coerce_datetime returns None for unsupported types."""
         from quant_trading.optimization.base import _coerce_datetime
 
@@ -4313,7 +4311,7 @@ class TestBaseOptimizationUtilities:
 class TestWalkForwardWindowRestoreResult:
     """Tests for the _restore_result helper in WalkForwardWindow.from_dict."""
 
-    def test_restore_result_with_none(self):
+    def test_restore_result_with_none(self) -> None:
         """_restore_result returns None for None input."""
         from quant_trading.optimization.walk_forward import WalkForwardWindow
 
@@ -4331,7 +4329,7 @@ class TestWalkForwardWindowRestoreResult:
         assert window.train_result is None
         assert window.test_result is None
 
-    def test_restore_result_with_backtest_result_instance(self):
+    def test_restore_result_with_backtest_result_instance(self) -> None:
         """_restore_result passes BacktestResult instances through unchanged."""
         from quant_trading.backtest.engine import BacktestResult
         from quant_trading.optimization.walk_forward import WalkForwardWindow
@@ -4361,7 +4359,7 @@ class TestWalkForwardWindowRestoreResult:
         assert window.train_result is br
         assert window.test_result is br
 
-    def test_restore_result_with_dict(self):
+    def test_restore_result_with_dict(self) -> None:
         """_restore_result reconstructs BacktestResult from dict."""
         from quant_trading.optimization.walk_forward import WalkForwardWindow
 
@@ -4380,7 +4378,7 @@ class TestWalkForwardWindowRestoreResult:
         assert window.test_result is not None
         assert window.test_result.total_return_pct == 3.0
 
-    def test_restore_result_with_other_type(self):
+    def test_restore_result_with_other_type(self) -> None:
         """_restore_result returns None for unsupported types."""
         from quant_trading.optimization.walk_forward import WalkForwardWindow
 
@@ -4401,7 +4399,7 @@ class TestWalkForwardWindowRestoreResult:
 class TestWalkForwardResultCombinedRestore:
     """Tests for combined_test_result restoration in WalkForwardResult.from_dict."""
 
-    def test_combined_result_with_dict(self):
+    def test_combined_result_with_dict(self) -> None:
         """from_dict reconstructs combined_test_result from dict."""
         from quant_trading.optimization.walk_forward import WalkForwardResult
 
@@ -4415,7 +4413,7 @@ class TestWalkForwardResultCombinedRestore:
         assert result.combined_test_result is not None
         assert result.combined_test_result.total_return_pct == 10.0
 
-    def test_combined_result_with_backtest_result_instance(self):
+    def test_combined_result_with_backtest_result_instance(self) -> None:
         """from_dict passes BacktestResult instance through unchanged."""
         from quant_trading.backtest.engine import BacktestResult
         from quant_trading.optimization.walk_forward import WalkForwardResult
@@ -4441,7 +4439,7 @@ class TestWalkForwardResultCombinedRestore:
         )
         assert result.combined_test_result is br
 
-    def test_combined_result_with_other_type(self):
+    def test_combined_result_with_other_type(self) -> None:
         """from_dict sets combined_test_result to None for unsupported types."""
         from quant_trading.optimization.walk_forward import WalkForwardResult
 
@@ -4464,7 +4462,7 @@ class TestWalkForwardResultCombinedRestore:
         assert result.combined_test_result is None
 
 
-def _base_optimizer_minimal_kwargs():
+def _base_optimizer_minimal_kwargs() -> None:
     """Return a minimal valid set of BaseOptimizer constructor kwargs."""
     grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
     return {
@@ -4494,7 +4492,7 @@ class TestBaseOptimizerInitValidation:
     @pytest.mark.parametrize(
         "initial_capital", [0.0, -1000.0, -1.0, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_invalid_initial_capital(self, initial_capital):
+    def test_rejects_invalid_initial_capital(self, initial_capital) -> None:
         with pytest.raises(ValueError, match="invalid initial_capital"):
             _ConcreteBaseOptimizer(
                 **_base_optimizer_minimal_kwargs(), initial_capital=initial_capital
@@ -4503,42 +4501,42 @@ class TestBaseOptimizerInitValidation:
     @pytest.mark.parametrize(
         "periods_per_year", [0, -1, -252, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_invalid_periods_per_year(self, periods_per_year):
+    def test_rejects_invalid_periods_per_year(self, periods_per_year) -> None:
         with pytest.raises(ValueError, match="invalid periods_per_year"):
             _ConcreteBaseOptimizer(
                 **_base_optimizer_minimal_kwargs(), periods_per_year=periods_per_year
             )
 
     @pytest.mark.parametrize("periods_per_year", [1])
-    def test_accepts_minimal_periods_per_year(self, periods_per_year):
+    def test_accepts_minimal_periods_per_year(self, periods_per_year) -> None:
         optimizer = _ConcreteBaseOptimizer(
             **_base_optimizer_minimal_kwargs(), periods_per_year=periods_per_year
         )
         assert optimizer.periods_per_year == periods_per_year
 
     @pytest.mark.parametrize("commission", [-0.1, 1.5])
-    def test_rejects_invalid_commission(self, commission):
+    def test_rejects_invalid_commission(self, commission) -> None:
         with pytest.raises(ValueError, match="invalid commission"):
             _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), commission=commission)
 
     @pytest.mark.parametrize("commission", [0.0, 1.0])
-    def test_accepts_commission_boundaries(self, commission):
+    def test_accepts_commission_boundaries(self, commission) -> None:
         optimizer = _ConcreteBaseOptimizer(
             **_base_optimizer_minimal_kwargs(), commission=commission
         )
         assert optimizer.commission == commission
 
     @pytest.mark.parametrize("slippage", [-0.1, 1.5])
-    def test_rejects_invalid_slippage(self, slippage):
+    def test_rejects_invalid_slippage(self, slippage) -> None:
         with pytest.raises(ValueError, match="invalid slippage"):
             _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), slippage=slippage)
 
     @pytest.mark.parametrize("slippage", [0.0, 1.0])
-    def test_accepts_slippage_boundaries(self, slippage):
+    def test_accepts_slippage_boundaries(self, slippage) -> None:
         optimizer = _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), slippage=slippage)
         assert optimizer.slippage == slippage
 
-    def test_accepts_all_boundary_valid_values(self):
+    def test_accepts_all_boundary_valid_values(self) -> None:
         optimizer = _ConcreteBaseOptimizer(
             **_base_optimizer_minimal_kwargs(),
             initial_capital=1.0,
@@ -4552,7 +4550,7 @@ class TestBaseOptimizerInitValidation:
         assert optimizer.slippage == 0.0
 
 
-def _grid_search_minimal_kwargs():
+def _grid_search_minimal_kwargs() -> None:
     """Return minimal valid GridSearch constructor kwargs."""
     from quant_trading.optimization.grid_search import GridSearch
 
@@ -4568,7 +4566,7 @@ def _grid_search_minimal_kwargs():
     }, GridSearch
 
 
-def _random_search_minimal_kwargs():
+def _random_search_minimal_kwargs() -> None:
     """Return minimal valid RandomSearch constructor kwargs."""
     from quant_trading.optimization.random_search import RandomSearch
 
@@ -4586,7 +4584,7 @@ def _random_search_minimal_kwargs():
     }, RandomSearch
 
 
-def _bayesian_optimizer_minimal_kwargs():
+def _bayesian_optimizer_minimal_kwargs() -> None:
     """Return minimal valid BayesianOptimizer constructor kwargs."""
     pytest.importorskip("skopt")
     from quant_trading.optimization.bayesian import BayesianOptimizer
@@ -4613,30 +4611,30 @@ class TestSubclassOptimizerInitValidation:
     """Tests confirming GridSearch/RandomSearch inherit BaseOptimizer validation."""
 
     @pytest.mark.parametrize("initial_capital", [0.0, -1000.0])
-    def test_rejects_invalid_initial_capital(self, kwargs_factory, initial_capital):
+    def test_rejects_invalid_initial_capital(self, kwargs_factory, initial_capital) -> None:
         kwargs, cls = kwargs_factory()
         with pytest.raises(ValueError, match="invalid initial_capital"):
             cls(**kwargs, initial_capital=initial_capital)
 
     @pytest.mark.parametrize("periods_per_year", [0, -1])
-    def test_rejects_invalid_periods_per_year(self, kwargs_factory, periods_per_year):
+    def test_rejects_invalid_periods_per_year(self, kwargs_factory, periods_per_year) -> None:
         kwargs, cls = kwargs_factory()
         with pytest.raises(ValueError, match="invalid periods_per_year"):
             cls(**kwargs, periods_per_year=periods_per_year)
 
     @pytest.mark.parametrize("commission", [-0.1, 1.5])
-    def test_rejects_invalid_commission(self, kwargs_factory, commission):
+    def test_rejects_invalid_commission(self, kwargs_factory, commission) -> None:
         kwargs, cls = kwargs_factory()
         with pytest.raises(ValueError, match="invalid commission"):
             cls(**kwargs, commission=commission)
 
     @pytest.mark.parametrize("slippage", [-0.1, 1.5])
-    def test_rejects_invalid_slippage(self, kwargs_factory, slippage):
+    def test_rejects_invalid_slippage(self, kwargs_factory, slippage) -> None:
         kwargs, cls = kwargs_factory()
         with pytest.raises(ValueError, match="invalid slippage"):
             cls(**kwargs, slippage=slippage)
 
-    def test_accepts_boundary_valid_values(self, kwargs_factory):
+    def test_accepts_boundary_valid_values(self, kwargs_factory) -> None:
         kwargs, cls = kwargs_factory()
         optimizer = cls(
             **kwargs, initial_capital=1.0, periods_per_year=1, commission=0.0, slippage=1.0
@@ -4651,30 +4649,30 @@ class TestBayesianOptimizerInitValidation:
     """Tests confirming BayesianOptimizer inherits BaseOptimizer validation."""
 
     @pytest.mark.parametrize("initial_capital", [0.0, -1000.0])
-    def test_rejects_invalid_initial_capital(self, initial_capital):
+    def test_rejects_invalid_initial_capital(self, initial_capital) -> None:
         kwargs, cls = _bayesian_optimizer_minimal_kwargs()
         with pytest.raises(ValueError, match="invalid initial_capital"):
             cls(**kwargs, initial_capital=initial_capital)
 
     @pytest.mark.parametrize("periods_per_year", [0, -1])
-    def test_rejects_invalid_periods_per_year(self, periods_per_year):
+    def test_rejects_invalid_periods_per_year(self, periods_per_year) -> None:
         kwargs, cls = _bayesian_optimizer_minimal_kwargs()
         with pytest.raises(ValueError, match="invalid periods_per_year"):
             cls(**kwargs, periods_per_year=periods_per_year)
 
     @pytest.mark.parametrize("commission", [-0.1, 1.5])
-    def test_rejects_invalid_commission(self, commission):
+    def test_rejects_invalid_commission(self, commission) -> None:
         kwargs, cls = _bayesian_optimizer_minimal_kwargs()
         with pytest.raises(ValueError, match="invalid commission"):
             cls(**kwargs, commission=commission)
 
     @pytest.mark.parametrize("slippage", [-0.1, 1.5])
-    def test_rejects_invalid_slippage(self, slippage):
+    def test_rejects_invalid_slippage(self, slippage) -> None:
         kwargs, cls = _bayesian_optimizer_minimal_kwargs()
         with pytest.raises(ValueError, match="invalid slippage"):
             cls(**kwargs, slippage=slippage)
 
-    def test_accepts_boundary_valid_values(self):
+    def test_accepts_boundary_valid_values(self) -> None:
         kwargs, cls = _bayesian_optimizer_minimal_kwargs()
         optimizer = cls(
             **kwargs, initial_capital=1.0, periods_per_year=1, commission=0.0, slippage=1.0
