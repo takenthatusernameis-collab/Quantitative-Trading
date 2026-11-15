@@ -88,7 +88,8 @@ quant_trading/
 │   ├── grid_search.py  # Exhaustive grid search
 │   ├── random_search.py# Randomized search
 │   ├── bayesian.py     # Bayesian optimization
-│   └── walk_forward.py # Walk-forward analysis
+│   ├── walk_forward.py # Walk-forward analysis
+│   └── sensitivity.py  # Parameter sensitivity analysis
 ├── monte_carlo/        # Monte Carlo simulation
 │   └── simulator.py    # Bootstrap and parametric simulation
 ├── regime/             # Market regime detection

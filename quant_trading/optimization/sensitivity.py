@@ -15,8 +15,10 @@ import pandas as pd
 
 try:
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
@@ -38,6 +40,59 @@ class SensitivityConfig:
     colormap: str = "RdYlGn"
     figure_size: tuple[int, int] = (10, 6)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the config to a plain, JSON-safe dictionary.
+
+        Returns:
+            Dictionary with keys ``include_charts``, ``dpi``, ``colormap``,
+            and ``figure_size``.
+
+        Examples:
+            >>> from quant_trading.optimization.sensitivity import SensitivityConfig
+            >>> cfg = SensitivityConfig(dpi=200, figure_size=(12, 8))
+            >>> d = cfg.to_dict()
+            >>> d["dpi"], d["figure_size"]
+            (200, [12, 8])
+
+        """
+        return {
+            "include_charts": self.include_charts,
+            "dpi": self.dpi,
+            "colormap": self.colormap,
+            "figure_size": list(self.figure_size),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> SensitivityConfig:
+        """Deserialize a :class:`SensitivityConfig` from a dictionary.
+
+        Missing keys fall back to the class defaults. Extra keys are ignored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`SensitivityConfig`.
+
+        Examples:
+            >>> from quant_trading.optimization.sensitivity import SensitivityConfig
+            >>> restored = SensitivityConfig.from_dict({"dpi": 200, "figure_size": [12, 8]})
+            >>> restored.dpi, restored.figure_size
+            (200, (12, 8))
+            >>> restored.colormap
+            'RdYlGn'
+
+        """
+        figure_size = data.get("figure_size", (10, 6))
+        if isinstance(figure_size, list):
+            figure_size = tuple(figure_size)
+        return cls(
+            include_charts=bool(data.get("include_charts", True)),
+            dpi=int(data.get("dpi", 150)),
+            colormap=str(data.get("colormap", "RdYlGn")),
+            figure_size=figure_size,
+        )
+
 
 def _check_matplotlib() -> None:
     """Raise ImportError if matplotlib is not available."""
@@ -52,6 +107,7 @@ def _fig_to_base64(fig: Any, dpi: int = 150) -> str:
     """Convert a matplotlib figure to a base64-encoded PNG string."""
     import base64
     import io
+
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=dpi, facecolor=fig.get_facecolor(), bbox_inches="tight")
     buf.seek(0)
@@ -156,7 +212,9 @@ def create_2d_sensitivity_heatmap(
         for j in range(len(pivot.columns)):
             val = pivot.iloc[i, j]
             if not np.isnan(val):
-                text_color = "white" if abs(val) > (np.nanmax(np.abs(pivot.values)) * 0.5) else "black"
+                text_color = (
+                    "white" if abs(val) > (np.nanmax(np.abs(pivot.values)) * 0.5) else "black"
+                )
                 ax.text(
                     j,
                     i,
@@ -326,7 +384,9 @@ def create_parameter_interaction_heatmap(
         for j in range(n):
             val = interaction_matrix[i, j]
             if not np.isnan(val):
-                text_color = "white" if abs(val) > (np.nanmax(np.abs(interaction_matrix)) * 0.5) else "black"
+                text_color = (
+                    "white" if abs(val) > (np.nanmax(np.abs(interaction_matrix)) * 0.5) else "black"
+                )
                 ax.text(
                     j,
                     i,
@@ -388,7 +448,7 @@ def generate_sensitivity_report_html(
 
         # 2D sensitivity heatmaps for all pairs
         for i, param_x in enumerate(param_names):
-            for param_y in param_names[i + 1:]:
+            for param_y in param_names[i + 1 :]:
                 try:
                     chart = create_2d_sensitivity_heatmap(df, param_x, param_y, score_key, config)
                     charts.append((f"2D Sensitivity: {param_x} vs {param_y}", chart))
@@ -408,13 +468,15 @@ def generate_sensitivity_report_html(
     for param in param_names:
         grouped = df.groupby(param)[score_key].agg(["mean", "std", "min", "max"]).reset_index()
         sensitivity_range = grouped["mean"].max() - grouped["mean"].min()
-        summary_rows.append({
-            "parameter": param,
-            "mean_score": grouped["mean"].mean(),
-            "score_std": grouped["mean"].std(),
-            "sensitivity_range": sensitivity_range,
-            "n_values": len(grouped),
-        })
+        summary_rows.append(
+            {
+                "parameter": param,
+                "mean_score": grouped["mean"].mean(),
+                "score_std": grouped["mean"].std(),
+                "sensitivity_range": sensitivity_range,
+                "n_values": len(grouped),
+            }
+        )
 
     summary_df = pd.DataFrame(summary_rows)
 
@@ -451,18 +513,23 @@ def generate_sensitivity_report_html(
     ]
 
     for title, chart in charts:
-        html_parts.append(f'<div class="chart"><h3>{title}</h3><img src="data:image/png;base64,{chart}" alt="{title}"></div>')
+        html_parts.append(
+            f'<div class="chart"><h3>{title}</h3><img src="data:image/png;base64,{chart}" alt="{title}"></div>'
+        )
 
-    html_parts.extend([
-        "</div>",
-        "</body>",
-        "</html>",
-    ])
+    html_parts.extend(
+        [
+            "</div>",
+            "</body>",
+            "</html>",
+        ]
+    )
 
     html = "\n".join(html_parts)
 
     if output_path:
         from pathlib import Path
+
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         Path(output_path).write_text(html, encoding="utf-8")
 
