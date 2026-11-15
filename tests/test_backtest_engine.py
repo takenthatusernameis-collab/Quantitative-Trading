@@ -35,8 +35,9 @@ from quant_trading.strategies.examples import MovingAverageCrossover
 class MockDataProvider(DataProvider):
     """Mock data provider for testing."""
 
-    def __init__(self, data: dict) -> None:
+    def __init__(self, data: dict, errors: dict | None = None) -> None:
         self._data = data
+        self._errors = errors or {}
         self._name = "mock"
 
     @property
@@ -59,6 +60,8 @@ class MockDataProvider(DataProvider):
                     source=self.name,
                     fetched_at=datetime.now(),
                 )
+            elif symbol in self._errors:
+                result.errors[symbol] = self._errors[symbol]
             else:
                 result.missing.append(symbol)
         return result
@@ -2605,9 +2608,10 @@ class TestBenchmarkRelativeMetrics:
         traded: list[str],
         benchmark: str | None,
         script: list[tuple[str, float]],
+        errors: dict | None = None,
     ) -> BacktestResult:
         """Run a scripted backtest over ``traded`` with an optional benchmark."""
-        provider = MockDataProvider(data)
+        provider = MockDataProvider(data, errors=errors)
         engine = BacktestEngine(
             config=BacktestConfig(initial_capital=100000.0),
             data_manager=DataManager([provider]),
@@ -2683,6 +2687,22 @@ class TestBenchmarkRelativeMetrics:
 
         assert result.metrics.beta == 0.0
         assert result.metrics.alpha == 0.0
+
+    def test_benchmark_with_fetch_errors_is_ignored(self) -> None:
+        """A benchmark whose fetch reports hard errors leaves the metrics at zero."""
+        data = {"TEST": _price_frame([50.0, 55.0, 60.5, 66.55])}
+        result = self._run(
+            data,
+            ["TEST"],
+            "BENCH",
+            [("buy", 1.0)],
+            errors={"BENCH": RuntimeError("network down")},
+        )
+
+        assert result.metrics.beta == 0.0
+        assert result.metrics.alpha == 0.0
+        assert result.metrics.treynor_ratio == 0.0
+        assert result.metrics.information_ratio == 0.0
 
 
 class TestBacktestResultSerialization:
