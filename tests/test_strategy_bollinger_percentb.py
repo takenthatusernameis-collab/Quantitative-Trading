@@ -5,25 +5,25 @@ import pytest
 from quant_trading.strategies.examples import BollingerPercentBStrategy
 
 
-def _valid_pb():
+def _valid_pb() -> BollingerPercentBStrategy:
     return BollingerPercentBStrategy(period=20, std_dev=2.0, oversold=0.2, overbought=0.8)
 
 
-def test_validate_period_must_be_positive():
+def test_validate_period_must_be_positive() -> None:
     s = _valid_pb()
     s.period = 0
     with pytest.raises(ValueError, match="period must be positive"):
         s.validate_parameters()
 
 
-def test_validate_std_dev_must_be_positive():
+def test_validate_std_dev_must_be_positive() -> None:
     s = _valid_pb()
     s.std_dev = 0
     with pytest.raises(ValueError, match="std_dev must be positive"):
         s.validate_parameters()
 
 
-def test_validate_std_dev_non_finite_rejected():
+def test_validate_std_dev_non_finite_rejected() -> None:
     s = _valid_pb()
     s.std_dev = float("nan")
     with pytest.raises(ValueError, match="std_dev must be positive"):
@@ -40,7 +40,7 @@ def test_validate_std_dev_non_finite_rejected():
         s.validate_parameters()
 
 
-def test_validate_oversold_must_be_in_range_and_below_overbought():
+def test_validate_oversold_must_be_in_range_and_below_overbought() -> None:
     s = _valid_pb()
     s.oversold = -0.1
     with pytest.raises(
@@ -49,7 +49,7 @@ def test_validate_oversold_must_be_in_range_and_below_overbought():
         s.validate_parameters()
 
 
-def test_validate_overbought_must_be_in_range_and_above_oversold():
+def test_validate_overbought_must_be_in_range_and_above_oversold() -> None:
     s = _valid_pb()
     s.overbought = 1.5
     with pytest.raises(
@@ -58,7 +58,7 @@ def test_validate_overbought_must_be_in_range_and_above_oversold():
         s.validate_parameters()
 
 
-def test_validate_oversold_must_be_less_than_overbought():
+def test_validate_oversold_must_be_less_than_overbought() -> None:
     s = _valid_pb()
     s.oversold = 0.8
     s.overbought = 0.2
@@ -68,7 +68,7 @@ def test_validate_oversold_must_be_less_than_overbought():
         s.validate_parameters()
 
 
-def test_constructor_calls_validate():
+def test_constructor_calls_validate() -> None:
     # nan values should be rejected at construction time
     with pytest.raises(ValueError, match="std_dev must be positive"):
         BollingerPercentBStrategy(period=20, std_dev=float("nan"), oversold=0.2, overbought=0.8)

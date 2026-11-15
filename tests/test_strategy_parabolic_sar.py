@@ -5,25 +5,25 @@ import pytest
 from quant_trading.strategies.examples import ParabolicSARStrategy
 
 
-def _valid_sar():
+def _valid_sar() -> ParabolicSARStrategy:
     return ParabolicSARStrategy(step=0.02, max_step=0.2)
 
 
-def test_validate_step_must_be_positive():
+def test_validate_step_must_be_positive() -> None:
     s = _valid_sar()
     s.step = 0
     with pytest.raises(ValueError, match="step must be positive"):
         s.validate_parameters()
 
 
-def test_validate_max_step_must_be_positive():
+def test_validate_max_step_must_be_positive() -> None:
     s = _valid_sar()
     s.max_step = 0
     with pytest.raises(ValueError, match="max_step must be positive"):
         s.validate_parameters()
 
 
-def test_validate_step_non_finite_rejected():
+def test_validate_step_non_finite_rejected() -> None:
     s = _valid_sar()
     s.step = float("nan")
     with pytest.raises(ValueError, match="step must be positive"):
@@ -40,7 +40,7 @@ def test_validate_step_non_finite_rejected():
         s.validate_parameters()
 
 
-def test_validate_max_step_non_finite_rejected():
+def test_validate_max_step_non_finite_rejected() -> None:
     s = _valid_sar()
     s.max_step = float("nan")
     with pytest.raises(ValueError, match="max_step must be positive"):
@@ -57,7 +57,7 @@ def test_validate_max_step_non_finite_rejected():
         s.validate_parameters()
 
 
-def test_validate_step_must_be_lte_max_step():
+def test_validate_step_must_be_lte_max_step() -> None:
     s = _valid_sar()
     s.step = 0.3
     s.max_step = 0.2
@@ -65,7 +65,7 @@ def test_validate_step_must_be_lte_max_step():
         s.validate_parameters()
 
 
-def test_constructor_calls_validate():
+def test_constructor_calls_validate() -> None:
     # nan values should be rejected at construction time
     with pytest.raises(ValueError, match="step must be positive"):
         ParabolicSARStrategy(step=float("nan"), max_step=0.2)
@@ -94,7 +94,7 @@ def test_constructor_calls_validate():
     assert s.max_step == 0.2
 
 
-def test_validate_accepts_valid_values():
+def test_validate_accepts_valid_values() -> None:
     s = _valid_sar()
     s.validate_parameters()  # Should not raise
 
