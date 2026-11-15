@@ -29,6 +29,14 @@ else:
     BayesianOptimizer = _BayesianOptimizer
 from .grid_search import GridSearch
 from .random_search import RandomSearch
+from .sensitivity import (
+    SensitivityConfig,
+    create_1d_sensitivity_plot,
+    create_2d_sensitivity_heatmap,
+    create_parameter_interaction_heatmap,
+    generate_sensitivity_report_html,
+    prepare_sensitivity_data,
+)
 from .walk_forward import WalkForwardOptimizer
 
 __all__ = [
@@ -41,7 +49,12 @@ __all__ = [
     "ParameterGrid",
     "ParameterSpace",
     "RandomSearch",
+    "SensitivityConfig",
     "WalkForwardOptimizer",
+    "create_1d_sensitivity_plot",
+    "create_2d_sensitivity_heatmap",
+    "create_parameter_interaction_heatmap",
+    "generate_sensitivity_report_html",
     "maximize_calmar",
     "maximize_profit_factor",
     "maximize_sharpe",
@@ -49,4 +62,5 @@ __all__ = [
     "maximize_total_return",
     "maximize_win_rate",
     "minimize_max_drawdown",
+    "prepare_sensitivity_data",
 ]
