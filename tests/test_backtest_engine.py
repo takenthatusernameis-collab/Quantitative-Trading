@@ -2660,6 +2660,30 @@ class TestBenchmarkRelativeMetrics:
         assert result.metrics.beta == 0.0
         assert result.metrics.alpha == 0.0
 
+    def test_benchmark_without_close_column_is_ignored(self) -> None:
+        """A benchmark series without a close column leaves the metrics at zero."""
+        index = pd.date_range("2024-01-01", periods=4, freq="D")
+        without_close = pd.DataFrame({"open": [100.0, 110.0, 121.0, 133.1]}, index=index)
+        data = {
+            "TEST": _price_frame([50.0, 55.0, 60.5, 66.55]),
+            "BENCH": without_close,
+        }
+        result = self._run(data, ["TEST"], "BENCH", [("buy", 1.0)])
+
+        assert result.metrics.beta == 0.0
+        assert result.metrics.alpha == 0.0
+
+    def test_benchmark_with_non_datetime_index_is_ignored(self) -> None:
+        """A benchmark whose index cannot be aligned to the equity curve is ignored."""
+        data = {
+            "TEST": _price_frame([50.0, 55.0, 60.5, 66.55]),
+            "BENCH": pd.DataFrame({"close": [100.0, 110.0]}, index=[0, 1]),
+        }
+        result = self._run(data, ["TEST"], "BENCH", [("buy", 1.0)])
+
+        assert result.metrics.beta == 0.0
+        assert result.metrics.alpha == 0.0
+
 
 class TestBacktestResultSerialization:
     """Tests for BacktestResult.to_dict/from_dict."""
