@@ -6,7 +6,7 @@ import pytest
 from quant_trading.strategies.examples import RSIStrategy
 
 
-def _df(prices):
+def _df(prices: list[float]) -> pd.DataFrame:
     dates = pd.date_range(end=pd.Timestamp.now(), periods=len(prices), freq="D")
     return pd.DataFrame(
         {
@@ -20,38 +20,38 @@ def _df(prices):
     )
 
 
-def _valid_rsi():
+def _valid_rsi() -> RSIStrategy:
     return RSIStrategy(period=2, oversold=30, overbought=70)
 
 
-def test_validate_period_must_be_positive():
+def test_validate_period_must_be_positive() -> None:
     s = _valid_rsi()
     s.period = 0
     with pytest.raises(ValueError, match="period must be positive"):
         s.validate_parameters()
 
 
-def test_validate_oversold_must_be_between_0_and_100():
+def test_validate_oversold_must_be_between_0_and_100() -> None:
     s = _valid_rsi()
     s.oversold = 0
     with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
         s.validate_parameters()
 
 
-def test_validate_overbought_must_be_between_0_and_100():
+def test_validate_overbought_must_be_between_0_and_100() -> None:
     s = _valid_rsi()
     s.overbought = 100
     with pytest.raises(ValueError, match="overbought must be between 0 and 100"):
         s.validate_parameters()
 
 
-def test_generate_signals_full_path_skips_when_last_price_is_nan():
+def test_generate_signals_full_path_skips_when_last_price_is_nan() -> None:
     s = _valid_rsi()
     sigs = s.generate_signals({"AAPL": _df([1.0, 2.0, 3.0, 4.0, float("nan")])})
     assert sigs == []
 
 
-def test_generate_signals_incremental_path_skips_when_last_price_is_nan():
+def test_generate_signals_incremental_path_skips_when_last_price_is_nan() -> None:
     s = _valid_rsi()
     prices = [1.0, 2.0, 3.0, 4.0]
     first = s.generate_signals({"AAPL": _df(prices)})
@@ -60,7 +60,7 @@ def test_generate_signals_incremental_path_skips_when_last_price_is_nan():
     assert sigs == []
 
 
-def test_generate_signals_incremental_path_emits_oversold_bounce_buy():
+def test_generate_signals_incremental_path_emits_oversold_bounce_buy() -> None:
     # Declining prices drive RSI to the floor on the full recompute path and
     # establish incremental state. A subsequent up-bar (incremental path) lifts
     # RSI back above the oversold threshold, emitting a buy signal without a
@@ -81,7 +81,7 @@ def test_generate_signals_incremental_path_emits_oversold_bounce_buy():
     assert signal.metadata["rsi"] == pytest.approx(75.0)
 
 
-def test_generate_signals_incremental_path_emits_overbought_rejection_sell():
+def test_generate_signals_incremental_path_emits_overbought_rejection_sell() -> None:
     # Rising prices pin RSI at the ceiling on the full recompute path and
     # establish incremental state. A subsequent down-bar (incremental path)
     # pulls RSI below the overbought threshold, emitting a sell signal
