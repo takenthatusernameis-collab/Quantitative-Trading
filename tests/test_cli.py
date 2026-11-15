@@ -893,7 +893,9 @@ class TestListStrategies:
                     "aliases:" not in line
                 ), f"{key} should not report aliases but line says: {line!r}"
 
-    def test_list_strategies_alias_annotation_matches_registry(self, capsys: CaptureFixture[Any]) -> None:
+    def test_list_strategies_alias_annotation_matches_registry(
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """The alias annotation on each line matches the live registry exactly."""
         import re
 
@@ -1234,7 +1236,9 @@ class TestInitConfig:
 class TestConfigFileEndToEnd:
     """A config file configures the run of the command line."""
 
-    def test_main_with_a_config_file_uses_the_capital_of_the_file(self, capsys: CaptureFixture[Any]) -> None:
+    def test_main_with_a_config_file_uses_the_capital_of_the_file(
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """The starting capital of the config file is the one the run uses."""
         import tempfile
 
@@ -2350,7 +2354,9 @@ class TestRunCombined:
     """Tests for run_combined function."""
 
     @patch("examples.cli.run_backtest")
-    def test_run_combined_all_strategies(self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]) -> None:
+    def test_run_combined_all_strategies(
+        self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]
+    ) -> None:
         # Mock backtest results
         from quant_trading.backtest.metrics import BacktestMetrics
 
@@ -2435,6 +2441,7 @@ class TestRunCombined:
 
         def side_effect(*args: Any, **kwargs: Any) -> MagicMock:
             strategy = kwargs.get("strategy")
+            assert strategy is not None
             for result in mock_results:
                 if result.name == strategy.name:
                     return result
@@ -2512,7 +2519,9 @@ class TestRunCombined:
         assert "Best strategy (by Sharpe)" in captured.out
 
     @patch("examples.cli.run_backtest")
-    def test_run_combined_with_output(self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]) -> None:
+    def test_run_combined_with_output(
+        self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]
+    ) -> None:
         from quant_trading.backtest.metrics import BacktestMetrics
 
         mock_metrics = MagicMock(spec=BacktestMetrics)
@@ -2646,7 +2655,9 @@ class TestRunCombined:
                 assert "total_return" in entry
 
     @patch("examples.cli.run_backtest")
-    def test_run_combined_strategy_error_returns_one(self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]) -> None:
+    def test_run_combined_strategy_error_returns_one(
+        self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]
+    ) -> None:
         """When a strategy raises an error, combined mode prints it and returns 1."""
         from quant_trading.backtest.metrics import BacktestMetrics
 
@@ -2661,6 +2672,7 @@ class TestRunCombined:
 
         def side_effect(*args: Any, **kwargs: Any) -> MagicMock:
             strategy = kwargs.get("strategy")
+            assert strategy is not None
             if strategy.name == "RSI_14":
                 raise ValueError("RSI strategy failed")
             mock_result = MagicMock(
@@ -2732,7 +2744,9 @@ class TestRunCombined:
         assert "✗" in captured.out
 
     @patch("examples.cli.run_backtest")
-    def test_run_combined_all_strategies_fail_returns_one(self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]) -> None:
+    def test_run_combined_all_strategies_fail_returns_one(
+        self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]
+    ) -> None:
         """When the first strategy fails, combined mode returns 1 immediately."""
         mock_run_backtest.side_effect = RuntimeError("data unavailable")
 
@@ -2782,7 +2796,9 @@ class TestRunCombined:
         assert "Error - data unavailable" in captured.out
         assert "✗" in captured.out
 
-    def test_run_combined_report_import_error_returns_one(self, capsys: CaptureFixture[Any], tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    def test_run_combined_report_import_error_returns_one(
+        self, capsys: CaptureFixture[Any], tmp_path: Path, monkeypatch: MonkeyPatch
+    ) -> None:
         """Missing matplotlib in combined mode --report is a one-line error."""
         from examples.cli import run_combined
 
@@ -2852,7 +2868,9 @@ class TestRunCombined:
         assert "matplotlib" in captured.out
         assert "Traceback" not in captured.out
 
-    def test_run_combined_report_os_error_returns_one(self, capsys: CaptureFixture[Any], tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    def test_run_combined_report_os_error_returns_one(
+        self, capsys: CaptureFixture[Any], tmp_path: Path, monkeypatch: MonkeyPatch
+    ) -> None:
         """File write error in combined mode --report is a one-line error."""
         from examples.cli import run_combined
 
@@ -3104,7 +3122,9 @@ class TestMain:
             captured = capsys.readouterr()
             assert "Error running backtest" in captured.out
 
-    def test_main_value_error_is_reported_as_one_line_error(self, capsys: CaptureFixture[Any], monkeypatch: MonkeyPatch) -> None:
+    def test_main_value_error_is_reported_as_one_line_error(
+        self, capsys: CaptureFixture[Any], monkeypatch: MonkeyPatch
+    ) -> None:
         """A ValueError propagating out of _run_cli is a one-line error, not a traceback.
 
         The top-level ``main()`` handler converts ``ImportError``, ``OSError``
@@ -3127,7 +3147,9 @@ class TestMain:
         assert "Error: boom" in captured.out
         assert "Traceback" not in captured.out
 
-    def test_main_with_regime_monte_carlo_trade_analysis_output(self, capsys: CaptureFixture[Any]) -> None:
+    def test_main_with_regime_monte_carlo_trade_analysis_output(
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """Main with all analysis flags and output."""
         import json
         import tempfile
@@ -3392,7 +3414,7 @@ class TestFactoryIntegration:
 class TestSaveStrategyConfig:
     """Tests for the --output-strategy-config flag in optimization modes."""
 
-    def _make_args(self, **overrides):
+    def _make_args(self, **overrides: Any) -> argparse.Namespace:
         base = {
             "symbols": ["AAPL"],
             "strategy": "ma",
@@ -3470,7 +3492,7 @@ class TestSaveStrategyConfig:
         base.update(overrides)
         return argparse.Namespace(**base)
 
-    def test_optimize_saves_best_params_config(self, tmp_path):
+    def test_optimize_saves_best_params_config(self, tmp_path: Path) -> None:
         from examples.cli import run_optimization
 
         out = tmp_path / "best.yaml"
@@ -3500,7 +3522,7 @@ class TestSaveStrategyConfig:
         assert "slow_period" in saved["parameters"]
         assert saved["name"] == "ma"
 
-    def test_walk_forward_saves_last_window_params_config(self, tmp_path):
+    def test_walk_forward_saves_last_window_params_config(self, tmp_path: Path) -> None:
         from examples.cli import run_walk_forward
 
         out = tmp_path / "wf_best.yaml"
@@ -3538,7 +3560,9 @@ class TestSaveStrategyConfig:
         assert "fast_period" in saved["parameters"]
         assert "slow_period" in saved["parameters"]
 
-    def test_single_strategy_saves_config(self, tmp_path, capsys):
+    def test_single_strategy_saves_config(
+        self, tmp_path: Path, capsys: CaptureFixture[Any]
+    ) -> None:
         """``--output-strategy-config`` in a regular backtest writes the run strategy.
 
         The README documents ``--output-strategy-config`` for optimization,
@@ -3588,7 +3612,9 @@ class TestSaveStrategyConfig:
         assert reloaded.fast_period == 5
         assert reloaded.slow_period == 25
 
-    def test_single_strategy_config_writes_to_nested_directory(self, tmp_path, capsys):
+    def test_single_strategy_config_writes_to_nested_directory(
+        self, tmp_path: Path, capsys: CaptureFixture[Any]
+    ) -> None:
         """``--output-strategy-config`` creates missing parent directories."""
         from examples.cli import main
 
@@ -3610,7 +3636,7 @@ class TestSaveStrategyConfig:
         assert out.exists()
         assert out.parent.is_dir()
 
-    def test_run_walk_forward_passes_risk_free_rate_to_optimizer(self):
+    def test_run_walk_forward_passes_risk_free_rate_to_optimizer(self) -> None:
         """CLI walk-forward must forward config.backtest.risk_free_rate."""
         from unittest.mock import patch
 
@@ -3648,7 +3674,7 @@ class TestSaveStrategyConfig:
         start_date = end_date - timedelta(days=120)
         captured: dict = {}
 
-        def spy(self, *a, **k):
+        def spy(self: Any, *a: Any, **k: Any) -> None:
             captured.update(k)
             raise RuntimeError("stop-after-init")
 
@@ -3660,7 +3686,7 @@ class TestSaveStrategyConfig:
 
         assert captured.get("risk_free_rate") == 0.05
 
-    def test_save_strategy_config_helper_round_trip(self, tmp_path):
+    def test_save_strategy_config_helper_round_trip(self, tmp_path: Path) -> None:
         from examples.cli import _save_strategy_config
         from quant_trading.strategies.examples import MovingAverageCrossover
 
@@ -3684,7 +3710,9 @@ class TestSaveStrategyConfig:
         assert strategy.fast_period == 5
         assert strategy.slow_period == 25
 
-    def test_single_strategy_fallback_key_when_not_in_registry(self, tmp_path, capsys, monkeypatch):
+    def test_single_strategy_fallback_key_when_not_in_registry(
+        self, tmp_path: Path, capsys: CaptureFixture[Any], monkeypatch: MonkeyPatch
+    ) -> None:
         """When strategy class is not in registry, fallback key is used in saved config."""
         import pandas as pd
 
@@ -3693,7 +3721,7 @@ class TestSaveStrategyConfig:
 
         # Create a custom strategy class not in the registry
         class CustomUnregisteredStrategy(Strategy):
-            def __init__(self, param_a=10, param_b=20, **kwargs):
+            def __init__(self, param_a: int = 10, param_b: int = 20, **kwargs: Any) -> None:
                 kwargs.setdefault("name", "CustomUnregistered")
                 super().__init__(**kwargs)
                 self.param_a = param_a
@@ -3702,13 +3730,13 @@ class TestSaveStrategyConfig:
             def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
                 return []
 
-            def get_parameters(self):
+            def get_parameters(self) -> Any:
                 return {"param_a": self.param_a, "param_b": self.param_b}
 
         # Monkeypatch create_strategy to return our custom unregistered strategy
         import examples.cli as cli_module
 
-        def mock_create_strategy(args):
+        def mock_create_strategy(args: Any) -> Any:
             return CustomUnregisteredStrategy(param_a=5, param_b=15)
 
         monkeypatch.setattr(cli_module, "create_strategy", mock_create_strategy)
@@ -3748,36 +3776,36 @@ class TestSaveStrategyConfig:
 class TestResolvePeriodsPerYear:
     """Tests for the resolve_periods_per_year helper."""
 
-    def test_daily_interval(self):
+    def test_daily_interval(self) -> None:
         assert resolve_periods_per_year("1d") == 252
 
-    def test_weekly_interval(self):
+    def test_weekly_interval(self) -> None:
         assert resolve_periods_per_year("1wk") == 52
         assert resolve_periods_per_year("1w") == 52
 
-    def test_monthly_interval(self):
+    def test_monthly_interval(self) -> None:
         assert resolve_periods_per_year("1mo") == 12
 
-    def test_monthly_adjusted_annualizes_as_monthly(self):
+    def test_monthly_adjusted_annualizes_as_monthly(self) -> None:
         # The README documents ``--interval monthly_adjusted`` as a valid CLI
         # value for the Alpha Vantage provider. It must annualize as monthly
         # (12 periods per year), not fall back to the daily default of 252.
         assert resolve_periods_per_year("monthly_adjusted") == 12
 
-    def test_intraday_interval(self):
+    def test_intraday_interval(self) -> None:
         """Intraday intervals scale the daily count by the bar duration."""
         assert resolve_periods_per_year("5m") == 390 * 252 // 5
         assert resolve_periods_per_year("1h") == 390 * 252 // 60
 
-    def test_unknown_interval_falls_back_to_daily(self):
+    def test_unknown_interval_falls_back_to_daily(self) -> None:
         assert resolve_periods_per_year("unknown") == 252
         assert resolve_periods_per_year("") == 252
 
-    def test_override_takes_precedence(self):
+    def test_override_takes_precedence(self) -> None:
         assert resolve_periods_per_year("1d", override=12) == 12
         assert resolve_periods_per_year("5m", override=252) == 252
 
-    def test_case_and_whitespace_insensitive(self):
+    def test_case_and_whitespace_insensitive(self) -> None:
         assert resolve_periods_per_year(" 1D ") == 252
         assert resolve_periods_per_year("WEEKLY") == 52
 
@@ -3785,17 +3813,17 @@ class TestResolvePeriodsPerYear:
 class TestPeriodsPerYearFlag:
     """Tests for the --periods-per-year CLI flag and its config wiring."""
 
-    def test_default_flag_is_unset(self):
+    def test_default_flag_is_unset(self) -> None:
         with patch("sys.argv", ["cli.py"]):
             args = parse_args()
         assert args.periods_per_year is None
 
-    def test_explicit_flag(self):
+    def test_explicit_flag(self) -> None:
         with patch("sys.argv", ["cli.py", "--periods-per-year", "52"]):
             args = parse_args()
         assert args.periods_per_year == 52
 
-    def test_create_config_derives_periods_from_interval(self):
+    def test_create_config_derives_periods_from_interval(self) -> None:
         args = argparse.Namespace(
             config=None,
             offline=False,
@@ -3811,7 +3839,7 @@ class TestPeriodsPerYearFlag:
         config = create_config(args)
         assert config.backtest.periods_per_year == 52
 
-    def test_create_config_explicit_periods_win(self):
+    def test_create_config_explicit_periods_win(self) -> None:
         args = argparse.Namespace(
             config=None,
             offline=False,
@@ -3827,7 +3855,7 @@ class TestPeriodsPerYearFlag:
         config = create_config(args)
         assert config.backtest.periods_per_year == 252
 
-    def test_create_config_synthetic_provider_stays_daily(self):
+    def test_create_config_synthetic_provider_stays_daily(self) -> None:
         """The synthetic provider always emits daily bars, so annualize daily."""
         args = argparse.Namespace(
             config=None,
@@ -3845,7 +3873,7 @@ class TestPeriodsPerYearFlag:
         assert config.data.provider == "synthetic"
         assert config.backtest.periods_per_year == 252
 
-    def test_create_config_synthetic_provider_respects_override(self):
+    def test_create_config_synthetic_provider_respects_override(self) -> None:
         """An explicit override still wins for the synthetic provider."""
         args = argparse.Namespace(
             config=None,
@@ -3874,7 +3902,7 @@ class TestCreateConfigInterval:
     default.
     """
 
-    def _args(self, **overrides):
+    def _args(self, **overrides: Any) -> argparse.Namespace:
         base = {
             "config": None,
             "offline": False,
@@ -3890,7 +3918,7 @@ class TestCreateConfigInterval:
         base.update(overrides)
         return argparse.Namespace(**base)
 
-    def test_create_config_keeps_the_interval_of_the_file(self):
+    def test_create_config_keeps_the_interval_of_the_file(self) -> None:
         """The interval of the config file is kept when the flag is not given."""
         import tempfile
 
@@ -3904,7 +3932,7 @@ class TestCreateConfigInterval:
         assert config.data.default_interval == "1wk"
         assert config.backtest.periods_per_year == 52
 
-    def test_create_config_lets_the_flag_override_the_interval(self):
+    def test_create_config_lets_the_flag_override_the_interval(self) -> None:
         """The ``--interval`` flag wins over the value of the config file."""
         import tempfile
 
@@ -3918,7 +3946,7 @@ class TestCreateConfigInterval:
         assert config.data.default_interval == "1d"
         assert config.backtest.periods_per_year == 252
 
-    def test_create_config_applies_the_flag_when_no_file_is_given(self):
+    def test_create_config_applies_the_flag_when_no_file_is_given(self) -> None:
         """The flag configures the interval when there is no config file."""
         args = self._args(interval="1wk")
         config = create_config(args)
@@ -3930,7 +3958,7 @@ class TestCreateConfigInterval:
 class TestIntervalEndToEnd:
     """A config file that asks for a different interval reaches the run."""
 
-    def test_main_uses_the_interval_of_the_config_file(self, capsys):
+    def test_main_uses_the_interval_of_the_config_file(self, capsys: CaptureFixture[Any]) -> None:
         """The interval of the config file is the one the run fetches with."""
         import tempfile
         from unittest.mock import MagicMock, patch
@@ -3976,7 +4004,7 @@ class TestIntervalEndToEnd:
             assert kwargs["config"].data.default_interval == "1wk"
             assert kwargs["periods_per_year"] == 52
 
-    def test_main_lets_the_flag_override_the_interval(self, capsys):
+    def test_main_lets_the_flag_override_the_interval(self, capsys: CaptureFixture[Any]) -> None:
         """The ``--interval`` flag wins over the value of the config file."""
         import tempfile
         from unittest.mock import MagicMock, patch
@@ -4042,7 +4070,7 @@ class TestRegimePeriodsPerYear:
     """
 
     @staticmethod
-    def _make_result():
+    def _make_result() -> Any:
         import pandas as pd
 
         from quant_trading.backtest.engine import BacktestResult
@@ -4066,14 +4094,14 @@ class TestRegimePeriodsPerYear:
         )
 
     @staticmethod
-    def _regime_args():
+    def _regime_args() -> argparse.Namespace:
         return argparse.Namespace(
             regime_window=20,
             regime_vol_threshold=0.0,
             regime_return_threshold=0.0,
         )
 
-    def test_get_regime_analysis_uses_the_given_periods_per_year(self):
+    def test_get_regime_analysis_uses_the_given_periods_per_year(self) -> None:
         """The helper annualizes the regime with the period count it is given."""
         from examples.cli import _get_regime_analysis
 
@@ -4089,7 +4117,7 @@ class TestRegimePeriodsPerYear:
             weekly.result.total_volatility * (252 / 52) ** 0.5, rel=1e-9
         )
 
-    def test_get_regime_analysis_defaults_to_daily(self):
+    def test_get_regime_analysis_defaults_to_daily(self) -> None:
         """The helper keeps the daily default when no period count is given."""
         from examples.cli import _get_regime_analysis
 
@@ -4102,7 +4130,9 @@ class TestRegimePeriodsPerYear:
         assert default.periods_per_year == 252
         assert default.result.total_volatility == explicit.result.total_volatility
 
-    def test_main_regime_uses_the_periods_per_year_of_the_run(self, capsys):
+    def test_main_regime_uses_the_periods_per_year_of_the_run(
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """The printed regime block reports the annualization of the run."""
         args = [
             "--offline",
@@ -4121,7 +4151,7 @@ class TestRegimePeriodsPerYear:
         captured = capsys.readouterr()
         assert "Periods per Year:  52" in captured.out
 
-    def test_main_regime_output_records_the_periods_per_year(self):
+    def test_main_regime_output_records_the_periods_per_year(self) -> None:
         """The JSON output records the annualization the regime used."""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = f"{tmpdir}/results.json"
@@ -4145,7 +4175,7 @@ class TestRegimePeriodsPerYear:
 
         assert data["regime_analysis"]["periods_per_year"] == 52
 
-    def test_main_regime_defaults_to_daily(self, capsys):
+    def test_main_regime_defaults_to_daily(self, capsys: CaptureFixture[Any]) -> None:
         """Without an override the regime is annualized with 252 periods."""
         args = ["--offline", "--regime", "--symbols", "AAPL", "--days", "120"]
         with patch("sys.argv", ["cli.py"] + args):
@@ -4165,7 +4195,7 @@ class TestTradeAnalysisRiskFreeRate:
     """
 
     @staticmethod
-    def _make_result():
+    def _make_result() -> Any:
         import pandas as pd
 
         from quant_trading.backtest.engine import BacktestResult
@@ -4200,7 +4230,7 @@ class TestTradeAnalysisRiskFreeRate:
             total_return_pct=float((equity.iloc[-1] / equity.iloc[0] - 1) * 100),
         )
 
-    def test_get_trade_analysis_uses_the_given_risk_free_rate(self):
+    def test_get_trade_analysis_uses_the_given_risk_free_rate(self) -> None:
         """The helper annualizes the trade metrics with the rate it is given."""
         from examples.cli import _get_trade_analysis
 
@@ -4213,7 +4243,7 @@ class TestTradeAnalysisRiskFreeRate:
         assert no_rate.total_trades == 2
         assert no_rate.sharpe_ratio != with_rate.sharpe_ratio
 
-    def test_get_trade_analysis_defaults_to_the_library_default(self):
+    def test_get_trade_analysis_defaults_to_the_library_default(self) -> None:
         """Without a rate the helper keeps the default of the library."""
         from examples.cli import _get_trade_analysis
 
@@ -4226,7 +4256,9 @@ class TestTradeAnalysisRiskFreeRate:
         assert default.sharpe_ratio == explicit.sharpe_ratio
         assert default.sortino_ratio == explicit.sortino_ratio
 
-    def test_main_trade_analysis_uses_the_configured_risk_free_rate(self, capsys):
+    def test_main_trade_analysis_uses_the_configured_risk_free_rate(
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """The printed trade Sharpe follows the risk-free rate of the run."""
         outputs = []
         for rate in ("0.0", "0.05"):
@@ -4257,7 +4289,7 @@ class TestTradeAnalysisRiskFreeRate:
         # and only the risk-free rate differs.
         assert _trade_sharpe(outputs[0]) != _trade_sharpe(outputs[1])
 
-    def test_get_trade_analysis_uses_the_given_periods_per_year(self):
+    def test_get_trade_analysis_uses_the_given_periods_per_year(self) -> None:
         """The helper annualizes the trade metrics with the periods it is given."""
         from examples.cli import _get_trade_analysis
 
@@ -4270,7 +4302,9 @@ class TestTradeAnalysisRiskFreeRate:
         assert daily.total_trades == 2
         assert daily.sharpe_ratio != weekly.sharpe_ratio
 
-    def test_main_trade_analysis_uses_the_configured_periods_per_year(self, capsys):
+    def test_main_trade_analysis_uses_the_configured_periods_per_year(
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """The printed trade Sharpe follows the annualization period of the run."""
         outputs = []
         for periods in ([], ["--periods-per-year", "52"]):
@@ -4308,7 +4342,7 @@ class TestCombinedAnalysis:
     which is the one the comparison table announces.
     """
 
-    def test_main_combined_regime_prints_the_analysis(self, capsys):
+    def test_main_combined_regime_prints_the_analysis(self, capsys: CaptureFixture[Any]) -> None:
         """--combined --regime prints the regime block instead of ignoring it."""
         args = ["--combined", "--offline", "--regime", "--symbols", "AAPL", "--days", "120"]
         with patch("sys.argv", ["cli.py"] + args):
@@ -4320,7 +4354,9 @@ class TestCombinedAnalysis:
         assert "Analysis of the best strategy:" in captured.out
         assert "Periods per Year:  252" in captured.out
 
-    def test_main_combined_monte_carlo_and_trade_analysis(self, capsys):
+    def test_main_combined_monte_carlo_and_trade_analysis(
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """--combined honours the Monte Carlo and trade analysis flags too."""
         args = [
             "--combined",
@@ -4342,7 +4378,9 @@ class TestCombinedAnalysis:
         assert "Monte Carlo Simulation" in captured.out
         assert "Trade Analysis" in captured.out
 
-    def test_main_combined_without_analysis_flags_prints_no_analysis(self, capsys):
+    def test_main_combined_without_analysis_flags_prints_no_analysis(
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """Without the flags the combined run stays a comparison."""
         args = ["--combined", "--offline", "--symbols", "AAPL", "--days", "120"]
         with patch("sys.argv", ["cli.py"] + args):
@@ -4354,7 +4392,7 @@ class TestCombinedAnalysis:
         assert "Monte Carlo Simulation" not in captured.out
         assert "Trade Analysis" not in captured.out
 
-    def test_main_combined_output_records_the_analysis(self):
+    def test_main_combined_output_records_the_analysis(self) -> None:
         """The JSON output of a combined run carries the analysis."""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = f"{tmpdir}/comparison.json"
@@ -4380,7 +4418,9 @@ class TestCombinedAnalysis:
         assert data["regime_analysis"]["periods_per_year"] == 252
         assert data["regime_analysis"]["segments"] is not None
 
-    def test_main_combined_monte_carlo_uses_the_configured_risk_free_rate(self, capsys):
+    def test_main_combined_monte_carlo_uses_the_configured_risk_free_rate(
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """The combined Monte Carlo block follows the risk-free rate of the run.
 
         The Monte Carlo simulator computes the Sharpe/Sortino of the simulated
@@ -4421,7 +4461,9 @@ class TestCombinedAnalysis:
 
         assert _mc_sharpe_mean(outputs[0]) != _mc_sharpe_mean(outputs[1])
 
-    def test_main_combined_trade_analysis_uses_the_configured_periods_per_year(self, capsys):
+    def test_main_combined_trade_analysis_uses_the_configured_periods_per_year(
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """In combined mode the trade Sharpe follows the annualization period."""
         outputs = []
         for periods in ([], ["--periods-per-year", "52"]):
@@ -4460,7 +4502,7 @@ class TestUnrealizedPnlReporting:
     still open, so the two halves have to be visible next to it.
     """
 
-    def test_the_output_splits_the_total_return(self, capsys):
+    def test_the_output_splits_the_total_return(self, capsys: CaptureFixture[Any]) -> None:
         """The printed block reports the realized and the unrealized PnL."""
         args = ["--offline", "--symbols", "AAPL", "--days", "120"]
         with patch("sys.argv", ["cli.py"] + args):
@@ -4471,7 +4513,7 @@ class TestUnrealizedPnlReporting:
         assert "Realized PnL:" in captured.out
         assert "Unrealized PnL:" in captured.out
 
-    def test_the_json_output_reconciles_the_total_return(self):
+    def test_the_json_output_reconciles_the_total_return(self) -> None:
         """The JSON output adds up to the total return it reports."""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = f"{tmpdir}/results.json"
@@ -4505,7 +4547,7 @@ class TestCsvOutput:
     single-strategy and combined mode end to end.
     """
 
-    def test_main_with_output_file_csv(self):
+    def test_main_with_output_file_csv(self) -> None:
         """Single-strategy mode writes a CSV file with a header and a data row."""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = f"{tmpdir}/results.csv"
@@ -4535,7 +4577,7 @@ class TestCsvOutput:
             assert "total_pnl" in header
             assert "unrealized_pnl" in header
 
-    def test_main_combined_output_csv(self):
+    def test_main_combined_output_csv(self) -> None:
         """Combined mode writes a CSV comparison file with one row per strategy."""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = f"{tmpdir}/comparison.csv"
@@ -4565,7 +4607,7 @@ class TestCsvOutput:
             assert "best_strategy" in header
             assert any("MA_Crossover" in line for line in lines[1:])
 
-    def test_main_optimize_output_csv(self):
+    def test_main_optimize_output_csv(self) -> None:
         """Optimization mode writes a CSV file when ``--output-format csv``."""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = f"{tmpdir}/opt.csv"
@@ -4604,7 +4646,7 @@ class TestCsvOutput:
             assert "strategy" in header
             assert "best_params" in header
 
-    def test_main_walk_forward_output_csv(self):
+    def test_main_walk_forward_output_csv(self) -> None:
         """Walk-forward mode writes a CSV file when ``--output-format csv``."""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = f"{tmpdir}/wf.csv"
@@ -4655,14 +4697,14 @@ class TestUserErrorReporting:
     The command line interface turns those into a message and the exit code 1.
     """
 
-    def _run(self, arguments, capsys):
+    def _run(self, arguments: list[str], capsys: CaptureFixture[Any]) -> tuple[int, str]:
         """Run the CLI with ``arguments`` and return its exit code and output."""
         with patch("sys.argv", ["cli.py", *arguments]):
             result = main()
         captured = capsys.readouterr()
         return result, captured.out + captured.err
 
-    def test_unknown_strategy_is_reported(self, capsys):
+    def test_unknown_strategy_is_reported(self, capsys: CaptureFixture[Any]) -> None:
         """An unknown strategy name is a message and the exit code 1."""
         result, output = self._run(
             ["--strategy", "nosuchstrategy", "--offline", "--symbols", "AAPL", "--days", "30"],
@@ -4672,7 +4714,9 @@ class TestUserErrorReporting:
         assert "invalid choice" in output or "nosuchstrategy" in output
         assert "Traceback" not in output
 
-    def test_missing_config_file_is_reported(self, capsys, tmp_path):
+    def test_missing_config_file_is_reported(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """A config file that does not exist is a message and the exit code 1."""
         missing = tmp_path / "missing" / "config.yaml"
         result, output = self._run(
@@ -4700,7 +4744,9 @@ class TestUserErrorReporting:
         ],
         ids=["invalid-indent", "unclosed-flow", "tab-indent"],
     )
-    def test_an_invalid_yaml_config_file_is_reported(self, capsys, tmp_path, filename, content):
+    def test_an_invalid_yaml_config_file_is_reported(
+        self, capsys: CaptureFixture[Any], tmp_path: Path, filename: str, content: str
+    ) -> None:
         """A config file that is not valid YAML is a message, not a traceback.
 
         The README's "Error Reporting" section documents that a config file
@@ -4727,7 +4773,9 @@ class TestUserErrorReporting:
         assert "Invalid YAML" in output
         assert "Traceback" not in output
 
-    def test_missing_strategy_config_file_is_reported(self, capsys, tmp_path):
+    def test_missing_strategy_config_file_is_reported(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """A strategy config that does not exist is a message and the exit code 1."""
         missing = tmp_path / "missing" / "strategy.yaml"
         result, output = self._run(
@@ -4746,7 +4794,9 @@ class TestUserErrorReporting:
         assert "could not read strategy config" in output
         assert "Traceback" not in output
 
-    def test_unwritable_output_file_is_reported(self, capsys, tmp_path):
+    def test_unwritable_output_file_is_reported(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """An output file in a directory that does not exist is a message."""
         missing = tmp_path / "missing" / "output.json"
         result, output = self._run(
@@ -4765,7 +4815,9 @@ class TestUserErrorReporting:
         assert "could not write output file" in output
         assert "Traceback" not in output
 
-    def test_a_malformed_strategy_config_is_reported(self, capsys, tmp_path):
+    def test_a_malformed_strategy_config_is_reported(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """A strategy config that is not valid YAML is a message."""
         broken = tmp_path / "broken.yaml"
         broken.write_text("type: [unclosed\n  bad: : :\n")
@@ -4801,8 +4853,8 @@ class TestUserErrorReporting:
         ],
     )
     def test_a_malformed_strategy_config_content_is_reported(
-        self, capsys, tmp_path, content, message
-    ):
+        self, capsys: CaptureFixture[Any], tmp_path: Path, content: str, message: str
+    ) -> None:
         """A strategy config with the wrong content is a message."""
         config = tmp_path / "strategy.yaml"
         config.write_text(content)
@@ -4822,7 +4874,7 @@ class TestUserErrorReporting:
         assert message in output
         assert "Traceback" not in output
 
-    def test_an_invalid_optimization_range_is_reported(self, capsys):
+    def test_an_invalid_optimization_range_is_reported(self, capsys: CaptureFixture[Any]) -> None:
         """A range with a step of zero is a message, not a hang.
 
         A step of zero would make the grid search loop forever, so the
@@ -4846,7 +4898,9 @@ class TestUserErrorReporting:
         assert "step must be greater than 0" in output
         assert "Traceback" not in output
 
-    def test_invalid_config_field_type_is_reported(self, capsys, tmp_path):
+    def test_invalid_config_field_type_is_reported(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """A config file with a wrong field type is a message and exit code 1."""
         bad = tmp_path / "bad_type.yaml"
         bad.write_text("backtest:\n  initial_capital: abc\n")
@@ -4858,7 +4912,7 @@ class TestUserErrorReporting:
         assert "Error:" in output
         assert "Traceback" not in output
 
-    def test_zero_mc_simulations_is_reported(self, capsys):
+    def test_zero_mc_simulations_is_reported(self, capsys: CaptureFixture[Any]) -> None:
         """Zero mc simulations is a usage error at the CLI level."""
         result, output = self._run(
             [
@@ -4877,17 +4931,17 @@ class TestUserErrorReporting:
         assert "invalid --mc-simulations" in output
         assert "Traceback" not in output
 
-    def test_n_iter_zero_is_invalid(self):
+    def test_n_iter_zero_is_invalid(self) -> None:
         with patch("sys.argv", ["cli.py", "--n-iter", "0"]), pytest.raises(ValueError) as exc:
             parse_args()
         assert "invalid --n-iter" in str(exc.value)
 
-    def test_n_iter_negative_is_invalid(self):
+    def test_n_iter_negative_is_invalid(self) -> None:
         with patch("sys.argv", ["cli.py", "--n-iter", "-1"]), pytest.raises(ValueError) as exc:
             parse_args()
         assert "invalid --n-iter" in str(exc.value)
 
-    def test_bayesian_n_initial_zero_is_invalid(self):
+    def test_bayesian_n_initial_zero_is_invalid(self) -> None:
         with (
             patch("sys.argv", ["cli.py", "--bayesian-n-initial", "0"]),
             pytest.raises(ValueError) as exc,
@@ -4895,7 +4949,7 @@ class TestUserErrorReporting:
             parse_args()
         assert "invalid --bayesian-n-initial" in str(exc.value)
 
-    def test_bayesian_n_initial_negative_is_invalid(self):
+    def test_bayesian_n_initial_negative_is_invalid(self) -> None:
         with (
             patch("sys.argv", ["cli.py", "--bayesian-n-initial", "-5"]),
             pytest.raises(ValueError) as exc,
@@ -4903,7 +4957,7 @@ class TestUserErrorReporting:
             parse_args()
         assert "invalid --bayesian-n-initial" in str(exc.value)
 
-    def test_bayesian_noise_zero_is_invalid(self):
+    def test_bayesian_noise_zero_is_invalid(self) -> None:
         with (
             patch("sys.argv", ["cli.py", "--bayesian-noise", "0"]),
             pytest.raises(ValueError) as exc,
@@ -4911,7 +4965,7 @@ class TestUserErrorReporting:
             parse_args()
         assert "invalid --bayesian-noise" in str(exc.value)
 
-    def test_bayesian_noise_negative_is_invalid(self):
+    def test_bayesian_noise_negative_is_invalid(self) -> None:
         with (
             patch("sys.argv", ["cli.py", "--bayesian-noise", "-1e-3"]),
             pytest.raises(ValueError) as exc,
@@ -4919,20 +4973,22 @@ class TestUserErrorReporting:
             parse_args()
         assert "invalid --bayesian-noise" in str(exc.value)
 
-    def test_bayesian_noise_default(self):
+    def test_bayesian_noise_default(self) -> None:
         """``--bayesian-noise`` defaults to the optimizer's default (1e-6)."""
         with patch("sys.argv", ["cli.py"]):
             args = parse_args()
         assert args.bayesian_noise == 1e-6
 
-    def test_bayesian_noise_custom_is_accepted(self):
+    def test_bayesian_noise_custom_is_accepted(self) -> None:
         """A positive ``--bayesian-noise`` value is parsed and forwarded."""
         with patch("sys.argv", ["cli.py", "--bayesian-noise", "1e-3"]):
             args = parse_args()
         assert args.bayesian_noise == 1e-3
 
     @pytest.mark.slow
-    def test_offline_bayesian_optimize_with_custom_noise_completes(self, capsys):
+    def test_offline_bayesian_optimize_with_custom_noise_completes(
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """An offline Bayesian optimization with a non-default ``--bayesian-noise``
         runs the full CLI → ``run_optimization`` → ``BayesianOptimizer`` →
         ``gp_minimize`` path and completes with exit code 0.
@@ -4976,7 +5032,9 @@ class TestUserErrorReporting:
         assert "Traceback" not in captured.out
 
     @pytest.mark.slow
-    def test_offline_walk_forward_with_bayesian_inner_optimizer_completes(self, capsys):
+    def test_offline_walk_forward_with_bayesian_inner_optimizer_completes(
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """An offline walk-forward run with the Bayesian inner optimizer completes.
 
         The walk-forward mode wires the Bayesian optimizer through
@@ -5024,8 +5082,8 @@ class TestUserErrorReporting:
 
     @pytest.mark.slow
     def test_offline_walk_forward_with_bayesian_inner_optimizer_and_custom_noise_completes(
-        self, capsys
-    ):
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """An offline walk-forward run with the Bayesian inner optimizer and a
         custom ``--bayesian-noise`` completes end-to-end.
 
@@ -5072,7 +5130,7 @@ class TestUserErrorReporting:
         assert "Window Results:" in captured.out
         assert "Traceback" not in captured.out
 
-    def test_zero_n_jobs_is_reported(self, capsys):
+    def test_zero_n_jobs_is_reported(self, capsys: CaptureFixture[Any]) -> None:
         """Zero ``--n-jobs`` is a usage error at the CLI level.
 
         The library coerces ``n_jobs=0`` to ``1`` (joblib convention), so the
@@ -5097,7 +5155,9 @@ class TestUserErrorReporting:
         assert "invalid --n-jobs" in output
         assert "Traceback" not in output
 
-    def test_n_jobs_below_one_except_minus_one_is_reported(self, capsys):
+    def test_n_jobs_below_one_except_minus_one_is_reported(
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """A ``--n-jobs`` below 1 (other than -1) is a usage error at the CLI level.
 
         ``-1`` is the documented joblib shorthand for "all CPU cores". Values
@@ -5121,7 +5181,9 @@ class TestUserErrorReporting:
         assert "invalid --n-jobs" in output
         assert "Traceback" not in output
 
-    def test_bayesian_optimizer_without_skopt_is_reported(self, capsys):
+    def test_bayesian_optimizer_without_skopt_is_reported(
+        self, capsys: CaptureFixture[Any]
+    ) -> None:
         """``--optimizer bayesian`` without scikit-optimize is a clean message.
 
         The library raises ``ImportError`` from the optimizer constructor with
@@ -5158,7 +5220,7 @@ class TestUserErrorReporting:
         assert "scikit-optimize" in output
         assert "Traceback" not in output
 
-    def test_import_error_is_reported(self, capsys):
+    def test_import_error_is_reported(self, capsys: CaptureFixture[Any]) -> None:
         """An ``ImportError`` raised while running is a one-line message.
 
         An optional dependency that is not installed (for example
@@ -5168,7 +5230,7 @@ class TestUserErrorReporting:
         """
         from examples import cli as cli_module
 
-        def _raise_import_error():
+        def _raise_import_error() -> None:
             raise ImportError("BayesianOptimizer requires scikit-optimize")
 
         with patch.object(cli_module, "_run_cli", _raise_import_error):
@@ -5187,13 +5249,13 @@ class TestHtmlReportFlag:
     error instead of a traceback.
     """
 
-    def _run(self, arguments, capsys):
+    def _run(self, arguments: list[str], capsys: CaptureFixture[Any]) -> tuple[int, str]:
         with patch("sys.argv", ["cli.py", *arguments]):
             result = main()
         captured = capsys.readouterr()
         return result, captured.out + captured.err
 
-    def test_report_writes_html_file(self, capsys, tmp_path):
+    def test_report_writes_html_file(self, capsys: CaptureFixture[Any], tmp_path: Path) -> None:
         """``--report`` writes an HTML file and exits 0."""
         report_path = tmp_path / "report.html"
         result, output = self._run(
@@ -5217,7 +5279,9 @@ class TestHtmlReportFlag:
         assert "Performance Summary" in content
         assert "HTML report saved to" in output
 
-    def test_report_without_charts_writes_html_file(self, capsys, tmp_path):
+    def test_report_without_charts_writes_html_file(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """``--report --report-no-charts`` writes a chart-free report."""
         report_path = tmp_path / "nocharts.html"
         result, _ = self._run(
@@ -5240,7 +5304,7 @@ class TestHtmlReportFlag:
         assert "<!DOCTYPE html>" in content
         assert "data:image/png;base64," not in content
 
-    def test_report_dark_theme(self, capsys, tmp_path):
+    def test_report_dark_theme(self, capsys: CaptureFixture[Any], tmp_path: Path) -> None:
         """``--report-theme dark`` embeds the dark background color."""
         report_path = tmp_path / "dark.html"
         result, _ = self._run(
@@ -5263,7 +5327,9 @@ class TestHtmlReportFlag:
         content = report_path.read_text(encoding="utf-8")
         assert "#1e1e1e" in content
 
-    def test_report_combined_writes_html_for_best_strategy(self, capsys, tmp_path):
+    def test_report_combined_writes_html_for_best_strategy(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """In ``--combined`` mode ``--report`` writes a comparison report."""
         import multiprocessing
 
@@ -5289,7 +5355,9 @@ class TestHtmlReportFlag:
         assert "<!DOCTYPE html>" in content
         assert "Strategy Comparison" in content
 
-    def test_report_missing_matplotlib_is_reported(self, capsys, tmp_path, monkeypatch):
+    def test_report_missing_matplotlib_is_reported(
+        self, capsys: CaptureFixture[Any], tmp_path: Path, monkeypatch: MonkeyPatch
+    ) -> None:
         """A missing ``matplotlib`` is a one-line error, not a traceback.
 
         ``matplotlib`` is an optional dependency (the ``reporting`` extra).
@@ -5298,7 +5366,7 @@ class TestHtmlReportFlag:
         """
         from examples import cli as cli_module
 
-        def _raise_import_error(*args, **kwargs):
+        def _raise_import_error(*args: Any, **kwargs: Any) -> None:
             raise ImportError(
                 "matplotlib is required for chart generation. "
                 "Install with: pip install quant-trading[reporting]"
@@ -5324,7 +5392,9 @@ class TestHtmlReportFlag:
         assert "matplotlib" in output
         assert "Traceback" not in output
 
-    def test_report_os_error_is_reported(self, capsys, tmp_path, monkeypatch):
+    def test_report_os_error_is_reported(
+        self, capsys: CaptureFixture[Any], tmp_path: Path, monkeypatch: MonkeyPatch
+    ) -> None:
         """A file-write error in single-mode ``--report`` is a one-line error.
 
         ``generate_html_report`` can raise ``OSError`` when the report file
@@ -5333,7 +5403,7 @@ class TestHtmlReportFlag:
         """
         from examples import cli as cli_module
 
-        def _raise_os_error(*args, **kwargs):
+        def _raise_os_error(*args: Any, **kwargs: Any) -> None:
             raise OSError("Permission denied")
 
         monkeypatch.setattr(cli_module, "generate_html_report", _raise_os_error)
@@ -5356,7 +5426,9 @@ class TestHtmlReportFlag:
         assert "could not write report file" in output
         assert "Traceback" not in output
 
-    def test_report_without_trades_omits_trade_details_section(self, capsys, tmp_path):
+    def test_report_without_trades_omits_trade_details_section(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """``--report --report-no-trades`` omits the Trade Details section."""
         report_path = tmp_path / "notrades.html"
         result, _ = self._run(
@@ -5381,7 +5453,9 @@ class TestHtmlReportFlag:
         # The Performance Summary section is always present.
         assert "<h2>Performance Summary</h2>" in content
 
-    def test_report_without_trades_keeps_charts(self, capsys, tmp_path):
+    def test_report_without_trades_keeps_charts(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """``--report --report-no-trades`` still renders the chart sections."""
         report_path = tmp_path / "notrades_charts.html"
         result, _ = self._run(
@@ -5404,7 +5478,9 @@ class TestHtmlReportFlag:
         assert "data:image/png;base64," in content
         assert "<h2>Charts</h2>" in content
 
-    def test_report_without_monthly_omits_monthly_heatmap(self, capsys, tmp_path):
+    def test_report_without_monthly_omits_monthly_heatmap(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """``--report --report-no-monthly`` omits the Monthly Returns chart."""
         report_path = tmp_path / "nomonthly.html"
         result, _ = self._run(
@@ -5429,7 +5505,9 @@ class TestHtmlReportFlag:
         # Other charts are still rendered.
         assert "Equity Curve" in content
 
-    def test_report_without_rolling_omits_rolling_charts(self, capsys, tmp_path):
+    def test_report_without_rolling_omits_rolling_charts(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """``--report --report-no-rolling`` omits the Rolling Sharpe/Volatility charts."""
         report_path = tmp_path / "norolling.html"
         result, _ = self._run(
@@ -5455,7 +5533,9 @@ class TestHtmlReportFlag:
         # Other charts are still rendered.
         assert "Equity Curve" in content
 
-    def test_report_all_sections_disabled_still_writes_html(self, capsys, tmp_path):
+    def test_report_all_sections_disabled_still_writes_html(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """Every optional section disabled still yields a valid report."""
         report_path = tmp_path / "minimal.html"
         result, _ = self._run(
@@ -5483,7 +5563,9 @@ class TestHtmlReportFlag:
         assert "<h2>Trade Details</h2>" not in content
         assert "<h2>Charts</h2>" not in content
 
-    def test_combined_report_without_charts_omits_charts_section(self, capsys, tmp_path):
+    def test_combined_report_without_charts_omits_charts_section(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """``--combined --report --report-no-charts`` omits the Charts section."""
         import multiprocessing
 
@@ -5511,7 +5593,9 @@ class TestHtmlReportFlag:
         assert "data:image/png;base64," not in content
         assert "<h2>Charts</h2>" not in content
 
-    def test_combined_report_all_sections_disabled_still_writes_html(self, capsys, tmp_path):
+    def test_combined_report_all_sections_disabled_still_writes_html(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """Every optional section disabled still yields a valid combined report."""
         import multiprocessing
 
@@ -5542,7 +5626,9 @@ class TestHtmlReportFlag:
         assert "data:image/png;base64," not in content
         assert "<h2>Charts</h2>" not in content
 
-    def test_combined_report_without_trades_is_wired_and_harmless(self, capsys, tmp_path):
+    def test_combined_report_without_trades_is_wired_and_harmless(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """``--combined --report --report-no-trades`` is accepted and harmless.
 
         The comparison report has no per-strategy trade table, so the flag
@@ -5573,7 +5659,9 @@ class TestHtmlReportFlag:
         assert "<!DOCTYPE html>" in content
         assert "<h2>Strategy Comparison</h2>" in content
 
-    def test_combined_report_without_monthly_keeps_charts(self, capsys, tmp_path):
+    def test_combined_report_without_monthly_keeps_charts(
+        self, capsys: CaptureFixture[Any], tmp_path: Path
+    ) -> None:
         """``--report-no-monthly`` is a no-op for the comparison report.
 
         The comparison report renders only an Equity Curves / Drawdown
@@ -5614,7 +5702,7 @@ class TestCliHelpers:
     output, so they can be tested directly without running a backtest.
     """
 
-    def test_save_json_output_writes_json_file(self, tmp_path):
+    def test_save_json_output_writes_json_file(self, tmp_path: Path) -> None:
         path = tmp_path / "out.json"
         data = {"strategy": "ma", "total_return_pct": 15.5, "params": {"fast": 10}}
         assert _save_json_output(str(path), data) is True
@@ -5623,7 +5711,7 @@ class TestCliHelpers:
         with open(path) as f:
             assert json.load(f) == data
 
-    def test_save_json_output_writes_csv_file(self, tmp_path):
+    def test_save_json_output_writes_csv_file(self, tmp_path: Path) -> None:
         path = tmp_path / "out.csv"
         data = {"strategy": "ma", "total_return_pct": 15.5}
         assert _save_json_output(str(path), data) is True
@@ -5631,7 +5719,7 @@ class TestCliHelpers:
         assert "strategy,total_return_pct" in content
         assert "ma,15.5" in content
 
-    def test_save_json_output_explicit_format(self, tmp_path):
+    def test_save_json_output_explicit_format(self, tmp_path: Path) -> None:
         path = tmp_path / "out.txt"
         data = {"strategy": "ma", "total_return_pct": 15.5}
         assert _save_json_output(str(path), data, output_format="json") is True
@@ -5640,13 +5728,13 @@ class TestCliHelpers:
         with open(path) as f:
             assert json.load(f) == data
 
-    def test_save_json_output_unwritable_path(self, tmp_path):
+    def test_save_json_output_unwritable_path(self, tmp_path: Path) -> None:
         path = tmp_path / "missing_dir" / "out.json"
         assert _save_json_output(str(path), {"a": 1}) is False
 
-    def test_print_regime_analysis(self, capsys):
+    def test_print_regime_analysis(self, capsys: CaptureFixture[Any]) -> None:
         class _Seg:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.regime = type("R", (), {"value": "bull"})()
                 self.start = "2024-01-01"
                 self.end = "2024-06-30"
@@ -5654,7 +5742,7 @@ class TestCliHelpers:
                 self.return_pct = 8.25
 
         class _Analysis:
-            def summary(self):
+            def summary(self) -> Any:
                 return {
                     "current_regime": "bull",
                     "total_volatility": 0.15,
@@ -5664,7 +5752,7 @@ class TestCliHelpers:
                 }
 
             @property
-            def segments(self):
+            def segments(self) -> Any:
                 return [_Seg()]
 
         _print_regime_analysis(_Analysis())
@@ -5673,9 +5761,9 @@ class TestCliHelpers:
         assert "Current Regime:   bull" in captured.out
         assert "Periods per Year:  252" in captured.out
 
-    def test_print_regime_analysis_no_segments(self, capsys):
+    def test_print_regime_analysis_no_segments(self, capsys: CaptureFixture[Any]) -> None:
         class _Analysis:
-            def summary(self):
+            def summary(self) -> Any:
                 return {
                     "current_regime": "sideways",
                     "total_volatility": 0.05,
@@ -5685,7 +5773,7 @@ class TestCliHelpers:
                 }
 
             @property
-            def segments(self):
+            def segments(self) -> Any:
                 return []
 
         _print_regime_analysis(_Analysis())
@@ -5693,15 +5781,15 @@ class TestCliHelpers:
         assert "Market Regime Analysis" in captured.out
         assert "Current Regime:   sideways" in captured.out
 
-    def test_print_monte_carlo_analysis(self, capsys):
+    def test_print_monte_carlo_analysis(self, capsys: CaptureFixture[Any]) -> None:
         class _MC:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.n_simulations = 100
                 self.confidence_level = 0.95
                 self.duration_seconds = 1.25
                 self._method = "parametric"
 
-            def summary(self):
+            def summary(self) -> Any:
                 return {
                     "probability_of_profit": 0.68,
                     "total_return_pct_mean": 12.5,
@@ -5731,14 +5819,14 @@ class TestCliHelpers:
         assert "Simulations:       100" in captured.out
         assert "Probability of Profit: 68.00%" in captured.out
 
-    def test_print_monte_carlo_analysis_default_method(self, capsys):
+    def test_print_monte_carlo_analysis_default_method(self, capsys: CaptureFixture[Any]) -> None:
         class _MC:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.n_simulations = 50
                 self.confidence_level = 0.90
                 self.duration_seconds = 0.5
 
-            def summary(self):
+            def summary(self) -> Any:
                 return {
                     "probability_of_profit": 0.55,
                     "total_return_pct_mean": 5.0,
@@ -5765,14 +5853,14 @@ class TestCliHelpers:
         captured = capsys.readouterr()
         assert "Method:            bootstrap" in captured.out
 
-    def test_print_trade_analysis(self, capsys):
+    def test_print_trade_analysis(self, capsys: CaptureFixture[Any]) -> None:
         from unittest.mock import patch
 
         with patch("quant_trading.backtest.print_trade_analysis") as mock_print:
             _print_trade_analysis("fake-analysis")
             mock_print.assert_called_once_with("fake-analysis")
 
-    def test_default_param_grid_moving_average_crossover(self):
+    def test_default_param_grid_moving_average_crossover(self) -> None:
         """``_default_param_grid`` builds one space per tunable constructor param."""
         from quant_trading.optimization import ParameterGrid, ParameterSpace
         from quant_trading.strategies.examples import MovingAverageCrossover
@@ -5787,12 +5875,12 @@ class TestCliHelpers:
         assert fast.values == [9, 10, 11]
         assert slow.values == [29, 30, 31]
 
-    def test_default_param_grid_skips_required_and_self_params(self):
+    def test_default_param_grid_skips_required_and_self_params(self) -> None:
         """Constructor params without a default, plus ``self``/``name``, are skipped."""
         from quant_trading.optimization import ParameterGrid
 
         class Mixed:
-            def __init__(self, required: int, optional: float = 1.0, name: str = "x"):
+            def __init__(self, required: int, optional: float = 1.0, name: str = "x") -> None:
                 self.required = required
                 self.optional = optional
                 self.name = name
@@ -5803,7 +5891,7 @@ class TestCliHelpers:
         assert grid.spaces["optional"].param_type is float
         assert grid.spaces["optional"].values == [0.75, 1.0, 1.25]
 
-    def test_default_param_grid_empty_when_unintrospectable(self):
+    def test_default_param_grid_empty_when_unintrospectable(self) -> None:
         """A constructor that cannot be introspected yields an empty grid."""
         grid = _default_param_grid(object)
         from quant_trading.optimization import ParameterGrid
@@ -5812,7 +5900,7 @@ class TestCliHelpers:
         assert len(grid.spaces) == 0
         assert grid.generate_combinations() == [{}]
 
-    def test_get_monte_carlo_analysis_forwards_args_and_sets_method(self):
+    def test_get_monte_carlo_analysis_forwards_args_and_sets_method(self) -> None:
         import pandas as pd
 
         from quant_trading.backtest.engine import BacktestResult
@@ -5850,12 +5938,12 @@ class TestCliHelpers:
         assert "probability_of_profit" in summary
         assert "total_return_pct_mean" in summary
 
-    def test_default_param_grid_bool_default_param(self):
+    def test_default_param_grid_bool_default_param(self) -> None:
         """A constructor param with a bool default yields a [False, True] space."""
         from quant_trading.optimization import ParameterGrid, ParameterSpace
 
         class WithBool:
-            def __init__(self, enabled: bool = True):
+            def __init__(self, enabled: bool = True) -> None:
                 self.enabled = enabled
 
         grid = _default_param_grid(WithBool)
@@ -5866,12 +5954,12 @@ class TestCliHelpers:
         assert space.param_type is bool
         assert space.values == [False, True]
 
-    def test_default_param_grid_string_default_param(self):
+    def test_default_param_grid_string_default_param(self) -> None:
         """A constructor param with a non-numeric default yields a single-value space."""
         from quant_trading.optimization import ParameterGrid, ParameterSpace
 
         class WithStr:
-            def __init__(self, symbol: str = "AAPL"):
+            def __init__(self, symbol: str = "AAPL") -> None:
                 self.symbol = symbol
 
         grid = _default_param_grid(WithStr)
@@ -5882,7 +5970,7 @@ class TestCliHelpers:
         assert space.param_type is str
         assert space.values == ["AAPL"]
 
-    def test_default_param_grid_empty_when_signature_raises(self):
+    def test_default_param_grid_empty_when_signature_raises(self) -> None:
         """A constructor whose signature cannot be introspected yields an empty grid."""
 
         class Unintrospectable:
@@ -5895,7 +5983,7 @@ class TestCliHelpers:
         assert len(grid.spaces) == 0
         assert grid.generate_combinations() == [{}]
 
-    def test_get_monte_carlo_analysis_swallows_method_assignment_failure(self):
+    def test_get_monte_carlo_analysis_swallows_method_assignment_failure(self) -> None:
         """``mc._method = ...`` failing must not break the returned analysis."""
         import pandas as pd
 
@@ -5928,11 +6016,11 @@ class TestCliHelpers:
         class _LockedMC:
             __slots__ = ("confidence_level", "n_simulations")
 
-            def __init__(self):
+            def __init__(self) -> None:
                 self.n_simulations = 20
                 self.confidence_level = 0.90
 
-            def summary(self):
+            def summary(self) -> Any:
                 return {"n_simulations": 20, "probability_of_profit": 0.5}
 
         with patch("examples.cli.run_monte_carlo", return_value=_LockedMC()):
@@ -5949,7 +6037,7 @@ class TestCliHelpers:
 class TestRunOptimizationWalkForwardEndToEnd:
     """End-to-end tests for run_optimization and run_walk_forward."""
 
-    def _base_opt_args(self, tmp_path, **overrides):
+    def _base_opt_args(self, tmp_path: Path, **overrides: Any) -> argparse.Namespace:
         import argparse
 
         base = {
@@ -6013,7 +6101,7 @@ class TestRunOptimizationWalkForwardEndToEnd:
         base.update(overrides)
         return argparse.Namespace(**base)
 
-    def _synthetic_config(self, days=120, seed=42):
+    def _synthetic_config(self, days: int = 120, seed: int = 42) -> Config:
         config = Config()
         config.data.provider = "synthetic"
         config.data.offline = True
@@ -6021,7 +6109,9 @@ class TestRunOptimizationWalkForwardEndToEnd:
         config.data.synthetic_seed = seed
         return config
 
-    def test_run_optimization_offline_returns_zero_and_prints_results(self, tmp_path, capsys):
+    def test_run_optimization_offline_returns_zero_and_prints_results(
+        self, tmp_path: Path, capsys: CaptureFixture[Any]
+    ) -> None:
         from datetime import datetime, timedelta
 
         from examples.cli import run_optimization
@@ -6039,7 +6129,7 @@ class TestRunOptimizationWalkForwardEndToEnd:
         assert "Best Parameters" in out
         assert "Top 10 Results" in out
 
-    def test_run_optimization_writes_output_json(self, tmp_path):
+    def test_run_optimization_writes_output_json(self, tmp_path: Path) -> None:
         import json
         from datetime import datetime, timedelta
 
@@ -6062,7 +6152,9 @@ class TestRunOptimizationWalkForwardEndToEnd:
         assert "best_score" in data
         assert isinstance(data.get("all_results"), list)
 
-    def test_run_walk_forward_offline_returns_zero_and_prints_results(self, tmp_path, capsys):
+    def test_run_walk_forward_offline_returns_zero_and_prints_results(
+        self, tmp_path: Path, capsys: CaptureFixture[Any]
+    ) -> None:
         from datetime import datetime, timedelta
 
         from examples.cli import run_walk_forward
@@ -6087,7 +6179,7 @@ class TestRunOptimizationWalkForwardEndToEnd:
         assert "Window Results" in out
         assert "Summary:" in out
 
-    def test_run_walk_forward_writes_output_json(self, tmp_path):
+    def test_run_walk_forward_writes_output_json(self, tmp_path: Path) -> None:
         import json
         from datetime import datetime, timedelta
 
@@ -6119,7 +6211,7 @@ class TestRunOptimizationWalkForwardEndToEnd:
         assert "walk_forward_result" in data
         assert data["summary"]["n_windows"] == 2
 
-    def test_run_walk_forward_with_sub_step_size_tiles_to_period_end(self, tmp_path):
+    def test_run_walk_forward_with_sub_step_size_tiles_to_period_end(self, tmp_path: Path) -> None:
         """A ``--wf-step-size`` below 1.0 still tiles the requested period.
 
         The README documents that walk-forward windows tile the requested period

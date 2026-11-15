@@ -275,7 +275,7 @@ CLI_ARG_DEFAULTS = {
 }
 
 
-def _is_supported_interval(interval: str) -> bool:
+def _is_supported_interval(interval: str | None) -> bool:
     """Return whether ``interval`` is a recognized annualization interval."""
     key = (interval or "").strip().lower()
     if key in INTERVAL_PERIODS_PER_YEAR:
