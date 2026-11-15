@@ -2,6 +2,7 @@
 
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -112,7 +113,7 @@ def _create_sample_result() -> BacktestResult:
     return result
 
 
-def test_report_config_defaults():
+def test_report_config_defaults() -> None:
     """Test ReportConfig default values."""
     config = ReportConfig()
     assert config.title == "Backtest Report"
@@ -124,7 +125,7 @@ def test_report_config_defaults():
     assert config.dpi == 150
 
 
-def test_report_config_custom():
+def test_report_config_custom() -> None:
     """Test ReportConfig with custom values."""
     config = ReportConfig(
         title="Custom Report",
@@ -139,7 +140,7 @@ def test_report_config_custom():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_generate_html_report_basic():
+def test_generate_html_report_basic() -> None:
     """Test basic HTML report generation."""
     result = _create_sample_result()
     config = ReportConfig(include_charts=True, include_trade_details=True)
@@ -163,7 +164,7 @@ def test_generate_html_report_basic():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_generate_html_report_no_charts():
+def test_generate_html_report_no_charts() -> None:
     """Test HTML report generation without charts."""
     result = _create_sample_result()
     config = ReportConfig(include_charts=False)
@@ -182,7 +183,7 @@ def test_generate_html_report_no_charts():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_generate_html_report_dark_theme():
+def test_generate_html_report_dark_theme() -> None:
     """Test HTML report generation with dark theme."""
     result = _create_sample_result()
     config = ReportConfig(theme="dark")
@@ -194,7 +195,7 @@ def test_generate_html_report_dark_theme():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_generate_html_report_to_file():
+def test_generate_html_report_to_file() -> None:
     """Test HTML report generation writing to file."""
     result = _create_sample_result()
     config = ReportConfig(include_charts=True)
@@ -209,7 +210,7 @@ def test_generate_html_report_to_file():
         assert "Backtest Report" in content
 
 
-def test_generate_report_from_dict():
+def test_generate_report_from_dict() -> None:
     """Test generating report from dictionary."""
     result = _create_sample_result()
     data = result.to_dict()
@@ -227,7 +228,7 @@ def test_generate_report_from_dict():
         assert "Performance Summary" in html
 
 
-def test_generate_report_from_dict_with_file():
+def test_generate_report_from_dict_with_file() -> None:
     """Test generating report from dictionary to file."""
     result = _create_sample_result()
     data = result.to_dict()
@@ -243,7 +244,7 @@ def test_generate_report_from_dict_with_file():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_charts_generated_as_base64():
+def test_charts_generated_as_base64() -> None:
     """Test that charts are embedded as base64 in HTML."""
     result = _create_sample_result()
     config = ReportConfig(include_charts=True)
@@ -258,7 +259,7 @@ def test_charts_generated_as_base64():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_report_with_empty_trades():
+def test_report_with_empty_trades() -> None:
     """Test report generation with no trades."""
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
     equity_curve = pd.Series([100000] * 10, index=dates)
@@ -305,7 +306,7 @@ def test_report_with_empty_trades():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_report_with_insufficient_data_for_rolling():
+def test_report_with_insufficient_data_for_rolling() -> None:
     """Test report with insufficient data for rolling metrics."""
     dates = pd.date_range("2024-01-01", periods=30, freq="D")
     equity_values = 100000 * (1 + 0.001 * np.arange(30))
@@ -381,14 +382,14 @@ def test_report_with_insufficient_data_for_rolling():
     assert "Rolling Volatility" in html
 
 
-def test_matplotlib_not_available_error():
+def test_matplotlib_not_available_error() -> None:
     """Test that ImportError is raised when matplotlib not available and charts requested."""
     # This test is tricky since MATPLOTLIB_AVAILABLE is module-level
     # We just verify the constant exists
     assert isinstance(MATPLOTLIB_AVAILABLE, bool)
 
 
-def test_report_handles_nan_metrics():
+def test_report_handles_nan_metrics() -> None:
     """Test report handles NaN metric values gracefully."""
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
     equity_curve = pd.Series([100000] * 10, index=dates)
@@ -437,7 +438,7 @@ def test_report_handles_nan_metrics():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_generate_comparison_report_basic():
+def test_generate_comparison_report_basic() -> None:
     """Test basic comparison report generation."""
     result1 = _create_sample_result()
     result2 = _create_sample_result()
@@ -473,7 +474,7 @@ def test_generate_comparison_report_basic():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_generate_comparison_report_no_charts():
+def test_generate_comparison_report_no_charts() -> None:
     """Test comparison report generation without charts."""
     result1 = _create_sample_result()
     result2 = _create_sample_result()
@@ -491,7 +492,7 @@ def test_generate_comparison_report_no_charts():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_generate_comparison_report_to_file():
+def test_generate_comparison_report_to_file() -> None:
     """Test comparison report generation writing to file."""
     result1 = _create_sample_result()
     result2 = _create_sample_result()
@@ -509,13 +510,13 @@ def test_generate_comparison_report_to_file():
         assert "Strategy Comparison" in content
 
 
-def test_generate_comparison_report_empty_results():
+def test_generate_comparison_report_empty_results() -> None:
     """Test that empty results list raises ValueError."""
     with pytest.raises(ValueError, match="At least one result is required"):
         generate_comparison_report([])
 
 
-def test_generate_comparison_report_single_result():
+def test_generate_comparison_report_single_result() -> None:
     """Test comparison report with a single result."""
     result1 = _create_sample_result()
 
@@ -529,7 +530,7 @@ def test_generate_comparison_report_single_result():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_comparison_report_dark_theme():
+def test_comparison_report_dark_theme() -> None:
     """Test comparison report with dark theme."""
     result1 = _create_sample_result()
     result2 = _create_sample_result()
@@ -542,7 +543,7 @@ def test_comparison_report_dark_theme():
     assert "#1e1e1e" in html  # dark background color
 
 
-def test_report_matplotlib_unavailable_branch(monkeypatch):
+def test_report_matplotlib_unavailable_branch(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cover report.py:29-30: MATPLOTLIB_AVAILABLE=False when matplotlib import fails.
 
     Simulates a missing matplotlib at import time by blocking the module in
@@ -556,8 +557,8 @@ def test_report_matplotlib_unavailable_branch(monkeypatch):
     original_matplotlib = sys.modules.get("matplotlib")
     original_pyplot = sys.modules.get("matplotlib.pyplot")
     try:
-        sys.modules["matplotlib"] = None
-        sys.modules["matplotlib.pyplot"] = None
+        sys.modules["matplotlib"] = None  # type: ignore[assignment]
+        sys.modules["matplotlib.pyplot"] = None  # type: ignore[assignment]
         reloaded = importlib.reload(report_module)
         assert reloaded.MATPLOTLIB_AVAILABLE is False
         with pytest.raises(ImportError, match="matplotlib is required"):
@@ -574,7 +575,7 @@ def test_report_matplotlib_unavailable_branch(monkeypatch):
     importlib.reload(report_module)
 
 
-def test_generate_html_report_uses_default_config_when_config_is_none():
+def test_generate_html_report_uses_default_config_when_config_is_none() -> None:
     """generate_html_report must fall back to ReportConfig() when config is None."""
     result = _create_sample_result()
     html = generate_html_report(result)
@@ -584,7 +585,7 @@ def test_generate_html_report_uses_default_config_when_config_is_none():
     assert "Equity Curve" in html
 
 
-def test_generate_html_report_omits_monthly_heatmap_when_disabled():
+def test_generate_html_report_omits_monthly_heatmap_when_disabled() -> None:
     """include_monthly_heatmap=False must exclude the monthly returns chart."""
     result = _create_sample_result()
     config = ReportConfig(include_charts=True, include_monthly_heatmap=False)
@@ -593,7 +594,7 @@ def test_generate_html_report_omits_monthly_heatmap_when_disabled():
     assert "Equity Curve" in html
 
 
-def test_generate_html_report_omits_rolling_metrics_when_disabled():
+def test_generate_html_report_omits_rolling_metrics_when_disabled() -> None:
     """include_rolling_metrics=False must exclude the rolling metric chart cards."""
     result = _create_sample_result()
     config = ReportConfig(include_charts=True, include_rolling_metrics=False)
@@ -602,7 +603,7 @@ def test_generate_html_report_omits_rolling_metrics_when_disabled():
     assert "Rolling Volatility" not in html
 
 
-def test_generate_html_report_omits_trade_details_when_disabled():
+def test_generate_html_report_omits_trade_details_when_disabled() -> None:
     """include_trade_details=False must exclude the trade details section."""
     result = _create_sample_result()
     config = ReportConfig(include_charts=False, include_trade_details=False)
@@ -611,7 +612,7 @@ def test_generate_html_report_omits_trade_details_when_disabled():
     assert "Performance Summary" in html
 
 
-def test_build_trades_table_truncates_at_max_rows():
+def test_build_trades_table_truncates_at_max_rows() -> None:
     """_build_trades_table must cap rows at max_rows and note the truncation."""
     from quant_trading.backtest.report import _build_trades_table, _get_theme_colors
 
@@ -649,7 +650,7 @@ def test_build_trades_table_truncates_at_max_rows():
     assert html.count("<tr style") == 50
 
 
-def test_build_trades_table_formats_missing_and_nan_columns():
+def test_build_trades_table_formats_missing_and_nan_columns() -> None:
     """_build_trades_table must render N/A for NaN and skip absent optional columns."""
     from quant_trading.backtest.report import _build_trades_table, _get_theme_colors
 
@@ -686,7 +687,7 @@ def test_build_trades_table_formats_missing_and_nan_columns():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_create_trade_distribution_chart_all_nan_pnl():
+def test_create_trade_distribution_chart_all_nan_pnl() -> None:
     """_create_trade_distribution_chart must render empty state when all PnL is NaN."""
     from quant_trading.backtest.report import (
         _create_trade_distribution_chart,
@@ -728,7 +729,7 @@ def test_create_trade_distribution_chart_all_nan_pnl():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_comparison_report_with_empty_equity_curve():
+def test_comparison_report_with_empty_equity_curve() -> None:
     """Test comparison report with an empty equity curve in one result."""
     result1 = _create_sample_result()
 
@@ -782,7 +783,7 @@ def test_comparison_report_with_empty_equity_curve():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_comparison_report_with_config_none():
+def test_comparison_report_with_config_none() -> None:
     """generate_comparison_report must fall back to ReportConfig() when config is None."""
     result1 = _create_sample_result()
     result2 = _create_sample_result()
@@ -797,7 +798,7 @@ def test_comparison_report_with_config_none():
     assert "Drawdown Comparison" in html
 
 
-def test_build_comparison_table_handles_metric_fn_exceptions():
+def test_build_comparison_table_handles_metric_fn_exceptions() -> None:
     """_build_comparison_table must handle metric_fn exceptions gracefully."""
     from quant_trading.backtest.report import _build_comparison_table, _get_theme_colors
 
@@ -811,7 +812,7 @@ def test_build_comparison_table_handles_metric_fn_exceptions():
         equity_curve=result1.equity_curve,
         trades=result1.trades,
         positions=result1.positions,
-        metrics=BadMetrics(),  # Missing attributes will cause AttributeError
+        metrics=BadMetrics(),  # type: ignore[arg-type]  # Missing attributes will cause AttributeError
         start_date=result1.start_date,
         end_date=result1.end_date,
         initial_capital=result1.initial_capital,
@@ -831,7 +832,7 @@ def test_build_comparison_table_handles_metric_fn_exceptions():
     assert "N/A" in html
 
 
-def test_build_trades_table_branch_coverage_nan_columns():
+def test_build_trades_table_branch_coverage_nan_columns() -> None:
     """_build_trades_table must handle columns with all NaN values."""
     from quant_trading.backtest.report import _build_trades_table, _get_theme_colors
 
@@ -869,7 +870,7 @@ def test_build_trades_table_branch_coverage_nan_columns():
     assert "MSFT" in html
 
 
-def test_build_trades_table_missing_timestamp_column():
+def test_build_trades_table_missing_timestamp_column() -> None:
     """_build_trades_table must handle missing timestamp column (else branch)."""
     from quant_trading.backtest.report import _build_trades_table, _get_theme_colors
 
@@ -909,7 +910,7 @@ def test_build_trades_table_missing_timestamp_column():
     # The test verifies no crash and proper rendering
 
 
-def test_build_trades_table_missing_price_cost_fee_pnl_columns():
+def test_build_trades_table_missing_price_cost_fee_pnl_columns() -> None:
     """_build_trades_table must handle missing optional price/cost/fee/pnl columns."""
     from quant_trading.backtest.report import _build_trades_table, _get_theme_colors
 
@@ -941,7 +942,7 @@ def test_build_trades_table_missing_price_cost_fee_pnl_columns():
     # Should not crash
 
 
-def test_build_comparison_table_metric_fn_exception_coverage():
+def test_build_comparison_table_metric_fn_exception_coverage() -> None:
     """Force coverage of _build_comparison_table exception handler (lines 1059-1060)."""
     import pandas as pd
 
@@ -977,7 +978,7 @@ def test_build_comparison_table_metric_fn_exception_coverage():
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=GoodMetrics(),
+        metrics=GoodMetrics(),  # type: ignore[arg-type]
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -991,7 +992,7 @@ def test_build_comparison_table_metric_fn_exception_coverage():
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=BadMetrics(),
+        metrics=BadMetrics(),  # type: ignore[arg-type]
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -1010,7 +1011,7 @@ def test_build_comparison_table_metric_fn_exception_coverage():
     assert "N/A" in html
 
 
-def test_build_trades_table_missing_quantity_column():
+def test_build_trades_table_missing_quantity_column() -> None:
     """_build_trades_table must handle missing quantity column (else branch at line 594)."""
     from quant_trading.backtest.report import _build_trades_table, _get_theme_colors
 
@@ -1048,7 +1049,7 @@ def test_build_trades_table_missing_quantity_column():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_generate_html_report_includes_risk_attribution():
+def test_generate_html_report_includes_risk_attribution() -> None:
     """Risk attribution data should render in the HTML report when present."""
     from quant_trading.risk.manager import RiskAttribution
 
@@ -1074,7 +1075,7 @@ def test_generate_html_report_includes_risk_attribution():
     assert "MSFT" in html
 
 
-def test_generate_report_from_dict_includes_risk_attribution():
+def test_generate_report_from_dict_includes_risk_attribution() -> None:
     """generate_report_from_dict should reconstruct and render risk attribution."""
     result = _create_sample_result()
     from quant_trading.risk.manager import RiskAttribution
@@ -1098,7 +1099,7 @@ def test_generate_report_from_dict_includes_risk_attribution():
     assert "0.0450" in html
 
 
-def test_report_config_to_dict_and_from_dict_roundtrip():
+def test_report_config_to_dict_and_from_dict_roundtrip() -> None:
     """ReportConfig.to_dict/from_dict must serialize and reconstruct faithfully (report.py:62, 85)."""
     from quant_trading.backtest.report import ReportConfig
 
@@ -1122,7 +1123,7 @@ def test_report_config_to_dict_and_from_dict_roundtrip():
     assert restored == config
 
 
-def test_report_config_from_dict_missing_keys_use_defaults():
+def test_report_config_from_dict_missing_keys_use_defaults() -> None:
     """ReportConfig.from_dict must fall back to defaults for missing keys (report.py:85)."""
     from quant_trading.backtest.report import ReportConfig
 
@@ -1136,7 +1137,7 @@ def test_report_config_from_dict_missing_keys_use_defaults():
     assert restored.dpi == 150
 
 
-def test_check_matplotlib_raises_when_unavailable(monkeypatch):
+def test_check_matplotlib_raises_when_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
     """_check_matplotlib must raise ImportError when matplotlib is unavailable (report.py:99)."""
     import quant_trading.backtest.report as report_module
 
@@ -1145,7 +1146,7 @@ def test_check_matplotlib_raises_when_unavailable(monkeypatch):
         report_module._check_matplotlib()
 
 
-def test_build_comparison_table_metric_value_error():
+def test_build_comparison_table_metric_value_error() -> None:
     """_build_comparison_table must render N/A when a metric_fn raises (report.py:1059-1060)."""
     import pandas as pd
 
@@ -1181,7 +1182,7 @@ def test_build_comparison_table_metric_value_error():
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=GoodMetrics(),
+        metrics=GoodMetrics(),  # type: ignore[arg-type]
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -1196,13 +1197,13 @@ def test_build_comparison_table_metric_value_error():
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=GoodMetrics(),
+        metrics=GoodMetrics(),  # type: ignore[arg-type]
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
         final_value=100000.0,
         total_return=0.0,
-        total_return_pct=None,
+        total_return_pct=None,  # type: ignore[arg-type]
         total_costs=0.0,
     )
 
@@ -1236,7 +1237,7 @@ def _create_sample_result_with_attribution() -> BacktestResult:
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_generate_comparison_report_with_risk_attribution():
+def test_generate_comparison_report_with_risk_attribution() -> None:
     """Test comparison report includes risk attribution when present."""
     result1 = _create_sample_result_with_attribution()
     result2 = _create_sample_result()  # No attribution
@@ -1264,7 +1265,7 @@ def test_generate_comparison_report_with_risk_attribution():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_generate_comparison_report_multiple_with_attribution():
+def test_generate_comparison_report_multiple_with_attribution() -> None:
     """Test comparison report with multiple strategies having attribution."""
     result1 = _create_sample_result_with_attribution()
     result2 = _create_sample_result()
@@ -1297,7 +1298,7 @@ def test_generate_comparison_report_multiple_with_attribution():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_generate_comparison_report_no_attribution():
+def test_generate_comparison_report_no_attribution() -> None:
     """Test comparison report without any risk attribution still works."""
     result1 = _create_sample_result()
     result2 = _create_sample_result()
@@ -1312,7 +1313,7 @@ def test_generate_comparison_report_no_attribution():
     assert "Strategy Comparison" in html
 
 
-def test_generate_comparison_report_from_dict_with_attribution():
+def test_generate_comparison_report_from_dict_with_attribution() -> None:
     """Test generate_comparison_report works with dict input (via generate_report_from_dict path if applicable)."""
     # This tests the path where results are loaded from dict
     result1 = _create_sample_result_with_attribution()
@@ -1340,7 +1341,7 @@ def test_generate_comparison_report_from_dict_with_attribution():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_generate_comparison_report_risk_attribution_chart():
+def test_generate_comparison_report_risk_attribution_chart() -> None:
     """Test comparison report includes risk attribution chart when charts enabled."""
     result1 = _create_sample_result_with_attribution()
     result2 = _create_sample_result()
@@ -1368,7 +1369,7 @@ def test_generate_comparison_report_risk_attribution_chart():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_comparison_report_risk_attribution_chart_no_attribution():
+def test_comparison_report_risk_attribution_chart_no_attribution() -> None:
     """Test no risk attribution chart when no results have attribution."""
     result1 = _create_sample_result()
     result2 = _create_sample_result()
@@ -1383,7 +1384,7 @@ def test_comparison_report_risk_attribution_chart_no_attribution():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_comparison_report_risk_attribution_chart_no_charts():
+def test_comparison_report_risk_attribution_chart_no_charts() -> None:
     """Test no risk attribution chart when include_charts is False."""
     result1 = _create_sample_result_with_attribution()
 
@@ -1397,7 +1398,7 @@ def test_comparison_report_risk_attribution_chart_no_charts():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_comparison_report_risk_attribution_chart_no_tight_layout_warning():
+def test_comparison_report_risk_attribution_chart_no_tight_layout_warning() -> None:
     """Comparison report with risk attribution chart must not emit tight_layout UserWarnings.
 
     Regression test for the pre-existing warning raised by
@@ -1422,7 +1423,7 @@ def test_comparison_report_risk_attribution_chart_no_tight_layout_warning():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_comparison_report_no_tight_layout_warning():
+def test_comparison_report_no_tight_layout_warning() -> None:
     """Comparison report with monthly heatmap must not emit tight_layout UserWarnings.
 
     Regression test for the pre-existing warning raised by
@@ -1447,7 +1448,7 @@ def test_comparison_report_no_tight_layout_warning():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_comparison_report_single_strategy_no_tight_layout_warning():
+def test_comparison_report_single_strategy_no_tight_layout_warning() -> None:
     """Single-strategy comparison report with monthly heatmap must not warn."""
     import warnings
 
@@ -1465,7 +1466,7 @@ def test_comparison_report_single_strategy_no_tight_layout_warning():
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
-def test_single_result_report_no_tight_layout_warning():
+def test_single_result_report_no_tight_layout_warning() -> None:
     """Single-result report with monthly heatmap must not emit tight_layout UserWarnings.
 
     Regression test for the pre-existing warning raised by
@@ -1486,7 +1487,9 @@ def test_single_result_report_no_tight_layout_warning():
     assert tight_layout_warnings == []
 
 
-def test_fig_to_base64_skips_bbox_tight_for_constrained_layout(monkeypatch):
+def test_fig_to_base64_skips_bbox_tight_for_constrained_layout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """_fig_to_base64 must not pass bbox_inches='tight' when constrained_layout is active.
 
     Combining bbox_inches='tight' with constrained_layout is redundant and can
@@ -1500,7 +1503,7 @@ def test_fig_to_base64_skips_bbox_tight_for_constrained_layout(monkeypatch):
 
     captured = {}
 
-    def fake_savefig(self, buf, **kwargs):
+    def fake_savefig(self: Any, buf: Any, **kwargs: Any) -> None:
         captured.update(kwargs)
         buf.write(b"\x89PNG\r\n\x1a\n")
 
@@ -1513,7 +1516,9 @@ def test_fig_to_base64_skips_bbox_tight_for_constrained_layout(monkeypatch):
     assert captured.get("format") == "png"
 
 
-def test_fig_to_base64_uses_bbox_tight_without_layout_engine(monkeypatch):
+def test_fig_to_base64_uses_bbox_tight_without_layout_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """_fig_to_base64 should keep bbox_inches='tight' for figures without layout engine."""
     import matplotlib.pyplot as plt
 
@@ -1523,7 +1528,7 @@ def test_fig_to_base64_uses_bbox_tight_without_layout_engine(monkeypatch):
 
     captured = {}
 
-    def fake_savefig(self, buf, **kwargs):
+    def fake_savefig(self: Any, buf: Any, **kwargs: Any) -> None:
         captured.update(kwargs)
         buf.write(b"\x89PNG\r\n\x1a\n")
 
