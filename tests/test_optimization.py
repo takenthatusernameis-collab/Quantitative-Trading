@@ -4,16 +4,18 @@ import importlib.util
 import itertools
 import json
 import os
-from concurrent.futures import _base, Future
+from collections.abc import Callable
+from concurrent.futures import Future, _base
 from concurrent.futures.process import BrokenProcessPool, ProcessPoolExecutor
 from datetime import datetime, timedelta
 from types import SimpleNamespace
-from typing import Any
-from unittest.mock import patch
+from typing import Any, cast
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
 import pytest
+from typing_extensions import Self
 
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult
 from quant_trading.optimization import (
@@ -974,7 +976,7 @@ def test_walk_forward_with_bayesian() -> None:
 class RaisingStrategy(Strategy):
     """Strategy that raises ValueError in generate_signals for error handling tests."""
 
-    def __init__(self, name: str = "Raising", **kwargs) -> None:
+    def __init__(self, name: str = "Raising", **kwargs: Any) -> None:
         super().__init__(name, kwargs)
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
@@ -1465,7 +1467,9 @@ def test_walk_forward_step_size_override() -> None:
 
 @pytest.mark.parametrize("anchored", [True, False])
 @pytest.mark.parametrize("step_size", [0.3, 0.5, 0.75])
-def test_walk_forward_windows_tile_the_full_period_for_sub_window_steps(anchored: bool, step_size) -> None:
+def test_walk_forward_windows_tile_the_full_period_for_sub_window_steps(
+    anchored: bool, step_size: float
+) -> None:
     """A step smaller than one window still tiles start to end.
 
     ``--wf-step-size`` is documented as a fraction of a window's span, and the
@@ -2441,11 +2445,13 @@ def test_bayesian_optimizer_verbose(capsys: pytest.CaptureFixture[Any]) -> None:
 
 
 @skip_if_no_skopt
-def test_bayesian_optimizer_error_handling(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]) -> None:
+def test_bayesian_optimizer_error_handling(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]
+) -> None:
     """Test BayesianOptimizer handles errors from the optimizer gracefully."""
     import skopt
 
-    def raise_error(*args, **kwargs) -> None:
+    def raise_error(*args: Any, **kwargs: Any) -> None:
         raise ValueError("simulated skopt failure")
 
     monkeypatch.setattr(skopt, "gp_minimize", raise_error)
@@ -2690,7 +2696,7 @@ def test_bayesian_optimizer_error_handling_quiet(monkeypatch: pytest.MonkeyPatch
     printing (the `if self.verbose` False branch, 206->209)."""
     import skopt
 
-    def raise_error(*args, **kwargs) -> None:
+    def raise_error(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError("simulated skopt failure")
 
     monkeypatch.setattr(skopt, "gp_minimize", raise_error)
@@ -3054,7 +3060,7 @@ def test_evaluate_params_worker_grid() -> None:
 
 
 @patch("quant_trading.backtest.engine.get_default_data_manager")
-def test_evaluate_params_worker_grid_none_config(mock_get_default) -> None:
+def test_evaluate_params_worker_grid_none_config(mock_get_default: MagicMock) -> None:
     """Test grid_search._evaluate_params_worker with data_config=None (line 39 False branch)."""
     from quant_trading.data.providers import DataManager
     from quant_trading.data.synthetic import create_synthetic_provider
@@ -3187,7 +3193,7 @@ def test_evaluate_params_worker_random() -> None:
 
 
 @patch("quant_trading.backtest.engine.get_default_data_manager")
-def test_evaluate_params_worker_random_none_config(mock_get_default) -> None:
+def test_evaluate_params_worker_random_none_config(mock_get_default: MagicMock) -> None:
     """Test random_search._evaluate_params_worker with data_config=None (line 41 False branch)."""
     from quant_trading.data.providers import DataManager
     from quant_trading.data.synthetic import create_synthetic_provider
@@ -3332,7 +3338,7 @@ def test_grid_search_parallel() -> None:
 class _WorkerDeathExecutor(ProcessPoolExecutor):
     """Executor whose workers die before running any task."""
 
-    def submit(self, fn, *args, **kwargs) -> Future[Any]:  # type: ignore[override]
+    def submit(self, fn: Any, *args: Any, **kwargs: Any) -> Future[Any]:  # type: ignore[override]
         future: Future[Any] = _base.Future()
         future.set_exception(BrokenProcessPool("worker died"))
         return future
@@ -3341,11 +3347,11 @@ class _WorkerDeathExecutor(ProcessPoolExecutor):
 class _PartialWorkerDeathExecutor(ProcessPoolExecutor):
     """Executor whose first task succeeds but whose workers then die."""
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._submitted = 0
 
-    def submit(self, fn, *args, **kwargs) -> Future[Any]:  # type: ignore[override]
+    def submit(self, fn: Any, *args: Any, **kwargs: Any) -> Future[Any]:  # type: ignore[override]
         self._submitted += 1
         if self._submitted == 1:
             return super().submit(fn, *args, **kwargs)
@@ -3354,7 +3360,9 @@ class _PartialWorkerDeathExecutor(ProcessPoolExecutor):
         return future
 
 
-def _make_parallel_optimizer(cls, n_iter=None, verbose=True):
+def _make_parallel_optimizer(
+    cls: type[BaseOptimizer], n_iter: int | None = None, verbose: bool = True
+) -> BaseOptimizer:
     symbols = ["AAPL"]
     mock_data = {"AAPL": create_test_data("AAPL", days=60)}
     provider = MockDataProvider(mock_data)
@@ -3364,7 +3372,7 @@ def _make_parallel_optimizer(cls, n_iter=None, verbose=True):
     param_grid.add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
     param_grid.add(ParameterSpace("slow_period", values=[20, 30], param_type=int))
 
-    kwargs = {}
+    kwargs: dict[str, Any] = {}
     if n_iter is not None:
         kwargs["n_iter"] = n_iter
     kwargs["verbose"] = verbose
@@ -3451,7 +3459,9 @@ def test_random_search_parallel_worker_death_fallback(monkeypatch: pytest.Monkey
 
 
 @skip_if_no_yfinance
-def test_grid_search_parallel_partial_worker_death_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_grid_search_parallel_partial_worker_death_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test GridSearch mixes successful parallel results with sequential retries."""
     import quant_trading.optimization.grid_search as grid_search_module
 
@@ -3470,17 +3480,19 @@ def test_grid_search_parallel_partial_worker_death_fallback(monkeypatch: pytest.
 class _WorkerErrorExecutor(ProcessPoolExecutor):
     """Executor whose workers raise a regular error instead of dying."""
 
-    def submit(self, fn, *args, **kwargs) -> Future[Any]:  # type: ignore[override]
+    def submit(self, fn: Any, *args: Any, **kwargs: Any) -> Future[Any]:  # type: ignore[override]
         future: Future[Any] = _base.Future()
         future.set_exception(ValueError("worker error"))
         return future
 
 
-def _raise_broken_as_completed(fs, *args, **kwargs) -> None:
+def _raise_broken_as_completed(fs: Any, *args: Any, **kwargs: Any) -> None:
     raise BrokenProcessPool("as_completed failed")
 
 
-def test_grid_search_parallel_worker_error(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]) -> None:
+def test_grid_search_parallel_worker_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]
+) -> None:
     """Test GridSearch records worker errors (non-fatal) for every combination."""
     import quant_trading.optimization.grid_search as grid_search_module
 
@@ -3496,7 +3508,9 @@ def test_grid_search_parallel_worker_error(monkeypatch: pytest.MonkeyPatch, caps
     assert "-> Error:" in out
 
 
-def test_random_search_parallel_worker_error(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]) -> None:
+def test_random_search_parallel_worker_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]
+) -> None:
     """Test RandomSearch records worker errors (non-fatal) for every combination."""
     import quant_trading.optimization.random_search as random_search_module
 
@@ -3544,7 +3558,9 @@ def test_random_search_parallel_as_completed_broken(monkeypatch: pytest.MonkeyPa
     assert len(result.all_results) == 4
 
 
-def _make_scripted_result(params: dict[str, Any], score: float = 1.0) -> tuple[dict[str, Any], float, SimpleNamespace]:
+def _make_scripted_result(
+    params: dict[str, Any], score: float = 1.0
+) -> tuple[dict[str, Any], float, SimpleNamespace]:
     return (
         params,
         score,
@@ -3568,7 +3584,7 @@ class _ScriptedExecutor:
         self._scripts = list(scripts)
         self._calls = 0
 
-    def submit(self, fn, *args, **kwargs) -> Future[Any]:
+    def submit(self, fn: Any, *args: Any, **kwargs: Any) -> Future[Any]:
         kind, value = self._scripts[self._calls]
         self._calls += 1
         future: Future[Any] = _base.Future()
@@ -3581,14 +3597,16 @@ class _ScriptedExecutor:
     def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
         return None
 
-    def __enter__(self) -> "_ScriptedExecutor":
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, *exc_info: Any) -> None:
+    def __exit__(self, *exc_info: object) -> None:
         return None
 
 
-def _scripted_results(params_list: list[dict[str, Any]], scripts: list[tuple]) -> list[tuple[str, Any]]:
+def _scripted_results(
+    params_list: list[dict[str, Any]], scripts: list[tuple[Any, ...]]
+) -> list[tuple[str, Any]]:
     """Zip params with scripts into (kind, value) pairs for the scripted executor."""
     results = []
     for params, script in zip(params_list, scripts):
@@ -3704,7 +3722,9 @@ def test_random_search_parallel_scripted_quiet(monkeypatch: pytest.MonkeyPatch) 
     assert len(result.all_results) == 2
 
 
-def test_grid_search_parallel_worker_death_fallback_quiet(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]) -> None:
+def test_grid_search_parallel_worker_death_fallback_quiet(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]
+) -> None:
     """Test GridSearch silent fallback when all workers die (verbose=False).
 
     Exercises the verbose=False branches inside the BrokenProcessPool
@@ -3726,7 +3746,9 @@ def test_grid_search_parallel_worker_death_fallback_quiet(monkeypatch: pytest.Mo
     assert out == ""  # No output expected in quiet mode
 
 
-def test_random_search_parallel_worker_death_fallback_quiet(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]) -> None:
+def test_random_search_parallel_worker_death_fallback_quiet(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[Any]
+) -> None:
     """Test RandomSearch silent fallback when all workers die (verbose=False).
 
     Exercises the verbose=False branches inside the BrokenProcessPool
@@ -4332,13 +4354,14 @@ class TestWalkForwardWindowRestoreResult:
     def test_restore_result_with_backtest_result_instance(self) -> None:
         """_restore_result passes BacktestResult instances through unchanged."""
         from quant_trading.backtest.engine import BacktestResult
+        from quant_trading.backtest.metrics import BacktestMetrics
         from quant_trading.optimization.walk_forward import WalkForwardWindow
 
         br = BacktestResult(
             equity_curve=pd.Series([100000, 101000]),
             trades=pd.DataFrame(),
             positions={},
-            metrics=None,
+            metrics=cast(BacktestMetrics, None),
             start_date=datetime(2024, 1, 1),
             end_date=datetime(2024, 1, 2),
             initial_capital=100000.0,
@@ -4416,13 +4439,14 @@ class TestWalkForwardResultCombinedRestore:
     def test_combined_result_with_backtest_result_instance(self) -> None:
         """from_dict passes BacktestResult instance through unchanged."""
         from quant_trading.backtest.engine import BacktestResult
+        from quant_trading.backtest.metrics import BacktestMetrics
         from quant_trading.optimization.walk_forward import WalkForwardResult
 
         br = BacktestResult(
             equity_curve=pd.Series([100000, 101000]),
             trades=pd.DataFrame(),
             positions={},
-            metrics=None,
+            metrics=cast(BacktestMetrics, None),
             start_date=datetime(2024, 1, 1),
             end_date=datetime(2024, 1, 2),
             initial_capital=100000.0,
@@ -4462,7 +4486,7 @@ class TestWalkForwardResultCombinedRestore:
         assert result.combined_test_result is None
 
 
-def _base_optimizer_minimal_kwargs() -> None:
+def _base_optimizer_minimal_kwargs() -> dict[str, Any]:
     """Return a minimal valid set of BaseOptimizer constructor kwargs."""
     grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5], param_type=int))
     return {
@@ -4492,7 +4516,7 @@ class TestBaseOptimizerInitValidation:
     @pytest.mark.parametrize(
         "initial_capital", [0.0, -1000.0, -1.0, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_invalid_initial_capital(self, initial_capital) -> None:
+    def test_rejects_invalid_initial_capital(self, initial_capital: float) -> None:
         with pytest.raises(ValueError, match="invalid initial_capital"):
             _ConcreteBaseOptimizer(
                 **_base_optimizer_minimal_kwargs(), initial_capital=initial_capital
@@ -4501,38 +4525,38 @@ class TestBaseOptimizerInitValidation:
     @pytest.mark.parametrize(
         "periods_per_year", [0, -1, -252, float("nan"), float("inf"), float("-inf")]
     )
-    def test_rejects_invalid_periods_per_year(self, periods_per_year) -> None:
+    def test_rejects_invalid_periods_per_year(self, periods_per_year: float) -> None:
         with pytest.raises(ValueError, match="invalid periods_per_year"):
             _ConcreteBaseOptimizer(
-                **_base_optimizer_minimal_kwargs(), periods_per_year=periods_per_year
+                **_base_optimizer_minimal_kwargs(), periods_per_year=cast(int, periods_per_year)
             )
 
     @pytest.mark.parametrize("periods_per_year", [1])
-    def test_accepts_minimal_periods_per_year(self, periods_per_year) -> None:
+    def test_accepts_minimal_periods_per_year(self, periods_per_year: float) -> None:
         optimizer = _ConcreteBaseOptimizer(
-            **_base_optimizer_minimal_kwargs(), periods_per_year=periods_per_year
+            **_base_optimizer_minimal_kwargs(), periods_per_year=cast(int, periods_per_year)
         )
         assert optimizer.periods_per_year == periods_per_year
 
     @pytest.mark.parametrize("commission", [-0.1, 1.5])
-    def test_rejects_invalid_commission(self, commission) -> None:
+    def test_rejects_invalid_commission(self, commission: float) -> None:
         with pytest.raises(ValueError, match="invalid commission"):
             _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), commission=commission)
 
     @pytest.mark.parametrize("commission", [0.0, 1.0])
-    def test_accepts_commission_boundaries(self, commission) -> None:
+    def test_accepts_commission_boundaries(self, commission: float) -> None:
         optimizer = _ConcreteBaseOptimizer(
             **_base_optimizer_minimal_kwargs(), commission=commission
         )
         assert optimizer.commission == commission
 
     @pytest.mark.parametrize("slippage", [-0.1, 1.5])
-    def test_rejects_invalid_slippage(self, slippage) -> None:
+    def test_rejects_invalid_slippage(self, slippage: float) -> None:
         with pytest.raises(ValueError, match="invalid slippage"):
             _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), slippage=slippage)
 
     @pytest.mark.parametrize("slippage", [0.0, 1.0])
-    def test_accepts_slippage_boundaries(self, slippage) -> None:
+    def test_accepts_slippage_boundaries(self, slippage: float) -> None:
         optimizer = _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), slippage=slippage)
         assert optimizer.slippage == slippage
 
@@ -4550,7 +4574,7 @@ class TestBaseOptimizerInitValidation:
         assert optimizer.slippage == 0.0
 
 
-def _grid_search_minimal_kwargs() -> None:
+def _grid_search_minimal_kwargs() -> tuple[dict[str, Any], type[BaseOptimizer]]:
     """Return minimal valid GridSearch constructor kwargs."""
     from quant_trading.optimization.grid_search import GridSearch
 
@@ -4566,7 +4590,7 @@ def _grid_search_minimal_kwargs() -> None:
     }, GridSearch
 
 
-def _random_search_minimal_kwargs() -> None:
+def _random_search_minimal_kwargs() -> tuple[dict[str, Any], type[BaseOptimizer]]:
     """Return minimal valid RandomSearch constructor kwargs."""
     from quant_trading.optimization.random_search import RandomSearch
 
@@ -4584,7 +4608,7 @@ def _random_search_minimal_kwargs() -> None:
     }, RandomSearch
 
 
-def _bayesian_optimizer_minimal_kwargs() -> None:
+def _bayesian_optimizer_minimal_kwargs() -> tuple[dict[str, Any], type[BaseOptimizer]]:
     """Return minimal valid BayesianOptimizer constructor kwargs."""
     pytest.importorskip("skopt")
     from quant_trading.optimization.bayesian import BayesianOptimizer
@@ -4611,30 +4635,48 @@ class TestSubclassOptimizerInitValidation:
     """Tests confirming GridSearch/RandomSearch inherit BaseOptimizer validation."""
 
     @pytest.mark.parametrize("initial_capital", [0.0, -1000.0])
-    def test_rejects_invalid_initial_capital(self, kwargs_factory, initial_capital) -> None:
+    def test_rejects_invalid_initial_capital(
+        self,
+        kwargs_factory: Callable[[], tuple[dict[str, Any], type[BaseOptimizer]]],
+        initial_capital: float,
+    ) -> None:
         kwargs, cls = kwargs_factory()
         with pytest.raises(ValueError, match="invalid initial_capital"):
             cls(**kwargs, initial_capital=initial_capital)
 
     @pytest.mark.parametrize("periods_per_year", [0, -1])
-    def test_rejects_invalid_periods_per_year(self, kwargs_factory, periods_per_year) -> None:
+    def test_rejects_invalid_periods_per_year(
+        self,
+        kwargs_factory: Callable[[], tuple[dict[str, Any], type[BaseOptimizer]]],
+        periods_per_year: int,
+    ) -> None:
         kwargs, cls = kwargs_factory()
         with pytest.raises(ValueError, match="invalid periods_per_year"):
             cls(**kwargs, periods_per_year=periods_per_year)
 
     @pytest.mark.parametrize("commission", [-0.1, 1.5])
-    def test_rejects_invalid_commission(self, kwargs_factory, commission) -> None:
+    def test_rejects_invalid_commission(
+        self,
+        kwargs_factory: Callable[[], tuple[dict[str, Any], type[BaseOptimizer]]],
+        commission: float,
+    ) -> None:
         kwargs, cls = kwargs_factory()
         with pytest.raises(ValueError, match="invalid commission"):
             cls(**kwargs, commission=commission)
 
     @pytest.mark.parametrize("slippage", [-0.1, 1.5])
-    def test_rejects_invalid_slippage(self, kwargs_factory, slippage) -> None:
+    def test_rejects_invalid_slippage(
+        self,
+        kwargs_factory: Callable[[], tuple[dict[str, Any], type[BaseOptimizer]]],
+        slippage: float,
+    ) -> None:
         kwargs, cls = kwargs_factory()
         with pytest.raises(ValueError, match="invalid slippage"):
             cls(**kwargs, slippage=slippage)
 
-    def test_accepts_boundary_valid_values(self, kwargs_factory) -> None:
+    def test_accepts_boundary_valid_values(
+        self, kwargs_factory: Callable[[], tuple[dict[str, Any], type[BaseOptimizer]]]
+    ) -> None:
         kwargs, cls = kwargs_factory()
         optimizer = cls(
             **kwargs, initial_capital=1.0, periods_per_year=1, commission=0.0, slippage=1.0
@@ -4649,25 +4691,25 @@ class TestBayesianOptimizerInitValidation:
     """Tests confirming BayesianOptimizer inherits BaseOptimizer validation."""
 
     @pytest.mark.parametrize("initial_capital", [0.0, -1000.0])
-    def test_rejects_invalid_initial_capital(self, initial_capital) -> None:
+    def test_rejects_invalid_initial_capital(self, initial_capital: float) -> None:
         kwargs, cls = _bayesian_optimizer_minimal_kwargs()
         with pytest.raises(ValueError, match="invalid initial_capital"):
             cls(**kwargs, initial_capital=initial_capital)
 
     @pytest.mark.parametrize("periods_per_year", [0, -1])
-    def test_rejects_invalid_periods_per_year(self, periods_per_year) -> None:
+    def test_rejects_invalid_periods_per_year(self, periods_per_year: int) -> None:
         kwargs, cls = _bayesian_optimizer_minimal_kwargs()
         with pytest.raises(ValueError, match="invalid periods_per_year"):
             cls(**kwargs, periods_per_year=periods_per_year)
 
     @pytest.mark.parametrize("commission", [-0.1, 1.5])
-    def test_rejects_invalid_commission(self, commission) -> None:
+    def test_rejects_invalid_commission(self, commission: float) -> None:
         kwargs, cls = _bayesian_optimizer_minimal_kwargs()
         with pytest.raises(ValueError, match="invalid commission"):
             cls(**kwargs, commission=commission)
 
     @pytest.mark.parametrize("slippage", [-0.1, 1.5])
-    def test_rejects_invalid_slippage(self, slippage) -> None:
+    def test_rejects_invalid_slippage(self, slippage: float) -> None:
         kwargs, cls = _bayesian_optimizer_minimal_kwargs()
         with pytest.raises(ValueError, match="invalid slippage"):
             cls(**kwargs, slippage=slippage)
