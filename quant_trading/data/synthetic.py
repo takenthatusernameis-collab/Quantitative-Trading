@@ -125,7 +125,7 @@ class SyntheticDataProvider(DataProvider):
 
     """
 
-    def __init__(self, data: dict[str, pd.DataFrame], name: str = "synthetic"):
+    def __init__(self, data: dict[str, pd.DataFrame], name: str = "synthetic") -> None:
         """Initialize the provider with pre-generated data.
 
         Args:

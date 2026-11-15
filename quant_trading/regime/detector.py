@@ -354,7 +354,7 @@ class RegimeDetector:
         vol_threshold: float = 0.0,
         return_threshold: float = 0.0,
         periods_per_year: int = 252,
-    ):
+    ) -> None:
         """Configure the regime detector.
 
         Args:

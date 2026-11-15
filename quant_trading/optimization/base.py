@@ -805,7 +805,7 @@ class BaseOptimizer(ABC):
         n_jobs: int = 1,
         periods_per_year: int = 252,
         verbose: bool = False,
-    ):
+    ) -> None:
         """Initialize the base optimizer.
 
         Args:

@@ -471,7 +471,7 @@ class WalkForwardOptimizer:
         periods_per_year: int = 252,
         risk_free_rate: float = 0.02,
         verbose: bool = False,
-    ):
+    ) -> None:
         """Initialize walk-forward optimizer.
 
         Args:

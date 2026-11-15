@@ -378,7 +378,7 @@ class MonteCarloSimulator:
         random_state: int | None = None,
         periods_per_year: int = 252,
         risk_free_rate: float = 0.02,
-    ):
+    ) -> None:
         """Initialize the Monte Carlo simulator.
 
         Args:

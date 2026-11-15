@@ -227,7 +227,7 @@ class BayesianOptimizer(BaseOptimizer):
         noise: float = 1e-6,
         periods_per_year: int = 252,
         verbose: bool = False,
-    ):
+    ) -> None:
         """Initialize the Bayesian optimizer.
 
         Args:

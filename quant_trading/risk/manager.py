@@ -470,7 +470,7 @@ class RiskManager:
         max_leverage: float = 1.0,
         trailing_stop_pct: float = 0.0,
         trailing_stop_activation_pct: float = 0.0,
-    ):
+    ) -> None:
         """Initialize risk manager.
 
         Args:

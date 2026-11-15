@@ -287,12 +287,12 @@ class Strategy(ABC):
     description: str | None = None
     category: str | None = None
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls: type[Any], **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         if cls.description is None and cls.__doc__:
             cls.description = cls.__doc__.strip().splitlines()[0].rstrip(".")
 
-    def __init__(self, name: str, parameters: dict[str, Any] | None = None):
+    def __init__(self, name: str, parameters: dict[str, Any] | None = None) -> None:
         """Initialize the strategy.
 
         Args:

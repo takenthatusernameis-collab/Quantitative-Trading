@@ -404,7 +404,7 @@ class Rebalancer:
         target_allocation: dict[str, float] | None = None,
         rebalance_threshold: float = 0.05,
         risk_manager: RiskManager | None = None,
-    ):
+    ) -> None:
         """Initialize the rebalancer.
 
         Args:

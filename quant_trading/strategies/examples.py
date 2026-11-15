@@ -81,7 +81,7 @@ class MovingAverageCrossover(Strategy):
         fast_period: int = 10,
         slow_period: int = 30,
         name: str = "MA_Crossover",
-    ):
+    ) -> None:
         """Initialize the Moving Average Crossover strategy.
 
         Args:
@@ -301,7 +301,7 @@ class VolumeWeightedMovingAverageCrossover(Strategy):
         fast_period: int = 10,
         slow_period: int = 30,
         name: str = "VWMA_Crossover",
-    ):
+    ) -> None:
         """Initialize the volume-weighted moving average crossover strategy.
 
         Args:
@@ -454,7 +454,7 @@ class RSIStrategy(Strategy):
         oversold: float = 30,
         overbought: float = 70,
         name: str = "RSI_MeanReversion",
-    ):
+    ) -> None:
         """Initialize the RSI mean reversion strategy.
 
         Args:
@@ -697,7 +697,7 @@ class BollingerBandsStrategy(Strategy):
         period: int = 20,
         std_dev: float = 2.0,
         name: str = "Bollinger_Bands",
-    ):
+    ) -> None:
         """Initialize the Bollinger Bands mean reversion strategy.
 
         Args:
@@ -886,7 +886,7 @@ class BollingerPercentBStrategy(Strategy):
         oversold: float = 0.2,
         overbought: float = 0.8,
         name: str = "Bollinger_Percent_B",
-    ):
+    ) -> None:
         """Initialize the Bollinger Bands %B strategy.
 
         Args:
@@ -1050,7 +1050,7 @@ class SuperTrendStrategy(Strategy):
         period: int = 10,
         multiplier: float = 3.0,
         name: str = "SuperTrend",
-    ):
+    ) -> None:
         """Initialize the SuperTrend strategy.
 
         Args:
@@ -1289,7 +1289,7 @@ class MACDStrategy(Strategy):
         signal_period: int = 9,
         use_zero_line: bool = False,
         name: str = "MACD",
-    ):
+    ) -> None:
         """Initialize the MACD strategy.
 
         Args:
@@ -1535,7 +1535,7 @@ class DonchianChannelStrategy(Strategy):
         period: int = 20,
         exit_period: int | None = None,
         name: str = "Donchian_Channel",
-    ):
+    ) -> None:
         """Initialize the Donchian Channel breakout strategy.
 
         Args:
@@ -1819,7 +1819,7 @@ class AroonStrategy(Strategy):
         self,
         period: int = 25,
         name: str = "Aroon",
-    ):
+    ) -> None:
         """Initialize the Aroon strategy.
 
         Args:
@@ -2007,7 +2007,7 @@ class KeltnerChannelStrategy(Strategy):
         multiplier: float = 2.0,
         use_middle_cross: bool = False,
         name: str = "Keltner_Channel",
-    ):
+    ) -> None:
         """Initialize the Keltner Channel strategy.
 
         Args:
@@ -2255,7 +2255,7 @@ class StochasticOscillatorStrategy(Strategy):
         overbought: float = 80,
         use_midline: bool = False,
         name: str = "Stochastic_Oscillator",
-    ):
+    ) -> None:
         """Initialize the Stochastic Oscillator strategy.
 
         Args:
@@ -2466,7 +2466,7 @@ class IchimokuCloudStrategy(Strategy):
         kijun_period: int = 26,
         senkou_b_period: int = 52,
         name: str = "Ichimoku_Cloud",
-    ):
+    ) -> None:
         """Initialize the Ichimoku Cloud strategy.
 
         Args:
@@ -2641,7 +2641,7 @@ class VWAPStrategy(Strategy):
         'VWAP'
     """
 
-    def __init__(self, name: str = "VWAP"):
+    def __init__(self, name: str = "VWAP") -> None:
         """Initialize the VWAP strategy.
 
         Args:
@@ -2760,7 +2760,7 @@ class ParabolicSARStrategy(Strategy):
         step: float = 0.02,
         max_step: float = 0.20,
         name: str = "Parabolic_SAR",
-    ):
+    ) -> None:
         """Initialize the Parabolic SAR strategy.
 
         Args:
@@ -3147,7 +3147,7 @@ class MomentumStrategy(Strategy):
         period: int = 10,
         threshold: float = 0.01,
         name: str = "Momentum",
-    ):
+    ) -> None:
         """Initialize the Momentum strategy.
 
         Args:
@@ -3271,7 +3271,7 @@ class AverageTrueRangeStrategy(Strategy):
         period: int = 14,
         atr_multiplier: float = 2.0,
         name: str = "Average_True_Range",
-    ):
+    ) -> None:
         """Initialize the Average True Range strategy.
 
         Args:
@@ -3484,7 +3484,7 @@ class ADXStrategy(Strategy):
         period: int = 14,
         threshold: float = 25.0,
         name: str = "ADX",
-    ):
+    ) -> None:
         """Initialize the ADX strategy.
 
         Args:
@@ -3689,7 +3689,7 @@ class CCIStrategy(Strategy):
         period: int = 20,
         threshold: float = 100.0,
         name: str = "CCI",
-    ):
+    ) -> None:
         super().__init__(
             name,
             {
@@ -3796,7 +3796,7 @@ class WilliamsRStrategy(Strategy):
         overbought: float = -20.0,
         oversold: float = -80.0,
         name: str = "Williams %R",
-    ):
+    ) -> None:
         super().__init__(
             name,
             {
@@ -3916,7 +3916,7 @@ class OBVStrategy(Strategy):
         20
     """
 
-    def __init__(self, signal_period: int = 20, name: str = "OBV"):
+    def __init__(self, signal_period: int = 20, name: str = "OBV") -> None:
         """Initialize the On-Balance Volume strategy.
 
         Args:
@@ -4087,7 +4087,7 @@ class ChaikinMoneyFlowStrategy(Strategy):
         20
     """
 
-    def __init__(self, period: int = 20, name: str = "Chaikin_Money_Flow"):
+    def __init__(self, period: int = 20, name: str = "Chaikin_Money_Flow") -> None:
         """Initialize the Chaikin Money Flow strategy.
 
         Args:
@@ -4236,7 +4236,7 @@ class ForceIndexStrategy(Strategy):
         13
     """
 
-    def __init__(self, period: int = 13, name: str = "Force_Index"):
+    def __init__(self, period: int = 13, name: str = "Force_Index") -> None:
         """Initialize the Force Index strategy.
 
         Args:
@@ -4380,7 +4380,7 @@ class MoneyFlowIndexStrategy(Strategy):
         14
     """
 
-    def __init__(self, period: int = 14, name: str = "Money_Flow_Index"):
+    def __init__(self, period: int = 14, name: str = "Money_Flow_Index") -> None:
         """Initialize the Money Flow Index strategy.
 
         Args:
@@ -4532,7 +4532,7 @@ class ElderRayStrategy(Strategy):
         13
     """
 
-    def __init__(self, period: int = 13, name: str = "Elder_Ray"):
+    def __init__(self, period: int = 13, name: str = "Elder_Ray") -> None:
         super().__init__(name, {"period": period})
         self.period = period
         self.validate_parameters()
@@ -4621,7 +4621,7 @@ class RateOfChangeStrategy(Strategy):
         12
     """
 
-    def __init__(self, period: int = 12, name: str = "Rate_Of_Change"):
+    def __init__(self, period: int = 12, name: str = "Rate_Of_Change") -> None:
         super().__init__(name, {"period": period})
         self.period = period
         self.validate_parameters()
@@ -4709,7 +4709,7 @@ class VolumeRateOfChangeStrategy(Strategy):
         14
     """
 
-    def __init__(self, period: int = 14, name: str = "Volume_Rate_Of_Change"):
+    def __init__(self, period: int = 14, name: str = "Volume_Rate_Of_Change") -> None:
         """Initialize the Volume Rate of Change strategy.
 
         Args:
@@ -4847,7 +4847,7 @@ class ChandeMomentumOscillatorStrategy(Strategy):
         14
     """
 
-    def __init__(self, period: int = 14, name: str = "Chande_Momentum_Oscillator"):
+    def __init__(self, period: int = 14, name: str = "Chande_Momentum_Oscillator") -> None:
         """Initialize the Chande Momentum Oscillator strategy.
 
         Args:
@@ -4995,7 +4995,7 @@ class VolumeOscillatorStrategy(Strategy):
         fast_period: int = 5,
         slow_period: int = 13,
         name: str = "Volume_Oscillator",
-    ):
+    ) -> None:
         """Initialize the Volume Oscillator strategy.
 
         Args:
@@ -5156,7 +5156,7 @@ class VolumePriceTrendStrategy(Strategy):
         fast_period: int = 5,
         slow_period: int = 13,
         name: str = "Volume_Price_Trend",
-    ):
+    ) -> None:
         """Initialize the Volume Price Trend strategy.
 
         Args:
@@ -5366,7 +5366,7 @@ class KlingerOscillatorStrategy(Strategy):
         fast_period: int = 55,
         slow_period: int = 200,
         name: str = "Klinger_Oscillator",
-    ):
+    ) -> None:
         """Initialize the Klinger Oscillator strategy.
 
         Args:
@@ -5572,7 +5572,7 @@ class HullMovingAverageStrategy(Strategy):
         16
     """
 
-    def __init__(self, period: int = 16, name: str = "Hull_Moving_Average"):
+    def __init__(self, period: int = 16, name: str = "Hull_Moving_Average") -> None:
         """Initialize the Hull Moving Average strategy.
 
         Args:
@@ -5755,7 +5755,7 @@ class ChaikinOscillatorStrategy(Strategy):
         fast_period: int = 3,
         slow_period: int = 10,
         name: str = "Chaikin_Oscillator",
-    ):
+    ) -> None:
         super().__init__(
             name,
             {"fast_period": fast_period, "slow_period": slow_period},
@@ -5869,7 +5869,7 @@ class EaseOfMovementStrategy(Strategy):
         14
     """
 
-    def __init__(self, period: int = 14, name: str = "Ease_Of_Movement"):
+    def __init__(self, period: int = 14, name: str = "Ease_Of_Movement") -> None:
         """Initialize the Ease of Movement strategy.
 
         Args:
@@ -6016,7 +6016,7 @@ class AwesomeOscillatorStrategy(Strategy):
         short_period: int = 5,
         long_period: int = 34,
         name: str = "Awesome_Oscillator",
-    ):
+    ) -> None:
         super().__init__(name, {"short_period": short_period, "long_period": long_period})
         self.short_period = short_period
         self.long_period = long_period
@@ -6118,7 +6118,7 @@ class VortexStrategy(Strategy):
         self,
         period: int = 14,
         name: str = "Vortex",
-    ):
+    ) -> None:
         """Initialize the Vortex strategy.
 
         Args:
@@ -6285,7 +6285,7 @@ class TrixStrategy(Strategy):
         14
     """
 
-    def __init__(self, period: int = 14, name: str = "TRIX"):
+    def __init__(self, period: int = 14, name: str = "TRIX") -> None:
         super().__init__(name, {"period": period})
         self.period = period
         self.validate_parameters()
@@ -6374,7 +6374,7 @@ class UltimateOscillatorStrategy(Strategy):
         medium_period: int = 14,
         long_period: int = 28,
         name: str = "Ultimate_Oscillator",
-    ):
+    ) -> None:
         super().__init__(
             name,
             {
@@ -6496,7 +6496,7 @@ class PercentagePriceOscillatorStrategy(Strategy):
         signal_period: int = 9,
         use_zero_line: bool = False,
         name: str = "Percentage_Price_Oscillator",
-    ):
+    ) -> None:
         super().__init__(
             name,
             {
@@ -6672,7 +6672,7 @@ class PercentageVolumeOscillatorStrategy(Strategy):
         signal_period: int = 9,
         use_zero_line: bool = False,
         name: str = "Percentage_Volume_Oscillator",
-    ):
+    ) -> None:
         super().__init__(
             name,
             {
@@ -6842,7 +6842,7 @@ class DetrendedPriceOscillatorStrategy(Strategy):
         20
     """
 
-    def __init__(self, period: int = 20, name: str = "Detrended_Price_Oscillator"):
+    def __init__(self, period: int = 20, name: str = "Detrended_Price_Oscillator") -> None:
         super().__init__(name, {"period": period})
         self.period = period
         self.validate_parameters()
@@ -6939,7 +6939,7 @@ class StochasticMomentumIndexStrategy(Strategy):
         k_period: int = 5,
         signal_period: int = 3,
         name: str = "Stochastic_Momentum_Index",
-    ):
+    ) -> None:
         """Initialize the Stochastic Momentum Index strategy.
 
         Args:
@@ -7096,7 +7096,7 @@ class AccumulationDistributionStrategy(Strategy):
         21
     """
 
-    def __init__(self, signal_period: int = 21, name: str = "Accumulation_Distribution"):
+    def __init__(self, signal_period: int = 21, name: str = "Accumulation_Distribution") -> None:
         """Initialize the Accumulation/Distribution Line strategy.
 
         Args:
@@ -7247,7 +7247,7 @@ class NegativeVolumeIndexStrategy(Strategy):
         self,
         period: int = 255,
         name: str = "Negative_Volume_Index",
-    ):
+    ) -> None:
         super().__init__(name, {"period": period})
         self.period = period
         self.validate_parameters()
@@ -7352,7 +7352,7 @@ class PositiveVolumeIndexStrategy(Strategy):
         self,
         period: int = 255,
         name: str = "Positive_Volume_Index",
-    ):
+    ) -> None:
         super().__init__(name, {"period": period})
         self.period = period
         self.validate_parameters()
@@ -7462,7 +7462,7 @@ class StochRSIStrategy(Strategy):
         overbought: float = 80,
         use_midline: bool = False,
         name: str = "StochRSI",
-    ):
+    ) -> None:
         super().__init__(
             name,
             {
@@ -7636,7 +7636,7 @@ class ChoppinessIndexStrategy(Strategy):
         low_threshold: float = 38.2,
         high_threshold: float = 61.8,
         name: str = "Choppiness_Index",
-    ):
+    ) -> None:
         super().__init__(name=name)
         self.period = period
         self.low_threshold = low_threshold

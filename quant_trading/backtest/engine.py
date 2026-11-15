@@ -715,7 +715,7 @@ class BacktestEngine:
         config: BacktestConfig | Config | None = None,
         data_manager: DataManager | None = None,
         risk_manager: RiskManager | None = None,
-    ):
+    ) -> None:
         """Initialize the backtest engine.
 
         Args:

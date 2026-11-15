@@ -41,7 +41,7 @@ class YFinanceProvider(DataProvider):
         self,
         cache_dir: str = "./data/cache",
         cache_ttl_hours: float = 24.0,
-    ):
+    ) -> None:
         """Initialize the Yahoo Finance provider.
 
         Args:
@@ -708,7 +708,7 @@ class AlphaVantageProvider(DataProvider):
         cache_ttl_hours: float = 24.0,
         timeout: float = 30.0,
         warn_on_demo: bool = True,
-    ):
+    ) -> None:
         """Initialize the Alpha Vantage provider.
 
         Args:

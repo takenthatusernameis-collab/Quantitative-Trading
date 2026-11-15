@@ -527,7 +527,7 @@ class DataManager:
 
     """
 
-    def __init__(self, providers: list[DataProvider] | None = None):
+    def __init__(self, providers: list[DataProvider] | None = None) -> None:
         """Initialize the data manager.
 
         Args:
@@ -752,7 +752,7 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
 
             """
 
-            def __init__(self, config: DataConfig):
+            def __init__(self, config: DataConfig) -> None:
                 """Initialize the lazy synthetic provider.
 
                 Args:
