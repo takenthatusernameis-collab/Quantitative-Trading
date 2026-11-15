@@ -8,7 +8,7 @@ import pytest
 from quant_trading.strategies.examples import MovingAverageCrossover
 
 
-def _df(prices):
+def _df(prices: list[float]) -> pd.DataFrame:
     dates = pd.date_range(end=datetime.now(), periods=len(prices), freq="D")
     return pd.DataFrame(
         {
@@ -22,21 +22,21 @@ def _df(prices):
     )
 
 
-def test_init_defaults():
+def test_init_defaults() -> None:
     s = MovingAverageCrossover()
     assert s.fast_period == 10
     assert s.slow_period == 30
     assert s.name == "MA_Crossover"
 
 
-def test_validate_params():
+def test_validate_params() -> None:
     with pytest.raises(ValueError):
         MovingAverageCrossover(fast_period=0)
     with pytest.raises(ValueError):
         MovingAverageCrossover(fast_period=20, slow_period=10)
 
 
-def test_validate_slow_period_must_be_positive():
+def test_validate_slow_period_must_be_positive() -> None:
     # slow_period <= 0 is unreachable via the constructor because
     # fast_period >= slow_period is checked first, so call validate_parameters
     # directly after mutating the attribute to cover that defensive branch.
@@ -46,12 +46,12 @@ def test_validate_slow_period_must_be_positive():
         s.validate_parameters()
 
 
-def test_insufficient_data():
+def test_insufficient_data() -> None:
     s = MovingAverageCrossover(fast_period=2, slow_period=4)
     assert s.generate_signals({"AAPL": _df([1.0, 2.0, 3.0])}) == []
 
 
-def test_signal_shape():
+def test_signal_shape() -> None:
     # Build data that crosses
     prices = [10.0] * 30 + [20.0] * 5
     s = MovingAverageCrossover(fast_period=3, slow_period=5)
@@ -62,7 +62,7 @@ def test_signal_shape():
         assert 0.0 <= sig.strength <= 1.0
 
 
-def test_incremental_update_path_is_reached():
+def test_incremental_update_path_is_reached() -> None:
     # The incremental-update branch requires a prior call whose state has
     # ``n == current_len - 1`` for the same symbol on the same instance.
     prices = [10.0, 10.0, 10.0, 10.0, 10.0, 15.0]
@@ -86,7 +86,7 @@ def test_incremental_update_path_is_reached():
     ]
 
 
-def test_incremental_slow_window_still_growing_branch():
+def test_incremental_slow_window_still_growing_branch() -> None:
     # Force the incremental path's "window still growing" else-branch for the
     # slow moving average by making the prior state look one bar shorter than
     # the slow window, while keeping the sums consistent.
@@ -100,7 +100,7 @@ def test_incremental_slow_window_still_growing_branch():
     assert s._ma_state["AAPL"]["n"] == 5
 
 
-def test_generate_signals_skips_when_last_price_is_nan():
+def test_generate_signals_skips_when_last_price_is_nan() -> None:
     s = MovingAverageCrossover(fast_period=2, slow_period=4)
     sigs = s.generate_signals({"AAPL": _df([1.0, 2.0, 3.0, 4.0, float("nan")])})
     assert sigs == []
