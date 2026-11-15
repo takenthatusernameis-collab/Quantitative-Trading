@@ -390,9 +390,12 @@ def calculate_beta(returns: pd.Series, market_returns: pd.Series) -> float:
     aligned = _align_series(returns, market_returns)
     if len(aligned) < 2:
         return 0.0
-    cov = aligned.iloc[:, 0].cov(aligned.iloc[:, 1])
-    var = aligned.iloc[:, 1].var()
-    if var == 0:
+    market = aligned.iloc[:, 1]
+    if market.nunique() <= 1:
+        return 0.0
+    cov = aligned.iloc[:, 0].cov(market)
+    var = market.var()
+    if not np.isfinite(var) or var == 0:
         return 0.0
     return float(cov / var)
 

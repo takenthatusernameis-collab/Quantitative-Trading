@@ -31,38 +31,38 @@ EQUITY_STEADY = pd.Series([100.0, 105.0, 110.0])
 class TestCalculateReturns:
     """Tests for calculate_returns."""
 
-    def test_basic_returns(self):
+    def test_basic_returns(self) -> None:
         prices = pd.Series([100.0, 110.0, 121.0])
         expected = pd.Series([0.1, 0.1])
         result = calculate_returns(prices)
-        np.testing.assert_allclose(result.values, expected.values)
+        np.testing.assert_allclose(result.to_numpy(), expected.to_numpy())
 
-    def test_single_price_returns_empty(self):
+    def test_single_price_returns_empty(self) -> None:
         prices = pd.Series([100.0])
         result = calculate_returns(prices)
         assert len(result) == 0
 
-    def test_empty_prices_returns_empty(self):
+    def test_empty_prices_returns_empty(self) -> None:
         prices = pd.Series([], dtype=float)
         result = calculate_returns(prices)
         assert len(result) == 0
 
-    def test_no_negative_indexing_leak(self):
+    def test_no_negative_indexing_leak(self) -> None:
         prices = pd.Series([100.0, 90.0, 99.0])
         result = calculate_returns(prices)
         assert len(result) == 2
 
-    def test_returns_with_nan_dropped(self):
+    def test_returns_with_nan_dropped(self) -> None:
         prices = pd.Series([1.0, float("nan"), 2.0, 3.0])
         res = calculate_returns(prices)
         assert res.isna().sum() == 0
 
-    def test_returns_all_same(self):
+    def test_returns_all_same(self) -> None:
         prices = pd.Series([1.0, 1.0, 1.0])
         res = calculate_returns(prices)
         assert all(v == 0.0 for v in res)
 
-    def test_returns_two_points(self):
+    def test_returns_two_points(self) -> None:
         prices = pd.Series([1.0, 2.0])
         res = calculate_returns(prices)
         assert len(res) == 1
@@ -71,7 +71,7 @@ class TestCalculateReturns:
         result = calculate_returns(prices)
         assert len(result) == 2
 
-    def test_returns_zero_previous_price_no_inf(self):
+    def test_returns_zero_previous_price_no_inf(self) -> None:
         """A zero previous price must not produce inf/NaN returns.
 
         The move out of a zero price is undefined and dropped, so downstream
@@ -87,45 +87,45 @@ class TestCalculateReturns:
 class TestCalculateVolatility:
     """Tests for calculate_volatility."""
 
-    def test_raw_volatility(self):
+    def test_raw_volatility(self) -> None:
         vol = calculate_volatility(RETURNS, annualize=False)
         assert vol == pytest.approx(RETURNS.std())
 
-    def test_annualized_volatility(self):
+    def test_annualized_volatility(self) -> None:
         vol = calculate_volatility(RETURNS, annualize=True)
         assert vol == pytest.approx(RETURNS.std() * np.sqrt(252))
 
-    def test_annualized_scales_raw(self):
+    def test_annualized_scales_raw(self) -> None:
         raw = calculate_volatility(RETURNS, annualize=False)
         annual = calculate_volatility(RETURNS, annualize=True)
         assert annual == pytest.approx(raw * np.sqrt(252))
 
-    def test_empty_series_returns_zero(self):
+    def test_empty_series_returns_zero(self) -> None:
         """Empty returns must not propagate NaN (risk/metrics.py:44->47)."""
         result = calculate_volatility(pd.Series([], dtype=float))
         assert not np.isnan(result)
         assert result == pytest.approx(0.0)
 
-    def test_empty_series_non_annualized_returns_zero(self):
+    def test_empty_series_non_annualized_returns_zero(self) -> None:
         """Empty returns must not propagate NaN when annualize=False."""
         result = calculate_volatility(pd.Series([], dtype=float), annualize=False)
         assert not np.isnan(result)
         assert result == pytest.approx(0.0)
 
-    def test_single_value_zero(self):
+    def test_single_value_zero(self) -> None:
         """A single return has undefined std; must not propagate NaN."""
         result = calculate_volatility(pd.Series([0.01]))
         assert not np.isnan(result)
         assert result == pytest.approx(0.0)
 
-    def test_periods_per_year_scales_annualization(self):
+    def test_periods_per_year_scales_annualization(self) -> None:
         """Annualized volatility must scale with the requested periods per year."""
         raw = calculate_volatility(RETURNS, annualize=False)
         weekly = calculate_volatility(RETURNS, annualize=True, periods_per_year=52)
         assert weekly == pytest.approx(raw * np.sqrt(52))
         assert weekly != pytest.approx(raw * np.sqrt(252))
 
-    def test_periods_per_year_ignored_when_not_annualizing(self):
+    def test_periods_per_year_ignored_when_not_annualizing(self) -> None:
         """The raw (non-annualized) volatility is independent of periods_per_year."""
         raw = calculate_volatility(RETURNS, annualize=False)
         assert calculate_volatility(RETURNS, annualize=False, periods_per_year=52) == pytest.approx(
@@ -136,30 +136,30 @@ class TestCalculateVolatility:
 class TestCalculateMaxDrawdown:
     """Tests for calculate_max_drawdown."""
 
-    def test_drawdown_from_peak(self):
+    def test_drawdown_from_peak(self) -> None:
         equity = pd.Series([100.0, 110.0, 90.0, 95.0])
         result = calculate_max_drawdown(equity)
         assert result == pytest.approx((90.0 - 110.0) / 110.0)
 
-    def test_no_drawdown_monotonic(self):
+    def test_no_drawdown_monotonic(self) -> None:
         equity = pd.Series([100.0, 105.0, 110.0])
         assert calculate_max_drawdown(equity) == pytest.approx(0.0)
 
-    def test_single_value_zero(self):
+    def test_single_value_zero(self) -> None:
         equity = pd.Series([100.0])
         assert calculate_max_drawdown(equity) == pytest.approx(0.0)
 
-    def test_empty_zero(self):
+    def test_empty_zero(self) -> None:
         equity = pd.Series([], dtype=float)
         assert calculate_max_drawdown(equity) == pytest.approx(0.0)
 
-    def test_zero_equity_no_nan(self):
+    def test_zero_equity_no_nan(self) -> None:
         """All-zero equity must not propagate NaN (risk/metrics.py:55->56)."""
         result = calculate_max_drawdown(pd.Series([0.0, 0.0, 0.0]))
         assert not np.isnan(result)
         assert result == pytest.approx(0.0)
 
-    def test_zero_then_positive_no_nan(self):
+    def test_zero_then_positive_no_nan(self) -> None:
         """Equity starting at zero then rising must not propagate NaN."""
         result = calculate_max_drawdown(pd.Series([0.0, 0.0, 5.0, 10.0]))
         assert not np.isnan(result)
@@ -169,36 +169,36 @@ class TestCalculateMaxDrawdown:
 class TestCalculateSharpeRatio:
     """Tests for calculate_sharpe_ratio."""
 
-    def test_annualized_with_risk_free(self):
+    def test_annualized_with_risk_free(self) -> None:
         sharpe = calculate_sharpe_ratio(RETURNS, risk_free_rate=0.02)
         expected = (RETURNS.mean() - 0.02 / 252) / RETURNS.std() * np.sqrt(252)
         assert sharpe == pytest.approx(expected)
 
-    def test_non_annualized(self):
+    def test_non_annualized(self) -> None:
         sharpe = calculate_sharpe_ratio(RETURNS, risk_free_rate=0.02, annualize=False)
         annual = calculate_sharpe_ratio(RETURNS, risk_free_rate=0.02, annualize=True)
         assert sharpe == pytest.approx(annual / np.sqrt(252))
 
-    def test_empty_returns_zero(self):
+    def test_empty_returns_zero(self) -> None:
         assert calculate_sharpe_ratio(pd.Series([], dtype=float)) == pytest.approx(0.0)
 
-    def test_zero_volatility_zero(self):
+    def test_zero_volatility_zero(self) -> None:
         flat = pd.Series([0.01, 0.01, 0.01])
         assert calculate_sharpe_ratio(flat) == pytest.approx(0.0)
 
-    def test_single_observation_no_nan(self):
+    def test_single_observation_no_nan(self) -> None:
         """A single return has undefined std; must not propagate NaN."""
         result = calculate_sharpe_ratio(pd.Series([0.01]))
         assert not np.isnan(result)
         assert result == pytest.approx(0.0)
 
-    def test_periods_per_year_used_for_risk_free_and_scaling(self):
+    def test_periods_per_year_used_for_risk_free_and_scaling(self) -> None:
         """The annual risk-free rate and the sqrt scaling must use periods_per_year."""
         expected = (RETURNS.mean() - 0.02 / 52) / RETURNS.std() * np.sqrt(52)
         sharpe = calculate_sharpe_ratio(RETURNS, risk_free_rate=0.02, periods_per_year=52)
         assert sharpe == pytest.approx(expected)
 
-    def test_periods_per_year_differs_from_default(self):
+    def test_periods_per_year_differs_from_default(self) -> None:
         """A non-daily annualization period must change the Sharpe ratio."""
         daily = calculate_sharpe_ratio(RETURNS, risk_free_rate=0.02)
         monthly = calculate_sharpe_ratio(RETURNS, risk_free_rate=0.02, periods_per_year=12)
@@ -214,21 +214,21 @@ class TestCalculateSortinoRatio:
         shortfalls = np.minimum(returns.to_numpy(dtype=float) - mar, 0.0)
         return float(np.sqrt(np.mean(shortfalls**2)))
 
-    def test_normal_case(self):
+    def test_normal_case(self) -> None:
         sortino = calculate_sortino_ratio(RETURNS, risk_free_rate=0.02)
         mar = 0.02 / 252
         downside_dev = self._downside_deviation(RETURNS, mar)
         expected = (RETURNS.mean() - mar) / downside_dev * np.sqrt(252)
         assert sortino == pytest.approx(expected)
 
-    def test_no_downside_returns_zero(self):
+    def test_no_downside_returns_zero(self) -> None:
         positive = pd.Series([0.01, 0.02, 0.03])
         assert calculate_sortino_ratio(positive) == pytest.approx(0.0)
 
-    def test_empty_returns_zero(self):
+    def test_empty_returns_zero(self) -> None:
         assert calculate_sortino_ratio(pd.Series([], dtype=float)) == pytest.approx(0.0)
 
-    def test_single_downside_is_defined(self):
+    def test_single_downside_is_defined(self) -> None:
         """A single losing period still yields a defined downside deviation.
 
         The downside deviation is taken over the full sample, so one losing
@@ -245,14 +245,14 @@ class TestCalculateSortinoRatio:
         assert result == pytest.approx(expected)
         assert result > 0.0
 
-    def test_loss_only_series_is_negative(self):
+    def test_loss_only_series_is_negative(self) -> None:
         """A strategy that never beats the MAR must not report a zero ratio."""
         losing = pd.Series([-0.01, -0.02, -0.01, -0.03])
         result = calculate_sortino_ratio(losing, risk_free_rate=0.02)
         assert not np.isnan(result)
         assert result < 0.0
 
-    def test_identical_downside_is_not_zero(self):
+    def test_identical_downside_is_not_zero(self) -> None:
         """Identical losing periods still have a non-zero downside deviation."""
         identical = pd.Series([0.01, -0.02, -0.02, 0.01])
         result = calculate_sortino_ratio(identical, risk_free_rate=0.02)
@@ -264,7 +264,7 @@ class TestCalculateSortinoRatio:
         assert result == pytest.approx(expected)
         assert result < 0.0
 
-    def test_constant_returns_zero_not_degenerate(self):
+    def test_constant_returns_zero_not_degenerate(self) -> None:
         """A constant return series must not produce a degenerate +/-1 ratio.
 
         A flat portfolio (zero trades, zero variance) has no downside to
@@ -280,13 +280,13 @@ class TestCalculateSortinoRatio:
         assert calculate_sortino_ratio(flat) == pytest.approx(0.0)
         assert not np.isnan(calculate_sortino_ratio(flat))
 
-    def test_constant_negative_returns_zero(self):
+    def test_constant_negative_returns_zero(self) -> None:
         """A constant losing series (zero variance) must also report 0.0."""
         constant_loss = pd.Series([-0.01] * 5)
         assert constant_loss.std() == 0.0
         assert calculate_sortino_ratio(constant_loss) == pytest.approx(0.0)
 
-    def test_single_or_nan_std_returns_zero_not_degenerate(self):
+    def test_single_or_nan_std_returns_zero_not_degenerate(self) -> None:
         """A single observation (NaN std) must not produce a degenerate ratio.
 
         After dropping NaNs, an equity path can collapse to a single return
@@ -306,13 +306,13 @@ class TestCalculateSortinoRatio:
         assert metrics.sortino_ratio == pytest.approx(0.0)
         assert metrics.sharpe_ratio == pytest.approx(0.0)
 
-    def test_non_annualized(self):
+    def test_non_annualized(self) -> None:
         """annualize=False skips the sqrt(252) scaling (risk/metrics.py:90->92)."""
         non_annual = calculate_sortino_ratio(RETURNS, risk_free_rate=0.02, annualize=False)
         annual = calculate_sortino_ratio(RETURNS, risk_free_rate=0.02, annualize=True)
         assert non_annual == pytest.approx(annual / np.sqrt(252))
 
-    def test_periods_per_year_used_for_risk_free_and_scaling(self):
+    def test_periods_per_year_used_for_risk_free_and_scaling(self) -> None:
         """The annual risk-free rate and the sqrt scaling must use periods_per_year."""
         mar = 0.02 / 52
         downside_dev = self._downside_deviation(RETURNS, mar)
@@ -324,40 +324,40 @@ class TestCalculateSortinoRatio:
 class TestCalculateVar:
     """Tests for calculate_var."""
 
-    def test_var_95(self):
+    def test_var_95(self) -> None:
         result = calculate_var(RETURNS, confidence=0.95)
         assert result == pytest.approx(np.percentile(RETURNS, 5))
 
-    def test_var_99(self):
+    def test_var_99(self) -> None:
         result = calculate_var(RETURNS, confidence=0.99)
         assert result == pytest.approx(np.percentile(RETURNS, 1))
 
-    def test_empty_returns_zero(self):
+    def test_empty_returns_zero(self) -> None:
         assert calculate_var(pd.Series([], dtype=float)) == pytest.approx(0.0)
 
 
 class TestCalculateBeta:
     """Tests for calculate_beta."""
 
-    def test_beta_correlation(self):
+    def test_beta_correlation(self) -> None:
         beta = calculate_beta(RETURNS, MARKET_RETURNS)
         aligned = pd.concat([RETURNS, MARKET_RETURNS], axis=1).dropna()
         expected = aligned.iloc[:, 0].cov(aligned.iloc[:, 1]) / aligned.iloc[:, 1].var()
         assert beta == pytest.approx(expected)
 
-    def test_beta_identical_series_is_one(self):
+    def test_beta_identical_series_is_one(self) -> None:
         beta = calculate_beta(RETURNS, RETURNS)
         assert beta == pytest.approx(1.0)
 
-    def test_beta_insufficient_samples(self):
+    def test_beta_insufficient_samples(self) -> None:
         small = pd.Series([0.01])
         assert calculate_beta(small, MARKET_RETURNS) == pytest.approx(0.0)
 
-    def test_beta_zero_market_variance(self):
+    def test_beta_zero_market_variance(self) -> None:
         constant = pd.Series([1.0, 1.0, 1.0, 1.0, 1.0])
         assert calculate_beta(RETURNS, constant) == pytest.approx(0.0)
 
-    def test_beta_non_overlapping_indices_aligns_positionally(self):
+    def test_beta_non_overlapping_indices_aligns_positionally(self) -> None:
         """When index alignment leaves no overlap, series fall back to positional alignment.
 
         Two same-length series with disjoint date indices can no longer be
@@ -372,7 +372,7 @@ class TestCalculateBeta:
         expected = calculate_beta(returns.reset_index(drop=True), market.reset_index(drop=True))
         assert calculate_beta(returns, market) == pytest.approx(expected)
 
-    def test_beta_insufficient_aligned_points_after_fallback(self):
+    def test_beta_insufficient_aligned_points_after_fallback(self) -> None:
         """Both series have >= 2 points but NaNs leave < 2 aligned -> 0.0 beta.
 
         Index alignment and the positional fallback both drop the NaN rows,
@@ -387,17 +387,17 @@ class TestCalculateBeta:
 class TestCalculateAlpha:
     """Tests for calculate_alpha."""
 
-    def test_alpha_value(self):
+    def test_alpha_value(self) -> None:
         alpha = calculate_alpha(RETURNS, MARKET_RETURNS, risk_free_rate=0.02)
         beta = calculate_beta(RETURNS, MARKET_RETURNS)
         expected = RETURNS.mean() * 252 - (0.02 + beta * (MARKET_RETURNS.mean() * 252 - 0.02))
         assert alpha == pytest.approx(expected)
 
-    def test_alpha_zero_beta(self):
+    def test_alpha_zero_beta(self) -> None:
         constant = pd.Series([1.0, 1.0, 1.0, 1.0, 1.0])
         assert calculate_alpha(RETURNS, constant) == pytest.approx(0.0)
 
-    def test_alpha_periods_per_year_scales_annualization(self):
+    def test_alpha_periods_per_year_scales_annualization(self) -> None:
         """Alpha annualization must follow the requested periods per year."""
         beta = calculate_beta(RETURNS, MARKET_RETURNS)
         expected = RETURNS.mean() * 12 - (0.02 + beta * (MARKET_RETURNS.mean() * 12 - 0.02))
@@ -408,21 +408,21 @@ class TestCalculateAlpha:
 class TestCalculateCalmarRatio:
     """Tests for calculate_calmar_ratio."""
 
-    def test_calmar_value(self):
+    def test_calmar_value(self) -> None:
         equity = pd.Series([100.0, 110.0, 90.0, 95.0])
         calmar = calculate_calmar_ratio(RETURNS, equity)
         expected = (RETURNS.mean() * 252) / abs(calculate_max_drawdown(equity))
         assert calmar == pytest.approx(expected)
 
-    def test_calmar_no_drawdown_zero(self):
+    def test_calmar_no_drawdown_zero(self) -> None:
         equity = pd.Series([100.0, 105.0, 110.0])
         assert calculate_calmar_ratio(RETURNS, equity) == pytest.approx(0.0)
 
-    def test_calmar_empty_returns_zero(self):
+    def test_calmar_empty_returns_zero(self) -> None:
         equity = pd.Series([100.0])
         assert calculate_calmar_ratio(pd.Series([], dtype=float), equity) == pytest.approx(0.0)
 
-    def test_calmar_periods_per_year_scales_annual_return(self):
+    def test_calmar_periods_per_year_scales_annual_return(self) -> None:
         """The annualized return in the Calmar ratio must follow periods_per_year."""
         equity = pd.Series([100.0, 110.0, 90.0, 95.0])
         expected = (RETURNS.mean() * 12) / abs(calculate_max_drawdown(equity))
@@ -433,7 +433,7 @@ class TestCalculateCalmarRatio:
 class TestRiskMetricsDataclass:
     """Tests for RiskMetrics container."""
 
-    def test_to_dict_keys(self):
+    def test_to_dict_keys(self) -> None:
         metrics = RiskMetrics(
             sharpe_ratio=1.5,
             sortino_ratio=0.8,
@@ -470,12 +470,12 @@ class TestRiskMetricsDataclass:
         assert data["sharpe_ratio"] == pytest.approx(1.5)
         assert data["calmar_ratio"] == pytest.approx(2.3)
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         metrics = RiskMetrics()
         data = metrics.to_dict()
         assert all(v == 0.0 for v in data.values())
 
-    def test_from_dict_round_trip(self):
+    def test_from_dict_round_trip(self) -> None:
         """from_dict(to_dict(metrics)) restores every field."""
         metrics = RiskMetrics(
             sharpe_ratio=1.5,
@@ -499,7 +499,7 @@ class TestRiskMetricsDataclass:
         assert restored.alpha == pytest.approx(0.02)
         assert restored.calmar_ratio == pytest.approx(2.3)
 
-    def test_from_dict_defaults_missing_fields(self):
+    def test_from_dict_defaults_missing_fields(self) -> None:
         """from_dict tolerates a dict that omits fields."""
         restored = RiskMetrics.from_dict({"sharpe_ratio": 1.5})
         assert restored.sharpe_ratio == pytest.approx(1.5)
@@ -507,7 +507,7 @@ class TestRiskMetricsDataclass:
             value == 0.0 for name, value in restored.to_dict().items() if name != "sharpe_ratio"
         )
 
-    def test_from_dict_empty_dict(self):
+    def test_from_dict_empty_dict(self) -> None:
         """from_dict tolerates an empty dict."""
         restored = RiskMetrics.from_dict({})
         assert all(v == 0.0 for v in restored.to_dict().values())
@@ -516,7 +516,7 @@ class TestRiskMetricsDataclass:
 class TestCalculateAllMetrics:
     """Tests for calculate_all_metrics orchestration."""
 
-    def test_without_market_returns(self):
+    def test_without_market_returns(self) -> None:
         equity = pd.Series([100.0, 105.0, 110.0, 108.0, 115.0])
         metrics = calculate_all_metrics(equity, risk_free_rate=0.02)
         assert metrics.beta == pytest.approx(0.0)
@@ -527,7 +527,7 @@ class TestCalculateAllMetrics:
         result = metrics.to_dict()
         assert set(result.keys()) == RiskMetrics().to_dict().keys()
 
-    def test_with_market_returns_beta_one(self):
+    def test_with_market_returns_beta_one(self) -> None:
         idx = pd.date_range("2020-01-01", periods=6)
         equity = pd.Series([100.0, 105.0, 110.0, 108.0, 112.0, 118.0], index=idx)
         market = calculate_returns(equity)
@@ -535,7 +535,7 @@ class TestCalculateAllMetrics:
         assert metrics.beta == pytest.approx(1.0)
         assert metrics.alpha == pytest.approx(0.0, abs=1e-9)
 
-    def test_with_market_returns_custom_beta(self):
+    def test_with_market_returns_custom_beta(self) -> None:
         equity = pd.Series([100.0, 95.0, 93.1, 94.031, 96.85, 104.61])
         market = pd.Series([100.0, 96.0, 95.0, 97.0, 98.0, 101.0])
         metrics = calculate_all_metrics(
@@ -548,7 +548,7 @@ class TestCalculateAllMetrics:
         )
         assert metrics.alpha == pytest.approx(expected_alpha)
 
-    def test_periods_per_year_threaded_to_every_metric(self):
+    def test_periods_per_year_threaded_to_every_metric(self) -> None:
         """calculate_all_metrics must use the requested periods per year everywhere."""
         equity = pd.Series([100.0, 105.0, 110.0, 108.0, 115.0, 112.0, 120.0])
         returns = calculate_returns(equity)
@@ -577,7 +577,7 @@ class TestCalculateAllMetrics:
             )
         )
 
-    def test_default_periods_per_year_matches_daily_annualization(self):
+    def test_default_periods_per_year_matches_daily_annualization(self) -> None:
         """The default (252) must reproduce the documented daily annualization."""
         equity = pd.Series([100.0, 105.0, 110.0, 108.0, 115.0, 112.0, 120.0])
         returns = calculate_returns(equity)
@@ -588,58 +588,58 @@ class TestCalculateAllMetrics:
         )
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+class TestEdgeCaseCoverage:
+    """Additional edge-case coverage recovered from the legacy __main__ block."""
 
-    def test_var_single_value(self):
+    def test_var_single_value(self) -> None:
         """Single value returns: percentile behavior should not produce NaN."""
         result = calculate_var(pd.Series([0.01]), confidence=0.95)
         assert not np.isnan(result)
         assert result == pytest.approx(0.01)
 
-    def test_var_single_value_high_confidence(self):
+    def test_var_single_value_high_confidence(self) -> None:
         """Single value with high confidence."""
         result = calculate_var(pd.Series([-0.05]), confidence=0.99)
         assert not np.isnan(result)
         assert result == pytest.approx(-0.05)
 
-    def test_beta_market_single_value(self):
+    def test_beta_market_single_value(self) -> None:
         """Market with single value paired with returns < 2 aligned should give 0."""
         returns = pd.Series([0.01, 0.02, 0.03])
         market = pd.Series([0.01])  # only 1 value
         assert calculate_beta(returns, market) == pytest.approx(0.0)
 
-    def test_beta_both_single_values(self):
+    def test_beta_both_single_values(self) -> None:
         returns = pd.Series([0.01])
         market = pd.Series([0.02])
         assert calculate_beta(returns, market) == pytest.approx(0.0)
 
-    def test_beta_market_constant_after_alignment(self):
+    def test_beta_market_constant_after_alignment(self) -> None:
         returns = pd.Series([0.01, 0.02, 0.03])
         market = pd.Series([0.05, 0.05, 0.05])
         assert calculate_beta(returns, market) == pytest.approx(0.0)
 
-    def test_alpha_insufficient_returns(self):
+    def test_alpha_insufficient_returns(self) -> None:
         small = pd.Series([0.01])
         market = pd.Series([0.01, 0.02, 0.03])
         assert calculate_alpha(small, market) == pytest.approx(0.0)
 
-    def test_alpha_insufficient_market(self):
+    def test_alpha_insufficient_market(self) -> None:
         returns = pd.Series([0.01, 0.02, 0.03])
         small = pd.Series([0.01])
         assert calculate_alpha(returns, small) == pytest.approx(0.0)
 
-    def test_returns_with_nan_dropped(self):
+    def test_returns_with_nan_dropped(self) -> None:
         prices = pd.Series([1.0, float("nan"), 2.0, 3.0])
         res = calculate_returns(prices)
         assert res.isna().sum() == 0
 
-    def test_returns_all_same_extra(self):
+    def test_returns_all_same_extra(self) -> None:
         prices = pd.Series([1.0, 1.0, 1.0])
         res = calculate_returns(prices)
         assert all(v == 0.0 for v in res)
 
-    def test_returns_two_points_extra(self):
+    def test_returns_two_points_extra(self) -> None:
         prices = pd.Series([1.0, 2.0])
         res = calculate_returns(prices)
         assert len(res) == 1
@@ -649,52 +649,52 @@ if __name__ == "__main__":
 class TestNanHandling:
     """Tests for NaN handling in risk metrics."""
 
-    def test_var_with_nans(self):
+    def test_var_with_nans(self) -> None:
         r = pd.Series([0.01, float("nan"), 0.02, -0.01])
         res = calculate_var(r)
         assert not np.isnan(res)
         assert res < 0
 
-    def test_volatility_with_nans(self):
+    def test_volatility_with_nans(self) -> None:
         r = pd.Series([0.01, float("nan"), 0.02, -0.01])
         res = calculate_volatility(r)
         assert not np.isnan(res)
         assert res > 0
 
-    def test_sharpe_ratio_with_nans(self):
+    def test_sharpe_ratio_with_nans(self) -> None:
         r = pd.Series([0.01, float("nan"), 0.02, -0.01, 0.03])
         res = calculate_sharpe_ratio(r)
         assert not np.isnan(res)
 
-    def test_sortino_ratio_with_nans(self):
+    def test_sortino_ratio_with_nans(self) -> None:
         r = pd.Series([0.01, float("nan"), 0.02, -0.01, -0.02])
         res = calculate_sortino_ratio(r)
         assert not np.isnan(res)
 
-    def test_max_drawdown_with_nans(self):
+    def test_max_drawdown_with_nans(self) -> None:
         eq = pd.Series([100.0, float("nan"), 110.0, 105.0, 100.0])
         res = calculate_max_drawdown(eq)
         assert not np.isnan(res)
 
-    def test_beta_with_nans(self):
+    def test_beta_with_nans(self) -> None:
         r = pd.Series([0.01, float("nan"), 0.02, -0.01])
         m = pd.Series([0.005, 0.01, float("nan"), -0.005])
         res = calculate_beta(r, m)
         assert not np.isnan(res)
 
-    def test_alpha_with_nans(self):
+    def test_alpha_with_nans(self) -> None:
         r = pd.Series([0.01, float("nan"), 0.02, -0.01])
         m = pd.Series([0.005, 0.01, float("nan"), -0.005])
         res = calculate_alpha(r, m)
         assert not np.isnan(res)
 
-    def test_calmar_ratio_with_nans(self):
+    def test_calmar_ratio_with_nans(self) -> None:
         eq = pd.Series([100.0, float("nan"), 110.0, 105.0, 90.0])
         r = calculate_returns(eq)
         res = calculate_calmar_ratio(r, eq)
         assert not np.isnan(res)
 
-    def test_all_metrics_with_nans_in_equity(self):
+    def test_all_metrics_with_nans_in_equity(self) -> None:
         eq = pd.Series([100.0, float("nan"), 110.0, 105.0, 100.0, 95.0])
         m = pd.Series([0.01, float("nan"), 0.02, 0.01, 0.0, -0.01])
         res = calculate_all_metrics(eq, market_returns=m)
@@ -711,7 +711,7 @@ class TestAlphaAlignment:
     input series have non-overlapping indices or NaN values.
     """
 
-    def test_alpha_uses_aligned_sample_with_misaligned_indices(self):
+    def test_alpha_uses_aligned_sample_with_misaligned_indices(self) -> None:
         """Alpha must average the same aligned observations used for beta."""
         returns = pd.Series([0.01, 0.02, 0.03], index=[0, 1, 2])
         market = pd.Series([0.01, 0.02, 0.03], index=[1, 2, 3])
@@ -724,13 +724,13 @@ class TestAlphaAlignment:
 
         assert calculate_alpha(returns, market) == pytest.approx(expected)
 
-    def test_alpha_non_overlapping_indices_returns_zero(self):
+    def test_alpha_non_overlapping_indices_returns_zero(self) -> None:
         """Completely disjoint indices yield no aligned sample -> alpha 0."""
         returns = pd.Series([0.01, 0.02, 0.03], index=[0, 1, 2])
         market = pd.Series([0.01, 0.02, 0.03], index=[3, 4, 5])
         assert calculate_alpha(returns, market) == pytest.approx(0.0)
 
-    def test_alpha_partial_overlap_uses_only_aligned_points(self):
+    def test_alpha_partial_overlap_uses_only_aligned_points(self) -> None:
         """Only overlapping dates contribute to the alpha means."""
         idx = pd.date_range("2020-01-01", periods=5)
         returns = pd.Series([0.01, 0.02, 0.03, 0.04, 0.05], index=idx)
@@ -743,7 +743,7 @@ class TestAlphaAlignment:
         )
         assert calculate_alpha(returns, market) == pytest.approx(expected)
 
-    def test_alpha_consistent_with_beta_in_calculate_all_metrics(self):
+    def test_alpha_consistent_with_beta_in_calculate_all_metrics(self) -> None:
         """calculate_all_metrics must report alpha consistent with its beta."""
         idx = pd.date_range("2020-01-01", periods=6)
         equity = pd.Series([100.0, 105.0, 110.0, 108.0, 112.0, 118.0], index=idx)
@@ -754,7 +754,7 @@ class TestAlphaAlignment:
         assert metrics.alpha == pytest.approx(expected_alpha)
         assert metrics.beta == pytest.approx(calculate_beta(calculate_returns(equity), market))
 
-    def test_alpha_nan_in_market_dropped_before_alignment(self):
+    def test_alpha_nan_in_market_dropped_before_alignment(self) -> None:
         """NaN values in either series are dropped by the shared alignment."""
         returns = pd.Series([0.01, float("nan"), 0.02, -0.01])
         market = pd.Series([0.005, 0.01, float("nan"), -0.005])
@@ -772,21 +772,21 @@ class TestAlphaAlignment:
 class TestCalculateTreynorRatio:
     """Tests for calculate_treynor_ratio."""
 
-    def test_treynor_basic(self):
+    def test_treynor_basic(self) -> None:
         treynor = calculate_treynor_ratio(RETURNS, MARKET_RETURNS, risk_free_rate=0.02)
         beta = calculate_beta(RETURNS, MARKET_RETURNS)
         expected = (RETURNS.mean() - 0.02 / 252) / beta * 252
         assert treynor == pytest.approx(expected)
 
-    def test_treynor_zero_beta(self):
+    def test_treynor_zero_beta(self) -> None:
         constant = pd.Series([1.0, 1.0, 1.0, 1.0, 1.0])
         assert calculate_treynor_ratio(RETURNS, constant) == pytest.approx(0.0)
 
-    def test_treynor_insufficient_returns(self):
+    def test_treynor_insufficient_returns(self) -> None:
         small = pd.Series([0.01])
         assert calculate_treynor_ratio(small, MARKET_RETURNS) == pytest.approx(0.0)
 
-    def test_treynor_periods_per_year_scales(self):
+    def test_treynor_periods_per_year_scales(self) -> None:
         daily = calculate_treynor_ratio(RETURNS, MARKET_RETURNS, risk_free_rate=0.02)
         monthly = calculate_treynor_ratio(
             RETURNS, MARKET_RETURNS, risk_free_rate=0.02, periods_per_year=12
@@ -797,25 +797,25 @@ class TestCalculateTreynorRatio:
 class TestCalculateInformationRatio:
     """Tests for calculate_information_ratio."""
 
-    def test_information_ratio_basic(self):
+    def test_information_ratio_basic(self) -> None:
         info = calculate_information_ratio(RETURNS, MARKET_RETURNS)
         aligned = _align_series(RETURNS, MARKET_RETURNS)
         active = aligned.iloc[:, 0] - aligned.iloc[:, 1]
         expected = active.mean() / active.std() * np.sqrt(252)
         assert info == pytest.approx(expected)
 
-    def test_information_ratio_identical_series(self):
+    def test_information_ratio_identical_series(self) -> None:
         assert calculate_information_ratio(RETURNS, RETURNS) == pytest.approx(0.0)
 
-    def test_information_ratio_zero_tracking_error(self):
+    def test_information_ratio_zero_tracking_error(self) -> None:
         constant = pd.Series([0.01, 0.01, 0.01, 0.01, 0.01])
         assert calculate_information_ratio(RETURNS, constant) == pytest.approx(0.0)
 
-    def test_information_ratio_insufficient_aligned(self):
+    def test_information_ratio_insufficient_aligned(self) -> None:
         small = pd.Series([0.01])
         assert calculate_information_ratio(small, MARKET_RETURNS) == pytest.approx(0.0)
 
-    def test_information_ratio_periods_per_year_scales(self):
+    def test_information_ratio_periods_per_year_scales(self) -> None:
         daily = calculate_information_ratio(RETURNS, MARKET_RETURNS)
         monthly = calculate_information_ratio(RETURNS, MARKET_RETURNS, periods_per_year=12)
         assert monthly == pytest.approx(daily * np.sqrt(12 / 252))
@@ -824,7 +824,7 @@ class TestCalculateInformationRatio:
 class TestCalculateCVaR:
     """Tests for calculate_cvar (Conditional VaR / Expected Shortfall)."""
 
-    def test_cvar_95(self):
+    def test_cvar_95(self) -> None:
         cvar = calculate_cvar(RETURNS, confidence=0.95)
         var_95 = np.percentile(RETURNS, 5)
         tail = RETURNS[RETURNS <= var_95]
@@ -832,7 +832,7 @@ class TestCalculateCVaR:
         assert cvar == pytest.approx(expected)
         assert cvar <= var_95  # CVaR should be <= VaR (more negative)
 
-    def test_cvar_99(self):
+    def test_cvar_99(self) -> None:
         cvar = calculate_cvar(RETURNS, confidence=0.99)
         var_99 = np.percentile(RETURNS, 1)
         tail = RETURNS[RETURNS <= var_99]
@@ -840,14 +840,14 @@ class TestCalculateCVaR:
         assert cvar == pytest.approx(expected)
         assert cvar <= var_99
 
-    def test_cvar_empty_returns_zero(self):
+    def test_cvar_empty_returns_zero(self) -> None:
         assert calculate_cvar(pd.Series([], dtype=float)) == pytest.approx(0.0)
 
-    def test_cvar_single_value(self):
+    def test_cvar_single_value(self) -> None:
         result = calculate_cvar(pd.Series([-0.05]), confidence=0.95)
         assert result == pytest.approx(-0.05)
 
-    def test_cvar_all_same_returns(self):
+    def test_cvar_all_same_returns(self) -> None:
         flat = pd.Series([0.01] * 10)
         cvar = calculate_cvar(flat, confidence=0.95)
         assert cvar == pytest.approx(0.01)
@@ -856,7 +856,7 @@ class TestCalculateCVaR:
 class TestCalculateOmegaRatio:
     """Tests for calculate_omega_ratio."""
 
-    def test_omega_basic(self):
+    def test_omega_basic(self) -> None:
         returns = pd.Series([0.01, 0.02, -0.005, 0.015, -0.01])
         omega = calculate_omega_ratio(returns, threshold=0.0)
         gains = np.sum(np.maximum(returns - 0.0, 0.0))
@@ -864,7 +864,7 @@ class TestCalculateOmegaRatio:
         expected = gains / losses
         assert omega == pytest.approx(expected)
 
-    def test_omega_custom_threshold(self):
+    def test_omega_custom_threshold(self) -> None:
         returns = pd.Series([0.01, 0.02, -0.005, 0.015, -0.01])
         omega = calculate_omega_ratio(returns, threshold=0.01)
         gains = np.sum(np.maximum(returns - 0.01, 0.0))
@@ -872,14 +872,14 @@ class TestCalculateOmegaRatio:
         expected = gains / losses
         assert omega == pytest.approx(expected)
 
-    def test_omega_no_losses(self):
+    def test_omega_no_losses(self) -> None:
         positive = pd.Series([0.01, 0.02, 0.03])
         assert calculate_omega_ratio(positive, threshold=0.0) == pytest.approx(0.0)
 
-    def test_omega_empty_returns_zero(self):
+    def test_omega_empty_returns_zero(self) -> None:
         assert calculate_omega_ratio(pd.Series([], dtype=float)) == pytest.approx(0.0)
 
-    def test_omega_all_losses(self):
+    def test_omega_all_losses(self) -> None:
         negative = pd.Series([-0.01, -0.02, -0.03])
         omega = calculate_omega_ratio(negative, threshold=0.0)
         gains = np.sum(np.maximum(negative - 0.0, 0.0))
@@ -891,7 +891,7 @@ class TestCalculateOmegaRatio:
 class TestRiskMetricsDataclassExtended:
     """Tests for RiskMetrics container with new fields."""
 
-    def test_to_dict_includes_new_fields(self):
+    def test_to_dict_includes_new_fields(self) -> None:
         metrics = RiskMetrics(
             sharpe_ratio=1.5,
             sortino_ratio=0.8,
@@ -920,7 +920,7 @@ class TestRiskMetricsDataclassExtended:
         assert data["information_ratio"] == pytest.approx(0.5)
         assert data["omega_ratio"] == pytest.approx(1.8)
 
-    def test_from_dict_round_trip_new_fields(self):
+    def test_from_dict_round_trip_new_fields(self) -> None:
         metrics = RiskMetrics(
             cvar_95=-0.06,
             cvar_99=-0.10,
@@ -935,7 +935,7 @@ class TestRiskMetricsDataclassExtended:
         assert restored.information_ratio == pytest.approx(0.5)
         assert restored.omega_ratio == pytest.approx(1.8)
 
-    def test_from_dict_defaults_new_fields(self):
+    def test_from_dict_defaults_new_fields(self) -> None:
         restored = RiskMetrics.from_dict({"sharpe_ratio": 1.5})
         assert restored.cvar_95 == 0.0
         assert restored.cvar_99 == 0.0
@@ -947,7 +947,7 @@ class TestRiskMetricsDataclassExtended:
 class TestCalculateAllMetricsExtended:
     """Tests for calculate_all_metrics with new fields."""
 
-    def test_without_market_returns_includes_cvar_omega(self):
+    def test_without_market_returns_includes_cvar_omega(self) -> None:
         equity = pd.Series([100.0, 105.0, 110.0, 108.0, 115.0])
         metrics = calculate_all_metrics(equity, risk_free_rate=0.02)
         assert metrics.beta == pytest.approx(0.0)
@@ -960,7 +960,7 @@ class TestCalculateAllMetricsExtended:
         assert metrics.cvar_95 <= metrics.var_95
         assert metrics.cvar_99 <= metrics.var_99
 
-    def test_with_market_returns_includes_treynor_info(self):
+    def test_with_market_returns_includes_treynor_info(self) -> None:
         equity = pd.Series([100.0, 105.0, 110.0, 108.0, 112.0, 118.0])
         market = calculate_returns(equity)
         metrics = calculate_all_metrics(equity, market_returns=market, risk_free_rate=0.02)
@@ -968,7 +968,7 @@ class TestCalculateAllMetricsExtended:
         assert metrics.treynor_ratio != 0.0
         assert metrics.information_ratio == pytest.approx(0.0)
 
-    def test_periods_per_year_threaded_to_new_metrics(self):
+    def test_periods_per_year_threaded_to_new_metrics(self) -> None:
         equity = pd.Series([100.0, 105.0, 110.0, 108.0, 115.0, 112.0, 120.0])
         market = pd.Series([100.0, 102.0, 104.0, 103.0, 107.0, 109.0, 111.0])
         metrics = calculate_all_metrics(
