@@ -14,6 +14,7 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 - **Market Regime Detection**: Classify equity curves into bull/bear/sideways regimes (low/high volatility)
 - **Monte Carlo Simulation**: Bootstrap and parametric simulation of backtest outcomes
 - **Parameter Optimization**: Grid search, random search, Bayesian optimization, and walk-forward analysis
+- **Parameter Sensitivity Analysis**: 1D and 2D sensitivity plots, parameter interaction heatmaps, and HTML reports for optimization results (`generate_sensitivity_report_html`, `SensitivityConfig`, `create_1d_sensitivity_plot`, `create_2d_sensitivity_heatmap`, `create_parameter_interaction_heatmap`, `prepare_sensitivity_data`)
 - **Configuration**: YAML-based configuration system
 - **HTML Backtest Reports**: Generate standalone HTML reports from a backtest
   result, with embedded equity/drawdown/monthly-returns/trade-distribution/

@@ -372,6 +372,46 @@ def test_readme_features_list_advertises_all_optimizers() -> None:
     ), "README Features bullet does not advertise every exported optimizer:\n" + "\n".join(missing)
 
 
+# Public functions the README's Features list must advertise for the
+# parameter sensitivity module. Kept in sync with
+# ``quant_trading.optimization.sensitivity.__all__``; the README is the
+# user-facing contract and silently dropping a sensitivity entry from it is a
+# real regression.
+_SENSITIVITY_FEATURE_MARKERS: dict[str, str] = {
+    "generate_sensitivity_report_html": "generate_sensitivity_report_html",
+    "SensitivityConfig": "SensitivityConfig",
+    "create_1d_sensitivity_plot": "1D",
+    "create_2d_sensitivity_heatmap": "2D",
+    "create_parameter_interaction_heatmap": "interaction heatmap",
+}
+
+
+def test_readme_features_list_advertises_sensitivity_analysis() -> None:
+    """The README "Features" bullet must advertise the sensitivity analysis API.
+
+    The Features list is the first thing a reader sees. If a sensitivity
+    function is added to the package but the bullet is not updated, users will
+    not know it exists, even though it is fully wired into the CLI and tests.
+    """
+    from quant_trading.optimization import sensitivity
+
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    features_start = readme.index("**Parameter Optimization**:")
+    features_end = readme.index("\n## ", features_start)
+    features_line = readme[features_start:features_end]
+
+    exported = set(sensitivity.__all__)
+    missing: list[str] = []
+    for name, marker in _SENSITIVITY_FEATURE_MARKERS.items():
+        if name in exported and marker.lower() not in features_line.lower():
+            missing.append(f"{name} (marker '{marker}')")
+    assert (
+        not missing
+    ), "README Features bullet does not advertise every sensitivity function:\n" + "\n".join(
+        missing
+    )
+
+
 def test_strategies_init_all_exports_exist() -> None:
     """Every name in quant_trading.strategies.__all__ must be importable."""
     import quant_trading.strategies as mod

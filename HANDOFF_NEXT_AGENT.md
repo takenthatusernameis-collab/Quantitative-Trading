@@ -1,40 +1,51 @@
 ## What changed (this session)
-- Added a missing round-trip test for the `monte_carlo` serialization branch of
-  `BacktestResult.from_dict` (`quant_trading/backtest/engine.py:654-658`), which had no
-  dedicated test. New test: `TestBacktestResultSerialization.test_from_dict_reconstructs_nested_monte_carlo`
-  in `tests/test_backtest_engine.py`.
-- Corrected a stale/misleading docstring on the sibling
-  `test_from_dict_reconstructs_nested_regime_analysis` test that falsely claimed the
-  `monte_carlo` branch was "already covered".
-- No source/library changes. Only test coverage + a docstring correction.
+- Added a "Parameter Sensitivity Analysis" bullet to the README Features list
+  (`README.md:17`), advertising the previously-documented-but-unlisted
+  `quant_trading.optimization.sensitivity` module. The module was exported via
+  `quant_trading.optimization.__init__` and listed in the project tree, but the
+  user-facing Features bullet omitted it — a silent gap for every other
+  optimization feature.
+- Added a regression guard mirroring the existing
+  `test_readme_features_list_advertises_all_optimizers` pattern:
+  `test_readme_features_list_advertises_sensitivity_analysis` in
+  `tests/test_repository_integrity.py:375-410`. It asserts that every name in
+  `quant_trading.optimization.sensitivity.__all__` is mentioned in the README
+  Features block (scanning the whole block, not just the Parameter Optimization
+  line, because the sensitivity bullet sits on its own line).
 
 ## What was actually verified (evidence)
-- `python3 -m pytest -q` -> `3799 passed, 140 deselected` (full suite; was 3798 before,
-  +1 new test). ~9 min runtime.
-- Targeted: `pytest tests/test_backtest_engine.py -q` -> 119 passed.
-- Coverage before this session: `quant_trading/backtest/engine.py` 97% with `656-658`
-  (the monte_carlo branch) listed as missing. After the new test, that range is covered;
-  remaining misses are TYPE_CHECKING imports (`82-84`) and defensive/unreachable branches
-  (`954-956`, `1011`, `1018-1019`).
-- `python3 -m ruff check quant_trading/ tests/` -> All checks passed.
-- `python3 -m black --check quant_trading/ tests/test_backtest_engine.py` -> 39 files unchanged.
-- `python3 -m mypy quant_trading/ --disallow-untyped-defs --no-incremental` -> Success (38 source files).
+- `python3 -m pytest -q` -> `3818 passed, 140 deselected` (was 3817, +1 new test).
+- Targeted: `pytest tests/test_repository_integrity.py tests/test_sensitivity.py
+  tests/test_readme.py tests/test_readme_cli.py tests/test_readme_cli_commands.py -q`
+  -> 149 passed, 3 deselected.
+- Negative control: removing the whole sensitivity bullet from README.md in
+  memory makes the new guard fail with the expected message; restoring it
+  passes. Proves the guard detects the regression it guards against.
+- `python3 -m ruff check quant_trading/ tests/test_repository_integrity.py
+  tests/test_sensitivity.py` -> All checks passed.
+- `python3 -m black --check quant_trading/ tests/test_repository_integrity.py
+  tests/test_sensitivity.py` -> 41 files unchanged.
+- `python3 -m mypy tests/test_repository_integrity.py --disallow-untyped-defs`
+  -> Success. Note: `test_sensitivity.py` has 15 pre-existing
+  `no-untyped-def` errors (lines 114-184, untouched this session); it is not in
+  the project's mypy `disallow_untyped_defs` override list, so those are
+  pre-existing and not a regression from this change.
 
 ## What remains unresolved
-Nothing for the core `quant_trading/` library. Fully verified working state.
-The remaining uncovered `engine.py` lines are TYPE_CHECKING-only imports and defensive
-guards that cannot be exercised meaningfully without contrived inputs.
+Nothing for this change. The suite is green, ruff/black/mypy clean on the
+changed files, and the working tree contains only the intended README bullet +
+guard.
 
 ## Failed or corrected approaches this session
-- `pytest --cov=quant_trading.backtest.engine` (submodule-scoped `--cov`) triggers a numpy
-  "cannot load module more than once per process" ImportError in this environment. Use the
-  full `--cov=quant_trading` form instead (works fine). This is an environment quirk, not a
-  code defect.
+- First attempt at the guard used `readme.index("\n", features_start)` to bound
+  the scan to a single line, which missed the sensitivity bullet on its own
+  line. Corrected to `readme.index("\n## ", features_start)` so the whole
+  Features block is scanned.
 
 ## One precise next task
-No further work required for correctness. The suite is green (3799 passed), ruff/black/mypy
-clean, working tree contains only the intended test addition. A future session need only
-re-run `python3 -m pytest -q` and `mypy quant_trading/ --disallow-untyped-defs` to confirm
-no regression. If deeper coverage is desired, the only remaining `engine.py` gaps are
-defensive branches (benchmark alignment failure at 1018-1019, empty-position risk attribution
-at 954-956) that are low value to exercise.
+No further work required for correctness. A future session need only re-run
+`python3 -m pytest -q` and
+`mypy tests/test_repository_integrity.py --disallow-untyped-defs` to confirm no
+regression. If more coverage is desired, the only remaining gaps are the same
+defensive branches noted in the prior handoff (engine.py TYPE_CHECKING imports
+and guards).
