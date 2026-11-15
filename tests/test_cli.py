@@ -5,9 +5,13 @@ import itertools
 import json
 import sys
 import tempfile
+from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from _pytest.capture import CaptureFixture
+from _pytest.monkeypatch import MonkeyPatch
 
 from examples.cli import (
     _default_param_grid,
@@ -46,12 +50,12 @@ from quant_trading.strategies.examples import (
 class TestParseArgs:
     """Tests for argument parsing."""
 
-    def test_version_flag_exits(self):
+    def test_version_flag_exits(self) -> None:
         with patch("sys.argv", ["cli.py", "--version"]), pytest.raises(SystemExit) as exc:
             parse_args()
         assert exc.value.code == 0
 
-    def test_default_args(self):
+    def test_default_args(self) -> None:
         with patch("sys.argv", ["cli.py"]):
             args = parse_args()
         assert args.symbols == ["AAPL", "MSFT", "GOOGL"]
@@ -72,7 +76,7 @@ class TestParseArgs:
         assert args.combined is False
         assert args.strategy_config is None
 
-    def test_cost_flags_are_parsed(self):
+    def test_cost_flags_are_parsed(self) -> None:
         with patch(
             "sys.argv",
             [
@@ -90,42 +94,42 @@ class TestParseArgs:
         assert args.commission == 0.002
         assert args.slippage == 0.001
 
-    def test_strategy_config_flag(self):
+    def test_strategy_config_flag(self) -> None:
         with patch("sys.argv", ["cli.py", "--strategy-config", "my_strat.yaml"]):
             args = parse_args()
         assert args.strategy_config == "my_strat.yaml"
 
-    def test_list_strategies_flag(self):
+    def test_list_strategies_flag(self) -> None:
         with patch("sys.argv", ["cli.py", "--list-strategies"]):
             args = parse_args()
         assert args.list_strategies is True
 
-    def test_list_providers_flag(self):
+    def test_list_providers_flag(self) -> None:
         with patch("sys.argv", ["cli.py", "--list-providers"]):
             args = parse_args()
         assert args.list_providers is True
 
-    def test_init_config_flag(self):
+    def test_init_config_flag(self) -> None:
         with patch("sys.argv", ["cli.py", "--init-config", "config.yaml"]):
             args = parse_args()
         assert args.init_config == "config.yaml"
 
-    def test_validate_config_flag(self):
+    def test_validate_config_flag(self) -> None:
         with patch("sys.argv", ["cli.py", "--validate-config", "config.yaml"]):
             args = parse_args()
         assert args.validate_config == "config.yaml"
 
-    def test_combined_flag(self):
+    def test_combined_flag(self) -> None:
         with patch("sys.argv", ["cli.py", "--combined"]):
             args = parse_args()
         assert args.combined is True
 
-    def test_custom_symbols(self):
+    def test_custom_symbols(self) -> None:
         with patch("sys.argv", ["cli.py", "--symbols", "AAPL", "TSLA", "NVDA"]):
             args = parse_args()
         assert args.symbols == ["AAPL", "TSLA", "NVDA"]
 
-    def test_provider_choices(self):
+    def test_provider_choices(self) -> None:
         with patch("sys.argv", ["cli.py", "--provider", "alphavantage"]):
             args = parse_args()
         assert args.provider == "alphavantage"
@@ -134,17 +138,17 @@ class TestParseArgs:
             args = parse_args()
         assert args.provider == "synthetic"
 
-    def test_offline_flag(self):
+    def test_offline_flag(self) -> None:
         with patch("sys.argv", ["cli.py", "--offline"]):
             args = parse_args()
         assert args.offline is True
 
-    def test_alphavantage_key(self):
+    def test_alphavantage_key(self) -> None:
         with patch("sys.argv", ["cli.py", "--alphavantage-key", "MY_KEY"]):
             args = parse_args()
         assert args.alphavantage_key == "MY_KEY"
 
-    def test_strategy_params(self):
+    def test_strategy_params(self) -> None:
         with patch(
             "sys.argv",
             ["cli.py", "--strategy", "rsi", "--rsi-period", "21", "--rsi-oversold", "25"],
@@ -154,7 +158,7 @@ class TestParseArgs:
         assert args.rsi_period == 21
         assert args.rsi_oversold == 25
 
-    def test_regime_flag_defaults(self):
+    def test_regime_flag_defaults(self) -> None:
         with patch("sys.argv", ["cli.py", "--regime"]):
             args = parse_args()
         assert args.regime is True
@@ -162,7 +166,7 @@ class TestParseArgs:
         assert args.regime_vol_threshold == 0.0
         assert args.regime_return_threshold == 0.0
 
-    def test_regime_flag_explicit_thresholds(self):
+    def test_regime_flag_explicit_thresholds(self) -> None:
         with patch(
             "sys.argv",
             [
@@ -182,7 +186,7 @@ class TestParseArgs:
         assert args.regime_vol_threshold == 0.15
         assert args.regime_return_threshold == 0.05
 
-    def test_monte_carlo_flag_defaults(self):
+    def test_monte_carlo_flag_defaults(self) -> None:
         with patch("sys.argv", ["cli.py", "--monte-carlo"]):
             args = parse_args()
         assert args.monte_carlo is True
@@ -191,7 +195,7 @@ class TestParseArgs:
         assert args.mc_method == "bootstrap"
         assert args.mc_seed is None
 
-    def test_monte_carlo_flag_explicit_params(self):
+    def test_monte_carlo_flag_explicit_params(self) -> None:
         with patch(
             "sys.argv",
             [
@@ -214,7 +218,7 @@ class TestParseArgs:
         assert args.mc_method == "parametric"
         assert args.mc_seed == 7
 
-    def test_the_help_text_renders(self, capsys):
+    def test_the_help_text_renders(self, capsys: CaptureFixture[Any]) -> None:
         """``--help`` must render the help of every option.
 
         ``argparse`` runs the help string of each option through the
@@ -232,7 +236,7 @@ class TestParseArgs:
         assert "Stochastic %K period" in out
         assert "Stochastic %D period" in out
 
-    def test_mc_simulations_below_one_is_rejected(self):
+    def test_mc_simulations_below_one_is_rejected(self) -> None:
         """A ``--mc-simulations`` below 1 is a usage error, not a library failure.
 
         The Monte Carlo module is generic and treats a count of zero as an
@@ -245,7 +249,7 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_mc_simulations_negative_is_rejected(self):
+    def test_mc_simulations_negative_is_rejected(self) -> None:
         """A negative simulation count is rejected the same way as zero."""
         with (
             patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-simulations", "-5"]),
@@ -253,13 +257,13 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_mc_simulations_one_is_accepted(self):
+    def test_mc_simulations_one_is_accepted(self) -> None:
         """The minimum accepted count is 1."""
         with patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-simulations", "1"]):
             args = parse_args()
         assert args.mc_simulations == 1
 
-    def test_mc_confidence_above_one_is_rejected(self):
+    def test_mc_confidence_above_one_is_rejected(self) -> None:
         """A ``--mc-confidence`` above 1 is a usage error naming the flag.
 
         The Monte Carlo module derives percentile ranks from the confidence
@@ -273,7 +277,7 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_mc_confidence_zero_is_rejected(self):
+    def test_mc_confidence_zero_is_rejected(self) -> None:
         """A ``--mc-confidence`` of zero is rejected the same way as above one."""
         with (
             patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-confidence", "0"]),
@@ -281,13 +285,13 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_mc_confidence_one_is_accepted(self):
+    def test_mc_confidence_one_is_accepted(self) -> None:
         """The upper boundary ``--mc-confidence`` of 1.0 is accepted."""
         with patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-confidence", "1.0"]):
             args = parse_args()
         assert args.mc_confidence == 1.0
 
-    def test_wf_train_size_above_one_is_rejected(self):
+    def test_wf_train_size_above_one_is_rejected(self) -> None:
         """A ``--wf-train-size`` above 1 is a usage error naming the flag.
 
         The library ``WalkForwardOptimizer`` rejects a train size above 1.0
@@ -300,7 +304,7 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_wf_train_size_zero_or_negative_is_rejected(self):
+    def test_wf_train_size_zero_or_negative_is_rejected(self) -> None:
         """A ``--wf-train-size`` of zero or below is a usage error naming the flag."""
         for value in ("0", "-0.1"):
             with (
@@ -309,7 +313,7 @@ class TestParseArgs:
             ):
                 parse_args()
 
-    def test_wf_step_size_non_positive_is_rejected(self):
+    def test_wf_step_size_non_positive_is_rejected(self) -> None:
         """A ``--wf-step-size`` of zero or below is a usage error naming the flag."""
         for value in ("0", "-1"):
             with (
@@ -318,7 +322,7 @@ class TestParseArgs:
             ):
                 parse_args()
 
-    def test_wf_windows_below_one_is_rejected(self):
+    def test_wf_windows_below_one_is_rejected(self) -> None:
         """A ``--wf-windows`` of zero or below is a usage error naming the flag."""
         for value in ("0", "-1"):
             with (
@@ -327,13 +331,13 @@ class TestParseArgs:
             ):
                 parse_args()
 
-    def test_wf_windows_one_is_accepted(self):
+    def test_wf_windows_one_is_accepted(self) -> None:
         """A ``--wf-windows`` of one is accepted."""
         with patch("sys.argv", ["cli.py", "--walk-forward", "--wf-windows", "1"]):
             args = parse_args()
         assert args.wf_windows == 1
 
-    def test_periods_per_year_below_one_is_rejected(self):
+    def test_periods_per_year_below_one_is_rejected(self) -> None:
         """A ``--periods-per-year`` of zero or below is a usage error naming the flag.
 
         The library and ``Config`` reject a ``periods_per_year`` below 1, but the
@@ -349,19 +353,19 @@ class TestParseArgs:
             ):
                 parse_args()
 
-    def test_periods_per_year_one_is_accepted(self):
+    def test_periods_per_year_one_is_accepted(self) -> None:
         """A ``--periods-per-year`` of one is accepted."""
         with patch("sys.argv", ["cli.py", "--periods-per-year", "1"]):
             args = parse_args()
         assert args.periods_per_year == 1
 
-    def test_periods_per_year_none_default_is_accepted(self):
+    def test_periods_per_year_none_default_is_accepted(self) -> None:
         """An unset ``--periods-per-year`` is accepted and left as ``None``."""
         with patch("sys.argv", ["cli.py"]):
             args = parse_args()
         assert args.periods_per_year is None
 
-    def test_regime_window_below_two_is_rejected(self):
+    def test_regime_window_below_two_is_rejected(self) -> None:
         """A ``--regime-window`` below 2 is a usage error naming the flag.
 
         The rolling volatility and return use ``rolling(window).std()``/``.mean()``,
@@ -378,19 +382,19 @@ class TestParseArgs:
             ):
                 parse_args()
 
-    def test_regime_window_two_is_accepted(self):
+    def test_regime_window_two_is_accepted(self) -> None:
         """The minimum accepted ``--regime-window`` is 2 (one return is not enough)."""
         with patch("sys.argv", ["cli.py", "--regime", "--regime-window", "2"]):
             args = parse_args()
         assert args.regime_window == 2
 
-    def test_regime_window_default_is_accepted(self):
+    def test_regime_window_default_is_accepted(self) -> None:
         """The default ``--regime-window`` of 20 is accepted."""
         with patch("sys.argv", ["cli.py"]):
             args = parse_args()
         assert args.regime_window == 20
 
-    def test_days_below_one_is_rejected_without_start(self):
+    def test_days_below_one_is_rejected_without_start(self) -> None:
         """A ``--days`` below 1 is a usage error naming the flag when ``--start`` is absent.
 
         When ``--start`` is not provided, ``--days`` determines the lookback window.
@@ -405,19 +409,19 @@ class TestParseArgs:
             ):
                 parse_args()
 
-    def test_days_one_is_accepted_without_start(self):
+    def test_days_one_is_accepted_without_start(self) -> None:
         """The minimum accepted ``--days`` is 1 when ``--start`` is absent."""
         with patch("sys.argv", ["cli.py", "--offline", "--days", "1"]):
             args = parse_args()
         assert args.days == 1
 
-    def test_days_default_is_accepted_without_start(self):
+    def test_days_default_is_accepted_without_start(self) -> None:
         """The default ``--days`` of 365 is accepted when ``--start`` is absent."""
         with patch("sys.argv", ["cli.py", "--offline"]):
             args = parse_args()
         assert args.days == 365
 
-    def test_days_below_one_is_accepted_with_explicit_start(self):
+    def test_days_below_one_is_accepted_with_explicit_start(self) -> None:
         """A ``--days`` below 1 is accepted when ``--start`` is explicitly provided.
 
         An explicit ``--start`` overrides ``--days`` (``start_date`` is parsed from
@@ -430,14 +434,14 @@ class TestParseArgs:
         assert args.days == 0
         assert args.start == "2024-01-01"
 
-    def test_days_negative_is_accepted_with_explicit_start(self):
+    def test_days_negative_is_accepted_with_explicit_start(self) -> None:
         """A negative ``--days`` is accepted when ``--start`` is explicitly provided."""
         with patch("sys.argv", ["cli.py", "--offline", "--start", "2024-01-01", "--days", "-5"]):
             args = parse_args()
         assert args.days == -5
         assert args.start == "2024-01-01"
 
-    def test_synthetic_days_below_one_is_rejected(self):
+    def test_synthetic_days_below_one_is_rejected(self) -> None:
         """A ``--synthetic-days`` below 1 is a usage error naming the flag.
 
         ``--synthetic-days`` sets ``DataConfig.synthetic_days``, but ``create_config``
@@ -454,19 +458,19 @@ class TestParseArgs:
             ):
                 parse_args()
 
-    def test_synthetic_days_one_is_accepted(self):
+    def test_synthetic_days_one_is_accepted(self) -> None:
         """The minimum accepted ``--synthetic-days`` is 1."""
         with patch("sys.argv", ["cli.py", "--offline", "--synthetic-days", "1"]):
             args = parse_args()
         assert args.synthetic_days == 1
 
-    def test_synthetic_days_default_is_accepted(self):
+    def test_synthetic_days_default_is_accepted(self) -> None:
         """The default ``--synthetic-days`` of 365 is accepted."""
         with patch("sys.argv", ["cli.py", "--offline"]):
             args = parse_args()
         assert args.synthetic_days == 365
 
-    def test_synthetic_seed_outside_range_is_rejected(self):
+    def test_synthetic_seed_outside_range_is_rejected(self) -> None:
         """``--synthetic-seed`` outside ``[0, 2**32 - 1]`` is rejected up front.
 
         ``np.random.seed`` accepts only ``0 <= seed <= 2**32 - 1``; values outside
@@ -479,25 +483,25 @@ class TestParseArgs:
             ):
                 parse_args()
 
-    def test_synthetic_seed_zero_is_accepted(self):
+    def test_synthetic_seed_zero_is_accepted(self) -> None:
         """``--synthetic-seed 0`` is accepted (``np.random.seed(0)`` is valid)."""
         with patch("sys.argv", ["cli.py", "--offline", "--synthetic-seed", "0"]):
             args = parse_args()
         assert args.synthetic_seed == 0
 
-    def test_synthetic_seed_max_is_accepted(self):
+    def test_synthetic_seed_max_is_accepted(self) -> None:
         """``--synthetic-seed 4294967295`` (2**32 - 1) is accepted."""
         with patch("sys.argv", ["cli.py", "--offline", "--synthetic-seed", "4294967295"]):
             args = parse_args()
         assert args.synthetic_seed == 2**32 - 1
 
-    def test_synthetic_seed_default_is_accepted(self):
+    def test_synthetic_seed_default_is_accepted(self) -> None:
         """The default ``--synthetic-seed`` of 42 is accepted."""
         with patch("sys.argv", ["cli.py", "--offline"]):
             args = parse_args()
         assert args.synthetic_seed == 42
 
-    def test_mc_seed_negative_is_rejected(self):
+    def test_mc_seed_negative_is_rejected(self) -> None:
         """A negative ``--mc-seed`` is rejected up front.
 
         ``--mc-seed`` is passed straight to ``np.random.default_rng``, which
@@ -513,31 +517,31 @@ class TestParseArgs:
             ):
                 parse_args()
 
-    def test_mc_seed_zero_is_accepted(self):
+    def test_mc_seed_zero_is_accepted(self) -> None:
         """``--mc-seed 0`` is accepted (``default_rng(0)`` is valid)."""
         with patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-seed", "0"]):
             args = parse_args()
         assert args.mc_seed == 0
 
-    def test_mc_seed_positive_is_accepted(self):
+    def test_mc_seed_positive_is_accepted(self) -> None:
         """A positive ``--mc-seed`` is accepted."""
         with patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-seed", "42"]):
             args = parse_args()
         assert args.mc_seed == 42
 
-    def test_mc_seed_large_is_accepted(self):
+    def test_mc_seed_large_is_accepted(self) -> None:
         """``default_rng`` accepts seeds beyond ``2**32 - 1``, so a large seed passes."""
         with patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-seed", str(2**40)]):
             args = parse_args()
         assert args.mc_seed == 2**40
 
-    def test_mc_seed_default_is_accepted(self):
+    def test_mc_seed_default_is_accepted(self) -> None:
         """The default ``--mc-seed`` of ``None`` is accepted."""
         with patch("sys.argv", ["cli.py", "--monte-carlo"]):
             args = parse_args()
         assert args.mc_seed is None
 
-    def test_risk_free_rate_non_finite_is_rejected(self):
+    def test_risk_free_rate_non_finite_is_rejected(self) -> None:
         """A non-finite ``--risk-free-rate`` is rejected up front.
 
         ``risk_free_rate`` is consumed directly by the Sharpe/Sortino
@@ -556,20 +560,20 @@ class TestParseArgs:
             ):
                 parse_args()
 
-    def test_risk_free_rate_finite_is_accepted(self):
+    def test_risk_free_rate_finite_is_accepted(self) -> None:
         """Finite ``--risk-free-rate`` values (including negative rates) are accepted."""
         for value in ("-0.01", "0", "0.05", "1.5"):
             with (patch("sys.argv", ["cli.py", "--offline", "--risk-free-rate", value]),):
                 args = parse_args()
             assert args.risk_free_rate == float(value)
 
-    def test_risk_free_rate_default_is_accepted(self):
+    def test_risk_free_rate_default_is_accepted(self) -> None:
         """The default ``--risk-free-rate`` of ``None`` is accepted."""
         with patch("sys.argv", ["cli.py", "--offline"]):
             args = parse_args()
         assert args.risk_free_rate is None
 
-    def test_regime_thresholds_non_finite_are_rejected(self):
+    def test_regime_thresholds_non_finite_are_rejected(self) -> None:
         """Non-finite ``--regime-*-threshold`` values are rejected up front.
 
         The thresholds default to ``0.0`` (auto), so a ``nan``/``inf`` value
@@ -584,14 +588,14 @@ class TestParseArgs:
                 ):
                     parse_args()
 
-    def test_regime_thresholds_default_is_accepted(self):
+    def test_regime_thresholds_default_is_accepted(self) -> None:
         """The default ``0.0`` (auto) thresholds are accepted."""
         with patch("sys.argv", ["cli.py", "--offline"]):
             args = parse_args()
         assert args.regime_vol_threshold == 0.0
         assert args.regime_return_threshold == 0.0
 
-    def test_initial_capital_non_positive_is_rejected(self):
+    def test_initial_capital_non_positive_is_rejected(self) -> None:
         """A ``--initial-capital`` of zero or below is a usage error naming the flag."""
         for value in ("0", "-1"):
             with (
@@ -600,7 +604,7 @@ class TestParseArgs:
             ):
                 parse_args()
 
-    def test_initial_capital_non_finite_is_rejected(self):
+    def test_initial_capital_non_finite_is_rejected(self) -> None:
         """A non-finite ``--initial-capital`` is a usage error naming the flag.
 
         ``nan`` and ``inf`` are not caught by the ``<= 0`` check (``nan <= 0``
@@ -615,7 +619,7 @@ class TestParseArgs:
             ):
                 parse_args()
 
-    def test_wf_train_size_at_or_below_one_is_accepted(self):
+    def test_wf_train_size_at_or_below_one_is_accepted(self) -> None:
         """A ``--wf-train-size`` in (0, 1] is accepted, matching the library.
 
         The library ``WalkForwardOptimizer`` accepts ``train_size`` in
@@ -628,13 +632,13 @@ class TestParseArgs:
                 args = parse_args()
             assert args.wf_train_size == float(value)
 
-    def test_wf_step_size_positive_is_accepted(self):
+    def test_wf_step_size_positive_is_accepted(self) -> None:
         """A positive ``--wf-step-size`` at most 1.0 is accepted."""
         with patch("sys.argv", ["cli.py", "--walk-forward", "--wf-step-size", "0.5"]):
             args = parse_args()
         assert args.wf_step_size == 0.5
 
-    def test_wf_step_size_above_one_is_rejected(self):
+    def test_wf_step_size_above_one_is_rejected(self) -> None:
         """A ``--wf-step-size`` above 1.0 is a usage error naming the flag.
 
         The library ``WalkForwardOptimizer`` rejects a step above 1.0 (it is a
@@ -647,13 +651,13 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_initial_capital_positive_is_accepted(self):
+    def test_initial_capital_positive_is_accepted(self) -> None:
         """A positive ``--initial-capital`` is accepted."""
         with patch("sys.argv", ["cli.py", "--initial-capital", "1000"]):
             args = parse_args()
         assert args.initial_capital == 1000.0
 
-    def test_commission_negative_is_rejected(self):
+    def test_commission_negative_is_rejected(self) -> None:
         """A negative ``--commission`` is a usage error naming the flag."""
         with (
             patch("sys.argv", ["cli.py", "--commission", "-0.1"]),
@@ -661,7 +665,7 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_commission_above_one_is_rejected(self):
+    def test_commission_above_one_is_rejected(self) -> None:
         """A ``--commission`` above 1.0 is a usage error naming the flag.
 
         The library rejects a commission outside ``[0, 1]``, so the CLI has to
@@ -674,19 +678,19 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_commission_zero_is_accepted(self):
+    def test_commission_zero_is_accepted(self) -> None:
         """A ``--commission`` of zero (no commission) is accepted."""
         with patch("sys.argv", ["cli.py", "--commission", "0"]):
             args = parse_args()
         assert args.commission == 0.0
 
-    def test_commission_one_is_accepted(self):
+    def test_commission_one_is_accepted(self) -> None:
         """A ``--commission`` of 1.0 is accepted."""
         with patch("sys.argv", ["cli.py", "--commission", "1"]):
             args = parse_args()
         assert args.commission == 1.0
 
-    def test_slippage_negative_is_rejected(self):
+    def test_slippage_negative_is_rejected(self) -> None:
         """A negative ``--slippage`` is a usage error naming the flag."""
         with (
             patch("sys.argv", ["cli.py", "--slippage", "-0.1"]),
@@ -694,7 +698,7 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_slippage_above_one_is_rejected(self):
+    def test_slippage_above_one_is_rejected(self) -> None:
         """A ``--slippage`` above 1.0 is a usage error naming the flag.
 
         The library rejects a slippage outside ``[0, 1]``, so the CLI has to
@@ -707,19 +711,19 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_slippage_zero_is_accepted(self):
+    def test_slippage_zero_is_accepted(self) -> None:
         """A ``--slippage`` of zero (no slippage) is accepted."""
         with patch("sys.argv", ["cli.py", "--slippage", "0"]):
             args = parse_args()
         assert args.slippage == 0.0
 
-    def test_slippage_one_is_accepted(self):
+    def test_slippage_one_is_accepted(self) -> None:
         """A ``--slippage`` of 1.0 is accepted."""
         with patch("sys.argv", ["cli.py", "--slippage", "1"]):
             args = parse_args()
         assert args.slippage == 1.0
 
-    def test_unsupported_interval_is_rejected(self):
+    def test_unsupported_interval_is_rejected(self) -> None:
         """An unsupported ``--interval`` is a usage error naming the flag."""
         with (
             patch("sys.argv", ["cli.py", "--interval", "3x"]),
@@ -727,13 +731,13 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_supported_interval_is_accepted(self):
+    def test_supported_interval_is_accepted(self) -> None:
         """A documented interval is accepted by the parser."""
         with patch("sys.argv", ["cli.py", "--interval", "1wk"]):
             args = parse_args()
         assert args.interval == "1wk"
 
-    def test_optimization_range_with_a_minimum_above_the_maximum_is_rejected(self):
+    def test_optimization_range_with_a_minimum_above_the_maximum_is_rejected(self) -> None:
         """An inverted range is rejected before the run starts and names the flag."""
         with (
             patch(
@@ -744,7 +748,7 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_optimization_range_with_step_zero_is_rejected(self):
+    def test_optimization_range_with_step_zero_is_rejected(self) -> None:
         """A range with step zero is rejected and names the flag."""
         with (
             patch(
@@ -755,7 +759,7 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_optimization_range_with_negative_step_is_rejected(self):
+    def test_optimization_range_with_negative_step_is_rejected(self) -> None:
         """A range with negative step is rejected and names the flag."""
         with (
             patch(
@@ -766,7 +770,7 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_n_jobs_zero_is_rejected(self):
+    def test_n_jobs_zero_is_rejected(self) -> None:
         """A ``--n-jobs`` of zero is a usage error naming the flag.
 
         The library coerces ``n_jobs=0`` to ``1`` (joblib convention), so the
@@ -780,7 +784,7 @@ class TestParseArgs:
         ):
             parse_args()
 
-    def test_n_jobs_below_one_except_minus_one_is_rejected(self):
+    def test_n_jobs_below_one_except_minus_one_is_rejected(self) -> None:
         """A ``--n-jobs`` below 1 (other than -1) is a usage error.
 
         ``-1`` is the documented joblib shorthand for "all CPU cores". Values
@@ -794,13 +798,13 @@ class TestParseArgs:
             ):
                 parse_args()
 
-    def test_n_jobs_minus_one_is_accepted(self):
+    def test_n_jobs_minus_one_is_accepted(self) -> None:
         """The documented ``-1`` shorthand for all CPU cores is accepted."""
         with patch("sys.argv", ["cli.py", "--n-jobs", "-1"]):
             args = parse_args()
         assert args.n_jobs == -1
 
-    def test_n_jobs_positive_is_accepted(self):
+    def test_n_jobs_positive_is_accepted(self) -> None:
         """A positive ``--n-jobs`` is accepted."""
         with patch("sys.argv", ["cli.py", "--n-jobs", "4"]):
             args = parse_args()
@@ -830,11 +834,11 @@ class TestIsSupportedInterval:
             "gold",
         ],
     )
-    def test_documented_intervals_are_supported(self, interval):
+    def test_documented_intervals_are_supported(self, interval: str) -> None:
         # Intervals the README documents as valid CLI values must be accepted.
         assert _is_supported_interval(interval) is True
 
-    def test_unknown_interval_is_not_supported(self):
+    def test_unknown_interval_is_not_supported(self) -> None:
         assert _is_supported_interval("3x") is False
         assert _is_supported_interval("") is False
         assert _is_supported_interval(None) is False
@@ -843,7 +847,7 @@ class TestIsSupportedInterval:
 class TestListStrategies:
     """Tests for list_strategies function."""
 
-    def test_list_strategies_output(self, capsys):
+    def test_list_strategies_output(self, capsys: CaptureFixture[Any]) -> None:
         result = list_strategies()
         assert result == 0
         captured = capsys.readouterr()
@@ -855,7 +859,7 @@ class TestListStrategies:
         assert "RSIStrategy" in captured.out
         assert "BollingerBandsStrategy" in captured.out
 
-    def test_list_strategies_reports_aliases(self, capsys):
+    def test_list_strategies_reports_aliases(self, capsys: CaptureFixture[Any]) -> None:
         """``--list-strategies`` annotates every strategy with its aliases.
 
         The CLI's ``--strategy`` argument accepts every registered key,
@@ -889,7 +893,7 @@ class TestListStrategies:
                     "aliases:" not in line
                 ), f"{key} should not report aliases but line says: {line!r}"
 
-    def test_list_strategies_alias_annotation_matches_registry(self, capsys):
+    def test_list_strategies_alias_annotation_matches_registry(self, capsys: CaptureFixture[Any]) -> None:
         """The alias annotation on each line matches the live registry exactly."""
         import re
 
@@ -917,7 +921,7 @@ class TestListStrategies:
 class TestListProviders:
     """Tests for list_providers function."""
 
-    def test_list_providers_output(self, capsys):
+    def test_list_providers_output(self, capsys: CaptureFixture[Any]) -> None:
         result = list_providers()
         assert result == 0
         captured = capsys.readouterr()
@@ -933,7 +937,7 @@ class TestListProviders:
 class TestValidateConfig:
     """Tests for validate_config function."""
 
-    def test_validate_config_valid_file(self, capsys):
+    def test_validate_config_valid_file(self, capsys: CaptureFixture[Any]) -> None:
         from examples.cli import validate_config
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -944,7 +948,7 @@ class TestValidateConfig:
             captured = capsys.readouterr()
             assert f"Config is valid: {path}" in captured.out
 
-    def test_validate_config_missing_file(self, capsys):
+    def test_validate_config_missing_file(self, capsys: CaptureFixture[Any]) -> None:
         from examples.cli import validate_config
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -954,7 +958,7 @@ class TestValidateConfig:
             captured = capsys.readouterr()
             assert "Error:" in captured.out
 
-    def test_validate_config_invalid_yaml(self, capsys):
+    def test_validate_config_invalid_yaml(self, capsys: CaptureFixture[Any]) -> None:
         from examples.cli import validate_config
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -966,7 +970,7 @@ class TestValidateConfig:
             captured = capsys.readouterr()
             assert "Error:" in captured.out
 
-    def test_validate_config_invalid_type(self, capsys):
+    def test_validate_config_invalid_type(self, capsys: CaptureFixture[Any]) -> None:
         from examples.cli import validate_config
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -982,7 +986,7 @@ class TestValidateConfig:
 class TestInitConfig:
     """Tests for init_config function."""
 
-    def test_init_config_creates_file(self, capsys):
+    def test_init_config_creates_file(self, capsys: CaptureFixture[Any]) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = f"{tmpdir}/config.yaml"
             result = init_config(path)
@@ -995,7 +999,7 @@ class TestInitConfig:
             assert isinstance(loaded, Config)
             assert loaded.data.provider == "yfinance"
 
-    def test_create_aroon_strategy(self):
+    def test_create_aroon_strategy(self) -> None:
         from argparse import Namespace
 
         args = Namespace(
@@ -1006,7 +1010,7 @@ class TestInitConfig:
         assert strategy is not None
         assert hasattr(strategy, "period")
 
-    def test_create_aroon_strategy_with_custom_period(self):
+    def test_create_aroon_strategy_with_custom_period(self) -> None:
         from argparse import Namespace
 
         args = Namespace(
@@ -1016,13 +1020,13 @@ class TestInitConfig:
         strategy = create_strategy(args)
         assert strategy is not None
 
-    def test_parse_range_valid(self):
+    def test_parse_range_valid(self) -> None:
         from examples.cli import parse_range
 
         result = parse_range("5,20,5")
         assert result == (5.0, 20.0, 5.0)
 
-    def test_parse_range_invalid(self):
+    def test_parse_range_invalid(self) -> None:
         from examples.cli import parse_range
 
         try:
@@ -1031,28 +1035,28 @@ class TestInitConfig:
         except ValueError:
             assert True
 
-    def test_parse_range_rejects_a_non_positive_step(self):
+    def test_parse_range_rejects_a_non_positive_step(self) -> None:
         """A step of zero would make the grid search loop forever."""
         from examples.cli import parse_range
 
         with pytest.raises(ValueError, match="step must be greater than 0"):
             parse_range("5,20,0")
 
-    def test_parse_range_rejects_a_part_that_is_not_a_number(self):
+    def test_parse_range_rejects_a_part_that_is_not_a_number(self) -> None:
         """A range with a non-numeric part is a user error."""
         from examples.cli import parse_range
 
         with pytest.raises(ValueError, match="Invalid range format"):
             parse_range("5,20,x")
 
-    def test_parse_range_rejects_a_minimum_greater_than_the_maximum(self):
+    def test_parse_range_rejects_a_minimum_greater_than_the_maximum(self) -> None:
         """A range whose minimum is above its maximum is a user error."""
         from examples.cli import parse_range
 
         with pytest.raises(ValueError, match="minimum.*greater than the maximum"):
             parse_range("20,5,5")
 
-    def test_parser_accepts_every_range_flag_create_param_grid_references(self):
+    def test_parser_accepts_every_range_flag_create_param_grid_references(self) -> None:
         """Every ``--*-range`` attribute read by ``create_param_grid`` must exist
         on the live parser, otherwise ``--optimize`` crashes for that strategy.
         """
@@ -1101,7 +1105,7 @@ class TestInitConfig:
             missing == []
         ), "create_param_grid references range flags missing from the parser: " + ", ".join(missing)
 
-    def test_main_optimize_calls_run_optimization(self):
+    def test_main_optimize_calls_run_optimization(self) -> None:
         with patch("examples.cli.run_optimization") as mock_opt:
             mock_opt.return_value = 0
             args = ["--optimize", "--offline", "--strategy", "ma", "--days", "60"]
@@ -1112,7 +1116,7 @@ class TestInitConfig:
             assert result == 0
             mock_opt.assert_called_once()
 
-    def test_main_walk_forward_calls_run_walk_forward(self):
+    def test_main_walk_forward_calls_run_walk_forward(self) -> None:
         with patch("examples.cli.run_walk_forward") as mock_wf:
             mock_wf.return_value = 0
             args = [
@@ -1132,7 +1136,7 @@ class TestInitConfig:
             assert result == 0
             mock_wf.assert_called_once()
 
-    def test_create_config_with_yaml(self):
+    def test_create_config_with_yaml(self) -> None:
         import tempfile
         from argparse import Namespace
 
@@ -1154,7 +1158,7 @@ class TestInitConfig:
             config = create_config(args)
             assert config is not None
 
-    def test_create_config_keeps_the_values_of_the_config_file(self):
+    def test_create_config_keeps_the_values_of_the_config_file(self) -> None:
         """A config file supplies the settings the flags do not override."""
         import tempfile
         from argparse import Namespace
@@ -1195,7 +1199,7 @@ class TestInitConfig:
         assert config.risk.max_position_size == 0.05
         assert config.portfolio.max_positions == 3
 
-    def test_create_config_lets_the_flags_override_the_config_file(self):
+    def test_create_config_lets_the_flags_override_the_config_file(self) -> None:
         """A flag that is given wins over the value of the config file."""
         import tempfile
         from argparse import Namespace
@@ -1230,7 +1234,7 @@ class TestInitConfig:
 class TestConfigFileEndToEnd:
     """A config file configures the run of the command line."""
 
-    def test_main_with_a_config_file_uses_the_capital_of_the_file(self, capsys):
+    def test_main_with_a_config_file_uses_the_capital_of_the_file(self, capsys: CaptureFixture[Any]) -> None:
         """The starting capital of the config file is the one the run uses."""
         import tempfile
 
@@ -1255,7 +1259,7 @@ class TestConfigFileEndToEnd:
         captured = capsys.readouterr()
         assert "Initial Capital: $25,000.00" in captured.out
 
-    def test_main_with_a_config_file_uses_the_limit_of_the_file(self):
+    def test_main_with_a_config_file_uses_the_limit_of_the_file(self) -> None:
         """The config file of the CLI reaches the run with its limits."""
         import tempfile
         from unittest.mock import MagicMock
@@ -1314,7 +1318,7 @@ class TestConfigFileEndToEnd:
 class TestCreateStrategy:
     """Tests for create_strategy function."""
 
-    def test_create_ma_strategy(self):
+    def test_create_ma_strategy(self) -> None:
         args = argparse.Namespace(
             strategy="ma",
             fast_period=10,
@@ -1331,7 +1335,7 @@ class TestCreateStrategy:
         assert strategy.slow_period == 30
         assert "MA_Crossover_10_30" in strategy.name
 
-    def test_create_rsi_strategy(self):
+    def test_create_rsi_strategy(self) -> None:
         args = argparse.Namespace(
             strategy="rsi",
             fast_period=10,
@@ -1349,7 +1353,7 @@ class TestCreateStrategy:
         assert strategy.overbought == 75
         assert "RSI_21" in strategy.name
 
-    def test_create_bb_strategy(self):
+    def test_create_bb_strategy(self) -> None:
         args = argparse.Namespace(
             strategy="bb",
             fast_period=10,
@@ -1366,7 +1370,7 @@ class TestCreateStrategy:
         assert strategy.std_dev == 2.5
         assert "BB_25_2.5" in strategy.name
 
-    def test_create_macd_strategy(self):
+    def test_create_macd_strategy(self) -> None:
         args = argparse.Namespace(
             strategy="macd",
             fast_period=10,
@@ -1391,7 +1395,7 @@ class TestCreateStrategy:
         assert strategy.use_zero_line is True
         assert "MACD_12_26_9" in strategy.name
 
-    def test_create_supertrend_strategy(self):
+    def test_create_supertrend_strategy(self) -> None:
         args = argparse.Namespace(
             strategy="supertrend",
             fast_period=10,
@@ -1410,7 +1414,7 @@ class TestCreateStrategy:
         assert strategy.multiplier == 2.5
         assert "SuperTrend_15_2.5" in strategy.name
 
-    def test_create_donchian_strategy(self):
+    def test_create_donchian_strategy(self) -> None:
         args = argparse.Namespace(
             strategy="donchian",
             fast_period=10,
@@ -1431,7 +1435,7 @@ class TestCreateStrategy:
         assert strategy.exit_period == 10
         assert "Donchian_25_10" in strategy.name
 
-    def test_create_donchian_strategy_default_exit(self):
+    def test_create_donchian_strategy_default_exit(self) -> None:
         args = argparse.Namespace(
             strategy="donchian",
             fast_period=10,
@@ -1452,7 +1456,7 @@ class TestCreateStrategy:
         assert strategy.exit_period == 20
         assert "Donchian_20_20" in strategy.name
 
-    def test_unknown_strategy_raises(self):
+    def test_unknown_strategy_raises(self) -> None:
         args = argparse.Namespace(strategy="unknown")
         try:
             create_strategy(args)
@@ -1460,7 +1464,7 @@ class TestCreateStrategy:
         except ValueError as e:
             assert "unknown" in str(e)
 
-    def test_create_ichimoku_strategy(self):
+    def test_create_ichimoku_strategy(self) -> None:
         args = argparse.Namespace(
             strategy="ichimoku",
             tenkan_period=9,
@@ -1500,7 +1504,7 @@ class TestCreateStrategy:
         assert strategy.senkou_b_period == 52
         assert strategy.name == "Ichimoku_Cloud"
 
-    def test_create_ichimoku_strategy_custom_params(self):
+    def test_create_ichimoku_strategy_custom_params(self) -> None:
         args = argparse.Namespace(
             strategy="ichimoku",
             tenkan_period=5,
@@ -1542,7 +1546,7 @@ class TestCreateStrategy:
             strategy.name == "Ichimoku_Cloud"
         )  # name is not customized in create_strategy for ichimoku
 
-    def test_create_sar_strategy(self):
+    def test_create_sar_strategy(self) -> None:
         args = argparse.Namespace(
             strategy="sar",
             sar_step=0.02,
@@ -1583,7 +1587,7 @@ class TestCreateStrategy:
         assert strategy.max_step == 0.20
         assert strategy.name == "Parabolic_SAR_0.02_0.2"
 
-    def test_create_sar_strategy_custom_params(self):
+    def test_create_sar_strategy_custom_params(self) -> None:
         args = argparse.Namespace(
             strategy="sar",
             sar_step=0.05,
@@ -1624,7 +1628,7 @@ class TestCreateStrategy:
         assert strategy.max_step == 0.25
         assert strategy.name == "Parabolic_SAR_0.05_0.25"
 
-    def test_create_keltner_strategy(self):
+    def test_create_keltner_strategy(self) -> None:
         args = argparse.Namespace(
             strategy="keltner",
             fast_period=10,
@@ -1652,7 +1656,7 @@ class TestCreateStrategy:
         assert strategy.use_middle_cross is False
         assert strategy.name == "Keltner_20_10_2.0"
 
-    def test_create_keltner_strategy_custom_params(self):
+    def test_create_keltner_strategy_custom_params(self) -> None:
         args = argparse.Namespace(
             strategy="keltner",
             fast_period=10,
@@ -1680,7 +1684,7 @@ class TestCreateStrategy:
         assert strategy.use_middle_cross is True
         assert strategy.name == "Keltner_15_5_1.5"
 
-    def test_create_stoch_strategy(self):
+    def test_create_stoch_strategy(self) -> None:
         args = argparse.Namespace(
             strategy="stoch",
             fast_period=10,
@@ -1714,7 +1718,7 @@ class TestCreateStrategy:
         assert strategy.use_midline is False
         assert strategy.name == "Stoch_14_3_20_80"
 
-    def test_create_stoch_strategy_custom_params(self):
+    def test_create_stoch_strategy_custom_params(self) -> None:
         args = argparse.Namespace(
             strategy="stoch",
             fast_period=10,
@@ -1748,7 +1752,7 @@ class TestCreateStrategy:
         assert strategy.use_midline is True
         assert strategy.name == "Stoch_10_2_25_75"
 
-    def test_create_vwap_strategy(self):
+    def test_create_vwap_strategy(self) -> None:
         args = argparse.Namespace(
             strategy="vwap",
             fast_period=10,
@@ -1777,7 +1781,7 @@ class TestCreateStrategy:
         assert isinstance(strategy, VWAPStrategy)
         assert strategy.name == "VWAP"
 
-    def test_create_strategy_from_config_ma(self):
+    def test_create_strategy_from_config_ma(self) -> None:
         """create_strategy uses --strategy-config YAML when provided."""
         import yaml
 
@@ -1802,7 +1806,7 @@ class TestCreateStrategy:
 
             os.unlink(config_path)
 
-    def test_create_strategy_from_config_rsi(self):
+    def test_create_strategy_from_config_rsi(self) -> None:
         """create_strategy respects parameters from YAML for RSI."""
         import yaml
 
@@ -1828,7 +1832,7 @@ class TestCreateStrategy:
 
             os.unlink(config_path)
 
-    def test_create_strategy_from_config_missing_type_raises(self):
+    def test_create_strategy_from_config_missing_type_raises(self) -> None:
         """create_strategy raises ValueError when YAML lacks 'type'."""
         import yaml
 
@@ -1850,7 +1854,7 @@ class TestCreateStrategy:
 class TestCreateConfig:
     """Tests for create_config function."""
 
-    def test_create_config_defaults(self):
+    def test_create_config_defaults(self) -> None:
         args = argparse.Namespace(
             config=None,
             offline=False,
@@ -1865,7 +1869,7 @@ class TestCreateConfig:
         assert isinstance(config, Config)
         assert config.data.provider == "yfinance"
 
-    def test_create_config_offline(self):
+    def test_create_config_offline(self) -> None:
         args = argparse.Namespace(
             config=None,
             offline=True,
@@ -1880,7 +1884,7 @@ class TestCreateConfig:
         assert config.data.provider == "synthetic"
         assert config.data.offline is True
 
-    def test_create_config_provider_override(self):
+    def test_create_config_provider_override(self) -> None:
         args = argparse.Namespace(
             config=None,
             offline=False,
@@ -1894,7 +1898,7 @@ class TestCreateConfig:
         config = create_config(args)
         assert config.data.provider == "alphavantage"
 
-    def test_create_config_alphavantage_key(self):
+    def test_create_config_alphavantage_key(self) -> None:
         args = argparse.Namespace(
             config=None,
             offline=False,
@@ -1909,7 +1913,7 @@ class TestCreateConfig:
         assert config.data.provider == "alphavantage"
         assert config.data.alphavantage_api_key == "MY_API_KEY"
 
-    def test_create_config_cache_dir(self):
+    def test_create_config_cache_dir(self) -> None:
         args = argparse.Namespace(
             config=None,
             offline=False,
@@ -1923,7 +1927,7 @@ class TestCreateConfig:
         config = create_config(args)
         assert config.data.cache_dir == "./custom/cache"
 
-    def test_create_config_synthetic_days_seed(self):
+    def test_create_config_synthetic_days_seed(self) -> None:
         args = argparse.Namespace(
             config=None,
             offline=True,
@@ -1939,7 +1943,7 @@ class TestCreateConfig:
         assert config.data.synthetic_days == 500
         assert config.data.synthetic_seed == 123
 
-    def test_create_param_grid_ichimoku(self):
+    def test_create_param_grid_ichimoku(self) -> None:
         from examples.cli import create_param_grid
         from quant_trading.optimization import ParameterGrid
 
@@ -2018,7 +2022,7 @@ class TestCreateConfig:
             grid.validator({"tenkan_period": 5, "kijun_period": 20, "senkou_b_period": 30}) is True
         )
 
-    def test_create_param_grid_sar(self):
+    def test_create_param_grid_sar(self) -> None:
         from examples.cli import create_param_grid
         from quant_trading.optimization import ParameterGrid
 
@@ -2085,7 +2089,7 @@ class TestCreateConfig:
         assert len(combos) > 0
         assert all(c["step"] <= c["max_step"] for c in combos)
 
-    def test_create_param_grid_vwap(self):
+    def test_create_param_grid_vwap(self) -> None:
         from examples.cli import create_param_grid
         from quant_trading.optimization import ParameterGrid
 
@@ -2128,7 +2132,7 @@ class TestCreateConfig:
         assert len(combos) == 1  # Single empty combination
         assert combos[0] == {}
 
-    def test_create_param_grid_keltner(self):
+    def test_create_param_grid_keltner(self) -> None:
         from examples.cli import create_param_grid
         from quant_trading.optimization import ParameterGrid
 
@@ -2196,7 +2200,7 @@ class TestCreateConfig:
         assert len(combos) > 0
         assert all(c["multiplier"] > 0 for c in combos)
 
-    def test_create_param_grid_stoch(self):
+    def test_create_param_grid_stoch(self) -> None:
         from examples.cli import create_param_grid
         from quant_trading.optimization import ParameterGrid
 
@@ -2278,7 +2282,7 @@ class TestCreateConfig:
         assert len(combos) > 0
         assert all(c["oversold"] < c["overbought"] for c in combos)
 
-    def test_create_param_grid_every_strategy_has_search_space(self):
+    def test_create_param_grid_every_strategy_has_search_space(self) -> None:
         """Every registered strategy gets a non-empty optimization grid.
 
         Strategies with dedicated ``--*-range`` flags are covered
@@ -2346,7 +2350,7 @@ class TestRunCombined:
     """Tests for run_combined function."""
 
     @patch("examples.cli.run_backtest")
-    def test_run_combined_all_strategies(self, mock_run_backtest, capsys):
+    def test_run_combined_all_strategies(self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]) -> None:
         # Mock backtest results
         from quant_trading.backtest.metrics import BacktestMetrics
 
@@ -2429,7 +2433,7 @@ class TestRunCombined:
             m.total_costs = 0.0
             mock_results.append(m)
 
-        def side_effect(*args, **kwargs):
+        def side_effect(*args: Any, **kwargs: Any) -> MagicMock:
             strategy = kwargs.get("strategy")
             for result in mock_results:
                 if result.name == strategy.name:
@@ -2508,7 +2512,7 @@ class TestRunCombined:
         assert "Best strategy (by Sharpe)" in captured.out
 
     @patch("examples.cli.run_backtest")
-    def test_run_combined_with_output(self, mock_run_backtest, capsys):
+    def test_run_combined_with_output(self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]) -> None:
         from quant_trading.backtest.metrics import BacktestMetrics
 
         mock_metrics = MagicMock(spec=BacktestMetrics)
@@ -2539,7 +2543,7 @@ class TestRunCombined:
         mock_result.total_return = 15500.0
         mock_result.total_costs = 0.0
 
-        def side_effect(*args, **kwargs):
+        def side_effect(*args: Any, **kwargs: Any) -> MagicMock:
             return mock_result
 
         mock_run_backtest.side_effect = side_effect
@@ -2582,7 +2586,7 @@ class TestRunCombined:
             assert "comparison" in data
             assert "best_strategy" in data
 
-    def test_main_offline_combined_end_to_end(self, capsys):
+    def test_main_offline_combined_end_to_end(self, capsys: CaptureFixture[Any]) -> None:
         """Running offline --combined executes all strategies end-to-end (no mocks)."""
         args = [
             "--offline",
@@ -2605,7 +2609,7 @@ class TestRunCombined:
         assert "VWAP" in captured.out
         assert "Best strategy (by Sharpe)" in captured.out
 
-    def test_main_offline_combined_with_output(self, capsys):
+    def test_main_offline_combined_with_output(self, capsys: CaptureFixture[Any]) -> None:
         """Running offline --combined with --output writes a JSON comparison file."""
         import json
         import os
@@ -2642,7 +2646,7 @@ class TestRunCombined:
                 assert "total_return" in entry
 
     @patch("examples.cli.run_backtest")
-    def test_run_combined_strategy_error_returns_one(self, mock_run_backtest, capsys):
+    def test_run_combined_strategy_error_returns_one(self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]) -> None:
         """When a strategy raises an error, combined mode prints it and returns 1."""
         from quant_trading.backtest.metrics import BacktestMetrics
 
@@ -2655,7 +2659,7 @@ class TestRunCombined:
         mock_metrics.total_pnl = 0.0
         mock_metrics.unrealized_pnl = 0.0
 
-        def side_effect(*args, **kwargs):
+        def side_effect(*args: Any, **kwargs: Any) -> MagicMock:
             strategy = kwargs.get("strategy")
             if strategy.name == "RSI_14":
                 raise ValueError("RSI strategy failed")
@@ -2728,7 +2732,7 @@ class TestRunCombined:
         assert "✗" in captured.out
 
     @patch("examples.cli.run_backtest")
-    def test_run_combined_all_strategies_fail_returns_one(self, mock_run_backtest, capsys):
+    def test_run_combined_all_strategies_fail_returns_one(self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]) -> None:
         """When the first strategy fails, combined mode returns 1 immediately."""
         mock_run_backtest.side_effect = RuntimeError("data unavailable")
 
@@ -2778,11 +2782,11 @@ class TestRunCombined:
         assert "Error - data unavailable" in captured.out
         assert "✗" in captured.out
 
-    def test_run_combined_report_import_error_returns_one(self, capsys, tmp_path, monkeypatch):
+    def test_run_combined_report_import_error_returns_one(self, capsys: CaptureFixture[Any], tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
         """Missing matplotlib in combined mode --report is a one-line error."""
         from examples.cli import run_combined
 
-        def _raise_import_error(*args, **kwargs):
+        def _raise_import_error(*args: Any, **kwargs: Any) -> None:
             raise ImportError(
                 "matplotlib is required for chart generation. "
                 "Install with: pip install quant-trading[reporting]"
@@ -2848,11 +2852,11 @@ class TestRunCombined:
         assert "matplotlib" in captured.out
         assert "Traceback" not in captured.out
 
-    def test_run_combined_report_os_error_returns_one(self, capsys, tmp_path, monkeypatch):
+    def test_run_combined_report_os_error_returns_one(self, capsys: CaptureFixture[Any], tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
         """File write error in combined mode --report is a one-line error."""
         from examples.cli import run_combined
 
-        def _raise_os_error(*args, **kwargs):
+        def _raise_os_error(*args: Any, **kwargs: Any) -> None:
             raise OSError("Permission denied")
 
         monkeypatch.setattr("examples.cli.generate_comparison_report", _raise_os_error)
@@ -2921,7 +2925,7 @@ class TestMain:
     """Tests for main function."""
 
     @patch("examples.cli.list_strategies")
-    def test_main_list_strategies(self, mock_list_strategies):
+    def test_main_list_strategies(self, mock_list_strategies: MagicMock) -> None:
         mock_list_strategies.return_value = 0
         args = ["--list-strategies"]
         with patch("sys.argv", ["cli.py"] + args):
@@ -2930,7 +2934,7 @@ class TestMain:
         mock_list_strategies.assert_called_once()
 
     @patch("examples.cli.list_providers")
-    def test_main_list_providers(self, mock_list_providers):
+    def test_main_list_providers(self, mock_list_providers: MagicMock) -> None:
         mock_list_providers.return_value = 0
         args = ["--list-providers"]
         with patch("sys.argv", ["cli.py"] + args):
@@ -2939,7 +2943,7 @@ class TestMain:
         mock_list_providers.assert_called_once()
 
     @patch("examples.cli.init_config")
-    def test_main_init_config(self, mock_init_config):
+    def test_main_init_config(self, mock_init_config: MagicMock) -> None:
         mock_init_config.return_value = 0
         args = ["--init-config", "config.yaml"]
         with patch("sys.argv", ["cli.py"] + args):
@@ -2948,7 +2952,7 @@ class TestMain:
         mock_init_config.assert_called_once_with("config.yaml")
 
     @patch("examples.cli.validate_config")
-    def test_main_validate_config(self, mock_validate_config):
+    def test_main_validate_config(self, mock_validate_config: MagicMock) -> None:
         mock_validate_config.return_value = 0
         args = ["--validate-config", "config.yaml"]
         with patch("sys.argv", ["cli.py"] + args):
@@ -2957,7 +2961,7 @@ class TestMain:
         mock_validate_config.assert_called_once_with("config.yaml")
 
     @patch("examples.cli.run_combined")
-    def test_main_combined(self, mock_run_combined):
+    def test_main_combined(self, mock_run_combined: MagicMock) -> None:
         mock_run_combined.return_value = 0
         args = ["--combined", "--offline"]
         with patch("sys.argv", ["cli.py"] + args), patch("examples.cli.run_backtest"):
@@ -2965,7 +2969,7 @@ class TestMain:
         assert result == 0
         mock_run_combined.assert_called_once()
 
-    def test_main_offline_regime_analysis(self, capsys):
+    def test_main_offline_regime_analysis(self, capsys: CaptureFixture[Any]) -> None:
         """Running offline with --regime prints a Market Regime Analysis block."""
         args = ["--offline", "--regime", "--symbols", "AAPL", "--days", "120"]
         with patch("sys.argv", ["cli.py"] + args):
@@ -2977,7 +2981,7 @@ class TestMain:
         assert "Current Regime:" in captured.out
         assert "Regime Segments:" in captured.out
 
-    def test_main_offline_monte_carlo_analysis(self, capsys):
+    def test_main_offline_monte_carlo_analysis(self, capsys: CaptureFixture[Any]) -> None:
         """Running offline with --monte-carlo prints a Monte Carlo Simulation block."""
         args = [
             "--offline",
@@ -3000,7 +3004,7 @@ class TestMain:
         assert "Probability of Profit" in captured.out
         assert "95% Confidence Intervals" in captured.out
 
-    def test_main_offline_trade_analysis(self, capsys):
+    def test_main_offline_trade_analysis(self, capsys: CaptureFixture[Any]) -> None:
         """Running offline with --trade-analysis prints trade analysis."""
         args = ["--offline", "--trade-analysis", "--symbols", "AAPL", "--days", "120"]
         with patch("sys.argv", ["cli.py"] + args):
@@ -3010,14 +3014,14 @@ class TestMain:
         captured = capsys.readouterr()
         assert "Total Trades" in captured.out or "Trade Analysis" in captured.out
 
-    def test_main_with_start_end_dates(self):
+    def test_main_with_start_end_dates(self) -> None:
         """Main with explicit start and end dates."""
         args = ["--offline", "--start", "2023-01-01", "--end", "2023-06-01", "--symbols", "AAPL"]
         with patch("sys.argv", ["cli.py"] + args):
             result = main()
         assert result == 0
 
-    def test_main_with_output_file(self, capsys):
+    def test_main_with_output_file(self, capsys: CaptureFixture[Any]) -> None:
         """Main with output file saves results."""
         import tempfile
 
@@ -3032,7 +3036,7 @@ class TestMain:
 
             assert os.path.exists(output_path)
 
-    def test_main_offline_ichimoku(self, capsys):
+    def test_main_offline_ichimoku(self, capsys: CaptureFixture[Any]) -> None:
         """Running offline with ichimoku strategy should work and print Ichimoku_Cloud in output."""
         args = ["--offline", "--strategy", "ichimoku", "--symbols", "AAPL", "--days", "120"]
         with patch("sys.argv", ["cli.py"] + args):
@@ -3059,7 +3063,7 @@ class TestMain:
         assert "Max Drawdown:" in captured.out
         assert "Profit Factor:" in captured.out
 
-    def test_main_offline_ichimoku_with_custom_params(self, capsys):
+    def test_main_offline_ichimoku_with_custom_params(self, capsys: CaptureFixture[Any]) -> None:
         """Running offline with ichimoku strategy and custom parameters."""
         args = [
             "--offline",
@@ -3089,7 +3093,7 @@ class TestMain:
         # However, we can at least verify that the run succeeded.
         assert "Results for: Ichimoku_Cloud" in captured.out
 
-    def test_main_error_handling(self, capsys):
+    def test_main_error_handling(self, capsys: CaptureFixture[Any]) -> None:
         """Main handles errors gracefully."""
         with patch("examples.cli.run_backtest") as mock_run:
             mock_run.side_effect = ValueError("Test error")
@@ -3100,7 +3104,7 @@ class TestMain:
             captured = capsys.readouterr()
             assert "Error running backtest" in captured.out
 
-    def test_main_value_error_is_reported_as_one_line_error(self, capsys, monkeypatch):
+    def test_main_value_error_is_reported_as_one_line_error(self, capsys: CaptureFixture[Any], monkeypatch: MonkeyPatch) -> None:
         """A ValueError propagating out of _run_cli is a one-line error, not a traceback.
 
         The top-level ``main()`` handler converts ``ImportError``, ``OSError``
@@ -3110,7 +3114,7 @@ class TestMain:
         """
         from examples import cli as cli_module
 
-        def _raise_value_error(*args, **kwargs):
+        def _raise_value_error(*args: Any, **kwargs: Any) -> None:
             raise ValueError("boom")
 
         monkeypatch.setattr(cli_module, "create_config", _raise_value_error)
@@ -3123,7 +3127,7 @@ class TestMain:
         assert "Error: boom" in captured.out
         assert "Traceback" not in captured.out
 
-    def test_main_with_regime_monte_carlo_trade_analysis_output(self, capsys):
+    def test_main_with_regime_monte_carlo_trade_analysis_output(self, capsys: CaptureFixture[Any]) -> None:
         """Main with all analysis flags and output."""
         import json
         import tempfile
@@ -3154,7 +3158,7 @@ class TestMain:
             assert "trade_analysis" in data
             assert "total_costs" in data
 
-    def test_main_offline_optimize_ichimoku_calls_run_optimization(self):
+    def test_main_offline_optimize_ichimoku_calls_run_optimization(self) -> None:
         """Running offline with --optimize and ichimoku strategy calls run_optimization."""
         with patch("examples.cli.run_optimization") as mock_opt:
             mock_opt.return_value = 0
@@ -3166,7 +3170,7 @@ class TestMain:
             assert result == 0
             mock_opt.assert_called_once()
 
-    def test_main_offline_walk_forward_ichimoku_calls_run_walk_forward(self):
+    def test_main_offline_walk_forward_ichimoku_calls_run_walk_forward(self) -> None:
         """Running offline with --walk-forward and ichimoku strategy calls run_walk_forward."""
         with patch("examples.cli.run_walk_forward") as mock_wf:
             mock_wf.return_value = 0
@@ -3187,7 +3191,7 @@ class TestMain:
             assert result == 0
             mock_wf.assert_called_once()
 
-    def test_main_system_exit_nonzero_returns_one(self, capsys):
+    def test_main_system_exit_nonzero_returns_one(self, capsys: CaptureFixture[Any]) -> None:
         """main() converts non-zero SystemExit from argparse to exit code 1."""
 
         from examples.cli import main
@@ -3198,7 +3202,7 @@ class TestMain:
             result = main()
         assert result == 1
 
-    def test_main_system_exit_zero_returns_zero(self, capsys):
+    def test_main_system_exit_zero_returns_zero(self, capsys: CaptureFixture[Any]) -> None:
         """main() converts SystemExit(0) to exit code 0."""
         from examples.cli import main
 
@@ -3211,20 +3215,20 @@ class TestMain:
 class TestFactoryIntegration:
     """Tests for CLI integration with the strategy factory registry."""
 
-    def test_factory_registry_used_for_create_strategy(self):
+    def test_factory_registry_used_for_create_strategy(self) -> None:
         """Test that create_strategy uses the factory registry."""
         from quant_trading.strategies import get_registry, register_strategy
         from quant_trading.strategies.base import Strategy
 
         class CustomStrategy(Strategy):
-            def __init__(self, custom_param: int = 42, **kwargs):
+            def __init__(self, custom_param: int = 42, **kwargs: Any) -> None:
                 super().__init__(**kwargs)
                 self.custom_param = custom_param
 
-            def generate_signals(self, data, symbol: str):  # type: ignore[override]
+            def generate_signals(self, data: Any, symbol: str) -> int:  # type: ignore[override]
                 return 0
 
-            def get_parameters(self):
+            def get_parameters(self) -> dict[str, int]:
                 return {"custom_param": self.custom_param}
 
         # Register custom strategy
@@ -3260,19 +3264,19 @@ class TestFactoryIntegration:
             # Cleanup
             registry.unregister("custom")
 
-    def test_list_strategies_uses_factory(self, capsys):
+    def test_list_strategies_uses_factory(self, capsys: CaptureFixture[Any]) -> None:
         """Test that list_strategies uses factory registry."""
         from quant_trading.strategies import get_registry, register_strategy
         from quant_trading.strategies.base import Strategy
 
         class TestStrategy(Strategy):
-            def __init__(self, **kwargs):
+            def __init__(self, **kwargs: Any) -> None:
                 super().__init__(name="TestStrategy", **kwargs)
 
-            def generate_signals(self, data, symbol: str):  # type: ignore[override]
+            def generate_signals(self, data: Any, symbol: str) -> int:  # type: ignore[override]
                 return 0
 
-            def get_parameters(self):
+            def get_parameters(self) -> dict[str, int]:
                 return {"test_param": 1}
 
         register_strategy("test_strat", TestStrategy)
@@ -3285,7 +3289,7 @@ class TestFactoryIntegration:
         finally:
             get_registry().unregister("test_strat")
 
-    def test_run_combined_iterates_registry_primary_keys(self):
+    def test_run_combined_iterates_registry_primary_keys(self) -> None:
         """Test that run_combined iterates over registry primary keys."""
         from unittest.mock import MagicMock, patch
 
@@ -3294,13 +3298,13 @@ class TestFactoryIntegration:
 
         # Register a custom strategy
         class CustomStrategy(Strategy):
-            def __init__(self, **kwargs):
+            def __init__(self, **kwargs: Any) -> None:
                 super().__init__(name="CustomStrategy", **kwargs)
 
-            def generate_signals(self, data, symbol: str):  # type: ignore[override]
+            def generate_signals(self, data: Any, symbol: str) -> int:  # type: ignore[override]
                 return 0
 
-            def get_parameters(self):
+            def get_parameters(self) -> dict[str, Any]:
                 return {}
 
         register_strategy("custom_for_combined", CustomStrategy)
