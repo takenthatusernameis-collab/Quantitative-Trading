@@ -123,24 +123,25 @@ class RiskAttribution:
     carries (market value / portfolio value). They sum to 1.0 for a fully
     invested, long-only portfolio.
 
-    VaR is expressed as a positive loss: a component VaR of ``0.01`` means
-    the position contributes ``0.01`` of portfolio value at risk at the
-    chosen confidence level. The volatility contributions sum exactly to the
-    portfolio volatility (Euler decomposition). The component VaRs sum to the
-    portfolio VaR for a long-only portfolio under the historical simulation
-    convention; they sum to the mean portfolio return in the tail (the
-    expected shortfall) instead of the portfolio VaR when the return
-    distribution is not degenerate, so read ``portfolio_var`` as the
-    quantile loss and the component sum as the tail-decomposition loss.
+    VaR is expressed as a negative loss, consistent with
+    :func:`~quant_trading.risk.metrics.calculate_var`: a component VaR of
+    ``-0.01`` means the position contributes ``0.01`` of portfolio value at
+    risk at the chosen confidence level. The volatility contributions sum
+    exactly to the portfolio volatility (Euler decomposition). The component
+    VaRs sum to the mean portfolio return in the tail (the expected shortfall
+    / CVaR) rather than to ``portfolio_var`` (the quantile loss): read
+    ``portfolio_var`` as the quantile loss and the component sum as the
+    tail-decomposition loss.
 
     Attributes:
         confidence: Confidence level used for the VaR figures.
         positions_value: Market value of the positions the attribution
             covers.
         portfolio_value: Portfolio value used to size the position weights.
-        portfolio_var: Portfolio Value at Risk as a positive fraction of the
-            portfolio value, measured as the loss at the confidence level
-            (the negative of the lower quantile of the portfolio return).
+        portfolio_var: Portfolio Value at Risk as a negative fraction of the
+            portfolio value, measured as the lower quantile of the portfolio
+            return (a loss, consistent with
+            :func:`~quant_trading.risk.metrics.calculate_var`).
         portfolio_volatility: Portfolio volatility, annualized when the
             attribution was computed with ``annualize=True``.
         weights: Position weights (share of the portfolio value), indexed by
@@ -278,8 +279,9 @@ class RiskAttribution:
     def total_component_var(self) -> float:
         """Sum of the component VaR over all positions.
 
-        For a long-only portfolio this equals :attr:`portfolio_var` by the
-        Euler decomposition. A portfolio with short positions reports the
+        Because the component VaRs are negative losses, the sum equals the
+        portfolio Expected Shortfall (CVaR) rather than the quantile-based
+        :attr:`portfolio_var`. A portfolio with short positions reports the
         net figure: the shorts reduce the sum instead of adding to it.
 
         Returns:
@@ -1225,10 +1227,11 @@ class RiskManager:
 
         Position weights are the share of the gross position value each
         position carries, measured on the current position view. The VaR
-        figures are reported as positive losses: the portfolio VaR is the
-        loss at the confidence level (the negative of the lower quantile of
-        the portfolio return), and the component VaRs sum to the mean
-        portfolio loss in the tail of the distribution.
+        figures are reported as negative losses, consistent with
+        :func:`~quant_trading.risk.metrics.calculate_var`: the portfolio VaR
+        is the lower quantile of the portfolio return, and the component VaRs
+        sum to the mean portfolio return in the tail (the expected shortfall
+        / CVaR), not to the portfolio VaR quantile.
 
         Args:
             returns: DataFrame of asset returns (columns = symbols, rows =

@@ -6,9 +6,12 @@ import pytest
 
 from quant_trading.risk.metrics import (
     calculate_component_var,
+    calculate_cvar,
     calculate_equal_risk_contribution_weights,
     calculate_marginal_var,
     calculate_risk_budget_weights,
+    calculate_var,
+    calculate_volatility,
     calculate_volatility_contributions,
 )
 
@@ -97,14 +100,12 @@ class TestComponentVaR:
         weights = pd.Series([0.4, 0.3, 0.3], index=["A", "B", "C"])
         cvar = calculate_component_var(returns, weights, confidence=0.95)
 
-        portfolio_returns = returns.values @ weights.values
-        from quant_trading.risk.metrics import calculate_var
+        portfolio_returns = pd.Series(returns.values @ weights.values)
+        portfolio_cvar = calculate_cvar(portfolio_returns, 0.95)
 
-        portfolio_var = calculate_var(pd.Series(portfolio_returns), 0.95)
-
-        # Euler's theorem: sum of component VaR = portfolio VaR
-        # Allow larger tolerance due to finite difference approximation
-        assert abs(cvar.sum() - portfolio_var) < abs(portfolio_var) * 0.5 + 1e-4
+        # The component VaRs are negative losses and their sum equals the
+        # portfolio Expected Shortfall (CVaR), not the quantile-based VaR.
+        assert abs(cvar.sum() - portfolio_cvar) < 1e-6
 
     def test_component_var_single_asset(self) -> None:
         np.random.seed(42)
@@ -113,6 +114,35 @@ class TestComponentVaR:
         cvar = calculate_component_var(returns, weights, confidence=0.95)
         assert len(cvar) == 1
         assert cvar.index.tolist() == ["A"]
+
+    def test_component_var_sign_is_negative_loss(self) -> None:
+        """Component VaR is a negative loss, consistent with ``calculate_var``.
+
+        The historical-simulation marginal VaR is the mean asset return in the
+        tail of the portfolio distribution, so for a long-only portfolio the
+        component VaRs are negative. Their sum equals the portfolio Expected
+        Shortfall (CVaR), not the quantile-based VaR.
+        """
+        np.random.seed(42)
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 500),
+                "B": np.random.normal(0.001, 0.02, 500),
+                "C": np.random.normal(0.001, 0.02, 500),
+            }
+        )
+        weights = pd.Series([0.4, 0.3, 0.3], index=["A", "B", "C"])
+        cvar = calculate_component_var(returns, weights, confidence=0.95)
+
+        assert (cvar <= 0).all(), "component VaR must be a negative loss"
+
+        portfolio_returns = pd.Series(returns.values @ weights.values)
+        portfolio_var = calculate_var(portfolio_returns, 0.95)
+        portfolio_cvar = calculate_cvar(portfolio_returns, 0.95)
+
+        # The component sum tracks the tail mean (CVaR), not the quantile.
+        assert abs(cvar.sum() - portfolio_cvar) < 1e-6
+        assert abs(cvar.sum() - portfolio_var) > abs(portfolio_var) * 0.1
 
 
 class TestVolatilityContributions:
@@ -144,10 +174,8 @@ class TestVolatilityContributions:
         weights = pd.Series([0.4, 0.3, 0.3], index=["A", "B", "C"])
         contrib = calculate_volatility_contributions(returns, weights, annualize=False)
 
-        portfolio_returns = returns.values @ weights.values
-        from quant_trading.risk.metrics import calculate_volatility
-
-        portfolio_vol = calculate_volatility(pd.Series(portfolio_returns), annualize=False)
+        portfolio_returns = pd.Series(returns.values @ weights.values)
+        portfolio_vol = calculate_volatility(portfolio_returns, annualize=False)
 
         assert abs(contrib.sum() - portfolio_vol) < 1e-6
 

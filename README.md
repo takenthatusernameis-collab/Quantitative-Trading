@@ -1950,8 +1950,9 @@ drive portfolio risk and for building risk-balanced portfolios.
 
 Marginal VaR measures how the portfolio VaR changes when a position's weight
 is perturbed. Component VaR is the product of the position weight and its
-marginal VaR. The sum of component VaRs equals the portfolio VaR (Euler's
-theorem for homogeneous functions).
+marginal VaR. Because the VaR figures are reported as negative losses
+(consistent with ``calculate_var``), the sum of component VaRs equals the
+portfolio Expected Shortfall (CVaR) rather than the quantile-based VaR.
 
 ```python
 from quant_trading.risk.manager import RiskManager
