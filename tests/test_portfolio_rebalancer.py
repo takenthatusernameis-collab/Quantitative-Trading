@@ -1,6 +1,7 @@
 """Tests for portfolio rebalancing logic."""
 
 from datetime import datetime, timedelta
+from typing import Any
 
 import pytest
 
@@ -10,21 +11,21 @@ from quant_trading.risk.manager import RiskManager
 from quant_trading.strategies.base import Signal
 
 
-def _portfolio_with_aapl():
+def _portfolio_with_aapl() -> Portfolio:
     """Portfolio with $100k cash and one AAPL lot worth $10k (total $100k)."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     portfolio.add_holding("AAPL", 100, 100.0)
     return portfolio
 
 
-def _empty_portfolio():
+def _empty_portfolio() -> Portfolio:
     return Portfolio(cash=100000.0, initial_capital=100000.0)
 
 
 class TestRebalanceAction:
     """Tests for the RebalanceAction dataclass."""
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         """Action defaults to a hold with zero quantity and empty reason."""
         action = RebalanceAction(symbol="AAPL", action="hold")
         assert action.symbol == "AAPL"
@@ -33,7 +34,7 @@ class TestRebalanceAction:
         assert action.reason == ""
         assert isinstance(action.timestamp, datetime)
 
-    def test_explicit_values(self):
+    def test_explicit_values(self) -> None:
         """All fields are set when provided."""
         timestamp = datetime(2026, 1, 1, 12, 0, 0)
         action = RebalanceAction(
@@ -51,7 +52,7 @@ class TestRebalanceAction:
 class TestRebalanceActionSerialization:
     """Tests for RebalanceAction.to_dict / from_dict round-trips."""
 
-    def test_all_fields(self):
+    def test_all_fields(self) -> None:
         """Every field is serialized and reconstructed."""
         timestamp = datetime(2026, 1, 1, 12, 0, 0)
         action = RebalanceAction(
@@ -70,7 +71,7 @@ class TestRebalanceActionSerialization:
             "timestamp": "2026-01-01T12:00:00",
         }
 
-    def test_round_trip(self):
+    def test_round_trip(self) -> None:
         """to_dict followed by from_dict reproduces the action."""
         timestamp = datetime(2026, 1, 1, 12, 0, 0)
         action = RebalanceAction(
@@ -84,7 +85,7 @@ class TestRebalanceActionSerialization:
         assert restored == action
         assert restored.timestamp == timestamp
 
-    def test_json_round_trip(self):
+    def test_json_round_trip(self) -> None:
         """The dict survives a JSON serialization round-trip."""
         import json
 
@@ -94,7 +95,7 @@ class TestRebalanceActionSerialization:
         assert restored.action == "sell"
         assert restored.quantity == pytest.approx(50.0)
 
-    def test_defaults_and_empty_dict(self):
+    def test_defaults_and_empty_dict(self) -> None:
         """Missing keys fall back to safe defaults."""
         restored = RebalanceAction.from_dict({})
         assert restored.symbol == ""
@@ -103,7 +104,7 @@ class TestRebalanceActionSerialization:
         assert restored.reason == ""
         assert isinstance(restored.timestamp, datetime)
 
-    def test_extra_keys_ignored(self):
+    def test_extra_keys_ignored(self) -> None:
         """Extra keys in the dict are ignored."""
         restored = RebalanceAction.from_dict(
             {"symbol": "AAPL", "action": "buy", "quantity": 10.0, "extra": "ignored"}
@@ -112,7 +113,7 @@ class TestRebalanceActionSerialization:
         assert restored.action == "buy"
         assert restored.quantity == pytest.approx(10.0)
 
-    def test_iso_string_timestamp(self):
+    def test_iso_string_timestamp(self) -> None:
         """An ISO-8601 timestamp string is coerced back to a datetime."""
         restored = RebalanceAction.from_dict(
             {"symbol": "AAPL", "action": "buy", "timestamp": "2026-01-01T12:00:00"}
@@ -123,7 +124,7 @@ class TestRebalanceActionSerialization:
 class TestRebalanceExecutionSerialization:
     """Tests for RebalanceExecution.to_dict / from_dict round-trips."""
 
-    def test_all_fields(self):
+    def test_all_fields(self) -> None:
         """Every field is serialized and reconstructed."""
         timestamp = datetime(2026, 1, 1, 12, 0, 0)
         execution = RebalanceExecution(
@@ -148,7 +149,7 @@ class TestRebalanceExecutionSerialization:
             "timestamp": "2026-01-01T12:00:00",
         }
 
-    def test_round_trip(self):
+    def test_round_trip(self) -> None:
         """to_dict followed by from_dict reproduces the execution."""
         timestamp = datetime(2026, 1, 1, 12, 0, 0)
         execution = RebalanceExecution(
@@ -165,7 +166,7 @@ class TestRebalanceExecutionSerialization:
         assert restored == execution
         assert restored.timestamp == timestamp
 
-    def test_json_round_trip(self):
+    def test_json_round_trip(self) -> None:
         """The dict survives a JSON serialization round-trip."""
         import json
 
@@ -175,7 +176,7 @@ class TestRebalanceExecutionSerialization:
         assert restored.action == "hold"
         assert restored.price == pytest.approx(100.0)
 
-    def test_defaults_and_empty_dict(self):
+    def test_defaults_and_empty_dict(self) -> None:
         """Missing keys fall back to safe defaults."""
         restored = RebalanceExecution.from_dict({})
         assert restored.symbol == ""
@@ -187,7 +188,7 @@ class TestRebalanceExecutionSerialization:
         assert restored.reason == ""
         assert isinstance(restored.timestamp, datetime)
 
-    def test_extra_keys_ignored(self):
+    def test_extra_keys_ignored(self) -> None:
         """Extra keys in the dict are ignored."""
         restored = RebalanceExecution.from_dict(
             {"symbol": "AAPL", "action": "buy", "price": 150.0, "extra": "ignored"}
@@ -196,7 +197,7 @@ class TestRebalanceExecutionSerialization:
         assert restored.action == "buy"
         assert restored.price == pytest.approx(150.0)
 
-    def test_iso_string_timestamp(self):
+    def test_iso_string_timestamp(self) -> None:
         """An ISO-8601 timestamp string is coerced back to a datetime."""
         restored = RebalanceExecution.from_dict(
             {"symbol": "AAPL", "action": "buy", "timestamp": "2026-01-01T12:00:00"}
@@ -207,7 +208,7 @@ class TestRebalanceExecutionSerialization:
 class TestRebalancerInit:
     """Tests for Rebalancer initialization."""
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         """Default frequency, empty target allocation, and no prior rebalance."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio)
@@ -217,7 +218,7 @@ class TestRebalancerInit:
         assert rebalancer.last_rebalance is None
         assert rebalancer.rebalance_history == []
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         """Constructor arguments are stored as given."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(
@@ -230,7 +231,7 @@ class TestRebalancerInit:
         assert rebalancer.target_allocation == {"AAPL": 0.6, "MSFT": 0.4}
         assert rebalancer.rebalance_threshold == 0.10
 
-    def test_target_allocation_none_defaults_empty(self):
+    def test_target_allocation_none_defaults_empty(self) -> None:
         """A None target allocation normalizes to an empty dict."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio, target_allocation=None)
@@ -241,25 +242,25 @@ class TestRebalancerInitValidation:
     """Tests for input validation in Rebalancer.__init__."""
 
     @pytest.mark.parametrize("frequency", ["yearly", "hourly", "invalid", ""])
-    def test_rejects_invalid_frequency(self, frequency):
+    def test_rejects_invalid_frequency(self, frequency: str) -> None:
         portfolio = _empty_portfolio()
         with pytest.raises(ValueError, match="invalid frequency"):
             Rebalancer(portfolio, frequency=frequency)
 
     @pytest.mark.parametrize("frequency", ["daily", "weekly", "monthly", "quarterly"])
-    def test_accepts_valid_frequencies(self, frequency):
+    def test_accepts_valid_frequencies(self, frequency: str) -> None:
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio, frequency=frequency)
         assert rebalancer.frequency == frequency
 
     @pytest.mark.parametrize("threshold", [-0.1, -1.0, 1.5])
-    def test_rejects_invalid_rebalance_threshold(self, threshold):
+    def test_rejects_invalid_rebalance_threshold(self, threshold: float) -> None:
         portfolio = _empty_portfolio()
         with pytest.raises(ValueError, match="invalid rebalance_threshold"):
             Rebalancer(portfolio, rebalance_threshold=threshold)
 
     @pytest.mark.parametrize("threshold", [0.0, 0.01, 0.05, 0.10, 1.0])
-    def test_accepts_rebalance_threshold_boundaries(self, threshold):
+    def test_accepts_rebalance_threshold_boundaries(self, threshold: float) -> None:
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio, rebalance_threshold=threshold)
         assert rebalancer.rebalance_threshold == threshold
@@ -273,12 +274,12 @@ class TestRebalancerInitValidation:
             {"AAPL": "not_a_number"},
         ],
     )
-    def test_rejects_non_finite_target_weights(self, allocation):
+    def test_rejects_non_finite_target_weights(self, allocation: dict[str, Any]) -> None:
         portfolio = _empty_portfolio()
         with pytest.raises(ValueError, match="must be a finite number"):
             Rebalancer(portfolio, target_allocation=allocation)
 
-    def test_accepts_various_target_allocations(self):
+    def test_accepts_various_target_allocations(self) -> None:
         """Target allocations with any finite weights are accepted."""
         portfolio = _empty_portfolio()
         for allocation in [
@@ -292,13 +293,13 @@ class TestRebalancerInitValidation:
             rebalancer = Rebalancer(portfolio, target_allocation=allocation)
             assert rebalancer.target_allocation == allocation
 
-    def test_accepts_empty_target_allocation(self):
+    def test_accepts_empty_target_allocation(self) -> None:
         """An empty target allocation is valid (no-op rebalancer)."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio, target_allocation={})
         assert rebalancer.target_allocation == {}
 
-    def test_accepts_all_valid_combinations(self):
+    def test_accepts_all_valid_combinations(self) -> None:
         """All boundary-valid values together should initialize."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(
@@ -315,60 +316,60 @@ class TestRebalancerInitValidation:
 class TestShouldRebalance:
     """Tests for the frequency-based should_rebalance trigger."""
 
-    def test_first_call_always_true(self):
+    def test_first_call_always_true(self) -> None:
         """With no prior rebalance, the first call always triggers."""
         rebalancer = Rebalancer(_empty_portfolio())
         assert rebalancer.should_rebalance() is True
 
-    def test_daily_new_day(self):
+    def test_daily_new_day(self) -> None:
         """A daily rebalancer triggers when the last run was a previous day."""
         rebalancer = Rebalancer(_empty_portfolio(), frequency="daily")
         rebalancer.last_rebalance = datetime.now() - timedelta(days=1)
         assert rebalancer.should_rebalance() is True
 
-    def test_daily_same_day(self):
+    def test_daily_same_day(self) -> None:
         """A daily rebalancer does not trigger within the same day."""
         rebalancer = Rebalancer(_empty_portfolio(), frequency="daily")
         rebalancer.last_rebalance = datetime.now()
         assert rebalancer.should_rebalance() is False
 
-    def test_weekly_enough_elapsed(self):
+    def test_weekly_enough_elapsed(self) -> None:
         """A weekly rebalancer triggers after 7 or more days."""
         rebalancer = Rebalancer(_empty_portfolio(), frequency="weekly")
         rebalancer.last_rebalance = datetime.now() - timedelta(days=8)
         assert rebalancer.should_rebalance() is True
 
-    def test_weekly_not_enough_elapsed(self):
+    def test_weekly_not_enough_elapsed(self) -> None:
         """A weekly rebalancer does not trigger before 7 days."""
         rebalancer = Rebalancer(_empty_portfolio(), frequency="weekly")
         rebalancer.last_rebalance = datetime.now() - timedelta(days=3)
         assert rebalancer.should_rebalance() is False
 
-    def test_monthly_different_month(self):
+    def test_monthly_different_month(self) -> None:
         """A monthly rebalancer triggers in a different month/year."""
         rebalancer = Rebalancer(_empty_portfolio(), frequency="monthly")
         rebalancer.last_rebalance = datetime(2020, 1, 15)
         assert rebalancer.should_rebalance() is True
 
-    def test_monthly_same_month(self):
+    def test_monthly_same_month(self) -> None:
         """A monthly rebalancer does not trigger within the same month."""
         rebalancer = Rebalancer(_empty_portfolio(), frequency="monthly")
         rebalancer.last_rebalance = datetime.now()
         assert rebalancer.should_rebalance() is False
 
-    def test_quarterly_enough_elapsed(self):
+    def test_quarterly_enough_elapsed(self) -> None:
         """A quarterly rebalancer triggers after 90 or more days."""
         rebalancer = Rebalancer(_empty_portfolio(), frequency="quarterly")
         rebalancer.last_rebalance = datetime.now() - timedelta(days=100)
         assert rebalancer.should_rebalance() is True
 
-    def test_quarterly_not_enough_elapsed(self):
+    def test_quarterly_not_enough_elapsed(self) -> None:
         """A quarterly rebalancer does not trigger before 90 days."""
         rebalancer = Rebalancer(_empty_portfolio(), frequency="quarterly")
         rebalancer.last_rebalance = datetime.now() - timedelta(days=30)
         assert rebalancer.should_rebalance() is False
 
-    def test_unrecognized_frequency(self):
+    def test_unrecognized_frequency(self) -> None:
         """An unknown frequency is rejected at construction."""
         portfolio = _empty_portfolio()
         with pytest.raises(ValueError, match="invalid frequency"):
@@ -378,13 +379,13 @@ class TestShouldRebalance:
 class TestCalculateTargetValues:
     """Tests for target market value computation."""
 
-    def test_empty_with_no_targets(self):
+    def test_empty_with_no_targets(self) -> None:
         """No target allocation yields an empty target map."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio)
         assert rebalancer.calculate_target_values() == {}
 
-    def test_computes_target_values(self):
+    def test_computes_target_values(self) -> None:
         """Each target is total portfolio value times the target fraction."""
         portfolio = _portfolio_with_aapl()  # total value stays 100000
         rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.5, "MSFT": 0.5})
@@ -395,7 +396,7 @@ class TestCalculateTargetValues:
 class TestGenerateRebalanceActions:
     """Tests for action generation from targets and signals."""
 
-    def test_buy_below_target_allocation(self):
+    def test_buy_below_target_allocation(self) -> None:
         """A position below target emits a buy sized to close the gap."""
         portfolio = _portfolio_with_aapl()
         rebalancer = Rebalancer(
@@ -409,7 +410,7 @@ class TestGenerateRebalanceActions:
         assert action.quantity == pytest.approx(400.0)  # (50000 - 10000) / 100
         assert action.reason == "target_allocation"
 
-    def test_sell_above_target_allocation(self):
+    def test_sell_above_target_allocation(self) -> None:
         """A position above target emits a sell sized to close the gap."""
         portfolio = _portfolio_with_aapl()
         rebalancer = Rebalancer(
@@ -422,7 +423,7 @@ class TestGenerateRebalanceActions:
         assert action.quantity == pytest.approx(100.0)  # 10000 / 100
         assert action.reason == "target_allocation"
 
-    def test_no_action_within_threshold(self):
+    def test_no_action_within_threshold(self) -> None:
         """Deviations below the threshold produce no actions."""
         portfolio = _portfolio_with_aapl()
         rebalancer = Rebalancer(
@@ -431,7 +432,7 @@ class TestGenerateRebalanceActions:
         actions = rebalancer.generate_rebalance_actions()
         assert actions == []
 
-    def test_no_action_at_exact_threshold(self):
+    def test_no_action_at_exact_threshold(self) -> None:
         """A deviation exactly equal to the threshold does not trigger."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(
@@ -440,14 +441,14 @@ class TestGenerateRebalanceActions:
         actions = rebalancer.generate_rebalance_actions()
         assert actions == []  # diff/total == 0.05, not strictly greater
 
-    def test_skip_when_total_value_non_positive(self):
+    def test_skip_when_total_value_non_positive(self) -> None:
         """No target-allocation actions are generated with zero portfolio value."""
         portfolio = Portfolio()
         rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.5})
         actions = rebalancer.generate_rebalance_actions()
         assert actions == []
 
-    def test_buy_uses_prices_map_for_unheld_symbol(self):
+    def test_buy_uses_prices_map_for_unheld_symbol(self) -> None:
         """Buy quantity falls back to the provided prices map."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(
@@ -460,7 +461,7 @@ class TestGenerateRebalanceActions:
         assert actions[0].action == "buy"
         assert actions[0].quantity == pytest.approx(250.0)  # 50000 / 200
 
-    def test_buy_with_unresolvable_price_yields_no_action(self):
+    def test_buy_with_unresolvable_price_yields_no_action(self) -> None:
         """A buy with no available price produces no action."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(
@@ -469,7 +470,7 @@ class TestGenerateRebalanceActions:
         actions = rebalancer.generate_rebalance_actions()
         assert actions == []
 
-    def test_buy_target_with_holding_zero_price_yields_no_action(self):
+    def test_buy_target_with_holding_zero_price_yields_no_action(self) -> None:
         """A buy target for a holding with a non-positive price resolves to no action."""
         portfolio = _empty_portfolio()
         portfolio.add_holding("GOOGL", 100, 100.0)
@@ -480,7 +481,7 @@ class TestGenerateRebalanceActions:
         actions = rebalancer.generate_rebalance_actions()
         assert actions == []
 
-    def test_buy_target_via_signal_with_zero_price_yields_no_action(self):
+    def test_buy_target_via_signal_with_zero_price_yields_no_action(self) -> None:
         """A buy target sized from a signal with a non-positive price resolves to no action."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(
@@ -490,7 +491,7 @@ class TestGenerateRebalanceActions:
         actions = rebalancer.generate_rebalance_actions(signals=[signal])
         assert actions == []
 
-    def test_signal_buy_outside_allocation(self):
+    def test_signal_buy_outside_allocation(self) -> None:
         """A buy signal for an untracked symbol is sized at 5% of value times strength."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio, target_allocation={})
@@ -503,7 +504,7 @@ class TestGenerateRebalanceActions:
         assert action.quantity == pytest.approx(50.0)  # 100000 * 0.05 * 1.0 / 100
         assert action.reason == "signal_unknown"
 
-    def test_signal_buy_scaled_by_strength(self):
+    def test_signal_buy_scaled_by_strength(self) -> None:
         """Signal strength scales the signal-sized target value."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio, target_allocation={})
@@ -512,7 +513,7 @@ class TestGenerateRebalanceActions:
         assert len(actions) == 1
         assert actions[0].quantity == pytest.approx(25.0)  # half strength
 
-    def test_signal_buy_with_no_price_yields_no_action(self):
+    def test_signal_buy_with_no_price_yields_no_action(self) -> None:
         """A buy signal without a price cannot be sized and produces no action."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio, target_allocation={})
@@ -520,7 +521,7 @@ class TestGenerateRebalanceActions:
         actions = rebalancer.generate_rebalance_actions(signals=[signal])
         assert actions == []
 
-    def test_signal_sell_liquidates_holding(self):
+    def test_signal_sell_liquidates_holding(self) -> None:
         """A sell signal emits a sell for the full held quantity."""
         portfolio = _portfolio_with_aapl()
         rebalancer = Rebalancer(portfolio, target_allocation={})
@@ -531,7 +532,7 @@ class TestGenerateRebalanceActions:
         assert actions[0].quantity == pytest.approx(100.0)
         assert actions[0].reason == "signal_sell"
 
-    def test_signal_sell_no_holding_yields_no_action(self):
+    def test_signal_sell_no_holding_yields_no_action(self) -> None:
         """A sell signal for an unheld symbol produces no action."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio, target_allocation={})
@@ -539,7 +540,7 @@ class TestGenerateRebalanceActions:
         actions = rebalancer.generate_rebalance_actions(signals=[signal])
         assert actions == []
 
-    def test_signal_for_tracked_symbol_is_ignored(self):
+    def test_signal_for_tracked_symbol_is_ignored(self) -> None:
         """Signals for symbols in the target allocation are not signal-sized."""
         portfolio = _portfolio_with_aapl()
         rebalancer = Rebalancer(
@@ -550,7 +551,7 @@ class TestGenerateRebalanceActions:
         assert len(actions) == 1
         assert actions[0].reason == "target_allocation"
 
-    def test_records_history_and_updates_last_rebalance(self):
+    def test_records_history_and_updates_last_rebalance(self) -> None:
         """Each run records history and stamps last_rebalance."""
         portfolio = _portfolio_with_aapl()
         rebalancer = Rebalancer(
@@ -571,8 +572,8 @@ class TestGenerateRebalanceActions:
 class TestRebalancerRiskLimits:
     """Tests for risk-manager-aware action generation."""
 
-    def _risk_manager(self, **kwargs):
-        defaults = {
+    def _risk_manager(self, **kwargs: Any) -> RiskManager:
+        defaults: dict[str, Any] = {
             "initial_capital": 100000.0,
             "max_position_size": 0.1,
             "max_drawdown": 0.20,
@@ -580,19 +581,19 @@ class TestRebalancerRiskLimits:
         defaults.update(kwargs)
         return RiskManager(**defaults)
 
-    def test_risk_manager_parameter_defaults_to_none(self):
+    def test_risk_manager_parameter_defaults_to_none(self) -> None:
         """The risk manager defaults to None when not supplied."""
         rebalancer = Rebalancer(_empty_portfolio())
         assert rebalancer.risk_manager is None
 
-    def test_risk_manager_parameter_is_stored(self):
+    def test_risk_manager_parameter_is_stored(self) -> None:
         """A supplied risk manager is stored on the rebalancer."""
         portfolio = _empty_portfolio()
         risk_manager = self._risk_manager()
         rebalancer = Rebalancer(portfolio, risk_manager=risk_manager)
         assert rebalancer.risk_manager is risk_manager
 
-    def test_without_risk_manager_behavior_unchanged(self):
+    def test_without_risk_manager_behavior_unchanged(self) -> None:
         """No risk manager means buys are generated exactly as before."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(
@@ -602,7 +603,7 @@ class TestRebalancerRiskLimits:
         assert len(actions) == 1
         assert actions[0].quantity == pytest.approx(1000.0)  # 100000 / 100
 
-    def test_position_limit_sizes_buy_down(self):
+    def test_position_limit_sizes_buy_down(self) -> None:
         """A buy is reduced to the largest position the limits allow."""
         portfolio = _empty_portfolio()
         risk_manager = self._risk_manager(max_position_size=0.05)  # max $5,000
@@ -616,7 +617,7 @@ class TestRebalancerRiskLimits:
         assert len(actions) == 1
         assert actions[0].quantity == pytest.approx(50.0)  # $5,000 / $100
 
-    def test_position_limit_uses_smaller_of_fraction_and_dollar_cap(self):
+    def test_position_limit_uses_smaller_of_fraction_and_dollar_cap(self) -> None:
         """The tighter of the size fraction and dollar value cap wins."""
         portfolio = _empty_portfolio()
         risk_manager = self._risk_manager(max_position_size=0.5)
@@ -631,7 +632,7 @@ class TestRebalancerRiskLimits:
         assert len(actions) == 1
         assert actions[0].quantity == pytest.approx(50.0)  # $5,000 / $100
 
-    def test_position_limit_no_room_skips_buy(self):
+    def test_position_limit_no_room_skips_buy(self) -> None:
         """A position already at its limit produces no further buy action."""
         portfolio = _portfolio_with_aapl()  # AAPL worth $10,000 of $100,000
         risk_manager = self._risk_manager(max_position_size=0.1)  # max $10,000
@@ -644,7 +645,7 @@ class TestRebalancerRiskLimits:
         actions = rebalancer.generate_rebalance_actions(prices={"AAPL": 100.0})
         assert actions == []
 
-    def test_drawdown_limit_halts_buys(self):
+    def test_drawdown_limit_halts_buys(self) -> None:
         """A breached drawdown (loss) limit drops all buy actions."""
         portfolio = _empty_portfolio()
         risk_manager = self._risk_manager(max_drawdown=0.10)
@@ -658,7 +659,7 @@ class TestRebalancerRiskLimits:
         actions = rebalancer.generate_rebalance_actions(prices={"AAPL": 100.0})
         assert actions == []
 
-    def test_drawdown_within_limit_still_buys(self):
+    def test_drawdown_within_limit_still_buys(self) -> None:
         """A drawdown below the loss limit does not block buying."""
         portfolio = _empty_portfolio()
         risk_manager = self._risk_manager(max_drawdown=0.20, max_position_size=1.0)
@@ -673,7 +674,7 @@ class TestRebalancerRiskLimits:
         assert len(actions) == 1
         assert actions[0].quantity == pytest.approx(1000.0)
 
-    def test_zero_drawdown_limit_skips_loss_check(self):
+    def test_zero_drawdown_limit_skips_loss_check(self) -> None:
         """A zero drawdown limit skips the loss check; position limit still applies."""
         portfolio = _empty_portfolio()
         risk_manager = self._risk_manager(max_drawdown=0.0, max_position_size=0.05)
@@ -687,7 +688,7 @@ class TestRebalancerRiskLimits:
         assert len(actions) == 1
         assert actions[0].quantity == pytest.approx(50.0)
 
-    def test_disabled_risk_manager_buys_as_usual(self):
+    def test_disabled_risk_manager_buys_as_usual(self) -> None:
         """A disabled risk manager leaves buy generation unchanged."""
         portfolio = _empty_portfolio()
         risk_manager = self._risk_manager()
@@ -702,7 +703,7 @@ class TestRebalancerRiskLimits:
         assert len(actions) == 1
         assert actions[0].quantity == pytest.approx(1000.0)
 
-    def test_signal_buy_respects_position_limit(self):
+    def test_signal_buy_respects_position_limit(self) -> None:
         """A signal-sized buy is reduced to the position limit."""
         portfolio = _empty_portfolio()
         risk_manager = self._risk_manager(max_position_size=0.01)  # max $1,000
@@ -716,7 +717,7 @@ class TestRebalancerRiskLimits:
         assert len(actions) == 1
         assert actions[0].quantity == pytest.approx(10.0)  # $1,000 / $100
 
-    def test_zero_quantity_signal_in_batch_skipped(self):
+    def test_zero_quantity_signal_in_batch_skipped(self) -> None:
         """A signal that cannot be sized is skipped while later signals still trade."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio, target_allocation={})
@@ -729,7 +730,7 @@ class TestRebalancerRiskLimits:
         assert actions[0].symbol == "AAPL"
         assert actions[0].quantity == pytest.approx(50.0)
 
-    def test_risk_limited_buy_executes_without_negative_cash(self):
+    def test_risk_limited_buy_executes_without_negative_cash(self) -> None:
         """A risk-limited buy executed through execute_actions keeps cash non-negative."""
         portfolio = _empty_portfolio()
         risk_manager = self._risk_manager(max_position_size=0.05)
@@ -753,21 +754,21 @@ class TestRebalancerRiskLimits:
 class TestSetTargetAllocation:
     """Tests for target allocation normalization."""
 
-    def test_keeps_allocation_when_sum_near_one(self):
+    def test_keeps_allocation_when_sum_near_one(self) -> None:
         """Allocations summing to 1.0 (within tolerance) are stored as-is."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio)
         rebalancer.set_target_allocation({"AAPL": 0.6, "MSFT": 0.4})
         assert rebalancer.target_allocation == {"AAPL": 0.6, "MSFT": 0.4}
 
-    def test_normalizes_allocation_far_from_one(self):
+    def test_normalizes_allocation_far_from_one(self) -> None:
         """Allocations not summing to 1.0 are rescaled to sum to 1.0."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio)
         rebalancer.set_target_allocation({"AAPL": 2, "MSFT": 3})
         assert rebalancer.target_allocation == pytest.approx({"AAPL": 0.4, "MSFT": 0.6})
 
-    def test_single_symbol_normalizes_to_one(self):
+    def test_single_symbol_normalizes_to_one(self) -> None:
         """A lone target is normalized to 100%."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio)
@@ -778,7 +779,7 @@ class TestSetTargetAllocation:
 class TestGetCurrentDeviation:
     """Tests for deviation-from-target computation."""
 
-    def test_returns_current_minus_target(self):
+    def test_returns_current_minus_target(self) -> None:
         """Deviation is current allocation fraction minus target fraction."""
         portfolio = _portfolio_with_aapl()
         rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.5, "MSFT": 0.2})
@@ -787,7 +788,7 @@ class TestGetCurrentDeviation:
         assert deviations["AAPL"] == pytest.approx(aapl_pct - 0.5)
         assert deviations["MSFT"] == pytest.approx(0.0 - 0.2)
 
-    def test_missing_symbol_has_zero_current_allocation(self):
+    def test_missing_symbol_has_zero_current_allocation(self) -> None:
         """An unheld symbol reports a deviation of negative its target."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio, target_allocation={"GOOGL": 0.3})
@@ -798,7 +799,7 @@ class TestGetCurrentDeviation:
 class TestNeedsRebalance:
     """Tests for deviation-based needs_rebalance."""
 
-    def test_true_when_deviation_exceeds_threshold(self):
+    def test_true_when_deviation_exceeds_threshold(self) -> None:
         """Any deviation above the threshold triggers needs_rebalance."""
         portfolio = _portfolio_with_aapl()
         rebalancer = Rebalancer(
@@ -806,7 +807,7 @@ class TestNeedsRebalance:
         )
         assert rebalancer.needs_rebalance() is True
 
-    def test_false_within_threshold(self):
+    def test_false_within_threshold(self) -> None:
         """Deviations within the threshold do not trigger."""
         portfolio = _portfolio_with_aapl()
         rebalancer = Rebalancer(
@@ -814,7 +815,7 @@ class TestNeedsRebalance:
         )
         assert rebalancer.needs_rebalance() is False
 
-    def test_false_when_no_target_allocation(self):
+    def test_false_when_no_target_allocation(self) -> None:
         """No target allocation means no rebalance is needed."""
         portfolio = _portfolio_with_aapl()
         rebalancer = Rebalancer(portfolio)
@@ -824,7 +825,7 @@ class TestNeedsRebalance:
 class TestRebalancerRemainingBranches:
     """Tests covering the remaining False branches of generate_rebalance_actions."""
 
-    def test_target_buy_exact_target_no_action(self):
+    def test_target_buy_exact_target_no_action(self) -> None:
         """Exactly at target emits no buy even when deviation clears threshold."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(
@@ -833,7 +834,7 @@ class TestRebalancerRemainingBranches:
         actions = rebalancer.generate_rebalance_actions(prices={"AAPL": 100.0})
         assert actions == []
 
-    def test_target_sell_unheld_symbol_no_action(self):
+    def test_target_sell_unheld_symbol_no_action(self) -> None:
         """A sell target for an unheld symbol emits no action (nothing to sell)."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(
@@ -842,7 +843,7 @@ class TestRebalancerRemainingBranches:
         actions = rebalancer.generate_rebalance_actions(prices={"AAPL": 100.0})
         assert actions == []
 
-    def test_signal_buy_without_signal_price_yields_no_action(self):
+    def test_signal_buy_without_signal_price_yields_no_action(self) -> None:
         """A buy signal whose own price is unset cannot be sized despite a market price."""
         portfolio = _empty_portfolio()
         rebalancer = Rebalancer(portfolio, target_allocation={})
@@ -858,7 +859,7 @@ if __name__ == "__main__":
 class TestRebalancerRiskIntegration:
     """End-to-end solvency tests with risk-managed rebalancing."""
 
-    def _risk_manager(self):
+    def _risk_manager(self) -> RiskManager:
         return RiskManager(
             initial_capital=100000.0,
             max_position_size=0.2,
@@ -869,10 +870,10 @@ class TestRebalancerRiskIntegration:
             take_profit_pct=0.20,
         )
 
-    def _empty_portfolio(self):
+    def _empty_portfolio(self) -> Portfolio:
         return Portfolio(cash=100000.0, initial_capital=100000.0)
 
-    def test_risk_managed_rebalance_preserves_solvency_across_rounds(self):
+    def test_risk_managed_rebalance_preserves_solvency_across_rounds(self) -> None:
         """Risk-managed rebalance + execution keeps invariants across multiple rounds."""
         import random
 
@@ -929,7 +930,7 @@ class TestRebalancerRiskIntegration:
                     max_allowed = min(max_by_frac, limit.max_value)
                     assert pos_val <= max_allowed + 500.0
 
-    def test_risk_managed_rebalance_respects_drawdown_limit(self):
+    def test_risk_managed_rebalance_respects_drawdown_limit(self) -> None:
         """When drawdown limit breached, buys are blocked but sells still work."""
         rm = self._risk_manager()
         portfolio = self._empty_portfolio()
@@ -959,7 +960,7 @@ class TestRebalancerRiskIntegration:
 class TestRebalancerCoverageGaps:
     """Tests to cover remaining branches in Rebalancer."""
 
-    def test_execute_actions_raises_for_unknown_action(self):
+    def test_execute_actions_raises_for_unknown_action(self) -> None:
         from quant_trading.portfolio.rebalancer import RebalanceAction, Rebalancer
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -968,7 +969,7 @@ class TestRebalancerCoverageGaps:
         with pytest.raises(ValueError, match="Unknown rebalance action"):
             rebalancer.execute_actions([action])
 
-    def test_execute_actions_hold_does_nothing_and_records(self):
+    def test_execute_actions_hold_does_nothing_and_records(self) -> None:
         from quant_trading.portfolio.rebalancer import RebalanceAction, Rebalancer
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -978,7 +979,7 @@ class TestRebalancerCoverageGaps:
         assert executions[0].executed_quantity == 0.0
         assert rebalancer.rebalance_history
 
-    def test_execute_actions_zero_quantity_skipped(self):
+    def test_execute_actions_zero_quantity_skipped(self) -> None:
         from quant_trading.portfolio.rebalancer import RebalanceAction, Rebalancer
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -987,7 +988,7 @@ class TestRebalancerCoverageGaps:
         executions = rebalancer.execute_actions([action], prices={"AAPL": 150})
         assert executions[0].executed_quantity == 0.0
 
-    def test_execute_actions_no_price_skipped(self):
+    def test_execute_actions_no_price_skipped(self) -> None:
         from quant_trading.portfolio.rebalancer import RebalanceAction, Rebalancer
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -996,7 +997,7 @@ class TestRebalancerCoverageGaps:
         executions = rebalancer.execute_actions([action])  # no prices
         assert executions[0].executed_quantity == 0.0
 
-    def test_execute_actions_sell_with_holdings(self):
+    def test_execute_actions_sell_with_holdings(self) -> None:
         from quant_trading.portfolio.rebalancer import RebalanceAction, Rebalancer
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -1007,7 +1008,7 @@ class TestRebalancerCoverageGaps:
         assert executions[0].executed_quantity > 0.0
         assert rebalancer.rebalance_history
 
-    def test_generate_actions_target_buy_zero_after_risk(self):
+    def test_generate_actions_target_buy_zero_after_risk(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer
         from quant_trading.risk.manager import RiskManager
 
@@ -1022,7 +1023,7 @@ class TestRebalancerCoverageGaps:
         except (TypeError, ValueError, RuntimeError):
             pass
 
-    def test_generate_actions_target_sell_when_below(self):
+    def test_generate_actions_target_sell_when_below(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer
 
         portfolio = Portfolio(cash=0.0, initial_capital=10000.0)
@@ -1035,7 +1036,7 @@ class TestRebalancerCoverageGaps:
         except (TypeError, ValueError, RuntimeError):
             pass
 
-    def test_resolve_buy_quantity_with_price_passed(self):
+    def test_resolve_buy_quantity_with_price_passed(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -1043,7 +1044,7 @@ class TestRebalancerCoverageGaps:
         qty = rebalancer._resolve_buy_quantity("AAPL", 1000.0, None, {}, price=50.0)
         assert qty == 20.0
 
-    def test_resolve_buy_quantity_no_price(self):
+    def test_resolve_buy_quantity_no_price(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -1058,7 +1059,7 @@ class TestRebalancerCoverageGaps:
         qty = rebalancer._plan_buy(plan, "AAPL", 10.0, 100.0)  # try to buy 10 to cover short of 5
         assert qty == 5.0  # capped to cover short exactly
 
-    def test_plan_buy_returns_zero_if_not_affordable(self):
+    def test_plan_buy_returns_zero_if_not_affordable(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer, _RebalancePlan
 
         portfolio = Portfolio(cash=100.0, initial_capital=100.0)
@@ -1067,7 +1068,7 @@ class TestRebalancerCoverageGaps:
         qty = rebalancer._plan_buy(plan, "AAPL", 100.0, 100.0)
         assert qty == 0.0
 
-    def test_risk_adjust_buy_no_risk_manager(self):
+    def test_risk_adjust_buy_no_risk_manager(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer, _RebalancePlan
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -1076,7 +1077,7 @@ class TestRebalancerCoverageGaps:
         qty = rebalancer._risk_adjust_buy(plan, "AAPL", 10.0, 100.0, 10000.0)
         assert qty == 10.0
 
-    def test_risk_adjust_buy_drawdown_halts(self):
+    def test_risk_adjust_buy_drawdown_halts(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer, _RebalancePlan
         from quant_trading.risk.manager import PortfolioRisk, RiskManager
 
@@ -1088,7 +1089,7 @@ class TestRebalancerCoverageGaps:
         qty = rebalancer._risk_adjust_buy(plan, "AAPL", 10.0, 100.0, 10000.0)
         assert qty == 0.0
 
-    def test_risk_adjust_buy_position_limit_no_room(self):
+    def test_risk_adjust_buy_position_limit_no_room(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer, _RebalancePlan
         from quant_trading.risk.manager import RiskManager
 
@@ -1100,7 +1101,7 @@ class TestRebalancerCoverageGaps:
         qty = rebalancer._risk_adjust_buy(plan, "AAPL", 1.0, 100.0, 10000.0)
         assert qty == 0.0
 
-    def test_plan_sell_short_covers(self):
+    def test_plan_sell_short_covers(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer, _RebalancePlan
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -1109,7 +1110,7 @@ class TestRebalancerCoverageGaps:
         rebalancer._plan_sell(plan, "AAPL", 2.0, 100.0)
         assert plan.cash < 10000.0
 
-    def test_plan_sell_size_zero(self):
+    def test_plan_sell_size_zero(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer, _RebalancePlan
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -1118,14 +1119,14 @@ class TestRebalancerCoverageGaps:
         rebalancer._plan_sell(plan, "AAPL", 10.0, 100.0)
         assert plan.cash == 10000.0
 
-    def test_resolve_sell_quantity_no_holding(self):
+    def test_resolve_sell_quantity_no_holding(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
         rebalancer = Rebalancer(portfolio)
         assert rebalancer._resolve_sell_quantity("AAPL", 1000.0) == 0.0
 
-    def test_resolve_sell_quantity_with_price(self):
+    def test_resolve_sell_quantity_with_price(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -1134,7 +1135,7 @@ class TestRebalancerCoverageGaps:
         qty = rebalancer._resolve_sell_quantity("AAPL", 500.0, price=100.0)
         assert qty == 5.0
 
-    def test_resolve_sell_quantity_fallback_mark(self):
+    def test_resolve_sell_quantity_fallback_mark(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -1143,7 +1144,7 @@ class TestRebalancerCoverageGaps:
         qty = rebalancer._resolve_sell_quantity("AAPL", 500.0, price=None)
         assert qty == 5.0
 
-    def test_resolve_sell_quantity_bad_mark(self):
+    def test_resolve_sell_quantity_bad_mark(self) -> None:
         from quant_trading.portfolio.portfolio import Holding
         from quant_trading.portfolio.rebalancer import Rebalancer
 
@@ -1156,7 +1157,7 @@ class TestRebalancerCoverageGaps:
         qty = rebalancer._resolve_sell_quantity("AAPL", 500.0, price=None)
         assert qty == 0.0
 
-    def test_set_target_allocation_normalize(self):
+    def test_set_target_allocation_normalize(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -1164,7 +1165,7 @@ class TestRebalancerCoverageGaps:
         rebalancer.set_target_allocation({"AAPL": 0.6, "MSFT": 0.6})
         assert sum(rebalancer.target_allocation.values()) == pytest.approx(1.0)
 
-    def test_set_target_allocation_zero_sum_raises(self):
+    def test_set_target_allocation_zero_sum_raises(self) -> None:
         from quant_trading.portfolio.rebalancer import Rebalancer
 
         portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
@@ -1173,7 +1174,7 @@ class TestRebalancerCoverageGaps:
             rebalancer.set_target_allocation({"AAPL": 0, "MSFT": 0})
 
 
-def test_gen_target_buy_risk_halt_branch():
+def test_gen_target_buy_risk_halt_branch() -> None:
     from quant_trading.portfolio.rebalancer import Rebalancer
     from quant_trading.risk.manager import PortfolioRisk, RiskManager
 
@@ -1187,7 +1188,7 @@ def test_gen_target_buy_risk_halt_branch():
     assert not any(a.action == "buy" and a.reason == "target_allocation" for a in actions)
 
 
-def test_gen_target_buy_plan_buy_zero_branch():
+def test_gen_target_buy_plan_buy_zero_branch() -> None:
     from quant_trading.portfolio.rebalancer import Rebalancer
 
     portfolio = Portfolio(cash=1.0, initial_capital=10000.0)
@@ -1199,7 +1200,7 @@ def test_gen_target_buy_plan_buy_zero_branch():
     assert not any(a.symbol == "AAPL" and a.action == "buy" for a in actions)
 
 
-def test_gen_signal_buy_risk_halt_branch():
+def test_gen_signal_buy_risk_halt_branch() -> None:
     from quant_trading.portfolio.rebalancer import Rebalancer
     from quant_trading.risk.manager import PortfolioRisk, RiskManager
     from quant_trading.strategies.base import Signal
@@ -1214,7 +1215,7 @@ def test_gen_signal_buy_risk_halt_branch():
     assert not any(a.symbol == "AAPL" and a.action == "buy" for a in actions)
 
 
-def test_gen_signal_buy_plan_buy_zero_branch():
+def test_gen_signal_buy_plan_buy_zero_branch() -> None:
     from quant_trading.portfolio.rebalancer import Rebalancer
     from quant_trading.strategies.base import Signal
 
@@ -1227,7 +1228,7 @@ def test_gen_signal_buy_plan_buy_zero_branch():
     assert not any(a.symbol == "AAPL" and a.action == "buy" for a in actions)
 
 
-def test_execute_actions_skip_zero_quantity_branch():
+def test_execute_actions_skip_zero_quantity_branch() -> None:
     from quant_trading.portfolio.rebalancer import Rebalancer
 
     portfolio = Portfolio(cash=10000.0, initial_capital=10000.0)
