@@ -6,6 +6,8 @@ These tests inject a ``FakeYf`` that mimics the column structure produced by
 any network access.
 """
 
+from typing import Any
+
 import importlib.util
 import os
 import pickle
@@ -44,7 +46,7 @@ def _make_frame(symbol: str, start: datetime, end: datetime, price: float = 100.
     idx = pd.date_range(start=start, end=end, freq="D")
     n = len(idx)
     base = [price + i * 0.5 for i in range(n)]
-    return pd.DataFrame(  # type: ignore[no-any-return]
+    return pd.DataFrame(
         {
             "Open": base,
             "High": [b + 1 for b in base],
@@ -71,14 +73,14 @@ class FakeYf:
 
     def download(
         self,
-        tickers=None,
-        start=None,
-        end=None,
-        interval="1d",
-        group_by="column",
-        progress=True,
-        **_kwargs,
-    ):
+        tickers: list[str] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        interval: str = "1d",
+        group_by: str = "column",
+        progress: bool = True,
+        **_kwargs: Any,
+    ) -> pd.DataFrame:
         tickers = list(tickers)
         self.download_calls.append(
             {
@@ -103,7 +105,7 @@ def _provider_with_fake(frames: dict[str, pd.DataFrame]) -> YFinanceProvider:
     return provider
 
 
-def test_yfinance_fetch_many_single_download_per_group():
+def test_yfinance_fetch_many_single_download_per_group() -> None:
     """Requests sharing a date range are served by one batched download."""
     start = datetime(2024, 1, 1)
     end = datetime(2024, 1, 10)
@@ -128,7 +130,7 @@ def test_yfinance_fetch_many_single_download_per_group():
         assert not result.errors
 
 
-def test_yfinance_fetch_many_different_ranges_separate_downloads():
+def test_yfinance_fetch_many_different_ranges_separate_downloads() -> None:
     """Distinct date ranges each trigger their own download call."""
     frames = {
         "AAPL": _make_frame("AAPL", datetime(2024, 1, 1), datetime(2024, 1, 10)),
@@ -160,7 +162,7 @@ def test_yfinance_fetch_many_different_ranges_separate_downloads():
     assert set(results.keys()) == keys
 
 
-def test_yfinance_fetch_many_missing_symbol():
+def test_yfinance_fetch_many_missing_symbol() -> None:
     """Symbols absent from the download are reported as missing."""
     start = datetime(2024, 1, 1)
     end = datetime(2024, 1, 10)
@@ -179,7 +181,7 @@ def test_yfinance_fetch_many_missing_symbol():
     assert "AAPL" not in result.missing
 
 
-def test_yfinance_fetch_many_disk_cache(tmp_path):
+def test_yfinance_fetch_many_disk_cache(tmp_path) -> None:
     """A second call with the same range hits the disk cache (no extra download)."""
     start = datetime(2024, 1, 1)
     end = datetime(2024, 1, 10)
@@ -196,7 +198,7 @@ def test_yfinance_fetch_many_disk_cache(tmp_path):
     assert any("group" in p.name for p in tmp_path.glob("*.pkl"))
 
 
-def test_data_manager_fetch_many_delegates_to_provider_fetch_many():
+def test_data_manager_fetch_many_delegates_to_provider_fetch_many() -> None:
     """DataManager.fetch_many must call provider.fetch_many (not provider.fetch)."""
 
     class SpyProvider(DataProvider):
@@ -241,7 +243,7 @@ def test_data_manager_fetch_many_delegates_to_provider_fetch_many():
     assert set(results.keys()) == {provider._request_key(["AAPL"], None, None, "1d")}
 
 
-def test_data_manager_fetch_many_caches_provider_fetch_many_result():
+def test_data_manager_fetch_many_caches_provider_fetch_many_result() -> None:
     """DataManager in-memory cache prevents a second provider.fetch_many call."""
     start = datetime(2024, 1, 1)
     end = datetime(2024, 1, 10)
@@ -282,7 +284,7 @@ class FakeTicker:
         self.info = info if info is not None else {}
         self.history_calls: list[dict] = []
 
-    def history(self, start=None, end=None, interval="1d"):
+    def history(self, start=None, end=None, interval="1d") -> pd.DataFrame:
         self.history_calls.append({"start": start, "end": end, "interval": interval})
         if self._err is not None:
             raise self._err
@@ -320,7 +322,7 @@ def _make_market_data(symbol: str, start: datetime, end: datetime) -> MarketData
     )
 
 
-def test_get_yf_lazy_import_success():
+def test_get_yf_lazy_import_success() -> None:
     provider = YFinanceProvider(cache_dir=None)
     yf = provider._get_yf()
     assert yf is not None
@@ -337,14 +339,14 @@ test_get_yf_lazy_import_success = pytest.mark.skipif(
 )(test_get_yf_lazy_import_success)
 
 
-def test_get_yf_raises_when_yfinance_unavailable(monkeypatch):
+def test_get_yf_raises_when_yfinance_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = YFinanceProvider(cache_dir=None)
     monkeypatch.setitem(sys.modules, "yfinance", None)
     with pytest.raises(ImportError, match="yfinance is not installed"):
         provider._get_yf()
 
 
-def test_cache_key_is_deterministic():
+def test_cache_key_is_deterministic() -> None:
     provider = YFinanceProvider(cache_dir=None)
     key = provider._cache_key(["MSFT", "AAPL"], datetime(2024, 1, 1), datetime(2024, 1, 15), "1d")
     assert key == "yfinance_AAPL,MSFT_2024-01-01T00:00:00_2024-01-15T00:00:00_1d.pkl"
@@ -352,12 +354,12 @@ def test_cache_key_is_deterministic():
     assert key2 == "yfinance_AAPL_none_none_1d.pkl"
 
 
-def test_cache_path_joins_cache_dir(tmp_path):
+def test_cache_path_joins_cache_dir(tmp_path) -> None:
     provider = YFinanceProvider(cache_dir=str(tmp_path))
     assert provider._cache_path("foo.pkl") == os.path.join(str(tmp_path), "foo.pkl")
 
 
-def test_is_cache_valid_no_file(tmp_path):
+def test_is_cache_valid_no_file(tmp_path) -> None:
     provider = YFinanceProvider(cache_dir=str(tmp_path))
     assert provider._is_cache_valid(str(tmp_path / "missing.pkl")) is False
 
