@@ -2777,12 +2777,12 @@ class TestBacktestResultSerialization:
         }
 
     def test_from_dict_reconstructs_nested_regime_analysis(self) -> None:
-        """BacktestResult.from_dict rebuilds regime_analysis from a dict (engine.py:644-648).
+        """BacktestResult.from_dict rebuilds regime_analysis from a dict (engine.py:648-652).
 
-        The sibling branches for ``trade_analysis`` and ``monte_carlo`` are
-        already covered; the ``regime_analysis`` branch had no test, so a
-        regression in its reconstruction (wrong key, dropped segments) would
-        go unnoticed.
+        The sibling branches for ``trade_analysis``, ``risk_attribution``, and
+        ``monte_carlo`` are each covered by their own tests below; the
+        ``regime_analysis`` branch had no test, so a regression in its
+        reconstruction (wrong key, dropped segments) would go unnoticed.
         """
         from quant_trading.backtest.analysis import analyze_regimes
 
@@ -2800,3 +2800,37 @@ class TestBacktestResultSerialization:
         assert reconstructed.regime_analysis.window == result.regime_analysis.window
         # The serialized form must round-trip stably (equity_curve is not exported).
         assert reconstructed.regime_analysis.to_dict() == result.regime_analysis.to_dict()
+
+    def test_from_dict_reconstructs_nested_monte_carlo(self) -> None:
+        """BacktestResult.from_dict rebuilds monte_carlo from a dict (engine.py:654-658).
+
+        The ``monte_carlo`` branch had no dedicated test, so a regression in its
+        reconstruction (wrong key, dropped simulations, coerced timestamps) would
+        go unnoticed. This round-trips a populated :class:`MonteCarloResult`
+        through ``to_dict``/``from_dict`` and checks the nested state survives.
+        """
+        from quant_trading.backtest.metrics import BacktestMetrics
+        from quant_trading.monte_carlo.simulator import MonteCarloResult
+
+        result = self._make_result()
+        metrics = BacktestMetrics(total_return=5.0, total_return_pct=5.0, num_trades=3)
+        result.monte_carlo = MonteCarloResult(
+            simulations=[metrics],
+            original_metrics=metrics,
+            n_simulations=1,
+            confidence_level=0.9,
+            start_time=datetime(2024, 1, 1),
+            end_time=datetime(2024, 1, 2),
+        )
+        data = result.to_dict()
+        assert "monte_carlo" in data
+
+        reconstructed = BacktestResult.from_dict(data)
+        assert reconstructed.monte_carlo is not None
+        assert result.monte_carlo is not None
+        assert reconstructed.monte_carlo.n_simulations == result.monte_carlo.n_simulations
+        assert reconstructed.monte_carlo.confidence_level == result.monte_carlo.confidence_level
+        assert reconstructed.monte_carlo.start_time == result.monte_carlo.start_time
+        assert reconstructed.monte_carlo.end_time == result.monte_carlo.end_time
+        # The serialized form must round-trip stably.
+        assert reconstructed.monte_carlo.to_dict() == result.monte_carlo.to_dict()
