@@ -320,7 +320,8 @@ def create_parameter_interaction_heatmap(
         Base64-encoded PNG string of the interaction heatmap.
 
     Raises:
-        ValueError: If fewer than 2 parameters provided or insufficient data.
+        ValueError: If fewer than 2 parameters are provided, if a required
+            column is missing, or if there is insufficient data.
     """
     _check_matplotlib()
     if config is None:
@@ -328,6 +329,12 @@ def create_parameter_interaction_heatmap(
 
     if len(param_names) < 2:
         raise ValueError("At least 2 parameters required for interaction heatmap")
+
+    missing = [name for name in param_names if name not in df.columns]
+    if score_col not in df.columns:
+        missing.append(score_col)
+    if missing:
+        raise ValueError(f"Required columns not found: {', '.join(missing)}")
 
     n = len(param_names)
     interaction_matrix = np.zeros((n, n))

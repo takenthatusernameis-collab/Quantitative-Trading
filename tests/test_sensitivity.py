@@ -45,6 +45,16 @@ class TestPrepareSensitivityData:
         df = prepare_sensitivity_data([])
         assert df.empty
 
+    def test_prepare_sensitivity_data_skips_results_without_params(self):
+        """Results without a ``params`` entry are skipped, not crashed on."""
+        all_results = [
+            {"score": 1.0},
+            {"params": {"fast_period": 5}, "score": 2.0},
+        ]
+        df = prepare_sensitivity_data(all_results)
+        assert len(df) == 1
+        assert df["fast_period"].tolist() == [5]
+
     def test_prepare_sensitivity_data_custom_score_key(self):
         """Test data preparation with custom score key."""
         all_results = [
@@ -136,6 +146,49 @@ class TestCreateParameterInteractionHeatmap:
         with pytest.raises(ValueError, match="At least 2 parameters required"):
             create_parameter_interaction_heatmap(df, ["param1"], "score")
 
+    def test_create_parameter_interaction_heatmap_missing_param_column(self):
+        """A missing parameter column is a ValueError naming the column.
+
+        The sibling ``create_1d_sensitivity_plot`` and
+        ``create_2d_sensitivity_heatmap`` already validate their columns and
+        raise ``ValueError``; this function has to behave the same way instead
+        of letting a raw ``KeyError`` escape from ``groupby``.
+        """
+        import pandas as pd
+
+        df = pd.DataFrame(
+            {
+                "param1": [1, 1, 2, 2],
+                "param2": [10, 20, 10, 20],
+                "score": [1.0, 2.0, 3.0, 4.0],
+            }
+        )
+        with pytest.raises(ValueError, match="Required columns not found: missing"):
+            create_parameter_interaction_heatmap(df, ["param1", "param2", "missing"], "score")
+
+    def test_create_parameter_interaction_heatmap_missing_score_column(self):
+        """A missing score column is a ValueError naming the column."""
+        import pandas as pd
+
+        df = pd.DataFrame({"param1": [1, 1, 2, 2], "param2": [10, 20, 10, 20]})
+        with pytest.raises(ValueError, match="Required columns not found: score"):
+            create_parameter_interaction_heatmap(df, ["param1", "param2"], "score")
+
+    def test_create_parameter_interaction_heatmap_single_value_diagonal(self):
+        """A parameter with a single value yields a zero diagonal entry."""
+        import pandas as pd
+
+        df = pd.DataFrame(
+            {
+                "param1": [1, 1, 1, 1],
+                "param2": [10, 20, 10, 20],
+                "score": [1.0, 2.0, 3.0, 4.0],
+            }
+        )
+        chart = create_parameter_interaction_heatmap(df, ["param1", "param2"], "score")
+        assert isinstance(chart, str)
+        assert len(chart) > 0
+
 
 class TestGenerateSensitivityReportHTML:
     """Tests for generate_sensitivity_report_html function."""
@@ -157,6 +210,18 @@ class TestGenerateSensitivityReportHTML:
         """Test HTML report generation with empty results."""
         html = generate_sensitivity_report_html([])
         assert "No data for sensitivity analysis" in html
+
+    def test_generate_sensitivity_report_html_include_charts_false(self):
+        """With charts disabled the report has a summary but no images."""
+        all_results = [
+            {"params": {"fast_period": 5, "slow_period": 20}, "score": 1.5},
+            {"params": {"fast_period": 10, "slow_period": 20}, "score": 2.0},
+        ]
+        html = generate_sensitivity_report_html(
+            all_results, config=SensitivityConfig(include_charts=False)
+        )
+        assert "Summary Statistics" in html
+        assert "<img" not in html
 
     def test_generate_sensitivity_report_html_with_output_path(self, tmp_path):
         """Test HTML report generation with output path."""
@@ -193,3 +258,28 @@ class TestSensitivityConfig:
         assert config.dpi == 300
         assert config.colormap == "viridis"
         assert config.figure_size == (12, 8)
+
+    def test_sensitivity_config_from_dict_keeps_tuple(self):
+        """A tuple figure size round-trips unchanged."""
+        restored = SensitivityConfig.from_dict({"figure_size": (12, 8)})
+        assert restored.figure_size == (12, 8)
+
+    def test_sensitivity_config_from_dict_converts_list(self):
+        """A list figure size is converted to a tuple."""
+        restored = SensitivityConfig.from_dict({"figure_size": [12, 8]})
+        assert restored.figure_size == (12, 8)
+
+
+class TestMatplotlibUnavailable:
+    """Tests for the guard that runs when matplotlib is missing."""
+
+    def test_chart_generation_requires_matplotlib(self, monkeypatch):
+        """Without matplotlib the chart helpers raise a helpful ImportError."""
+        import pandas as pd
+
+        from quant_trading.optimization import sensitivity
+
+        monkeypatch.setattr(sensitivity, "MATPLOTLIB_AVAILABLE", False)
+        df = pd.DataFrame({"fast_period": [5, 10], "score": [1.0, 2.0]})
+        with pytest.raises(ImportError, match="matplotlib is required"):
+            create_1d_sensitivity_plot(df, "fast_period", "score")
