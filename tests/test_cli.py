@@ -6334,6 +6334,22 @@ class TestParseArgsBayesianValidation:
             assert args.bayesian_n_initial == 10
             assert args.n_iter == 10
 
+    def test_n_iter_below_one_is_rejected(self) -> None:
+        """``--n-iter`` below 1 is rejected before the run starts."""
+        with (
+            patch("sys.argv", ["cli.py", "--n-iter", "0"]),
+            pytest.raises(ValueError, match="invalid --n-iter"),
+        ):
+            parse_args()
+
+    def test_bayesian_n_initial_below_one_is_rejected(self) -> None:
+        """``--bayesian-n-initial`` below 1 is rejected before the run starts."""
+        with (
+            patch("sys.argv", ["cli.py", "--bayesian-n-initial", "0"]),
+            pytest.raises(ValueError, match="invalid --bayesian-n-initial"),
+        ):
+            parse_args()
+
 
 class TestValidateRangeArgumentsErrorPath:
     """Tests for _validate_range_arguments error path (line 1210)."""
@@ -6382,9 +6398,10 @@ class TestSaveStrategyConfigFallback:
 
         with open(out) as f:
             saved = yaml.safe_load(f)
-        # Fallback key is class name without "Strategy" suffix, lowercased
+        # Fallback key is class name without "Strategy" suffix, lowercased.
+        # Parameters carry no "name", so the reported name falls back to the key too.
         assert saved["type"] == "unregistered"
-        assert saved["name"] == "UnregisteredStrategy"
+        assert saved["name"] == "unregistered"
         assert saved["parameters"] == {"param_a": 42}
 
 
@@ -6396,9 +6413,10 @@ class TestListStrategiesErrorHandling:
         from quant_trading.strategies.base import Strategy
 
         class BadInitStrategy(Strategy):
-            def __init__(self, required_arg: int = 42, **kwargs: Any) -> None:
-                super().__init__(**kwargs)
-                raise TypeError("intentional")
+            def __init__(self, name: str | None = None, **kwargs: Any) -> None:
+                if name is None:
+                    raise TypeError("intentional")
+                super().__init__(name=name)
 
             def generate_signals(self, data: Any, symbol: str) -> int:
                 return 0
@@ -6407,9 +6425,10 @@ class TestListStrategiesErrorHandling:
                 return {}
 
         class BadInitStrategy2(Strategy):
-            def __init__(self, **kwargs: Any) -> None:
-                super().__init__(**kwargs)
-                raise ValueError("intentional")
+            def __init__(self, name: str | None = None, **kwargs: Any) -> None:
+                if name is None or name.endswith("_dummy"):
+                    raise ValueError("intentional")
+                super().__init__(name=name)
 
             def generate_signals(self, data: Any, symbol: str) -> int:
                 return 0
@@ -6579,10 +6598,7 @@ class TestRunOptimizationOutputBranches:
         from argparse import Namespace
         from datetime import datetime, timedelta
 
-        class MockStrategy:
-            __name__ = "MovingAverageCrossover"
-
-        mock_get_strategy.return_value = MockStrategy
+        mock_get_strategy.return_value = MovingAverageCrossover
 
         args = Namespace(
             strategy="ma",
@@ -6745,7 +6761,9 @@ class TestRunOptimizationOutputBranches:
                 return MockResult()
 
         with patch("examples.cli.OPTIMIZERS", {"grid": MockOptimizer}):
-            with patch("examples.cli.get_strategy", return_value=type("MovingAverageCrossover", (), {"__name__": "MovingAverageCrossover"})):
+            with patch(
+                "examples.cli.get_strategy", return_value=MovingAverageCrossover
+            ):
                 args = Namespace(
                     strategy="ma",
                     symbols=["AAPL"],
@@ -6892,10 +6910,7 @@ class TestRunWalkForwardOutputBranches:
         from datetime import datetime, timedelta
         import pandas as pd
 
-        class MockStrategy:
-            __name__ = "MovingAverageCrossover"
-
-        mock_get_strategy.return_value = MockStrategy
+        mock_get_strategy.return_value = MovingAverageCrossover
 
         mock_result = MagicMock()
         mock_result.to_dataframe.return_value = pd.DataFrame({
@@ -6994,10 +7009,7 @@ class TestRunWalkForwardOutputBranches:
         from datetime import datetime, timedelta
         import pandas as pd
 
-        class MockStrategy:
-            __name__ = "MovingAverageCrossover"
-
-        mock_get_strategy.return_value = MockStrategy
+        mock_get_strategy.return_value = MovingAverageCrossover
 
         mock_result = MagicMock()
         mock_result.to_dataframe.return_value = pd.DataFrame({
@@ -7103,10 +7115,7 @@ class TestRunWalkForwardOutputBranches:
         import pandas as pd
         from unittest.mock import patch, MagicMock
 
-        class MockStrategy:
-            __name__ = "MovingAverageCrossover"
-
-        mock_get_strategy.return_value = MockStrategy
+        mock_get_strategy.return_value = MovingAverageCrossover
 
         mock_result = MagicMock()
         mock_result.to_dataframe.return_value = pd.DataFrame({
@@ -7204,10 +7213,7 @@ class TestRunWalkForwardOutputBranches:
         from datetime import datetime, timedelta
         import pandas as pd
 
-        class MockStrategy:
-            __name__ = "MovingAverageCrossover"
-
-        mock_get_strategy.return_value = MockStrategy
+        mock_get_strategy.return_value = MovingAverageCrossover
 
         mock_result = MagicMock()
         mock_result.to_dataframe.return_value = pd.DataFrame({
@@ -7313,10 +7319,7 @@ class TestRunWalkForwardOutputBranches:
         from datetime import datetime, timedelta
         import pandas as pd
 
-        class MockStrategy:
-            __name__ = "MovingAverageCrossover"
-
-        mock_get_strategy.return_value = MockStrategy
+        mock_get_strategy.return_value = MovingAverageCrossover
 
         mock_result = MagicMock()
         mock_result.to_dataframe.return_value = pd.DataFrame({
@@ -7497,6 +7500,9 @@ class TestRunCombinedEmptyResults:
 class TestRunCombinedJsonOutputBranches:
     """Tests for run_combined JSON output branches (lines 2751, 2753, 2755)."""
 
+    @patch("examples.cli._print_trade_analysis")
+    @patch("examples.cli._print_monte_carlo_analysis")
+    @patch("examples.cli._print_regime_analysis")
     @patch("examples.cli.run_backtest")
     @patch("examples.cli._get_regime_analysis")
     @patch("examples.cli._get_monte_carlo_analysis")
@@ -7507,6 +7513,9 @@ class TestRunCombinedJsonOutputBranches:
         mock_get_mc: MagicMock,
         mock_get_regime: MagicMock,
         mock_run_backtest: MagicMock,
+        _mock_print_regime: MagicMock,
+        _mock_print_mc: MagicMock,
+        _mock_print_trade: MagicMock,
         tmp_path: Path,
         capsys: CaptureFixture[Any]
     ) -> None:
@@ -7620,12 +7629,14 @@ class TestRunCombinedJsonOutputBranches:
         assert data["monte_carlo"] == {"probability_of_profit": 0.6}
         assert data["trade_analysis"] == {"trade_count": 10}
 
+    @patch("examples.cli._print_regime_analysis")
     @patch("examples.cli.run_backtest")
     @patch("examples.cli._get_regime_analysis")
     def test_run_combined_with_regime_only_output(
         self,
         mock_get_regime: MagicMock,
         mock_run_backtest: MagicMock,
+        _mock_print_regime: MagicMock,
         tmp_path: Path,
     ) -> None:
         from examples.cli import run_combined
@@ -7723,12 +7734,14 @@ class TestRunCombinedJsonOutputBranches:
         assert "monte_carlo" not in data
         assert "trade_analysis" not in data
 
+    @patch("examples.cli._print_monte_carlo_analysis")
     @patch("examples.cli.run_backtest")
     @patch("examples.cli._get_monte_carlo_analysis")
     def test_run_combined_with_monte_carlo_only_output(
         self,
         mock_get_mc: MagicMock,
         mock_run_backtest: MagicMock,
+        _mock_print_mc: MagicMock,
         tmp_path: Path,
     ) -> None:
         from examples.cli import run_combined
@@ -7826,12 +7839,14 @@ class TestRunCombinedJsonOutputBranches:
         assert "regime_analysis" not in data
         assert "trade_analysis" not in data
 
+    @patch("examples.cli._print_trade_analysis")
     @patch("examples.cli.run_backtest")
     @patch("examples.cli._get_trade_analysis")
     def test_run_combined_with_trade_analysis_only_output(
         self,
         mock_get_trade: MagicMock,
         mock_run_backtest: MagicMock,
+        _mock_print_trade: MagicMock,
         tmp_path: Path,
     ) -> None:
         from examples.cli import run_combined
@@ -7928,6 +7943,136 @@ class TestRunCombinedJsonOutputBranches:
         assert "trade_analysis" in data
         assert "regime_analysis" not in data
         assert "monte_carlo" not in data
+
+
+class TestRunCombinedSaveFailure:
+    """Tests for run_combined output save failure (line 2755)."""
+
+    @patch("examples.cli.run_backtest")
+    @patch("examples.cli._save_json_output", return_value=False)
+    def test_run_combined_output_save_failure_returns_one(
+        self,
+        mock_save_json_output: MagicMock,
+        mock_run_backtest: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        from examples.cli import run_combined
+        from argparse import Namespace
+        from datetime import datetime, timedelta
+
+        mock_metrics = MagicMock()
+        mock_metrics.num_trades = 10
+        mock_metrics.win_rate = 0.6
+        mock_metrics.sharpe_ratio = 1.5
+        mock_metrics.max_drawdown_pct = 5.0
+        mock_metrics.profit_factor = 2.0
+        mock_metrics.total_pnl = 0.0
+        mock_metrics.unrealized_pnl = 0.0
+
+        mock_result = MagicMock(
+            spec=[
+                "name",
+                "total_return_pct",
+                "metrics",
+                "total_costs",
+            ]
+        )
+        mock_result.name = "MA_Crossover_10_30"
+        mock_result.total_return_pct = 15.5
+        mock_result.metrics = mock_metrics
+        mock_result.total_costs = 0.0
+
+        mock_run_backtest.return_value = mock_result
+
+        output_path = tmp_path / "combined.json"
+        args = Namespace(
+            symbols=["AAPL"],
+            strategy="ma",
+            combined=True,
+            initial_capital=100000.0,
+            commission=0.001,
+            slippage=0.0005,
+            interval="1d",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            aroon_period=25,
+            dc_period=20,
+            dc_exit_period=20,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
+            sar_step=0.02,
+            sar_max_step=0.20,
+            tenkan_period=9,
+            kijun_period=26,
+            senkou_b_period=52,
+            output=str(output_path),
+            output_format="json",
+            regime=False,
+            monte_carlo=False,
+            trade_analysis=False,
+        )
+
+        config = Config()
+        config.data.provider = "synthetic"
+        config.data.offline = True
+        config.data.synthetic_days = 60
+        config.data.synthetic_seed = 42
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=60)
+
+        result = run_combined(args, config, start_date, end_date)
+        assert result == 1
+
+
+class TestSingleModeOutputBranches:
+    """Tests for single-mode JSON output branches (regime / monte-carlo / trade analysis)."""
+
+    def test_offline_single_mode_with_analyses_and_output(self, tmp_path: Path) -> None:
+        """A single offline run with regime, Monte Carlo and trade analysis writes all keys."""
+        import json
+
+        output_path = str(tmp_path / "results.json")
+        args = [
+            "--offline",
+            "--regime",
+            "--monte-carlo",
+            "--trade-analysis",
+            "--output",
+            output_path,
+            "--symbols",
+            "AAPL",
+            "--days",
+            "90",
+        ]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+
+        with open(output_path) as f:
+            data = json.load(f)
+        assert "regime_analysis" in data
+        assert "monte_carlo" in data
+        assert "trade_analysis" in data
+
+    def test_single_mode_output_save_failure_returns_one(self) -> None:
+        """Writing output to a missing directory reports the error and returns 1."""
+        with patch(
+            "sys.argv",
+            ["cli.py", "--offline", "--output", "/no/such/dir/results.json", "--symbols", "AAPL", "--days", "30"],
+        ):
+            result = main()
+        assert result == 1
 
 
 if __name__ == "__main__":
