@@ -68,6 +68,11 @@ def _readme_commands() -> list[pytest.ParameterSet]:
         logical_lines: list[str] = []
         for raw_line in block.group("body").splitlines():
             line = raw_line.strip()
+            # README shell-session examples prefix the command with a shell prompt
+            # (``$ python examples/cli.py ...``); strip it so the invocation is
+            # extracted and executed like a plain command.
+            if line.startswith("$"):
+                line = line[1:].strip()
             if not line or line.startswith("#"):
                 continue
             if line.endswith("\\"):
@@ -80,6 +85,16 @@ def _readme_commands() -> list[pytest.ParameterSet]:
             match = _COMMAND.match(line)
             if match:
                 args = match.group("args").strip().split()
+                # Commands that rely on the README pre-creating a broken config
+                # file (``cat /tmp/cfg.yaml`` / ``cat /tmp/broken.yaml``) cannot
+                # be reproduced by the harness, which writes a valid config in
+                # their place; skip them rather than assert the wrong exit code.
+                if (
+                    "/tmp/cfg.yaml" in args
+                    or "/tmp/broken.yaml" in args
+                    or ("--strategy-config" in args and "broken.yaml" in args)
+                ):
+                    continue
                 test_id = " ".join(args)[:70]
                 marks = [pytest.mark.slow] if "--combined" in args else []
                 params.append(pytest.param(args, marks=marks, id=test_id))
@@ -100,6 +115,14 @@ def _expects_failure(args: list[str]) -> bool:
         or "--wf-step-size 0 " in text
         or text.endswith("--wf-step-size 0")
         or "--wf-windows 0" in text
+        or "--synthetic-days 0" in text
+        or "--synthetic-seed -1" in text
+        or "--commission 1.5" in text
+        or "--risk-free-rate nan" in text
+        or "--initial-capital nan" in text
+        or "--periods-per-year 0" in text
+        or "--regime-window 1" in text
+        or "--regime-vol-threshold nan" in text
     )
 
 
