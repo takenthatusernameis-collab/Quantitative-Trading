@@ -1,42 +1,27 @@
 ## What changed (this session)
 
-- Added a README "Example Scripts" subsection for the previously-undocumented
-  `examples/run_ma_envelope.py` script, placed immediately after the existing
-  Moving Average Crossover subsection (README.md ~1378-1387).
-- No code, strategy, or test changes. The `MovingAverageEnvelopeStrategy`,
-  its registry entry, the example script, and its tests were all already
-  present from the prior commit (956dbdf); only the user-facing README
-  documentation was missing.
+- Documented that `examples/run_backtest.py` requires network access via yfinance in README "Example Scripts" (README.md:886) to avoid implying it is offline-capable.
+- Synced CLI strategy registry surface with the newly-added `ma_envelope` strategy so integrity checks stay green:
+  - Added `ma_envelope` to `BUILTIN_STRATEGY_KEYS` in `examples/cli.py`.
+  - Added `ma_envelope` to `_STRATEGIES_WITHOUT_DEDICATED_CLI_FLAGS` in `tests/test_repository_integrity.py` (strategy is tunable via `--strategy-config` only, consistent with other config-only strategies).
 
-## What was actually verified (evidence) — this session
+## What was actually verified (evidence)
 
-- `python examples/run_ma_envelope.py` exits 0 and prints a clean summary
-  (Final Value $107,881.48, 98 trades, 81.63% win rate, Sharpe 1.32).
-- `pytest tests/test_example_scripts_run.py -q`: 56 passed (the new README
-  section is not required by this test — it globs `examples/run_*.py` — but
-  the script it documents is confirmed to run).
-- `pytest tests/test_readme_cli_commands.py -q`: 100 passed, 3 deselected.
-- `pytest tests/test_strategies_examples.py -q`: 563 passed.
-- `pytest --doctest-modules quant_trading/strategies/examples.py -q`: 48 passed
-  (covers the `MovingAverageEnvelopeStrategy` doctest).
-- `python -m ruff check .`: All checks passed! (0 errors).
+- `python -m pytest tests/test_readme_cli_commands.py -q`: 100 passed, 3 deselected.
+- `python -m pytest tests/test_repository_integrity.py -q`: 32 passed.
+- `python -m ruff check .`: All checks passed.
 - `python -m mypy quant_trading tests`: Success, no issues in 103 source files.
-- Working tree clean after commit `2c4ce40`.
+- `python examples/cli.py --list-strategies` shows `ma_envelope` (aliases: `envelope`, `moving_average_envelope`).
+- `python examples/run_backtest.py` executed (networked): produced output for MA/RSI/BB strategies (observed during inspection; not part of offline test suite).
 
 ## What remains unresolved / not verified
 
-- Nothing blocking. The repo is green and committed. Intentionally-not-chased
-  defensive-branch coverage gaps remain (sensitivity.py 99%; rebalancer.py 98%;
-  engine.py 99%; settings.py 99%; risk/metrics.py 98%). Do not chase these.
+- Nothing blocking. Repo is green. Intentionally-not-chased defensive-branch coverage gaps remain (sensitivity.py 99%; rebalancer.py 98%; engine.py 99%; settings.py 99%; risk/metrics.py 98%). Do not chase these.
 
 ## Failed or corrected approaches
 
-- None this session. Single small edit; all checks green on first pass.
+- None. Initial integrity test run (before this session's fixes) showed `ma_envelope` missing from CLI allowlists/registry sync; corrected with minimal, evidence-based edits to `examples/cli.py` and `tests/test_repository_integrity.py`, then all targeted checks passed.
 
 ## One precise next task
 
-- No further required work. Repository is green and committed. Next agent may
-  pick any bounded, high-value task if assigned; otherwise leave as-is. Do not
-  add tests for the listed defensive-branch gaps.
-
-(End of file - total 30 lines)
+- No further required work. Repository is green and committed. Next agent may pick any bounded, high-value task if assigned; otherwise leave as-is. If extending CLI, consider whether `ma_envelope` deserves dedicated `--envelope-period`/`--envelope-percentage` flags and optimization ranges (currently config-only by design like other allowlisted strategies).

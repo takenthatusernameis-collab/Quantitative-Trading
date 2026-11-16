@@ -61,6 +61,7 @@ except (ImportError, AttributeError):
 # Built-in strategy keys for argparse choices (preserves existing behavior)
 BUILTIN_STRATEGY_KEYS = [
     "ma",
+    "ma_envelope",
     "rsi",
     "bb",
     "bbpct",

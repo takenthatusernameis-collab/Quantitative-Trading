@@ -883,7 +883,7 @@ python examples/cli.py --offline --trade-analysis --symbols AAPL --days 120
 
 ### Example Scripts
 
-See `examples/run_backtest.py` for a complete example of running backtests with multiple strategies.
+See `examples/run_backtest.py` for a complete example of running backtests with multiple strategies (requires network access via yfinance).
 
 For a deterministic, network-free demonstration, see
 `examples/run_backtest_offline.py`. It runs the three built-in
