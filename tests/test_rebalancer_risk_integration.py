@@ -144,7 +144,12 @@ def test_drawdown_breach_stops_buys_allows_sells() -> None:
     """A breached drawdown limit blocks buys but still permits sells."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     portfolio.add_holding("AAPL", 100, 100.0)
-    rm = RiskManager(initial_capital=100000.0, max_position_size=0.1, max_drawdown=0.05)
+    rm = RiskManager(
+        initial_capital=100000.0,
+        max_position_size=0.1,
+        max_drawdown=0.05,
+        max_portfolio_risk=1.0,
+    )
     rm.portfolio_risk.current_drawdown = -0.5  # breach the loss limit
     rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.0}, risk_manager=rm)
     prices = {"AAPL": 50.0}

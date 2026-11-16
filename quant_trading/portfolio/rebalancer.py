@@ -1053,11 +1053,13 @@ class Rebalancer:
         """Size a buy down so the resulting position stays within risk limits.
 
         Applies the position limit (the smaller of the maximum position
-        fraction and the maximum position dollar value) and halts buying when
-        the portfolio's drawdown (loss) limit has been breached. A buy that
-        would exceed the position limit is reduced to the largest quantity
-        that still fits; a buy with no room left is dropped entirely.
-        Available cash is enforced separately by :meth:`_plan_buy`.
+        fraction and the maximum position dollar value), the leverage limit
+        (max gross exposure as a multiple of the portfolio value), the
+        portfolio risk budget (max fraction of the portfolio value at risk),
+        and the drawdown gate (blocks exposure-increasing buys during a
+        drawdown breach). A buy that covers an open short reduces gross
+        exposure and is only capped by the position limit. Available cash is
+        enforced separately by :meth:`_plan_buy`.
 
         Args:
             plan: Cash and position state of the batch being planned.
@@ -1090,7 +1092,74 @@ class Rebalancer:
         room = max_position_value - current_position * price
         if room <= 0:
             return 0.0
-        return min(quantity, room / price)
+        quantity = min(quantity, room / price)
+
+        if current_position >= 0:
+            # The buy increases gross exposure, so the leverage limit and the
+            # portfolio risk budget must have room for the increment.
+            quantity = self._risk_adjust_planned_exposure(plan, symbol, quantity, price, total_value)
+
+        return quantity
+
+    def _risk_adjust_planned_exposure(
+        self,
+        plan: _RebalancePlan,
+        symbol: str,
+        quantity: float,
+        price: float,
+        total_value: float,
+    ) -> float:
+        """Cap an exposure-increasing planned buy at leverage and risk-budget limits.
+
+        The current gross exposure and open risk are measured on the planned
+        batch state with the traded symbol marked at the planning price. The
+        buy may add at most the room left under the leverage limit and under
+        the portfolio risk budget (each dollar of exposure adding
+        ``stop_loss_pct`` of risk). A zero stop-loss distance disables the
+        risk budget, mirroring :meth:`RiskManager.check_signal`.
+
+        Args:
+            plan: Cash and position state of the batch being planned.
+            symbol: Symbol being bought.
+            quantity: Quantity the buy requests after the position limit.
+            price: Planning/execution price for the buy.
+            total_value: Current total portfolio value.
+
+        Returns:
+            The risk-adjusted quantity to buy, or 0.0 when a limit leaves no
+            room.
+
+        """
+        risk_manager = self.risk_manager
+        if risk_manager is None:  # pragma: no cover - guarded by the caller
+            return quantity
+
+        portfolio_limit = risk_manager.portfolio_limit
+
+        def position_value(sym: str, qty: float) -> float:
+            if sym == symbol:
+                return abs(qty) * price
+            holding = self.portfolio.holdings.get(sym)
+            mark = holding.current_price if holding is not None else price
+            return abs(qty) * mark
+
+        current_gross = sum(position_value(sym, qty) for sym, qty in plan.positions.items())
+        leverage_room = portfolio_limit.max_leverage * total_value - current_gross
+        if leverage_room <= 0:
+            return 0.0
+        quantity = min(quantity, leverage_room / price)
+
+        stop_loss_pct = portfolio_limit.stop_loss_pct
+        if stop_loss_pct > 0:
+            current_risk = sum(
+                position_value(sym, qty) * stop_loss_pct for sym, qty in plan.positions.items()
+            )
+            risk_room = portfolio_limit.max_portfolio_risk * total_value - current_risk
+            if risk_room <= 0:
+                return 0.0
+            quantity = min(quantity, risk_room / (stop_loss_pct * price))
+
+        return quantity
 
     def _plan_sell(
         self,

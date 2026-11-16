@@ -662,7 +662,9 @@ class TestRebalancerRiskLimits:
     def test_drawdown_within_limit_still_buys(self) -> None:
         """A drawdown below the loss limit does not block buying."""
         portfolio = _empty_portfolio()
-        risk_manager = self._risk_manager(max_drawdown=0.20, max_position_size=1.0)
+        risk_manager = self._risk_manager(
+            max_drawdown=0.20, max_position_size=1.0, max_portfolio_risk=1.0
+        )
         risk_manager.update_portfolio_value({}, 90000.0)  # 10% drawdown, below 20%
         rebalancer = Rebalancer(
             portfolio,
