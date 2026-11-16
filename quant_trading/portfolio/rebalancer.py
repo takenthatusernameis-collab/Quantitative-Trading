@@ -896,7 +896,9 @@ class Rebalancer:
                 if action.action == "buy":
                     quantity = self._risk_adjust_execution_buy(action.symbol, quantity, price)
                     if quantity > 0:
-                        self.portfolio.add_holding(action.symbol, quantity, price, commission, slippage)
+                        self.portfolio.add_holding(
+                            action.symbol, quantity, price, commission, slippage
+                        )
                 elif action.action == "sell":
                     self.portfolio.remove_holding(
                         action.symbol, quantity, price, commission, slippage
@@ -1097,7 +1099,9 @@ class Rebalancer:
         if current_position >= 0:
             # The buy increases gross exposure, so the leverage limit and the
             # portfolio risk budget must have room for the increment.
-            quantity = self._risk_adjust_planned_exposure(plan, symbol, quantity, price, total_value)
+            quantity = self._risk_adjust_planned_exposure(
+                plan, symbol, quantity, price, total_value
+            )
 
         return quantity
 

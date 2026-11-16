@@ -81,6 +81,7 @@ def test_execute_explicit_buy_enforces_position_limit() -> None:
     # Current position value = 10 * 100 = 1000
     # Room = 9000, so max additional shares = 9000 / 100 = 90
     from quant_trading.portfolio.rebalancer import RebalanceAction
+
     explicit_buy = RebalanceAction(
         symbol="MSFT",
         action="buy",
@@ -88,13 +89,17 @@ def test_execute_explicit_buy_enforces_position_limit() -> None:
         reason="test_explicit",
     )
 
-    executions = rebalancer.execute_actions([explicit_buy], prices=prices, commission=0.001, slippage=0.0005)
+    executions = rebalancer.execute_actions(
+        [explicit_buy], prices=prices, commission=0.001, slippage=0.0005
+    )
 
     # The position limit caps the buy at ~90 shares (9000 / 100.0015 with fees)
     assert len(executions) == 1
     assert executions[0].symbol == "MSFT"
     assert executions[0].action == "buy"
-    assert executions[0].executed_quantity == pytest.approx(90.0, rel=0.02)  # capped by position limit
+    assert executions[0].executed_quantity == pytest.approx(
+        90.0, rel=0.02
+    )  # capped by position limit
     assert portfolio.cash >= 0.0
     # Position value should not exceed max_value (10000)
     msft_holding = portfolio.holdings["MSFT"]
@@ -121,6 +126,7 @@ def test_execute_short_covering_buy_allowed_during_drawdown_breach() -> None:
     prices = {"AAPL": 100.0}
 
     from quant_trading.portfolio.rebalancer import RebalanceAction
+
     explicit_buy = RebalanceAction(
         symbol="AAPL",
         action="buy",
@@ -128,7 +134,9 @@ def test_execute_short_covering_buy_allowed_during_drawdown_breach() -> None:
         reason="test_explicit_short_cover",
     )
 
-    executions = rebalancer.execute_actions([explicit_buy], prices=prices, commission=0.001, slippage=0.0005)
+    executions = rebalancer.execute_actions(
+        [explicit_buy], prices=prices, commission=0.001, slippage=0.0005
+    )
 
     # Short-covering buy executes despite drawdown breach
     assert len(executions) == 1
@@ -196,7 +204,7 @@ def test_drawdown_breach_allows_short_covering_buy_blocks_exposure_increasing_bu
     """
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     portfolio.add_holding("AAPL", -100, 100.0)  # open short to be covered
-    portfolio.add_holding("MSFT", 10, 100.0)    # long the target wants to grow
+    portfolio.add_holding("MSFT", 10, 100.0)  # long the target wants to grow
     rm = RiskManager(initial_capital=100000.0, max_position_size=0.1, max_drawdown=0.05)
     rm.portfolio_risk.current_drawdown = -0.5  # breach the loss limit
     rebalancer = Rebalancer(
@@ -230,7 +238,7 @@ def test_drawdown_breach_executes_short_covering_buy_but_not_exposure_increasing
     """
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
     portfolio.add_holding("AAPL", -100, 100.0)  # open short to be covered
-    portfolio.add_holding("MSFT", 10, 100.0)    # long the target wants to grow
+    portfolio.add_holding("MSFT", 10, 100.0)  # long the target wants to grow
     rm = RiskManager(initial_capital=100000.0, max_position_size=0.1, max_drawdown=0.05)
     rm.portfolio_risk.current_drawdown = -0.5  # breach the loss limit
     rebalancer = Rebalancer(
@@ -285,6 +293,7 @@ def test_drawdown_breach_execute_explicit_exposure_increasing_buy_enforces_solve
     # Construct an explicit exposure-increasing buy action that would be
     # blocked by generate_rebalance_actions during a drawdown breach.
     from quant_trading.portfolio.rebalancer import RebalanceAction
+
     explicit_buy = RebalanceAction(
         symbol="MSFT",
         action="buy",
@@ -292,7 +301,9 @@ def test_drawdown_breach_execute_explicit_exposure_increasing_buy_enforces_solve
         reason="test_explicit",
     )
 
-    executions = rebalancer.execute_actions([explicit_buy], prices=prices, commission=0.001, slippage=0.0005)
+    executions = rebalancer.execute_actions(
+        [explicit_buy], prices=prices, commission=0.001, slippage=0.0005
+    )
 
     # The drawdown gate blocks the exposure-increasing buy entirely.
     assert len(executions) == 1

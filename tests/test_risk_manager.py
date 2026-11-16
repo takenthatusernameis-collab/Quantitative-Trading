@@ -1899,6 +1899,7 @@ class TestRiskAttributionMethods:
         assert len(frame) == 2
         # reindex introduces NaN for missing values
         import math
+
         assert math.isnan(float(frame.loc["MSFT", "marginal_var"]))  # type: ignore[arg-type]
         assert math.isnan(float(frame.loc["MSFT", "component_var"]))  # type: ignore[arg-type]
         assert math.isnan(float(frame.loc["MSFT", "volatility_contribution"]))  # type: ignore[arg-type]

@@ -2280,7 +2280,9 @@ def run_walk_forward(
             include_rolling_metrics=not getattr(args, "report_no_rolling", False),
         )
         try:
-            generate_html_report(result.combined_test_result, report_config, output_path=args.report)
+            generate_html_report(
+                result.combined_test_result, report_config, output_path=args.report
+            )
         except ImportError as e:
             print(f"Error: {e}")
             return 1

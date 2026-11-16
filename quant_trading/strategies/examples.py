@@ -7845,11 +7845,7 @@ class MovingAverageEnvelopeStrategy(Strategy):
             close = df["close"]
             current_price = float(close.iloc[-1])
             prev_price = float(close.iloc[-2])
-            if (
-                pd.isna(current_price)
-                or pd.isna(prev_price)
-                or current_price == 0
-            ):
+            if pd.isna(current_price) or pd.isna(prev_price) or current_price == 0:
                 continue
 
             sma = close.rolling(window=self.period).mean()
@@ -7868,9 +7864,7 @@ class MovingAverageEnvelopeStrategy(Strategy):
             # Buy: price crosses below the lower envelope (oversold).
             if prev_price >= prev_lower and current_price < current_lower:
                 strength = (
-                    min(1.0, (prev_lower - current_price) / prev_lower + 0.5)
-                    if prev_lower
-                    else 0.5
+                    min(1.0, (prev_lower - current_price) / prev_lower + 0.5) if prev_lower else 0.5
                 )
                 signals.append(
                     Signal(
@@ -7892,9 +7886,7 @@ class MovingAverageEnvelopeStrategy(Strategy):
             # Sell: price crosses above the upper envelope (overbought).
             elif prev_price <= prev_upper and current_price > current_upper:
                 strength = (
-                    min(1.0, (current_price - prev_upper) / prev_upper + 0.5)
-                    if prev_upper
-                    else 0.5
+                    min(1.0, (current_price - prev_upper) / prev_upper + 0.5) if prev_upper else 0.5
                 )
                 signals.append(
                     Signal(

@@ -2158,27 +2158,77 @@ def test_generate_comparison_report_rolling_metrics_branch() -> None:
     equity_curve = pd.Series(equity_values, index=dates)
 
     trades_data = [
-        {"symbol": "AAPL", "action": "buy", "quantity": 10, "price": 150.0, "timestamp": dates[10], "commission": 0.001, "slippage": 0.0005, "cost": 1501.50, "fee": 2.25, "pnl": 0.0},
-        {"symbol": "AAPL", "action": "sell", "quantity": 10, "price": 160.0, "timestamp": dates[30], "commission": 0.001, "slippage": 0.0005, "cost": 1598.40, "fee": 2.40, "pnl": 98.50},
+        {
+            "symbol": "AAPL",
+            "action": "buy",
+            "quantity": 10,
+            "price": 150.0,
+            "timestamp": dates[10],
+            "commission": 0.001,
+            "slippage": 0.0005,
+            "cost": 1501.50,
+            "fee": 2.25,
+            "pnl": 0.0,
+        },
+        {
+            "symbol": "AAPL",
+            "action": "sell",
+            "quantity": 10,
+            "price": 160.0,
+            "timestamp": dates[30],
+            "commission": 0.001,
+            "slippage": 0.0005,
+            "cost": 1598.40,
+            "fee": 2.40,
+            "pnl": 98.50,
+        },
     ]
     trades_df = pd.DataFrame(trades_data)
 
     metrics = BacktestMetrics(
-        total_return=5000.0, total_return_pct=5.0, annual_return=12.5, volatility=15.2,
-        sharpe_ratio=0.82, sortino_ratio=1.1, calmar_ratio=0.65, max_drawdown=-0.08,
-        max_drawdown_pct=8.0, win_rate=0.5, profit_factor=1.85, num_trades=1,
-        avg_win=98.50, avg_loss=0.0, largest_win=98.50, largest_loss=0.0,
+        total_return=5000.0,
+        total_return_pct=5.0,
+        annual_return=12.5,
+        volatility=15.2,
+        sharpe_ratio=0.82,
+        sortino_ratio=1.1,
+        calmar_ratio=0.65,
+        max_drawdown=-0.08,
+        max_drawdown_pct=8.0,
+        win_rate=0.5,
+        profit_factor=1.85,
+        num_trades=1,
+        avg_win=98.50,
+        avg_loss=0.0,
+        largest_win=98.50,
+        largest_loss=0.0,
     )
 
     result1 = BacktestResult(
-        equity_curve=equity_curve, trades=trades_df, positions={}, metrics=metrics,
-        start_date=dates[0], end_date=dates[-1], initial_capital=100000.0,
-        final_value=105000.0, total_return=5000.0, total_return_pct=5.0, total_costs=9.07,
+        equity_curve=equity_curve,
+        trades=trades_df,
+        positions={},
+        metrics=metrics,
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=100000.0,
+        final_value=105000.0,
+        total_return=5000.0,
+        total_return_pct=5.0,
+        total_costs=9.07,
     )
     result2 = BacktestResult(
-        equity_curve=equity_curve * 1.02, trades=trades_df, positions={}, metrics=metrics,
-        start_date=dates[0], end_date=dates[-1], initial_capital=100000.0,
-        final_value=107100.0, total_return=5100.0, total_return_pct=5.1, total_costs=9.07,
+        equity_curve=equity_curve * 1.02,
+        trades=trades_df,
+        positions={},
+        metrics=metrics,
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=100000.0,
+        final_value=107100.0,
+        total_return=5100.0,
+        total_return_pct=5.1,
+        total_costs=9.07,
     )
 
     results = [("Strategy A", result1), ("Strategy B", result2)]
@@ -2214,27 +2264,77 @@ def test_generate_comparison_report_rolling_metrics_display() -> None:
     equity_curve = pd.Series(equity_values, index=dates)
 
     trades_data = [
-        {"symbol": "AAPL", "action": "buy", "quantity": 10, "price": 150.0, "timestamp": dates[10], "commission": 0.001, "slippage": 0.0005, "cost": 1501.50, "fee": 2.25, "pnl": 0.0},
-        {"symbol": "AAPL", "action": "sell", "quantity": 10, "price": 160.0, "timestamp": dates[30], "commission": 0.001, "slippage": 0.0005, "cost": 1598.40, "fee": 2.40, "pnl": 98.50},
+        {
+            "symbol": "AAPL",
+            "action": "buy",
+            "quantity": 10,
+            "price": 150.0,
+            "timestamp": dates[10],
+            "commission": 0.001,
+            "slippage": 0.0005,
+            "cost": 1501.50,
+            "fee": 2.25,
+            "pnl": 0.0,
+        },
+        {
+            "symbol": "AAPL",
+            "action": "sell",
+            "quantity": 10,
+            "price": 160.0,
+            "timestamp": dates[30],
+            "commission": 0.001,
+            "slippage": 0.0005,
+            "cost": 1598.40,
+            "fee": 2.40,
+            "pnl": 98.50,
+        },
     ]
     trades_df = pd.DataFrame(trades_data)
 
     metrics = BacktestMetrics(
-        total_return=5000.0, total_return_pct=5.0, annual_return=12.5, volatility=15.2,
-        sharpe_ratio=0.82, sortino_ratio=1.1, calmar_ratio=0.65, max_drawdown=-0.08,
-        max_drawdown_pct=8.0, win_rate=0.5, profit_factor=1.85, num_trades=1,
-        avg_win=98.50, avg_loss=0.0, largest_win=98.50, largest_loss=0.0,
+        total_return=5000.0,
+        total_return_pct=5.0,
+        annual_return=12.5,
+        volatility=15.2,
+        sharpe_ratio=0.82,
+        sortino_ratio=1.1,
+        calmar_ratio=0.65,
+        max_drawdown=-0.08,
+        max_drawdown_pct=8.0,
+        win_rate=0.5,
+        profit_factor=1.85,
+        num_trades=1,
+        avg_win=98.50,
+        avg_loss=0.0,
+        largest_win=98.50,
+        largest_loss=0.0,
     )
 
     result1 = BacktestResult(
-        equity_curve=equity_curve, trades=trades_df, positions={}, metrics=metrics,
-        start_date=dates[0], end_date=dates[-1], initial_capital=100000.0,
-        final_value=105000.0, total_return=5000.0, total_return_pct=5.0, total_costs=9.07,
+        equity_curve=equity_curve,
+        trades=trades_df,
+        positions={},
+        metrics=metrics,
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=100000.0,
+        final_value=105000.0,
+        total_return=5000.0,
+        total_return_pct=5.0,
+        total_costs=9.07,
     )
     result2 = BacktestResult(
-        equity_curve=equity_curve * 1.02, trades=trades_df, positions={}, metrics=metrics,
-        start_date=dates[0], end_date=dates[-1], initial_capital=100000.0,
-        final_value=107100.0, total_return=5100.0, total_return_pct=5.1, total_costs=9.07,
+        equity_curve=equity_curve * 1.02,
+        trades=trades_df,
+        positions={},
+        metrics=metrics,
+        start_date=dates[0],
+        end_date=dates[-1],
+        initial_capital=100000.0,
+        final_value=107100.0,
+        total_return=5100.0,
+        total_return_pct=5.1,
+        total_costs=9.07,
     )
 
     results = [("Strategy A", result1), ("Strategy B", result2)]
@@ -2321,7 +2421,9 @@ def test_build_comparison_risk_attribution_chart_absent_without_attribution() ->
     result = _create_sample_result()
     result.risk_attribution = NonDictAttribution()  # type: ignore[assignment]
 
-    html = _build_comparison_risk_attribution([("Strategy A", result)], _get_theme_colors("light"), dpi=150)
+    html = _build_comparison_risk_attribution(
+        [("Strategy A", result)], _get_theme_colors("light"), dpi=150
+    )
 
     assert "Risk Attribution Comparison" in html
     assert "data:image/png;base64," not in html

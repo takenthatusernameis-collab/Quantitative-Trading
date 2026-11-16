@@ -112,13 +112,9 @@ class StrategyRegistry:
         if aliases:
             for alias in aliases:
                 if alias == key:
-                    raise ValueError(
-                        f"alias {alias!r} duplicates primary key {key!r}"
-                    )
+                    raise ValueError(f"alias {alias!r} duplicates primary key {key!r}")
                 if alias in self._strategies:
-                    raise ValueError(
-                        f"alias {alias!r} collides with primary key {alias!r}"
-                    )
+                    raise ValueError(f"alias {alias!r} collides with primary key {alias!r}")
                 existing_primary = self._aliases.get(alias)
                 if existing_primary is not None and existing_primary != key:
                     raise ValueError(

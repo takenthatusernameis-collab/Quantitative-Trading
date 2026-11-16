@@ -136,9 +136,7 @@ class TestStrategyRegistry:
     def test_register_alias_colliding_with_primary_key_raises(self) -> None:
         registry = StrategyRegistry()
         registry.register("alpha", DummyStrategy)
-        with pytest.raises(
-            ValueError, match="alias 'alpha' collides with primary key 'alpha'"
-        ):
+        with pytest.raises(ValueError, match="alias 'alpha' collides with primary key 'alpha'"):
             registry.register("beta", OtherStrategy, aliases=["alpha"])
         # The failed registration must not mutate the registry.
         assert registry.get("beta") is None
@@ -156,9 +154,7 @@ class TestStrategyRegistry:
 
     def test_register_alias_equals_primary_key_raises(self) -> None:
         registry = StrategyRegistry()
-        with pytest.raises(
-            ValueError, match="alias 'alpha' duplicates primary key 'alpha'"
-        ):
+        with pytest.raises(ValueError, match="alias 'alpha' duplicates primary key 'alpha'"):
             registry.register("alpha", DummyStrategy, aliases=["alpha"])
         assert registry.get("alpha") is None
 

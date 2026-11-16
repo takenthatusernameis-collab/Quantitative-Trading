@@ -6441,14 +6441,25 @@ class TestParseArgsBayesianValidation:
         with (
             patch(
                 "sys.argv",
-                ["cli.py", "--optimize", "--n-iter", "5", "--bayesian-n-initial", "10", "--offline"],
+                [
+                    "cli.py",
+                    "--optimize",
+                    "--n-iter",
+                    "5",
+                    "--bayesian-n-initial",
+                    "10",
+                    "--offline",
+                ],
             ),
             pytest.raises(ValueError, match="invalid --bayesian-n-initial: must be <= --n-iter"),
         ):
             parse_args()
 
     def test_bayesian_n_initial_equal_to_n_iter_accepted(self) -> None:
-        with patch("sys.argv", ["cli.py", "--optimize", "--n-iter", "10", "--bayesian-n-initial", "10", "--offline"]):
+        with patch(
+            "sys.argv",
+            ["cli.py", "--optimize", "--n-iter", "10", "--bayesian-n-initial", "10", "--offline"],
+        ):
             args = parse_args()
             assert args.bayesian_n_initial == 10
             assert args.n_iter == 10
@@ -6529,7 +6540,9 @@ class TestSaveStrategyConfigFallback:
 class TestListStrategiesErrorHandling:
     """Tests for list_strategies error handling (lines 1491-1495)."""
 
-    def test_list_strategies_handles_type_error_then_value_error(self, capsys: CaptureFixture[Any], monkeypatch: MonkeyPatch) -> None:
+    def test_list_strategies_handles_type_error_then_value_error(
+        self, capsys: CaptureFixture[Any], monkeypatch: MonkeyPatch
+    ) -> None:
         from quant_trading.strategies import get_registry, register_strategy
         from quant_trading.strategies.base import Strategy
 
@@ -6705,18 +6718,33 @@ class TestRunOptimizationUnknownStrategy:
 class TestRunOptimizationOutputBranches:
     """Tests for run_optimization output branches (lines 1966-1968, 2036-2046, 2092)."""
 
-    @patch("examples.cli.OPTIMIZERS", {"grid": type("MockOpt", (), {
-        "__init__": lambda self, **kwargs: None,
-        "run": lambda self: type("Result", (), {
-            "best_params": {"fast_period": 5, "slow_period": 20},
-            "best_score": 1.5,
-            "best_result": None,
-            "all_results": [],
-            "get_top_n": lambda self, n: []
-        })()
-    })})
+    @patch(
+        "examples.cli.OPTIMIZERS",
+        {
+            "grid": type(
+                "MockOpt",
+                (),
+                {
+                    "__init__": lambda self, **kwargs: None,
+                    "run": lambda self: type(
+                        "Result",
+                        (),
+                        {
+                            "best_params": {"fast_period": 5, "slow_period": 20},
+                            "best_score": 1.5,
+                            "best_result": None,
+                            "all_results": [],
+                            "get_top_n": lambda self, n: [],
+                        },
+                    )(),
+                },
+            )
+        },
+    )
     @patch("examples.cli.get_strategy")
-    def test_optimization_without_best_result(self, mock_get_strategy: MagicMock, tmp_path: Path, capsys: CaptureFixture[Any]) -> None:
+    def test_optimization_without_best_result(
+        self, mock_get_strategy: MagicMock, tmp_path: Path, capsys: CaptureFixture[Any]
+    ) -> None:
         from argparse import Namespace
         from datetime import datetime, timedelta
 
@@ -6784,7 +6812,9 @@ class TestRunOptimizationOutputBranches:
         captured = capsys.readouterr()
         assert "Best Parameters" in captured.out
 
-    def test_optimization_save_json_output_error(self, tmp_path: Path, capsys: CaptureFixture[Any]) -> None:
+    def test_optimization_save_json_output_error(
+        self, tmp_path: Path, capsys: CaptureFixture[Any]
+    ) -> None:
         from argparse import Namespace
         from datetime import datetime, timedelta
         from unittest.mock import patch
@@ -6811,7 +6841,9 @@ class TestRunOptimizationOutputBranches:
             patch("examples.cli.OPTIMIZERS", {"grid": MockOptimizer}),
             patch(
                 "examples.cli.get_strategy",
-                return_value=type("MovingAverageCrossover", (), {"__name__": "MovingAverageCrossover"}),
+                return_value=type(
+                    "MovingAverageCrossover", (), {"__name__": "MovingAverageCrossover"}
+                ),
             ),
             patch("examples.cli._save_json_output", return_value=False),
         ):
@@ -6872,7 +6904,9 @@ class TestRunOptimizationOutputBranches:
             result = run_optimization(args, config, start_date, end_date)
             assert result == 1
 
-    def test_optimization_output_strategy_config_persistence(self, tmp_path: Path, capsys: CaptureFixture[Any]) -> None:
+    def test_optimization_output_strategy_config_persistence(
+        self, tmp_path: Path, capsys: CaptureFixture[Any]
+    ) -> None:
         from argparse import Namespace
         from datetime import datetime, timedelta
         from unittest.mock import patch
@@ -6899,8 +6933,9 @@ class TestRunOptimizationOutputBranches:
             def run(self) -> "MockResult":
                 return MockResult()
 
-        with patch("examples.cli.OPTIMIZERS", {"grid": MockOptimizer}), patch(
-            "examples.cli.get_strategy", return_value=MovingAverageCrossover
+        with (
+            patch("examples.cli.OPTIMIZERS", {"grid": MockOptimizer}),
+            patch("examples.cli.get_strategy", return_value=MovingAverageCrossover),
         ):
             args = Namespace(
                 strategy="ma",
@@ -6960,6 +6995,7 @@ class TestRunOptimizationOutputBranches:
 
             # Verify strategy config was saved
             import yaml
+
             with open(tmp_path / "strategy.yaml") as f:
                 saved = yaml.safe_load(f)
             assert saved["type"] == "ma"
@@ -7043,7 +7079,9 @@ class TestRunWalkForwardOutputBranches:
 
     @patch("examples.cli.WalkForwardOptimizer")
     @patch("examples.cli.get_strategy")
-    def test_walk_forward_with_step_size_printing(self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, capsys: CaptureFixture[Any]) -> None:
+    def test_walk_forward_with_step_size_printing(
+        self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, capsys: CaptureFixture[Any]
+    ) -> None:
         from argparse import Namespace
         from datetime import datetime, timedelta
 
@@ -7054,14 +7092,16 @@ class TestRunWalkForwardOutputBranches:
         mock_get_strategy.return_value = MovingAverageCrossover
 
         mock_result = MagicMock()
-        mock_result.to_dataframe.return_value = pd.DataFrame({
-            "window": [1],
-            "train_return_pct": [1.0],
-            "train_sharpe": [1.0],
-            "test_return_pct": [1.0],
-            "test_sharpe": [1.0],
-            "test_max_dd": [1.0],
-        })
+        mock_result.to_dataframe.return_value = pd.DataFrame(
+            {
+                "window": [1],
+                "train_return_pct": [1.0],
+                "train_sharpe": [1.0],
+                "test_return_pct": [1.0],
+                "test_sharpe": [1.0],
+                "test_max_dd": [1.0],
+            }
+        )
         mock_result.summary.return_value = {
             "n_windows": 1,
             "avg_test_return_pct": 1.0,
@@ -7144,7 +7184,9 @@ class TestRunWalkForwardOutputBranches:
 
     @patch("examples.cli.WalkForwardOptimizer")
     @patch("examples.cli.get_strategy")
-    def test_walk_forward_window_results_printing(self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, capsys: CaptureFixture[Any]) -> None:
+    def test_walk_forward_window_results_printing(
+        self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, capsys: CaptureFixture[Any]
+    ) -> None:
         from argparse import Namespace
         from datetime import datetime, timedelta
 
@@ -7155,14 +7197,16 @@ class TestRunWalkForwardOutputBranches:
         mock_get_strategy.return_value = MovingAverageCrossover
 
         mock_result = MagicMock()
-        mock_result.to_dataframe.return_value = pd.DataFrame({
-            "window": [1, 2],
-            "train_return_pct": [1.0, 2.0],
-            "train_sharpe": [1.0, 1.5],
-            "test_return_pct": [1.0, 1.5],
-            "test_sharpe": [1.0, 1.2],
-            "test_max_dd": [2.0, 1.5],
-        })
+        mock_result.to_dataframe.return_value = pd.DataFrame(
+            {
+                "window": [1, 2],
+                "train_return_pct": [1.0, 2.0],
+                "train_sharpe": [1.0, 1.5],
+                "test_return_pct": [1.0, 1.5],
+                "test_sharpe": [1.0, 1.2],
+                "test_max_dd": [2.0, 1.5],
+            }
+        )
         mock_result.summary.return_value = {
             "n_windows": 2,
             "avg_test_return_pct": 1.25,
@@ -7251,7 +7295,9 @@ class TestRunWalkForwardOutputBranches:
 
     @patch("examples.cli.WalkForwardOptimizer")
     @patch("examples.cli.get_strategy")
-    def test_walk_forward_save_json_output_error(self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, tmp_path: Path) -> None:
+    def test_walk_forward_save_json_output_error(
+        self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, tmp_path: Path
+    ) -> None:
         from argparse import Namespace
         from datetime import datetime, timedelta
         from unittest.mock import MagicMock, patch
@@ -7263,14 +7309,16 @@ class TestRunWalkForwardOutputBranches:
         mock_get_strategy.return_value = MovingAverageCrossover
 
         mock_result = MagicMock()
-        mock_result.to_dataframe.return_value = pd.DataFrame({
-            "window": [1],
-            "train_return_pct": [1.0],
-            "train_sharpe": [1.0],
-            "test_return_pct": [1.0],
-            "test_sharpe": [1.0],
-            "test_max_dd": [1.0],
-        })
+        mock_result.to_dataframe.return_value = pd.DataFrame(
+            {
+                "window": [1],
+                "train_return_pct": [1.0],
+                "train_sharpe": [1.0],
+                "test_return_pct": [1.0],
+                "test_sharpe": [1.0],
+                "test_max_dd": [1.0],
+            }
+        )
         mock_result.summary.return_value = {
             "n_windows": 1,
             "avg_test_return_pct": 1.0,
@@ -7352,7 +7400,9 @@ class TestRunWalkForwardOutputBranches:
 
     @patch("examples.cli.WalkForwardOptimizer")
     @patch("examples.cli.get_strategy")
-    def test_walk_forward_output_strategy_config_persistence(self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, tmp_path: Path) -> None:
+    def test_walk_forward_output_strategy_config_persistence(
+        self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, tmp_path: Path
+    ) -> None:
         from argparse import Namespace
         from datetime import datetime, timedelta
 
@@ -7363,14 +7413,16 @@ class TestRunWalkForwardOutputBranches:
         mock_get_strategy.return_value = MovingAverageCrossover
 
         mock_result = MagicMock()
-        mock_result.to_dataframe.return_value = pd.DataFrame({
-            "window": [1, 2],
-            "train_return_pct": [1.0, 2.0],
-            "train_sharpe": [1.0, 1.5],
-            "test_return_pct": [1.0, 1.5],
-            "test_sharpe": [1.0, 1.2],
-            "test_max_dd": [2.0, 1.5],
-        })
+        mock_result.to_dataframe.return_value = pd.DataFrame(
+            {
+                "window": [1, 2],
+                "train_return_pct": [1.0, 2.0],
+                "train_sharpe": [1.0, 1.5],
+                "test_return_pct": [1.0, 1.5],
+                "test_sharpe": [1.0, 1.2],
+                "test_max_dd": [2.0, 1.5],
+            }
+        )
         mock_result.summary.return_value = {
             "n_windows": 2,
             "avg_test_return_pct": 1.25,
@@ -7452,6 +7504,7 @@ class TestRunWalkForwardOutputBranches:
         assert result == 0
 
         import yaml
+
         with open(tmp_path / "wf_strategy.yaml") as f:
             saved = yaml.safe_load(f)
         assert saved["type"] == "ma"
@@ -7460,7 +7513,9 @@ class TestRunWalkForwardOutputBranches:
 
     @patch("examples.cli.WalkForwardOptimizer")
     @patch("examples.cli.get_strategy")
-    def test_walk_forward_no_window_params_fallback(self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, tmp_path: Path) -> None:
+    def test_walk_forward_no_window_params_fallback(
+        self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, tmp_path: Path
+    ) -> None:
         from argparse import Namespace
         from datetime import datetime, timedelta
 
@@ -7471,14 +7526,16 @@ class TestRunWalkForwardOutputBranches:
         mock_get_strategy.return_value = MovingAverageCrossover
 
         mock_result = MagicMock()
-        mock_result.to_dataframe.return_value = pd.DataFrame({
-            "window": [1],
-            "train_return_pct": [1.0],
-            "train_sharpe": [1.0],
-            "test_return_pct": [1.0],
-            "test_sharpe": [1.0],
-            "test_max_dd": [1.0],
-        })
+        mock_result.to_dataframe.return_value = pd.DataFrame(
+            {
+                "window": [1],
+                "train_return_pct": [1.0],
+                "train_sharpe": [1.0],
+                "test_return_pct": [1.0],
+                "test_sharpe": [1.0],
+                "test_max_dd": [1.0],
+            }
+        )
         mock_result.summary.return_value = {
             "n_windows": 1,
             "avg_test_return_pct": 1.0,
@@ -7557,6 +7614,7 @@ class TestRunWalkForwardOutputBranches:
         assert result == 0
 
         import yaml
+
         with open(tmp_path / "wf_empty.yaml") as f:
             saved = yaml.safe_load(f)
         assert saved["type"] == "ma"
@@ -7592,7 +7650,9 @@ class TestRunCombinedEmptyResults:
     """Tests for run_combined empty results (lines 2668-2669)."""
 
     @patch("examples.cli.run_backtest", side_effect=RuntimeError("all failed"))
-    def test_run_combined_all_fail_returns_one(self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]) -> None:
+    def test_run_combined_all_fail_returns_one(
+        self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]
+    ) -> None:
         from argparse import Namespace
         from datetime import datetime, timedelta
 
@@ -7667,7 +7727,7 @@ class TestRunCombinedJsonOutputBranches:
         _mock_print_mc: MagicMock,
         _mock_print_trade: MagicMock,
         tmp_path: Path,
-        capsys: CaptureFixture[Any]
+        capsys: CaptureFixture[Any],
     ) -> None:
         from argparse import Namespace
         from datetime import datetime, timedelta
@@ -7771,6 +7831,7 @@ class TestRunCombinedJsonOutputBranches:
         assert result == 0
 
         import json
+
         with open(output_path) as f:
             data = json.load(f)
         assert "regime_analysis" in data
@@ -7880,6 +7941,7 @@ class TestRunCombinedJsonOutputBranches:
         assert result == 0
 
         import json
+
         with open(output_path) as f:
             data = json.load(f)
         assert "regime_analysis" in data
@@ -7986,6 +8048,7 @@ class TestRunCombinedJsonOutputBranches:
         assert result == 0
 
         import json
+
         with open(output_path) as f:
             data = json.load(f)
         assert "monte_carlo" in data
@@ -8092,6 +8155,7 @@ class TestRunCombinedJsonOutputBranches:
         assert result == 0
 
         import json
+
         with open(output_path) as f:
             data = json.load(f)
         assert "trade_analysis" in data
@@ -8225,7 +8289,16 @@ class TestSingleModeOutputBranches:
         """Writing output to a missing directory reports the error and returns 1."""
         with patch(
             "sys.argv",
-            ["cli.py", "--offline", "--output", "/no/such/dir/results.json", "--symbols", "AAPL", "--days", "30"],
+            [
+                "cli.py",
+                "--offline",
+                "--output",
+                "/no/such/dir/results.json",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ],
         ):
             result = main()
         assert result == 1
@@ -8238,6 +8311,7 @@ class TestVersionImportFallback:
         """When quant_trading.__version__ cannot be imported, the fallback is used."""
         # Remove quant_trading.__version__ if it exists
         import sys
+
         if "quant_trading" in sys.modules:
             mod = sys.modules["quant_trading"]
             if hasattr(mod, "__version__"):
@@ -8331,7 +8405,9 @@ class TestCreateConfigSlippageOverride:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = f"{tmpdir}/config.yaml"
             with open(config_path, "w") as f:
-                f.write("backtest:\n  initial_capital: 25000.0\n  commission: 0.002\n  slippage: 0.001\n")
+                f.write(
+                    "backtest:\n  initial_capital: 25000.0\n  commission: 0.002\n  slippage: 0.001\n"
+                )
             args = Namespace(
                 config=config_path,
                 offline=False,
@@ -8539,14 +8615,16 @@ class TestRunWalkForwardBranches:
         if empty_df:
             mock_result.to_dataframe.return_value = MagicMock(empty=True)
         else:
-            df = pd.DataFrame({
-                "window": [1, 2],
-                "train_return_pct": [5.0, 6.0],
-                "train_sharpe": [1.2, 1.3],
-                "test_return_pct": [3.0, 4.0],
-                "test_sharpe": [0.9, 1.1],
-                "test_max_dd": [2.0, 3.0],
-            })
+            df = pd.DataFrame(
+                {
+                    "window": [1, 2],
+                    "train_return_pct": [5.0, 6.0],
+                    "train_sharpe": [1.2, 1.3],
+                    "test_return_pct": [3.0, 4.0],
+                    "test_sharpe": [0.9, 1.1],
+                    "test_max_dd": [2.0, 3.0],
+                }
+            )
             mock_result.to_dataframe.return_value = df
         # Use a real dict for summary, not a MagicMock
         mock_result.summary = lambda: {
@@ -8560,12 +8638,17 @@ class TestRunWalkForwardBranches:
         }
         mock_result.combined_test_result = MagicMock()
         mock_result.combined_test_result.total_costs = 100.0
-        mock_result.windows = [MagicMock(best_params={"fast_period": 10}), MagicMock(best_params={"fast_period": 12})]
+        mock_result.windows = [
+            MagicMock(best_params={"fast_period": 10}),
+            MagicMock(best_params={"fast_period": 12}),
+        ]
         mock_result.to_dict.return_value = {}
         return mock_result
 
     @patch("examples.cli.WalkForwardOptimizer")
-    def test_run_walk_forward_offline_mode_prints_offline(self, mock_wfo: MagicMock, tmp_path: Path) -> None:
+    def test_run_walk_forward_offline_mode_prints_offline(
+        self, mock_wfo: MagicMock, tmp_path: Path
+    ) -> None:
         """Offline mode prints 'Mode: OFFLINE'."""
         import io
         from argparse import Namespace
@@ -8651,7 +8734,9 @@ class TestRunWalkForwardBranches:
         assert "Mode: OFFLINE (synthetic data)" in out
 
     @patch("examples.cli.WalkForwardOptimizer")
-    def test_run_walk_forward_random_optimizer_kwargs(self, mock_wfo: MagicMock, tmp_path: Path) -> None:
+    def test_run_walk_forward_random_optimizer_kwargs(
+        self, mock_wfo: MagicMock, tmp_path: Path
+    ) -> None:
         """Random inner optimizer uses n_iter and n_jobs kwargs."""
         from argparse import Namespace
         from datetime import datetime, timedelta
@@ -8733,7 +8818,9 @@ class TestRunWalkForwardBranches:
         assert call_kwargs["optimizer_kwargs"] == {"n_iter": 25, "n_jobs": 2}
 
     @patch("examples.cli.WalkForwardOptimizer")
-    def test_run_walk_forward_bayesian_optimizer_kwargs(self, mock_wfo: MagicMock, tmp_path: Path) -> None:
+    def test_run_walk_forward_bayesian_optimizer_kwargs(
+        self, mock_wfo: MagicMock, tmp_path: Path
+    ) -> None:
         """Bayesian inner optimizer uses bayesian kwargs."""
         from argparse import Namespace
         from datetime import datetime, timedelta
@@ -8821,7 +8908,9 @@ class TestRunWalkForwardBranches:
         }
 
     @patch("examples.cli.WalkForwardOptimizer")
-    def test_run_walk_forward_window_results_printing(self, mock_wfo: MagicMock, tmp_path: Path) -> None:
+    def test_run_walk_forward_window_results_printing(
+        self, mock_wfo: MagicMock, tmp_path: Path
+    ) -> None:
         """Window results are printed when dataframe is not empty."""
         import io
         from argparse import Namespace
@@ -8919,7 +9008,16 @@ class TestMainSystemExitHandling:
         old_argv = sys.argv
         try:
             # Trigger argparse error by passing an invalid choice for --optimizer
-            sys.argv = ["cli.py", "--optimizer", "invalid", "--offline", "--symbols", "AAPL", "--days", "30"]
+            sys.argv = [
+                "cli.py",
+                "--optimizer",
+                "invalid",
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ]
             result = main()
             assert result == 1
         finally:
@@ -8948,7 +9046,9 @@ class TestRunCombinedOutputSaveFailure:
 
     @patch("examples.cli._save_json_output", return_value=False)
     @patch("examples.cli.run_backtest")
-    def test_run_combined_output_save_failure_returns_one_existing(self, mock_run_backtest: MagicMock, mock_save_json_output: MagicMock, tmp_path: Path) -> None:
+    def test_run_combined_output_save_failure_returns_one_existing(
+        self, mock_run_backtest: MagicMock, mock_save_json_output: MagicMock, tmp_path: Path
+    ) -> None:
         """Ensures the existing test covers line 2755."""
         from argparse import Namespace
         from datetime import datetime, timedelta
