@@ -189,6 +189,26 @@ class TestCreateParameterInteractionHeatmap:
         assert isinstance(chart, str)
         assert len(chart) > 0
 
+    def test_create_parameter_interaction_heatmap_all_nan_scores(self):
+        """An all-NaN score column yields an empty pivot and NaN interaction cells.
+
+        ``pivot_table`` drops NaN rows, so the off-diagonal pivot is empty and
+        the interaction entry stays NaN instead of raising.
+        """
+        import numpy as np
+        import pandas as pd
+
+        df = pd.DataFrame(
+            {
+                "param1": [1, 1, 2, 2],
+                "param2": [10, 20, 10, 20],
+                "score": [np.nan, np.nan, np.nan, np.nan],
+            }
+        )
+        chart = create_parameter_interaction_heatmap(df, ["param1", "param2"], "score")
+        assert isinstance(chart, str)
+        assert len(chart) > 0
+
 
 class TestGenerateSensitivityReportHTML:
     """Tests for generate_sensitivity_report_html function."""
@@ -234,6 +254,43 @@ class TestGenerateSensitivityReportHTML:
         assert output_path.exists()
         assert output_path.read_text() == html
 
+    def test_generate_sensitivity_report_html_explicit_single_param(self):
+        """An explicit single-parameter list skips the 2D and interaction charts."""
+        all_results = [
+            {"params": {"fast_period": 5, "slow_period": 20}, "score": 1.5},
+            {"params": {"fast_period": 10, "slow_period": 20}, "score": 2.0},
+        ]
+        html = generate_sensitivity_report_html(all_results, param_names=["fast_period"])
+        assert "Summary Statistics" in html
+        assert "1D Sensitivity: fast_period" in html
+        assert "2D Sensitivity" not in html
+        assert "Parameter Interactions" not in html
+
+    def test_generate_sensitivity_report_html_survives_chart_errors(self, monkeypatch):
+        """A failing chart helper is skipped without aborting the report.
+
+        The report is a best-effort aggregation: if any single chart cannot be
+        rendered, the remaining charts and the summary table are still produced.
+        """
+        from quant_trading.optimization import sensitivity
+
+        all_results = [
+            {"params": {"fast_period": 5, "slow_period": 20}, "score": 1.5},
+            {"params": {"fast_period": 10, "slow_period": 20}, "score": 2.0},
+            {"params": {"fast_period": 5, "slow_period": 30}, "score": 1.0},
+        ]
+
+        def _boom(*args, **kwargs):
+            raise ValueError("chart failure")
+
+        monkeypatch.setattr(sensitivity, "create_1d_sensitivity_plot", _boom)
+        monkeypatch.setattr(sensitivity, "create_2d_sensitivity_heatmap", _boom)
+        monkeypatch.setattr(sensitivity, "create_parameter_interaction_heatmap", _boom)
+
+        html = generate_sensitivity_report_html(all_results)
+        assert "Summary Statistics" in html
+        assert "<img" not in html
+
 
 class TestSensitivityConfig:
     """Tests for SensitivityConfig dataclass."""
@@ -258,6 +315,21 @@ class TestSensitivityConfig:
         assert config.dpi == 300
         assert config.colormap == "viridis"
         assert config.figure_size == (12, 8)
+
+    def test_sensitivity_config_to_dict(self):
+        """A config serializes to a JSON-safe dictionary with a list figure size."""
+        config = SensitivityConfig(
+            include_charts=False,
+            dpi=300,
+            colormap="viridis",
+            figure_size=(12, 8),
+        )
+        assert config.to_dict() == {
+            "include_charts": False,
+            "dpi": 300,
+            "colormap": "viridis",
+            "figure_size": [12, 8],
+        }
 
     def test_sensitivity_config_from_dict_keeps_tuple(self):
         """A tuple figure size round-trips unchanged."""

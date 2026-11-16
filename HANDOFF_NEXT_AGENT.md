@@ -1,72 +1,75 @@
 ## What changed (this session)
 
-- Fixed a pre-existing failing test in `tests/test_backtest_report.py`:
-  `test_build_comparison_risk_attribution_with_chart` asserted a corrupted string
-  (`"Risk Attribution: Portfolio VaR Risk Attribution: Portfolio VaR & Volatility Volatility"`).
-  Corrected to the actually-rendered heading `"Risk Attribution: Portfolio VaR &amp; Volatility"`.
-  (The implementation was already correct; only the test assertion was garbled.)
-- Added focused tests to close coverage gaps:
-  - `tests/test_risk_metrics.py`: `calculate_beta` with a non-finite market variance -> 0.0.
-  - `tests/test_risk_attribution.py`: zero-variance `calculate_volatility_contributions`;
-    `calculate_equal_risk_contribution_weights` zero-variance + `max_iter=1` single pass;
-    `calculate_risk_budget_weights` zero-variance + `max_iter=1` single pass.
-  - `tests/test_backtest_report.py`: risk-attribution table with no symbols; rolling-vol
-    chart with exactly 60 bars; comparison report with monthly+rolling charts disabled;
-    comparison risk-attribution chart absent (truthy non-dict attribution); metric_fn
-    exception -> `N/A`.
-- Ran `ruff check --fix` for 18 pre-existing auto-fixable lint errors in
-  `tests/test_backtest_report.py` (import sorting, unused imports) and replaced a
-  meaningless `... or True` assertion with a real docstring check.
+- Verified the previously assigned task was **already completed and committed** at `HEAD`
+  (`a58486f`): `python -m mypy quant_trading tests` -> **Success: no issues found in 103
+  source files**. No further mypy work was needed.
+- Added 4 focused tests to `tests/test_sensitivity.py` to close reachable coverage gaps in
+  `quant_trading/optimization/sensitivity.py`:
+  - `test_create_parameter_interaction_heatmap_all_nan_scores`: all-NaN score -> empty
+    off-diagonal pivot, interaction cell stays NaN instead of raising (branch `357->344`).
+  - `test_generate_sensitivity_report_html_explicit_single_param`: explicit one-element
+    `param_names` skips the 2D and interaction charts (branches `442->446`, `466->474`).
+  - `test_generate_sensitivity_report_html_survives_chart_errors`: a chart helper raising
+    `ValueError` is skipped; the summary table is still produced (lines `453-454`,
+    `462-463`, `470-471`).
+  - `test_sensitivity_config_to_dict`: direct unit test for `SensitivityConfig.to_dict`
+    (previously only covered by a doctest when running the whole `quant_trading` tree).
+- No source/behavior changes; tests only.
 
 ## What was actually verified (evidence)
 
-- `python -m pytest tests/test_backtest_report.py tests/test_risk_attribution.py tests/test_risk_metrics.py -q`
-  -> **230 passed**
-- `python -m pytest -q` (full suite; `slow`/`network` deselected) -> **3902 passed, 142 deselected in 366s**
-  (the full suite takes ~6 minutes; a 120s timeout is not enough)
-- Coverage:
-  - `quant_trading/backtest/report.py` **99% -> 100%** (0 missed statements, 0 branch partials)
-    when running `tests/test_backtest_report.py`
-  - `quant_trading/risk/metrics.py` **95% -> 98%** when running the risk suite
-    (`test_risk_metrics`, `test_risk_attribution`, `test_risk_manager`,
-    `test_rebalancer_risk_integration`, `test_rebalancer_risk_parity`)
+- `python -m pytest tests/test_sensitivity.py -q` -> **27 passed** (was 23).
+- `python -m pytest -q --cov=quant_trading --cov=examples.cli --cov-report=term-missing`
+  -> **3906 passed, 142 deselected in 367s** (baseline was 3902 passed).
+- Coverage of `quant_trading/optimization/sensitivity.py`: **95% -> 99%**; remaining misses
+  are only `23-24` (module-level `except ImportError` matplotlib fallback) and `362-363`
+  (defensive `except (ValueError, KeyError, IndexError)` around `pivot_table`).
 - `python -m ruff check .` -> **All checks passed!**
+- `python -m mypy quant_trading tests` -> **Success**.
+- Full-suite total coverage **99%** (43 missed statements, 34 partial branches).
 
 ## What remains unresolved / not verified
 
-- **mypy is NOT green** (the previous handoff's claim "mypy Success" was false):
-  `python -m mypy quant_trading tests` -> **33 errors, all in `tests/test_backtest_report.py`**
-  at lines <= 2165 (i.e. before this session's new tests at 2286+; this session added 0 new
-  mypy errors). Baseline `HEAD` had 34 such errors; all pre-existing from commit 45984e4.
-  Categories:
-  - 12 `metrics` arg-type: local `class Metrics` / `class GoodMetrics` passed to
-    `BacktestResult(metrics=...)` which expects `BacktestMetrics`.
-  - 10 untyped defs: 6 missing parameter annotations, 4 missing return annotations.
-  - 4 assignment: `result.risk_attribution = BadAttribution()` where the attribute is
-    `RiskAttribution | None`.
-  - 7 chart arg-type: a local `class Result` is passed to `_create_comparison_*_chart`
-    helpers that expect `list[tuple[str, BacktestResult]]`.
-- `quant_trading/risk/metrics.py` still has 3 uncovered lines: 693, 871, 960. These are
-  defensive guards (`marginal VaR` empty-tail, ERC/risk-budget zero weight-sum) that are not
-  reachable with finite inputs; no demonstrated defect. Do not add contrived tests for them.
+- `sensitivity.py` `23-24`: the import-time matplotlib fallback. Covering it would require
+  reloading the module with `sys.modules["matplotlib"]` blocked; fragile and low value.
+- `sensitivity.py` `362-363`: defensive pivot exception handler. Not reachable with
+  well-formed DataFrames (a duplicate parameter name did **not** trigger it). Leave it.
+- Other low-coverage modules (from the full coverage report):
+  - `examples/cli.py` **96%** (27 missed, 24 partial): `58-59, 208->211, 214->217, 287,
+    290, 1137, 1210, 1376->1380, 1381, 1491-1495, 1941->1944, 1954, 1966->1968, 2036->2046,
+    2092, 2108, 2126->2129, 2174->2186, 2219, 2226->2230, 2227->2226, 2231, 2393-2398,
+    2668-2669, 2751, 2753, 2755`.
+  - `quant_trading/portfolio/rebalancer.py` **98%** (`485, 630->600, 764, 816, 824`).
+  - `quant_trading/backtest/engine.py` **99%** (`82-84` are `if TYPE_CHECKING:` imports,
+    a coverage artifact; `954-956` is the risk-attribution `except (ValueError, KeyError)`).
+  - `quant_trading/config/settings.py` **99%** (`851->855`: dict-merge branch when the
+    target field is not a dataclass with `to_dict`/`from_dict`).
+  - `quant_trading/risk/metrics.py` **98%** (`693, 871, 960`) - per the previous handoff
+    these are unreachable defensive guards; do **not** chase them.
 
 ## Failed or corrected approaches
 
-- Two first-draft report tests failed and were corrected:
-  - `_build_risk_attribution_table` with empty series still renders summary values (no `N/A`);
-    assertion changed to check symbol columns are absent and `Portfolio VaR` is present.
-  - `_build_comparison_risk_attribution` returns `""` early when *no* result has attribution,
-    so the empty-chart branch (1686->1696) cannot be reached that way; used a *truthy*
-    attribution whose `to_dict()` returns a non-dict instead.
-- No repeated identical failures; no evidence of a deterministic blocker beyond the above.
+- `python -m pytest ... --cov=quant_trading.optimization.sensitivity` failed during
+  collection with `ImportError: cannot load module more than once per process` (numpy).
+  Materially different approach that worked: use `--cov=quant_trading` and filter the
+  report for the module. No identical retries.
+- Attempted to reach `362-363` by passing a duplicate parameter name to
+  `create_parameter_interaction_heatmap`; `pivot_table` handled it without raising, so no
+  test was added for that line.
 
 ## One precise next task
 
-- Make `python -m mypy quant_trading tests` pass by fixing the 33 pre-existing errors in
-  `tests/test_backtest_report.py`. Evidence: `python -m mypy quant_trading tests`.
-  Constraints: do not change test behavior; prefer constructing real `BacktestMetrics`
-  instances (or narrow `# type: ignore[arg-type]` / `# type: ignore[assignment]`), and add
-  parameter/return annotations to the local helper classes. Then re-run `python -m ruff check .`
-  and the full `python -m pytest -q` (use a >=600s timeout; ~6 min) before handoff.
-  If time-boxed, the coverage work is already complete (report.py 100%, metrics.py 98%);
-  do not chase the 3 unreachable metrics.py lines.
+- Raise `examples/cli.py` coverage (currently **96%**, the lowest non-example module) by
+  adding tests for its reachable uncovered paths, using the existing patterns in
+  `tests/test_cli.py`, `tests/test_readme_cli.py`, and `tests/test_readme_cli_commands.py`.
+  Concrete targets (evidence: coverage report above):
+  - `_validate_interval` minute/hour forms -> lines `287`, `290`.
+  - `--n-iter` / `--bayesian-n-initial` validation errors -> `1137`, `1210`.
+  - unknown-strategy `ValueError` in optimize / walk-forward -> `1381`, `1954`.
+  - `--output-strategy-config` persistence for optimize and walk-forward -> `2092`,
+    `2219`, `2231`.
+  - JSON/report output branches for regime / monte-carlo / trade analysis -> `2393-2398`,
+    `2668-2669`, `2751-2755`.
+  Constraints: do not change CLI behavior; add tests only. Then re-run
+  `python -m ruff check .`, `python -m mypy quant_trading tests`, and the full
+  `python -m pytest -q` (use a >=600s timeout; ~6 min) before handoff.
