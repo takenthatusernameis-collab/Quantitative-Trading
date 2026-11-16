@@ -270,6 +270,125 @@ class TestReadmeExampleScripts:
         assert unknown == [], f"README advertises missing example scripts: {unknown}"
 
 
+# ---------------------------------------------------------------------------
+# Example-script count lock.
+#
+# The README's "Example Scripts" section quantifies what some scripts do:
+#   * "It runs the three built-in strategies ..." for
+#     ``examples/run_backtest_offline.py``
+#   * "... prints all three analysis modules" for ``examples/run_analysis.py``
+#
+# Both numbers are hand-maintained prose about the scripts. Adding or removing
+# a strategy from the offline backtest, or an analysis module from the analysis
+# demo, without updating the README would silently desync the docs from the
+# code. The guards below pin each spelled-out count to the live script so the
+# prose cannot drift.
+# ---------------------------------------------------------------------------
+
+# Number words the README may use, mapped to their integer value.
+_NUMBER_WORDS: dict[str, int] = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+}
+
+# Matches "runs the <word> built-in strategies". The claim may wrap across
+# lines, so the whitespace between "built-in" and "strategies" is matched
+# loosely.
+_STRATEGY_COUNT_CLAIM = re.compile(
+    r"runs the (?P<count>[A-Za-z]+) built-in\s+strategies", re.IGNORECASE
+)
+
+# Matches "prints all <word> analysis modules".
+_ANALYSIS_COUNT_CLAIM = re.compile(
+    r"prints all (?P<count>[A-Za-z]+) analysis modules", re.IGNORECASE
+)
+
+_RUN_BACKTEST_OFFLINE = EXAMPLES_DIR / "run_backtest_offline.py"
+_RUN_ANALYSIS = EXAMPLES_DIR / "run_analysis.py"
+
+
+def _word_to_int(word: str) -> int:
+    """Return the integer value of an English number word used in the README."""
+    normalized = word.lower()
+    assert normalized in _NUMBER_WORDS, f"unrecognised number word {word!r} in README claim"
+    return _NUMBER_WORDS[normalized]
+
+
+def _offline_example_strategy_count() -> int:
+    """Return the number of strategies ``run_backtest_offline.py`` constructs.
+
+    The script builds a ``strategies = [...]`` list and runs each entry. The
+    guard counts that list literal so the README's spelled-out claim is pinned
+    to the code that actually executes.
+    """
+    tree = ast.parse(_RUN_BACKTEST_OFFLINE.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign)
+            and isinstance(node.value, ast.List)
+            and any(
+                isinstance(target, ast.Name) and target.id == "strategies"
+                for target in node.targets
+            )
+        ):
+            return len(node.value.elts)
+    raise AssertionError("run_backtest_offline.py has no `strategies = [...]` list literal")
+
+
+def _analysis_module_count() -> int:
+    """Return the number of analysis modules ``run_analysis.py`` enumerates.
+
+    The script's module docstring lists the analysis modules it exercises as a
+    bullet list (``* ...``); the README's "all <N> analysis modules" claim is
+    pinned to that enumeration.
+    """
+    tree = ast.parse(_RUN_ANALYSIS.read_text(encoding="utf-8"))
+    docstring = ast.get_docstring(tree) or ""
+    return sum(1 for line in docstring.splitlines() if re.match(r"\s*\*\s+\S", line))
+
+
+class TestReadmeExampleScriptCounts:
+    """The README's spelled-out example-script counts must match the scripts."""
+
+    def test_offline_example_strategy_count_matches_script(self) -> None:
+        """The README's 'N built-in strategies' claim matches run_backtest_offline.py."""
+        readme = README_PATH.read_text(encoding="utf-8")
+        matches = list(_STRATEGY_COUNT_CLAIM.finditer(readme))
+        assert len(matches) == 1, (
+            "expected exactly one 'runs the <N> built-in strategies' claim in the "
+            f"README, found {len(matches)}"
+        )
+        claimed = _word_to_int(matches[0].group("count"))
+        actual = _offline_example_strategy_count()
+        assert claimed == actual, (
+            f"README claims run_backtest_offline.py runs {claimed} built-in strategies, "
+            f"but the script constructs {actual}"
+        )
+
+    def test_analysis_module_count_matches_script(self) -> None:
+        """The README's 'all N analysis modules' claim matches run_analysis.py."""
+        readme = README_PATH.read_text(encoding="utf-8")
+        matches = list(_ANALYSIS_COUNT_CLAIM.finditer(readme))
+        assert len(matches) == 1, (
+            "expected exactly one 'prints all <N> analysis modules' claim in the "
+            f"README, found {len(matches)}"
+        )
+        claimed = _word_to_int(matches[0].group("count"))
+        actual = _analysis_module_count()
+        assert claimed == actual, (
+            f"README claims run_analysis.py prints {claimed} analysis modules, "
+            f"but the script enumerates {actual}"
+        )
+
+
 # The README "Supported intervals" bullets that name a concrete set of
 # intervals, each mapped to a ClassVar set on ``AlphaVantageProvider``. The
 # README is the user-facing contract for which intervals the provider accepts;
