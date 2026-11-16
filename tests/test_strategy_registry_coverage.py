@@ -1,6 +1,6 @@
 """Registry-level coverage tests for every registered strategy.
 
-The global strategy registry exposes 47 built-in strategies. This module
+The global strategy registry exposes 48 built-in strategies. This module
 provides regression coverage for the whole registry: every registered strategy
 must be constructible via :func:`create_strategy` with default parameters, must
 carry a non-empty ``parameters`` mapping, and must be able to run
@@ -17,6 +17,7 @@ class would go unnoticed.
 """
 
 import ast
+import re
 from pathlib import Path
 
 from quant_trading.data.synthetic import create_synthetic_data
@@ -243,4 +244,23 @@ def test_every_registered_strategy_has_a_test_class() -> None:
         f"Registered strategies with no Test<ClassName> in "
         f"tests/test_strategies_examples.py: {missing}. "
         f"Add a Test<ClassName> subclass covering the strategy's behaviour."
+    )
+
+
+def test_module_docstring_strategy_count_matches_registry() -> None:
+    """The module docstring's 'N built-in strategies' claim must match the registry.
+
+    This docstring states how many strategies the registry exposes. That number
+    has drifted before (both this docstring and the README feature bullet lagged
+    a newly registered strategy), so it is pinned to the live registry here the
+    same way ``tests/test_readme.py`` pins the README count.
+    """
+    source = Path(__file__).read_text(encoding="utf-8")
+    module_doc = ast.get_docstring(ast.parse(source)) or ""
+    match = re.search(r"(\d+)\s+built-in strategies", module_doc)
+    assert match is not None, "module docstring is missing its 'N built-in strategies' claim"
+    claimed = int(match.group(1))
+    actual = len(get_registry().primary_keys())
+    assert claimed == actual, (
+        f"module docstring claims {claimed} built-in strategies, " f"registry has {actual}"
     )
