@@ -1251,6 +1251,95 @@ def test_no_duplicate_example_script_demos() -> None:
     assert not duplicates, "example scripts documented more than once:\n" + "\n".join(duplicates)
 
 
+# A strategy-constructor signature: (class name, positional args, keyword args).
+# ``ast.dump`` gives a stable, location-independent representation of each
+# argument so two calls can be compared for structural equality.
+_StrategySignature = tuple[str, tuple[str, ...], tuple[tuple[str, str], ...]]
+
+
+def _strategy_demo_signature(call: ast.Call, class_name: str) -> _StrategySignature:
+    """Return a hashable signature for a strategy constructor call.
+
+    The signature is the class name, the positional arguments, and the keyword
+    arguments sorted by name. The cosmetic ``name=`` keyword is excluded so two
+    demos that differ only in the strategy's display name still compare equal.
+    """
+    positional = tuple(ast.dump(arg) for arg in call.args)
+    keywords: list[tuple[str, str]] = []
+    for keyword in call.keywords:
+        if keyword.arg is None or keyword.arg == "name":
+            continue
+        keywords.append((keyword.arg, ast.dump(keyword.value)))
+    keywords.sort()
+    return (class_name, positional, tuple(keywords))
+
+
+def _strategy_demo_signatures(tree: ast.Module) -> list[_StrategySignature]:
+    """Return the signature of every direct strategy constructor call in a module."""
+    signatures: list[_StrategySignature] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id.endswith("Strategy")
+        ):
+            signatures.append(_strategy_demo_signature(node, node.func.id))
+    return signatures
+
+
+def _duplicate_single_strategy_signatures(
+    scripts: dict[str, list[_StrategySignature]],
+) -> list[str]:
+    """Return a description of every signature shared by two or more scripts.
+
+    Only scripts that construct exactly one strategy are considered. Scripts
+    that construct several strategies (the ``run_backtest*`` demos) or none
+    (the analysis/optimization demos) are exempt, because those legitimately
+    reuse a strategy configuration as one part of a broader demonstration.
+    """
+    seen: dict[_StrategySignature, list[str]] = {}
+    for name, signatures in scripts.items():
+        if len(signatures) != 1:
+            continue
+        seen.setdefault(signatures[0], []).append(name)
+    offenders: list[str] = []
+    for signature, names in seen.items():
+        if len(names) > 1:
+            offenders.append(f"{signature[0]} {signature[2]}: {names}")
+    return offenders
+
+
+def test_no_duplicate_single_strategy_example_scripts() -> None:
+    """Two example scripts must not demo the same strategy the same way.
+
+    A pair of example scripts that each construct exactly one strategy with the
+    same class and arguments are functional duplicates: the second is dead
+    documentation that drifts out of sync with the first (the defect that left
+    ``run_klinger.py`` and ``run_klinger_oscillator.py`` as byte-for-byte
+    equivalents apart from their docstrings). This guard fails when such a pair
+    exists so the redundancy cannot silently return.
+
+    The check is purely structural (AST): it parses each script without
+    importing it, keeping the guard independent of runtime dependencies.
+    """
+    scripts: dict[str, list[_StrategySignature]] = {}
+    for path in sorted((REPO_ROOT / "examples").glob("run_*.py")):
+        scripts[path.name] = _strategy_demo_signatures(_parse(path))
+
+    # Negative control: a synthetic pair that shares one signature must be
+    # reported, proving the detector fires on the defect it guards against.
+    synthetic: dict[str, list[_StrategySignature]] = {
+        "run_a.py": [("RSIStrategy", (), (("period", "Constant(value=14)"),))],
+        "run_b.py": [("RSIStrategy", (), (("period", "Constant(value=14)"),))],
+    }
+    assert _duplicate_single_strategy_signatures(
+        synthetic
+    ), "guard did not fire on an injected duplicate single-strategy demo"
+
+    offenders = _duplicate_single_strategy_signatures(scripts)
+    assert not offenders, "duplicate single-strategy example scripts:\n" + "\n".join(offenders)
+
+
 def test_no_example_script_refs_outside_example_scripts_section() -> None:
     """Every ``examples/run_*.py`` reference must live in the Example Scripts section.
 

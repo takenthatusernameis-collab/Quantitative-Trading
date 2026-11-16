@@ -1103,15 +1103,6 @@ when it crosses below:
 python examples/run_klinger.py
 ```
 
-For a Klinger Oscillator demonstration with explicit fast/slow periods, see
-`examples/run_klinger_oscillator.py`. It runs the `KlingerOscillatorStrategy`
-against seeded synthetic data, generating a buy signal when the fast Klinger EMA
-crosses above the slow Klinger EMA and a sell signal when it crosses below:
-
-```bash
-python examples/run_klinger_oscillator.py
-```
-
 For a Hull Moving Average demonstration, see `examples/run_hull_moving_average.py`.
 It runs the `HullMovingAverageStrategy` against seeded synthetic data, generating
 buy signals when the close crosses above the HMA and sell signals when the close

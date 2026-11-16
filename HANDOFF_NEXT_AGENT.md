@@ -1,72 +1,91 @@
 ## What changed (this session)
 
-- Audited the repository for remaining hard-coded strategy/feature counts in
-  docs and docstrings (the prior session's suggested follow-up). The README
-  Strategy Registry list, its alias list, class names, the "48 registered
-  strategies" feature bullet, and both module docstrings are already pinned to
-  the live registry by `tests/test_readme.py` and
-  `tests/test_strategy_registry_coverage.py`. No numeric strategy count was left
-  ungarded.
-- Found and closed the one remaining gap in that class: the README "Example
-  Scripts" section hard-codes two spelled-out counts that no test pinned:
-  - "It runs the three built-in strategies ..." for
-    `examples/run_backtest_offline.py`
-  - "... prints all three analysis modules" for `examples/run_analysis.py`
-- Added `TestReadmeExampleScriptCounts` in `tests/test_readme.py` with two
-  guards:
-  - `test_offline_example_strategy_count_matches_script` parses
-    `run_backtest_offline.py`, counts the `strategies = [...]` list literal, and
-    pins the README's number word to it.
-  - `test_analysis_module_count_matches_script` counts the analysis-module
-    bullet list in `run_analysis.py`'s module docstring and pins the README's
-    number word to it.
-  - Shared helpers `_word_to_int`, `_offline_example_strategy_count`,
-    `_analysis_module_count`, plus `_NUMBER_WORDS` and the two claim regexes.
+- Executed the prior handoff's "One precise next task": decided the duplicate
+  Klinger example scripts and consolidated them.
+  - Decision rationale: the two scripts were genuine functional duplicates.
+    `diff examples/run_klinger.py examples/run_klinger_oscillator.py` differed
+    only in docstrings and the strategy `name=` string; both constructed
+    `KlingerOscillatorStrategy(fast_period=55, slow_period=200)` (the class
+    defaults). The README's justification for the second script ("with explicit
+    fast/slow periods") was factually wrong because the first already passed
+    explicit periods.
+  - Change: deleted `examples/run_klinger_oscillator.py` and removed its README
+    "Example Scripts" subsection (README -9 lines). The surviving
+    `examples/run_klinger.py` and its README description are accurate (verified
+    the strategy's `generate_signals` really does buy on fast> slow EMA cross
+    and sell on the opposite cross).
+- Added a durable regression guard so this class of defect cannot return:
+  `test_no_duplicate_single_strategy_example_scripts` in
+  `tests/test_repository_integrity.py`, plus helpers
+  `_strategy_demo_signature`, `_strategy_demo_signatures`,
+  `_duplicate_single_strategy_signatures` and the `_StrategySignature` alias.
+  - It fails if two `examples/run_*.py` scripts each construct exactly one
+    strategy with the same class and arguments (AST-structural; the cosmetic
+    `name=` kwarg is ignored). Multi-strategy demos (`run_backtest*`, which
+    legitimately share `RSIStrategy`/`BollingerBandsStrategy`) and zero-strategy
+    demos are exempt.
+  - Includes an in-memory negative control so the detector is proven to fire.
 
 ## What was actually verified (evidence)
 
-- `python -m pytest tests/test_readme.py -q`: 17 passed (was 15; +2 new).
-- `python -m pytest tests/test_readme.py tests/test_repository_integrity.py tests/test_strategy_registry_coverage.py tests/test_readme_cli.py tests/test_readme_cli_commands.py -q`: 162 passed, 3 deselected.
-- Full suite `python -m pytest -q`: 3993 passed, 144 deselected (was 3991; +2 new).
-- `python -m ruff check tests/test_readme.py`: All checks passed.
-- `python -m black --check tests/test_readme.py`: 1 file left unchanged.
-- `python -m mypy tests/test_readme.py`: Success, no issues.
-- Negative checks (temporary README edits, reverted): changing "three built-in"
-  to "four built-in" and "all three analysis modules" to "all four" each make
-  the corresponding guard fail, confirming they detect drift. README restored
-  clean (`git status` clean for README.md).
+- Guard detects the original defect: temporarily recreated the duplicate
+  (`cp examples/run_klinger.py examples/run_klinger_oscillator.py`) ->
+  `test_no_duplicate_single_strategy_example_scripts` FAILED with
+  `KlingerOscillatorStrategy (('fast_period', 'Constant(value=55)'),
+  ('slow_period', 'Constant(value=200)')): ['run_klinger.py',
+  'run_klinger_oscillator.py']`; removed it -> PASSED.
+- Focused suite
+  `python -m pytest tests/test_repository_integrity.py tests/test_readme.py
+  tests/test_example_scripts_run.py tests/test_strategy_registry_coverage.py -q`
+  -> 115 passed.
+- Slow smoke `python -m pytest tests/test_examples_smoke.py -m slow -q`
+  -> 135 passed.
+- Full default suite `python -m pytest -q` -> 3993 passed, 142 deselected
+  (previous post-deletion baseline was 3992/142; +1 = the new guard; deselected
+  went 144 -> 142 because one fewer slow example script exists).
+- `python -m ruff check .` -> All checks passed.
+- `python -m black --check tests/test_repository_integrity.py` -> clean
+  (formatted only the newly added lines).
+- `python -m mypy tests/test_repository_integrity.py` -> Success;
+  `python -m mypy quant_trading` -> Success (39 source files).
 
 ## What remains unresolved / not verified
 
 - Nothing blocking. Repo is green.
-- Environment note: dependencies were not installed in this session; I ran
-  `pip install -e ".[dev]"` (Python 3.14, black 26.10.1). `black --check .`
-  reports 9 pre-existing files would be reformatted under black 26 (e.g.
-  `quant_trading/strategies/factory.py`); this is black-version style drift, not
-  a code defect, and was intentionally NOT reformatted to avoid unrelated churn.
-  If CI pins an older black this is a non-issue; if it uses latest, it is a
-  separate, deliberate decision to make.
-- Known redundancy not addressed: `examples/run_klinger.py` and
-  `examples/run_klinger_oscillator.py` are functionally identical (same
-  `KlingerOscillatorStrategy(fast_period=55, slow_period=200)` and same data);
-  the README describes the second as "with explicit fast/slow periods", which is
-  misleading because the first already passes explicit periods. No guard covers
-  this class of duplicate example scripts.
+- `black` version drift (pre-existing, deliberately not touched): installed
+  black is 26.10.1; `black --check .` reports 9 files would be reformatted:
+  `quant_trading/strategies/factory.py`,
+  `quant_trading/portfolio/rebalancer.py`,
+  `quant_trading/strategies/examples.py`, `examples/cli.py`,
+  `tests/test_backtest_report.py`, `tests/test_rebalancer_risk_integration.py`,
+  `tests/test_strategy_factory.py`, `tests/test_risk_manager.py`,
+  `tests/test_cli.py`.
+  `pyproject.toml` declares `black>=23.0.0` (no upper bound) with
+  `[tool.black] line-length=100, target-version=['py310']`, and
+  `.github/workflows/main.yml` runs the Kilo controller (no lint/format gate),
+  so this drift is invisible to CI. Reformatting would be unrelated churn.
 
 ## Approaches that already failed and why
 
-- No failed approaches this session. The prior count-audit suggestion was
-  executed; the only unguarded counts found were the two now pinned.
+- No failed approaches this session.
+- Considered and rejected: a generic "unique (class, kwargs) signature across
+  ALL example scripts" guard. Empirical analysis
+  (`/tmp/analyze_sigs.py`, since removed) showed it would false-positive on
+  `run_backtest.py` / `run_backtest_offline.py`, which legitimately reuse
+  `RSIStrategy(period=14, overbought=70, oversold=30)` and
+  `BollingerBandsStrategy(period=20, std_dev=2.0)`. The implemented guard is
+  therefore restricted to single-strategy scripts (verified zero collisions).
 
 ## One precise next task
 
-- Decide on the duplicate Klinger example scripts. Evidence:
-  `diff examples/run_klinger.py examples/run_klinger_oscillator.py` shows only a
-  docstring/name-string difference; both construct
-  `KlingerOscillatorStrategy(fast_period=55, slow_period=200)` (the defaults).
-  README lines ~1097-1113 document both as if distinct. Constraint: keep the
-  change minimal and reversible; if consolidating, update README (remove the
-  second section), rely on `test_readme.py::test_every_example_script_is_documented`
-  and `test_repository_integrity.py::test_no_duplicate_example_script_demos`, and
-  re-run `tests/test_example_scripts_run.py`. Alternatively, if the duplicate is
-  judged intentional, add a short comment/README note rather than deleting.
+- Make `black --check .` reproducible, i.e. turn the deferred formatting
+  decision into a deliberate, committed choice.
+  - Evidence: black 26.10.1 reports the 9 files listed above would be
+    reformatted; `black>=23.0.0` is unbounded; CI runs no format gate.
+  - Constraints: keep the change minimal and reversible, and choose exactly one
+    path (do not mix):
+    (a) pin an upper bound in `[project.optional-dependencies].dev` that matches
+        the committed formatting (e.g. `black>=23.0.0,<26`), or
+    (b) reformat the 9 files with the installed black and accept the churn.
+  - Verify: `python -m black --check .` exits clean and `python -m pytest -q`
+    stays green (expect 3993 passed / 142 deselected).
