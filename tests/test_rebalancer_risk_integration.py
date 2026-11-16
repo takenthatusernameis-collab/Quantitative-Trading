@@ -131,3 +131,45 @@ def test_drawdown_breach_allows_short_covering_buy_blocks_exposure_increasing_bu
     assert [a for a in buys if a.symbol == "MSFT"] == []
     assert sells == []
     _assert_solvency(portfolio, rm)
+
+
+def test_drawdown_breach_executes_short_covering_buy_but_not_exposure_increasing_buy() -> None:
+    """Execution of drawdown-breach actions covers the short but drops an
+    exposure-increasing buy.
+
+    Extends generation coverage: the short-covering buy produced during a
+    breach must execute and flatten the short, while an exposure-increasing
+    buy that is planned during a breach is not executed.
+    """
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    portfolio.add_holding("AAPL", -100, 100.0)  # open short to be covered
+    portfolio.add_holding("MSFT", 10, 100.0)    # long the target wants to grow
+    rm = RiskManager(initial_capital=100000.0, max_position_size=0.1, max_drawdown=0.05)
+    rm.portfolio_risk.current_drawdown = -0.5  # breach the loss limit
+    rebalancer = Rebalancer(
+        portfolio,
+        target_allocation={"AAPL": 0.0, "MSFT": 0.5},
+        risk_manager=rm,
+    )
+    prices = {"AAPL": 100.0, "MSFT": 100.0}
+
+    actions = rebalancer.generate_rebalance_actions(prices=prices)
+    executions = rebalancer.execute_actions(actions, prices=prices)
+
+    # (a) The short-covering buy executes despite the drawdown breach.
+    assert len(executions) == 1
+    assert executions[0].symbol == "AAPL"
+    assert executions[0].action == "buy"
+    assert executions[0].executed_quantity == pytest.approx(100.0)
+    assert "AAPL" not in portfolio.holdings  # short flattened to 0
+    assert portfolio.cash >= 0.0
+    _assert_solvency(portfolio, rm)
+
+    # (b) An exposure-increasing buy planned during a breach is dropped at
+    # execution: generation emits none, so executing the planned actions must
+    # not increase the MSFT position.
+    msft_before = portfolio.holdings["MSFT"].quantity
+    msft_execs = [e for e in executions if e.symbol == "MSFT"]
+    assert msft_execs == []
+    assert portfolio.holdings["MSFT"].quantity == pytest.approx(msft_before)
+    _assert_solvency(portfolio, rm)
