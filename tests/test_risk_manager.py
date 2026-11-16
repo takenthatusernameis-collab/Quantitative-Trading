@@ -1748,3 +1748,324 @@ class TestRiskAttributionIntegration:
         # backward compat: no field
         plain = PortfolioRisk.from_dict({"total_market_value": 1.0})
         assert plain.risk_attribution is None
+
+
+class TestMappingToSeries:
+    """Tests for the _mapping_to_series helper."""
+
+    def test_empty_dict_returns_empty_series(self) -> None:
+        from quant_trading.risk.manager import _mapping_to_series
+
+        result = _mapping_to_series({})
+        assert isinstance(result, pd.Series)
+        assert len(result) == 0
+        assert result.dtype == float
+
+    def test_nonempty_dict_returns_series(self) -> None:
+        from quant_trading.risk.manager import _mapping_to_series
+
+        result = _mapping_to_series({"AAPL": 1.0, "MSFT": 2.0})
+        assert isinstance(result, pd.Series)
+        assert len(result) == 2
+        assert result.loc["AAPL"] == 1.0
+        assert result.loc["MSFT"] == 2.0
+        assert result.dtype == float
+
+    def test_list_tuple_index_values_returns_series(self) -> None:
+        from quant_trading.risk.manager import _mapping_to_series
+
+        result = _mapping_to_series((["AAPL", "MSFT"], [1.0, 2.0]))
+        assert isinstance(result, pd.Series)
+        assert len(result) == 2
+        assert result.loc["AAPL"] == 1.0
+        assert result.loc["MSFT"] == 2.0
+
+    def test_invalid_input_returns_empty_series(self) -> None:
+        from quant_trading.risk.manager import _mapping_to_series
+
+        assert _mapping_to_series(None).empty
+        assert _mapping_to_series("not a mapping").empty
+        assert _mapping_to_series([1, 2, 3]).empty
+        assert _mapping_to_series(([1, 2], "not a list")).empty
+        assert _mapping_to_series(("not a list", [1, 2])).empty
+        # Mismatched lengths raises ValueError from pandas, not handled by the function
+        with pytest.raises(ValueError):
+            _mapping_to_series(([1, 2], [1, 2, 3]))
+
+
+class TestValidationHelpers:
+    """Tests for validation helper functions."""
+
+    def test_validate_confidence_rejects_invalid(self) -> None:
+        from quant_trading.risk.manager import _validate_confidence
+
+        with pytest.raises(ValueError, match="invalid confidence"):
+            _validate_confidence(0.0)
+        with pytest.raises(ValueError, match="invalid confidence"):
+            _validate_confidence(1.0)
+        with pytest.raises(ValueError, match="invalid confidence"):
+            _validate_confidence(-0.1)
+        with pytest.raises(ValueError, match="invalid confidence"):
+            _validate_confidence(1.5)
+        with pytest.raises(ValueError, match="invalid confidence"):
+            _validate_confidence(float("nan"))
+        with pytest.raises(ValueError, match="invalid confidence"):
+            _validate_confidence(float("inf"))
+        with pytest.raises(ValueError, match="invalid confidence"):
+            _validate_confidence(float("-inf"))
+
+    def test_validate_confidence_accepts_valid(self) -> None:
+        from quant_trading.risk.manager import _validate_confidence
+
+        _validate_confidence(0.01)
+        _validate_confidence(0.5)
+        _validate_confidence(0.99)
+
+    def test_validate_periods_per_year_rejects_invalid(self) -> None:
+        from quant_trading.risk.manager import _validate_periods_per_year
+
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            _validate_periods_per_year(0)
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            _validate_periods_per_year(-1)
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            _validate_periods_per_year(float("nan"))  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            _validate_periods_per_year(float("inf"))  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            _validate_periods_per_year(float("-inf"))  # type: ignore[arg-type]
+
+    def test_validate_periods_per_year_accepts_valid(self) -> None:
+        from quant_trading.risk.manager import _validate_periods_per_year
+
+        _validate_periods_per_year(1)
+        _validate_periods_per_year(252)
+        _validate_periods_per_year(365)
+
+
+class TestRiskAttributionMethods:
+    """Tests for RiskAttribution methods with edge cases."""
+
+    def test_total_component_var_empty(self) -> None:
+        attr = RiskAttribution(component_var=pd.Series(dtype=float))
+        assert attr.total_component_var() == 0.0
+
+    def test_total_component_var_with_values(self) -> None:
+        attr = RiskAttribution(component_var=pd.Series([0.01, 0.02], index=["A", "B"]))
+        assert attr.total_component_var() == pytest.approx(0.03)
+
+    def test_total_volatility_contribution_empty(self) -> None:
+        attr = RiskAttribution(volatility_contributions=pd.Series(dtype=float))
+        assert attr.total_volatility_contribution() == 0.0
+
+    def test_total_volatility_contribution_with_values(self) -> None:
+        attr = RiskAttribution(volatility_contributions=pd.Series([0.1, 0.2], index=["A", "B"]))
+        assert attr.total_volatility_contribution() == pytest.approx(0.3)
+
+    def test_as_frame(self) -> None:
+        weights = pd.Series([0.5, 0.5], index=["AAPL", "MSFT"])
+        marginal_var = pd.Series([0.01, 0.02], index=["AAPL", "MSFT"])
+        component_var = pd.Series([0.005, 0.01], index=["AAPL", "MSFT"])
+        vol_contrib = pd.Series([0.1, 0.2], index=["AAPL", "MSFT"])
+        attr = RiskAttribution(
+            weights=weights,
+            marginal_var=marginal_var,
+            component_var=component_var,
+            volatility_contributions=vol_contrib,
+        )
+        frame = attr.as_frame()
+        assert list(frame.columns) == [
+            "weight",
+            "marginal_var",
+            "component_var",
+            "volatility_contribution",
+        ]
+        assert len(frame) == 2
+        assert list(frame.index) == ["AAPL", "MSFT"]
+
+    def test_as_frame_with_missing_alignment(self) -> None:
+        """Test as_frame when series have different indices."""
+        weights = pd.Series([0.5, 0.5], index=["AAPL", "MSFT"])
+        marginal_var = pd.Series([0.01], index=["AAPL"])
+        component_var = pd.Series([0.005], index=["AAPL"])
+        vol_contrib = pd.Series([0.1], index=["AAPL"])
+        attr = RiskAttribution(
+            weights=weights,
+            marginal_var=marginal_var,
+            component_var=component_var,
+            volatility_contributions=vol_contrib,
+        )
+        frame = attr.as_frame()
+        assert len(frame) == 2
+        # reindex introduces NaN for missing values
+        import math
+        assert math.isnan(float(frame.loc["MSFT", "marginal_var"]))  # type: ignore[arg-type]
+        assert math.isnan(float(frame.loc["MSFT", "component_var"]))  # type: ignore[arg-type]
+        assert math.isnan(float(frame.loc["MSFT", "volatility_contribution"]))  # type: ignore[arg-type]
+
+
+class TestRiskManagerReturnsRecording:
+    """Tests for return recording and related methods."""
+
+    def test_record_return_rejects_non_finite(self) -> None:
+        rm = RiskManager()
+        with pytest.raises(ValueError, match="invalid return"):
+            rm.record_return("AAPL", float("nan"))
+        with pytest.raises(ValueError, match="invalid return"):
+            rm.record_return("AAPL", float("inf"))
+        with pytest.raises(ValueError, match="invalid return"):
+            rm.record_return("AAPL", float("-inf"))
+
+    def test_record_return_accepts_finite(self) -> None:
+        rm = RiskManager()
+        rm.record_return("AAPL", 0.01)
+        rm.record_return("AAPL", -0.02)
+        assert rm.returns["AAPL"] == [0.01, -0.02]
+
+    def test_record_returns_delegates_to_record_return(self) -> None:
+        rm = RiskManager()
+        rm.record_returns({"AAPL": 0.01, "MSFT": -0.02})
+        assert rm.returns["AAPL"] == [0.01]
+        assert rm.returns["MSFT"] == [-0.02]
+
+    def test_returns_property_returns_copy(self) -> None:
+        rm = RiskManager()
+        rm.record_return("AAPL", 0.01)
+        returns_copy = rm.returns
+        returns_copy["AAPL"].append(0.02)
+        assert rm.returns["AAPL"] == [0.01]
+
+    def test_reset_returns(self) -> None:
+        rm = RiskManager()
+        rm.record_return("AAPL", 0.01)
+        rm.reset_returns()
+        assert rm.returns == {}
+
+    def test_clear_returns_alias(self) -> None:
+        rm = RiskManager()
+        rm.record_return("AAPL", 0.01)
+        rm.clear_returns()
+        assert rm.returns == {}
+
+
+class TestOpenReturnsFrame:
+    """Tests for _open_returns_frame internal method."""
+
+    def test_empty_frame_returns_empty(self) -> None:
+        rm = RiskManager()
+        rm.positions = {}
+        frame = rm._open_returns_frame(None, None)
+        assert frame.empty
+
+    def test_missing_return_data_raises_keyerror(self) -> None:
+        rm = RiskManager()
+        rm.positions = {"AAPL": Position("AAPL", 100, 150.0, 150.0)}
+        returns = pd.DataFrame({"MSFT": [0.01, 0.02]})
+        with pytest.raises(KeyError, match="missing return data for open positions"):
+            rm._open_returns_frame(returns, None)
+
+    def test_no_positions_with_frame_returns_empty(self) -> None:
+        rm = RiskManager()
+        rm.positions = {}
+        returns = pd.DataFrame({"AAPL": [0.01, 0.02]})
+        frame = rm._open_returns_frame(returns, None)
+        assert frame.empty
+
+    def test_lookback_validation_rejects_invalid(self) -> None:
+        rm = RiskManager()
+        rm.positions = {"AAPL": Position("AAPL", 100, 150.0, 150.0)}
+        returns = pd.DataFrame({"AAPL": [0.01, 0.02, 0.03]})
+        with pytest.raises(ValueError, match="invalid lookback"):
+            rm._open_returns_frame(returns, 0)
+        with pytest.raises(ValueError, match="invalid lookback"):
+            rm._open_returns_frame(returns, -1)
+        with pytest.raises(ValueError, match="invalid lookback"):
+            rm._open_returns_frame(returns, float("nan"))  # type: ignore[arg-type]
+
+    def test_lookback_limits_rows(self) -> None:
+        rm = RiskManager()
+        rm.positions = {"AAPL": Position("AAPL", 100, 150.0, 150.0)}
+        returns = pd.DataFrame({"AAPL": [0.01, 0.02, 0.03, 0.04, 0.05]})
+        frame = rm._open_returns_frame(returns, 2)
+        assert len(frame) == 2
+        assert frame.iloc[-1, 0] == 0.05
+
+    def test_cleans_inf_and_nan(self) -> None:
+        rm = RiskManager()
+        rm.positions = {"AAPL": Position("AAPL", 100, 150.0, 150.0)}
+        returns = pd.DataFrame({"AAPL": [0.01, float("inf"), float("-inf"), float("nan"), 0.02]})
+        frame = rm._open_returns_frame(returns, None)
+        assert len(frame) == 2  # only the finite values remain
+
+
+class TestPositionWeights:
+    """Tests for _position_weights internal method."""
+
+    def test_no_market_value_raises_valueerror(self) -> None:
+        rm = RiskManager()
+        rm.positions = {"AAPL": Position("AAPL", 0, 150.0, 150.0)}
+        frame = pd.DataFrame({"AAPL": [0.01, 0.02]})
+        with pytest.raises(ValueError, match="cannot attribute risk"):
+            rm._position_weights(frame)
+
+    def test_computes_weights_correctly(self) -> None:
+        rm = RiskManager()
+        rm.positions = {
+            "AAPL": Position("AAPL", 100, 150.0, 150.0),
+            "MSFT": Position("MSFT", 50, 300.0, 300.0),
+        }
+        frame = pd.DataFrame({"AAPL": [0.01, 0.02], "MSFT": [0.02, 0.01]})
+        weights = rm._position_weights(frame)
+        assert weights[0] == pytest.approx(15000 / 30000)  # AAPL
+        assert weights[1] == pytest.approx(15000 / 30000)  # MSFT
+        assert sum(weights) == pytest.approx(1.0)
+
+
+class TestSuggestWeightsEdgeCases:
+    """Tests for suggest_erc_weights and suggest_risk_budget_weights edge cases."""
+
+    def test_suggest_erc_weights_insufficient_data(self) -> None:
+        rm = RiskManager()
+        rm.update_portfolio_value(
+            {"AAPL": Position("AAPL", 100, 150.0, 150.0)},
+            85000.0,
+        )
+        # Only one row of data
+        returns = pd.DataFrame({"AAPL": [0.01]})
+        weights = rm.suggest_erc_weights(returns)
+        assert weights.empty
+
+    def test_suggest_risk_budget_weights_insufficient_data(self) -> None:
+        rm = RiskManager()
+        rm.update_portfolio_value(
+            {"AAPL": Position("AAPL", 100, 150.0, 150.0)},
+            85000.0,
+        )
+        returns = pd.DataFrame({"AAPL": [0.01]})
+        weights = rm.suggest_risk_budget_weights({"AAPL": 1.0}, returns)
+        assert weights.empty
+
+    def test_suggest_risk_budget_weights_non_dict_budget(self) -> None:
+        rm = RiskManager()
+        rm.update_portfolio_value(
+            {
+                "AAPL": Position("AAPL", 100, 150.0, 150.0),
+                "MSFT": Position("MSFT", 50, 300.0, 300.0),
+            },
+            70000.0,
+        )
+        returns = pd.DataFrame(
+            {
+                "AAPL": np.random.normal(0.001, 0.02, 200),
+                "MSFT": np.random.normal(0.001, 0.015, 200),
+            }
+        )
+        # Pass budget as array (positional matching)
+        budget = np.array([0.5, 0.5])
+        weights = rm.suggest_risk_budget_weights(budget, returns, annualize=False)
+        assert weights.sum() == pytest.approx(1.0)
+        assert len(weights) == 2
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
