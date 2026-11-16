@@ -108,6 +108,7 @@ Strategies can be registered in a global registry and created dynamically by
 key, with optional aliases. The built-in strategies are pre-registered:
 
 - `ma` (aliases: `moving_average`, `ma_crossover`) → `MovingAverageCrossover`
+- `ma_envelope` (aliases: `moving_average_envelope`, `envelope`) → `MovingAverageEnvelopeStrategy`
 - `rsi` (alias: `rsi_mean_reversion`) → `RSIStrategy`
 - `bb` (aliases: `bollinger_bands`, `bollinger`) → `BollingerBandsStrategy`
 - `bbpct` (aliases: `bollinger_bands_pct`, `percent_b`) → `BollingerPercentBStrategy`

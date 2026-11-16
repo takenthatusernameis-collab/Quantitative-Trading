@@ -30,6 +30,7 @@ from .examples import (
     MomentumStrategy,
     MoneyFlowIndexStrategy,
     MovingAverageCrossover,
+    MovingAverageEnvelopeStrategy,
     NegativeVolumeIndexStrategy,
     OBVStrategy,
     ParabolicSARStrategy,
@@ -67,6 +68,11 @@ from .factory import (
 # Register built-in strategies
 register_strategy("ema", EMACrossover, aliases=["ema_crossover", "exponential_ma_crossover"])
 register_strategy("ma", MovingAverageCrossover, aliases=["moving_average", "ma_crossover"])
+register_strategy(
+    "ma_envelope",
+    MovingAverageEnvelopeStrategy,
+    aliases=["moving_average_envelope", "envelope"],
+)
 register_strategy("rsi", RSIStrategy, aliases=["rsi_mean_reversion"])
 register_strategy("bb", BollingerBandsStrategy, aliases=["bollinger_bands", "bollinger"])
 register_strategy("bbpct", BollingerPercentBStrategy, aliases=["bollinger_bands_pct", "percent_b"])
@@ -158,6 +164,7 @@ __all__ = [
     "MomentumStrategy",
     "MoneyFlowIndexStrategy",
     "MovingAverageCrossover",
+    "MovingAverageEnvelopeStrategy",
     "NegativeVolumeIndexStrategy",
     "OBVStrategy",
     "PPOStrategy",

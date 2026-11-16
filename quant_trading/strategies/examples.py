@@ -37,6 +37,7 @@ __all__ = [
     "MomentumStrategy",
     "MoneyFlowIndexStrategy",
     "MovingAverageCrossover",
+    "MovingAverageEnvelopeStrategy",
     "NegativeVolumeIndexStrategy",
     "OBVStrategy",
     "PPOStrategy",
@@ -7753,4 +7754,164 @@ class ChoppinessIndexStrategy(Strategy):
                         },
                     )
                 )
+        return signals
+
+
+class MovingAverageEnvelopeStrategy(Strategy):
+    """Moving Average Envelope Strategy.
+
+    Envelopes are percentage-based bands above and below a simple moving
+    average::
+
+        upper = sma * (1 + percentage / 100)
+        lower = sma * (1 - percentage / 100)
+
+    The strategy is mean-reverting: it buys when the price crosses below the
+    lower envelope (oversold) and sells when the price crosses above the
+    upper envelope (overbought). Only the crossover between the last two bars
+    emits a signal, so a price that lingers outside a band does not repeat.
+
+    Requires a ``"close"`` column.
+
+    Examples:
+        >>> from quant_trading.strategies.examples import MovingAverageEnvelopeStrategy
+        >>> s = MovingAverageEnvelopeStrategy(period=20, percentage=2.5)
+        >>> s.period, s.percentage
+        (20, 2.5)
+    """
+
+    def __init__(
+        self,
+        period: int = 20,
+        percentage: float = 2.5,
+        name: str = "MA_Envelope",
+    ) -> None:
+        """Initialize the moving average envelope strategy.
+
+        Args:
+            period: Lookback window for the simple moving average.
+            percentage: Band width as a percent of the SMA; must be positive.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If ``period`` is non-positive or ``percentage`` is not
+                positive and finite.
+
+        """
+        super().__init__(
+            name,
+            {
+                "period": period,
+                "percentage": percentage,
+            },
+        )
+        self.period = period
+        self.percentage = percentage
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is non-positive or ``percentage`` is not
+                positive and finite.
+
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+        if not math.isfinite(self.percentage) or self.percentage <= 0:
+            raise ValueError("percentage must be positive")
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from envelope crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame containing at least a
+                ``"close"`` column indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose close crosses
+            the lower envelope (buy) or upper envelope (sell) between the
+            last two bars.
+
+        """
+        signals: list[Signal] = []
+        band = self.percentage / 100.0
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 1:
+                continue
+
+            close = df["close"]
+            current_price = float(close.iloc[-1])
+            prev_price = float(close.iloc[-2])
+            if (
+                pd.isna(current_price)
+                or pd.isna(prev_price)
+                or current_price == 0
+            ):
+                continue
+
+            sma = close.rolling(window=self.period).mean()
+            current_sma = float(sma.iloc[-1])
+            prev_sma = float(sma.iloc[-2])
+            if pd.isna(current_sma) or pd.isna(prev_sma):
+                continue
+
+            current_upper = current_sma * (1.0 + band)
+            current_lower = current_sma * (1.0 - band)
+            prev_upper = prev_sma * (1.0 + band)
+            prev_lower = prev_sma * (1.0 - band)
+
+            timestamp = df.index[-1]
+
+            # Buy: price crosses below the lower envelope (oversold).
+            if prev_price >= prev_lower and current_price < current_lower:
+                strength = (
+                    min(1.0, (prev_lower - current_price) / prev_lower + 0.5)
+                    if prev_lower
+                    else 0.5
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "sma": current_sma,
+                            "upper_band": current_upper,
+                            "lower_band": current_lower,
+                            "period": self.period,
+                            "percentage": self.percentage,
+                            "signal_type": "lower_envelope_cross",
+                        },
+                    )
+                )
+            # Sell: price crosses above the upper envelope (overbought).
+            elif prev_price <= prev_upper and current_price > current_upper:
+                strength = (
+                    min(1.0, (current_price - prev_upper) / prev_upper + 0.5)
+                    if prev_upper
+                    else 0.5
+                )
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "sma": current_sma,
+                            "upper_band": current_upper,
+                            "lower_band": current_lower,
+                            "period": self.period,
+                            "percentage": self.percentage,
+                            "signal_type": "upper_envelope_cross",
+                        },
+                    )
+                )
+
         return signals

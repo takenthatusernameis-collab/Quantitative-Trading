@@ -34,6 +34,7 @@ from quant_trading.strategies.examples import (
     MomentumStrategy,
     MoneyFlowIndexStrategy,
     MovingAverageCrossover,
+    MovingAverageEnvelopeStrategy,
     NegativeVolumeIndexStrategy,
     OBVStrategy,
     ParabolicSARStrategy,
@@ -7545,6 +7546,102 @@ class TestMovingAverageCrossoverIncremental:
         data = {"AAPL": create_donchian_data("AAPL", closes)}
         signals = strategy.generate_signals(data)
         assert isinstance(signals, list)
+
+
+class TestMovingAverageEnvelopeStrategy:
+    """Tests for MovingAverageEnvelopeStrategy."""
+
+    def test_initialization(self) -> None:
+        """Test strategy initialization."""
+        strategy = MovingAverageEnvelopeStrategy(period=20, percentage=2.5, name="Test_ENV")
+        assert strategy.name == "Test_ENV"
+        assert strategy.period == 20
+        assert strategy.percentage == 2.5
+        assert strategy.parameters["period"] == 20
+        assert strategy.parameters["percentage"] == 2.5
+
+    def test_validate_parameters(self) -> None:
+        """Test parameter validation raises for invalid period/percentage."""
+        with pytest.raises(ValueError, match="period must be positive"):
+            MovingAverageEnvelopeStrategy(period=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            MovingAverageEnvelopeStrategy(period=-5)
+        with pytest.raises(ValueError, match="percentage must be positive"):
+            MovingAverageEnvelopeStrategy(percentage=0)
+        with pytest.raises(ValueError, match="percentage must be positive"):
+            MovingAverageEnvelopeStrategy(percentage=-1.0)
+        with pytest.raises(ValueError, match="percentage must be positive"):
+            MovingAverageEnvelopeStrategy(percentage=float("inf"))
+
+    def test_generate_signals_insufficient_data(self) -> None:
+        """Test generate_signals with fewer bars than the period."""
+        strategy = MovingAverageEnvelopeStrategy(period=20, percentage=2.5)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 20)}
+        signals = strategy.generate_signals(data)
+        assert signals == []
+
+    def test_generate_signals_lower_envelope_buy(self) -> None:
+        """Test generate_signals detects a cross below the lower envelope (buy)."""
+        strategy = MovingAverageEnvelopeStrategy(period=20, percentage=2.5)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 20 + [90.0])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.strength == pytest.approx(0.5769230769230769)
+        assert signal.price == pytest.approx(90.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "lower_envelope_cross"
+        assert signal.metadata["period"] == 20
+        assert signal.metadata["percentage"] == 2.5
+
+    def test_generate_signals_upper_envelope_sell(self) -> None:
+        """Test generate_signals detects a cross above the upper envelope (sell)."""
+        strategy = MovingAverageEnvelopeStrategy(period=20, percentage=2.5)
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 20 + [110.0])}
+        signals = strategy.generate_signals(data)
+
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.symbol == "AAPL"
+        assert signal.action == "sell"
+        assert 0.0 <= signal.strength <= 1.0
+        assert signal.strength == pytest.approx(0.5731707317073172)
+        assert signal.price == pytest.approx(110.0)
+        assert signal.timestamp is not None
+        assert signal.metadata["signal_type"] == "upper_envelope_cross"
+
+    def test_generate_signals_no_signal_without_fresh_cross(self) -> None:
+        """Price already below the lower envelope emits no signal on the next bar."""
+        strategy = MovingAverageEnvelopeStrategy(period=20, percentage=2.5)
+        first = strategy.generate_signals(
+            {"AAPL": create_donchian_data("AAPL", [100.0] * 20 + [90.0])}
+        )
+        assert len(first) == 1
+        assert first[0].action == "buy"
+        # The price stays below the lower envelope: no fresh crossover, no signal.
+        follow_up = strategy.generate_signals(
+            {"AAPL": create_donchian_data("AAPL", [100.0] * 20 + [90.0, 85.0])}
+        )
+        assert follow_up == []
+
+    def test_generate_signals_multiple_symbols(self) -> None:
+        """Test generate_signals with multiple symbols."""
+        strategy = MovingAverageEnvelopeStrategy(period=20, percentage=2.5)
+        data = {
+            "AAPL": create_donchian_data("AAPL", [100.0] * 20 + [90.0]),
+            "MSFT": create_donchian_data("MSFT", [100.0] * 20 + [110.0]),
+        }
+        signals = strategy.generate_signals(data)
+        actions = {signal.action for signal in signals}
+        assert "buy" in actions
+        assert "sell" in actions
+        for signal in signals:
+            assert signal.symbol in ("AAPL", "MSFT")
+            assert 0.0 <= signal.strength <= 1.0
 
 
 class TestExamplesRemainingCoverage:
