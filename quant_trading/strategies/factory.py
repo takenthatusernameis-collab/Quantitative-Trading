@@ -99,6 +99,9 @@ class StrategyRegistry:
         Raises:
             TypeError: If ``strategy_cls`` is not a subclass of
                 :class:`~quant_trading.strategies.base.Strategy`.
+            ValueError: If an alias duplicates the primary key, collides with
+                an existing primary key, or is already claimed by another
+                strategy.
 
         Returns:
             None.
@@ -106,6 +109,22 @@ class StrategyRegistry:
         """
         if not issubclass(strategy_cls, Strategy):
             raise TypeError(f"{strategy_cls.__name__} must be a subclass of Strategy")
+        if aliases:
+            for alias in aliases:
+                if alias == key:
+                    raise ValueError(
+                        f"alias {alias!r} duplicates primary key {key!r}"
+                    )
+                if alias in self._strategies:
+                    raise ValueError(
+                        f"alias {alias!r} collides with primary key {alias!r}"
+                    )
+                existing_primary = self._aliases.get(alias)
+                if existing_primary is not None and existing_primary != key:
+                    raise ValueError(
+                        f"alias {alias!r} already registered for "
+                        f"primary key {existing_primary!r}"
+                    )
         self._strategies[key] = strategy_cls
         if aliases:
             for alias in aliases:

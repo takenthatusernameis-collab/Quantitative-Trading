@@ -133,6 +133,42 @@ class TestStrategyRegistry:
         with pytest.raises(ValueError, match="Available: \\['dummy', 'other'\\]"):
             registry.create("missing")
 
+    def test_register_alias_colliding_with_primary_key_raises(self) -> None:
+        registry = StrategyRegistry()
+        registry.register("alpha", DummyStrategy)
+        with pytest.raises(
+            ValueError, match="alias 'alpha' collides with primary key 'alpha'"
+        ):
+            registry.register("beta", OtherStrategy, aliases=["alpha"])
+        # The failed registration must not mutate the registry.
+        assert registry.get("beta") is None
+        assert registry.get("alpha") is DummyStrategy
+
+    def test_register_alias_claimed_by_another_strategy_raises(self) -> None:
+        registry = StrategyRegistry()
+        registry.register("alpha", DummyStrategy, aliases=["shared"])
+        with pytest.raises(
+            ValueError, match="alias 'shared' already registered for primary key 'alpha'"
+        ):
+            registry.register("beta", OtherStrategy, aliases=["shared"])
+        assert registry.get("beta") is None
+        assert registry.get("shared") is DummyStrategy
+
+    def test_register_alias_equals_primary_key_raises(self) -> None:
+        registry = StrategyRegistry()
+        with pytest.raises(
+            ValueError, match="alias 'alpha' duplicates primary key 'alpha'"
+        ):
+            registry.register("alpha", DummyStrategy, aliases=["alpha"])
+        assert registry.get("alpha") is None
+
+    def test_register_reclaiming_own_alias_is_idempotent(self) -> None:
+        registry = StrategyRegistry()
+        registry.register("alpha", DummyStrategy, aliases=["shared"])
+        registry.register("alpha", OtherStrategy, aliases=["shared"])
+        assert registry.get("alpha") is OtherStrategy
+        assert registry.get("shared") is OtherStrategy
+
 
 class TestGlobalRegistry:
     """Tests for the module-level global registry functions."""
