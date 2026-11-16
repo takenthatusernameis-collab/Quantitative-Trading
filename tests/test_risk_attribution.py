@@ -208,6 +208,19 @@ class TestVolatilityContributions:
         with pytest.raises(ValueError, match="sum to 1.0"):
             calculate_volatility_contributions(returns, weights)
 
+    def test_vol_contrib_zero_portfolio_variance(self) -> None:
+        """Constant returns give zero covariance -> zero contributions.
+
+        When every asset return is constant the covariance matrix is all zeros,
+        so ``portfolio_variance`` is 0 and the guard returns a zero series
+        (quant_trading/risk/metrics.py:calculate_volatility_contributions).
+        """
+        returns = pd.DataFrame({"A": [0.001, 0.001, 0.001], "B": [0.002, 0.002, 0.002]})
+        weights = pd.Series([0.5, 0.5], index=["A", "B"])
+        contrib = calculate_volatility_contributions(returns, weights, annualize=False)
+        assert contrib.index.tolist() == ["A", "B"]
+        assert (contrib == 0.0).all()
+
 
 class TestEqualRiskContribution:
     """Tests for calculate_equal_risk_contribution_weights."""
@@ -261,6 +274,37 @@ class TestEqualRiskContribution:
         returns = pd.DataFrame()
         weights = calculate_equal_risk_contribution_weights(returns, annualize=False)
         assert len(weights) == 0 or abs(weights.sum() - 1.0) < 1e-6
+
+    def test_erc_zero_variance_returns(self) -> None:
+        """Zero target contribution stops the iteration and keeps initial weights.
+
+        Constant returns make every volatility contribution zero, so the target
+        contribution is zero and the loop breaks before rescaling
+        (quant_trading/risk/metrics.py:calculate_equal_risk_contribution_weights).
+        """
+        returns = pd.DataFrame({"A": [0.001, 0.001, 0.001], "B": [0.002, 0.002, 0.002]})
+        weights = calculate_equal_risk_contribution_weights(returns, annualize=False)
+        assert weights.index.tolist() == ["A", "B"]
+        np.testing.assert_allclose(weights.to_numpy(), [0.5, 0.5])
+
+    def test_erc_max_iter_one_runs_single_pass(self) -> None:
+        """A single iteration exhausts the loop and returns normalized weights.
+
+        With ``max_iter=1`` the loop cannot converge, so execution falls through
+        to the final return instead of the convergence break
+        (quant_trading/risk/metrics.py:calculate_equal_risk_contribution_weights).
+        """
+        np.random.seed(42)
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 200),
+                "B": np.random.normal(0.001, 0.02, 200),
+            }
+        )
+        weights = calculate_equal_risk_contribution_weights(returns, max_iter=1, annualize=False)
+        assert len(weights) == 2
+        assert abs(weights.sum() - 1.0) < 1e-6
+        assert np.isfinite(weights.to_numpy()).all()
 
 
 class TestRiskBudgetWeights:
@@ -338,6 +382,39 @@ class TestRiskBudgetWeights:
         weights = calculate_risk_budget_weights(returns, budget, annualize=False)
         assert len(weights) == 2
         assert abs(weights.sum() - 1.0) < 1e-6
+
+    def test_risk_budget_zero_variance_returns(self) -> None:
+        """Zero total contribution stops the iteration and keeps the budget.
+
+        Constant returns make every volatility contribution zero, so the total
+        contribution is zero and the loop breaks before rescaling
+        (quant_trading/risk/metrics.py:calculate_risk_budget_weights).
+        """
+        returns = pd.DataFrame({"A": [0.001, 0.001, 0.001], "B": [0.002, 0.002, 0.002]})
+        budget = pd.Series([0.7, 0.3], index=["A", "B"])
+        weights = calculate_risk_budget_weights(returns, budget, annualize=False)
+        assert weights.index.tolist() == ["A", "B"]
+        np.testing.assert_allclose(weights.to_numpy(), [0.7, 0.3])
+
+    def test_risk_budget_max_iter_one_runs_single_pass(self) -> None:
+        """A single iteration exhausts the loop and returns normalized weights.
+
+        With ``max_iter=1`` the loop cannot converge, so execution falls through
+        to the final return instead of the convergence break
+        (quant_trading/risk/metrics.py:calculate_risk_budget_weights).
+        """
+        np.random.seed(42)
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 200),
+                "B": np.random.normal(0.001, 0.02, 200),
+            }
+        )
+        budget = pd.Series([0.7, 0.3], index=["A", "B"])
+        weights = calculate_risk_budget_weights(returns, budget, max_iter=1, annualize=False)
+        assert len(weights) == 2
+        assert abs(weights.sum() - 1.0) < 1e-6
+        assert np.isfinite(weights.to_numpy()).all()
 
 
 class TestRiskAttributionIntegration:

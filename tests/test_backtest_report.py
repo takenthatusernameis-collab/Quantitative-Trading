@@ -1544,7 +1544,6 @@ def test_fig_to_base64_uses_bbox_tight_without_layout_engine(
 def test_build_risk_attribution_table_non_dict_data() -> None:
     """_build_risk_attribution_table must return empty string when data is not a dict (line 650)."""
     from quant_trading.backtest.report import _build_risk_attribution_table, _get_theme_colors
-    from quant_trading.risk.manager import RiskAttribution
 
     result = _create_sample_result()
 
@@ -1589,7 +1588,10 @@ def test_build_risk_attribution_table_with_symbols() -> None:
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_comparison_monthly_heatmap_empty_results() -> None:
     """_create_comparison_monthly_returns_heatmap must return empty string for empty results (line 1116)."""
-    from quant_trading.backtest.report import _create_comparison_monthly_returns_heatmap, _get_theme_colors
+    from quant_trading.backtest.report import (
+        _create_comparison_monthly_returns_heatmap,
+        _get_theme_colors,
+    )
 
     result = _create_comparison_monthly_returns_heatmap([], _get_theme_colors("light"), 150)
     assert result == ""
@@ -1598,8 +1600,10 @@ def test_comparison_monthly_heatmap_empty_results() -> None:
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_comparison_monthly_heatmap_insufficient_data_branches() -> None:
     """_create_comparison_monthly_returns_heatmap must handle insufficient data branches (lines 1134-1167)."""
-    from quant_trading.backtest.report import _create_comparison_monthly_returns_heatmap, _get_theme_colors
-    import quant_trading.backtest.report as report_mod
+    from quant_trading.backtest.report import (
+        _create_comparison_monthly_returns_heatmap,
+        _get_theme_colors,
+    )
 
     # Case 1: equity length < 2
     dates = pd.date_range("2024-01-01", periods=1, freq="D")
@@ -1634,8 +1638,10 @@ def test_comparison_monthly_heatmap_insufficient_data_branches() -> None:
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_comparison_trade_distribution_chart_no_data() -> None:
     """_create_comparison_trade_distribution_chart must handle no data case (lines 1300-1313)."""
-    from quant_trading.backtest.report import _create_comparison_trade_distribution_chart, _get_theme_colors
-    import quant_trading.backtest.report as report_mod
+    from quant_trading.backtest.report import (
+        _create_comparison_trade_distribution_chart,
+        _get_theme_colors,
+    )
 
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
     equity = pd.Series([100000.0] * 10, index=dates)
@@ -1663,15 +1669,17 @@ def test_comparison_trade_distribution_chart_no_data() -> None:
 
     png = _create_comparison_trade_distribution_chart(results, _get_theme_colors("light"), 150)
     assert isinstance(png, str) and len(png) > 0
-    assert "No trade PnL data to display" in _create_comparison_trade_distribution_chart.__doc__ or True  # Just verify it runs
+    assert _create_comparison_trade_distribution_chart.__doc__ is not None
 
 
 # Tests for uncovered lines in _create_comparison_rolling_sharpe_chart
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_comparison_rolling_sharpe_chart_no_data() -> None:
     """_create_comparison_rolling_sharpe_chart must handle no data case (lines 1378-1394)."""
-    from quant_trading.backtest.report import _create_comparison_rolling_sharpe_chart, _get_theme_colors
-    import quant_trading.backtest.report as report_mod
+    from quant_trading.backtest.report import (
+        _create_comparison_rolling_sharpe_chart,
+        _get_theme_colors,
+    )
 
     dates = pd.date_range("2024-01-01", periods=30, freq="D")
     equity = pd.Series([100000.0] * 30, index=dates)
@@ -1695,7 +1703,10 @@ def test_comparison_rolling_sharpe_chart_no_data() -> None:
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_comparison_rolling_sharpe_chart_empty_after_dropna() -> None:
     """_create_comparison_rolling_sharpe_chart must handle empty rolling_sharpe after dropna (line 1364)."""
-    from quant_trading.backtest.report import _create_comparison_rolling_sharpe_chart, _get_theme_colors
+    from quant_trading.backtest.report import (
+        _create_comparison_rolling_sharpe_chart,
+        _get_theme_colors,
+    )
 
     # Create equity with 60+ bars but constant values (no variance -> rolling std = 0 -> rolling_sharpe = NaN)
     dates = pd.date_range("2024-01-01", periods=70, freq="D")
@@ -1721,7 +1732,10 @@ def test_comparison_rolling_sharpe_chart_empty_after_dropna() -> None:
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_comparison_rolling_volatility_chart_no_data() -> None:
     """_create_comparison_rolling_volatility_chart must handle no data case (lines 1462-1478)."""
-    from quant_trading.backtest.report import _create_comparison_rolling_volatility_chart, _get_theme_colors
+    from quant_trading.backtest.report import (
+        _create_comparison_rolling_volatility_chart,
+        _get_theme_colors,
+    )
 
     dates = pd.date_range("2024-01-01", periods=30, freq="D")
     equity = pd.Series([100000.0] * 30, index=dates)
@@ -1745,7 +1759,10 @@ def test_comparison_rolling_volatility_chart_no_data() -> None:
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_comparison_rolling_volatility_chart_empty_after_dropna() -> None:
     """_create_comparison_rolling_volatility_chart must handle empty rolling_vol after dropna (line 1448)."""
-    from quant_trading.backtest.report import _create_comparison_rolling_volatility_chart, _get_theme_colors
+    from quant_trading.backtest.report import (
+        _create_comparison_rolling_volatility_chart,
+        _get_theme_colors,
+    )
 
     # Create equity with 60+ bars but constant values (no variance)
     dates = pd.date_range("2024-01-01", periods=70, freq="D")
@@ -1770,8 +1787,8 @@ def test_comparison_rolling_volatility_chart_empty_after_dropna() -> None:
 # Tests for uncovered lines in _build_comparison_risk_attribution
 def test_build_comparison_risk_attribution_exception_handling() -> None:
     """_build_comparison_risk_attribution must handle metric_fn exceptions (lines 1621-1624)."""
-    from quant_trading.backtest.report import _build_comparison_risk_attribution, _get_theme_colors
     from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.report import _build_comparison_risk_attribution, _get_theme_colors
 
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
     equity_curve = pd.Series([100000] * 10, index=dates)
@@ -1825,8 +1842,8 @@ def test_build_comparison_risk_attribution_exception_handling() -> None:
 
 def test_build_comparison_risk_attribution_non_dict_data() -> None:
     """_build_comparison_risk_attribution must skip non-dict attribution data (line 1639)."""
-    from quant_trading.backtest.report import _build_comparison_risk_attribution, _get_theme_colors
     from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.report import _build_comparison_risk_attribution, _get_theme_colors
 
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
     equity_curve = pd.Series([100000] * 10, index=dates)
@@ -1880,8 +1897,8 @@ def test_build_comparison_risk_attribution_non_dict_data() -> None:
 
 def test_build_comparison_risk_attribution_no_symbols() -> None:
     """_build_comparison_risk_attribution must skip symbol breakdown when no symbols (line 1651)."""
-    from quant_trading.backtest.report import _build_comparison_risk_attribution, _get_theme_colors
     from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.report import _build_comparison_risk_attribution, _get_theme_colors
     from quant_trading.risk.manager import RiskAttribution
 
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
@@ -1928,8 +1945,8 @@ def test_build_comparison_risk_attribution_no_symbols() -> None:
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_build_comparison_risk_attribution_with_chart() -> None:
     """_build_comparison_risk_attribution must include chart when dpi provided (lines 1678-1686)."""
-    from quant_trading.backtest.report import _build_comparison_risk_attribution, _get_theme_colors
     from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.report import _build_comparison_risk_attribution, _get_theme_colors
     from quant_trading.risk.manager import RiskAttribution
 
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
@@ -1993,7 +2010,7 @@ def test_build_comparison_risk_attribution_with_chart() -> None:
     html = _build_comparison_risk_attribution(results, _get_theme_colors("light"), dpi=150)
 
     assert "Risk Attribution Comparison" in html
-    assert "Risk Attribution: Portfolio VaR Risk Attribution: Portfolio VaR & Volatility Volatility" in html
+    assert "Risk Attribution: Portfolio VaR &amp; Volatility" in html
     assert "data:image/png;base64," in html
 
 
@@ -2001,8 +2018,11 @@ def test_build_comparison_risk_attribution_with_chart() -> None:
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_comparison_risk_attribution_chart_no_attribution() -> None:
     """_create_comparison_risk_attribution_chart must return empty string when no attribution (lines 1705, 1708, 1713)."""
-    from quant_trading.backtest.report import _create_comparison_risk_attribution_chart, _get_theme_colors
     from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.report import (
+        _create_comparison_risk_attribution_chart,
+        _get_theme_colors,
+    )
 
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
     equity_curve = pd.Series([100000] * 10, index=dates)
@@ -2049,8 +2069,11 @@ def test_comparison_risk_attribution_chart_no_attribution() -> None:
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_comparison_risk_attribution_chart_none_attribution() -> None:
     """_create_comparison_risk_attribution_chart must skip None attribution (line 1705)."""
-    from quant_trading.backtest.report import _create_comparison_risk_attribution_chart, _get_theme_colors
     from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.report import (
+        _create_comparison_risk_attribution_chart,
+        _get_theme_colors,
+    )
     from quant_trading.risk.manager import RiskAttribution
 
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
@@ -2109,8 +2132,11 @@ def test_comparison_risk_attribution_chart_none_attribution() -> None:
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_comparison_risk_attribution_chart_non_dict_attribution() -> None:
     """_create_comparison_risk_attribution_chart must skip non-dict attribution (line 1708)."""
-    from quant_trading.backtest.report import _create_comparison_risk_attribution_chart, _get_theme_colors
     from quant_trading.backtest.engine import BacktestResult
+    from quant_trading.backtest.report import (
+        _create_comparison_risk_attribution_chart,
+        _get_theme_colors,
+    )
 
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
     equity_curve = pd.Series([100000] * 10, index=dates)
@@ -2255,3 +2281,111 @@ def test_generate_comparison_report_rolling_metrics_display() -> None:
 
     assert "Rolling Sharpe (60) Comparison" in html
     assert "Rolling Volatility (60) Comparison" in html
+
+
+# Tests for remaining uncovered branches in report.py
+def test_build_risk_attribution_table_no_symbols() -> None:
+    """Empty attribution series must skip the symbol breakdown (branch 682->704)."""
+    from quant_trading.backtest.report import _build_risk_attribution_table, _get_theme_colors
+
+    result = _create_sample_result()
+    result.risk_attribution = RiskAttribution(
+        confidence=0.95,
+        positions_value=50000.0,
+        portfolio_value=105000.0,
+        portfolio_var=0.0312,
+        portfolio_volatility=0.1825,
+        weights=pd.Series(dtype=float),
+        marginal_var=pd.Series(dtype=float),
+        component_var=pd.Series(dtype=float),
+        volatility_contributions=pd.Series(dtype=float),
+    )
+
+    html = _build_risk_attribution_table(result, _get_theme_colors("light"))
+
+    assert "Symbol" not in html
+    assert "Weight" not in html
+    assert "Portfolio VaR" in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_comparison_rolling_volatility_chart_exactly_60_bars() -> None:
+    """Exactly 60 bars leaves rolling_vol empty after dropna (line 1456)."""
+    from quant_trading.backtest.report import (
+        _create_comparison_rolling_volatility_chart,
+        _get_theme_colors,
+    )
+
+    result = _create_sample_result()
+    result.equity_curve = result.equity_curve.iloc[:60]
+
+    png = _create_comparison_rolling_volatility_chart(
+        [("Strategy A", result)], _get_theme_colors("light"), 150
+    )
+    assert isinstance(png, str) and len(png) > 0
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_generate_comparison_report_omits_monthly_and_rolling() -> None:
+    """Disabling monthly/rolling charts must skip those chart cards (branches 1832->1848, 1890->1907)."""
+    result1 = _create_sample_result()
+    result2 = _create_sample_result()
+
+    results = [("Strategy A", result1), ("Strategy B", result2)]
+    config = ReportConfig(
+        include_charts=True,
+        include_monthly_heatmap=False,
+        include_rolling_metrics=False,
+    )
+
+    html = generate_comparison_report(results, config)
+
+    assert "Equity Curves Comparison" in html
+    assert "Monthly Returns Comparison" not in html
+    assert "Rolling Sharpe (60) Comparison" not in html
+    assert "Rolling Volatility (60) Comparison" not in html
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_build_comparison_risk_attribution_chart_absent_without_attribution() -> None:
+    """A truthy attribution that yields no chart data must skip the chart (branch 1686->1696)."""
+    from quant_trading.backtest.report import _build_comparison_risk_attribution, _get_theme_colors
+
+    class NonDictAttribution:
+        def to_dict(self) -> str:
+            return "not a dict"
+
+    result = _create_sample_result()
+    result.risk_attribution = NonDictAttribution()  # type: ignore[assignment]
+
+    html = _build_comparison_risk_attribution([("Strategy A", result)], _get_theme_colors("light"), dpi=150)
+
+    assert "Risk Attribution Comparison" in html
+    assert "data:image/png;base64," not in html
+
+
+def test_build_comparison_risk_attribution_metric_fn_raises() -> None:
+    """A metric value whose string conversion fails must render as N/A (lines 1629-1630)."""
+    from quant_trading.backtest.report import _build_comparison_risk_attribution, _get_theme_colors
+
+    class RaisesOnStr:
+        def __str__(self) -> str:
+            raise ValueError("cannot stringify")
+
+    class BadAttribution:
+        def to_dict(self) -> dict:
+            return {
+                "confidence": RaisesOnStr(),
+                "positions_value": 1.0,
+                "portfolio_value": 1.0,
+                "portfolio_var": 0.1,
+                "portfolio_volatility": 0.2,
+            }
+
+    result = _create_sample_result()
+    result.risk_attribution = BadAttribution()  # type: ignore[assignment]
+
+    html = _build_comparison_risk_attribution([("Strategy A", result)], _get_theme_colors("light"))
+
+    assert "Risk Attribution Comparison" in html
+    assert "N/A" in html

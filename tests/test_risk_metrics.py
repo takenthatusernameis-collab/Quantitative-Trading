@@ -383,6 +383,21 @@ class TestCalculateBeta:
         market = pd.Series([0.01, 0.02])
         assert calculate_beta(returns, market) == pytest.approx(0.0)
 
+    def test_beta_non_finite_market_variance(self) -> None:
+        """A market series with >1 unique value but non-finite variance -> 0.0.
+
+        ``nunique`` treats ``inf`` as a distinct value, so the constant-variance
+        guard is bypassed and the explicit ``np.isfinite`` check must return 0.0
+        (quant_trading/risk/metrics.py:calculate_beta).
+        """
+        import warnings
+
+        returns = pd.Series([0.01, 0.02, 0.03])
+        market = pd.Series([0.01, np.inf, 0.02])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            assert calculate_beta(returns, market) == pytest.approx(0.0)
+
 
 class TestCalculateAlpha:
     """Tests for calculate_alpha."""
