@@ -2197,6 +2197,37 @@ def run_walk_forward(
         print(f"  Combined Test Costs:  ${result.combined_test_result.total_costs:,.2f}")
         print(f"  Combined Test Sharpe: {summary['combined_test_sharpe']:.4f}")
 
+    # Run analysis modules on the combined test result if requested
+    regime_analysis = None
+    mc_analysis = None
+    trade_analysis = None
+    wants_regime = getattr(args, "regime", False)
+    wants_monte_carlo = getattr(args, "monte_carlo", False)
+    wants_trade_analysis = getattr(args, "trade_analysis", False)
+    if (wants_regime or wants_monte_carlo or wants_trade_analysis) and result.combined_test_result:
+        print("\nAnalysis of the combined walk-forward test result:")
+        if wants_regime:
+            regime_analysis = _get_regime_analysis(
+                result.combined_test_result, args, periods_per_year=config.backtest.periods_per_year
+            )
+            _print_regime_analysis(regime_analysis)
+        if wants_monte_carlo:
+            mc_analysis = _get_monte_carlo_analysis(
+                result.combined_test_result,
+                args,
+                periods_per_year=config.backtest.periods_per_year,
+                risk_free_rate=config.backtest.risk_free_rate,
+            )
+            _print_monte_carlo_analysis(mc_analysis)
+        if wants_trade_analysis:
+            trade_analysis = _get_trade_analysis(
+                result.combined_test_result,
+                args,
+                risk_free_rate=config.backtest.risk_free_rate,
+                periods_per_year=config.backtest.periods_per_year,
+            )
+            _print_trade_analysis(trade_analysis)
+
     output_format = getattr(args, "output_format", None)
     if args.output:
         output_data = {
@@ -2216,6 +2247,12 @@ def run_walk_forward(
             "summary": summary,
             "walk_forward_result": result.to_dict(),
         }
+        if regime_analysis is not None:
+            output_data["regime_analysis"] = regime_analysis.to_dict()
+        if mc_analysis is not None:
+            output_data["monte_carlo"] = mc_analysis.summary()
+        if trade_analysis is not None:
+            output_data["trade_analysis"] = trade_analysis.to_dict()
         if not _save_json_output(args.output, output_data, output_format):
             return 1
 
@@ -2231,6 +2268,26 @@ def run_walk_forward(
         if last_params is None:
             last_params = {}
         _save_strategy_config(args.output_strategy_config, strategy_cls, last_params)
+
+    # Generate HTML report for the combined test result if requested
+    if getattr(args, "report", None) and result.combined_test_result:
+        report_config = ReportConfig(
+            title=f"Walk-Forward Report: {strategy_cls.__name__}",
+            theme=getattr(args, "report_theme", "light"),
+            include_charts=not getattr(args, "report_no_charts", False),
+            include_trade_details=not getattr(args, "report_no_trades", False),
+            include_monthly_heatmap=not getattr(args, "report_no_monthly", False),
+            include_rolling_metrics=not getattr(args, "report_no_rolling", False),
+        )
+        try:
+            generate_html_report(result.combined_test_result, report_config, output_path=args.report)
+        except ImportError as e:
+            print(f"Error: {e}")
+            return 1
+        except OSError as e:
+            print(f"Error: could not write report file '{args.report}': {e.strerror or e}")
+            return 1
+        print(f"\nHTML walk-forward report saved to {args.report}")
 
     return 0
 
