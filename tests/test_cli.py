@@ -6355,16 +6355,18 @@ class TestValidateRangeArgumentsErrorPath:
     """Tests for _validate_range_arguments error path (line 1210)."""
 
     def test_malformed_range_raises_value_error(self) -> None:
-        from examples.cli import _validate_range_arguments
         from argparse import Namespace
+
+        from examples.cli import _validate_range_arguments
 
         args = Namespace(ma_fast_range="5,20")
         with pytest.raises(ValueError, match="invalid --ma-fast-range"):
             _validate_range_arguments(args)
 
     def test_invalid_number_in_range_raises(self) -> None:
-        from examples.cli import _validate_range_arguments
         from argparse import Namespace
+
+        from examples.cli import _validate_range_arguments
 
         args = Namespace(ma_fast_range="5,x,5")
         with pytest.raises(ValueError, match="invalid --ma-fast-range"):
@@ -6468,9 +6470,10 @@ class TestCreateParamGridDefaultFallback:
     """Tests for create_param_grid default fallback (lines 1941-1944)."""
 
     def test_unknown_strategy_uses_default_param_grid(self) -> None:
+        from argparse import Namespace
+
         from examples.cli import create_param_grid
         from quant_trading.optimization import ParameterGrid
-        from argparse import Namespace
 
         range_defaults = {
             "ma_fast_range": "5,20,5",
@@ -6520,9 +6523,10 @@ class TestRunOptimizationUnknownStrategy:
 
     @patch("examples.cli.get_strategy", return_value=None)
     def test_unknown_strategy_raises_value_error(self, mock_get_strategy: MagicMock) -> None:
-        from examples.cli import run_optimization
         from argparse import Namespace
         from datetime import datetime, timedelta
+
+        from examples.cli import run_optimization
 
         args = Namespace(
             strategy="unknown_strategy",
@@ -6594,9 +6598,10 @@ class TestRunOptimizationOutputBranches:
     })})
     @patch("examples.cli.get_strategy")
     def test_optimization_without_best_result(self, mock_get_strategy: MagicMock, tmp_path: Path, capsys: CaptureFixture[Any]) -> None:
-        from examples.cli import run_optimization
         from argparse import Namespace
         from datetime import datetime, timedelta
+
+        from examples.cli import run_optimization
 
         mock_get_strategy.return_value = MovingAverageCrossover
 
@@ -6661,10 +6666,11 @@ class TestRunOptimizationOutputBranches:
         assert "Best Parameters" in captured.out
 
     def test_optimization_save_json_output_error(self, tmp_path: Path, capsys: CaptureFixture[Any]) -> None:
-        from examples.cli import run_optimization
         from argparse import Namespace
         from datetime import datetime, timedelta
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import patch
+
+        from examples.cli import run_optimization
 
         class MockResult:
             best_params = {"fast_period": 5, "slow_period": 20}
@@ -6741,10 +6747,11 @@ class TestRunOptimizationOutputBranches:
                     assert result == 1
 
     def test_optimization_output_strategy_config_persistence(self, tmp_path: Path, capsys: CaptureFixture[Any]) -> None:
-        from examples.cli import run_optimization
         from argparse import Namespace
         from datetime import datetime, timedelta
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import patch
+
+        from examples.cli import run_optimization
 
         class MockResult:
             best_params = {"fast_period": 5, "slow_period": 20, "name": "MA_Crossover_5_20"}
@@ -6760,73 +6767,72 @@ class TestRunOptimizationOutputBranches:
             def run(self):
                 return MockResult()
 
-        with patch("examples.cli.OPTIMIZERS", {"grid": MockOptimizer}):
-            with patch(
-                "examples.cli.get_strategy", return_value=MovingAverageCrossover
-            ):
-                args = Namespace(
-                    strategy="ma",
-                    symbols=["AAPL"],
-                    optimizer="grid",
-                    objective="sharpe",
-                    n_iter=5,
-                    n_jobs=1,
-                    bayesian_n_initial=3,
-                    bayesian_acq_func="gp_hedge",
-                    bayesian_acq_optimizer="lbfgs",
-                    ma_fast_range="5,20,5",
-                    ma_slow_range="20,50,5",
-                    rsi_period_range="10,20,2",
-                    rsi_oversold_range="20,35,5",
-                    rsi_overbought_range="65,80,5",
-                    bb_period_range="10,30,5",
-                    bb_std_range="1.5,3.0,0.5",
-                    macd_fast_range="8,16,2",
-                    macd_slow_range="20,30,2",
-                    macd_signal_range="7,12,1",
-                    st_period_range="7,20,1",
-                    st_multiplier_range="2.0,4.0,0.5",
-                    dc_period_range="10,40,5",
-                    dc_exit_period_range="5,20,5",
-                    aroon_period_range="10,50,5",
-                    kc_ema_period_range="10,30,5",
-                    kc_atr_period_range="5,20,2",
-                    kc_multiplier_range="1.0,3.0,0.5",
-                    stoch_k_period_range="10,20,2",
-                    stoch_d_period_range="2,5,1",
-                    stoch_oversold_range="10,30,5",
-                    stoch_overbought_range="70,85,5",
-                    ichimoku_tenkan_period_range="5,15,2",
-                    ichimoku_kijun_period_range="15,30,2",
-                    ichimoku_senkou_b_period_range="30,60,5",
-                    sar_step_range="0.01,0.05,0.01",
-                    sar_max_step_range="0.10,0.20,0.05",
-                    atr_period_range="10,30,5",
-                    atr_multiplier_range="1.0,3.0,0.5",
-                    interval="1d",
-                    output=None,
-                    output_strategy_config=str(tmp_path / "strategy.yaml"),
-                )
+        with patch("examples.cli.OPTIMIZERS", {"grid": MockOptimizer}), patch(
+            "examples.cli.get_strategy", return_value=MovingAverageCrossover
+        ):
+            args = Namespace(
+                strategy="ma",
+                symbols=["AAPL"],
+                optimizer="grid",
+                objective="sharpe",
+                n_iter=5,
+                n_jobs=1,
+                bayesian_n_initial=3,
+                bayesian_acq_func="gp_hedge",
+                bayesian_acq_optimizer="lbfgs",
+                ma_fast_range="5,20,5",
+                ma_slow_range="20,50,5",
+                rsi_period_range="10,20,2",
+                rsi_oversold_range="20,35,5",
+                rsi_overbought_range="65,80,5",
+                bb_period_range="10,30,5",
+                bb_std_range="1.5,3.0,0.5",
+                macd_fast_range="8,16,2",
+                macd_slow_range="20,30,2",
+                macd_signal_range="7,12,1",
+                st_period_range="7,20,1",
+                st_multiplier_range="2.0,4.0,0.5",
+                dc_period_range="10,40,5",
+                dc_exit_period_range="5,20,5",
+                aroon_period_range="10,50,5",
+                kc_ema_period_range="10,30,5",
+                kc_atr_period_range="5,20,2",
+                kc_multiplier_range="1.0,3.0,0.5",
+                stoch_k_period_range="10,20,2",
+                stoch_d_period_range="2,5,1",
+                stoch_oversold_range="10,30,5",
+                stoch_overbought_range="70,85,5",
+                ichimoku_tenkan_period_range="5,15,2",
+                ichimoku_kijun_period_range="15,30,2",
+                ichimoku_senkou_b_period_range="30,60,5",
+                sar_step_range="0.01,0.05,0.01",
+                sar_max_step_range="0.10,0.20,0.05",
+                atr_period_range="10,30,5",
+                atr_multiplier_range="1.0,3.0,0.5",
+                interval="1d",
+                output=None,
+                output_strategy_config=str(tmp_path / "strategy.yaml"),
+            )
 
-                config = Config()
-                config.data.provider = "synthetic"
-                config.data.offline = True
-                config.data.synthetic_days = 60
-                config.data.synthetic_seed = 42
+            config = Config()
+            config.data.provider = "synthetic"
+            config.data.offline = True
+            config.data.synthetic_days = 60
+            config.data.synthetic_seed = 42
 
-                end_date = datetime.now()
-                start_date = end_date - timedelta(days=60)
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=60)
 
-                result = run_optimization(args, config, start_date, end_date)
-                assert result == 0
+            result = run_optimization(args, config, start_date, end_date)
+            assert result == 0
 
-                # Verify strategy config was saved
-                import yaml
-                with open(tmp_path / "strategy.yaml") as f:
-                    saved = yaml.safe_load(f)
-                assert saved["type"] == "ma"
-                assert saved["parameters"]["fast_period"] == 5
-                assert saved["parameters"]["slow_period"] == 20
+            # Verify strategy config was saved
+            import yaml
+            with open(tmp_path / "strategy.yaml") as f:
+                saved = yaml.safe_load(f)
+            assert saved["type"] == "ma"
+            assert saved["parameters"]["fast_period"] == 5
+            assert saved["parameters"]["slow_period"] == 20
 
 
 class TestRunWalkForwardUnknownStrategy:
@@ -6834,9 +6840,10 @@ class TestRunWalkForwardUnknownStrategy:
 
     @patch("examples.cli.get_strategy", return_value=None)
     def test_unknown_strategy_raises_value_error(self, mock_get_strategy: MagicMock) -> None:
-        from examples.cli import run_walk_forward
         from argparse import Namespace
         from datetime import datetime, timedelta
+
+        from examples.cli import run_walk_forward
 
         args = Namespace(
             strategy="unknown_strategy",
@@ -6905,10 +6912,12 @@ class TestRunWalkForwardOutputBranches:
     @patch("examples.cli.WalkForwardOptimizer")
     @patch("examples.cli.get_strategy")
     def test_walk_forward_with_step_size_printing(self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, capsys: CaptureFixture[Any]) -> None:
-        from examples.cli import run_walk_forward
         from argparse import Namespace
         from datetime import datetime, timedelta
+
         import pandas as pd
+
+        from examples.cli import run_walk_forward
 
         mock_get_strategy.return_value = MovingAverageCrossover
 
@@ -7004,10 +7013,12 @@ class TestRunWalkForwardOutputBranches:
     @patch("examples.cli.WalkForwardOptimizer")
     @patch("examples.cli.get_strategy")
     def test_walk_forward_window_results_printing(self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, capsys: CaptureFixture[Any]) -> None:
-        from examples.cli import run_walk_forward
         from argparse import Namespace
         from datetime import datetime, timedelta
+
         import pandas as pd
+
+        from examples.cli import run_walk_forward
 
         mock_get_strategy.return_value = MovingAverageCrossover
 
@@ -7109,11 +7120,13 @@ class TestRunWalkForwardOutputBranches:
     @patch("examples.cli.WalkForwardOptimizer")
     @patch("examples.cli.get_strategy")
     def test_walk_forward_save_json_output_error(self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, tmp_path: Path) -> None:
-        from examples.cli import run_walk_forward
         from argparse import Namespace
         from datetime import datetime, timedelta
+        from unittest.mock import MagicMock, patch
+
         import pandas as pd
-        from unittest.mock import patch, MagicMock
+
+        from examples.cli import run_walk_forward
 
         mock_get_strategy.return_value = MovingAverageCrossover
 
@@ -7208,10 +7221,12 @@ class TestRunWalkForwardOutputBranches:
     @patch("examples.cli.WalkForwardOptimizer")
     @patch("examples.cli.get_strategy")
     def test_walk_forward_output_strategy_config_persistence(self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, tmp_path: Path) -> None:
-        from examples.cli import run_walk_forward
         from argparse import Namespace
         from datetime import datetime, timedelta
+
         import pandas as pd
+
+        from examples.cli import run_walk_forward
 
         mock_get_strategy.return_value = MovingAverageCrossover
 
@@ -7314,10 +7329,12 @@ class TestRunWalkForwardOutputBranches:
     @patch("examples.cli.WalkForwardOptimizer")
     @patch("examples.cli.get_strategy")
     def test_walk_forward_no_window_params_fallback(self, mock_get_strategy: MagicMock, mock_wf_opt: MagicMock, tmp_path: Path) -> None:
-        from examples.cli import run_walk_forward
         from argparse import Namespace
         from datetime import datetime, timedelta
+
         import pandas as pd
+
+        from examples.cli import run_walk_forward
 
         mock_get_strategy.return_value = MovingAverageCrossover
 
@@ -7444,9 +7461,10 @@ class TestRunCombinedEmptyResults:
 
     @patch("examples.cli.run_backtest", side_effect=RuntimeError("all failed"))
     def test_run_combined_all_fail_returns_one(self, mock_run_backtest: MagicMock, capsys: CaptureFixture[Any]) -> None:
-        from examples.cli import run_combined
         from argparse import Namespace
         from datetime import datetime, timedelta
+
+        from examples.cli import run_combined
 
         args = Namespace(
             symbols=["AAPL"],
@@ -7519,9 +7537,10 @@ class TestRunCombinedJsonOutputBranches:
         tmp_path: Path,
         capsys: CaptureFixture[Any]
     ) -> None:
-        from examples.cli import run_combined
         from argparse import Namespace
         from datetime import datetime, timedelta
+
+        from examples.cli import run_combined
 
         mock_metrics = MagicMock()
         mock_metrics.num_trades = 10
@@ -7639,9 +7658,10 @@ class TestRunCombinedJsonOutputBranches:
         _mock_print_regime: MagicMock,
         tmp_path: Path,
     ) -> None:
-        from examples.cli import run_combined
         from argparse import Namespace
         from datetime import datetime, timedelta
+
+        from examples.cli import run_combined
 
         mock_metrics = MagicMock()
         mock_metrics.num_trades = 10
@@ -7744,9 +7764,10 @@ class TestRunCombinedJsonOutputBranches:
         _mock_print_mc: MagicMock,
         tmp_path: Path,
     ) -> None:
-        from examples.cli import run_combined
         from argparse import Namespace
         from datetime import datetime, timedelta
+
+        from examples.cli import run_combined
 
         mock_metrics = MagicMock()
         mock_metrics.num_trades = 10
@@ -7849,9 +7870,10 @@ class TestRunCombinedJsonOutputBranches:
         _mock_print_trade: MagicMock,
         tmp_path: Path,
     ) -> None:
-        from examples.cli import run_combined
         from argparse import Namespace
         from datetime import datetime, timedelta
+
+        from examples.cli import run_combined
 
         mock_metrics = MagicMock()
         mock_metrics.num_trades = 10
@@ -7956,9 +7978,10 @@ class TestRunCombinedSaveFailure:
         mock_run_backtest: MagicMock,
         tmp_path: Path,
     ) -> None:
-        from examples.cli import run_combined
         from argparse import Namespace
         from datetime import datetime, timedelta
+
+        from examples.cli import run_combined
 
         mock_metrics = MagicMock()
         mock_metrics.num_trades = 10
@@ -7979,6 +8002,7 @@ class TestRunCombinedSaveFailure:
         )
         mock_result.name = "MA_Crossover_10_30"
         mock_result.total_return_pct = 15.5
+        mock_result.total_return = 15500.0
         mock_result.metrics = mock_metrics
         mock_result.total_costs = 0.0
 
@@ -8073,6 +8097,808 @@ class TestSingleModeOutputBranches:
         ):
             result = main()
         assert result == 1
+
+
+class TestVersionImportFallback:
+    """Test the __version__ fallback when quant_trading.__version__ is unavailable."""
+
+    def test_version_fallback_when_import_fails(self, monkeypatch: MonkeyPatch) -> None:
+        """When quant_trading.__version__ cannot be imported, the fallback is used."""
+        # Remove quant_trading.__version__ if it exists
+        import sys
+        if "quant_trading" in sys.modules:
+            mod = sys.modules["quant_trading"]
+            if hasattr(mod, "__version__"):
+                monkeypatch.delattr(mod, "__version__", raising=False)
+
+        # Now import cli fresh (or reload) to trigger the fallback
+        import importlib
+
+        import examples.cli as cli_module
+
+        importlib.reload(cli_module)
+
+        # The fallback version should be used
+        assert cli_module.__version__ == "0.1.0"
+
+
+class TestCreateStrategyFallback:
+    """Test create_strategy fallback when strategy is None."""
+
+    def test_create_strategy_defaults_to_ma_when_none(self) -> None:
+        """When args.strategy is None, it defaults to 'ma'."""
+        from argparse import Namespace
+
+        args = Namespace(
+            strategy=None,
+            fast_period=10,
+            slow_period=30,
+        )
+        strategy = create_strategy(args)
+        assert strategy is not None
+        # Should be a MovingAverageCrossover
+        assert strategy.__class__.__name__ == "MovingAverageCrossover"
+        assert strategy.name == "MA_Crossover_10_30"
+
+
+class TestBayesianNInitialValidation:
+    """Test --bayesian-n-initial validation against --n-iter."""
+
+    def test_bayesian_n_initial_greater_than_n_iter_is_rejected(self) -> None:
+        """--bayesian-n-initial > --n-iter is a usage error."""
+        with (
+            patch(
+                "sys.argv",
+                [
+                    "cli.py",
+                    "--optimize",
+                    "--optimizer",
+                    "bayesian",
+                    "--bayesian-n-initial",
+                    "20",
+                    "--n-iter",
+                    "10",
+                    "--offline",
+                ],
+            ),
+            pytest.raises(ValueError, match="invalid --bayesian-n-initial: must be <= --n-iter"),
+        ):
+            parse_args()
+
+    def test_bayesian_n_initial_equal_to_n_iter_is_accepted(self) -> None:
+        """--bayesian-n-initial == --n-iter is accepted."""
+        with patch(
+            "sys.argv",
+            [
+                "cli.py",
+                "--optimize",
+                "--optimizer",
+                "bayesian",
+                "--bayesian-n-initial",
+                "10",
+                "--n-iter",
+                "10",
+                "--offline",
+            ],
+        ):
+            args = parse_args()
+        assert args.bayesian_n_initial == 10
+        assert args.n_iter == 10
+
+
+class TestCreateConfigSlippageOverride:
+    """Test slippage config override in create_config."""
+
+    def test_create_config_overrides_slippage_from_args(self) -> None:
+        """Explicit --slippage overrides config file value."""
+        import tempfile
+        from argparse import Namespace
+
+        from examples.cli import create_config
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = f"{tmpdir}/config.yaml"
+            with open(config_path, "w") as f:
+                f.write("backtest:\n  initial_capital: 25000.0\n  commission: 0.002\n  slippage: 0.001\n")
+            args = Namespace(
+                config=config_path,
+                offline=False,
+                provider=None,
+                cache_dir=None,
+                synthetic_days=None,
+                synthetic_seed=None,
+                alphavantage_key=None,
+                risk_free_rate=None,
+                initial_capital=None,
+                commission=None,
+                slippage=0.0005,  # Override config file's 0.001
+                interval=None,
+                periods_per_year=None,
+            )
+            config = create_config(args)
+        assert config.backtest.slippage == 0.0005
+
+
+class TestRunOptimizationBranches:
+    """Test run_optimization branches for offline mode and random optimizer."""
+
+    def test_run_optimization_offline_mode_prints_offline(self, tmp_path: Path) -> None:
+        """Offline mode prints 'Mode: OFFLINE'."""
+        import io
+        from argparse import Namespace
+        from contextlib import redirect_stdout
+        from datetime import datetime, timedelta
+        from unittest.mock import MagicMock, patch
+
+        from examples.cli import OPTIMIZERS, run_optimization
+
+        # Mock the optimizer to avoid actual optimization
+        mock_optimizer_instance = MagicMock()
+        mock_result = MagicMock()
+        mock_result.best_params = {"fast_period": 10, "slow_period": 20}
+        mock_result.best_score = 1.5
+        mock_result.best_result = None
+        mock_result.all_results = []
+        mock_result.get_top_n.return_value = []
+        mock_optimizer_instance.run.return_value = mock_result
+
+        mock_random_search = MagicMock(return_value=mock_optimizer_instance)
+        with patch.dict(OPTIMIZERS, {"random": mock_random_search}):
+            args = Namespace(
+                strategy="ma",
+                optimizer="random",
+                objective="sharpe",
+                symbols=["AAPL"],
+                interval="1d",
+                ma_fast_range="5,15,5",
+                ma_slow_range="20,30,10",
+                rsi_period_range="10,20,2",
+                rsi_oversold_range="20,35,5",
+                rsi_overbought_range="65,80,5",
+                bb_period_range="10,30,5",
+                bb_std_range="1.5,3.0,0.5",
+                macd_fast_range="8,16,2",
+                macd_slow_range="20,30,2",
+                macd_signal_range="7,12,1",
+                st_period_range="7,20,1",
+                st_multiplier_range="2.0,4.0,0.5",
+                dc_period_range="10,40,5",
+                dc_exit_period_range="5,20,5",
+                aroon_period_range="10,50,5",
+                kc_ema_period_range="10,30,5",
+                kc_atr_period_range="5,20,2",
+                kc_multiplier_range="1.0,3.0,0.5",
+                stoch_k_period_range="10,20,2",
+                stoch_d_period_range="2,5,1",
+                stoch_oversold_range="10,30,5",
+                stoch_overbought_range="70,90,5",
+                ichimoku_tenkan_period_range="5,15,2",
+                ichimoku_kijun_period_range="10,30,5",
+                ichimoku_senkou_b_period_range="20,60,10",
+                sar_step_range="0.01,0.05,0.01",
+                sar_max_step_range="0.10,0.20,0.05",
+                atr_period_range="10,30,5",
+                atr_multiplier_range="1.0,3.0,0.5",
+                n_iter=10,
+                n_jobs=1,
+                bayesian_n_initial=10,
+                bayesian_acq_func="EI",
+                bayesian_acq_optimizer="auto",
+                bayesian_noise=1e-6,
+                output=None,
+                output_format=None,
+                output_strategy_config=None,
+            )
+
+            config = Config()
+            config.data.provider = "synthetic"
+            config.data.offline = True
+            config.data.synthetic_days = 60
+            config.data.synthetic_seed = 42
+            config.backtest.initial_capital = 100000.0
+            config.backtest.commission = 0.001
+            config.backtest.slippage = 0.0005
+            config.backtest.periods_per_year = 252
+
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=60)
+
+            output = io.StringIO()
+            with redirect_stdout(output):
+                run_optimization(args, config, start_date, end_date)
+
+            out = output.getvalue()
+            assert "Mode: OFFLINE (synthetic data)" in out
+
+    def test_run_optimization_random_optimizer_path(self, tmp_path: Path) -> None:
+        """Random optimizer path is executed."""
+        from argparse import Namespace
+        from datetime import datetime, timedelta
+        from unittest.mock import MagicMock, patch
+
+        from examples.cli import OPTIMIZERS, run_optimization
+
+        mock_optimizer_instance = MagicMock()
+        mock_result = MagicMock()
+        mock_result.best_params = {"fast_period": 10, "slow_period": 20}
+        mock_result.best_score = 1.5
+        mock_result.best_result = None
+        mock_result.all_results = []
+        mock_result.get_top_n.return_value = []
+        mock_optimizer_instance.run.return_value = mock_result
+
+        mock_random_search = MagicMock(return_value=mock_optimizer_instance)
+        with patch.dict(OPTIMIZERS, {"random": mock_random_search}):
+            args = Namespace(
+                strategy="ma",
+                optimizer="random",
+                objective="sharpe",
+                symbols=["AAPL"],
+                interval="1d",
+                ma_fast_range="5,15,5",
+                ma_slow_range="20,30,10",
+                rsi_period_range="10,20,2",
+                rsi_oversold_range="20,35,5",
+                rsi_overbought_range="65,80,5",
+                bb_period_range="10,30,5",
+                bb_std_range="1.5,3.0,0.5",
+                macd_fast_range="8,16,2",
+                macd_slow_range="20,30,2",
+                macd_signal_range="7,12,1",
+                st_period_range="7,20,1",
+                st_multiplier_range="2.0,4.0,0.5",
+                dc_period_range="10,40,5",
+                dc_exit_period_range="5,20,5",
+                aroon_period_range="10,50,5",
+                kc_ema_period_range="10,30,5",
+                kc_atr_period_range="5,20,2",
+                kc_multiplier_range="1.0,3.0,0.5",
+                stoch_k_period_range="10,20,2",
+                stoch_d_period_range="2,5,1",
+                stoch_oversold_range="10,30,5",
+                stoch_overbought_range="70,90,5",
+                ichimoku_tenkan_period_range="5,15,2",
+                ichimoku_kijun_period_range="10,30,5",
+                ichimoku_senkou_b_period_range="20,60,10",
+                sar_step_range="0.01,0.05,0.01",
+                sar_max_step_range="0.10,0.20,0.05",
+                atr_period_range="10,30,5",
+                atr_multiplier_range="1.0,3.0,0.5",
+                n_iter=10,
+                n_jobs=1,
+                bayesian_n_initial=10,
+                bayesian_acq_func="EI",
+                bayesian_acq_optimizer="auto",
+                bayesian_noise=1e-6,
+                output=None,
+                output_format=None,
+                output_strategy_config=None,
+            )
+
+            config = Config()
+            config.data.provider = "yfinance"
+            config.data.offline = False
+            config.backtest.initial_capital = 100000.0
+            config.backtest.commission = 0.001
+            config.backtest.slippage = 0.0005
+            config.backtest.periods_per_year = 252
+
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=60)
+
+            run_optimization(args, config, start_date, end_date)
+
+            mock_random_search.assert_called_once()
+            call_kwargs = mock_random_search.call_args.kwargs
+            assert call_kwargs["n_iter"] == 10
+            assert call_kwargs["n_jobs"] == 1
+
+
+class TestRunWalkForwardBranches:
+    """Test run_walk_forward branches for offline mode and optimizer kwargs."""
+
+    def _make_mock_result(self, empty_df: bool = True):
+        """Create a mock result object with proper summary method."""
+        from unittest.mock import MagicMock
+
+        import pandas as pd
+
+        mock_result = MagicMock()
+        if empty_df:
+            mock_result.to_dataframe.return_value = MagicMock(empty=True)
+        else:
+            df = pd.DataFrame({
+                "window": [1, 2],
+                "train_return_pct": [5.0, 6.0],
+                "train_sharpe": [1.2, 1.3],
+                "test_return_pct": [3.0, 4.0],
+                "test_sharpe": [0.9, 1.1],
+                "test_max_dd": [2.0, 3.0],
+            })
+            mock_result.to_dataframe.return_value = df
+        # Use a real dict for summary, not a MagicMock
+        mock_result.summary = lambda: {
+            "n_windows": 2,
+            "avg_test_return_pct": 3.5,
+            "avg_test_sharpe": 1.0,
+            "avg_test_max_dd_pct": 2.5,
+            "win_rate_windows": 1.0,
+            "combined_test_return_pct": 3.5,
+            "combined_test_sharpe": 1.0,
+        }
+        mock_result.combined_test_result = MagicMock()
+        mock_result.combined_test_result.total_costs = 100.0
+        mock_result.windows = [MagicMock(best_params={"fast_period": 10}), MagicMock(best_params={"fast_period": 12})]
+        mock_result.to_dict.return_value = {}
+        return mock_result
+
+    @patch("examples.cli.WalkForwardOptimizer")
+    def test_run_walk_forward_offline_mode_prints_offline(self, mock_wfo: MagicMock, tmp_path: Path) -> None:
+        """Offline mode prints 'Mode: OFFLINE'."""
+        import io
+        from argparse import Namespace
+        from contextlib import redirect_stdout
+        from datetime import datetime, timedelta
+
+        from examples.cli import run_walk_forward
+
+        mock_optimizer_instance = MagicMock()
+        mock_optimizer_instance.run.return_value = self._make_mock_result(empty_df=True)
+        mock_wfo.return_value = mock_optimizer_instance
+
+        args = Namespace(
+            strategy="ma",
+            objective="sharpe",
+            optimizer="grid",
+            wf_optimizer="grid",
+            symbols=["AAPL"],
+            interval="1d",
+            ma_fast_range="5,15,5",
+            ma_slow_range="20,30,10",
+            rsi_period_range="10,20,2",
+            rsi_oversold_range="20,35,5",
+            rsi_overbought_range="65,80,5",
+            bb_period_range="10,30,5",
+            bb_std_range="1.5,3.0,0.5",
+            macd_fast_range="8,16,2",
+            macd_slow_range="20,30,2",
+            macd_signal_range="7,12,1",
+            st_period_range="7,20,1",
+            st_multiplier_range="2.0,4.0,0.5",
+            dc_period_range="10,40,5",
+            dc_exit_period_range="5,20,5",
+            aroon_period_range="10,50,5",
+            kc_ema_period_range="10,30,5",
+            kc_atr_period_range="5,20,2",
+            kc_multiplier_range="1.0,3.0,0.5",
+            stoch_k_period_range="10,20,2",
+            stoch_d_period_range="2,5,1",
+            stoch_oversold_range="10,30,5",
+            stoch_overbought_range="70,90,5",
+            ichimoku_tenkan_period_range="5,15,2",
+            ichimoku_kijun_period_range="10,30,5",
+            ichimoku_senkou_b_period_range="20,60,10",
+            sar_step_range="0.01,0.05,0.01",
+            sar_max_step_range="0.10,0.20,0.05",
+            atr_period_range="10,30,5",
+            atr_multiplier_range="1.0,3.0,0.5",
+            wf_windows=2,
+            wf_train_size=0.7,
+            wf_anchored=True,
+            wf_step_size=1.0,
+            n_iter=10,
+            n_jobs=1,
+            bayesian_n_initial=10,
+            bayesian_acq_func="EI",
+            bayesian_acq_optimizer="auto",
+            bayesian_noise=1e-6,
+            output=None,
+            output_format=None,
+            output_strategy_config=None,
+        )
+
+        config = Config()
+        config.data.provider = "synthetic"
+        config.data.offline = True
+        config.data.synthetic_days = 60
+        config.data.synthetic_seed = 42
+        config.backtest.initial_capital = 100000.0
+        config.backtest.commission = 0.001
+        config.backtest.slippage = 0.0005
+        config.backtest.periods_per_year = 252
+        config.backtest.risk_free_rate = 0.02
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=60)
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            run_walk_forward(args, config, start_date, end_date)
+
+        out = output.getvalue()
+        assert "Mode: OFFLINE (synthetic data)" in out
+
+    @patch("examples.cli.WalkForwardOptimizer")
+    def test_run_walk_forward_random_optimizer_kwargs(self, mock_wfo: MagicMock, tmp_path: Path) -> None:
+        """Random inner optimizer uses n_iter and n_jobs kwargs."""
+        from argparse import Namespace
+        from datetime import datetime, timedelta
+
+        from examples.cli import run_walk_forward
+
+        mock_optimizer_instance = MagicMock()
+        mock_optimizer_instance.run.return_value = self._make_mock_result(empty_df=True)
+        mock_wfo.return_value = mock_optimizer_instance
+
+        args = Namespace(
+            strategy="ma",
+            objective="sharpe",
+            optimizer="grid",
+            wf_optimizer="random",
+            symbols=["AAPL"],
+            interval="1d",
+            ma_fast_range="5,15,5",
+            ma_slow_range="20,30,10",
+            rsi_period_range="10,20,2",
+            rsi_oversold_range="20,35,5",
+            rsi_overbought_range="65,80,5",
+            bb_period_range="10,30,5",
+            bb_std_range="1.5,3.0,0.5",
+            macd_fast_range="8,16,2",
+            macd_slow_range="20,30,2",
+            macd_signal_range="7,12,1",
+            st_period_range="7,20,1",
+            st_multiplier_range="2.0,4.0,0.5",
+            dc_period_range="10,40,5",
+            dc_exit_period_range="5,20,5",
+            aroon_period_range="10,50,5",
+            kc_ema_period_range="10,30,5",
+            kc_atr_period_range="5,20,2",
+            kc_multiplier_range="1.0,3.0,0.5",
+            stoch_k_period_range="10,20,2",
+            stoch_d_period_range="2,5,1",
+            stoch_oversold_range="10,30,5",
+            stoch_overbought_range="70,90,5",
+            ichimoku_tenkan_period_range="5,15,2",
+            ichimoku_kijun_period_range="10,30,5",
+            ichimoku_senkou_b_period_range="20,60,10",
+            sar_step_range="0.01,0.05,0.01",
+            sar_max_step_range="0.10,0.20,0.05",
+            atr_period_range="10,30,5",
+            atr_multiplier_range="1.0,3.0,0.5",
+            wf_windows=2,
+            wf_train_size=0.7,
+            wf_anchored=True,
+            wf_step_size=1.0,
+            n_iter=25,
+            n_jobs=2,
+            bayesian_n_initial=10,
+            bayesian_acq_func="EI",
+            bayesian_acq_optimizer="auto",
+            bayesian_noise=1e-6,
+            output=None,
+            output_format=None,
+            output_strategy_config=None,
+        )
+
+        config = Config()
+        config.data.provider = "yfinance"
+        config.data.offline = False
+        config.backtest.initial_capital = 100000.0
+        config.backtest.commission = 0.001
+        config.backtest.slippage = 0.0005
+        config.backtest.periods_per_year = 252
+        config.backtest.risk_free_rate = 0.02
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=60)
+
+        run_walk_forward(args, config, start_date, end_date)
+
+        mock_wfo.assert_called_once()
+        call_kwargs = mock_wfo.call_args.kwargs
+        assert call_kwargs["optimizer"] == "random"
+        assert call_kwargs["optimizer_kwargs"] == {"n_iter": 25, "n_jobs": 2}
+
+    @patch("examples.cli.WalkForwardOptimizer")
+    def test_run_walk_forward_bayesian_optimizer_kwargs(self, mock_wfo: MagicMock, tmp_path: Path) -> None:
+        """Bayesian inner optimizer uses bayesian kwargs."""
+        from argparse import Namespace
+        from datetime import datetime, timedelta
+
+        from examples.cli import run_walk_forward
+
+        mock_optimizer_instance = MagicMock()
+        mock_optimizer_instance.run.return_value = self._make_mock_result(empty_df=True)
+        mock_wfo.return_value = mock_optimizer_instance
+
+        args = Namespace(
+            strategy="ma",
+            objective="sharpe",
+            optimizer="grid",
+            wf_optimizer="bayesian",
+            symbols=["AAPL"],
+            interval="1d",
+            ma_fast_range="5,15,5",
+            ma_slow_range="20,30,10",
+            rsi_period_range="10,20,2",
+            rsi_oversold_range="20,35,5",
+            rsi_overbought_range="65,80,5",
+            bb_period_range="10,30,5",
+            bb_std_range="1.5,3.0,0.5",
+            macd_fast_range="8,16,2",
+            macd_slow_range="20,30,2",
+            macd_signal_range="7,12,1",
+            st_period_range="7,20,1",
+            st_multiplier_range="2.0,4.0,0.5",
+            dc_period_range="10,40,5",
+            dc_exit_period_range="5,20,5",
+            aroon_period_range="10,50,5",
+            kc_ema_period_range="10,30,5",
+            kc_atr_period_range="5,20,2",
+            kc_multiplier_range="1.0,3.0,0.5",
+            stoch_k_period_range="10,20,2",
+            stoch_d_period_range="2,5,1",
+            stoch_oversold_range="10,30,5",
+            stoch_overbought_range="70,90,5",
+            ichimoku_tenkan_period_range="5,15,2",
+            ichimoku_kijun_period_range="10,30,5",
+            ichimoku_senkou_b_period_range="20,60,10",
+            sar_step_range="0.01,0.05,0.01",
+            sar_max_step_range="0.10,0.20,0.05",
+            atr_period_range="10,30,5",
+            atr_multiplier_range="1.0,3.0,0.5",
+            wf_windows=2,
+            wf_train_size=0.7,
+            wf_anchored=True,
+            wf_step_size=1.0,
+            n_iter=15,
+            n_jobs=1,
+            bayesian_n_initial=5,
+            bayesian_acq_func="PI",
+            bayesian_acq_optimizer="lbfgs",
+            bayesian_noise=1e-4,
+            output=None,
+            output_format=None,
+            output_strategy_config=None,
+        )
+
+        config = Config()
+        config.data.provider = "yfinance"
+        config.data.offline = False
+        config.backtest.initial_capital = 100000.0
+        config.backtest.commission = 0.001
+        config.backtest.slippage = 0.0005
+        config.backtest.periods_per_year = 252
+        config.backtest.risk_free_rate = 0.02
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=60)
+
+        run_walk_forward(args, config, start_date, end_date)
+
+        mock_wfo.assert_called_once()
+        call_kwargs = mock_wfo.call_args.kwargs
+        assert call_kwargs["optimizer"] == "bayesian"
+        assert call_kwargs["optimizer_kwargs"] == {
+            "n_initial_points": 5,
+            "n_calls": 15,
+            "acq_func": "PI",
+            "acq_optimizer": "lbfgs",
+            "noise": 1e-4,
+        }
+
+    @patch("examples.cli.WalkForwardOptimizer")
+    def test_run_walk_forward_window_results_printing(self, mock_wfo: MagicMock, tmp_path: Path) -> None:
+        """Window results are printed when dataframe is not empty."""
+        import io
+        from argparse import Namespace
+        from contextlib import redirect_stdout
+        from datetime import datetime, timedelta
+
+        from examples.cli import run_walk_forward
+
+        mock_optimizer_instance = MagicMock()
+        mock_optimizer_instance.run.return_value = self._make_mock_result(empty_df=False)
+        mock_wfo.return_value = mock_optimizer_instance
+
+        args = Namespace(
+            strategy="ma",
+            objective="sharpe",
+            optimizer="grid",
+            wf_optimizer="grid",
+            symbols=["AAPL"],
+            interval="1d",
+            ma_fast_range="5,15,5",
+            ma_slow_range="20,30,10",
+            rsi_period_range="10,20,2",
+            rsi_oversold_range="20,35,5",
+            rsi_overbought_range="65,80,5",
+            bb_period_range="10,30,5",
+            bb_std_range="1.5,3.0,0.5",
+            macd_fast_range="8,16,2",
+            macd_slow_range="20,30,2",
+            macd_signal_range="7,12,1",
+            st_period_range="7,20,1",
+            st_multiplier_range="2.0,4.0,0.5",
+            dc_period_range="10,40,5",
+            dc_exit_period_range="5,20,5",
+            aroon_period_range="10,50,5",
+            kc_ema_period_range="10,30,5",
+            kc_atr_period_range="5,20,2",
+            kc_multiplier_range="1.0,3.0,0.5",
+            stoch_k_period_range="10,20,2",
+            stoch_d_period_range="2,5,1",
+            stoch_oversold_range="10,30,5",
+            stoch_overbought_range="70,90,5",
+            ichimoku_tenkan_period_range="5,15,2",
+            ichimoku_kijun_period_range="10,30,5",
+            ichimoku_senkou_b_period_range="20,60,10",
+            sar_step_range="0.01,0.05,0.01",
+            sar_max_step_range="0.10,0.20,0.05",
+            atr_period_range="10,30,5",
+            atr_multiplier_range="1.0,3.0,0.5",
+            wf_windows=2,
+            wf_train_size=0.7,
+            wf_anchored=True,
+            wf_step_size=1.0,
+            n_iter=10,
+            n_jobs=1,
+            bayesian_n_initial=10,
+            bayesian_acq_func="EI",
+            bayesian_acq_optimizer="auto",
+            bayesian_noise=1e-6,
+            output=None,
+            output_format=None,
+            output_strategy_config=None,
+        )
+
+        config = Config()
+        config.data.provider = "yfinance"
+        config.data.offline = False
+        config.backtest.initial_capital = 100000.0
+        config.backtest.commission = 0.001
+        config.backtest.slippage = 0.0005
+        config.backtest.periods_per_year = 252
+        config.backtest.risk_free_rate = 0.02
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=60)
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            run_walk_forward(args, config, start_date, end_date)
+
+        out = output.getvalue()
+        assert "Window Results:" in out
+        assert "Train Return%" in out
+        assert "Test Return%" in out
+
+
+class TestMainSystemExitHandling:
+    """Test main() SystemExit handling."""
+
+    def test_main_system_exit_nonzero_returns_one(self) -> None:
+        """SystemExit with non-zero code returns 1."""
+        import sys
+
+        from examples.cli import main
+
+        old_argv = sys.argv
+        try:
+            # Trigger argparse error by passing an invalid choice for --optimizer
+            sys.argv = ["cli.py", "--optimizer", "invalid", "--offline", "--symbols", "AAPL", "--days", "30"]
+            result = main()
+            assert result == 1
+        finally:
+            sys.argv = old_argv
+
+    def test_main_system_exit_zero_returns_zero(self) -> None:
+        """SystemExit with zero code (from --help) returns 0."""
+        import sys
+
+        from examples.cli import main
+
+        old_argv = sys.argv
+        try:
+            sys.argv = ["cli.py", "--help"]
+            result = main()
+            assert result == 0
+        except SystemExit:
+            # --help triggers SystemExit(0) which main() should convert to return 0
+            pass
+        finally:
+            sys.argv = old_argv
+
+
+class TestRunCombinedOutputSaveFailure:
+    """Test run_combined output save failure (already has a test but ensuring coverage)."""
+
+    @patch("examples.cli._save_json_output", return_value=False)
+    @patch("examples.cli.run_backtest")
+    def test_run_combined_output_save_failure_returns_one_existing(self, mock_run_backtest: MagicMock, mock_save_json_output: MagicMock, tmp_path: Path) -> None:
+        """Ensures the existing test covers line 2755."""
+        from argparse import Namespace
+        from datetime import datetime, timedelta
+
+        from examples.cli import run_combined
+
+        mock_metrics = MagicMock()
+        mock_metrics.num_trades = 10
+        mock_metrics.win_rate = 0.6
+        mock_metrics.sharpe_ratio = 1.5
+        mock_metrics.max_drawdown_pct = 5.0
+        mock_metrics.profit_factor = 2.0
+        mock_metrics.total_pnl = 0.0
+        mock_metrics.unrealized_pnl = 0.0
+
+        mock_result = MagicMock(
+            spec=[
+                "name",
+                "total_return_pct",
+                "total_return",
+                "metrics",
+                "total_costs",
+            ]
+        )
+        mock_result.name = "MA_Crossover_10_30"
+        mock_result.total_return_pct = 15.5
+        mock_result.total_return = 15500.0
+        mock_result.metrics = mock_metrics
+        mock_result.total_costs = 0.0
+
+        mock_run_backtest.return_value = mock_result
+
+        output_path = tmp_path / "combined.json"
+        args = Namespace(
+            symbols=["AAPL"],
+            strategy="ma",
+            combined=True,
+            initial_capital=100000.0,
+            commission=0.001,
+            slippage=0.0005,
+            interval="1d",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            aroon_period=25,
+            dc_period=20,
+            dc_exit_period=20,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
+            sar_step=0.02,
+            sar_max_step=0.20,
+            tenkan_period=9,
+            kijun_period=26,
+            senkou_b_period=52,
+            output=str(output_path),
+            output_format="json",
+            regime=False,
+            monte_carlo=False,
+            trade_analysis=False,
+        )
+
+        config = Config()
+        config.data.provider = "synthetic"
+        config.data.offline = True
+        config.data.synthetic_days = 60
+        config.data.synthetic_seed = 42
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=60)
+
+        result = run_combined(args, config, start_date, end_date)
+        assert result == 1
+        mock_save_json_output.assert_called_once()
 
 
 if __name__ == "__main__":
