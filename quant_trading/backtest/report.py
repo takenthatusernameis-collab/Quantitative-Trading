@@ -1126,6 +1126,8 @@ def _create_comparison_monthly_returns_heatmap(
     )
     axes = axes[0]
 
+    any_data = False
+    im = None
     for i, (name, result) in enumerate(results):
         ax = axes[i]
         ax.set_facecolor(colors["bg"])
@@ -1205,6 +1207,7 @@ def _create_comparison_monthly_returns_heatmap(
         ax.set_yticks(range(len(pivot.index)))
         ax.set_yticklabels([str(y) for y in pivot.index], color=colors["fg"], fontsize=8)
 
+        # Add text annotations
         for row_idx in range(len(pivot.index)):
             for col_idx in range(12):
                 val = pivot.iloc[row_idx, col_idx]
@@ -1227,6 +1230,11 @@ def _create_comparison_monthly_returns_heatmap(
 
         for spine in ax.spines.values():
             spine.set_color(colors["grid"])
+
+        any_data = True
+
+    if not any_data or im is None:
+        return _fig_to_base64(fig, dpi)
 
     cbar = fig.colorbar(im, ax=axes, shrink=0.6)
     cbar.ax.tick_params(colors=colors["fg"])
