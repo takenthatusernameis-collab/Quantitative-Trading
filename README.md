@@ -1375,6 +1375,15 @@ signals on death crosses (fast MA crosses below slow MA):
 python examples/run_ma_crossover.py
 ```
 
+For a Moving Average Envelope demonstration, see `examples/run_ma_envelope.py`.
+It runs the `MovingAverageEnvelopeStrategy` against seeded synthetic data, generating
+buy signals when price crosses below the lower envelope (oversold) and sell signals
+when price crosses above the upper envelope (overbought):
+
+```bash
+python examples/run_ma_envelope.py
+```
+
 For a portfolio rebalancing demonstration, see `examples/run_rebalancer.py`.
 It runs a backtest against seeded synthetic data and then uses the
 `Rebalancer` to bring the portfolio back to an equal-weight target
