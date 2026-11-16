@@ -27,7 +27,7 @@ True
 
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from math import copysign, isfinite
 from typing import Any
@@ -379,9 +379,10 @@ class Rebalancer:
         rebalance_history: List of dicts recording each rebalance's
             timestamp, affected symbols, and portfolio value.
         risk_manager: Optional :class:`~quant_trading.risk.manager.RiskManager`
-            used to size buys against the position and loss limits before
-            actions are emitted. When ``None`` (the default) no risk checks
-            are applied.
+            used to size buys against the position, leverage, and loss limits
+            before actions are emitted, and to enforce the same limits plus
+            the portfolio risk budget and the drawdown gate when actions are
+            executed. When ``None`` (the default) no risk checks are applied.
 
     Examples:
         >>> from quant_trading.portfolio.portfolio import Portfolio
@@ -713,11 +714,22 @@ class Rebalancer:
     ) -> float:
         """Size a buy down so the resulting position stays within risk limits.
 
-        Mirrors the risk checks in :meth:`_risk_adjust_buy` but operates on
-        the live portfolio state at execution time. Enforces the position
-        limit (max position fraction and max position dollar value) and the
-        drawdown gate (blocks exposure-increasing buys during a drawdown
-        breach). A buy that covers an open short is permitted.
+        Mirrors the risk checks in :meth:`_risk_adjust_buy` and
+        :meth:`RiskManager.check_signal` but operates on the live portfolio
+        state at execution time. Enforces the position limit (max position
+        fraction and max position dollar value), the leverage limit (max gross
+        exposure as a multiple of the portfolio value), the portfolio risk
+        budget (max fraction of the portfolio value at risk), and the drawdown
+        gate (blocks exposure-increasing buys during a drawdown breach). A buy
+        that covers an open short reduces gross exposure and is only capped by
+        the position limit.
+
+        The leverage and risk-budget rooms are measured on the portfolio's
+        current positions with the traded symbol marked at the execution
+        price, so the increment the buy adds is measured in the same price
+        space as the trade. A buy that would breach either limit is reduced to
+        the largest quantity that still fits; a buy with no room left is
+        dropped entirely.
 
         Args:
             symbol: Symbol being bought.
@@ -750,7 +762,69 @@ class Rebalancer:
         room = max_position_value - current_position_value
         if room <= 0:
             return 0.0
-        return min(quantity, room / price)
+        quantity = min(quantity, room / price)
+
+        if current_position >= 0:
+            # The buy increases the gross exposure, so the leverage limit and
+            # the portfolio risk budget must have room for the increment.
+            quantity = self._risk_adjust_execution_exposure(symbol, quantity, price)
+
+        return quantity
+
+    def _risk_adjust_execution_exposure(
+        self,
+        symbol: str,
+        quantity: float,
+        price: float,
+    ) -> float:
+        """Cap an exposure-increasing buy at the leverage and risk-budget limits.
+
+        The current gross exposure and open risk are measured on the live
+        portfolio with the traded symbol marked at the execution price. The
+        buy may add at most the room left under the leverage limit (max gross
+        exposure) and under the portfolio risk budget (max fraction of the
+        portfolio value at risk, each dollar of exposure adding
+        ``stop_loss_pct`` of risk). A zero stop-loss distance disables the
+        risk budget, mirroring :meth:`RiskManager.check_signal`.
+
+        Args:
+            symbol: Symbol being bought.
+            quantity: Quantity the buy requests after the position limit.
+            price: Execution price for the buy.
+
+        Returns:
+            The risk-adjusted quantity to buy, or 0.0 when a limit leaves no
+            room.
+
+        """
+        risk_manager = self.risk_manager
+        if risk_manager is None:  # pragma: no cover - guarded by the caller
+            return quantity
+
+        portfolio_limit = risk_manager.portfolio_limit
+        total_value = self.portfolio.total_value
+        positions = self.portfolio.get_positions()
+        held = positions.get(symbol)
+        if held is not None:
+            # Mark the traded symbol at the execution price so the increment
+            # the buy adds is measured in the same price space as the trade.
+            positions[symbol] = replace(held, current_price=price)
+
+        current_gross = sum(abs(position.market_value) for position in positions.values())
+        leverage_room = portfolio_limit.max_leverage * total_value - current_gross
+        if leverage_room <= 0:
+            return 0.0
+        quantity = min(quantity, leverage_room / price)
+
+        stop_loss_pct = portfolio_limit.stop_loss_pct
+        if stop_loss_pct > 0:
+            current_risk = portfolio_limit.portfolio_risk(positions)
+            risk_room = portfolio_limit.max_portfolio_risk * total_value - current_risk
+            if risk_room <= 0:
+                return 0.0
+            quantity = min(quantity, risk_room / (stop_loss_pct * price))
+
+        return quantity
 
     def execute_actions(
         self,
@@ -777,8 +851,9 @@ class Rebalancer:
 
         When a :class:`~quant_trading.risk.manager.RiskManager` is configured,
         buy actions are risk-adjusted at execution time to enforce the position
-        limit and the drawdown gate, mirroring the checks performed during
-        action generation.
+        limit, the leverage limit, the portfolio risk budget and the drawdown
+        gate, mirroring the checks performed during signal evaluation in
+        :meth:`RiskManager.check_signal`.
 
         The execution price of an action is taken from the ``prices`` map when
         it holds a positive price for the symbol, and otherwise from the
