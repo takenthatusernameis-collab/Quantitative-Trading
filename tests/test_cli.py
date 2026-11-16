@@ -842,6 +842,16 @@ class TestIsSupportedInterval:
         assert _is_supported_interval("3x") is False
         assert _is_supported_interval("") is False
         assert _is_supported_interval(None) is False
+        # Zero minutes/hours match the regex but fail the "> 0" check.
+        assert _is_supported_interval("0m") is False
+        assert _is_supported_interval("0 minutes") is False
+        assert _is_supported_interval("0h") is False
+        assert _is_supported_interval("0 hours") is False
+        # Positive minutes/hours are supported.
+        assert _is_supported_interval("5m") is True
+        assert _is_supported_interval("30 minutes") is True
+        assert _is_supported_interval("2h") is True
+        assert _is_supported_interval("1 hours") is True
 
 
 class TestListStrategies:
@@ -2796,6 +2806,78 @@ class TestRunCombined:
         assert "Error - data unavailable" in captured.out
         assert "✗" in captured.out
 
+    @patch("examples.cli.run_backtest")
+    def test_run_combined_with_no_strategies_returns_one(
+        self,
+        mock_run_backtest: MagicMock,
+        capsys: CaptureFixture[Any],
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        """When there are no strategies to run, combined mode reports it and returns 1.
+
+        The per-strategy error handler returns 1 on the first failure, so the
+        "no strategies completed" path is only reachable when the strategy list
+        itself is empty.
+        """
+        from examples import cli as cli_module
+
+        monkeypatch.setattr(cli_module, "BUILTIN_STRATEGY_KEYS", [])
+
+        class _EmptyRegistry:
+            def primary_keys(self) -> list[str]:
+                return []
+
+            def get_all(self) -> dict[str, type]:
+                return {}
+
+        monkeypatch.setattr(cli_module, "get_registry", lambda: _EmptyRegistry())
+
+        args = argparse.Namespace(
+            symbols=["AAPL"],
+            strategy="ma",
+            combined=True,
+            initial_capital=100000.0,
+            commission=0.001,
+            slippage=0.0005,
+            interval="1d",
+            fast_period=10,
+            slow_period=30,
+            rsi_period=14,
+            rsi_oversold=30,
+            rsi_overbought=70,
+            bb_period=20,
+            bb_std=2.0,
+            st_period=10,
+            st_multiplier=3.0,
+            aroon_period=25,
+            dc_period=20,
+            dc_exit_period=20,
+            stoch_k_period=14,
+            stoch_d_period=3,
+            stoch_oversold=20,
+            stoch_overbought=80,
+            stoch_use_midline=False,
+            sar_step=0.02,
+            sar_max_step=0.20,
+            tenkan_period=9,
+            kijun_period=26,
+            senkou_b_period=52,
+            output=None,
+        )
+
+        config = Config()
+        from datetime import datetime, timedelta
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365)
+
+        result = run_combined(args, config, start_date, end_date)
+        assert result == 1
+        mock_run_backtest.assert_not_called()
+
+        captured = capsys.readouterr()
+        assert "No strategies completed successfully" in captured.out
+
     def test_run_combined_report_import_error_returns_one(
         self, capsys: CaptureFixture[Any], tmp_path: Path, monkeypatch: MonkeyPatch
     ) -> None:
@@ -3232,6 +3314,41 @@ class TestMain:
             mock_parse.side_effect = SystemExit(0)
             result = main()
         assert result == 0
+
+    def test_main_system_exit_from_run_cli_returns_zero(
+        self, capsys: CaptureFixture[Any], monkeypatch: MonkeyPatch
+    ) -> None:
+        """main() converts SystemExit(0) raised inside _run_cli into exit code 0.
+
+        ``create_config`` is called after ``_run_cli``'s internal
+        ``parse_args`` try/except, so a ``SystemExit`` raised there propagates
+        to ``main()``'s handler and must be converted to a clean exit code.
+        """
+        from examples import cli as cli_module
+
+        def _raise_zero(*args: Any, **kwargs: Any) -> None:
+            raise SystemExit(0)
+
+        monkeypatch.setattr(cli_module, "create_config", _raise_zero)
+        argv = ["--offline", "--symbols", "AAPL", "--days", "60"]
+        with patch("sys.argv", ["cli.py"] + argv):
+            result = main()
+        assert result == 0
+
+    def test_main_system_exit_from_run_cli_returns_one(
+        self, capsys: CaptureFixture[Any], monkeypatch: MonkeyPatch
+    ) -> None:
+        """main() converts SystemExit(2) raised inside _run_cli into exit code 1."""
+        from examples import cli as cli_module
+
+        def _raise_two(*args: Any, **kwargs: Any) -> None:
+            raise SystemExit(2)
+
+        monkeypatch.setattr(cli_module, "create_config", _raise_two)
+        argv = ["--offline", "--symbols", "AAPL", "--days", "60"]
+        with patch("sys.argv", ["cli.py"] + argv):
+            result = main()
+        assert result == 1
 
 
 class TestFactoryIntegration:
