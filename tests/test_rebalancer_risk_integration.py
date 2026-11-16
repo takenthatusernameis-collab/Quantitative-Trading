@@ -58,6 +58,88 @@ def test_multi_round_solvency() -> None:
         _assert_solvency(portfolio, rm)
 
 
+def test_execute_explicit_buy_enforces_position_limit() -> None:
+    """Execution of an explicitly constructed buy caps quantity at position limit.
+
+    Without a drawdown breach, the drawdown gate is not triggered, but the
+    position limit should still cap the buy at the maximum allowed position
+    value.
+    """
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    portfolio.add_holding("MSFT", 10, 100.0)  # existing long worth 1000
+    rm = RiskManager(initial_capital=100000.0, max_position_size=0.1, max_drawdown=0.20)
+    # No drawdown breach
+    rebalancer = Rebalancer(
+        portfolio,
+        target_allocation={"MSFT": 0.5},
+        risk_manager=rm,
+    )
+    prices = {"MSFT": 100.0}
+
+    # Request a buy that would exceed the position limit
+    # Max position value = 0.1 * 100000 = 10000
+    # Current position value = 10 * 100 = 1000
+    # Room = 9000, so max additional shares = 9000 / 100 = 90
+    from quant_trading.portfolio.rebalancer import RebalanceAction
+    explicit_buy = RebalanceAction(
+        symbol="MSFT",
+        action="buy",
+        quantity=490.0,  # would exceed position limit
+        reason="test_explicit",
+    )
+
+    executions = rebalancer.execute_actions([explicit_buy], prices=prices, commission=0.001, slippage=0.0005)
+
+    # The position limit caps the buy at ~90 shares (9000 / 100.0015 with fees)
+    assert len(executions) == 1
+    assert executions[0].symbol == "MSFT"
+    assert executions[0].action == "buy"
+    assert executions[0].executed_quantity == pytest.approx(90.0, rel=0.02)  # capped by position limit
+    assert portfolio.cash >= 0.0
+    # Position value should not exceed max_value (10000)
+    msft_holding = portfolio.holdings["MSFT"]
+    assert abs(msft_holding.market_value) <= rm.position_limit.max_value + 1e-3
+    _assert_solvency(portfolio, rm)
+
+
+def test_execute_short_covering_buy_allowed_during_drawdown_breach() -> None:
+    """Execution of an explicitly constructed short-covering buy is allowed during
+    a drawdown breach.
+
+    Mirrors the generation-time behavior: a buy that covers an open short
+    reduces gross exposure and is permitted even during a drawdown breach.
+    """
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    portfolio.add_holding("AAPL", -100, 100.0)  # open short
+    rm = RiskManager(initial_capital=100000.0, max_position_size=0.1, max_drawdown=0.05)
+    rm.portfolio_risk.current_drawdown = -0.5  # breach the loss limit
+    rebalancer = Rebalancer(
+        portfolio,
+        target_allocation={"AAPL": 0.0},
+        risk_manager=rm,
+    )
+    prices = {"AAPL": 100.0}
+
+    from quant_trading.portfolio.rebalancer import RebalanceAction
+    explicit_buy = RebalanceAction(
+        symbol="AAPL",
+        action="buy",
+        quantity=100.0,  # exactly covers the short
+        reason="test_explicit_short_cover",
+    )
+
+    executions = rebalancer.execute_actions([explicit_buy], prices=prices, commission=0.001, slippage=0.0005)
+
+    # Short-covering buy executes despite drawdown breach
+    assert len(executions) == 1
+    assert executions[0].symbol == "AAPL"
+    assert executions[0].action == "buy"
+    assert executions[0].executed_quantity == pytest.approx(100.0)
+    assert "AAPL" not in portfolio.holdings  # short flattened
+    assert portfolio.cash >= 0.0
+    _assert_solvency(portfolio, rm)
+
+
 def test_drawdown_breach_stops_buys_allows_sells() -> None:
     """A breached drawdown limit blocks buys but still permits sells."""
     portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
@@ -172,4 +254,47 @@ def test_drawdown_breach_executes_short_covering_buy_but_not_exposure_increasing
     msft_execs = [e for e in executions if e.symbol == "MSFT"]
     assert msft_execs == []
     assert portfolio.holdings["MSFT"].quantity == pytest.approx(msft_before)
+    _assert_solvency(portfolio, rm)
+
+
+def test_drawdown_breach_execute_explicit_exposure_increasing_buy_enforces_solvency() -> None:
+    """Execution of an explicitly constructed exposure-increasing buy during a
+    drawdown breach is blocked by the drawdown gate.
+
+    The rebalancer's generate_rebalance_actions blocks exposure-increasing buys
+    during a drawdown breach via _risk_adjust_buy. The execute_actions method
+    now mirrors this behavior via _risk_adjust_execution_buy, ensuring that
+    even explicitly constructed actions cannot bypass the drawdown gate.
+    """
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    portfolio.add_holding("MSFT", 10, 100.0)  # existing long
+    rm = RiskManager(initial_capital=100000.0, max_position_size=0.1, max_drawdown=0.05)
+    rm.portfolio_risk.current_drawdown = -0.5  # breach the loss limit
+    rebalancer = Rebalancer(
+        portfolio,
+        target_allocation={"MSFT": 0.5},
+        risk_manager=rm,
+    )
+    prices = {"MSFT": 100.0}
+
+    # Construct an explicit exposure-increasing buy action that would be
+    # blocked by generate_rebalance_actions during a drawdown breach.
+    from quant_trading.portfolio.rebalancer import RebalanceAction
+    explicit_buy = RebalanceAction(
+        symbol="MSFT",
+        action="buy",
+        quantity=490.0,
+        reason="test_explicit",
+    )
+
+    executions = rebalancer.execute_actions([explicit_buy], prices=prices, commission=0.001, slippage=0.0005)
+
+    # The drawdown gate blocks the exposure-increasing buy entirely.
+    assert len(executions) == 1
+    assert executions[0].symbol == "MSFT"
+    assert executions[0].action == "buy"
+    assert executions[0].executed_quantity == 0.0
+    assert executions[0].cash_effect == 0.0
+    assert portfolio.cash >= 0.0
+    assert portfolio.holdings["MSFT"].quantity == pytest.approx(10.0)
     _assert_solvency(portfolio, rm)

@@ -705,6 +705,53 @@ class Rebalancer:
 
         return actions
 
+    def _risk_adjust_execution_buy(
+        self,
+        symbol: str,
+        quantity: float,
+        price: float,
+    ) -> float:
+        """Size a buy down so the resulting position stays within risk limits.
+
+        Mirrors the risk checks in :meth:`_risk_adjust_buy` but operates on
+        the live portfolio state at execution time. Enforces the position
+        limit (max position fraction and max position dollar value) and the
+        drawdown gate (blocks exposure-increasing buys during a drawdown
+        breach). A buy that covers an open short is permitted.
+
+        Args:
+            symbol: Symbol being bought.
+            quantity: Quantity the action requests to buy.
+            price: Execution price for the buy.
+
+        Returns:
+            The risk-adjusted quantity to buy, or 0.0 when the buy is not
+            permitted.
+
+        """
+        if self.risk_manager is None or not self.risk_manager.risk_enabled:
+            return quantity
+
+        drawdown_limit = self.risk_manager.portfolio_limit.max_drawdown
+        current_position = self._position_of(symbol)
+        if (
+            drawdown_limit > 0
+            and self.risk_manager.portfolio_risk.current_drawdown <= -drawdown_limit
+            and current_position >= 0
+        ):
+            # A buy that covers an open short reduces gross exposure, so it is
+            # not halted by a drawdown breach (mirrors RiskManager.check_signal).
+            return 0.0
+
+        limit = self.risk_manager.position_limit
+        total_value = self.portfolio.total_value
+        max_position_value = min(limit.max_size * total_value, limit.max_value)
+        current_position_value = current_position * price
+        room = max_position_value - current_position_value
+        if room <= 0:
+            return 0.0
+        return min(quantity, room / price)
+
     def execute_actions(
         self,
         actions: list[RebalanceAction],
@@ -727,6 +774,11 @@ class Rebalancer:
         offset position is removed from the portfolio. The execution reports
         what was actually traded, which may be less than the quantity the
         action asked for.
+
+        When a :class:`~quant_trading.risk.manager.RiskManager` is configured,
+        buy actions are risk-adjusted at execution time to enforce the position
+        limit and the drawdown gate, mirroring the checks performed during
+        action generation.
 
         The execution price of an action is taken from the ``prices`` map when
         it holds a positive price for the symbol, and otherwise from the
@@ -767,7 +819,9 @@ class Rebalancer:
 
             if quantity > 0 and price > 0:
                 if action.action == "buy":
-                    self.portfolio.add_holding(action.symbol, quantity, price, commission, slippage)
+                    quantity = self._risk_adjust_execution_buy(action.symbol, quantity, price)
+                    if quantity > 0:
+                        self.portfolio.add_holding(action.symbol, quantity, price, commission, slippage)
                 elif action.action == "sell":
                     self.portfolio.remove_holding(
                         action.symbol, quantity, price, commission, slippage
@@ -778,7 +832,7 @@ class Rebalancer:
                 RebalanceExecution(
                     symbol=action.symbol,
                     action=action.action,
-                    requested_quantity=quantity,
+                    requested_quantity=abs(action.quantity),
                     executed_quantity=abs(position_after - position_before),
                     price=price,
                     cash_effect=self.portfolio.cash - cash_before,
