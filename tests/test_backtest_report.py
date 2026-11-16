@@ -1548,10 +1548,10 @@ def test_build_risk_attribution_table_non_dict_data() -> None:
     result = _create_sample_result()
 
     class BadAttribution:
-        def to_dict(self):
+        def to_dict(self) -> str:
             return "not a dict"
 
-    result.risk_attribution = BadAttribution()
+    result.risk_attribution = BadAttribution()  # type: ignore[assignment]
     html = _build_risk_attribution_table(result, _get_theme_colors("light"))
     assert html == ""
 
@@ -1609,19 +1609,16 @@ def test_comparison_monthly_heatmap_insufficient_data_branches() -> None:
     dates = pd.date_range("2024-01-01", periods=1, freq="D")
     equity = pd.Series([100000.0], index=dates)
 
-    class Metrics:
-        pass
-
     class Result:
-        def __init__(self, equity):
+        def __init__(self, equity: pd.Series) -> None:
             self.equity_curve = equity
             self.trades = pd.DataFrame()
-            self.metrics = Metrics()
+            self.metrics = BacktestMetrics()
 
     result1 = Result(equity)
     results = [("Strategy A", result1)]
 
-    png = _create_comparison_monthly_returns_heatmap(results, _get_theme_colors("light"), 150)
+    png = _create_comparison_monthly_returns_heatmap(results, _get_theme_colors("light"), 150)  # type: ignore[arg-type]
     assert isinstance(png, str) and len(png) > 0
 
     # Case 2: monthly_returns is empty after resample
@@ -1630,7 +1627,7 @@ def test_comparison_monthly_heatmap_insufficient_data_branches() -> None:
     result2 = Result(equity2)
     results2 = [("Strategy B", result2)]
 
-    png2 = _create_comparison_monthly_returns_heatmap(results2, _get_theme_colors("light"), 150)
+    png2 = _create_comparison_monthly_returns_heatmap(results2, _get_theme_colors("light"), 150)  # type: ignore[arg-type]
     assert isinstance(png2, str) and len(png2) > 0
 
 
@@ -1646,14 +1643,11 @@ def test_comparison_trade_distribution_chart_no_data() -> None:
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
     equity = pd.Series([100000.0] * 10, index=dates)
 
-    class Metrics:
-        pass
-
     class Result:
-        def __init__(self, equity, trades):
+        def __init__(self, equity: pd.Series, trades: pd.DataFrame) -> None:
             self.equity_curve = equity
             self.trades = trades
-            self.metrics = Metrics()
+            self.metrics = BacktestMetrics()
 
     # All results have empty trades or no pnl column
     trades_empty = pd.DataFrame()
@@ -1662,12 +1656,14 @@ def test_comparison_trade_distribution_chart_no_data() -> None:
     trades_no_pnl = pd.DataFrame({"symbol": ["AAPL"], "action": ["buy"]})
     result2 = Result(equity, trades_no_pnl)
 
-    trades_all_nan = pd.DataFrame({"symbol": ["AAPL", "MSFT"], "action": ["buy", "sell"], "pnl": [np.nan, np.nan]})
+    trades_all_nan = pd.DataFrame(
+        {"symbol": ["AAPL", "MSFT"], "action": ["buy", "sell"], "pnl": [np.nan, np.nan]}
+    )
     result3 = Result(equity, trades_all_nan)
 
     results = [("Strategy A", result1), ("Strategy B", result2), ("Strategy C", result3)]
 
-    png = _create_comparison_trade_distribution_chart(results, _get_theme_colors("light"), 150)
+    png = _create_comparison_trade_distribution_chart(results, _get_theme_colors("light"), 150)  # type: ignore[arg-type]
     assert isinstance(png, str) and len(png) > 0
     assert _create_comparison_trade_distribution_chart.__doc__ is not None
 
@@ -1684,19 +1680,16 @@ def test_comparison_rolling_sharpe_chart_no_data() -> None:
     dates = pd.date_range("2024-01-01", periods=30, freq="D")
     equity = pd.Series([100000.0] * 30, index=dates)
 
-    class Metrics:
-        pass
-
     class Result:
-        def __init__(self, equity):
+        def __init__(self, equity: pd.Series) -> None:
             self.equity_curve = equity
             self.trades = pd.DataFrame()
-            self.metrics = Metrics()
+            self.metrics = BacktestMetrics()
 
     result1 = Result(equity)  # Less than 60 bars
     results = [("Strategy A", result1)]
 
-    png = _create_comparison_rolling_sharpe_chart(results, _get_theme_colors("light"), 150)
+    png = _create_comparison_rolling_sharpe_chart(results, _get_theme_colors("light"), 150)  # type: ignore[arg-type]
     assert isinstance(png, str) and len(png) > 0
 
 
@@ -1712,19 +1705,16 @@ def test_comparison_rolling_sharpe_chart_empty_after_dropna() -> None:
     dates = pd.date_range("2024-01-01", periods=70, freq="D")
     equity = pd.Series([100000.0] * 70, index=dates)
 
-    class Metrics:
-        pass
-
     class Result:
-        def __init__(self, equity):
+        def __init__(self, equity: pd.Series) -> None:
             self.equity_curve = equity
             self.trades = pd.DataFrame()
-            self.metrics = Metrics()
+            self.metrics = BacktestMetrics()
 
     result1 = Result(equity)
     results = [("Strategy A", result1)]
 
-    png = _create_comparison_rolling_sharpe_chart(results, _get_theme_colors("light"), 150)
+    png = _create_comparison_rolling_sharpe_chart(results, _get_theme_colors("light"), 150)  # type: ignore[arg-type]
     assert isinstance(png, str) and len(png) > 0
 
 
@@ -1740,19 +1730,16 @@ def test_comparison_rolling_volatility_chart_no_data() -> None:
     dates = pd.date_range("2024-01-01", periods=30, freq="D")
     equity = pd.Series([100000.0] * 30, index=dates)
 
-    class Metrics:
-        pass
-
     class Result:
-        def __init__(self, equity):
+        def __init__(self, equity: pd.Series) -> None:
             self.equity_curve = equity
             self.trades = pd.DataFrame()
-            self.metrics = Metrics()
+            self.metrics = BacktestMetrics()
 
     result1 = Result(equity)  # Less than 60 bars
     results = [("Strategy A", result1)]
 
-    png = _create_comparison_rolling_volatility_chart(results, _get_theme_colors("light"), 150)
+    png = _create_comparison_rolling_volatility_chart(results, _get_theme_colors("light"), 150)  # type: ignore[arg-type]
     assert isinstance(png, str) and len(png) > 0
 
 
@@ -1768,19 +1755,16 @@ def test_comparison_rolling_volatility_chart_empty_after_dropna() -> None:
     dates = pd.date_range("2024-01-01", periods=70, freq="D")
     equity = pd.Series([100000.0] * 70, index=dates)
 
-    class Metrics:
-        pass
-
     class Result:
-        def __init__(self, equity):
+        def __init__(self, equity: pd.Series) -> None:
             self.equity_curve = equity
             self.trades = pd.DataFrame()
-            self.metrics = Metrics()
+            self.metrics = BacktestMetrics()
 
     result1 = Result(equity)
     results = [("Strategy A", result1)]
 
-    png = _create_comparison_rolling_volatility_chart(results, _get_theme_colors("light"), 150)
+    png = _create_comparison_rolling_volatility_chart(results, _get_theme_colors("light"), 150)  # type: ignore[arg-type]
     assert isinstance(png, str) and len(png) > 0
 
 
@@ -1794,11 +1778,8 @@ def test_build_comparison_risk_attribution_exception_handling() -> None:
     equity_curve = pd.Series([100000] * 10, index=dates)
     trades_df = pd.DataFrame()
 
-    class GoodMetrics:
-        pass
-
     class BadAttribution:
-        def to_dict(self):
+        def to_dict(self) -> dict[str, Any]:
             # This will cause the metric_fn to raise when accessing keys
             return {"confidence": "not_a_number"}  # Will fail on "{:.2%}".format
 
@@ -1806,7 +1787,7 @@ def test_build_comparison_risk_attribution_exception_handling() -> None:
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=GoodMetrics(),
+        metrics=BacktestMetrics(),
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -1820,7 +1801,7 @@ def test_build_comparison_risk_attribution_exception_handling() -> None:
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=GoodMetrics(),
+        metrics=BacktestMetrics(),
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -1829,7 +1810,7 @@ def test_build_comparison_risk_attribution_exception_handling() -> None:
         total_return_pct=0.0,
         total_costs=0.0,
     )
-    bad_result.risk_attribution = BadAttribution()
+    bad_result.risk_attribution = BadAttribution()  # type: ignore[assignment]
 
     results = [("Good", good_result), ("Bad", bad_result)]
     html = _build_comparison_risk_attribution(results, _get_theme_colors("light"))
@@ -1849,18 +1830,15 @@ def test_build_comparison_risk_attribution_non_dict_data() -> None:
     equity_curve = pd.Series([100000] * 10, index=dates)
     trades_df = pd.DataFrame()
 
-    class Metrics:
-        pass
-
     class BadAttribution:
-        def to_dict(self):
+        def to_dict(self) -> str:
             return "not a dict"
 
     good_result = BacktestResult(
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=Metrics(),
+        metrics=BacktestMetrics(),
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -1874,7 +1852,7 @@ def test_build_comparison_risk_attribution_non_dict_data() -> None:
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=Metrics(),
+        metrics=BacktestMetrics(),
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -1883,7 +1861,7 @@ def test_build_comparison_risk_attribution_non_dict_data() -> None:
         total_return_pct=0.0,
         total_costs=0.0,
     )
-    bad_result.risk_attribution = BadAttribution()
+    bad_result.risk_attribution = BadAttribution()  # type: ignore[assignment]
 
     results = [("Good", good_result), ("Bad", bad_result)]
     html = _build_comparison_risk_attribution(results, _get_theme_colors("light"))
@@ -1905,14 +1883,11 @@ def test_build_comparison_risk_attribution_no_symbols() -> None:
     equity_curve = pd.Series([100000] * 10, index=dates)
     trades_df = pd.DataFrame()
 
-    class Metrics:
-        pass
-
     result = BacktestResult(
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=Metrics(),
+        metrics=BacktestMetrics(),
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -1953,14 +1928,11 @@ def test_build_comparison_risk_attribution_with_chart() -> None:
     equity_curve = pd.Series([100000] * 10, index=dates)
     trades_df = pd.DataFrame()
 
-    class Metrics:
-        pass
-
     result1 = BacktestResult(
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=Metrics(),
+        metrics=BacktestMetrics(),
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -1985,7 +1957,7 @@ def test_build_comparison_risk_attribution_with_chart() -> None:
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=Metrics(),
+        metrics=BacktestMetrics(),
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -2028,14 +2000,11 @@ def test_comparison_risk_attribution_chart_no_attribution() -> None:
     equity_curve = pd.Series([100000] * 10, index=dates)
     trades_df = pd.DataFrame()
 
-    class Metrics:
-        pass
-
     result1 = BacktestResult(
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=Metrics(),
+        metrics=BacktestMetrics(),
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -2049,7 +2018,7 @@ def test_comparison_risk_attribution_chart_no_attribution() -> None:
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=Metrics(),
+        metrics=BacktestMetrics(),
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -2080,14 +2049,11 @@ def test_comparison_risk_attribution_chart_none_attribution() -> None:
     equity_curve = pd.Series([100000] * 10, index=dates)
     trades_df = pd.DataFrame()
 
-    class Metrics:
-        pass
-
     result1 = BacktestResult(
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=Metrics(),
+        metrics=BacktestMetrics(),
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -2102,7 +2068,7 @@ def test_comparison_risk_attribution_chart_none_attribution() -> None:
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=Metrics(),
+        metrics=BacktestMetrics(),
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -2142,18 +2108,15 @@ def test_comparison_risk_attribution_chart_non_dict_attribution() -> None:
     equity_curve = pd.Series([100000] * 10, index=dates)
     trades_df = pd.DataFrame()
 
-    class Metrics:
-        pass
-
     class BadAttribution:
-        def to_dict(self):
+        def to_dict(self) -> str:
             return "not a dict"
 
     result1 = BacktestResult(
         equity_curve=equity_curve,
         trades=trades_df,
         positions={},
-        metrics=Metrics(),
+        metrics=BacktestMetrics(),
         start_date=dates[0],
         end_date=dates[-1],
         initial_capital=100000.0,
@@ -2162,7 +2125,7 @@ def test_comparison_risk_attribution_chart_non_dict_attribution() -> None:
         total_return_pct=0.0,
         total_costs=0.0,
     )
-    result1.risk_attribution = BadAttribution()
+    result1.risk_attribution = BadAttribution()  # type: ignore[assignment]
 
     results = [("Strategy A", result1)]
 
