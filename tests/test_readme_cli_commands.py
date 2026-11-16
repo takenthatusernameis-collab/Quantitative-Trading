@@ -116,6 +116,7 @@ def _expects_failure(args: list[str]) -> bool:
         or text.endswith("--wf-step-size 0")
         or "--wf-windows 0" in text
         or "--synthetic-days 0" in text
+        or "--offline --days 0" in text
         or "--synthetic-seed -1" in text
         or "--commission 1.5" in text
         or "--risk-free-rate nan" in text

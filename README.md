@@ -252,6 +252,7 @@ must be at least 1, because a value of 0 makes the window empty (`start == end`)
 and a negative value inverts it (`start > end`); both silently produce an
 all-zero backtest instead of a real result:
 
+```
 ```bash
 $ python examples/cli.py --offline --days 0 --symbols AAPL
 Error: invalid --days: the value must be at least 1 (got 0)
