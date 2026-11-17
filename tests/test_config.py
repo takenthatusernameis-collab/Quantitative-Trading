@@ -364,6 +364,19 @@ class TestConfig:
         assert config.logging_level == "DEBUG"
         assert config.output_dir == "./out"
 
+    def test_update_nested_dict_without_merge_hooks_replaces_value(self) -> None:
+        """If a nested sub-config lacks merge hooks, update falls back to setattr."""
+        config = Config()
+        original = config.data
+        original.to_dict = None  # type: ignore[assignment, method-assign]
+        replacement = {"provider": "synthetic"}
+
+        config.update(data=replacement)
+
+        assert config.data == replacement
+        assert config.data is not original
+        assert config.backtest == BacktestConfig()
+
     def test_yaml_round_trip(self) -> None:
         """to_yaml followed by from_yaml must reproduce the configuration."""
         config = Config(
