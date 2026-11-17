@@ -33,3 +33,8 @@
 ## One precise next task
 
 - Run remaining test modules in batches (e.g. strategies, backtest, portfolio, rebalancer) to a terminal summary, then re-measure overall coverage with `python -m pytest --cov=quant_trading -q` to confirm stability. Do NOT add tests for metrics.py:871/960.
+
+## Update (this session)
+- Ran remaining test modules in batches: backtest_analysis/engine (148), backtest_metrics/report (122), config/cost (227), data_providers (37), integration (5), limits/holding_pnl (138); combined risk suite 389 passed.
+- Re-measured coverage: quant_trading/risk/metrics.py 99% (only 871, 960 remain, provably unreachable). Project-wide TOTAL 19% (dominated by uncovered example scripts/strategies; risk module fully covered).
+- No code changes; task complete.
