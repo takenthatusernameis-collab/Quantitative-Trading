@@ -21,6 +21,7 @@ documented command that breaks at runtime is caught immediately.
 """
 
 import contextlib
+import importlib.util
 import io
 import os
 import re
@@ -49,6 +50,34 @@ def _cli_section() -> str:
     remainder = text[start + 1 :]
     end = remainder.find("\n## ")
     return remainder if end == -1 else remainder[:end]
+
+
+def _module_available(name: str) -> bool:
+    """Return whether the optional dependency ``name`` is importable.
+
+    Used to skip, rather than fail, README commands that require an optional
+    extra (``reporting`` for matplotlib, ``bayesian`` for scikit-optimize) when
+    that extra is not installed. The README documents these as optional extras,
+    so the default test run (which does not install them) must still pass.
+    """
+    return importlib.util.find_spec(name) is not None
+
+
+def _requires_matplotlib(args: list[str]) -> bool:
+    """Whether a documented command generates a charted report (reporting extra)."""
+    return "--report" in args and "--report-no-charts" not in args
+
+
+def _requires_skopt(args: list[str]) -> bool:
+    """Whether a documented command selects the bayesian optimizer (bayesian extra)."""
+    for index, arg in enumerate(args):
+        if (
+            arg in {"--optimizer", "--wf-optimizer"}
+            and index + 1 < len(args)
+            and args[index + 1] == "bayesian"
+        ):
+            return True
+    return False
 
 
 def _readme_commands() -> list[pytest.ParameterSet]:
@@ -97,6 +126,23 @@ def _readme_commands() -> list[pytest.ParameterSet]:
                     continue
                 test_id = " ".join(args)[:70]
                 marks = [pytest.mark.slow] if "--combined" in args else []
+                # Commands that need an optional extra are skipped (not failed)
+                # when that extra is not installed, so the default suite passes
+                # with only the core dependencies.
+                if _requires_matplotlib(args) and not _module_available("matplotlib"):
+                    marks.append(
+                        pytest.mark.skip(
+                            reason="matplotlib not installed; install the optional "
+                            "'reporting' extra (pip install quant-trading[reporting])"
+                        )
+                    )
+                if _requires_skopt(args) and not _module_available("skopt"):
+                    marks.append(
+                        pytest.mark.skip(
+                            reason="scikit-optimize not installed; install the optional "
+                            "'bayesian' extra (pip install quant-trading[bayesian])"
+                        )
+                    )
                 params.append(pytest.param(args, marks=marks, id=test_id))
     return params
 
