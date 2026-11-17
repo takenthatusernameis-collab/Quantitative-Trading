@@ -1576,6 +1576,237 @@ def test_documented_args_exist_in_signature() -> None:
     )
 
 
+# Signature parameters with no matching entry in the docstring ``Args:``
+# section. Existing, undocumented parameters are grandfathered in
+# _UNDOCUMENTED_PARAM_ALLOWLIST after a deliberate decision: the guard keeps
+# the current debt visible and prevents new undocumented parameters from
+# being added, but does not fail the suite on today's documented state.
+# Remove an entry when the parameter is documented; never add entries for
+# new code -- new parameters must be documented in Args.
+_UNDOCUMENTED_PARAM_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
+    {
+        ("examples/cli.py", "_is_supported_interval", "interval"),
+        ("examples/cli.py", "_print_monte_carlo_analysis", "mc"),
+        ("examples/cli.py", "_print_regime_analysis", "analysis"),
+        ("examples/cli.py", "_print_trade_analysis", "analysis"),
+        ("examples/cli.py", "_save_json_output", "output_format"),
+        ("examples/cli.py", "_write_report", "include_charts"),
+        ("examples/cli.py", "_write_report", "include_monthly_heatmap"),
+        ("examples/cli.py", "_write_report", "include_rolling_metrics"),
+        ("examples/cli.py", "_write_report", "include_trade_details"),
+        ("examples/cli.py", "_write_report", "path"),
+        ("examples/cli.py", "_write_report", "result"),
+        ("examples/cli.py", "_write_report", "theme"),
+        ("examples/cli.py", "create_config", "args"),
+        ("examples/cli.py", "create_param_grid", "args"),
+        ("examples/cli.py", "create_strategy", "args"),
+        ("examples/cli.py", "init_config", "path"),
+        ("examples/cli.py", "run_combined", "args"),
+        ("examples/cli.py", "run_combined", "config"),
+        ("examples/cli.py", "run_combined", "end_date"),
+        ("examples/cli.py", "run_combined", "start_date"),
+        ("examples/cli.py", "run_optimization", "args"),
+        ("examples/cli.py", "run_optimization", "config"),
+        ("examples/cli.py", "run_optimization", "end_date"),
+        ("examples/cli.py", "run_optimization", "start_date"),
+        ("examples/cli.py", "run_walk_forward", "args"),
+        ("examples/cli.py", "run_walk_forward", "config"),
+        ("examples/cli.py", "run_walk_forward", "end_date"),
+        ("examples/cli.py", "run_walk_forward", "start_date"),
+        ("examples/cli.py", "validate_config", "path"),
+        ("quant_trading/backtest/report.py", "_build_comparison_risk_attribution", "colors"),
+        ("quant_trading/backtest/report.py", "_build_comparison_risk_attribution", "dpi"),
+        ("quant_trading/backtest/report.py", "_build_comparison_risk_attribution", "results"),
+        ("quant_trading/backtest/report.py", "_build_comparison_summary_cards", "colors"),
+        ("quant_trading/backtest/report.py", "_build_comparison_summary_cards", "results"),
+        ("quant_trading/backtest/report.py", "_build_comparison_table", "colors"),
+        ("quant_trading/backtest/report.py", "_build_comparison_table", "results"),
+        ("quant_trading/backtest/report.py", "_build_metrics_table", "colors"),
+        ("quant_trading/backtest/report.py", "_build_metrics_table", "result"),
+        ("quant_trading/backtest/report.py", "_build_risk_attribution_table", "colors"),
+        ("quant_trading/backtest/report.py", "_build_risk_attribution_table", "result"),
+        ("quant_trading/backtest/report.py", "_build_trades_table", "colors"),
+        ("quant_trading/backtest/report.py", "_build_trades_table", "max_rows"),
+        ("quant_trading/backtest/report.py", "_build_trades_table", "result"),
+        ("quant_trading/backtest/report.py", "_create_comparison_drawdown_chart", "colors"),
+        ("quant_trading/backtest/report.py", "_create_comparison_drawdown_chart", "dpi"),
+        ("quant_trading/backtest/report.py", "_create_comparison_drawdown_chart", "results"),
+        ("quant_trading/backtest/report.py", "_create_comparison_equity_chart", "colors"),
+        ("quant_trading/backtest/report.py", "_create_comparison_equity_chart", "dpi"),
+        ("quant_trading/backtest/report.py", "_create_comparison_equity_chart", "results"),
+        (
+            "quant_trading/backtest/report.py",
+            "_create_comparison_monthly_returns_heatmap",
+            "colors",
+        ),
+        ("quant_trading/backtest/report.py", "_create_comparison_monthly_returns_heatmap", "dpi"),
+        (
+            "quant_trading/backtest/report.py",
+            "_create_comparison_monthly_returns_heatmap",
+            "results",
+        ),
+        ("quant_trading/backtest/report.py", "_create_comparison_risk_attribution_chart", "colors"),
+        ("quant_trading/backtest/report.py", "_create_comparison_risk_attribution_chart", "dpi"),
+        (
+            "quant_trading/backtest/report.py",
+            "_create_comparison_risk_attribution_chart",
+            "results",
+        ),
+        ("quant_trading/backtest/report.py", "_create_comparison_rolling_sharpe_chart", "colors"),
+        ("quant_trading/backtest/report.py", "_create_comparison_rolling_sharpe_chart", "dpi"),
+        ("quant_trading/backtest/report.py", "_create_comparison_rolling_sharpe_chart", "results"),
+        (
+            "quant_trading/backtest/report.py",
+            "_create_comparison_rolling_volatility_chart",
+            "colors",
+        ),
+        ("quant_trading/backtest/report.py", "_create_comparison_rolling_volatility_chart", "dpi"),
+        (
+            "quant_trading/backtest/report.py",
+            "_create_comparison_rolling_volatility_chart",
+            "results",
+        ),
+        (
+            "quant_trading/backtest/report.py",
+            "_create_comparison_trade_distribution_chart",
+            "colors",
+        ),
+        ("quant_trading/backtest/report.py", "_create_comparison_trade_distribution_chart", "dpi"),
+        (
+            "quant_trading/backtest/report.py",
+            "_create_comparison_trade_distribution_chart",
+            "results",
+        ),
+        ("quant_trading/backtest/report.py", "_create_drawdown_chart", "colors"),
+        ("quant_trading/backtest/report.py", "_create_drawdown_chart", "dpi"),
+        ("quant_trading/backtest/report.py", "_create_drawdown_chart", "result"),
+        ("quant_trading/backtest/report.py", "_create_equity_curve_chart", "colors"),
+        ("quant_trading/backtest/report.py", "_create_equity_curve_chart", "dpi"),
+        ("quant_trading/backtest/report.py", "_create_equity_curve_chart", "result"),
+        ("quant_trading/backtest/report.py", "_create_monthly_returns_heatmap", "colors"),
+        ("quant_trading/backtest/report.py", "_create_monthly_returns_heatmap", "dpi"),
+        ("quant_trading/backtest/report.py", "_create_monthly_returns_heatmap", "result"),
+        ("quant_trading/backtest/report.py", "_create_rolling_sharpe_chart", "colors"),
+        ("quant_trading/backtest/report.py", "_create_rolling_sharpe_chart", "dpi"),
+        ("quant_trading/backtest/report.py", "_create_rolling_sharpe_chart", "result"),
+        ("quant_trading/backtest/report.py", "_create_rolling_volatility_chart", "colors"),
+        ("quant_trading/backtest/report.py", "_create_rolling_volatility_chart", "dpi"),
+        ("quant_trading/backtest/report.py", "_create_rolling_volatility_chart", "result"),
+        ("quant_trading/backtest/report.py", "_create_trade_distribution_chart", "colors"),
+        ("quant_trading/backtest/report.py", "_create_trade_distribution_chart", "dpi"),
+        ("quant_trading/backtest/report.py", "_create_trade_distribution_chart", "result"),
+        ("quant_trading/backtest/report.py", "_fig_to_base64", "dpi"),
+        ("quant_trading/backtest/report.py", "_fig_to_base64", "fig"),
+        ("quant_trading/backtest/report.py", "_format_metric", "fmt"),
+        ("quant_trading/backtest/report.py", "_format_metric", "value"),
+        ("quant_trading/backtest/report.py", "_get_css", "colors"),
+        ("quant_trading/backtest/report.py", "_get_theme_colors", "theme"),
+        ("quant_trading/data/providers.py", "_coerce_datetime", "value"),
+        ("quant_trading/data/providers.py", "_iso", "value"),
+        ("quant_trading/data/yfinance_provider.py", "_fetch_commodity", "function"),
+        ("quant_trading/data/yfinance_provider.py", "_fetch_economic_indicator", "function"),
+        ("quant_trading/optimization/base.py", "_coerce_datetime", "value"),
+        ("quant_trading/optimization/base.py", "_iso", "value"),
+        ("quant_trading/optimization/sensitivity.py", "_fig_to_base64", "dpi"),
+        ("quant_trading/optimization/sensitivity.py", "_fig_to_base64", "fig"),
+        ("quant_trading/optimization/walk_forward.py", "_coerce_datetime", "value"),
+        ("quant_trading/optimization/walk_forward.py", "_iso", "value"),
+        ("quant_trading/optimization/walk_forward.py", "from_dict", "data"),
+        ("quant_trading/portfolio/portfolio.py", "from_dict", "data"),
+        ("quant_trading/portfolio/rebalancer.py", "_coerce_datetime", "value"),
+        ("quant_trading/portfolio/rebalancer.py", "_iso", "value"),
+        ("quant_trading/risk/limits.py", "_coerce_datetime", "value"),
+        ("quant_trading/risk/limits.py", "_iso", "value"),
+        ("quant_trading/risk/metrics.py", "from_dict", "data"),
+        ("quant_trading/strategies/examples.py", "_calculate_adl", "df"),
+        ("quant_trading/strategies/examples.py", "_calculate_aroon", "high"),
+        ("quant_trading/strategies/examples.py", "_calculate_aroon", "low"),
+        ("quant_trading/strategies/examples.py", "_calculate_choppiness_index", "df"),
+        ("quant_trading/strategies/examples.py", "_calculate_sar", "high"),
+        ("quant_trading/strategies/examples.py", "_calculate_sar", "low"),
+        ("quant_trading/strategies/examples.py", "_calculate_stochastic", "close"),
+        ("quant_trading/strategies/examples.py", "_calculate_stochastic", "high"),
+        ("quant_trading/strategies/examples.py", "_calculate_stochastic", "low"),
+        ("quant_trading/strategies/examples.py", "_calculate_supertrend", "df"),
+        ("quant_trading/strategies/examples.py", "generate_signals", "data"),
+    }
+)
+
+
+def _tree_undocumented_params(tree: ast.Module, rel: str) -> list[str]:
+    """Return signature parameters missing from the docstring Args section.
+
+    Split out so a caller can feed it a synthetic tree (the guard's negative
+    control does exactly that) without writing to disk.
+    """
+    offenders: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        docstring = ast.get_docstring(node)
+        if not docstring:
+            continue
+        params = _signature_param_names(node) - {"self", "cls"}
+        # *args and **kwargs cannot be exhaustively documented entry by entry.
+        if node.args.vararg is not None:
+            params.discard(node.args.vararg.arg)
+        if node.args.kwarg is not None:
+            params.discard(node.args.kwarg.arg)
+        documented = set(_docstring_arg_names(docstring))
+        for name in sorted(params - documented):
+            if (rel, node.name, name) in _UNDOCUMENTED_PARAM_ALLOWLIST:
+                continue
+            offenders.append(
+                f"{rel}:{node.lineno}: {node.name} does not document parameter {name!r}"
+            )
+    return offenders
+
+
+def _undocumented_params() -> list[str]:
+    """Return every signature parameter missing its docstring Args entry."""
+    offenders: list[str] = []
+    for directory in _DOC_SCAN_DIRS:
+        for path in sorted((REPO_ROOT / directory).rglob("*.py")):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            offenders.extend(_tree_undocumented_params(_parse(path), rel))
+    return offenders
+
+
+def test_documented_args_cover_signature_params() -> None:
+    """Every signature parameter must have a docstring Args entry.
+
+    A parameter a caller can pass but the docstring never names is a
+    documentation defect: the caller has no contract for what it does or what
+    values it accepts. This guard parses every function's ``Args:`` section
+    (AST, no imports) and fails when a signature parameter has no matching
+    entry. It is conservative: ``self``/``cls`` and ``*args``/``**kwargs`` are
+    skipped, and functions without a docstring are not checked.
+
+    Existing undocumented parameters are grandfathered in
+    _UNDOCUMENTED_PARAM_ALLOWLIST; the guard prevents the debt from growing
+    rather than failing on today's state.
+
+    A negative control feeds the detector a synthetic function whose docstring
+    documents ``a`` but not ``b`` and asserts the drift is reported, proving
+    the guard fires on the defect it guards against rather than passing
+    vacuously.
+    """
+    synthetic = (
+        "def f(a: int, b: int = 0) -> None:\n"
+        "    '''Do a thing.\n\n"
+        "    Args:\n"
+        "        a: first value.\n"
+        "    '''\n"
+    )
+    injected = _tree_undocumented_params(ast.parse(synthetic), "synthetic.py")
+    assert injected, "guard did not fire on an injected undocumented parameter"
+
+    offenders = _undocumented_params()
+    assert not offenders, "signature parameters missing from docstring Args:\n" + "\n".join(
+        offenders
+    )
+
+
 # An ``(default X)`` note inside a docstring Args entry.
 _DOC_DEFAULT_NOTE = re.compile(r"\(default ([^)]+)\)")
 # The start of a docstring Args entry: ``name: description``.

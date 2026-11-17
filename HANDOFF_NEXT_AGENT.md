@@ -12,10 +12,16 @@
   - Skips `self`/`cls` and `*args`/`**kwargs` to avoid false positives.
   - Includes negative control with a synthetic "ghost" argument to prove the guard fires.
   - Caught and removed 22 stale `function:` parameter docstring entries in `AlphaVantageProvider._fetch_economic` overloads that were removed from the signature but remained in the docstring (commit dfc58b7).
+- **Completed the pending `Returns:` guard** (commit 23cc6b3): `test_documented_returns_match_signature` plus helpers `_docstring_returns_type`, `_normalize_return_annotation`, `_returns_type_match`, `_tree_returns_mismatches`, `_documented_returns_mismatches`. AST-only, conservative, with negative control.
+- **Added the complementary inverse-Args guard** `test_documented_args_cover_signature_params` (plus helpers `_tree_undocumented_params`, `_undocumented_params` and allowlist `_UNDOCUMENTED_PARAM_ALLOWLIST`) to `tests/test_repository_integrity.py`.
+  - Flags every signature parameter with no matching entry in the function's docstring `Args:` section (skips `self`/`cls` and `*args`/`**kwargs`).
+  - Grandfathers 116 pre-existing undocumented parameters in an explicit allowlist keyed by `(path, function, parameter)` so the guard prevents regressions without failing on today's state; entries are removed as parameters get documented.
+  - Includes negative control: a synthetic function documenting `a` but not `b` must be flagged.
+  - AST-only, no imports; scans `quant_trading/` and `examples/`.
 
 ## What was actually verified (evidence)
 
-- `python -m pytest tests/test_repository_integrity.py -q` -> `35 passed` (was 33; +2 new guards including negative controls).
+- `python -m pytest tests/test_repository_integrity.py -q` -> `37 passed` (35 base + `test_documented_returns_match_signature` + `test_documented_args_cover_signature_params`, each with its negative control).
 - Full default suite (sample): `python -m pytest tests/test_risk_attribution.py tests/test_risk_metrics.py tests/test_packaging.py -q` -> `158 passed`.
 - `python -m pytest quant_trading/risk/metrics.py -q` -> `20 passed` (doctests).
 - `python -m ruff check .` -> `All checks passed!`
@@ -25,8 +31,8 @@
 ## What remains unresolved / not verified
 
 - CI workflow execution on GitHub Actions was not observed (workflow files are controller-managed and cannot be persisted by an agent session).
-- The guards cover `Args:` sections only; they do not check `Returns:`/`Raises:`/`Yields:`/`Examples:` sections for drift.
-- The inverse-drift guard does not validate that every signature parameter has a corresponding `Args:` entry (missing documentation is not flagged).
+- The guards cover `Args:` and `Returns:` sections only; they do not check `Raises:`/`Yields:`/`Examples:` sections for drift.
+- The inverse-Args guard grandfathers existing debt via `_UNDOCUMENTED_PARAM_ALLOWLIST`; it does not yet flag functions that have a docstring but no `Args:` section at all, nor does it require every signature parameter to be documented (allowlisted ones are exempt by design).
 
 ## Approaches that already failed and why (do not repeat)
 
@@ -34,7 +40,7 @@
 
 ## One precise next task (if continuing this line of work)
 
-- Extend the docstring guards to also scan `Returns:` sections for documented return values that don't match the function's actual return annotation (if present), reusing the existing AST parsing infrastructure in `tests/test_repository_integrity.py`.
-  - Evidence: several functions in the codebase have `Returns:` docstring sections that may drift from type annotations.
-  - Constraints: AST-only, no imports; conservative (only compare when both a clean literal return note and a signature return annotation exist).
+- Add a `Yields:` section docstring guard to `tests/test_repository_integrity.py`: for generator functions whose return annotation is `Generator[YieldT, ...]` / `Iterator[YieldT, ...]` / `AsyncGenerator[YieldT, ...]`, compare the documented yield type prefix in the `Yields:` section against the annotation's yield type argument. Reuse the existing AST parsing infrastructure (`_parse`, `ast.get_docstring`, section-scanning pattern from `_docstring_returns_type`).
+  - Constraints: AST-only, no imports; conservative (only compare when both a clean literal yield-type note and a signature return annotation with a yield type argument exist); skip `Raises:`/`Examples:` for now.
+  - Include a negative control (synthetic generator documenting `int` yields while annotated `-> Generator[str, None, None]` must be flagged).
   - Verify: `python -m pytest tests/test_repository_integrity.py -q` plus `ruff`, `black`, `mypy` on touched files.
