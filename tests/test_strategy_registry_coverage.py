@@ -300,7 +300,9 @@ def test_every_defined_strategy_class_is_registered() -> None:
     common mistake of adding a strategy class but forgetting to register it.
     """
     registry = get_registry()
-    registered = {registry.get(key).__name__ for key in registry.primary_keys()}
+    registered = {
+        cls.__name__ for key in registry.primary_keys() if (cls := registry.get(key)) is not None
+    }
     defined = _defined_strategy_classes()
     missing = sorted(defined - registered)
     assert not missing, (

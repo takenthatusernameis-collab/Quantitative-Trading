@@ -4379,3 +4379,67 @@ def test_repository_is_black_formatted() -> None:
         if result.returncode != 0:
             offenders.append(f"{directory}: black --check failed\n{result.stderr}{result.stdout}")
     assert not offenders, "repository is not black-formatted:\n" + "\n".join(offenders)
+
+
+def test_repository_is_ruff_clean() -> None:
+    """Every Python source file must satisfy ``ruff check``.
+
+    ``[tool.ruff]`` in ``pyproject.toml`` pins the linter and line length
+    (100), and the repository treats linting as a quality gate, but nothing
+    previously enforced it. A lint violation slipped into the tree and made
+    ``ruff check`` fail while the test suite stayed green. This guard runs the
+    pinned linter over the same source directories the other integrity checks
+    cover and fails with the offending paths.
+
+    The check is skipped when Ruff is not installed so environments that only
+    install the runtime dependencies are unaffected.
+    """
+    pytest.importorskip("ruff")
+
+    offenders: list[str] = []
+    for directory in SOURCE_DIRS:
+        root = REPO_ROOT / directory
+        if not root.exists():
+            continue
+        result = subprocess.run(
+            [sys.executable, "-m", "ruff", "check", str(root)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            offenders.append(f"{directory}: ruff check failed\n{result.stderr}{result.stdout}")
+    assert not offenders, "repository is not ruff-clean:\n" + "\n".join(offenders)
+
+
+def test_repository_is_mypy_clean() -> None:
+    """Every Python source file must satisfy ``mypy``.
+
+    ``[tool.mypy]`` in ``pyproject.toml`` pins the type checker, and the
+    repository treats type-checking as a quality gate, but nothing previously
+    enforced it. A type error slipped into the tree and made ``mypy`` fail while
+    the test suite stayed green. This guard runs the pinned checker over the
+    same source directories the other integrity checks cover and fails with the
+    offending paths.
+
+    The check is skipped when Mypy is not installed so environments that only
+    install the runtime dependencies are unaffected.
+    """
+    pytest.importorskip("mypy")
+
+    offenders: list[str] = []
+    for directory in SOURCE_DIRS:
+        root = REPO_ROOT / directory
+        if not root.exists():
+            continue
+        result = subprocess.run(
+            [sys.executable, "-m", "mypy", str(root)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            offenders.append(f"{directory}: mypy failed\n{result.stderr}{result.stdout}")
+    assert not offenders, "repository is not mypy-clean:\n" + "\n".join(offenders)
