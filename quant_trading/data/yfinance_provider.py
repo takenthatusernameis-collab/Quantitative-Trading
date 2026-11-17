@@ -2175,7 +2175,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -2225,7 +2224,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -2277,7 +2275,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -2328,7 +2325,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -2378,7 +2374,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -2428,7 +2423,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -2478,7 +2472,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -2528,7 +2521,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -3047,7 +3039,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -3098,7 +3089,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -3155,7 +3145,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -3211,7 +3200,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -3262,7 +3250,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -3327,7 +3314,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -3391,7 +3377,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -3456,7 +3441,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -3522,7 +3506,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -3578,7 +3561,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -3633,7 +3615,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -3688,7 +3669,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -3743,7 +3723,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
 
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
@@ -3804,7 +3783,6 @@ class AlphaVantageProvider(DataProvider):
             start: Optional inclusive start of the requested window.
             end: Optional inclusive end of the requested window.
             interval: Bar interval or endpoint selector.
-            function: Economic indicator function code (e.g., "REAL_GDP", "CPI").
             indicator: Indicator name (e.g. ``"SMA"``, ``"RSI"``).
 
         Returns:

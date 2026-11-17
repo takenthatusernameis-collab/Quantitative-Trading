@@ -1496,6 +1496,86 @@ def test_readme_backtick_quant_trading_names_resolve() -> None:
 # so the guard cannot misfire on a test-local docstring.
 _DOC_SCAN_DIRS = ("quant_trading", "examples")
 
+
+def _docstring_arg_names(docstring: str) -> list[str]:
+    """Return every argument name listed in the ``Args:`` section of a docstring."""
+    names: list[str] = []
+    in_args = False
+    for line in docstring.splitlines():
+        stripped = line.strip()
+        if re.match(r"^Args:\s*$", stripped):
+            in_args = True
+            continue
+        if in_args and _DOC_SECTION_END.match(stripped):
+            in_args = False
+            continue
+        if not in_args:
+            continue
+        entry = _DOC_ARG_ENTRY.match(stripped)
+        if entry:
+            names.append(entry.group(1))
+    return names
+
+
+def _signature_param_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    """Return every parameter name declared by a function signature."""
+    args = node.args
+    names = {a.arg for a in args.posonlyargs + args.args + args.kwonlyargs}
+    if args.vararg is not None:
+        names.add(args.vararg.arg)
+    if args.kwarg is not None:
+        names.add(args.kwarg.arg)
+    return names
+
+
+def _tree_documented_unknown_args(tree: ast.Module, rel: str) -> list[str]:
+    """Return Args entries that name a parameter the signature does not have."""
+    offenders: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        docstring = ast.get_docstring(node)
+        if not docstring:
+            continue
+        params = _signature_param_names(node)
+        for name in _docstring_arg_names(docstring):
+            if name in ("self", "cls"):
+                continue
+            if name in params:
+                continue
+            offenders.append(
+                f"{rel}:{node.lineno}: {node.name} documents unknown argument {name!r}"
+            )
+    return offenders
+
+
+def _documented_unknown_args() -> list[str]:
+    offenders: list[str] = []
+    for directory in _DOC_SCAN_DIRS:
+        for path in sorted((REPO_ROOT / directory).rglob("*.py")):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            offenders.extend(_tree_documented_unknown_args(_parse(path), rel))
+    return offenders
+
+
+def test_documented_args_exist_in_signature() -> None:
+    synthetic = (
+        "def f(x: int = 0) -> None:\n"
+        "    '''Do a thing.\n\n"
+        "    Args:\n"
+        "        x: value.\n"
+        "        y: ghost (default 1).\n"
+        "    '''\n"
+    )
+    injected = _tree_documented_unknown_args(ast.parse(synthetic), "synthetic.py")
+    assert injected, "guard did not fire on an injected unknown argument"
+
+    offenders = _documented_unknown_args()
+    assert not offenders, "docstring Args name a parameter not in the signature:\n" + "\n".join(
+        offenders
+    )
+
+
 # An ``(default X)`` note inside a docstring Args entry.
 _DOC_DEFAULT_NOTE = re.compile(r"\(default ([^)]+)\)")
 # The start of a docstring Args entry: ``name: description``.
