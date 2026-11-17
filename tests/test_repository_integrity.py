@@ -4157,6 +4157,12 @@ def test_documented_quant_trading_xrefs_resolve() -> None:
 
 
 def _normalize_update_positions_annotation(annotation: ast.expr | None) -> str | None:
+    """Normalize the ``positions`` parameter annotation of ``update_positions``.
+
+    Only the base-class form ``dict[str, Position]`` is recognized; any other
+    form (including no annotation) is reported as a mismatch so callers that
+    pass a differently keyed or valued mapping are never silently accepted.
+    """
     if annotation is None:
         return None
     if isinstance(annotation, ast.Subscript):
@@ -4180,6 +4186,14 @@ def _normalize_update_positions_annotation(annotation: ast.expr | None) -> str |
 
 
 def _tree_update_positions_override_mismatches(tree: ast.Module, rel: str) -> list[str]:
+    """Return every ``update_positions`` override that drifts from the base signature.
+
+    ``Strategy.update_positions`` declares
+    ``(self, positions: dict[str, Position]) -> None``. Overrides must keep the
+    parameter names, count, ``positions`` annotation, and ``-> None`` return.
+    Split out so a caller can feed it a synthetic tree (the guard's negative
+    control does exactly that) without writing to disk.
+    """
     mismatches: list[str] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
@@ -4231,6 +4245,7 @@ def _tree_update_positions_override_mismatches(tree: ast.Module, rel: str) -> li
 
 
 def _documented_update_positions_override_mismatches() -> list[str]:
+    """Return every ``update_positions`` override that drifts from the base signature."""
     mismatches: list[str] = []
     for path in _python_files():
         rel = path.relative_to(REPO_ROOT).as_posix()
@@ -4239,6 +4254,20 @@ def _documented_update_positions_override_mismatches() -> list[str]:
 
 
 def test_update_positions_overrides_annotated() -> None:
+    """Every ``update_positions`` override must keep the base signature.
+
+    ``Strategy.update_positions`` declares
+    ``(self, positions: dict[str, Position]) -> None``. A subclass that drifts
+    the parameter names, the parameter count, the ``positions`` annotation, or
+    the return annotation silently breaks callers that rely on position
+    tracking. This guard is purely structural (AST, no imports) and only checks
+    overrides outside the base ``Strategy`` class.
+
+    Negative controls inject a wrong first/second parameter name, wrong
+    parameter counts (0 and 2), a wrong ``positions`` annotation, and a
+    wrong/missing return annotation, and assert each drift is reported. A
+    positive control with the canonical signature passes.
+    """
     synthetic_first_param_mismatch = (
         "class MyStrategy(Strategy):\n"
         "    def update_positions(cls, positions: dict[str, Position]) -> None:\n"

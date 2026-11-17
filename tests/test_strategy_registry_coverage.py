@@ -31,6 +31,7 @@ from quant_trading.strategies.factory import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES_DIR = REPO_ROOT / "examples"
+STRATEGY_EXAMPLES_MODULE = REPO_ROOT / "quant_trading" / "strategies" / "examples.py"
 TEST_STRATEGIES_MODULE = REPO_ROOT / "tests" / "test_strategies_examples.py"
 
 
@@ -51,6 +52,25 @@ def _example_strategy_classes() -> set[str]:
                 for alias in node.names:
                     imported.add(alias.name)
     return imported
+
+
+def _defined_strategy_classes() -> set[str]:
+    """Return every ``Strategy`` subclass defined in the strategy examples module.
+
+    Only classes whose base list includes ``Strategy`` are returned; helper or
+    abstract classes that do not inherit from it are ignored so the reverse
+    coverage check below does not demand registration of non-strategy types.
+    """
+    tree = ast.parse(STRATEGY_EXAMPLES_MODULE.read_text(encoding="utf-8"))
+    names: set[str] = set()
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for base in node.bases:
+            if isinstance(base, ast.Name) and base.id == "Strategy":
+                names.add(node.name)
+                break
+    return names
 
 
 def _example_test_classes() -> set[str]:
@@ -244,6 +264,26 @@ def test_every_registered_strategy_has_a_test_class() -> None:
         f"Registered strategies with no Test<ClassName> in "
         f"tests/test_strategies_examples.py: {missing}. "
         f"Add a Test<ClassName> subclass covering the strategy's behaviour."
+    )
+
+
+def test_every_defined_strategy_class_is_registered() -> None:
+    """Every ``Strategy`` subclass in the examples module is reachable via the registry.
+
+    A concrete strategy class that no ``register_strategy(...)`` call wires up
+    is dead code: it cannot be constructed through :func:`create_strategy` and
+    never appears in ``--list-strategies``. This is the reverse of
+    ``test_every_registered_strategy_has_an_example_script`` and catches the
+    common mistake of adding a strategy class but forgetting to register it.
+    """
+    registry = get_registry()
+    registered = {registry.get(key).__name__ for key in registry.primary_keys()}
+    defined = _defined_strategy_classes()
+    missing = sorted(defined - registered)
+    assert not missing, (
+        "Strategy subclasses defined in "
+        "quant_trading/strategies/examples.py but not registered: "
+        f"{missing}. Register each with register_strategy(...)."
     )
 
 
