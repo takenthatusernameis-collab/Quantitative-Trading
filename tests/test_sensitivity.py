@@ -355,3 +355,106 @@ class TestMatplotlibUnavailable:
         df = pd.DataFrame({"fast_period": [5, 10], "score": [1.0, 2.0]})
         with pytest.raises(ImportError, match="matplotlib is required"):
             create_1d_sensitivity_plot(df, "fast_period", "score")
+
+
+class TestSensitivityReportHtmlStructure:
+    """Tests for generate_sensitivity_report_html structural guarantees."""
+
+    def test_generate_sensitivity_report_html_headings_per_section_when_charts_fail(
+        self, monkeypatch
+    ):
+        """Each documented analysis section gets an <h3> even when all charts error.
+
+        The report documents every section (1D per param, 2D per pair, interactions)
+        regardless of whether the chart helper succeeds. This test asserts that
+        every section title appears as an <h3> and no <img> tags are present.
+        """
+        from quant_trading.optimization import sensitivity
+
+        all_results = [
+            {"params": {"fast_period": 5, "slow_period": 20}, "score": 1.5},
+            {"params": {"fast_period": 10, "slow_period": 20}, "score": 2.0},
+            {"params": {"fast_period": 5, "slow_period": 30}, "score": 1.0},
+            {"params": {"fast_period": 10, "slow_period": 30}, "score": 1.8},
+        ]
+
+        def _boom(*args, **kwargs):
+            raise ValueError("chart failure")
+
+        monkeypatch.setattr(sensitivity, "create_1d_sensitivity_plot", _boom)
+        monkeypatch.setattr(sensitivity, "create_2d_sensitivity_heatmap", _boom)
+        monkeypatch.setattr(sensitivity, "create_parameter_interaction_heatmap", _boom)
+
+        html = generate_sensitivity_report_html(all_results)
+
+        assert "Summary Statistics" in html
+        assert "<img" not in html
+
+        expected_sections = [
+            "1D Sensitivity: fast_period",
+            "1D Sensitivity: slow_period",
+            "2D Sensitivity: fast_period vs slow_period",
+            "Parameter Interactions",
+        ]
+        for section in expected_sections:
+            assert f"<h3>{section}</h3>" in html, f"Missing <h3> for section: {section}"
+
+    def test_generate_sensitivity_report_html_headings_per_section_matplotlib_unavailable(
+        self, monkeypatch
+    ):
+        """Each documented section gets an <h3> when matplotlib is unavailable.
+
+        Setting MATPLOTLIB_AVAILABLE=False simulates the optional dependency
+        not being installed. The report must still document every section with
+        an <h3> heading and include the summary table, with no <img> tags.
+        """
+        from quant_trading.optimization import sensitivity
+
+        all_results = [
+            {"params": {"fast_period": 5, "slow_period": 20}, "score": 1.5},
+            {"params": {"fast_period": 10, "slow_period": 20}, "score": 2.0},
+            {"params": {"fast_period": 5, "slow_period": 30}, "score": 1.0},
+            {"params": {"fast_period": 10, "slow_period": 30}, "score": 1.8},
+        ]
+
+        monkeypatch.setattr(sensitivity, "MATPLOTLIB_AVAILABLE", False)
+
+        html = generate_sensitivity_report_html(all_results)
+
+        assert "Summary Statistics" in html
+        assert "<img" not in html
+
+        expected_sections = [
+            "1D Sensitivity: fast_period",
+            "1D Sensitivity: slow_period",
+            "2D Sensitivity: fast_period vs slow_period",
+            "Parameter Interactions",
+        ]
+        for section in expected_sections:
+            assert f"<h3>{section}</h3>" in html, f"Missing <h3> for section: {section}"
+
+    def test_generate_sensitivity_report_html_single_param_only_1d_sections(
+        self, monkeypatch
+    ):
+        """With a single parameter only 1D sections are documented."""
+        from quant_trading.optimization import sensitivity
+
+        all_results = [
+            {"params": {"fast_period": 5}, "score": 1.5},
+            {"params": {"fast_period": 10}, "score": 2.0},
+        ]
+
+        def _boom(*args, **kwargs):
+            raise ValueError("chart failure")
+
+        monkeypatch.setattr(sensitivity, "create_1d_sensitivity_plot", _boom)
+        monkeypatch.setattr(sensitivity, "create_2d_sensitivity_heatmap", _boom)
+        monkeypatch.setattr(sensitivity, "create_parameter_interaction_heatmap", _boom)
+
+        html = generate_sensitivity_report_html(all_results, param_names=["fast_period"])
+
+        assert "Summary Statistics" in html
+        assert "<img" not in html
+        assert "<h3>1D Sensitivity: fast_period</h3>" in html
+        assert "2D Sensitivity" not in html
+        assert "Parameter Interactions" not in html
