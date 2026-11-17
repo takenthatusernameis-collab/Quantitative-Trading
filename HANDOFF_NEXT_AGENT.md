@@ -1,26 +1,24 @@
 ## What changed (this session)
 
-- **Added the `Raises:` section docstring guard** `test_documented_raises_are_real_exceptions` (plus helpers `_docstring_raises_names`, `_is_documented_exception`, `_tree_raises_mismatches`, `_documented_raises_mismatches` and constants `_RAISES_EXCEPTION_NAME`, `_RAISES_BUILTIN_EXCEPTIONS`) to `tests/test_repository_integrity.py`, completing the docstring-section guard set (`Args:`, `Returns:`, `Yields:`, `Raises:`).
-  - For functions with a `Raises:` section, scans entries of the form `ExceptionName: description` and fails when the documented name is not a real exception class.
-  - Conservative: only exception-like names (ending in `Error`/`Exception`, or a builtin exception class, or a qualified name like `yaml.YAMLError`) are checked; prose-only `Raises:` sections, blank lines and continuation lines are skipped so the guard cannot misfire on text such as `"If the path does not exist"`.
-  - AST-only, no imports; scans `quant_trading/` and `examples/`.
-  - Negative control: a synthetic function documenting `NotAnError` (exception-like but not a real class) is flagged.
-  - Positive control: a synthetic function documenting builtin `ValueError` and qualified `yaml.YAMLError` both pass.
-  - Verified against today's state: all 7 distinct documented exception names in the repo are builtins (`ValueError`, `TypeError`, `KeyError`, `ImportError`, `FileNotFoundError`, `AssertionError`, `RuntimeError`) plus the qualified `yaml.YAMLError`; no drift found.
+- **Verified the `Examples:`/`Example:` section docstring guard** `test_documented_examples_are_valid` (plus helpers `_docstring_examples_content`, `_has_doctest_line`, `_validate_doctest_lines`, `_tree_examples_mismatches`, `_documented_examples_mismatches` and the allowlist `_EXAMPLES_ALLOWLIST`) in `tests/test_repository_integrity.py` is fully implemented and passing.
+  - For functions with an `Examples:` or `Example:` section, the guard checks that the section is non-empty and (where a runnable `>>>` doctest line is present) that the doctest line parses as valid Python.
+  - AST-only, no imports; conservative (only flag a missing/empty `Examples:` section when the function advertises one, and only flag `>>>` lines that fail to parse).
+  - Includes negative controls (synthetic function with empty `Examples:` section flagged; synthetic function with unparseable `>>>` line flagged) and a positive control (valid doctest lines pass).
+  - Grandfathers existing debt via `_EXAMPLES_ALLOWLIST` (137 entries covering functions with empty/malformed Examples sections today); new code must have non-empty, parseable Examples sections.
 
 ## What was actually verified (evidence)
 
-- `python -m pytest tests/test_repository_integrity.py -q` -> `39 passed` (38 base + `test_documented_raises_are_real_exceptions`, each with its negative and positive controls).
-- Full default suite (sample): `python -m pytest tests/test_repository_integrity.py tests/test_risk_attribution.py tests/test_risk_metrics.py tests/test_packaging.py -q` -> `197 passed`.
+- `python -m pytest tests/test_repository_integrity.py::test_documented_examples_are_valid -q` -> `PASSED`
+- Full repository integrity suite: `python -m pytest tests/test_repository_integrity.py -q` -> `40 passed`
 - `python -m ruff check .` -> `All checks passed!`
-- `python -m black --check .` -> `160 files would be left unchanged`.
-- `python -m mypy tests/test_repository_integrity.py` -> `Success: no issues found in 1 source file`.
-- Negative/positive controls confirmed firing directly: `NotAnError` flagged, `ValueError`/`yaml.YAMLError` accepted.
+- `python -m black --check .` -> `160 files would be left unchanged`
+- `python -m mypy tests/test_repository_integrity.py` -> `Success: no issues found in 1 source file`
+- Negative/positive controls confirmed firing directly: empty `Examples:` flagged, unparseable `>>>` flagged, valid doctests accepted.
 
 ## What remains unresolved / not verified
 
 - CI workflow execution on GitHub Actions was not observed (workflow files are controller-managed and cannot be persisted by an agent session).
-- The guards cover `Args:`, `Returns:`, `Yields:` and `Raises:` sections only; they do not check `Examples:`/`Example:`/`Notes:`/`Attributes:`/`See Also:`/`References:` sections for drift.
+- The docstring section guards cover `Args:`, `Returns:`, `Yields:`, `Raises:` and `Examples:`/`Example:` sections only; they do not check `Notes:`/`Attributes:`/`See Also:`/`References:` sections for drift.
 - The inverse-Args guard grandfathers existing debt via `_UNDOCUMENTED_PARAM_ALLOWLIST`; it does not yet flag functions that have a docstring but no `Args:` section at all, nor does it require every signature parameter to be documented (allowlisted ones are exempt by design).
 
 ## Approaches that already failed and why (do not repeat)
@@ -29,9 +27,7 @@
 
 ## One precise next task (if continuing this line of work)
 
-- Add an `Examples:`/`Example:` section docstring guard to `tests/test_repository_integrity.py`: for functions with an `Examples:` section, check that the section is non-empty and (where a runnable `>>>` doctest line is present) that the doctest line parses as valid Python. Reuse the existing AST parsing infrastructure (`_parse`, `ast.get_docstring`, section-scanning pattern from `_docstring_returns_type`).
-  - Constraints: AST-only, no imports; conservative (only flag a missing/empty `Examples:` section when the function advertises one, and only flag `>>>` lines that fail to parse); do not import scanned code.
-  - Include a negative control (synthetic function with an `Examples:` section containing an unparseable `>>>` line must be flagged; or an empty `Examples:` section must be flagged).
+- Add a `Notes:` section docstring guard to `tests/test_repository_integrity.py`: for functions with a `Notes:` section, check that the section is non-empty. Reuse the existing AST parsing infrastructure (`_parse`, `ast.get_docstring`, section-scanning pattern from `_docstring_returns_type`).
+  - Constraints: AST-only, no imports; conservative (only flag a missing/empty `Notes:` section when the function advertises one); do not import scanned code.
+  - Include a negative control (synthetic function with an empty `Notes:` section must be flagged).
   - Verify: `python -m pytest tests/test_repository_integrity.py -q` plus `ruff`, `black`, `mypy` on touched files.
-
-(End of file - total 52 lines)
