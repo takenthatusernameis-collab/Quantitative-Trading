@@ -70,6 +70,18 @@ class TestMarginalVaR:
         with pytest.raises(ValueError, match="finite"):
             calculate_marginal_var(returns, weights)
 
+    def test_marginal_var_empty_tail_returns_zeros(self) -> None:
+        # Force an empty tail: portfolio returns contain NaN (inf - inf
+        # cancellation), so np.percentile returns NaN and every
+        # `portfolio_returns <= -var_threshold` comparison is False.
+        returns = pd.DataFrame({"A": [np.inf, 1.0], "B": [-np.inf, 1.0]})
+        weights = pd.Series([0.5, 0.5], index=["A", "B"])
+        with np.errstate(invalid="ignore"):
+            mvar = calculate_marginal_var(returns, weights, confidence=0.95)
+        assert len(mvar) == 2
+        assert mvar.index.tolist() == ["A", "B"]
+        assert (mvar == 0.0).all()
+
 
 class TestComponentVaR:
     """Tests for calculate_component_var."""

@@ -1,27 +1,20 @@
 ## What changed (this session)
 
-- Added `TestConfig.test_update_nested_dict_without_merge_hooks_replaces_value` in `tests/test_config.py` to exercise `Config.update`'s fallback branch when a nested dataclass value is a dict but merge hooks (`to_dict`/`from_dict`) are unavailable (`quant_trading/config/settings.py:851->855` path falls through to `setattr`).
+- Added `TestMarginalVaR.test_marginal_var_empty_tail_returns_zeros` in `tests/test_risk_attribution.py:83` to exercise `calculate_marginal_var`'s empty-tail branch at `quant_trading/risk/metrics.py:691-693` (returns zeros when `tail_mask` is all-false). Deterministic input: returns with an `inf`/`-inf` row whose portfolio return is NaN, so `np.percentile` yields NaN and every `portfolio_returns <= -var_threshold` comparison is False; asserts a zero-valued marginal VaR series indexed `["A", "B"]`.
 
 ## What was actually verified (evidence)
 
-- Focused: `python -m pytest tests/test_config.py::TestConfig::test_update_nested_dict_without_merge_hooks_replaces_value -q` -> `1 passed in 0.44s`.
-- Module: `python -m pytest tests/test_config.py -q` -> `144 passed in 0.75s`.
+- Focused: `python -m pytest tests/test_risk_attribution.py::TestMarginalVaR -q` -> `6 passed in 0.42s` (5 pre-existing + 1 new).
+- Module: `python -m pytest tests/test_risk_attribution.py -q` -> `36 passed in 1.30s`.
 - Formatting: `python -m black --check quant_trading examples tests` -> `All done! ... 160 files would be left unchanged.`
 - Lint: `python -m ruff check quant_trading examples tests` -> `All checks passed!`
 - Types: `python -m mypy quant_trading examples` -> `Success: no issues found in 96 source files`.
-- Full default suite `python -m pytest -q` was started but did not complete within the 120s tool timeout in this session (no completion summary captured). Prior handoff reported `4018 passed, 142 deselected` with 99% coverage; re-run to completion for fresh evidence.
-
-## Coverage gap inspection (remaining misses/partials, from prior baseline)
-
-- `quant_trading/backtest/engine.py:82-84`: `if TYPE_CHECKING:` imports (non-runtime).
-- `quant_trading/config/settings.py:851->855`: fallback branch now covered by new test (re-measure coverage to confirm).
-- `quant_trading/optimization/sensitivity.py:23-24`: matplotlib-unavailable fallback; `362-363`: interaction-matrix exception guard.
-- `quant_trading/portfolio/rebalancer.py:485, 630->600, 764, 816, 824`: defensive/edge branches.
-- `quant_trading/risk/metrics.py:693, 871, 960`: degenerate/defensive branches in marginal VaR / risk-parity / risk-budget iterations.
+- Coverage re-measure: `python -m pytest --cov=quant_trading --cov-report=term-missing -q tests/test_risk_attribution.py` -> `36 passed`; `quant_trading/risk/metrics.py:691-693` no longer appears in the missing-lines report (previously listed miss). Remaining misses in `metrics.py`: `867, 871` (equal-risk-contribution `long_only` clamp / `weight_sum == 0` break), `956, 960` (risk-budget `long_only` clamp / `weight_sum == 0` break), `847, 947` (`total_contrib == 0` break).
 
 ## What remains unresolved / not verified
 
-- Full default test suite not completed to a terminal summary in this session (timeout after 120s); coverage percentage not re-measured after the new test.
+- Full default test suite not completed to a terminal summary (timeout after 120s, per prior handoff); overall coverage percentage not re-measured.
+- Full `--cov` run is too slow for one session; scoped runs per module are preferred.
 
 ## Approaches that failed
 
@@ -29,4 +22,4 @@
 
 ## One precise next task
 
-- Add a focused unit test for `quant_trading/risk/metrics.py:693` in `calculate_marginal_var` (returns zeros when no observations fall in the tail, `if not tail_mask.any(): return ...`). Inspect existing tests in `tests/test_risk_attribution.py::TestMarginalVaR`, craft minimal deterministic input/`confidence` such that `portfolio_returns <= -var_threshold` is all-false (or otherwise provably empty tail), assert zero-valued marginal VaR series/index. Verify with `python -m pytest tests/test_risk_attribution.py -q`, then `python -m pytest -q`, `python -m black --check quant_trading examples tests`, `python -m ruff check quant_trading examples tests`, `python -m mypy quant_trading examples`; if practical run `python -m pytest --cov=quant_trading --cov-report=term-missing -q` and record evidence. Avoid speculative changes to metric semantics.
+- Add a focused unit test covering `quant_trading/risk/metrics.py:871` (`if weight_sum == 0: break` inside `calculate_equal_risk_contribution_weights`, reached when `long_only=True` clamps every `new_weights` to 0). Inspect `tests/test_risk_attribution.py::TestEqualRiskContribution` for conventions, craft deterministic input (e.g. `long_only=True` with returns whose volatility contributions are all <= 0 so `target / contrib <= 0` for every asset, making `ratio <= 0` and all clamped weights zero), assert the function returns without error and inspect the resulting weights. If line 871 proves unreachable deterministically, cover the sibling `total_contrib == 0` break at `metrics.py:847` instead (zero-volatility returns make all contributions 0). Verify with `python -m pytest tests/test_risk_attribution.py -q`, then `python -m pytest -q`, `python -m black --check quant_trading examples tests`, `python -m ruff check quant_trading examples tests`, `python -m mypy quant_trading examples`; optionally `python -m pytest --cov=quant_trading --cov-report=term-missing -q tests/test_risk_attribution.py` and record that line 871 (or fallback 847) is no longer missing. Avoid speculative changes to metric semantics.
