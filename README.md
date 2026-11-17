@@ -214,45 +214,43 @@ The framework includes a CLI for running backtests with configurable data provid
 
 ### Basic Usage
 
+After installation (for example ``pip install -e .``), the CLI is available as
+the ``quant-trading`` console command. During development you can also run it
+directly with ``python examples/cli.py``.
+
 Individual strategy parameters can be overridden on the command line. Each
 strategy exposes its own period/level flags (for example ``--rsi-period`` for
 RSI, ``--macd-fast``/``--macd-slow``/``--macd-signal`` for MACD, and
 ``--bb-period``/``--bb-std`` for Bollinger Bands); run
-``python examples/cli.py --list-strategies`` to see the full strategy list,
-its defaults, and the aliases that resolve to each strategy (for example
-``dc`` for Donchian, ``st`` for SuperTrend, ``psar`` for Parabolic SAR).
+``quant-trading --list-strategies`` (or ``python examples/cli.py --list-strategies``)
+to see the full strategy list, its defaults, and the aliases that resolve to
+each strategy (for example ``dc`` for Donchian, ``st`` for SuperTrend, ``psar``
+for Parabolic SAR).
 
 ```bash
 # Run a backtest with default settings (MA crossover, Yahoo Finance, 1 year daily data)
-python examples/cli.py
+quant-trading
 
 # Run with specific strategy and symbols
-python examples/cli.py --strategy rsi --symbols AAPL MSFT --days 180
+quant-trading --strategy rsi --symbols AAPL MSFT --days 180
 
 # Run with custom parameters
-python examples/cli.py --strategy bb --bb-period 20 --bb-std 2.5 --initial-capital 50000
+quant-trading --strategy bb --bb-period 20 --bb-std 2.5 --initial-capital 50000
 
 # Print the version and exit
-python examples/cli.py --version
+quant-trading --version
 
 # Print the help message and exit
-python examples/cli.py --help
+quant-trading --help
 
 # Set the annualization period explicitly (defaults to a value derived from --interval)
-python examples/cli.py --offline --interval 1wk --periods-per-year 52
+quant-trading --offline --interval 1wk --periods-per-year 52
 
 # Restrict the run to an explicit date range (overrides --days)
-python examples/cli.py --offline --start 2020-01-01 --end 2020-06-01 --symbols AAPL MSFT
+quant-trading --offline --start 2020-01-01 --end 2020-06-01 --symbols AAPL MSFT
 
 # Cache downloaded data in a custom directory
-python examples/cli.py --offline --cache-dir /tmp/quant_cache --symbols AAPL --days 30
-
-The `--days` argument is checked before the run starts when `--start` is not
-provided. It determines the lookback window (`start_date = end_date - days`) and
-must be at least 1, because a value of 0 makes the window empty (`start == end`)
-and a negative value inverts it (`start > end`); both silently produce an
-all-zero backtest instead of a real result:
-
+quant-trading --offline --cache-dir /tmp/quant_cache --symbols AAPL --days 30
 ```
 ```bash
 $ python examples/cli.py --offline --days 0 --symbols AAPL
