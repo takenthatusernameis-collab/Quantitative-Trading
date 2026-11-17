@@ -253,7 +253,7 @@ quant-trading --offline --start 2020-01-01 --end 2020-06-01 --symbols AAPL MSFT
 quant-trading --offline --cache-dir /tmp/quant_cache --symbols AAPL --days 30
 ```
 ```bash
-$ python examples/cli.py --offline --days 0 --symbols AAPL
+$ quant-trading --offline --days 0 --symbols AAPL
 Error: invalid --days: the value must be at least 1 (got 0)
 ```
 
@@ -261,7 +261,7 @@ When `--start` is given explicitly, `--days` is ignored and any value is
 accepted:
 
 ```bash
-$ python examples/cli.py --offline --start 2024-01-01 --days 0 --symbols AAPL
+$ quant-trading --offline --start 2024-01-01 --days 0 --symbols AAPL
 # Runs normally using the explicit start date
 ```
 
@@ -378,7 +378,7 @@ yields an all-zero backtest, while a negative value crashes inside the data
 generator:
 
 ```bash
-$ python examples/cli.py --offline --synthetic-days 0 --symbols AAPL
+$ quant-trading --offline --synthetic-days 0 --symbols AAPL
 Error: invalid --synthetic-days: the value must be at least 1 (got 0)
 ```
 
@@ -387,7 +387,7 @@ the range ``[0, 2**32 - 1]`` (i.e. 0 to 4294967295). A negative seed or a seed
 above ``2**32 - 1`` crashes late inside ``np.random.seed`` with a traceback:
 
 ```bash
-$ python examples/cli.py --offline --synthetic-seed -1 --symbols AAPL
+$ quant-trading --offline --synthetic-seed -1 --symbols AAPL
 Error: invalid --synthetic-seed: the value must be between 0 and 4294967295 (got -1)
 ```
 
@@ -458,7 +458,7 @@ starts and must be in the range ``[0, 1]`` (fractions of trade value). A value
 outside that range is rejected late by the library when the backtest runs:
 
 ```bash
-$ python examples/cli.py --offline --commission 1.5 --symbols AAPL
+$ quant-trading --offline --commission 1.5 --symbols AAPL
 Error: invalid --commission: the value must be in the range [0, 1] (got 1.5)
 ```
 
@@ -468,7 +468,7 @@ would otherwise turn every risk-adjusted metric into `nan` while the run still
 exits 0:
 
 ```bash
-$ python examples/cli.py --offline --risk-free-rate nan --symbols AAPL
+$ quant-trading --offline --risk-free-rate nan --symbols AAPL
 Error: invalid --risk-free-rate: the value must be finite (got nan)
 ```
 
@@ -478,7 +478,7 @@ and ``inf <= 0`` are both ``False``) and would otherwise make the initial value,
 the final value and the return ``nan`` while the run still exits 0:
 
 ```bash
-$ python examples/cli.py --offline --initial-capital nan --symbols AAPL
+$ quant-trading --offline --initial-capital nan --symbols AAPL
 Error: invalid --initial-capital: the value must be greater than 0 and finite (got nan)
 ```
 
@@ -724,21 +724,21 @@ A mistake in the invocation is reported as a one-line message and the exit
 code `1`, not as a traceback:
 
 ```bash
-$ python examples/cli.py --strategy nosuchstrategy --offline --symbols AAPL --days 30
+$ quant-trading --strategy nosuchstrategy --offline --symbols AAPL --days 30
 Error: Unknown strategy: nosuchstrategy. Available: ['ema', 'ma', 'rsi', ...]
 
-$ python examples/cli.py --config missing.yaml --offline --symbols AAPL --days 30
+$ quant-trading --config missing.yaml --offline --symbols AAPL --days 30
 Error: could not read config file 'missing.yaml': No such file or directory
 
 $ cat /tmp/cfg.yaml
 backtest:
   initial_capital: abc
-$ python examples/cli.py --config /tmp/cfg.yaml --offline --symbols AAPL --days 30
+$ quant-trading --config /tmp/cfg.yaml --offline --symbols AAPL --days 30
 Error: invalid config field BacktestConfig.initial_capital: expected <class 'float'>, got str ('abc')
 
 $ cat /tmp/broken.yaml
 backtest: {initial_capital: 100.0
-$ python examples/cli.py --config /tmp/broken.yaml --offline --symbols AAPL --days 30
+$ quant-trading --config /tmp/broken.yaml --offline --symbols AAPL --days 30
 Error: Invalid YAML in /tmp/broken.yaml: ...
 ```
 
@@ -753,7 +753,7 @@ A `--strategy-config` file whose *content* is wrong is reported the same way,
 instead of failing inside the strategy constructor:
 
 ```bash
-$ python examples/cli.py --strategy-config broken.yaml --offline --symbols AAPL --days 30
+$ quant-trading --strategy-config broken.yaml --offline --symbols AAPL --days 30
 Error: invalid strategy config 'broken.yaml': 'parameters' must be a mapping, got int
 ```
 
@@ -762,7 +762,7 @@ starts. A range is `min,max,step` and the step has to be greater than zero,
 because a step of zero would make the grid search loop forever:
 
 ```bash
-$ python examples/cli.py --optimize --ma-fast-range 5,20,0 --offline --symbols AAPL --days 30
+$ quant-trading --optimize --ma-fast-range 5,20,0 --offline --symbols AAPL --days 30
 Error: invalid --ma-fast-range: Invalid range 5,20,0: the step must be greater than 0
 ```
 
@@ -771,7 +771,7 @@ run starts. It has to be at least 1, because a count of zero produces an empty
 simulation set and a confusing downstream failure:
 
 ```bash
-$ python examples/cli.py --monte-carlo --mc-simulations 0 --offline --symbols AAPL --days 30
+$ quant-trading --monte-carlo --mc-simulations 0 --offline --symbols AAPL --days 30
 Error: invalid --mc-simulations: the value must be at least 1 (got 0)
 ```
 
@@ -781,7 +781,7 @@ run starts. It is a fraction of a window's span and has to be in the range
 step above one would exceed a window's span:
 
 ```bash
-$ python examples/cli.py --offline --walk-forward --wf-step-size 0 --symbols AAPL --days 30
+$ quant-trading --offline --walk-forward --wf-step-size 0 --symbols AAPL --days 30
 Error: invalid --wf-step-size: the value must be in the range (0, 1] (got 0.0)
 ```
 
@@ -790,7 +790,7 @@ run starts. It is the number of windows and has to be at least 1, because zero
 or negative windows are degenerate and would produce no out-of-sample result:
 
 ```bash
-$ python examples/cli.py --offline --walk-forward --wf-windows 0 --symbols AAPL --days 30
+$ quant-trading --offline --walk-forward --wf-windows 0 --symbols AAPL --days 30
 Error: invalid --wf-windows: the value must be at least 1 (got 0)
 ```
 
@@ -799,7 +799,7 @@ trading periods per year used for annualization and has to be at least 1, becaus
 negative values divide by zero deep inside the metrics calculation:
 
 ```bash
-$ python examples/cli.py --periods-per-year 0 --symbols AAPL --days 30
+$ quant-trading --periods-per-year 0 --symbols AAPL --days 30
 Error: invalid --periods-per-year: the value must be at least 1 (got 0)
 ```
 
@@ -830,7 +830,7 @@ and yields a silent, degenerate `unknown` regime, while a negative window
 crashes deep inside pandas:
 
 ```bash
-$ python examples/cli.py --offline --regime --regime-window 1 --symbols AAPL --days 30
+$ quant-trading --offline --regime --regime-window 1 --symbols AAPL --days 30
 Error: invalid --regime-window: the value must be at least 2 (got 1)
 ```
 
@@ -839,7 +839,7 @@ checked before the run starts and must be finite. They default to `0.0`, which
 means "derive the threshold from the data", so only `nan`/`inf` are rejected:
 
 ```bash
-$ python examples/cli.py --offline --regime --regime-vol-threshold nan --symbols AAPL
+$ quant-trading --offline --regime --regime-vol-threshold nan --symbols AAPL
 Error: invalid --regime-vol-threshold: the value must be finite (got nan)
 ```
 
@@ -1670,7 +1670,7 @@ The `--mc-seed` argument is checked before the run starts and must be a
 non-negative integer (omit it for a nondeterministic run):
 
 ```
-$ python examples/cli.py --offline --monte-carlo --mc-seed -1 --symbols AAPL
+$ quant-trading --offline --monte-carlo --mc-seed -1 --symbols AAPL
 Error: invalid --mc-seed: the value must be at least 0 (got -1)
 ```
 
