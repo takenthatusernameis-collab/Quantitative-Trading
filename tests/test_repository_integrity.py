@@ -192,6 +192,104 @@ def test_validate_parameters_overrides_annotated_none() -> None:
     assert not offenders, "validate_parameters without -> None:\n" + "\n".join(offenders)
 
 
+def _normalize_generate_signals_annotation(annotation: ast.expr | None) -> str | None:
+    """Normalize a ``generate_signals`` return annotation.
+
+    Only the base-class form ``list[Signal]`` is recognized; any other form
+    (including no annotation) is reported as a mismatch so callers that consume
+    the result as a list of :class:`Signal` are never silently given a
+    different type.
+    """
+    if annotation is None:
+        return None
+    if isinstance(annotation, ast.Subscript):
+        base = annotation.value
+        base_name = base.id if isinstance(base, ast.Name) else None
+        if base_name in {"list", "List"}:
+            slice_expr = annotation.slice
+            if isinstance(slice_expr, ast.Tuple):
+                args = slice_expr.elts
+            else:
+                args = [slice_expr]
+            if len(args) == 1 and isinstance(args[0], ast.Name) and args[0].id == "Signal":
+                return "list[Signal]"
+    return None
+
+
+def _tree_generate_signals_annotation_mismatches(tree: ast.Module, rel: str) -> list[str]:
+    """Return every ``generate_signals`` override that does not return ``list[Signal]``.
+
+    Split out so a caller can feed it a synthetic tree (the guard's negative
+    control does exactly that) without writing to disk.
+    """
+    mismatches: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        if node.name == "Strategy":
+            continue
+        for item in node.body:
+            if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if item.name != "generate_signals":
+                continue
+            normalized = _normalize_generate_signals_annotation(item.returns)
+            if normalized != "list[Signal]":
+                mismatches.append(
+                    f"{rel}:{item.lineno}: {node.name}.generate_signals returns "
+                    f"{normalized or 'untyped'}, expected list[Signal]"
+                )
+    return mismatches
+
+
+def _documented_generate_signals_annotation_mismatches() -> list[str]:
+    """Return every strategy ``generate_signals`` override that drifts from list[Signal]."""
+    mismatches: list[str] = []
+    for directory in ("quant_trading", "examples"):
+        for path in sorted((REPO_ROOT / directory).rglob("*.py")):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            mismatches.extend(_tree_generate_signals_annotation_mismatches(_parse(path), rel))
+    return mismatches
+
+
+def test_generate_signals_overrides_return_list_signal() -> None:
+    """Every ``generate_signals`` override must keep the ``list[Signal]`` return annotation.
+
+    ``Strategy.generate_signals`` declares ``-> list[Signal]``. A subclass that
+    overrides it with a different return annotation (or none) silently breaks
+    callers and the backtest engine, which consume the result as a list of
+    :class:`Signal`. This guard is purely structural (AST, no imports) and only
+    checks overrides outside the base ``Strategy`` class.
+
+    A negative control feeds the detector a subclass whose ``generate_signals``
+    is annotated ``-> list[int]`` and asserts the drift is reported. A positive
+    control with ``-> list[Signal]`` passes.
+    """
+    synthetic_mismatch = (
+        "class MyStrategy(Strategy):\n"
+        "    def generate_signals(self, data) -> list[int]:\n"
+        "        return []\n"
+    )
+    injected = _tree_generate_signals_annotation_mismatches(
+        ast.parse(synthetic_mismatch), "synthetic.py"
+    )
+    assert injected, "guard did not fire on an injected generate_signals annotation drift"
+
+    synthetic_ok = (
+        "class MyStrategy(Strategy):\n"
+        "    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:\n"
+        "        return []\n"
+    )
+    assert not _tree_generate_signals_annotation_mismatches(
+        ast.parse(synthetic_ok), "synthetic.py"
+    ), "guard falsely flagged a list[Signal] generate_signals override"
+
+    mismatches = _documented_generate_signals_annotation_mismatches()
+    assert not mismatches, "generate_signals override return annotation drift:\n" + "\n".join(
+        mismatches
+    )
+
+
 def _cli_strategy_keys(tree: ast.Module) -> set[str]:
     """Extract the string literals of the CLI's ``BUILTIN_STRATEGY_KEYS`` list."""
     keys: set[str] = set()
