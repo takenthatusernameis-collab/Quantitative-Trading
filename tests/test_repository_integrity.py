@@ -161,35 +161,115 @@ def test_no_duplicate_all_entries() -> None:
     assert not offenders, "duplicate __all__ entries:\n" + "\n".join(offenders)
 
 
-def test_validate_parameters_overrides_annotated_none() -> None:
-    """Every override of validate_parameters must declare -> None."""
-    offenders: list[str] = []
-    for path in _python_files():
-        tree = _parse(path)
-        for node in ast.walk(tree):
-            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+def _tree_validate_parameters_override_mismatches(tree: ast.Module, rel: str) -> list[str]:
+    """Return every ``validate_parameters`` override that drifts from the base signature.
+
+    ``Strategy.validate_parameters`` declares ``(self) -> None``. Overrides must
+    keep exactly one parameter named ``self`` and declare ``-> None``.
+    """
+    mismatches: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        if node.name == "Strategy":
+            continue
+        for item in node.body:
+            if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            if node.name != "validate_parameters":
+            if item.name != "validate_parameters":
                 continue
-            # Skip if it's the base class definition (Strategy.validate_parameters)
-            # Only enforce on overrides in subclasses
-            parent_class = None
-            for ancestor in ast.walk(tree):
-                if isinstance(ancestor, ast.ClassDef):
-                    for item in ancestor.body:
-                        if item is node:
-                            parent_class = ancestor.name
-                            break
-                    if parent_class:
-                        break
-            returns = node.returns
+            args = item.args.args
+            if len(args) != 1:
+                shown = ", ".join(arg.arg for arg in args) or "no parameters"
+                mismatches.append(
+                    f"{rel}:{item.lineno}: {node.name}.validate_parameters has {len(args)} "
+                    f"parameter(s) ({shown}), expected exactly (self)"
+                )
+                continue
+            if args[0].arg != "self":
+                mismatches.append(
+                    f"{rel}:{item.lineno}: {node.name}.validate_parameters first parameter is "
+                    f"{args[0].arg!r}, expected self"
+                )
+            returns = item.returns
             if not (
                 (isinstance(returns, ast.Name) and returns.id == "None")
                 or (isinstance(returns, ast.Constant) and returns.value is None)
             ):
-                rel = path.relative_to(REPO_ROOT)
-                offenders.append(f"{rel}:{node.lineno} ({parent_class}.{node.name})")
-    assert not offenders, "validate_parameters without -> None:\n" + "\n".join(offenders)
+                shown = ast.unparse(returns) if returns is not None else "untyped"
+                mismatches.append(
+                    f"{rel}:{item.lineno}: {node.name}.validate_parameters returns "
+                    f"{shown}, expected None"
+                )
+    return mismatches
+
+
+def _documented_validate_parameters_override_mismatches() -> list[str]:
+    """Return every ``validate_parameters`` override that drifts from the base signature."""
+    mismatches: list[str] = []
+    for path in _python_files():
+        rel = path.relative_to(REPO_ROOT).as_posix()
+        mismatches.extend(_tree_validate_parameters_override_mismatches(_parse(path), rel))
+    return mismatches
+
+
+def test_validate_parameters_overrides_annotated_none() -> None:
+    """Every override of ``validate_parameters`` must keep the base signature.
+
+    ``Strategy.validate_parameters`` declares ``(self) -> None``. Overrides must
+    keep exactly one parameter named ``self`` and declare ``-> None``. This
+    guard is purely structural (AST) and only checks overrides outside the base
+    ``Strategy`` class.
+
+    Negative controls inject a wrong first-parameter name and wrong parameter
+    counts (0 and 2), and assert each drift is reported. A positive control with
+    the canonical signature passes.
+    """
+    synthetic_first_param_mismatch = (
+        "class MyStrategy(Strategy):\n"
+        "    def validate_parameters(cls) -> None:\n"
+        "        return\n"
+    )
+    injected = _tree_validate_parameters_override_mismatches(
+        ast.parse(synthetic_first_param_mismatch), "synthetic.py"
+    )
+    assert injected, "guard did not fire on an injected validate_parameters first parameter drift"
+
+    synthetic_arg_count_zero = (
+        "class MyStrategy(Strategy):\n"
+        "    def validate_parameters() -> None:\n"
+        "        return\n"
+    )
+    injected = _tree_validate_parameters_override_mismatches(
+        ast.parse(synthetic_arg_count_zero), "synthetic.py"
+    )
+    assert (
+        injected
+    ), "guard did not fire on an injected validate_parameters parameter count drift (0)"
+
+    synthetic_arg_count_two = (
+        "class MyStrategy(Strategy):\n"
+        "    def validate_parameters(self, extra: int) -> None:\n"
+        "        return\n"
+    )
+    injected = _tree_validate_parameters_override_mismatches(
+        ast.parse(synthetic_arg_count_two), "synthetic.py"
+    )
+    assert (
+        injected
+    ), "guard did not fire on an injected validate_parameters parameter count drift (2)"
+
+    synthetic_ok = (
+        "class MyStrategy(Strategy):\n"
+        "    def validate_parameters(self) -> None:\n"
+        "        return\n"
+    )
+    assert not _tree_validate_parameters_override_mismatches(
+        ast.parse(synthetic_ok), "synthetic.py"
+    ), "guard falsely flagged a canonical validate_parameters override"
+
+    mismatches = _documented_validate_parameters_override_mismatches()
+    assert not mismatches, "validate_parameters override signature drift:\n" + "\n".join(mismatches)
 
 
 def _normalize_generate_signals_annotation(annotation: ast.expr | None) -> str | None:
