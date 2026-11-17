@@ -46,9 +46,12 @@ reporting = [
     "matplotlib>=3.7.0",
 ]
 
+[project.scripts]
+quant-trading = "examples.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["quant_trading*"]
+include = ["quant_trading*", "examples*"]
 
 [tool.setuptools.package-data]
 quant_trading = ["py.typed"]

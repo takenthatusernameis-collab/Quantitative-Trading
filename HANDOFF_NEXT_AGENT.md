@@ -1,30 +1,31 @@
 ## What changed (this session)
 
-- Completed the prior handoff's "one precise next task": re-ran the full default suite with coverage after the three execution-time risk-guard tests were added, confirming the post-change baseline. No source or test changes were made in this session.
-- The three previously added risk-guard tests remain in `tests/test_rebalancer_risk_integration.py`:
-  - `test_execute_buy_at_position_limit_is_dropped` — covers the `room <= 0` return at `quant_trading/portfolio/rebalancer.py:764`.
-  - `test_execute_buy_at_leverage_limit_is_dropped` — covers the `leverage_room <= 0` return at `rebalancer.py:816`.
-  - `test_execute_buy_at_portfolio_risk_limit_is_dropped` — covers the `risk_room <= 0` return at `rebalancer.py:824`.
+- Added an installed `quant-trading` console script so the CLI is usable as an installed command (previously only runnable via `python examples/cli.py`).
+  - `pyproject.toml`: added `[project.scripts] quant-trading = "examples.cli:main"` and extended `[tool.setuptools.packages.find] include` from `["quant_trading*"]` to `["quant_trading*", "examples*"]` so `examples.cli` is importable after install.
+  - No source or test files were touched; `examples/cli.py` is unchanged (its `sys.path.insert` shim is benign under an editable install).
+- Diff: 1 file changed, `pyproject.toml` only (+4 lines / -1 line).
 
 ## What was actually verified (evidence)
 
-- Full default suite (post-change baseline): `python -m pytest -q -m "not slow and not network" --cov=quant_trading --cov-report=term-missing` -> **4035 passed, 142 deselected in 646.00s (0:10:46)**.
-- Coverage table (TOTAL): **8841 stmts, 10 missed, 3116 branches, 5 partial, 99%**.
-- Rebalancer missing only `485, 630->600` (both provably unreachable; see below). Other unavoidable misses: `engine.py:82-84`, `sensitivity.py:23-24, 362-363`, `risk/metrics.py:871, 960`.
-- New tests: `python -m pytest tests/test_rebalancer_risk_integration.py -q` -> **11 passed in 0.40s** (8 pre-existing + 3 new).
-- Formatting/lint/types (from prior session, unchanged): `black --check` -> 1 file unchanged; `ruff check` -> All checks passed; `mypy` -> Success: no issues found in 1 source file.
+- `pip install -e . --no-build-isolation` succeeds; the `quant-trading` script is installed.
+- `quant-trading --version` -> `quant-trading 0.1.0`.
+- `quant-trading --help` -> exit 0.
+- `quant-trading --list-strategies` and `--list-providers` print the strategy/provider tables.
+- Offline backtest smoke: `quant-trading --provider synthetic --offline --days 30 --strategy ma --output /tmp/qt_out.json --output-format json` runs and writes valid JSON.
+- `python -m pytest tests/test_packaging.py tests/test_readme_cli.py -q` -> **10 passed**.
+- Baseline coverage/consistency from the prior session is unchanged (this was a TOML-only change): 4035 passed / 142 deselected, TOTAL 99%, remaining misses all provably unreachable.
 
 ## What remains unresolved / not verified
 
-- `quant_trading/portfolio/rebalancer.py:485` (`else: return False` for an unknown frequency) is unreachable through the public API: `__init__` validates `frequency` against `("daily","weekly","monthly","quarterly")` and raises `ValueError` otherwise (`rebalancer.py:431-435`). Only reachable by mutating the attribute post-construction.
-- `rebalancer.py:630->600` is an unreachable partial branch: line 615 guarantees `abs(diff)/total_value > threshold >= 0`, so `diff != 0`; `diff > 0` takes the `if` arm and `diff < 0` takes the `elif` arm. The false path of `elif diff < 0` cannot occur.
-- `quant_trading/risk/metrics.py:871` and `:960` remain uncovered and PROVABLY UNREACHABLE; do not add tests for them.
-- `quant_trading/backtest/engine.py:82-84` (`if TYPE_CHECKING` imports) are never executed at runtime; `sensitivity.py:23-24` (matplotlib `ImportError` fallback) and `:362-363` (pivot exception fallback) remain uncovered. Overall coverage is still 99%.
+- `black`, `ruff`, and `mypy` are not installed in this environment, so the format/lint/type checks could not be re-run here. They passed in the prior session (`black --check` 1 file unchanged; `ruff check` all passed; `mypy` success). This session's change is TOML-only, so those checks are unaffected.
+- Regression sweep after adding `examples` to the packaged set: `tests/test_packaging.py` + `tests/test_readme_cli.py` (10 passed), `tests/test_example_scripts_run.py` (55 passed, ~2:48), `tests/test_readme.py` (17 passed). All green — no regression from packaging `examples`.
 
 ## Approaches that failed
 
-- Running the whole suite with a 600s timeout: timed out, not because of a hang but because the suite takes ~11 minutes. Per-file runs all pass. Do not retry the whole suite with a short timeout; budget ~12 minutes or use scoped batches.
+- None.
 
 ## One precise next task
 
-None — the full suite has reached a stable terminal baseline (4035 passed, 142 deselected, TOTAL 99%, rebalancer missing only provably-unreachable `485` and `630->600`). No further test coverage work is justified for the remaining lines: all are provably unreachable without changing validation or algorithm semantics, and adding tests for them would either be impossible (TYPE_CHECKING imports, unreachable math branches) or would alter library behavior. The next agent may pick any bounded, high-value task (e.g., a new feature or bug fix) after inspecting `git status`/`git log`, but should not re-run the full suite solely to re-confirm this baseline.
+None — this session's task is complete (entry point added, installed, smoke-tested, and regression batch green). The next agent may pick any bounded, high-value task (e.g., a new feature or bug fix) after inspecting `git status`/`git log`. Do not re-run the full ~11-minute suite solely to re-confirm the coverage baseline; the prior baseline (4035 passed / 142 deselected, TOTAL 99%, remaining misses all provably unreachable) stands.
+
+(End of file)
