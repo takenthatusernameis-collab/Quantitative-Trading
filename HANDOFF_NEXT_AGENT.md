@@ -1,43 +1,26 @@
 ## What changed (this session)
 
-- Fixed two real docstring/signature default mismatches in `quant_trading/risk/metrics.py` (from previous session):
-  - `calculate_equal_risk_contribution_weights` and `calculate_risk_budget_weights` both documented `long_only: ... (default True)` while both signatures default to `long_only: bool = False`. Changed the docstrings to `(default False)`. Documentation-only fix; runtime behaviour unchanged.
-- Added deterministic guard `test_documented_arg_defaults_match_signature` (plus helpers `_literal_default`, `_docstring_arg_default_notes`, `_signature_defaults`, `_tree_default_mismatches`, `_documented_default_mismatches`) to `tests/test_repository_integrity.py`.
-  - AST-only (no imports of scanned code), fast and dependency-free.
-  - Parses every function's `Args:` docstring section under `quant_trading/` and `examples/` and fails when a clean literal `(default X)` note disagrees with the actual signature default.
-  - Conservative: only `True`/`False`/`None` and numeric literal notes are compared, only against literal signature defaults; descriptive notes (e.g. `(default 252 for daily data)`) are skipped.
-  - Includes negative control that feeds a synthetic mismatched function and asserts the drift is detected.
-- **Added inverse-drift guard** `test_documented_args_exist_in_signature` (plus helpers `_docstring_arg_names`, `_signature_param_names`, `_tree_documented_unknown_args`, `_documented_unknown_args`) to `tests/test_repository_integrity.py`.
-  - Scans the same directories for `Args:` entries that name a parameter not present in the function signature.
-  - Skips `self`/`cls` and `*args`/`**kwargs` to avoid false positives.
-  - Includes negative control with a synthetic "ghost" argument to prove the guard fires.
-  - Caught and removed 22 stale `function:` parameter docstring entries in `AlphaVantageProvider._fetch_economic` overloads that were removed from the signature but remained in the docstring (commit dfc58b7).
-- **Completed the pending `Returns:` guard** (commit 23cc6b3): `test_documented_returns_match_signature` plus helpers `_docstring_returns_type`, `_normalize_return_annotation`, `_returns_type_match`, `_tree_returns_mismatches`, `_documented_returns_mismatches`. AST-only, conservative, with negative control.
-- **Added the complementary inverse-Args guard** `test_documented_args_cover_signature_params` (plus helpers `_tree_undocumented_params`, `_undocumented_params` and allowlist `_UNDOCUMENTED_PARAM_ALLOWLIST`) to `tests/test_repository_integrity.py`.
-  - Flags every signature parameter with no matching entry in the function's docstring `Args:` section (skips `self`/`cls` and `*args`/`**kwargs`).
-  - Grandfathers 116 pre-existing undocumented parameters in an explicit allowlist keyed by `(path, function, parameter)` so the guard prevents regressions without failing on today's state; entries are removed as parameters get documented.
-  - Includes negative control: a synthetic function documenting `a` but not `b` must be flagged.
+- **Added the `Raises:` section docstring guard** `test_documented_raises_are_real_exceptions` (plus helpers `_docstring_raises_names`, `_is_documented_exception`, `_tree_raises_mismatches`, `_documented_raises_mismatches` and constants `_RAISES_EXCEPTION_NAME`, `_RAISES_BUILTIN_EXCEPTIONS`) to `tests/test_repository_integrity.py`, completing the docstring-section guard set (`Args:`, `Returns:`, `Yields:`, `Raises:`).
+  - For functions with a `Raises:` section, scans entries of the form `ExceptionName: description` and fails when the documented name is not a real exception class.
+  - Conservative: only exception-like names (ending in `Error`/`Exception`, or a builtin exception class, or a qualified name like `yaml.YAMLError`) are checked; prose-only `Raises:` sections, blank lines and continuation lines are skipped so the guard cannot misfire on text such as `"If the path does not exist"`.
   - AST-only, no imports; scans `quant_trading/` and `examples/`.
-- **Added the `Yields:` guard** `test_documented_yields_match_signature` (plus helpers `_docstring_yields_type`, `_normalize_yield_annotation`, `_tree_yields_mismatches`, `_documented_yields_mismatches` and `_YIELD_ANNOTATION_BASES`) to `tests/test_repository_integrity.py`.
-  - For functions whose return annotation is `Generator[YieldT, ...]` / `Iterator[YieldT, ...]` / `AsyncGenerator[YieldT, ...]` (including qualified bases like `typing.Generator`), compares the documented yield-type prefix in the `Yields:` section against the annotation's first type argument.
-  - Reuses `_docstring_returns_type`-style section scanning, `_DOC_RETURNS_TYPE_PREFIX`, `_normalize_return_annotation` and `_returns_type_match`.
-  - Conservative: only compares when both a clean type prefix in `Yields:` and a generator return annotation with a yield type argument exist; non-generator functions and prose-only `Yields:` sections are skipped.
-  - Includes negative control: a synthetic `Generator[str, None, None]` documenting `int value` must be flagged.
-  - AST-only, no imports; scans `quant_trading/` and `examples/`.
+  - Negative control: a synthetic function documenting `NotAnError` (exception-like but not a real class) is flagged.
+  - Positive control: a synthetic function documenting builtin `ValueError` and qualified `yaml.YAMLError` both pass.
+  - Verified against today's state: all 7 distinct documented exception names in the repo are builtins (`ValueError`, `TypeError`, `KeyError`, `ImportError`, `FileNotFoundError`, `AssertionError`, `RuntimeError`) plus the qualified `yaml.YAMLError`; no drift found.
 
 ## What was actually verified (evidence)
 
-- `python -m pytest tests/test_repository_integrity.py -q` -> `38 passed` (35 base + `test_documented_returns_match_signature` + `test_documented_args_cover_signature_params` + `test_documented_yields_match_signature`, each with its negative control).
-- Full default suite (sample): `python -m pytest tests/test_risk_attribution.py tests/test_risk_metrics.py tests/test_packaging.py -q` -> `158 passed`.
-- `python -m pytest quant_trading/risk/metrics.py -q` -> `20 passed` (doctests).
+- `python -m pytest tests/test_repository_integrity.py -q` -> `39 passed` (38 base + `test_documented_raises_are_real_exceptions`, each with its negative and positive controls).
+- Full default suite (sample): `python -m pytest tests/test_repository_integrity.py tests/test_risk_attribution.py tests/test_risk_metrics.py tests/test_packaging.py -q` -> `197 passed`.
 - `python -m ruff check .` -> `All checks passed!`
 - `python -m black --check .` -> `160 files would be left unchanged`.
-- `python -m mypy tests/test_repository_integrity.py quant_trading/data/yfinance_provider.py` -> `Success: no issues found`.
+- `python -m mypy tests/test_repository_integrity.py` -> `Success: no issues found in 1 source file`.
+- Negative/positive controls confirmed firing directly: `NotAnError` flagged, `ValueError`/`yaml.YAMLError` accepted.
 
 ## What remains unresolved / not verified
 
 - CI workflow execution on GitHub Actions was not observed (workflow files are controller-managed and cannot be persisted by an agent session).
-- The guards cover `Args:`, `Returns:` and `Yields:` sections only; they do not check `Raises:`/`Examples:` sections for drift.
+- The guards cover `Args:`, `Returns:`, `Yields:` and `Raises:` sections only; they do not check `Examples:`/`Example:`/`Notes:`/`Attributes:`/`See Also:`/`References:` sections for drift.
 - The inverse-Args guard grandfathers existing debt via `_UNDOCUMENTED_PARAM_ALLOWLIST`; it does not yet flag functions that have a docstring but no `Args:` section at all, nor does it require every signature parameter to be documented (allowlisted ones are exempt by design).
 
 ## Approaches that already failed and why (do not repeat)
@@ -46,7 +29,9 @@
 
 ## One precise next task (if continuing this line of work)
 
-- Add a `Raises:` section docstring guard to `tests/test_repository_integrity.py`: for functions with a `Raises:` section, check that each documented exception name resolves to a real exception class (a name ending in `Error`/`Exception`, or a builtin exception such as `ValueError`/`TypeError`/`KeyError`/`AttributeError`/`RuntimeError`). Reuse the existing AST parsing infrastructure (`_parse`, `ast.get_docstring`, section-scanning pattern from `_docstring_returns_type`).
-  - Constraints: AST-only, no imports; conservative (only flag clearly-intended exception references, skip prose-only `Raises:` sections); do not import scanned code.
-  - Include a negative control (synthetic function documenting a raise of `NotAnError` while no such class exists must be flagged; or documenting `ValueError` must pass).
+- Add an `Examples:`/`Example:` section docstring guard to `tests/test_repository_integrity.py`: for functions with an `Examples:` section, check that the section is non-empty and (where a runnable `>>>` doctest line is present) that the doctest line parses as valid Python. Reuse the existing AST parsing infrastructure (`_parse`, `ast.get_docstring`, section-scanning pattern from `_docstring_returns_type`).
+  - Constraints: AST-only, no imports; conservative (only flag a missing/empty `Examples:` section when the function advertises one, and only flag `>>>` lines that fail to parse); do not import scanned code.
+  - Include a negative control (synthetic function with an `Examples:` section containing an unparseable `>>>` line must be flagged; or an empty `Examples:` section must be flagged).
   - Verify: `python -m pytest tests/test_repository_integrity.py -q` plus `ruff`, `black`, `mypy` on touched files.
+
+(End of file - total 52 lines)

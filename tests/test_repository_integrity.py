@@ -2232,6 +2232,243 @@ def test_documented_yields_match_signature() -> None:
     assert not mismatches, "docstring Yields type contradicts signature:\n" + "\n".join(mismatches)
 
 
+# Names that are unambiguously "exception-like": a name ending in ``Error`` or
+# ``Exception`` (including qualified names like ``yaml.YAMLError``) or a builtin
+# exception class. Used to filter the ``Raises:`` section entries down to the
+# ones that look like a deliberate exception reference rather than prose (e.g.
+# ``"If the path does not exist"``).
+_RAISES_EXCEPTION_NAME = re.compile(
+    r"^(?:[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*"
+    r"(?:Error|Exception)|"
+    r"ArithmeticError|AssertionError|AttributeError|BaseException|BlockingIOError|"
+    r"BrokenPipeError|BufferError|BytesWarning|ChildProcessError|ConnectionAbortedError|"
+    r"ConnectionError|ConnectionRefusedError|ConnectionResetError|DeprecationWarning|"
+    r"EOFError|Ellipsis|EnvironmentError|Exception|FileExistsError|FileNotFoundError|"
+    r"FloatingPointError|FutureWarning|GeneratorExit|IOError|ImportError|ImportWarning|"
+    r"IndentationError|IndexError|InterruptedError|IsADirectoryError|KeyError|"
+    r"KeyboardInterrupt|LookupError|MemoryError|ModuleNotFoundError|NameError|"
+    r"NotADirectoryError|NotImplemented|NotImplementedError|OSError|OverflowError|"
+    r"PendingDeprecationWarning|PermissionError|ProcessLookupError|RecursionError|"
+    r"ReferenceError|ResourceWarning|RuntimeError|RuntimeWarning|StopAsyncIteration|"
+    r"StopIteration|SyntaxError|SyntaxWarning|SystemError|SystemExit|TabError|"
+    r"TimeoutError|TypeError|UnboundLocalError|UnicodeDecodeError|UnicodeEncodeError|"
+    r"UnicodeError|UnicodeTranslateError|UnicodeWarning|UserWarning|ValueError|"
+    r"Warning|ZeroDivisionError)$"
+)
+
+# Builtin exception classes that the guard accepts without further checking.
+# Kept as a frozenset of plain strings so the guard stays AST-only and
+# dependency-free; qualified names (``module.Exception``) are accepted when the
+# attribute ends in ``Error``/``Exception`` by :data:`_RAISES_EXCEPTION_NAME`.
+_RAISES_BUILTIN_EXCEPTIONS: frozenset[str] = frozenset(
+    {
+        "ArithmeticError",
+        "AssertionError",
+        "AttributeError",
+        "BaseException",
+        "BlockingIOError",
+        "BrokenPipeError",
+        "BufferError",
+        "BytesWarning",
+        "ChildProcessError",
+        "ConnectionAbortedError",
+        "ConnectionError",
+        "ConnectionRefusedError",
+        "ConnectionResetError",
+        "DeprecationWarning",
+        "EOFError",
+        "EnvironmentError",
+        "Exception",
+        "FileExistsError",
+        "FileNotFoundError",
+        "FloatingPointError",
+        "FutureWarning",
+        "GeneratorExit",
+        "IOError",
+        "ImportError",
+        "ImportWarning",
+        "IndentationError",
+        "IndexError",
+        "InterruptedError",
+        "IsADirectoryError",
+        "KeyError",
+        "KeyboardInterrupt",
+        "LookupError",
+        "MemoryError",
+        "ModuleNotFoundError",
+        "NameError",
+        "NotADirectoryError",
+        "NotImplementedError",
+        "OSError",
+        "OverflowError",
+        "PendingDeprecationWarning",
+        "PermissionError",
+        "ProcessLookupError",
+        "RecursionError",
+        "ReferenceError",
+        "ResourceWarning",
+        "RuntimeError",
+        "RuntimeWarning",
+        "StopAsyncIteration",
+        "StopIteration",
+        "SyntaxError",
+        "SyntaxWarning",
+        "SystemError",
+        "SystemExit",
+        "TabError",
+        "TimeoutError",
+        "TypeError",
+        "UnboundLocalError",
+        "UnicodeDecodeError",
+        "UnicodeEncodeError",
+        "UnicodeError",
+        "UnicodeTranslateError",
+        "UnicodeWarning",
+        "UserWarning",
+        "ValueError",
+        "Warning",
+        "ZeroDivisionError",
+    }
+)
+
+
+def _docstring_raises_names(docstring: str) -> list[str]:
+    """Return every exception name listed in the ``Raises:`` section of a docstring.
+
+    Only entries of the form ``ExceptionName: description`` are returned, and
+    only when the name looks like a deliberate exception reference (see
+    :data:`_RAISES_EXCEPTION_NAME`). Prose-only ``Raises:`` sections, blank
+    lines, and continuation lines are skipped so the guard cannot misfire on
+    descriptive text such as ``"If the path does not exist"``.
+    """
+    names: list[str] = []
+    in_raises = False
+    for line in docstring.splitlines():
+        stripped = line.strip()
+        if re.match(r"^Raises:\s*$", stripped):
+            in_raises = True
+            continue
+        if in_raises and _DOC_SECTION_END.match(stripped):
+            in_raises = False
+            continue
+        if not in_raises:
+            continue
+        entry = _DOC_ARG_ENTRY.match(stripped)
+        if not entry:
+            continue
+        name = entry.group(1)
+        if _RAISES_EXCEPTION_NAME.match(name):
+            names.append(name)
+    return names
+
+
+def _is_documented_exception(name: str) -> bool:
+    """Return whether a ``Raises:`` name is a plausible exception reference.
+
+    A name is accepted when it is a builtin exception class, or a qualified
+    name whose attribute ends in ``Error``/``Exception`` (e.g.
+    ``yaml.YAMLError``). Anything else -- including an exception-like name
+    such as ``NotAnError`` that is not a real class -- is rejected, which is
+    exactly the drift the guard exists to catch.
+    """
+    if name in _RAISES_BUILTIN_EXCEPTIONS:
+        return True
+    if "." in name:
+        return bool(
+            re.match(r"^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*Error$", name)
+        ) or bool(re.match(r"^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*Exception$", name))
+    return False
+
+
+def _tree_raises_mismatches(tree: ast.Module, rel: str) -> list[str]:
+    """Return the docstring ``Raises:`` names that are not real exception classes.
+
+    Split out so a caller can feed it a synthetic tree (the guard's negative
+    control does exactly that) without writing to disk. Only names that look
+    like deliberate exception references are checked; prose is skipped.
+    """
+    offenders: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        docstring = ast.get_docstring(node)
+        if not docstring:
+            continue
+        for name in _docstring_raises_names(docstring):
+            if not _is_documented_exception(name):
+                offenders.append(
+                    f"{rel}:{node.lineno}: {node.name} documents unknown exception {name!r}"
+                )
+    return offenders
+
+
+def _documented_raises_mismatches() -> list[str]:
+    """Return every function whose ``Raises:`` section names a non-exception.
+
+    A ``Raises:`` entry that names something that is not an exception class
+    (a name that does not end in ``Error``/``Exception`` and is not a builtin
+    exception) is a documentation defect: the reader is told the function
+    raises a thing that does not exist. The check is purely structural (AST,
+    no imports) and is deliberately conservative: only entries of the form
+    ``ExceptionName: description`` whose name looks like an exception are
+    checked; prose-only ``Raises:`` sections are skipped.
+    """
+    mismatches: list[str] = []
+    for directory in _DOC_SCAN_DIRS:
+        for path in sorted((REPO_ROOT / directory).rglob("*.py")):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            mismatches.extend(_tree_raises_mismatches(_parse(path), rel))
+    return mismatches
+
+
+def test_documented_raises_are_real_exceptions() -> None:
+    """Every ``Raises:`` exception name must resolve to a real exception class.
+
+    A ``Raises:`` entry that names something that is not an exception class
+    (a name that does not end in ``Error``/``Exception`` and is not a builtin
+    exception such as ``ValueError``) misleads callers about what the function
+    can raise. This guard parses every function's ``Raises:`` section (AST,
+    no imports) and fails when an entry names an unknown exception. It is
+    deliberately conservative: only entries of the form
+    ``ExceptionName: description`` whose name looks like an exception are
+    checked, so prose-only ``Raises:`` sections and continuation lines cannot
+    produce false positives.
+
+    A negative control feeds the detector a synthetic function whose
+    ``Raises:`` section names ``NotAnError`` (an exception-like name that is
+    not a real class) and asserts the drift is reported, proving the guard
+    fires on the defect it guards against rather than passing vacuously. A
+    positive control documents the builtin ``ValueError`` and the qualified
+    ``yaml.YAMLError`` and asserts both pass.
+    """
+    synthetic = (
+        "def f() -> None:\n"
+        "    '''Do a thing.\n\n"
+        "    Raises:\n"
+        "        NotAnError: When something weird happens.\n"
+        "    '''\n"
+    )
+    injected = _tree_raises_mismatches(ast.parse(synthetic), "synthetic.py")
+    assert injected, "guard did not fire on an injected non-exception Raises name"
+
+    # Positive controls: a builtin exception and a qualified exception name
+    # must both pass the guard.
+    synthetic_ok = (
+        "def f() -> None:\n"
+        "    '''Do a thing.\n\n"
+        "    Raises:\n"
+        "        ValueError: When something is wrong.\n"
+        "        yaml.YAMLError: When the YAML cannot be parsed.\n"
+        "    '''\n"
+    )
+    assert not _tree_raises_mismatches(
+        ast.parse(synthetic_ok), "synthetic.py"
+    ), "guard falsely flagged a documented builtin or qualified exception"
+
+    mismatches = _documented_raises_mismatches()
+    assert not mismatches, "docstring Raises names a non-exception:\n" + "\n".join(mismatches)
+
+
 def _tree_default_mismatches(tree: ast.Module, rel: str) -> list[str]:
     """Return the docstring/signature default mismatches found in one parsed module.
 
