@@ -327,49 +327,49 @@ quant-trading --offline --strategy stoch --stoch-use-midline --symbols AAPL --da
 # Use Yahoo Finance (default, requires network)
 quant-trading --provider yfinance
 
- # Use Alpha Vantage (supports daily, weekly, monthly, intraday, and real-time)
- quant-trading --provider alphavantage --interval 5m --days 30
+# Use Alpha Vantage (supports daily, weekly, monthly, intraday, and real-time)
+quant-trading --provider alphavantage --interval 5m --days 30
 
- # Use Alpha Vantage with weekly data
- quant-trading --provider alphavantage --interval weekly --days 365
+# Use Alpha Vantage with weekly data
+quant-trading --provider alphavantage --interval weekly --days 365
 
- # Use Alpha Vantage with monthly adjusted data (includes dividends/splits)
- quant-trading --provider alphavantage --interval monthly_adjusted --days 1095
+# Use Alpha Vantage with monthly adjusted data (includes dividends/splits)
+quant-trading --provider alphavantage --interval monthly_adjusted --days 1095
 
- # Use Alpha Vantage with real-time quote
- quant-trading --provider alphavantage --interval quote
+# Use Alpha Vantage with real-time quote
+quant-trading --provider alphavantage --interval quote
 
- # Use Alpha Vantage with market status
- quant-trading --provider alphavantage --interval market_status
+# Use Alpha Vantage with market status
+quant-trading --provider alphavantage --interval market_status
 
- # Use Alpha Vantage with FX daily data
- quant-trading --provider alphavantage --interval fx_daily --symbols USD/EUR GBP/USD
+# Use Alpha Vantage with FX daily data
+quant-trading --provider alphavantage --interval fx_daily --symbols USD/EUR GBP/USD
 
- # Use Alpha Vantage with FX intraday data
- quant-trading --provider alphavantage --interval fx_5m --symbols USD/EUR
+# Use Alpha Vantage with FX intraday data
+quant-trading --provider alphavantage --interval fx_5m --symbols USD/EUR
 
-  # Use Alpha Vantage with crypto data
-  quant-trading --provider alphavantage --interval crypto_daily --symbols BTC ETH
+# Use Alpha Vantage with crypto data
+quant-trading --provider alphavantage --interval crypto_daily --symbols BTC ETH
 
-  # Use Alpha Vantage with technical indicators (SMA is the default daily series)
-  quant-trading --provider alphavantage --interval sma --symbols AAPL MSFT
-  quant-trading --provider alphavantage --interval rsi --symbols AAPL
-  quant-trading --provider alphavantage --interval macd --symbols AAPL
+# Use Alpha Vantage with technical indicators (SMA is the default daily series)
+quant-trading --provider alphavantage --interval sma --symbols AAPL MSFT
+quant-trading --provider alphavantage --interval rsi --symbols AAPL
+quant-trading --provider alphavantage --interval macd --symbols AAPL
 
-  # Use Alpha Vantage sector performance
-  quant-trading --provider alphavantage --interval sector
+# Use Alpha Vantage sector performance
+quant-trading --provider alphavantage --interval sector
 
-  # Use Alpha Vantage with your own API key
-  quant-trading --provider alphavantage --alphavantage-key YOUR_API_KEY --interval 1h
+# Use Alpha Vantage with your own API key
+quant-trading --provider alphavantage --alphavantage-key YOUR_API_KEY --interval 1h
 
- # Run offline with synthetic data (deterministic, no network required)
- quant-trading --offline
- # or
- quant-trading --provider synthetic
+# Run offline with synthetic data (deterministic, no network required)
+quant-trading --offline
+# or
+quant-trading --provider synthetic
 
- # Control the synthetic data span and seed with ``--synthetic-days`` and
- # ``--synthetic-seed``
- quant-trading --offline --synthetic-days 120 --synthetic-seed 7 --symbols AAPL --days 30
+# Control the synthetic data span and seed with ``--synthetic-days`` and
+# ``--synthetic-seed``
+quant-trading --offline --synthetic-days 120 --synthetic-seed 7 --symbols AAPL --days 30
 ```
 
 The `--synthetic-days` argument is checked before the run starts and must be at
