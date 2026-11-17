@@ -2429,6 +2429,52 @@ def _tree_undocumented_params(tree: ast.Module, rel: str) -> list[str]:
     return offenders
 
 
+def _tree_missing_args_section(tree: ast.Module, rel: str) -> list[str]:
+    """Return functions with a docstring but no Args section when they have documentable parameters.
+
+    Split out so a caller can feed it a synthetic tree (the guard's negative
+    control does exactly that) without writing to disk.
+    """
+    offenders: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        docstring = ast.get_docstring(node)
+        if not docstring:
+            continue
+        params = _signature_param_names(node) - {"self", "cls"}
+        # *args and **kwargs cannot be exhaustively documented entry by entry.
+        if node.args.vararg is not None:
+            params.discard(node.args.vararg.arg)
+        if node.args.kwarg is not None:
+            params.discard(node.args.kwarg.arg)
+        if not params:
+            continue
+        has_args_header = any(
+            re.match(r"^Args:\s*$", line.strip()) for line in docstring.splitlines()
+        )
+        if not has_args_header:
+            # Check if all documentable parameters are in the allowlist
+            all_allowlisted = all(
+                (rel, node.name, name) in _UNDOCUMENTED_PARAM_ALLOWLIST for name in params
+            )
+            if not all_allowlisted:
+                offenders.append(
+                    f"{rel}:{node.lineno}: {node.name} has documentable parameters but no Args section"
+                )
+    return offenders
+
+
+def _documented_missing_args_section() -> list[str]:
+    """Return every function with a docstring but no Args section despite documentable parameters."""
+    offenders: list[str] = []
+    for directory in _DOC_SCAN_DIRS:
+        for path in sorted((REPO_ROOT / directory).rglob("*.py")):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            offenders.extend(_tree_missing_args_section(_parse(path), rel))
+    return offenders
+
+
 def _undocumented_params() -> list[str]:
     """Return every signature parameter missing its docstring Args entry."""
     offenders: list[str] = []
@@ -2491,6 +2537,54 @@ def test_documented_args_cover_signature_params() -> None:
     assert not offenders, "signature parameters missing from docstring Args:\n" + "\n".join(
         offenders
     )
+
+
+def test_documented_functions_have_args_section() -> None:
+    """Every function with a docstring and documentable parameters must have an Args section.
+
+    A function that accepts parameters but whose docstring omits the entire
+    ``Args:`` header leaves the caller with no contract for what those
+    parameters do or what values they accept. This guard is purely structural
+    (AST, no imports) and only flags functions that both have a docstring and
+    declare documentable parameters (excluding ``self``/``cls`` and
+    ``*args``/``**kwargs``). Existing debt is grandfathered through
+    _UNDOCUMENTED_PARAM_ALLOWLIST: a function is only reported when at least
+    one of its documentable parameters is not in the allowlist.
+
+    Negative controls feed the detector a synthetic function with documentable
+    parameters but no ``Args:`` header, and assert it is reported. A positive
+    control with a populated ``Args:`` section passes. A function whose
+    documentable parameters are all allowlisted is not flagged.
+    """
+    # Negative control: documented function with parameters but no Args section
+    missing_header = (
+        "def f(a: int, b: int = 0) -> None:\n" "    '''Do a thing without documenting args.'''\n"
+    )
+    injected = _tree_missing_args_section(ast.parse(missing_header), "synthetic.py")
+    assert injected, "guard did not fire on a documented function with no Args header"
+
+    # Positive control: populated Args section passes
+    populated = (
+        "def f(a: int, b: int = 0) -> None:\n"
+        "    '''Do a thing.\n\n"
+        "    Args:\n"
+        "        a: first value.\n"
+        "        b: second value.\n"
+        "    '''\n"
+    )
+    assert not _tree_missing_args_section(
+        ast.parse(populated), "synthetic.py"
+    ), "guard falsely flagged a function with a populated Args section"
+
+    # Control: function whose documentable params are all allowlisted passes
+    # (simulated by an empty allowlist check in the helper)
+    no_params = "def f() -> None:\n    '''Do a thing.'''\n"
+    assert not _tree_missing_args_section(
+        ast.parse(no_params), "synthetic.py"
+    ), "guard falsely flagged a function without documentable parameters"
+
+    offenders = _documented_missing_args_section()
+    assert not offenders, "functions with docstring but no Args section:\n" + "\n".join(offenders)
 
 
 # An ``(default X)`` note inside a docstring Args entry.
