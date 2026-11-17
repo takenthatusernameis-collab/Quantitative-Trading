@@ -3727,3 +3727,153 @@ def test_documented_cross_reference_sections_are_valid() -> None:
 
     mismatches = _documented_cross_reference_mismatches()
     assert not mismatches, "docstring cross-reference section is empty:\n" + "\n".join(mismatches)
+
+
+# A Sphinx-style cross-reference role with a target, e.g. ``:class:`~pkg.mod.Name``
+# or ``:func:`pkg.mod.func``. Group 1 is the role, group 2 the dotted target;
+# the leading ``~`` (which only affects how the role is rendered) is consumed by
+# the pattern so the captured target is the importable dotted path.
+_DOC_XREF_ROLE = re.compile(
+    r":(class|func|meth|mod|data|attr|exc|obj):`~?([A-Za-z_][A-Za-z0-9_.]*)`"
+)
+
+
+def _resolve_dotted_name(dotted: str) -> str | None:
+    """Resolve a dotted ``quant_trading`` name to a real object.
+
+    The longest importable module prefix is imported first, then the remaining
+    dotted components are walked. A component may be either an attribute or a
+    submodule that has not been imported yet (for example
+    ``quant_trading.optimization`` is not re-exported by the top package), so a
+    missing attribute falls back to importing the next-longer module path.
+
+    Returns:
+        ``None`` when the name resolves, otherwise a short human-readable
+        reason describing the first component that could not be resolved.
+    """
+    parts = dotted.split(".")
+    module: object | None = None
+    start = 0
+    for split in range(len(parts), 0, -1):
+        try:
+            module = importlib.import_module(".".join(parts[:split]))
+        except ImportError:
+            continue
+        start = split
+        break
+    if module is None:
+        return f"no importable module prefix for {dotted}"
+    for index in range(start, len(parts)):
+        attribute = parts[index]
+        if hasattr(module, attribute):
+            module = getattr(module, attribute)
+            continue
+        submodule = ".".join(parts[: index + 1])
+        try:
+            module = importlib.import_module(submodule)
+        except ModuleNotFoundError as exc:
+            if exc.name == submodule:
+                return f"module {'.'.join(parts[:index])} has no attribute {attribute}"
+            # The submodule exists but one of its imports is unavailable in
+            # this environment (for example an optional dependency), so the
+            # reference cannot be verified here and is not reported.
+            return None
+        except ImportError:
+            return None
+    return None
+
+
+def _docstring_unresolved_xrefs(docstring: str, rel: str, lineno: int, owner: str) -> list[str]:
+    """Return unresolved ``quant_trading`` cross-reference roles in one docstring."""
+    offenders: list[str] = []
+    for match in _DOC_XREF_ROLE.finditer(docstring):
+        role, target = match.group(1), match.group(2)
+        if not target.startswith("quant_trading."):
+            continue
+        reason = _resolve_dotted_name(target)
+        if reason is not None:
+            offenders.append(
+                f"{rel}:{lineno}: {owner} references unknown {role} {target!r} ({reason})"
+            )
+    return offenders
+
+
+def _tree_unresolved_xrefs(tree: ast.Module, rel: str) -> list[str]:
+    """Return unresolved ``quant_trading`` cross-references in one parsed module.
+
+    Both the module docstring and every function, async function and class
+    docstring are scanned, because a Sphinx cross-reference is a defect wherever
+    it appears, not only on a definition.
+    """
+    offenders: list[str] = []
+    module_doc = ast.get_docstring(tree)
+    if module_doc:
+        offenders.extend(_docstring_unresolved_xrefs(module_doc, rel, 1, "<module>"))
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        docstring = ast.get_docstring(node)
+        if not docstring:
+            continue
+        offenders.extend(_docstring_unresolved_xrefs(docstring, rel, node.lineno, node.name))
+    return offenders
+
+
+def _documented_unresolved_xrefs() -> list[str]:
+    """Return every unresolved ``quant_trading`` cross-reference in the source tree."""
+    offenders: list[str] = []
+    for directory in _DOC_SCAN_DIRS:
+        for path in sorted((REPO_ROOT / directory).rglob("*.py")):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            offenders.extend(_tree_unresolved_xrefs(_parse(path), rel))
+    return offenders
+
+
+def test_documented_quant_trading_xrefs_resolve() -> None:
+    """Every ``quant_trading.*`` Sphinx cross-reference target must resolve.
+
+    A docstring that cross-references ``:class:`~quant_trading.pkg.mod.Name``-
+    style targets is a promise to the reader that the named object exists. When
+    the object is renamed, moved, or never existed, the rendered documentation
+    links to nothing and the prose silently rots. This guard parses every
+    module, class and function docstring in ``quant_trading`` and ``examples``
+    (AST for discovery, imports only to resolve the named target) and fails
+    when a ``quant_trading.*`` cross-reference role does not resolve to a real
+    module, class, function or attribute.
+
+    It is deliberately conservative: only recognised roles (``class``, ``func``,
+    ``meth``, ``mod``, ``data``, ``attr``, ``exc``, ``obj``) with a
+    ``quant_trading.*`` dotted target are checked, so prose mentions and
+    external references are ignored. This complements
+    ``test_readme_backtick_quant_trading_names_resolve``, which covers README
+    backticks rather than docstring roles.
+
+    A negative control feeds the detector a role pointing at a module that does
+    not exist and asserts it is reported. A positive control with a role that
+    resolves to a real object passes.
+    """
+    synthetic_missing = (
+        "def f() -> None:\n"
+        "    '''Do a thing.\n\n"
+        "    See Also:\n"
+        "        :class:`~quant_trading.definitely_missing_module.Widget`\n"
+        "    '''\n"
+    )
+    injected = _tree_unresolved_xrefs(ast.parse(synthetic_missing), "synthetic.py")
+    assert injected, "guard did not fire on an injected unknown cross-reference"
+
+    synthetic_ok = (
+        "def f() -> None:\n"
+        "    '''Do a thing.\n\n"
+        "    See Also:\n"
+        "        :class:`~quant_trading.strategies.base.Signal`\n"
+        "    '''\n"
+    )
+    assert not _tree_unresolved_xrefs(
+        ast.parse(synthetic_ok), "synthetic.py"
+    ), "guard falsely flagged a cross-reference that resolves"
+
+    offenders = _documented_unresolved_xrefs()
+    assert (
+        not offenders
+    ), "docstring cross-references name objects that do not exist:\n" + "\n".join(offenders)
