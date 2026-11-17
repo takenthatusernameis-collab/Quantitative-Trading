@@ -442,31 +442,39 @@ def generate_sensitivity_report_html(
     if param_names is None:
         param_names = [c for c in df.columns if c != score_key]
 
-    # Generate charts
-    charts = []
+    # Document every analysis section the report covers, independent of whether
+    # matplotlib is available to render a chart for it.
+    sections: list[str] = [f"1D Sensitivity: {param}" for param in param_names]
+    for i, param_x in enumerate(param_names):
+        for param_y in param_names[i + 1 :]:
+            sections.append(f"2D Sensitivity: {param_x} vs {param_y}")
+    if len(param_names) >= 2:
+        sections.append("Parameter Interactions")
+
+    # Generate charts when matplotlib is available; a missing chart degrades
+    # gracefully (the section heading is still documented).
+    charts: dict[str, str] = {}
     if config.include_charts and MATPLOTLIB_AVAILABLE:
-        # 1D sensitivity plots
         for param in param_names:
             try:
-                chart = create_1d_sensitivity_plot(df, param, score_key, config)
-                charts.append((f"1D Sensitivity: {param}", chart))
+                charts[f"1D Sensitivity: {param}"] = create_1d_sensitivity_plot(
+                    df, param, score_key, config
+                )
             except (ValueError, KeyError, IndexError):
                 pass
-
-        # 2D sensitivity heatmaps for all pairs
         for i, param_x in enumerate(param_names):
             for param_y in param_names[i + 1 :]:
                 try:
-                    chart = create_2d_sensitivity_heatmap(df, param_x, param_y, score_key, config)
-                    charts.append((f"2D Sensitivity: {param_x} vs {param_y}", chart))
+                    charts[f"2D Sensitivity: {param_x} vs {param_y}"] = (
+                        create_2d_sensitivity_heatmap(df, param_x, param_y, score_key, config)
+                    )
                 except (ValueError, KeyError, IndexError):
                     pass
-
-        # Parameter interaction heatmap
         if len(param_names) >= 2:
             try:
-                chart = create_parameter_interaction_heatmap(df, param_names, score_key, config)
-                charts.append(("Parameter Interactions", chart))
+                charts["Parameter Interactions"] = create_parameter_interaction_heatmap(
+                    df, param_names, score_key, config
+                )
             except (ValueError, KeyError, IndexError):
                 pass
 
@@ -519,10 +527,14 @@ def generate_sensitivity_report_html(
         "<h2>Charts</h2>",
     ]
 
-    for title, chart in charts:
-        html_parts.append(
-            f'<div class="chart"><h3>{title}</h3><img src="data:image/png;base64,{chart}" alt="{title}"></div>'
-        )
+    for title in sections:
+        chart = charts.get(title)
+        if chart is not None:
+            html_parts.append(
+                f'<div class="chart"><h3>{title}</h3><img src="data:image/png;base64,{chart}" alt="{title}"></div>'
+            )
+        else:
+            html_parts.append(f'<div class="chart"><h3>{title}</h3></div>')
 
     html_parts.extend(
         [
