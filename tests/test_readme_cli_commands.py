@@ -543,6 +543,66 @@ class TestExplicitCombinedAndStrategyConfigErrors:
         finally:
             report_module.MATPLOTLIB_AVAILABLE = original
 
+    def test_report_section_flags_still_require_matplotlib(self, tmp_path: Path) -> None:
+        """``--report-no-trades``/``--report-no-monthly``/``--report-no-rolling`` still need matplotlib.
+
+        Only ``--report-no-charts`` makes the report chart-free
+        (``quant_trading/backtest/report.py:729-730``). The other section-disable
+        flags only remove specific sections while the equity/drawdown/trade
+        distribution charts are still generated, so they still require matplotlib
+        and fail cleanly with a one-line error when it is unavailable.
+        """
+        import contextlib
+        import io
+        import os
+        import sys
+        from pathlib import Path
+
+        from quant_trading.backtest import report as report_module
+
+        original = report_module.MATPLOTLIB_AVAILABLE
+        report_module.MATPLOTLIB_AVAILABLE = False
+        try:
+            cases = [
+                # (extra flags beyond --offline --report, expected rc, file written)
+                ([], 1, False),  # plain --report: charts required
+                (["--report-no-trades"], 1, False),  # trade table only; charts remain
+                (["--report-no-monthly"], 1, False),  # monthly heatmap only; charts remain
+                (["--report-no-rolling"], 1, False),  # rolling charts only; charts remain
+            ]
+            for extra, expected_rc, expects_file in cases:
+                report_path = tmp_path / f"report_{'_'.join(extra) or 'plain'}.html"
+                out = io.StringIO()
+                old_cwd = Path.cwd()
+                old_argv = sys.argv
+                try:
+                    os.chdir(tmp_path)
+                    sys.argv = ["cli.py", "--offline", "--report", str(report_path), *extra]
+                    with contextlib.redirect_stdout(out):
+                        try:
+                            rc = main()
+                        except SystemExit as exc:
+                            rc = exc.code if isinstance(exc.code, int) else 1
+                finally:
+                    os.chdir(old_cwd)
+                    sys.argv = old_argv
+                output = out.getvalue()
+                assert (
+                    rc == expected_rc
+                ), f"expected exit {expected_rc} for --report {extra}, got {rc}\noutput:\n{output}"
+                assert "Traceback" not in output, f"traceback for --report {extra}:\n{output}"
+                assert (
+                    "matplotlib" in output.lower()
+                ), f"expected matplotlib error for --report {extra}\noutput:\n{output}"
+                if expects_file:
+                    assert report_path.exists(), f"report file not written for --report {extra}"
+                else:
+                    assert (
+                        not report_path.exists()
+                    ), f"report should not be written for --report {extra}"
+        finally:
+            report_module.MATPLOTLIB_AVAILABLE = original
+
     def test_wrongly_typed_config_field_reported(self, tmp_path: Path) -> None:
         """A config file whose value has the wrong type is reported as a one-line error.
 

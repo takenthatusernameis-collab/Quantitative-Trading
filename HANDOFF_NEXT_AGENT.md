@@ -2,37 +2,42 @@
 
 - Picked up handoff option 2 from the prior session: added explicit coverage for
   the `--report-no-charts` path (README.md:710, 717-719) asserting it stays
-  green *without* matplotlib. The prior harness only *implicitly* covered it
-  (it is not skip-marked, so it ran and passed whenever matplotlib happened to
-  be installed), with no test that it does not import matplotlib.
-- New test `TestExplicitCombinedAndStrategyConfigErrors.test_report_no_charts_runs_without_matplotlib`
-  in `tests/test_readme_cli_commands.py`:
-  - Patches `quant_trading.backtest.report.MATPLOTLIB_AVAILABLE = False` to
-    simulate a core-only environment.
-  - Runs `--offline --report <f> --report-no-charts` and asserts exit 0, the
-    HTML file is written, and no traceback — i.e. the chart-free path does not
-    touch matplotlib.
-  - Runs the same invocation shape *without* `--report-no-charts` and asserts
-    exit 1, no file written, no traceback, and a one-line error mentioning
-    `matplotlib` — proving the two paths diverge cleanly.
-  - Restores the flag in a `finally` so other tests are unaffected.
+  green *without* matplotlib.
+- Extended `TestExplicitCombinedAndStrategyConfigErrors` in
+  `tests/test_readme_cli_commands.py` with
+  `test_report_section_flags_still_require_matplotlib`, which locks in the
+  correct invariant for the other documented section-disable flags:
+  - `--report --report-no-trades`, `--report --report-no-monthly`,
+    `--report --report-no-rolling`, and plain `--report` all exit 1 with a
+    one-line "matplotlib is required..." error when matplotlib is unavailable,
+    because `include_charts` stays True so `_check_matplotlib()` still runs
+    (`quant_trading/backtest/report.py:729-730`).
+  - Only `--report-no-charts` makes the report chart-free (exit 0, file
+    written) — covered by the pre-existing
+  `test_report_no_charts_runs_without_matplotlib`.
+- New tests restore `MATPLOTLIB_AVAILABLE` in a `finally` so other tests are
+  unaffected.
 - No production code changed.
 
 ## What was actually verified (evidence)
 
-- New test alone: `pytest tests/test_readme_cli_commands.py::TestExplicitCombinedAndStrategyConfigErrors::test_report_no_charts_runs_without_matplotlib -v`
-  -> **1 passed**.
+- New test alone:
+  `pytest tests/test_readme_cli_commands.py::TestExplicitCombinedAndStrategyConfigErrors -q`
+  -> **8 passed**.
 - README CLI module: `pytest tests/test_readme_cli_commands.py -q -rs`
-  -> **120 passed, 3 deselected** (was 119/3; +1 is the new test).
-- Full default suite: `pytest -q` -> **4055 passed, 142 deselected** (was 4054;
+  -> **121 passed, 3 deselected** (was 120; +1 is the new test).
+- Report module: `pytest tests/test_backtest_report.py -q` -> green (part of the
+  200 passed across both files).
+- Full default suite: `pytest -q` -> **4056 passed, 142 deselected** (was 4055;
   +1 is the new test). No failures.
 - Formatting/lint/typecheck on the edited file:
-  - `black --check tests/test_readme_cli_commands.py` -> unchanged.
+  - `black --check tests/test_readme_cli_commands.py` -> unchanged (after applying
+    `black` to the new code).
   - `ruff check tests/test_readme_cli_commands.py` -> All checks passed.
   - `mypy tests/test_readme_cli_commands.py` -> Success: no issues found.
-- Manual sanity: with `MATPLOTLIB_AVAILABLE = False`, charted command exits 1
-  with `Error: matplotlib is required for chart generation...`; chart-free
-  command exits 0 and writes the HTML file.
+- Manual sanity: with `MATPLOTLIB_AVAILABLE = False`, each section-disable flag
+  exits 1 with a "matplotlib" one-line error and writes no file; `--report-no-charts`
+  exits 0 and writes the HTML file.
 
 ## What remains unresolved / not verified
 
@@ -48,8 +53,8 @@
 
 ## One precise next task
 
-The optional-extra README-command failures are resolved, the chart-free report
-path is explicitly covered, and the full default suite is green (4055 passed).
+The chart-free report path and all section-disable flags are now explicitly
+covered without matplotlib, and the full default suite is green (4056 passed).
 If continuing, pick one of:
 
 1. Add a CI check that runs `pytest` in a **core-only** environment to lock in
@@ -57,11 +62,5 @@ If continuing, pick one of:
    GitHub Actions matrix leg with `pip install -e .` and no extras, asserting
    exit 0). Relevant files: `.github/workflows/` +
    `tests/test_readme_cli_commands.py`.
-2. Extend the new test to also assert the other documented chart-free flags
-   (`--report-no-trades`, `--report-no-monthly`, `--report-no-rolling`,
-   README.md:717-719) do not require matplotlib — currently only
-   `--report-no-charts` is covered. Evidence to build on:
-   `quant_trading/backtest/report.py:729-730` (`if config.include_charts:
-   _check_matplotlib()`) and `tests/test_readme_cli_commands.py`.
 
 (End of file - total 68 lines)
