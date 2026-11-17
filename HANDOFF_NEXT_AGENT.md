@@ -2,14 +2,17 @@
 
 - Added `TestEqualRiskContribution.test_erc_long_only_clamps_weights` at `tests/test_risk_attribution.py:322` (after edit, near end of `TestEqualRiskContribution`) exercising `calculate_equal_risk_contribution_weights(..., long_only=True)`, covering the `long_only` clamp at `quant_trading/risk/metrics.py:867` and the `weight_sum` guard at `metrics.py:870-871`. Asserts 3 weights indexed `["A", "B", "C"]`, sum to 1.0, all non-negative and finite.
 - Added `TestRiskBudgetWeights.test_risk_budget_long_only_clamps_weights` at `tests/test_risk_attribution.py:433` exercising `calculate_risk_budget_weights(..., long_only=True)`, covering the `long_only` clamp at `quant_trading/risk/metrics.py:956` and the `weight_sum` guard at `metrics.py:958-960`. Same assertions with budget `[0.4, 0.3, 0.3]`.
+- Added `TestPositionLimitSerialization` (5 tests) and `TestPortfolioLimitSerialization` (5 tests) at `tests/test_limits.py:827` covering `to_dict`/`from_dict` round-trips for both classes, closing the last 4 uncovered lines in `quant_trading/risk/limits.py` (lines 127, 153, 311, 339).
 
 ## What was actually verified (evidence)
 
 - Focused: `python -m pytest tests/test_risk_attribution.py -q` -> `38 passed in 1.31s` (36 pre-existing + 2 new).
-- Coverage re-measure: `python -m pytest --cov=quant_trading --cov-report=term-missing -q tests/test_risk_attribution.py` -> `quant_trading/risk/metrics.py` missing lines now: `..., 871, 960, ...` (previously `867, 871, 956, 960`); lines `867` and `956` are now covered. Lines `871` and `960` remain missing.
-- Formatting: `python -m black --check quant_trading examples tests` -> `160 files would be left unchanged.`
-- Lint: `python -m ruff check quant_trading examples tests` -> `All checks passed!`
-- Types: `python -m mypy quant_trading examples` -> `Success: no issues found in 96 source files`.
+- Limits serialization: `python -m pytest tests/test_limits.py -q` -> `133 passed in 0.56s` (123 pre-existing + 10 new).
+- Combined risk suite: `python -m pytest tests/test_limits.py tests/test_risk_metrics.py tests/test_risk_attribution.py tests/test_risk_manager.py -q` -> `522 passed in 1.91s`.
+- Coverage re-measure for risk module: `quant_trading/risk/limits.py` now **100%** (0 missing statements, 0 missing branches); `quant_trading/risk/metrics.py` **99%** (only lines 871, 960 remain, provably unreachable per prior handoff).
+- Formatting: `python -m black --check quant_trading/risk/limits.py tests/test_limits.py` -> `2 files would be left unchanged.`
+- Lint: `python -m ruff check quant_trading/risk/limits.py tests/test_limits.py` -> `All checks passed!`
+- Types: `python -m mypy quant_trading/risk/limits.py tests/test_limits.py` -> `Success: no issues found in 2 source files`.
 
 ## What remains unresolved / not verified
 
@@ -23,18 +26,3 @@
 ## One precise next task
 
 - Run the broader suite in scoped module batches to reach a terminal summary (e.g. `python -m pytest tests -q -m "not slow and not network"` per module directory, or `python -m pytest tests/test_risk_attribution.py tests/test_risk_metrics.py ...` per file), and re-measure overall coverage with `python -m pytest --cov=quant_trading -q` to confirm the project-wide coverage number is stable or improved. Do NOT add tests targeting `metrics.py:871` or `:960` — they are provably unreachable without changing algorithm semantics. If a genuinely bounded, high-value task appears elsewhere in the repo (e.g. another uncovered branch in `quant_trading/risk/metrics.py` such as lines `78, 98, 132-138, 166, 169, 193-200, 233-243, 285-306, 332, 358-364, 388-400, 426-438, 470-477, 509-518, 549-560, 589, 627-637, 1006-1039`), prefer a focused test with a coverage re-measure; otherwise conclude the session with this handoff.
-
-## Update (this session)
-
-- Ran focused broader suite: `python -m pytest tests/test_risk_attribution.py tests/test_risk_metrics.py tests/test_risk_manager.py -q` -> 389 passed in 1.85s.
-- Coverage re-measure for risk module: `quant_trading/risk/metrics.py` now 99% (only 871, 960 remain, provably unreachable per prior handoff).
-- Full suite times out under 120s; remaining work is to run the rest of tests in batches and re-measure project-wide coverage.
-
-## One precise next task
-
-- Run remaining test modules in batches (e.g. strategies, backtest, portfolio, rebalancer) to a terminal summary, then re-measure overall coverage with `python -m pytest --cov=quant_trading -q` to confirm stability. Do NOT add tests for metrics.py:871/960.
-
-## Update (this session)
-- Ran remaining test modules in batches: backtest_analysis/engine (148), backtest_metrics/report (122), config/cost (227), data_providers (37), integration (5), limits/holding_pnl (138); combined risk suite 389 passed.
-- Re-measured coverage: quant_trading/risk/metrics.py 99% (only 871, 960 remain, provably unreachable). Project-wide TOTAL 19% (dominated by uncovered example scripts/strategies; risk module fully covered).
-- No code changes; task complete.

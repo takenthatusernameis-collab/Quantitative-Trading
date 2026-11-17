@@ -822,3 +822,135 @@ class TestPortfolioLimitValidation:
         # Zero disables some limits and must remain constructible.
         limit = PortfolioLimit(**{field: value})  # type: ignore[arg-type]
         assert getattr(limit, field) == value
+
+
+class TestPositionLimitSerialization:
+    """Tests for PositionLimit.to_dict/from_dict branches."""
+
+    def test_to_dict_returns_all_fields(self) -> None:
+        limit = PositionLimit(
+            max_size=0.2,
+            max_value=100000.0,
+            stop_loss_pct=0.10,
+            take_profit_pct=0.20,
+        )
+        d = limit.to_dict()
+        assert d["max_size"] == 0.2
+        assert d["max_value"] == 100000.0
+        assert d["stop_loss_pct"] == 0.10
+        assert d["take_profit_pct"] == 0.20
+
+    def test_from_dict_restores_all_fields(self) -> None:
+        limit = PositionLimit.from_dict(
+            {
+                "max_size": 0.2,
+                "max_value": 100000.0,
+                "stop_loss_pct": 0.10,
+                "take_profit_pct": 0.20,
+            }
+        )
+        assert limit.max_size == 0.2
+        assert limit.max_value == 100000.0
+        assert limit.stop_loss_pct == 0.10
+        assert limit.take_profit_pct == 0.20
+
+    def test_from_dict_defaults_missing_fields(self) -> None:
+        limit = PositionLimit.from_dict({})
+        assert limit.max_size == 0.1
+        assert limit.max_value == 50000.0
+        assert limit.stop_loss_pct == 0.05
+        assert limit.take_profit_pct == 0.15
+
+    def test_from_dict_partial_restores_with_defaults(self) -> None:
+        limit = PositionLimit.from_dict({"max_size": 0.3})
+        assert limit.max_size == 0.3
+        assert limit.max_value == 50000.0
+        assert limit.stop_loss_pct == 0.05
+        assert limit.take_profit_pct == 0.15
+
+    def test_round_trip_preserves_values(self) -> None:
+        original = PositionLimit(
+            max_size=0.15,
+            max_value=75000.0,
+            stop_loss_pct=0.08,
+            take_profit_pct=0.25,
+        )
+        restored = PositionLimit.from_dict(original.to_dict())
+        assert restored.max_size == original.max_size
+        assert restored.max_value == original.max_value
+        assert restored.stop_loss_pct == original.stop_loss_pct
+        assert restored.take_profit_pct == original.take_profit_pct
+
+
+class TestPortfolioLimitSerialization:
+    """Tests for PortfolioLimit.to_dict/from_dict branches."""
+
+    def test_to_dict_returns_all_fields(self) -> None:
+        limit = PortfolioLimit(
+            max_positions=10,
+            max_position_size=0.15,
+            max_portfolio_risk=0.05,
+            max_drawdown=0.15,
+            max_leverage=2.0,
+            stop_loss_pct=0.08,
+        )
+        d = limit.to_dict()
+        assert d["max_positions"] == 10
+        assert d["max_position_size"] == 0.15
+        assert d["max_portfolio_risk"] == 0.05
+        assert d["max_drawdown"] == 0.15
+        assert d["max_leverage"] == 2.0
+        assert d["stop_loss_pct"] == 0.08
+
+    def test_from_dict_restores_all_fields(self) -> None:
+        limit = PortfolioLimit.from_dict(
+            {
+                "max_positions": 10,
+                "max_position_size": 0.15,
+                "max_portfolio_risk": 0.05,
+                "max_drawdown": 0.15,
+                "max_leverage": 2.0,
+                "stop_loss_pct": 0.08,
+            }
+        )
+        assert limit.max_positions == 10
+        assert limit.max_position_size == 0.15
+        assert limit.max_portfolio_risk == 0.05
+        assert limit.max_drawdown == 0.15
+        assert limit.max_leverage == 2.0
+        assert limit.stop_loss_pct == 0.08
+
+    def test_from_dict_defaults_missing_fields(self) -> None:
+        limit = PortfolioLimit.from_dict({})
+        assert limit.max_positions == 20
+        assert limit.max_position_size == 0.1
+        assert limit.max_portfolio_risk == 0.02
+        assert limit.max_drawdown == 0.20
+        assert limit.max_leverage == 1.0
+        assert limit.stop_loss_pct == 0.05
+
+    def test_from_dict_partial_restores_with_defaults(self) -> None:
+        limit = PortfolioLimit.from_dict({"max_positions": 5, "max_leverage": 3.0})
+        assert limit.max_positions == 5
+        assert limit.max_leverage == 3.0
+        assert limit.max_position_size == 0.1
+        assert limit.max_portfolio_risk == 0.02
+        assert limit.max_drawdown == 0.20
+        assert limit.stop_loss_pct == 0.05
+
+    def test_round_trip_preserves_values(self) -> None:
+        original = PortfolioLimit(
+            max_positions=15,
+            max_position_size=0.12,
+            max_portfolio_risk=0.03,
+            max_drawdown=0.18,
+            max_leverage=1.5,
+            stop_loss_pct=0.07,
+        )
+        restored = PortfolioLimit.from_dict(original.to_dict())
+        assert restored.max_positions == original.max_positions
+        assert restored.max_position_size == original.max_position_size
+        assert restored.max_portfolio_risk == original.max_portfolio_risk
+        assert restored.max_drawdown == original.max_drawdown
+        assert restored.max_leverage == original.max_leverage
+        assert restored.stop_loss_pct == original.stop_loss_pct
