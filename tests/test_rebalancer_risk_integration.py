@@ -314,3 +314,97 @@ def test_drawdown_breach_execute_explicit_exposure_increasing_buy_enforces_solve
     assert portfolio.cash >= 0.0
     assert portfolio.holdings["MSFT"].quantity == pytest.approx(10.0)
     _assert_solvency(portfolio, rm)
+
+
+def test_execute_buy_at_position_limit_is_dropped() -> None:
+    """An execution-time buy with no position-limit room is dropped.
+
+    The position is already worth ``max_size * total_value`` (0.1 * 100000 =
+    10000), so the position-limit room in ``_risk_adjust_execution_buy`` is
+    zero and the buy must not change the portfolio.
+    """
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    portfolio.add_holding("AAPL", 100, 100.0)  # 10000 = max position value
+    rm = RiskManager(initial_capital=100000.0, max_position_size=0.1, max_drawdown=0.20)
+    rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.5}, risk_manager=rm)
+
+    from quant_trading.portfolio.rebalancer import RebalanceAction
+
+    buy = RebalanceAction(symbol="AAPL", action="buy", quantity=10.0, reason="test_position_limit")
+    cash_before = portfolio.cash
+
+    executions = rebalancer.execute_actions([buy], prices={"AAPL": 100.0})
+
+    assert len(executions) == 1
+    assert executions[0].executed_quantity == 0.0
+    assert executions[0].cash_effect == 0.0
+    assert portfolio.cash == pytest.approx(cash_before)
+    assert portfolio.holdings["AAPL"].quantity == pytest.approx(100.0)
+    _assert_solvency(portfolio, rm)
+
+
+def test_execute_buy_at_leverage_limit_is_dropped() -> None:
+    """An execution-time buy with no leverage room is dropped.
+
+    Gross exposure is already ``max_leverage * total_value`` (0.8 * 100000 =
+    80000), so ``_risk_adjust_execution_exposure`` returns 0 before the risk
+    budget is consulted.
+    """
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    portfolio.add_holding("AAPL", 400, 100.0)  # 40000
+    portfolio.add_holding("MSFT", 400, 100.0)  # 40000, gross = 80000
+    rm = RiskManager(
+        initial_capital=100000.0,
+        max_position_size=1.0,
+        max_leverage=0.8,
+        max_drawdown=0.20,
+    )
+    rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.5}, risk_manager=rm)
+
+    from quant_trading.portfolio.rebalancer import RebalanceAction
+
+    buy = RebalanceAction(symbol="AAPL", action="buy", quantity=10.0, reason="test_leverage_limit")
+    cash_before = portfolio.cash
+
+    executions = rebalancer.execute_actions([buy], prices={"AAPL": 100.0})
+
+    assert len(executions) == 1
+    assert executions[0].executed_quantity == 0.0
+    assert executions[0].cash_effect == 0.0
+    assert portfolio.cash == pytest.approx(cash_before)
+    assert portfolio.holdings["AAPL"].quantity == pytest.approx(400.0)
+    _assert_solvency(portfolio, rm)
+
+
+def test_execute_buy_at_portfolio_risk_limit_is_dropped() -> None:
+    """An execution-time buy with no portfolio-risk room is dropped.
+
+    The open risk of the 40000 position at a 5% stop is 2000, above the
+    1% * 100000 = 1000 budget, so ``_risk_adjust_execution_exposure`` returns
+    0 at the risk-budget guard.
+    """
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    portfolio.add_holding("AAPL", 400, 100.0)  # 40000, risk = 2000
+    rm = RiskManager(
+        initial_capital=100000.0,
+        max_position_size=1.0,
+        max_portfolio_risk=0.01,
+        max_leverage=5.0,
+        stop_loss_pct=0.05,
+        max_drawdown=0.20,
+    )
+    rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.5}, risk_manager=rm)
+
+    from quant_trading.portfolio.rebalancer import RebalanceAction
+
+    buy = RebalanceAction(symbol="AAPL", action="buy", quantity=10.0, reason="test_risk_limit")
+    cash_before = portfolio.cash
+
+    executions = rebalancer.execute_actions([buy], prices={"AAPL": 100.0})
+
+    assert len(executions) == 1
+    assert executions[0].executed_quantity == 0.0
+    assert executions[0].cash_effect == 0.0
+    assert portfolio.cash == pytest.approx(cash_before)
+    assert portfolio.holdings["AAPL"].quantity == pytest.approx(400.0)
+    _assert_solvency(portfolio, rm)

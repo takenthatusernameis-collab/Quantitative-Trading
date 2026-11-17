@@ -1,28 +1,32 @@
 ## What changed (this session)
 
-- Added `TestEqualRiskContribution.test_erc_long_only_clamps_weights` at `tests/test_risk_attribution.py:322` (after edit, near end of `TestEqualRiskContribution`) exercising `calculate_equal_risk_contribution_weights(..., long_only=True)`, covering the `long_only` clamp at `quant_trading/risk/metrics.py:867` and the `weight_sum` guard at `metrics.py:870-871`. Asserts 3 weights indexed `["A", "B", "C"]`, sum to 1.0, all non-negative and finite.
-- Added `TestRiskBudgetWeights.test_risk_budget_long_only_clamps_weights` at `tests/test_risk_attribution.py:433` exercising `calculate_risk_budget_weights(..., long_only=True)`, covering the `long_only` clamp at `quant_trading/risk/metrics.py:956` and the `weight_sum` guard at `metrics.py:958-960`. Same assertions with budget `[0.4, 0.3, 0.3]`.
-- Added `TestPositionLimitSerialization` (5 tests) and `TestPortfolioLimitSerialization` (5 tests) at `tests/test_limits.py:827` covering `to_dict`/`from_dict` round-trips for both classes, closing the last 4 uncovered lines in `quant_trading/risk/limits.py` (lines 127, 153, 311, 339).
+- Completed the prior handoff's "one precise next task": reached a terminal summary for the full default suite and re-measured project-wide coverage.
+- Added three execution-time risk-guard tests at the end of `tests/test_rebalancer_risk_integration.py`:
+  - `test_execute_buy_at_position_limit_is_dropped` — covers the `room <= 0` return at `quant_trading/portfolio/rebalancer.py:764`.
+  - `test_execute_buy_at_leverage_limit_is_dropped` — covers the `leverage_room <= 0` return at `rebalancer.py:816`.
+  - `test_execute_buy_at_portfolio_risk_limit_is_dropped` — covers the `risk_room <= 0` return at `rebalancer.py:824`.
+  Each test builds a risk-managed `Rebalancer`, submits an explicit buy that is over a limit, and asserts the buy is dropped, cash is unchanged, and solvency still holds.
 
 ## What was actually verified (evidence)
 
-- Focused: `python -m pytest tests/test_risk_attribution.py -q` -> `38 passed in 1.31s` (36 pre-existing + 2 new).
-- Limits serialization: `python -m pytest tests/test_limits.py -q` -> `133 passed in 0.56s` (123 pre-existing + 10 new).
-- Combined risk suite: `python -m pytest tests/test_limits.py tests/test_risk_metrics.py tests/test_risk_attribution.py tests/test_risk_manager.py -q` -> `522 passed in 1.91s`.
-- Coverage re-measure for risk module: `quant_trading/risk/limits.py` now **100%** (0 missing statements, 0 missing branches); `quant_trading/risk/metrics.py` **99%** (only lines 871, 960 remain, provably unreachable per prior handoff).
-- Formatting: `python -m black --check quant_trading/risk/limits.py tests/test_limits.py` -> `2 files would be left unchanged.`
-- Lint: `python -m ruff check quant_trading/risk/limits.py tests/test_limits.py` -> `All checks passed!`
-- Types: `python -m mypy quant_trading/risk/limits.py tests/test_limits.py` -> `Success: no issues found in 2 source files`.
+- Full default suite (before adding the new tests): `python -m pytest -q -m "not slow and not network" --cov=quant_trading --cov-report=term` -> **4032 passed, 142 deselected in 648.28s (0:10:48)**, TOTAL coverage **99%** (8841 stmts, 13 missed, 3116 branches, 8 partial). This supersedes the prior handoff's "suite not completed" note.
+- Per-file timing confirmed the earlier apparent hangs were slow files, not deadlocks: `test_cli.py` 350 passed in 266.85s; `test_example_scripts_run.py` 55 passed in 239.11s; `test_readme_cli_commands.py` 100 passed in 157.63s. A single file at a time always terminates; the 600s whole-suite timeout was simply too short.
+- New tests: `python -m pytest tests/test_rebalancer_risk_integration.py -q` -> **11 passed in 0.40s** (8 pre-existing + 3 new).
+- Focused rebalancer suite (7 files incl. new tests): **235 passed in 2.01s**; rebalancer coverage now reports missing only `317, 347-348, 485, 630->600` (previously `485, 630->600, 764, 816, 824`). Lines 317/347-348 are covered by other suites outside this subset.
+- Formatting/lint/types: `black --check` -> 1 file unchanged; `ruff check` -> All checks passed; `mypy` -> Success: no issues found in 1 source file.
 
 ## What remains unresolved / not verified
 
-- `quant_trading/risk/metrics.py:871` (`if weight_sum == 0: break` in ERC) and `:960` (same in risk budgeting) are still reported missing by coverage. PROVABLY UNREACHABLE, do not retry: `calculate_volatility_contributions` returns contributions summing to `portfolio_vol >= 0`, so ERC `target = contrib.sum() / n >= 0`. If `target == 0` the loop breaks earlier at `metrics.py:858-859`; if `target > 0`, some `contrib[j] > 0`, which requires `w[j] > 0`, so `ratio[j] = target / contrib[j] > 0`, so `new_weights[j] > 0` and `weight_sum > 0` after the `long_only` clamp. The suggested deterministic input in the prior handoff (contributions all <= 0) cannot exist since `sum(contrib) >= 0`. Covering these lines would require changing metric semantics, which the task rules out.
-- Full default test suite not completed to a terminal summary (timeout after 120s, per prior handoff); overall coverage percentage not re-measured.
+- `quant_trading/portfolio/rebalancer.py:485` (`else: return False` for an unknown frequency) is unreachable through the public API: `__init__` validates `frequency` against `("daily","weekly","monthly","quarterly")` and raises `ValueError` otherwise (`rebalancer.py:431-435`). Only reachable by mutating the attribute post-construction.
+- `rebalancer.py:630->600` is an unreachable partial branch: line 615 guarantees `abs(diff)/total_value > threshold >= 0`, so `diff != 0`; `diff > 0` takes the `if` arm and `diff < 0` takes the `elif` arm. The false path of `elif diff < 0` cannot occur.
+- `quant_trading/risk/metrics.py:871` and `:960` remain uncovered and PROVABLY UNREACHABLE (see prior handoff math); do not add tests for them.
+- `quant_trading/backtest/engine.py:82-84` (`if TYPE_CHECKING` imports) are never executed at runtime; `sensitivity.py:23-24` (matplotlib `ImportError` fallback) and `:362-363` (pivot exception fallback) remain uncovered. Overall coverage is still 99%.
+- The full suite was last run before the three new tests were added; only focused suites were re-run afterward (fast, deterministic).
 
 ## Approaches that failed
 
-- Attempting to cover `metrics.py:871` / `:960` with deterministic `long_only=True` input: unreachable by the math above; verified by inspection of `calculate_volatility_contributions` (`metrics.py:787-789` returns zero contributions when `portfolio_variance <= 0`, making `target == 0` and breaking at `:858-859` before the clamp is ever reached).
+- Running the whole suite with a 600s timeout (prior session and again this session): timed out, not because of a hang but because the suite takes ~11 minutes. A per-file timing sweep with `timeout` isolated this; per-file runs all pass. Do not retry the whole suite with a short timeout; either budget ~12 minutes or use scoped batches.
 
 ## One precise next task
 
-- Run the broader suite in scoped module batches to reach a terminal summary (e.g. `python -m pytest tests -q -m "not slow and not network"` per module directory, or `python -m pytest tests/test_risk_attribution.py tests/test_risk_metrics.py ...` per file), and re-measure overall coverage with `python -m pytest --cov=quant_trading -q` to confirm the project-wide coverage number is stable or improved. Do NOT add tests targeting `metrics.py:871` or `:960` — they are provably unreachable without changing algorithm semantics. If a genuinely bounded, high-value task appears elsewhere in the repo (e.g. another uncovered branch in `quant_trading/risk/metrics.py` such as lines `78, 98, 132-138, 166, 169, 193-200, 233-243, 285-306, 332, 358-364, 388-400, 426-438, 470-477, 509-518, 549-560, 589, 627-637, 1006-1039`), prefer a focused test with a coverage re-measure; otherwise conclude the session with this handoff.
+- Re-run the full suite once with coverage to confirm the post-change baseline: `python -m pytest -q -m "not slow and not network" --cov=quant_trading --cov-report=term-missing` (allow ~12 minutes). Expect 4035 passed, 142 deselected, TOTAL 99% with rebalancer missing only `485` and `630->600`. Then update this handoff with the exact terminal summary. Do NOT add tests for `rebalancer.py:485` / `630->600` or `metrics.py:871` / `:960` — all are provably unreachable without changing validation or algorithm semantics.
