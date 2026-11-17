@@ -17,6 +17,8 @@ import importlib
 import inspect
 import pkgutil
 import re
+import subprocess
+import sys
 from pathlib import Path
 from typing import cast
 
@@ -4345,3 +4347,35 @@ def test_update_positions_overrides_annotated() -> None:
 
     mismatches = _documented_update_positions_override_mismatches()
     assert not mismatches, "update_positions override signature drift:\n" + "\n".join(mismatches)
+
+
+def test_repository_is_black_formatted() -> None:
+    """Every Python source file must satisfy ``black --check``.
+
+    ``[tool.black]`` in ``pyproject.toml`` pins the formatter and line length
+    (100), and the repository treats formatting as a quality gate, but nothing
+    previously enforced it. An unformatted file slipped into the tree and made
+    ``black --check`` fail while the test suite stayed green. This guard runs
+    the pinned formatter in check mode over the same source directories the
+    other integrity checks cover and fails with the offending paths.
+
+    The check is skipped when Black is not installed so environments that only
+    install the runtime dependencies are unaffected.
+    """
+    pytest.importorskip("black")
+
+    offenders: list[str] = []
+    for directory in SOURCE_DIRS:
+        root = REPO_ROOT / directory
+        if not root.exists():
+            continue
+        result = subprocess.run(
+            [sys.executable, "-m", "black", "--check", "--quiet", str(root)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            offenders.append(f"{directory}: black --check failed\n{result.stderr}{result.stdout}")
+    assert not offenders, "repository is not black-formatted:\n" + "\n".join(offenders)

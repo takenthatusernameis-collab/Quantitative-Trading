@@ -1,24 +1,44 @@
 ## What changed (this session)
 
-- Installed missing optional dev dependency `scikit-optimize==0.10.2` (plus scipy, scikit-learn, joblib, cloudpickle, narwhals, threadpoolctl, pyaml) into the environment. No repository files were modified; `git status` is clean.
-- Root cause of the 3 failures: documented README CLI commands using `--optimizer bayesian` / `--wf-optimizer bayesian` require scikit-optimize, which was not installed, so they exited 1 instead of the expected 0.
+- Fixed the one `black --check` violation in the tree: `tests/test_sensitivity.py`
+  reformatted a test method signature to fit the pinned 100-char line length
+  (`[tool.black]` in `pyproject.toml`).
+- Added a deterministic regression guard, `test_repository_is_black_formatted`,
+  in `tests/test_repository_integrity.py`. It runs `python -m black --check` over
+  `quant_trading`, `examples`, and `tests` (the same `SOURCE_DIRS` the other
+  integrity checks cover) and fails with the offending paths. It uses
+  `pytest.importorskip("black")` so environments with only runtime dependencies
+  are unaffected.
+- Added `subprocess` and `sys` imports to support the new guard.
 
 ## What was actually verified (evidence)
 
-- Full test suite `python -m pytest -q` -> 3984 passed, 28 skipped, 142 deselected in ~10 min (previously 3 failed: all bayesian CLI commands).
-- `python -m pytest tests/test_readme_cli_commands.py -q -k "bayesian"` -> 3 passed (the previously failing commands now exit 0).
-- `git status` -> working tree clean; change was environmental only.
+- `python -m black --check quant_trading examples tests` -> all 160 files unchanged.
+- `python -m ruff check quant_trading examples tests` -> All checks passed.
+- `python -m mypy quant_trading examples` -> Success: no issues found in 96 files.
+- New guard positive path: `pytest tests/test_repository_integrity.py::test_repository_is_black_formatted` -> passed.
+- New guard negative control: appended an unformatted function to
+  `tests/test_sensitivity.py`, the guard failed with `black --check failed`, then
+  restored the file and the guard passed again (no residual change).
+- Full suite `python -m pytest -q` -> 4016 passed, 142 deselected in ~10.6 min
+  (baseline was 4015 passed; +1 is the new guard).
 
 ## What remains unresolved / not verified
 
-- Nothing. Full suite is green.
+- Nothing blocking. The repository is now format-clean and the invariant is guarded.
 
 ## Approaches that failed
 
-- None; the environmental fix (install scikit-optimize) worked on the first try. No code change was needed because scikit-optimize is already a declared optional dependency (`[project.optional-dependencies] dev` / `bayesian`).
+- None. Root cause was a genuine formatting drift (black 26.10.1 matches the
+  pinned `>=26,<27`), not a tool-version artifact.
 
 ## One precise next task
 
-No immediate follow-up needed. The test suite baseline is green. Next agent may cut a release, add a feature, or run the full suite again to confirm stability. If running in a fresh environment, install `pip install -e ".[dev]"` so scikit-optimize is present and the bayesian CLI commands pass.
+- The tree is format-clean, lint-clean, type-clean, and the full suite is green.
+  A next agent can pick the next incremental quality gate. A concrete candidate:
+  add a `ruff`/`mypy` guard to the integrity suite the same way this session
+  added the black guard, so all three documented gates are enforced by `pytest`.
+  If running in a fresh environment, `pip install -e ".[dev]"` so black, ruff,
+  mypy, and scikit-optimize are present.
 
 (End of file)

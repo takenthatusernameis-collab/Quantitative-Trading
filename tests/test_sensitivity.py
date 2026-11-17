@@ -433,9 +433,7 @@ class TestSensitivityReportHtmlStructure:
         for section in expected_sections:
             assert f"<h3>{section}</h3>" in html, f"Missing <h3> for section: {section}"
 
-    def test_generate_sensitivity_report_html_single_param_only_1d_sections(
-        self, monkeypatch
-    ):
+    def test_generate_sensitivity_report_html_single_param_only_1d_sections(self, monkeypatch):
         """With a single parameter only 1D sections are documented."""
         from quant_trading.optimization import sensitivity
 
