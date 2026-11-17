@@ -4154,3 +4154,165 @@ def test_documented_quant_trading_xrefs_resolve() -> None:
     assert (
         not offenders
     ), "docstring cross-references name objects that do not exist:\n" + "\n".join(offenders)
+
+
+def _normalize_update_positions_annotation(annotation: ast.expr | None) -> str | None:
+    if annotation is None:
+        return None
+    if isinstance(annotation, ast.Subscript):
+        base = annotation.value
+        base_name = base.id if isinstance(base, ast.Name) else None
+        if base_name in {"dict", "Dict"}:
+            slice_expr = annotation.slice
+            if isinstance(slice_expr, ast.Tuple):
+                args = slice_expr.elts
+            else:
+                args = [slice_expr]
+            if (
+                len(args) == 2
+                and isinstance(args[0], ast.Name)
+                and args[0].id == "str"
+                and isinstance(args[1], ast.Name)
+                and args[1].id == "Position"
+            ):
+                return "dict[str, Position]"
+    return None
+
+
+def _tree_update_positions_override_mismatches(tree: ast.Module, rel: str) -> list[str]:
+    mismatches: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        if node.name == "Strategy":
+            continue
+        for item in node.body:
+            if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if item.name != "update_positions":
+                continue
+            args = item.args.args
+            if len(args) != 2:
+                shown = ", ".join(arg.arg for arg in args) or "no parameters"
+                mismatches.append(
+                    f"{rel}:{item.lineno}: {node.name}.update_positions has {len(args)} "
+                    f"parameter(s) ({shown}), expected exactly (self, positions)"
+                )
+                continue
+            if args[0].arg != "self":
+                mismatches.append(
+                    f"{rel}:{item.lineno}: {node.name}.update_positions first parameter is "
+                    f"{args[0].arg!r}, expected self"
+                )
+            if args[1].arg != "positions":
+                mismatches.append(
+                    f"{rel}:{item.lineno}: {node.name}.update_positions second parameter is "
+                    f"{args[1].arg!r}, expected positions"
+                )
+            if _normalize_update_positions_annotation(args[1].annotation) != "dict[str, Position]":
+                shown = (
+                    ast.unparse(args[1].annotation) if args[1].annotation is not None else "untyped"
+                )
+                mismatches.append(
+                    f"{rel}:{item.lineno}: {node.name}.update_positions positions annotation is "
+                    f"{shown}, expected dict[str, Position]"
+                )
+            returns = item.returns
+            if not (
+                (isinstance(returns, ast.Name) and returns.id == "None")
+                or (isinstance(returns, ast.Constant) and returns.value is None)
+            ):
+                shown = ast.unparse(returns) if returns is not None else "untyped"
+                mismatches.append(
+                    f"{rel}:{item.lineno}: {node.name}.update_positions returns "
+                    f"{shown}, expected None"
+                )
+    return mismatches
+
+
+def _documented_update_positions_override_mismatches() -> list[str]:
+    mismatches: list[str] = []
+    for path in _python_files():
+        rel = path.relative_to(REPO_ROOT).as_posix()
+        mismatches.extend(_tree_update_positions_override_mismatches(_parse(path), rel))
+    return mismatches
+
+
+def test_update_positions_overrides_annotated() -> None:
+    synthetic_first_param_mismatch = (
+        "class MyStrategy(Strategy):\n"
+        "    def update_positions(cls, positions: dict[str, Position]) -> None:\n"
+        "        return\n"
+    )
+    injected = _tree_update_positions_override_mismatches(
+        ast.parse(synthetic_first_param_mismatch), "synthetic.py"
+    )
+    assert injected
+
+    synthetic_second_param_mismatch = (
+        "class MyStrategy(Strategy):\n"
+        "    def update_positions(self, pos: dict[str, Position]) -> None:\n"
+        "        return\n"
+    )
+    injected = _tree_update_positions_override_mismatches(
+        ast.parse(synthetic_second_param_mismatch), "synthetic.py"
+    )
+    assert injected
+
+    synthetic_arg_count_zero = (
+        "class MyStrategy(Strategy):\n" "    def update_positions() -> None:\n" "        return\n"
+    )
+    injected = _tree_update_positions_override_mismatches(
+        ast.parse(synthetic_arg_count_zero), "synthetic.py"
+    )
+    assert injected
+
+    synthetic_arg_count_three = (
+        "class MyStrategy(Strategy):\n"
+        "    def update_positions(self, positions: dict[str, Position], extra: int) -> None:\n"
+        "        return\n"
+    )
+    injected = _tree_update_positions_override_mismatches(
+        ast.parse(synthetic_arg_count_three), "synthetic.py"
+    )
+    assert injected
+
+    synthetic_annotation_mismatch = (
+        "class MyStrategy(Strategy):\n"
+        "    def update_positions(self, positions: dict[str, int]) -> None:\n"
+        "        return\n"
+    )
+    injected = _tree_update_positions_override_mismatches(
+        ast.parse(synthetic_annotation_mismatch), "synthetic.py"
+    )
+    assert injected
+
+    synthetic_return_mismatch = (
+        "class MyStrategy(Strategy):\n"
+        "    def update_positions(self, positions: dict[str, Position]) -> int:\n"
+        "        return 0\n"
+    )
+    injected = _tree_update_positions_override_mismatches(
+        ast.parse(synthetic_return_mismatch), "synthetic.py"
+    )
+    assert injected
+
+    synthetic_missing_return = (
+        "class MyStrategy(Strategy):\n"
+        "    def update_positions(self, positions: dict[str, Position]):\n"
+        "        return\n"
+    )
+    injected = _tree_update_positions_override_mismatches(
+        ast.parse(synthetic_missing_return), "synthetic.py"
+    )
+    assert injected
+
+    synthetic_ok = (
+        "class MyStrategy(Strategy):\n"
+        "    def update_positions(self, positions: dict[str, Position]) -> None:\n"
+        "        return\n"
+    )
+    assert not _tree_update_positions_override_mismatches(ast.parse(synthetic_ok), "synthetic.py")
+
+    mismatches = _documented_update_positions_override_mismatches()
+    assert not mismatches, "update_positions override signature drift:\n" + "\n".join(mismatches)
