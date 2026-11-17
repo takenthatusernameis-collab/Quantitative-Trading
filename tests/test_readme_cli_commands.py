@@ -425,3 +425,50 @@ class TestExplicitCombinedAndStrategyConfigErrors:
         assert rc == 1
         assert "Traceback" not in out
         assert "invalid YAML in strategy config" in out
+
+    def test_wrongly_typed_config_field_reported(self, tmp_path: Path) -> None:
+        """A config file whose value has the wrong type is reported as a one-line error.
+
+        The README's "Error Reporting" section documents that
+        ``initial_capital: abc`` is reported as
+        ``invalid config field BacktestConfig.initial_capital: expected <class 'float'>, got str ('abc')``
+        instead of starting a backtest. The end-to-end README command harness
+        skips ``/tmp/cfg.yaml`` (it cannot pre-create a broken file), so this
+        test locks the documented CLI behavior directly.
+        """
+        import contextlib
+        import io
+        import os
+        import sys
+        from pathlib import Path
+
+        cfg = tmp_path / "cfg.yaml"
+        cfg.write_text("backtest:\n  initial_capital: abc\n", encoding="utf-8")
+        old_cwd = Path.cwd()
+        old_argv = sys.argv
+        output = io.StringIO()
+        try:
+            os.chdir(tmp_path)
+            sys.argv = [
+                "cli.py",
+                "--config",
+                str(cfg),
+                "--offline",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "30",
+            ]
+            with contextlib.redirect_stdout(output):
+                try:
+                    rc = main()
+                except SystemExit as exc:
+                    rc = exc.code if isinstance(exc.code, int) else 1
+        finally:
+            os.chdir(old_cwd)
+            sys.argv = old_argv
+        out = output.getvalue()
+        assert rc == 1
+        assert "Traceback" not in out
+        assert "invalid config field BacktestConfig.initial_capital" in out
+        assert "expected <class 'float'>, got str ('abc')" in out
