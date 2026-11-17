@@ -87,244 +87,64 @@ warn_unused_configs = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_repository_integrity"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_holding_pnl_invariants"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_rebalancer_risk_integration"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_regime"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_macd"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_readme_cli_commands"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_config"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_limits"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_portfolio"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_portfolio_invariants"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_cost_accounting_invariants"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_rebalancer_sizing_invariants"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_rebalancer_extra_coverage"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_rebalancer_execution"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_rebalancer"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_utils"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_base"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_trade_log"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_backtest_analysis"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_risk_attribution"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_backtest_metrics"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_packaging"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_readme"
-disallow_untyped_defs = true
-[[tool.mypy.overrides]]
-module = "tests.test_data_providers"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_example_scripts_run"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_examples_smoke"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_readme_cli"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_serialization_roundtrip"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_synthetic"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_walk_forward"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_run_optimization_smoke"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_stochrsi"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_average_true_range"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_bollinger_bands"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_momentum"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_supertrend"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_cci"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_keltner_channel"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_parabolic_sar"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_bollinger_percentb"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_ma"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_choppiness"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_registry_coverage"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_rsi"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_aroon"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategy_factory"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_yfinance_provider"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_monte_carlo"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_trade_analysis"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_backtest_report"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_yfinance_fetch_many"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_portfolio_rebalancer"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_risk_metrics"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_risk_manager"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_backtest_engine"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_integration"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_alphavantage_provider"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_cli"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_strategies_examples"
-disallow_untyped_defs = true
 
-[[tool.mypy.overrides]]
-module = "tests.test_optimization"
-disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = "quant_trading.*"
