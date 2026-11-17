@@ -3,12 +3,17 @@
 import pytest
 
 from quant_trading.optimization.sensitivity import (
+    MATPLOTLIB_AVAILABLE,
     SensitivityConfig,
     create_1d_sensitivity_plot,
     create_2d_sensitivity_heatmap,
     create_parameter_interaction_heatmap,
     generate_sensitivity_report_html,
     prepare_sensitivity_data,
+)
+
+requires_matplotlib = pytest.mark.skipif(
+    not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed; install the optional 'reporting' extra"
 )
 
 
@@ -68,6 +73,7 @@ class TestPrepareSensitivityData:
 class TestCreate1DSensitivityPlot:
     """Tests for create_1d_sensitivity_plot function."""
 
+    @requires_matplotlib
     def test_create_1d_sensitivity_plot_basic(self):
         """Test basic 1D sensitivity plot generation."""
         import pandas as pd
@@ -82,6 +88,7 @@ class TestCreate1DSensitivityPlot:
         assert isinstance(chart, str)
         assert len(chart) > 0
 
+    @requires_matplotlib
     def test_create_1d_sensitivity_plot_missing_column(self):
         """Test error when required column is missing."""
         import pandas as pd
@@ -94,6 +101,7 @@ class TestCreate1DSensitivityPlot:
 class TestCreate2DSensitivityHeatmap:
     """Tests for create_2d_sensitivity_heatmap function."""
 
+    @requires_matplotlib
     def test_create_2d_sensitivity_heatmap_basic(self):
         """Test basic 2D sensitivity heatmap generation."""
         import pandas as pd
@@ -109,6 +117,7 @@ class TestCreate2DSensitivityHeatmap:
         assert isinstance(chart, str)
         assert len(chart) > 0
 
+    @requires_matplotlib
     def test_create_2d_sensitivity_heatmap_missing_column(self):
         """Test error when required column is missing."""
         import pandas as pd
@@ -121,6 +130,7 @@ class TestCreate2DSensitivityHeatmap:
 class TestCreateParameterInteractionHeatmap:
     """Tests for create_parameter_interaction_heatmap function."""
 
+    @requires_matplotlib
     def test_create_parameter_interaction_heatmap_basic(self):
         """Test basic parameter interaction heatmap generation."""
         import numpy as np
@@ -138,6 +148,7 @@ class TestCreateParameterInteractionHeatmap:
         assert isinstance(chart, str)
         assert len(chart) > 0
 
+@requires_matplotlib
     def test_create_parameter_interaction_heatmap_insufficient_params(self):
         """Test error when fewer than 2 parameters provided."""
         import pandas as pd
@@ -146,6 +157,7 @@ class TestCreateParameterInteractionHeatmap:
         with pytest.raises(ValueError, match="At least 2 parameters required"):
             create_parameter_interaction_heatmap(df, ["param1"], "score")
 
+    @requires_matplotlib
     def test_create_parameter_interaction_heatmap_missing_param_column(self):
         """A missing parameter column is a ValueError naming the column.
 
@@ -160,12 +172,13 @@ class TestCreateParameterInteractionHeatmap:
             {
                 "param1": [1, 1, 2, 2],
                 "param2": [10, 20, 10, 20],
-                "score": [1.0, 2.0, 3.0, 4.0],
+                "score": [1.0, 3.0, 4.0, 4.0],
             }
         )
         with pytest.raises(ValueError, match="Required columns not found: missing"):
             create_parameter_interaction_heatmap(df, ["param1", "param2", "missing"], "score")
 
+    @requires_matplotlib
     def test_create_parameter_interaction_heatmap_missing_score_column(self):
         """A missing score column is a ValueError naming the column."""
         import pandas as pd
@@ -174,6 +187,7 @@ class TestCreateParameterInteractionHeatmap:
         with pytest.raises(ValueError, match="Required columns not found: score"):
             create_parameter_interaction_heatmap(df, ["param1", "param2"], "score")
 
+    @requires_matplotlib
     def test_create_parameter_interaction_heatmap_single_value_diagonal(self):
         """A parameter with a single value yields a zero diagonal entry."""
         import pandas as pd
@@ -189,6 +203,7 @@ class TestCreateParameterInteractionHeatmap:
         assert isinstance(chart, str)
         assert len(chart) > 0
 
+    @requires_matplotlib
     def test_create_parameter_interaction_heatmap_all_nan_scores(self):
         """An all-NaN score column yields an empty pivot and NaN interaction cells.
 
