@@ -3494,3 +3494,78 @@ def test_documented_attributes_are_valid() -> None:
 
     mismatches = _documented_attributes_mismatches()
     assert not mismatches, "docstring Attributes section is empty:\n" + "\n".join(mismatches)
+
+
+def _docstring_cross_reference_content(docstring: str, section: str) -> list[str] | None:
+    """Return a cross-reference section's lines, or ``None`` when it is absent."""
+    in_section = False
+    found = False
+    content: list[str] = []
+    header = re.compile(rf"^{re.escape(section)}:\s*$")
+    for line in docstring.splitlines():
+        stripped = line.strip()
+        if header.match(stripped):
+            found = True
+            in_section = True
+            continue
+        if in_section and _DOC_SECTION_END.match(stripped):
+            break
+        if in_section:
+            content.append(line)
+    return content if found else None
+
+
+def _tree_cross_reference_mismatches(tree: ast.Module, rel: str) -> list[str]:
+    """Return empty ``See Also:`` or ``References:`` sections in one module."""
+    offenders: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        docstring = ast.get_docstring(node)
+        if not docstring:
+            continue
+        for section in ("See Also", "References"):
+            content = _docstring_cross_reference_content(docstring, section)
+            if content is not None and not any(line.strip() for line in content):
+                offenders.append(f"{rel}:{node.lineno}: {node.name} has an empty {section} section")
+    return offenders
+
+
+def _documented_cross_reference_mismatches() -> list[str]:
+    """Return every empty cross-reference section in the user-facing source tree."""
+    mismatches: list[str] = []
+    for directory in _DOC_SCAN_DIRS:
+        for path in sorted((REPO_ROOT / directory).rglob("*.py")):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            mismatches.extend(_tree_cross_reference_mismatches(_parse(path), rel))
+    return mismatches
+
+
+def test_documented_cross_reference_sections_are_valid() -> None:
+    """Every ``See Also:`` or ``References:`` section must be non-empty."""
+    synthetic_empty = (
+        "def f() -> None:\n"
+        "    '''Do a thing.\n\n"
+        "    See Also:\n"
+        "    References:\n"
+        "    '''\n"
+    )
+    injected = _tree_cross_reference_mismatches(ast.parse(synthetic_empty), "synthetic.py")
+    assert len(injected) == 2, "guard did not fire on both injected empty sections"
+
+    synthetic_ok = (
+        "class C:\n"
+        "    '''Do a thing.\n\n"
+        "    See Also:\n"
+        "        Other API.\n"
+        "    References:\n"
+        "        Project documentation.\n"
+        "    '''\n"
+        "    pass\n"
+    )
+    assert not _tree_cross_reference_mismatches(
+        ast.parse(synthetic_ok), "synthetic.py"
+    ), "guard falsely flagged populated cross-reference sections"
+
+    mismatches = _documented_cross_reference_mismatches()
+    assert not mismatches, "docstring cross-reference section is empty:\n" + "\n".join(mismatches)
