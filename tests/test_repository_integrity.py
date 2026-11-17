@@ -216,11 +216,43 @@ def _normalize_generate_signals_annotation(annotation: ast.expr | None) -> str |
     return None
 
 
-def _tree_generate_signals_annotation_mismatches(tree: ast.Module, rel: str) -> list[str]:
-    """Return every ``generate_signals`` override that does not return ``list[Signal]``.
+def _normalize_generate_signals_data_annotation(annotation: ast.expr | None) -> str | None:
+    """Normalize the ``data`` parameter annotation of ``generate_signals``.
 
-    Split out so a caller can feed it a synthetic tree (the guard's negative
-    control does exactly that) without writing to disk.
+    Only the base-class form ``dict[str, pd.DataFrame]`` is recognized.
+    """
+    if annotation is None:
+        return None
+    if not isinstance(annotation, ast.Subscript):
+        return None
+    base = annotation.value
+    base_name = base.id if isinstance(base, ast.Name) else None
+    if base_name not in {"dict", "Dict"}:
+        return None
+    slice_expr = annotation.slice
+    args = slice_expr.elts if isinstance(slice_expr, ast.Tuple) else [slice_expr]
+    if len(args) != 2:
+        return None
+    key, value = args
+    if not (isinstance(key, ast.Name) and key.id == "str"):
+        return None
+    if (
+        isinstance(value, ast.Attribute)
+        and isinstance(value.value, ast.Name)
+        and value.value.id == "pd"
+        and value.attr == "DataFrame"
+    ):
+        return "dict[str, pd.DataFrame]"
+    return None
+
+
+def _tree_generate_signals_annotation_mismatches(tree: ast.Module, rel: str) -> list[str]:
+    """Return every ``generate_signals`` override that drifts from the base signature.
+
+    Checks both the ``data`` parameter annotation (``dict[str, pd.DataFrame]``)
+    and the return annotation (``list[Signal]``). Split out so a caller can feed
+    it a synthetic tree (the guard's negative control does exactly that) without
+    writing to disk.
     """
     mismatches: list[str] = []
     for node in ast.walk(tree):
@@ -233,6 +265,16 @@ def _tree_generate_signals_annotation_mismatches(tree: ast.Module, rel: str) -> 
                 continue
             if item.name != "generate_signals":
                 continue
+            args = item.args.args
+            data_arg = args[1] if len(args) > 1 else None
+            data_annotation = data_arg.annotation if data_arg is not None else None
+            normalized_data = _normalize_generate_signals_data_annotation(data_annotation)
+            if normalized_data != "dict[str, pd.DataFrame]":
+                shown = ast.unparse(data_annotation) if data_annotation is not None else "untyped"
+                mismatches.append(
+                    f"{rel}:{item.lineno}: {node.name}.generate_signals data parameter is "
+                    f"{shown}, expected dict[str, pd.DataFrame]"
+                )
             normalized = _normalize_generate_signals_annotation(item.returns)
             if normalized != "list[Signal]":
                 mismatches.append(
@@ -243,7 +285,7 @@ def _tree_generate_signals_annotation_mismatches(tree: ast.Module, rel: str) -> 
 
 
 def _documented_generate_signals_annotation_mismatches() -> list[str]:
-    """Return every strategy ``generate_signals`` override that drifts from list[Signal]."""
+    """Return every strategy ``generate_signals`` override that drifts from the base signature."""
     mismatches: list[str] = []
     for directory in ("quant_trading", "examples"):
         for path in sorted((REPO_ROOT / directory).rglob("*.py")):
@@ -253,27 +295,38 @@ def _documented_generate_signals_annotation_mismatches() -> list[str]:
 
 
 def test_generate_signals_overrides_return_list_signal() -> None:
-    """Every ``generate_signals`` override must keep the ``list[Signal]`` return annotation.
+    """Every ``generate_signals`` override must keep the base signature annotations.
 
-    ``Strategy.generate_signals`` declares ``-> list[Signal]``. A subclass that
-    overrides it with a different return annotation (or none) silently breaks
-    callers and the backtest engine, which consume the result as a list of
-    :class:`Signal`. This guard is purely structural (AST, no imports) and only
-    checks overrides outside the base ``Strategy`` class.
+    ``Strategy.generate_signals`` declares
+    ``(self, data: dict[str, pd.DataFrame]) -> list[Signal]``. A subclass that
+    drifts the ``data`` parameter annotation or the return annotation silently
+    breaks callers and the backtest engine. This guard is purely structural
+    (AST, no imports) and only checks overrides outside the base ``Strategy``
+    class.
 
-    A negative control feeds the detector a subclass whose ``generate_signals``
-    is annotated ``-> list[int]`` and asserts the drift is reported. A positive
-    control with ``-> list[Signal]`` passes.
+    Negative controls inject a wrong return annotation and a wrong ``data``
+    parameter annotation and assert the drift is reported. A positive control
+    with the canonical signature passes.
     """
-    synthetic_mismatch = (
+    synthetic_return_mismatch = (
         "class MyStrategy(Strategy):\n"
-        "    def generate_signals(self, data) -> list[int]:\n"
+        "    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[int]:\n"
         "        return []\n"
     )
     injected = _tree_generate_signals_annotation_mismatches(
-        ast.parse(synthetic_mismatch), "synthetic.py"
+        ast.parse(synthetic_return_mismatch), "synthetic.py"
     )
-    assert injected, "guard did not fire on an injected generate_signals annotation drift"
+    assert injected, "guard did not fire on an injected generate_signals return drift"
+
+    synthetic_data_mismatch = (
+        "class MyStrategy(Strategy):\n"
+        "    def generate_signals(self, data: dict) -> list[Signal]:\n"
+        "        return []\n"
+    )
+    injected = _tree_generate_signals_annotation_mismatches(
+        ast.parse(synthetic_data_mismatch), "synthetic.py"
+    )
+    assert injected, "guard did not fire on an injected generate_signals data parameter drift"
 
     synthetic_ok = (
         "class MyStrategy(Strategy):\n"
@@ -282,12 +335,10 @@ def test_generate_signals_overrides_return_list_signal() -> None:
     )
     assert not _tree_generate_signals_annotation_mismatches(
         ast.parse(synthetic_ok), "synthetic.py"
-    ), "guard falsely flagged a list[Signal] generate_signals override"
+    ), "guard falsely flagged a canonical generate_signals override"
 
     mismatches = _documented_generate_signals_annotation_mismatches()
-    assert not mismatches, "generate_signals override return annotation drift:\n" + "\n".join(
-        mismatches
-    )
+    assert not mismatches, "generate_signals override signature drift:\n" + "\n".join(mismatches)
 
 
 def _cli_strategy_keys(tree: ast.Module) -> set[str]:
