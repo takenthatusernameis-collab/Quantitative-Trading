@@ -3343,3 +3343,71 @@ def test_documented_examples_are_valid() -> None:
     assert (
         not mismatches
     ), "docstring Examples/Example section is empty or has bad doctests:\n" + "\n".join(mismatches)
+
+
+def _docstring_notes_content(docstring: str) -> list[str]:
+    """Return the content lines of the ``Notes:`` section.
+
+    Returns the raw lines between the section header and the next section
+    header. An empty list means the section exists but has no content.
+    """
+    in_notes = False
+    content: list[str] = []
+    for line in docstring.splitlines():
+        stripped = line.strip()
+        if re.match(r"^Notes?:\s*$", stripped):
+            in_notes = True
+            continue
+        if in_notes and _DOC_SECTION_END.match(stripped):
+            in_notes = False
+            continue
+        if not in_notes:
+            continue
+        content.append(line)
+    return content
+
+
+def _tree_notes_mismatches(tree: ast.Module, rel: str) -> list[str]:
+    """Return the docstring Notes section issues found in one parsed module."""
+    offenders: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        docstring = ast.get_docstring(node)
+        if not docstring:
+            continue
+        if "Notes:" not in docstring and "Note:" not in docstring:
+            continue
+        content = _docstring_notes_content(docstring)
+        if not content or not any(c.strip() for c in content):
+            offenders.append(f"{rel}:{node.lineno}: {node.name} has an empty Notes section")
+    return offenders
+
+
+def _documented_notes_mismatches() -> list[str]:
+    mismatches: list[str] = []
+    for directory in _DOC_SCAN_DIRS:
+        for path in sorted((REPO_ROOT / directory).rglob("*.py")):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            mismatches.extend(_tree_notes_mismatches(_parse(path), rel))
+    return mismatches
+
+
+def test_documented_notes_are_valid() -> None:
+    synthetic_empty = "def f() -> None:\n" "    '''Do a thing.\n\n" "    Notes:\n" "    '''\n"
+    injected_empty = _tree_notes_mismatches(ast.parse(synthetic_empty), "synthetic.py")
+    assert injected_empty, "guard did not fire on an injected empty Notes section"
+
+    synthetic_ok = (
+        "def f() -> None:\n"
+        "    '''Do a thing.\n\n"
+        "    Notes:\n"
+        "        Some note.\n"
+        "    '''\n"
+    )
+    assert not _tree_notes_mismatches(
+        ast.parse(synthetic_ok), "synthetic.py"
+    ), "guard falsely flagged a valid Notes section"
+
+    mismatches = _documented_notes_mismatches()
+    assert not mismatches, "docstring Notes section is empty:\n" + "\n".join(mismatches)
