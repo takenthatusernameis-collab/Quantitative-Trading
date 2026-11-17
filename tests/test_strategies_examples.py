@@ -7711,6 +7711,24 @@ class TestExamplesRemainingCoverage:
         }
         assert isinstance(strategy.generate_signals({"AAPL": self._ohlcv([100.0] * 10)}), list)
 
+    # --- MovingAverageEnvelopeStrategy: NaN current/prev price skipped (lines 7848-7849) ---
+    def test_moving_average_envelope_last_close_nan(self) -> None:
+        strategy = MovingAverageEnvelopeStrategy(period=20, percentage=2.5)
+        # len >= period + 1 passes the length guard, but the previous close is
+        # NaN, so line 7849 (`pd.isna(prev_price)`) must skip the symbol.
+        closes = [100.0] * 20 + [float("nan"), 100.0]
+        data = {"AAPL": self._ohlcv(closes)}
+        assert strategy.generate_signals(data) == []
+
+    # --- MovingAverageEnvelopeStrategy: NaN SMA skipped (line 7855) ---
+    def test_moving_average_envelope_nan_sma(self) -> None:
+        strategy = MovingAverageEnvelopeStrategy(period=20, percentage=2.5)
+        # A NaN inside the rolling window makes the SMA NaN while the last two
+        # closes are valid, so line 7855 (not line 7849) must skip the symbol.
+        closes = [100.0] * 19 + [float("nan"), 100.0, 100.0]
+        data = {"AAPL": self._ohlcv(closes)}
+        assert strategy.generate_signals(data) == []
+
     # --- RSI: incremental gain/loss histogram trimming (lines 341-345) ---
     def test_rsi_incremental_hist_trimming(self) -> None:
         strategy = RSIStrategy(period=3, oversold=30, overbought=70)

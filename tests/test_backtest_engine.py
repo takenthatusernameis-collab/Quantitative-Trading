@@ -724,6 +724,38 @@ def test_portfolio_violations_collected_without_halt() -> None:
     assert result.equity_curve.index[0] == start_date
 
 
+def test_risk_attribution_fallback_returns_none_on_error() -> None:
+    """When calculate_risk_attribution raises, risk_attribution is None.
+
+    positions is non-empty (FirstDayBuyStrategy buys and holds), so the
+    `if positions:` branch is taken and calculate_risk_attribution is called.
+    A ValueError from the risk manager must be caught and leave
+    risk_attribution as None instead of failing the run.
+    """
+    symbols = ["AAPL"]
+    mock_data = create_synthetic_data(symbols, days=60)
+
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    config = BacktestConfig(initial_capital=100000.0)
+    engine = BacktestEngine(config=config, data_manager=data_manager)
+    engine.add_strategy(FirstDayBuyStrategy())
+
+    start_date = datetime.now() - timedelta(days=50)
+    end_date = datetime.now()
+
+    with patch.object(
+        engine.risk_manager,
+        "calculate_risk_attribution",
+        side_effect=ValueError("insufficient return history"),
+    ):
+        result = engine.run(symbols, start_date, end_date, "1d")
+
+    assert isinstance(result, BacktestResult)
+    assert result.risk_attribution is None
+
+
 def test_halt_on_portfolio_violation_stops_backtest() -> None:
     """halt_on_portfolio_violation=True stops the backtest on the first violation.
 
