@@ -23,3 +23,13 @@
 ## One precise next task
 
 - Run the broader suite in scoped module batches to reach a terminal summary (e.g. `python -m pytest tests -q -m "not slow and not network"` per module directory, or `python -m pytest tests/test_risk_attribution.py tests/test_risk_metrics.py ...` per file), and re-measure overall coverage with `python -m pytest --cov=quant_trading -q` to confirm the project-wide coverage number is stable or improved. Do NOT add tests targeting `metrics.py:871` or `:960` — they are provably unreachable without changing algorithm semantics. If a genuinely bounded, high-value task appears elsewhere in the repo (e.g. another uncovered branch in `quant_trading/risk/metrics.py` such as lines `78, 98, 132-138, 166, 169, 193-200, 233-243, 285-306, 332, 358-364, 388-400, 426-438, 470-477, 509-518, 549-560, 589, 627-637, 1006-1039`), prefer a focused test with a coverage re-measure; otherwise conclude the session with this handoff.
+
+## Update (this session)
+
+- Ran focused broader suite: `python -m pytest tests/test_risk_attribution.py tests/test_risk_metrics.py tests/test_risk_manager.py -q` -> 389 passed in 1.85s.
+- Coverage re-measure for risk module: `quant_trading/risk/metrics.py` now 99% (only 871, 960 remain, provably unreachable per prior handoff).
+- Full suite times out under 120s; remaining work is to run the rest of tests in batches and re-measure project-wide coverage.
+
+## One precise next task
+
+- Run remaining test modules in batches (e.g. strategies, backtest, portfolio, rebalancer) to a terminal summary, then re-measure overall coverage with `python -m pytest --cov=quant_trading -q` to confirm stability. Do NOT add tests for metrics.py:871/960.
