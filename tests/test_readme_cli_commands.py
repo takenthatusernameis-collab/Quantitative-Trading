@@ -39,7 +39,7 @@ from quant_trading.data.yfinance_provider import AlphaVantageProvider, YFinanceP
 README_PATH = Path(__file__).resolve().parent.parent / "README.md"
 
 _CODE_BLOCK = re.compile(r"```bash\n(?P<body>.*?)```", re.DOTALL)
-_COMMAND = re.compile(r"^python\s+examples/cli\.py(?P<args>.*)$")
+_COMMAND = re.compile(r"^(?:python\s+examples/cli\.py|quant-trading)(?P<args>.*)$")
 
 
 def _cli_section() -> str:

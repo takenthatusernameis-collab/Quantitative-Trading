@@ -265,110 +265,111 @@ $ python examples/cli.py --offline --start 2024-01-01 --days 0 --symbols AAPL
 # Runs normally using the explicit start date
 ```
 
+```bash
 # Override strategy parameters and run a Monte Carlo simulation
-python examples/cli.py --offline --strategy macd --macd-fast 12 --macd-slow 26 --macd-signal 9 --monte-carlo --mc-method bootstrap --mc-confidence 0.95 --mc-seed 42
+quant-trading --offline --strategy macd --macd-fast 12 --macd-slow 26 --macd-signal 9 --monte-carlo --mc-method bootstrap --mc-confidence 0.95 --mc-seed 42
 
 # Override the RSI period (default: 14)
-python examples/cli.py --offline --strategy rsi --rsi-period 14 --symbols AAPL --days 90
+quant-trading --offline --strategy rsi --rsi-period 14 --symbols AAPL --days 90
 
 # Override the RSI overbought threshold (default: 70)
-python examples/cli.py --offline --strategy rsi --rsi-overbought 75 --symbols AAPL --days 90
+quant-trading --offline --strategy rsi --rsi-overbought 75 --symbols AAPL --days 90
 
 # Tune the Stochastic Oscillator %K and %D periods
-python examples/cli.py --offline --strategy stoch --stoch-k-period 14 --stoch-d-period 3 --symbols MSFT --days 90
+quant-trading --offline --strategy stoch --stoch-k-period 14 --stoch-d-period 3 --symbols MSFT --days 90
 
 # Override the fast/slow periods of the default MA crossover strategy
-python examples/cli.py --offline --fast-period 5 --slow-period 20 --symbols AAPL --days 90
+quant-trading --offline --fast-period 5 --slow-period 20 --symbols AAPL --days 90
 
 # Override the RSI oversold threshold (default: 30)
-python examples/cli.py --offline --strategy rsi --rsi-period 14 --rsi-oversold 25 --symbols AAPL --days 90
+quant-trading --offline --strategy rsi --rsi-period 14 --rsi-oversold 25 --symbols AAPL --days 90
 
 # Use the MACD zero line for crossovers
-python examples/cli.py --offline --strategy macd --macd-fast 12 --macd-slow 26 --macd-signal 9 --macd-zero-line --symbols AAPL --days 90
+quant-trading --offline --strategy macd --macd-fast 12 --macd-slow 26 --macd-signal 9 --macd-zero-line --symbols AAPL --days 90
 
 # Override the SuperTrend period and multiplier
-python examples/cli.py --offline --strategy supertrend --st-period 10 --st-multiplier 3.0 --symbols AAPL --days 90
+quant-trading --offline --strategy supertrend --st-period 10 --st-multiplier 3.0 --symbols AAPL --days 90
 
 # Override the Stochastic oversold/overbought levels
-python examples/cli.py --offline --strategy stoch --stoch-k-period 14 --stoch-d-period 3 --stoch-oversold 20 --stoch-overbought 80 --symbols AAPL --days 90
+quant-trading --offline --strategy stoch --stoch-k-period 14 --stoch-d-period 3 --stoch-oversold 20 --stoch-overbought 80 --symbols AAPL --days 90
 
 # Override the ATR period and multiplier
-python examples/cli.py --offline --strategy atr --atr-period 14 --atr-multiplier 2.0 --symbols AAPL --days 90
+quant-trading --offline --strategy atr --atr-period 14 --atr-multiplier 2.0 --symbols AAPL --days 90
 
 # Override the ADX period and trend threshold
-python examples/cli.py --offline --strategy adx --adx-period 14 --adx-threshold 25.0 --symbols AAPL --days 90
+quant-trading --offline --strategy adx --adx-period 14 --adx-threshold 25.0 --symbols AAPL --days 90
 
 # Override the Aroon period
-python examples/cli.py --offline --strategy aroon --aroon-period 25 --symbols AAPL --days 90
+quant-trading --offline --strategy aroon --aroon-period 25 --symbols AAPL --days 90
 
 # Override the Donchian channel periods
-python examples/cli.py --offline --strategy donchian --dc-period 20 --dc-exit-period 10 --symbols AAPL --days 90
+quant-trading --offline --strategy donchian --dc-period 20 --dc-exit-period 10 --symbols AAPL --days 90
 
 # Override the Keltner Channel parameters
-python examples/cli.py --offline --strategy keltner --kc-ema-period 20 --kc-atr-period 10 --kc-multiplier 2.0 --symbols AAPL --days 90
+quant-trading --offline --strategy keltner --kc-ema-period 20 --kc-atr-period 10 --kc-multiplier 2.0 --symbols AAPL --days 90
 
 # Use the Keltner middle cross
-python examples/cli.py --offline --strategy keltner --kc-use-middle-cross --symbols AAPL --days 90
+quant-trading --offline --strategy keltner --kc-use-middle-cross --symbols AAPL --days 90
 
 # Override the Parabolic SAR step and max step
-python examples/cli.py --offline --strategy sar --sar-step 0.02 --sar-max-step 0.2 --symbols AAPL --days 90
+quant-trading --offline --strategy sar --sar-step 0.02 --sar-max-step 0.2 --symbols AAPL --days 90
 
 # Override the Ichimoku periods
-python examples/cli.py --offline --strategy ichimoku --tenkan-period 9 --kijun-period 26 --senkou-b-period 52 --symbols AAPL --days 90
+quant-trading --offline --strategy ichimoku --tenkan-period 9 --kijun-period 26 --senkou-b-period 52 --symbols AAPL --days 90
 
 # Use the Stochastic midline filter
-python examples/cli.py --offline --strategy stoch --stoch-use-midline --symbols AAPL --days 90
+quant-trading --offline --strategy stoch --stoch-use-midline --symbols AAPL --days 90
 ```
 
 ### Data Providers
 
- ```bash
- # Use Yahoo Finance (default, requires network)
- python examples/cli.py --provider yfinance
+```bash
+# Use Yahoo Finance (default, requires network)
+quant-trading --provider yfinance
 
  # Use Alpha Vantage (supports daily, weekly, monthly, intraday, and real-time)
- python examples/cli.py --provider alphavantage --interval 5m --days 30
+ quant-trading --provider alphavantage --interval 5m --days 30
 
  # Use Alpha Vantage with weekly data
- python examples/cli.py --provider alphavantage --interval weekly --days 365
+ quant-trading --provider alphavantage --interval weekly --days 365
 
  # Use Alpha Vantage with monthly adjusted data (includes dividends/splits)
- python examples/cli.py --provider alphavantage --interval monthly_adjusted --days 1095
+ quant-trading --provider alphavantage --interval monthly_adjusted --days 1095
 
  # Use Alpha Vantage with real-time quote
- python examples/cli.py --provider alphavantage --interval quote
+ quant-trading --provider alphavantage --interval quote
 
  # Use Alpha Vantage with market status
- python examples/cli.py --provider alphavantage --interval market_status
+ quant-trading --provider alphavantage --interval market_status
 
  # Use Alpha Vantage with FX daily data
- python examples/cli.py --provider alphavantage --interval fx_daily --symbols USD/EUR GBP/USD
+ quant-trading --provider alphavantage --interval fx_daily --symbols USD/EUR GBP/USD
 
  # Use Alpha Vantage with FX intraday data
- python examples/cli.py --provider alphavantage --interval fx_5m --symbols USD/EUR
+ quant-trading --provider alphavantage --interval fx_5m --symbols USD/EUR
 
   # Use Alpha Vantage with crypto data
-  python examples/cli.py --provider alphavantage --interval crypto_daily --symbols BTC ETH
+  quant-trading --provider alphavantage --interval crypto_daily --symbols BTC ETH
 
   # Use Alpha Vantage with technical indicators (SMA is the default daily series)
-  python examples/cli.py --provider alphavantage --interval sma --symbols AAPL MSFT
-  python examples/cli.py --provider alphavantage --interval rsi --symbols AAPL
-  python examples/cli.py --provider alphavantage --interval macd --symbols AAPL
+  quant-trading --provider alphavantage --interval sma --symbols AAPL MSFT
+  quant-trading --provider alphavantage --interval rsi --symbols AAPL
+  quant-trading --provider alphavantage --interval macd --symbols AAPL
 
   # Use Alpha Vantage sector performance
-  python examples/cli.py --provider alphavantage --interval sector
+  quant-trading --provider alphavantage --interval sector
 
   # Use Alpha Vantage with your own API key
-  python examples/cli.py --provider alphavantage --alphavantage-key YOUR_API_KEY --interval 1h
+  quant-trading --provider alphavantage --alphavantage-key YOUR_API_KEY --interval 1h
 
  # Run offline with synthetic data (deterministic, no network required)
- python examples/cli.py --offline
+ quant-trading --offline
  # or
- python examples/cli.py --provider synthetic
+ quant-trading --provider synthetic
 
  # Control the synthetic data span and seed with ``--synthetic-days`` and
  # ``--synthetic-seed``
- python examples/cli.py --offline --synthetic-days 120 --synthetic-seed 7 --symbols AAPL --days 30
+ quant-trading --offline --synthetic-days 120 --synthetic-seed 7 --symbols AAPL --days 30
 ```
 
 The `--synthetic-days` argument is checked before the run starts and must be at
@@ -394,16 +395,16 @@ Error: invalid --synthetic-seed: the value must be between 0 and 4294967295 (got
 
 ```bash
 # List available strategies with their default parameters
-python examples/cli.py --list-strategies
+quant-trading --list-strategies
 
 # List available data providers
-python examples/cli.py --list-providers
+quant-trading --list-providers
 
 # Generate a default config.yaml file
-python examples/cli.py --init-config config.yaml
+quant-trading --init-config config.yaml
 
 # Validate a config YAML file
-python examples/cli.py --validate-config config.yaml
+quant-trading --validate-config config.yaml
 ```
 
 ### Combined Mode
@@ -411,7 +412,7 @@ python examples/cli.py --validate-config config.yaml
 Run all strategies together and compare results:
 
 ```bash
-python examples/cli.py --combined --symbols AAPL MSFT GOOGL --days 365
+quant-trading --combined --symbols AAPL MSFT GOOGL --days 365
 ```
 
 The analysis flags work in combined mode as well. Combined mode runs one
@@ -419,7 +420,7 @@ backtest per strategy, so there is no combined equity curve to analyse, and
 the analysis is reported for the best strategy of the comparison:
 
 ```bash
-python examples/cli.py --combined --offline --regime --symbols AAPL --days 120
+quant-trading --combined --offline --regime --symbols AAPL --days 120
 ```
 
 The JSON output of a combined run carries the analysis under the same keys as
@@ -430,7 +431,7 @@ a single run, next to the `best_strategy` it belongs to.
 Load settings from a YAML config file:
 
 ```bash
-python examples/cli.py --config config.yaml
+quant-trading --config config.yaml
 ```
 
 Every section of the file configures the run: the `data` section picks the
@@ -449,7 +450,7 @@ For example, the per-trade costs and the risk-free rate can be overridden on
 the command line without touching the config file:
 
 ```bash
-python examples/cli.py --offline --commission 0.001 --slippage 0.0005 --risk-free-rate 0.02 --symbols AAPL --days 30
+quant-trading --offline --commission 0.001 --slippage 0.0005 --risk-free-rate 0.02 --symbols AAPL --days 30
 ```
 
 The `--commission` and `--slippage` arguments are checked before the run
@@ -509,7 +510,7 @@ parameters:
 ```
 
 ```bash
-python examples/cli.py --offline --strategy-config strat.yaml --symbols AAPL --days 120
+quant-trading --offline --strategy-config strat.yaml --symbols AAPL --days 120
 ```
 
 The `type` is resolved through the strategy registry (a primary key or an
@@ -522,7 +523,7 @@ The optimizer that searches the parameter space is selected with `--optimizer`,
 which accepts `grid` (default), `random`, and `bayesian`:
 
 ```bash
-python examples/cli.py --offline --optimize --strategy ma \
+quant-trading --offline --optimize --strategy ma \
     --optimizer bayesian \
     --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
     --symbols AAPL --days 120
@@ -536,11 +537,11 @@ must be greater than zero; the grid optimizer evaluates the cartesian product of
 all ranges given on the command line:
 
 ```bash
-python examples/cli.py --offline --optimize --strategy rsi \
+quant-trading --offline --optimize --strategy rsi \
     --rsi-period-range 10,18,4 \
     --symbols AAPL --days 120
 
-python examples/cli.py --offline --optimize --strategy macd \
+quant-trading --offline --optimize --strategy macd \
     --macd-fast-range 8,12,4 --macd-slow-range 16,24,8 \
     --symbols MSFT --days 120
 ```
@@ -552,30 +553,30 @@ README command test suite; ranges are kept tiny (2-3 values) so each runs in
 about a second:
 
 ```bash
-python examples/cli.py --offline --optimize --strategy aroon --aroon-period-range 10,20,5 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy atr --atr-period-range 5,15,2 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy atr --atr-multiplier-range 1.0,2.0,0.5 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy bb --bb-period-range 10,20,5 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy bb --bb-std-range 1.5,2.5,0.5 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy dc --dc-period-range 10,20,5 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy dc --dc-exit-period-range 5,10,2 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy ichimoku --ichimoku-tenkan-period-range 5,10,2 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy ichimoku --ichimoku-kijun-period-range 10,20,5 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy ichimoku --ichimoku-senkou-b-period-range 20,40,10 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy kc --kc-ema-period-range 10,20,5 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy kc --kc-atr-period-range 5,15,2 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy kc --kc-multiplier-range 1.0,2.0,0.5 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy macd --macd-signal-range 5,9,2 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy rsi --rsi-oversold-range 20,30,5 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy rsi --rsi-overbought-range 70,80,5 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy sar --sar-step-range 0.01,0.03,0.01 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy sar --sar-max-step-range 0.10,0.15,0.05 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy st --st-period-range 7,15,2 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy st --st-multiplier-range 2.0,3.0,0.5 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy stoch --stoch-k-period-range 10,20,5 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy stoch --stoch-d-period-range 2,5,1 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy stoch --stoch-oversold-range 10,20,5 --symbols AAPL --days 120
-python examples/cli.py --offline --optimize --strategy stoch --stoch-overbought-range 70,80,5 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy aroon --aroon-period-range 10,20,5 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy atr --atr-period-range 5,15,2 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy atr --atr-multiplier-range 1.0,2.0,0.5 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy bb --bb-period-range 10,20,5 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy bb --bb-std-range 1.5,2.5,0.5 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy dc --dc-period-range 10,20,5 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy dc --dc-exit-period-range 5,10,2 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy ichimoku --ichimoku-tenkan-period-range 5,10,2 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy ichimoku --ichimoku-kijun-period-range 10,20,5 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy ichimoku --ichimoku-senkou-b-period-range 20,40,10 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy kc --kc-ema-period-range 10,20,5 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy kc --kc-atr-period-range 5,15,2 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy kc --kc-multiplier-range 1.0,2.0,0.5 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy macd --macd-signal-range 5,9,2 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy rsi --rsi-oversold-range 20,30,5 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy rsi --rsi-overbought-range 70,80,5 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy sar --sar-step-range 0.01,0.03,0.01 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy sar --sar-max-step-range 0.10,0.15,0.05 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy st --st-period-range 7,15,2 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy st --st-multiplier-range 2.0,3.0,0.5 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy stoch --stoch-k-period-range 10,20,5 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy stoch --stoch-d-period-range 2,5,1 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy stoch --stoch-oversold-range 10,20,5 --symbols AAPL --days 120
+quant-trading --offline --optimize --strategy stoch --stoch-overbought-range 70,80,5 --symbols AAPL --days 120
 ```
 
 The `random` and `bayesian` optimizers evaluate a fixed number of parameter
@@ -588,7 +589,7 @@ default `auto`), and `--bayesian-noise` (observation noise added to the GP
 kernel, default `1e-6`):
 
 ```bash
-python examples/cli.py --offline --optimize --strategy ma \
+quant-trading --offline --optimize --strategy ma \
     --optimizer random --n-iter 200 --n-jobs 4 \
     --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
     --symbols AAPL --days 120
@@ -601,7 +602,7 @@ random points, default 10), `--bayesian-acq-func` (acquisition function:
 (observation noise added to the GP kernel, default `1e-6`):
 
 ```bash
-python examples/cli.py --offline --optimize --strategy ma \
+quant-trading --offline --optimize --strategy ma \
     --optimizer bayesian --bayesian-n-initial 3 --bayesian-acq-func PI \
     --bayesian-acq-optimizer lbfgs --bayesian-noise 1e-4 \
     --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
@@ -613,7 +614,7 @@ selected with `--objective`, which accepts `sharpe` (default), `sortino`,
 `return`, `calmar`, `drawdown`, `profit_factor`, and `win_rate`:
 
 ```bash
-python examples/cli.py --offline --optimize --strategy ma \
+quant-trading --offline --optimize --strategy ma \
     --objective sortino \
     --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
     --symbols AAPL --days 120
@@ -626,11 +627,11 @@ regular backtest) to a YAML file, so it can be re-run later with
 `--strategy-config`:
 
 ```bash
-python examples/cli.py --offline --optimize --strategy ma \
+quant-trading --offline --optimize --strategy ma \
     --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
     --symbols AAPL --days 120 \
     --output-strategy-config best_ma.yaml
-python examples/cli.py --offline --strategy-config best_ma.yaml --symbols AAPL --days 120
+quant-trading --offline --strategy-config best_ma.yaml --symbols AAPL --days 120
 ```
 
 ### Walk-Forward Optimization
@@ -641,7 +642,7 @@ stability. It is enabled with `--walk-forward`, which accepts the same
 `--optimizer` and `--objective` flags as the single optimization:
 
 ```bash
-python examples/cli.py --offline --walk-forward --strategy ma \
+quant-trading --offline --walk-forward --strategy ma \
     --wf-windows 5 --wf-train-size 0.7 \
     --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
     --symbols AAPL --days 365
@@ -652,19 +653,19 @@ python examples/cli.py --offline --walk-forward --strategy ma \
 optimizer used inside each window:
 
 ```bash
-python examples/cli.py --offline --walk-forward --wf-anchored \
+quant-trading --offline --walk-forward --wf-anchored \
     --wf-windows 3 --wf-train-size 0.7 \
     --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
     --symbols AAPL --days 120
-python examples/cli.py --offline --walk-forward --wf-rolling \
+quant-trading --offline --walk-forward --wf-rolling \
     --wf-windows 3 --wf-train-size 0.7 \
     --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
     --symbols AAPL --days 120
-python examples/cli.py --offline --walk-forward \
+quant-trading --offline --walk-forward \
     --wf-windows 3 --wf-train-size 0.7 --wf-optimizer random \
     --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
     --symbols AAPL --days 120
-python examples/cli.py --offline --walk-forward --wf-optimizer bayesian \
+quant-trading --offline --walk-forward --wf-optimizer bayesian \
     --bayesian-n-initial 2 --n-iter 5 \
     --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
     --wf-windows 3 --wf-train-size 0.7 --symbols AAPL --days 90 \
@@ -684,7 +685,7 @@ overlaps the training spans of consecutive windows, which re-optimizes more
 often over the same data:
 
 ```bash
-python examples/cli.py --offline --walk-forward \
+quant-trading --offline --walk-forward \
     --wf-windows 3 --wf-train-size 0.7 --wf-step-size 0.5 \
     --ma-fast-range 5,15,5 --ma-slow-range 20,30,10 \
     --symbols AAPL --days 120
@@ -695,18 +696,18 @@ python examples/cli.py --offline --walk-forward \
 Save results to JSON or CSV:
 
 ```bash
-python examples/cli.py --output results.json
-python examples/cli.py --combined --output comparison.json
-python examples/cli.py --output results.csv --output-format csv
+quant-trading --output results.json
+quant-trading --combined --output comparison.json
+quant-trading --output results.csv --output-format csv
 ```
 
 Generate an HTML backtest report (charts require the optional `reporting`
 extra, `pip install quant-trading[reporting]`):
 
 ```bash
-python examples/cli.py --offline --symbols AAPL --days 120 --report report.html
-python examples/cli.py --offline --strategy rsi --report dark.html --report-theme dark
-python examples/cli.py --offline --report nocharts.html --report-no-charts
+quant-trading --offline --symbols AAPL --days 120 --report report.html
+quant-trading --offline --strategy rsi --report dark.html --report-theme dark
+quant-trading --offline --report nocharts.html --report-no-charts
 ```
 
 Bayesian optimization requires the optional `bayesian` extra
@@ -809,13 +810,13 @@ Annotate a backtest's equity curve with market-regime labels
 
 ```bash
 # Run a backtest and print the regimes its equity curve traversed
-python examples/cli.py --offline --regime --symbols AAPL --days 120
+quant-trading --offline --regime --symbols AAPL --days 120
 
 # Override the auto-derived volatility/return thresholds
-python examples/cli.py --offline --regime --regime-window 30 --regime-vol-threshold 0.15 --regime-return-threshold 0.05
+quant-trading --offline --regime --regime-window 30 --regime-vol-threshold 0.15 --regime-return-threshold 0.05
 
 # Annualize the regime statistics with the frequency of the run
-python examples/cli.py --offline --regime --interval 1wk --symbols AAPL --days 120
+quant-trading --offline --regime --interval 1wk --symbols AAPL --days 120
 ```
 
 The regime volatility and the regime return are annualized with the same
@@ -848,7 +849,7 @@ Detailed trade-level analysis including PnL statistics, holding periods, streaks
 
 ```bash
 # Run a backtest with detailed trade analysis
-python examples/cli.py --offline --trade-analysis --symbols AAPL --days 120
+quant-trading --offline --trade-analysis --symbols AAPL --days 120
 ```
 
 ### Alpha Vantage Specifics
@@ -1592,7 +1593,7 @@ for seg in analysis.segments:
 The analysis is also available from the CLI:
 
 ```bash
-python examples/cli.py --offline --regime --symbols AAPL --days 120
+quant-trading --offline --regime --symbols AAPL --days 120
 ```
 
 Optional explicit thresholds can be supplied to override the auto-derived
@@ -1626,7 +1627,7 @@ metrics and the Monte Carlo simulation, so a weekly run reports a regime
 volatility that is consistent with the rest of its output:
 
 ```bash
-python examples/cli.py --offline --regime --periods-per-year 52 --symbols AAPL --days 120
+quant-trading --offline --regime --periods-per-year 52 --symbols AAPL --days 120
 ```
 
 A threshold that is left at its default is derived from the series itself (the
@@ -1656,13 +1657,13 @@ print(f"95% CI for total return: [{lower:.2f}%, {upper:.2f}%]")
 The analysis is also available from the CLI:
 
 ```bash
-python examples/cli.py --offline --monte-carlo --symbols AAPL --days 120
+quant-trading --offline --monte-carlo --symbols AAPL --days 120
 ```
 
 Override the simulation parameters:
 
 ```bash
-python examples/cli.py --offline --monte-carlo --mc-simulations 500 --mc-method parametric --mc-confidence 0.99 --mc-seed 7
+quant-trading --offline --monte-carlo --mc-simulations 500 --mc-method parametric --mc-confidence 0.99 --mc-seed 7
 ```
 
 The `--mc-seed` argument is checked before the run starts and must be a
@@ -1698,7 +1699,7 @@ print_trade_analysis(analysis)
 The analysis is also available from the CLI:
 
 ```bash
-python examples/cli.py --offline --trade-analysis --symbols AAPL --days 120
+quant-trading --offline --trade-analysis --symbols AAPL --days 120
 ```
 
 This provides:
@@ -2208,8 +2209,8 @@ The CLI derives the value from `--interval` (252 for daily, 52 for weekly,
 `--periods-per-year` to override it:
 
 ```bash
-python examples/cli.py --offline --interval 1wk
-python examples/cli.py --offline --interval 1wk --periods-per-year 52
+quant-trading --offline --interval 1wk
+quant-trading --offline --interval 1wk --periods-per-year 52
 ```
 
 ## License
