@@ -2265,6 +2265,41 @@ _UNDOCUMENTED_PARAM_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         (
             "quant_trading/backtest/report.py",
             "_create_comparison_monthly_returns_heatmap",
+            "colors",
+        ),
+        (
+            "quant_trading/backtest/report.py",
+            "_create_comparison_monthly_returns_heatmap",
+            "results",
+        ),
+        (
+            "quant_trading/backtest/report.py",
+            "_create_comparison_risk_attribution_chart",
+            "results",
+        ),
+        (
+            "quant_trading/backtest/report.py",
+            "_create_comparison_rolling_volatility_chart",
+            "colors",
+        ),
+        (
+            "quant_trading/backtest/report.py",
+            "_create_comparison_rolling_volatility_chart",
+            "results",
+        ),
+        (
+            "quant_trading/backtest/report.py",
+            "_create_comparison_trade_distribution_chart",
+            "colors",
+        ),
+        (
+            "quant_trading/backtest/report.py",
+            "_create_comparison_trade_distribution_chart",
+            "results",
+        ),
+        (
+            "quant_trading/backtest/report.py",
+            "_create_comparison_monthly_returns_heatmap",
             "results",
         ),
         ("quant_trading/backtest/report.py", "_create_comparison_risk_attribution_chart", "colors"),
@@ -2374,13 +2409,23 @@ def _tree_undocumented_params(tree: ast.Module, rel: str) -> list[str]:
             params.discard(node.args.vararg.arg)
         if node.args.kwarg is not None:
             params.discard(node.args.kwarg.arg)
-        documented = set(_docstring_arg_names(docstring))
+        if not params:
+            continue
+        has_args_header = any(
+            re.match(r"^Args:\s*$", line.strip()) for line in docstring.splitlines()
+        )
+        documented = set(_docstring_arg_names(docstring)) if has_args_header else set()
         for name in sorted(params - documented):
             if (rel, node.name, name) in _UNDOCUMENTED_PARAM_ALLOWLIST:
                 continue
-            offenders.append(
-                f"{rel}:{node.lineno}: {node.name} does not document parameter {name!r}"
-            )
+            if not has_args_header:
+                offenders.append(
+                    f"{rel}:{node.lineno}: {node.name} has documentable parameters but no Args section; missing {name!r}"
+                )
+            else:
+                offenders.append(
+                    f"{rel}:{node.lineno}: {node.name} does not document parameter {name!r}"
+                )
     return offenders
 
 
@@ -2401,27 +2446,46 @@ def test_documented_args_cover_signature_params() -> None:
     documentation defect: the caller has no contract for what it does or what
     values it accepts. This guard parses every function's ``Args:`` section
     (AST, no imports) and fails when a signature parameter has no matching
-    entry. It is conservative: ``self``/``cls`` and ``*args``/``**kwargs`` are
+    entry, including functions whose docstring omits the entire ``Args:``
+    header. It is conservative: ``self``/``cls`` and ``*args``/``**kwargs`` are
     skipped, and functions without a docstring are not checked.
 
     Existing undocumented parameters are grandfathered in
     _UNDOCUMENTED_PARAM_ALLOWLIST; the guard prevents the debt from growing
     rather than failing on today's state.
 
-    A negative control feeds the detector a synthetic function whose docstring
-    documents ``a`` but not ``b`` and asserts the drift is reported, proving
-    the guard fires on the defect it guards against rather than passing
-    vacuously.
+    Negative controls feed the detector a synthetic function whose docstring
+    documents ``a`` but not ``b``, and a synthetic function with documentable
+    parameters but no ``Args:`` header, and assert both are reported. A
+    positive control asserts that a populated ``Args:`` section passes.
     """
-    synthetic = (
+    missing_param = (
         "def f(a: int, b: int = 0) -> None:\n"
         "    '''Do a thing.\n\n"
         "    Args:\n"
         "        a: first value.\n"
         "    '''\n"
     )
-    injected = _tree_undocumented_params(ast.parse(synthetic), "synthetic.py")
+    injected = _tree_undocumented_params(ast.parse(missing_param), "synthetic.py")
     assert injected, "guard did not fire on an injected undocumented parameter"
+
+    missing_header = (
+        "def f(a: int, b: int = 0) -> None:\n" "    '''Do a thing without documenting args.'''\n"
+    )
+    injected_header = _tree_undocumented_params(ast.parse(missing_header), "synthetic.py")
+    assert injected_header, "guard did not fire on a documented function with no Args header"
+
+    populated = (
+        "def f(a: int, b: int = 0) -> None:\n"
+        "    '''Do a thing.\n\n"
+        "    Args:\n"
+        "        a: first value.\n"
+        "        b: second value.\n"
+        "    '''\n"
+    )
+    assert not _tree_undocumented_params(
+        ast.parse(populated), "synthetic.py"
+    ), "guard falsely flagged a populated Args section"
 
     offenders = _undocumented_params()
     assert not offenders, "signature parameters missing from docstring Args:\n" + "\n".join(
