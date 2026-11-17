@@ -1587,6 +1587,18 @@ _DOC_SECTION_END = re.compile(
     r"^(Returns|Raises|Yields|Examples|Example|Notes?|Attributes|See Also|References):\s*$"
 )
 
+# Matches a Returns section entry with a known type-like prefix.
+# Only matches known Python/collection type names to avoid false positives
+# on prose like "The result", "A dictionary", "Summary of...", "HTML string",
+# "EMA series", "ATR series", "Sharpe ratio", etc.
+# Also allows PascalCase class names (e.g., "RiskMetrics object") ONLY when
+# followed by "object", since "X object" is a standard type declaration pattern,
+# while "X series/value/ratio" are often descriptive.
+_DOC_RETURNS_TYPE_PREFIX = re.compile(
+    r"^(?:(?:Series|List|Dict|Dictionary|Mapping|Tuple|Set|Frozenset|Array|DataFrame|Index|Sequence|Collection|Iterable|Generator|Callable|Function|Type|Class|Instance|Deque|DefaultDict|OrderedDict|Counter|ChainMap|NamedTuple|TypedDict|DataClass|Protocol|AbstractSet|MutableSet|MappingView|KeysView|ValuesView|ItemsView|Awaitable|Coroutine|AsyncIterable|AsyncIterator|AsyncGenerator)\s+of\s+\w+|(?:Series|List|Dict|Dictionary|Mapping|Tuple|Set|Frozenset|Array|DataFrame|Index|Sequence|Collection|Iterable|Generator|Callable|Function|Type|Class|Instance|Deque|DefaultDict|OrderedDict|Counter|ChainMap|NamedTuple|TypedDict|DataClass|Protocol|AbstractSet|MutableSet|MappingView|KeysView|ValuesView|ItemsView|Awaitable|Coroutine|AsyncIterable|AsyncIterator|AsyncGenerator|DataFrame|Series|Index|Ndarray|Array|int|float|str|bool|None|NoneType|bytes|bytearray|memoryview|range|slice|ellipsis|NotImplemented|Ellipsis)\s+(?:object|value|dictionary|mapping|tuple|set|frozenset|array|frame|index|series|sequence|collection|iterable|generator|callable|function|type|class|instance|none|bool|int|float|str|string|bytes|bytearray|memoryview|range|slice|ellipsis|NotImplemented|Ellipsis)|[A-Z][a-zA-Z0-9]*\s+object)\b",
+    re.IGNORECASE,
+)
+
 
 def _literal_default(text: str) -> tuple[bool, object]:
     """Parse a docstring ``(default X)`` note into a Python literal.
@@ -1660,6 +1672,199 @@ def _signature_defaults(node: ast.FunctionDef | ast.AsyncFunctionDef) -> dict[st
     for arg, default in zip(args.kwonlyargs, args.kw_defaults):
         defaults[arg.arg] = default
     return defaults
+
+
+def _signature_return_annotation(node: ast.FunctionDef | ast.AsyncFunctionDef) -> ast.expr | None:
+    """Return the return annotation AST node, or ``None`` if not annotated."""
+    return node.returns
+
+
+def _docstring_returns_type(docstring: str) -> str | None:
+    """Extract a type-like prefix from the ``Returns:`` section of a docstring.
+
+    Looks for patterns like:
+    - "Series of X" / "List of X" / "Dict of X" / etc.
+    - "X object" / "X value" / "X ratio" / "X dictionary" / etc.
+
+    Returns the normalized type string (e.g., "Series", "RiskMetrics", "float"),
+    or ``None`` if no recognizable type prefix is found.
+    """
+    in_returns = False
+    for line in docstring.splitlines():
+        stripped = line.strip()
+        if re.match(r"^Returns:\s*$", stripped):
+            in_returns = True
+            continue
+        if in_returns and _DOC_SECTION_END.match(stripped):
+            break
+        if not in_returns:
+            continue
+        match = _DOC_RETURNS_TYPE_PREFIX.match(stripped)
+        if match:
+            # If we matched "X of Y", group(1) is not captured, so extract the prefix
+            # The full match will contain the type prefix
+            full = match.group(0).strip()
+            # Extract the type word(s) before "of" or before "object"/"value"/etc.
+            if " of " in full.lower():
+                return full.split(" of ")[0].strip()
+            # Otherwise it's "X object", "X value", etc. - extract X
+            parts = full.split()
+            return parts[0]
+    return None
+
+
+def _normalize_return_annotation(annotation: ast.expr | None) -> str | None:
+    """Convert a return annotation AST node to a normalized type string.
+
+    Handles common patterns:
+    - Simple names: ``str`` -> "str"
+    - Subscripts: ``list[Signal]`` -> "List", ``pd.Series`` -> "Series"
+    - Attributes: ``pd.DataFrame`` -> "DataFrame"
+    - ``None`` / ``NoneType`` -> "None"
+
+    Returns ``None`` if the annotation cannot be normalized to a simple type name.
+    """
+    if annotation is None:
+        return None
+
+    # Handle ast.Name (simple names like str, int, float, None, etc.)
+    if isinstance(annotation, ast.Name):
+        name = annotation.id
+        if name == "None":
+            return "None"
+        return name.capitalize()
+
+    # Handle ast.Constant (for None as a constant in newer Python)
+    if isinstance(annotation, ast.Constant) and annotation.value is None:
+        return "None"
+
+    # Handle ast.Subscript (generic types like list[X], dict[X, Y], tuple[X, ...])
+    if isinstance(annotation, ast.Subscript):
+        if isinstance(annotation.value, ast.Name):
+            return annotation.value.id.capitalize()
+        if isinstance(annotation.value, ast.Attribute):
+            return annotation.value.attr.capitalize()
+
+    # Handle ast.Attribute (qualified names like pd.Series, pd.DataFrame)
+    if isinstance(annotation, ast.Attribute):
+        return annotation.attr.capitalize()
+
+    return None
+
+
+def _returns_type_match(doc_type: str | None, sig_type: str | None) -> bool:
+    """Conservative check if a documented return type matches the signature annotation.
+
+    Only returns ``True`` when both are present and semantically equivalent.
+    Known equivalences are mapped (e.g., "Series" ~ "Series", "List" ~ "List",
+    "Dict" ~ "Dict", "DataFrame" ~ "DataFrame", etc.).
+    """
+    if doc_type is None or sig_type is None:
+        return True  # Can't verify - skip rather than false positive
+
+    doc_lower = doc_type.lower()
+    sig_lower = sig_type.lower()
+
+    # Direct match
+    if doc_lower == sig_lower:
+        return True
+
+    # Common equivalences
+    equivalences = {
+        "series": {"series", "pd.series", "pandas.series"},
+        "list": {"list", "sequence"},
+        "dict": {"dict", "dictionary", "mapping"},
+        "tuple": {"tuple"},
+        "set": {"set"},
+        "dataframe": {"dataframe", "pd.dataframe", "pandas.dataframe"},
+        "float": {"float", "number"},
+        "int": {"int", "integer"},
+        "str": {"str", "string"},
+        "bool": {"bool", "boolean"},
+        "none": {"none", "nonetype"},
+    }
+
+    for variants in equivalences.values():
+        if doc_lower in variants and sig_lower in variants:
+            return True
+
+    return False
+
+
+def _tree_returns_mismatches(tree: ast.Module, rel: str) -> list[str]:
+    """Return the docstring/signature return type mismatches found in one parsed module.
+
+    Split out so a caller can feed it a synthetic tree (the guard's negative control
+    does exactly that) without writing to disk.
+    """
+    mismatches: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        docstring = ast.get_docstring(node)
+        if not docstring:
+            continue
+        doc_type = _docstring_returns_type(docstring)
+        sig_annotation = _signature_return_annotation(node)
+        sig_type = _normalize_return_annotation(sig_annotation)
+        if (
+            not _returns_type_match(doc_type, sig_type)
+            and doc_type is not None
+            and sig_type is not None
+        ):
+            mismatches.append(
+                f"{rel}:{node.lineno}: {node.name} documented Returns type "
+                f"{doc_type!r} but signature returns {sig_type!r}"
+            )
+    return mismatches
+
+
+def _documented_returns_mismatches() -> list[str]:
+    """Return every function whose docstring Returns type contradicts its signature.
+
+    A docstring that tells the reader a function returns one type while the
+    signature annotates a different type is a documentation defect. The check is
+    purely structural (AST) and only compares a recognizable type prefix from
+    the Returns section against the signature return annotation; descriptive
+    Returns sections without a clear type prefix are skipped so the guard cannot
+    produce false positives.
+    """
+    mismatches: list[str] = []
+    for directory in _DOC_SCAN_DIRS:
+        for path in sorted((REPO_ROOT / directory).rglob("*.py")):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            mismatches.extend(_tree_returns_mismatches(_parse(path), rel))
+    return mismatches
+
+
+def test_documented_returns_match_signature() -> None:
+    """Every ``Returns:`` type prefix must match the function's return annotation.
+
+    A docstring that advertises the wrong return type misleads callers about
+    what the function actually produces. This guard parses every function's
+    ``Returns:`` section (AST, no imports) and fails when a recognizable type
+    prefix disagrees with the signature return annotation. It is deliberately
+    conservative: only functions with both a clear type prefix in the Returns
+    section (e.g., "Series of ...", "RiskMetrics object") and a signature
+    return annotation are compared. Prose-only Returns sections are skipped.
+
+    A negative control feeds the detector a synthetic function whose docstring
+    claims it returns a "Series" while the signature annotates ``-> int`` and
+    asserts the drift is reported, proving the guard fires on the defect it
+    guards against rather than passing vacuously.
+    """
+    synthetic = (
+        "def f() -> int:\n"
+        "    '''Do a thing.\n\n"
+        "    Returns:\n"
+        "        Series of values.\n"
+        "    '''\n"
+    )
+    injected = _tree_returns_mismatches(ast.parse(synthetic), "synthetic.py")
+    assert injected, "guard did not fire on an injected docstring/signature return type drift"
+
+    mismatches = _documented_returns_mismatches()
+    assert not mismatches, "docstring Returns type contradicts signature:\n" + "\n".join(mismatches)
 
 
 def _tree_default_mismatches(tree: ast.Module, rel: str) -> list[str]:
