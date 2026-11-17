@@ -472,6 +472,77 @@ class TestExplicitCombinedAndStrategyConfigErrors:
         assert "Traceback" not in out
         assert "invalid YAML in strategy config" in out
 
+    def test_report_no_charts_runs_without_matplotlib(self, tmp_path: Path) -> None:
+        """``--report --report-no-charts`` must succeed even when matplotlib is absent.
+
+        The README documents ``--report-no-charts`` as the chart-free report path
+        (README.md:710, 717-719), and separately documents that charted reports
+        need the optional ``reporting`` extra (README.md:704-705). The
+        end-to-end harness skips charted commands when matplotlib is missing,
+        but the chart-free command is not skip-marked — it is only *implicitly*
+        covered. This test locks the invariant directly: with matplotlib
+        unavailable, the chart-free command still exits 0 and writes the HTML
+        file, while a charted command on the same invocation shape exits 1 with
+        a one-line error mentioning matplotlib.
+        """
+        import contextlib
+        import io
+        import os
+        import sys
+        from pathlib import Path
+
+        from quant_trading.backtest import report as report_module
+
+        original = report_module.MATPLOTLIB_AVAILABLE
+        report_module.MATPLOTLIB_AVAILABLE = False
+        try:
+            # Chart-free path: no charts, so no matplotlib needed.
+            nocharts = tmp_path / "nocharts.html"
+            old_cwd = Path.cwd()
+            old_argv = sys.argv
+            out = io.StringIO()
+            try:
+                os.chdir(tmp_path)
+                sys.argv = [
+                    "cli.py",
+                    "--offline",
+                    "--report",
+                    str(nocharts),
+                    "--report-no-charts",
+                ]
+                with contextlib.redirect_stdout(out):
+                    try:
+                        rc = main()
+                    except SystemExit as exc:
+                        rc = exc.code if isinstance(exc.code, int) else 1
+            finally:
+                os.chdir(old_cwd)
+                sys.argv = old_argv
+            assert rc == 0
+            assert nocharts.exists(), "chart-free report file was not written"
+            assert "Traceback" not in out.getvalue()
+
+            # Charted path on the same shape: must fail cleanly without matplotlib.
+            charted = tmp_path / "charted.html"
+            out2 = io.StringIO()
+            sys.argv = ["cli.py", "--offline", "--report", str(charted)]
+            try:
+                os.chdir(tmp_path)
+                with contextlib.redirect_stdout(out2):
+                    try:
+                        rc2 = main()
+                    except SystemExit as exc:
+                        rc2 = exc.code if isinstance(exc.code, int) else 1
+            finally:
+                os.chdir(old_cwd)
+                sys.argv = old_argv
+            assert rc2 == 1
+            assert not charted.exists(), "charted report should not be written without matplotlib"
+            assert "Traceback" not in out2.getvalue()
+            assert "matplotlib" in out2.getvalue().lower()
+        finally:
+            report_module.MATPLOTLIB_AVAILABLE = original
+
     def test_wrongly_typed_config_field_reported(self, tmp_path: Path) -> None:
         """A config file whose value has the wrong type is reported as a one-line error.
 
