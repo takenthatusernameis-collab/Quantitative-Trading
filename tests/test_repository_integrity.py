@@ -266,8 +266,25 @@ def _tree_generate_signals_annotation_mismatches(tree: ast.Module, rel: str) -> 
             if item.name != "generate_signals":
                 continue
             args = item.args.args
-            data_arg = args[1] if len(args) > 1 else None
-            data_annotation = data_arg.annotation if data_arg is not None else None
+            if len(args) != 2:
+                shown = ", ".join(arg.arg for arg in args) or "no parameters"
+                mismatches.append(
+                    f"{rel}:{item.lineno}: {node.name}.generate_signals has {len(args)} "
+                    f"parameter(s) ({shown}), expected exactly (self, data)"
+                )
+                continue
+            first, second = args
+            if first.arg != "self":
+                mismatches.append(
+                    f"{rel}:{item.lineno}: {node.name}.generate_signals first parameter is "
+                    f"{first.arg!r}, expected self"
+                )
+            if second.arg != "data":
+                mismatches.append(
+                    f"{rel}:{item.lineno}: {node.name}.generate_signals second parameter is "
+                    f"{second.arg!r}, expected data"
+                )
+            data_annotation = second.annotation
             normalized_data = _normalize_generate_signals_data_annotation(data_annotation)
             if normalized_data != "dict[str, pd.DataFrame]":
                 shown = ast.unparse(data_annotation) if data_annotation is not None else "untyped"
@@ -299,14 +316,15 @@ def test_generate_signals_overrides_return_list_signal() -> None:
 
     ``Strategy.generate_signals`` declares
     ``(self, data: dict[str, pd.DataFrame]) -> list[Signal]``. A subclass that
-    drifts the ``data`` parameter annotation or the return annotation silently
-    breaks callers and the backtest engine. This guard is purely structural
-    (AST, no imports) and only checks overrides outside the base ``Strategy``
-    class.
+    drifts the ``data`` parameter annotation, the parameter names, the parameter
+    count, or the return annotation silently breaks callers and the backtest
+    engine. This guard is purely structural (AST, no imports) and only checks
+    overrides outside the base ``Strategy`` class.
 
-    Negative controls inject a wrong return annotation and a wrong ``data``
-    parameter annotation and assert the drift is reported. A positive control
-    with the canonical signature passes.
+    Negative controls inject a wrong return annotation, a wrong ``data``
+    parameter annotation, a wrong first/second parameter name, and a wrong
+    parameter count, and assert each drift is reported. A positive control with
+    the canonical signature passes.
     """
     synthetic_return_mismatch = (
         "class MyStrategy(Strategy):\n"
@@ -327,6 +345,36 @@ def test_generate_signals_overrides_return_list_signal() -> None:
         ast.parse(synthetic_data_mismatch), "synthetic.py"
     )
     assert injected, "guard did not fire on an injected generate_signals data parameter drift"
+
+    synthetic_first_param_mismatch = (
+        "class MyStrategy(Strategy):\n"
+        "    def generate_signals(cls, data: dict[str, pd.DataFrame]) -> list[Signal]:\n"
+        "        return []\n"
+    )
+    injected = _tree_generate_signals_annotation_mismatches(
+        ast.parse(synthetic_first_param_mismatch), "synthetic.py"
+    )
+    assert injected, "guard did not fire on an injected generate_signals first parameter drift"
+
+    synthetic_second_param_mismatch = (
+        "class MyStrategy(Strategy):\n"
+        "    def generate_signals(self, market_data: dict[str, pd.DataFrame]) -> list[Signal]:\n"
+        "        return []\n"
+    )
+    injected = _tree_generate_signals_annotation_mismatches(
+        ast.parse(synthetic_second_param_mismatch), "synthetic.py"
+    )
+    assert injected, "guard did not fire on an injected generate_signals second parameter drift"
+
+    synthetic_arg_count_mismatch = (
+        "class MyStrategy(Strategy):\n"
+        "    def generate_signals(self, data: dict[str, pd.DataFrame], extra: int) -> list[Signal]:\n"
+        "        return []\n"
+    )
+    injected = _tree_generate_signals_annotation_mismatches(
+        ast.parse(synthetic_arg_count_mismatch), "synthetic.py"
+    )
+    assert injected, "guard did not fire on an injected generate_signals parameter count drift"
 
     synthetic_ok = (
         "class MyStrategy(Strategy):\n"
