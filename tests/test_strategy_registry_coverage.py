@@ -267,6 +267,29 @@ def test_every_registered_strategy_has_a_test_class() -> None:
     )
 
 
+def test_every_registered_strategy_has_a_description() -> None:
+    """Each registered strategy exposes a non-empty ``description``.
+
+    ``Strategy.__init_subclass__`` derives ``description`` from the first line
+    of the class docstring, and ``--list-strategies`` in ``examples/cli.py``
+    only prints the field when it is truthy. A registered strategy without a
+    docstring therefore appears in the CLI listing with no description at all
+    — a silent documentation gap that this guard makes loud.
+    """
+    registry = get_registry()
+    missing = []
+    for key in registry.primary_keys():
+        cls = registry.get(key)
+        description = getattr(cls, "description", None)
+        if not isinstance(description, str) or not description.strip():
+            missing.append(key)
+    assert not missing, (
+        f"Registered strategies with no description: {missing}. "
+        f"Add a class docstring; its first line becomes the description "
+        f"shown by --list-strategies."
+    )
+
+
 def test_every_defined_strategy_class_is_registered() -> None:
     """Every ``Strategy`` subclass in the examples module is reachable via the registry.
 

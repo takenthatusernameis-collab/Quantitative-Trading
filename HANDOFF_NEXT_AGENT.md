@@ -1,23 +1,20 @@
 ## What changed (this session)
 
-- The assigned `Strategy.update_positions` override guard was already functionally complete (added in commit ca05a40); this session closed its style gap by adding the docstrings its sibling helpers/tests all carry in `tests/test_repository_integrity.py`:
-  - `_normalize_update_positions_annotation`, `_tree_update_positions_override_mismatches`, `_documented_update_positions_override_mismatches`, and `test_update_positions_overrides_annotated`.
-- Added a new reverse-coverage guard in `tests/test_strategy_registry_coverage.py`:
-  - `_defined_strategy_classes()` + `test_every_defined_strategy_class_is_registered()` assert every `Strategy` subclass defined in `quant_trading/strategies/examples.py` is wired up by a `register_strategy(...)` call. This is the reverse of `test_every_registered_strategy_has_an_example_script` and catches the common "added a class, forgot to register it" dead-code mistake.
+- Executed the previous handoff's assigned task: added `test_every_registered_strategy_has_a_description()` to `tests/test_strategy_registry_coverage.py` (placed after `test_every_registered_strategy_has_a_test_class`, matching the file's real-tree assertion style with a `missing` list and an actionable assert message). The guard asserts `get_registry().get(key).description` is a non-empty `str` for every primary key, so a registered strategy without a class docstring can no longer silently appear description-less in `--list-strategies` (`examples/cli.py:1499-1502` only prints the field when truthy; `Strategy.__init_subclass__` at `quant_trading/strategies/base.py:292-293` derives it from the docstring's first line).
 
 ## What was actually verified (evidence)
 
-- `python -m pytest -q` -> `4008 passed, 142 deselected in 379s` (was `4007 passed` before; +1 for the new test). No regressions.
-- `python -m pytest -q -m "slow and not network"` -> `142 passed, 4007 deselected` (the normally-deselected slow suite is green; total repo = 4149 tests).
-- `python -m pytest tests/test_repository_integrity.py tests/test_strategy_registry_coverage.py tests/test_strategy_factory.py -q` -> `95 passed`.
-- `python -m ruff check tests/test_repository_integrity.py tests/test_strategy_registry_coverage.py` -> `All checks passed!`
-- `python -m black --check` on both files -> `left unchanged`.
-- New guard is non-vacuous: `_defined_strategy_classes()` returns 48 names, registry exposes 48 primary keys, `defined - registered == []`.
+- `python -m pytest tests/test_strategy_registry_coverage.py -q` -> `12 passed` (was 11 before; +1 for the new test).
+- `python -m pytest -q` -> `4009 passed, 142 deselected in 372.93s` (was 4008 before). No regressions.
+- `python -m ruff check tests/test_strategy_registry_coverage.py` -> `All checks passed!`
+- `python -m black --check tests/test_strategy_registry_coverage.py` -> `1 file would be left unchanged`.
+- Non-vacuity: the loop iterates all 48 primary keys; a pre-check confirmed 48/48 currently carry non-empty descriptions (zero violations).
+- Repo-wide: `ruff check .` -> clean; `black --check .` -> 160 files unchanged; `mypy quant_trading/` -> `Success: no issues found in 39 source files`.
 
 ## What remains unresolved / not verified
 
 - CI workflow execution on GitHub Actions was not observed (workflow files are controller-managed and cannot be persisted by an agent session).
-- The `network`-marked selection collects 0 tests (`pytest -m network --collect-only` -> none), so there is no network suite to run offline.
+- The `network`-marked selection collects 0 tests, so there is no network suite to run offline.
 
 ## Approaches that already failed / were ruled out (do not repeat)
 
@@ -27,8 +24,8 @@
 - Guarding `Strategy.get_parameters`/`set_parameter` overrides is vacuous: neither is overridden anywhere.
 - Guarding `Strategy.generate_signals` is redundant: it is `@abstractmethod`, so ABC already enforces implementation at instantiation.
 - Duplicate-primary-key handling in `StrategyRegistry.register` (factory.py:124 overwrites silently) is *intended*: `tests/test_strategy_factory.py::test_reregister_overwrites` pins that behavior. Do not "fix" it.
-- The 48 registered strategies already have full example-script + `Test<ClassName>` + registry coverage; further registered->X guards would be redundant.
+- The 48 registered strategies now have example-script + `Test<ClassName>` + description + reverse-registration coverage; further registered->X guards on the strategy set would be redundant.
 
 ## One precise next task
 
-- Add a coverage guard in `tests/test_strategy_registry_coverage.py`: every registered strategy's auto-derived `description` (from `Strategy.__init_subclass__`) must be a non-empty string, so `--list-strategies` never shows a blank description. Implement `test_every_registered_strategy_has_a_description()` asserting `get_registry().get(key).description` is a non-empty `str` for every primary key. This currently holds 48/48 (verified: zero registered strategies with empty `description`), so it should pass on first run. Match the file's existing real-tree assertion style (no synthetic control needed, consistent with `test_every_registered_strategy_has_a_test_class`). Then rerun `python -m pytest tests/test_strategy_registry_coverage.py -q`, `ruff check`, and `black --check` on the modified file. If a real violation appears, add the missing class docstring rather than weakening the guard.
+- Remove the ~60 dead `[[tool.mypy.overrides]]` sections whose `module = "tests.*"` from `pyproject.toml` (they span lines 90-328; KEEP the `[tool.mypy]` global block at lines 83-88 and the `module = "quant_trading.*"` override at lines 329-331 — that one IS applied by the documented `mypy quant_trading/` invocation and is load-bearing; it is absent from mypy's unused-section note). Evidence the `tests.*` sections are dead config under the installed toolchain (mypy 2.4.1 with `warn_unused_configs = true`): every mypy invocation (`mypy quant_trading/`, `mypy tests/test_x.py`, `mypy -p tests.test_x`) prints a note listing all ~60 test modules as "unused section(s)"; and behaviorally, `tests/test_cost_accounting_invariants.py` contains untyped defs yet `python -m mypy tests/test_cost_accounting_invariants.py` reports `Success` — the `disallow_untyped_defs = true` overrides never apply. The README (line 205) documents only `mypy quant_trading/`; no test invokes mypy (`grep -rn mypy tests/*.py` is empty), and `tests/test_packaging.py` only pins `py.typed` / `package-data` / `"Typing :: Typed"` / version. After the edit verify: `python -m mypy quant_trading/` still prints `Success` with NO unused-sections note; `python -m pytest tests/test_packaging.py -q` passes; `python -m pytest -q` full suite stays green. Do NOT instead try to make the `tests.*` overrides actually apply — that would newly enforce `disallow_untyped_defs` across ~27 untyped test defs and is a different, much larger task.
