@@ -318,6 +318,33 @@ class TestEqualRiskContribution:
         assert abs(weights.sum() - 1.0) < 1e-6
         assert np.isfinite(weights.to_numpy()).all()
 
+    def test_erc_long_only_clamps_weights(self) -> None:
+        """The long_only clamp keeps ERC weights non-negative and normalized.
+
+        Exercises the long_only clamp branch (quant_trading/risk/metrics.py:867)
+        and the weight_sum guard (quant_trading/risk/metrics.py:870-871). The
+        guard's break is provably unreachable: target = portfolio_vol / n >= 0,
+        so when target > 0 some positive contribution has positive weight and
+        weight_sum stays > 0 after clamping; when target == 0 the loop breaks at
+        the earlier target == 0 guard instead.
+        """
+        np.random.seed(42)
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 200),
+                "B": np.random.normal(0.001, 0.03, 200),
+                "C": np.random.normal(0.001, 0.015, 200),
+            }
+        )
+        weights = calculate_equal_risk_contribution_weights(
+            returns, long_only=True, annualize=False
+        )
+        assert len(weights) == 3
+        assert weights.index.tolist() == ["A", "B", "C"]
+        assert abs(weights.sum() - 1.0) < 1e-6
+        assert (weights >= 0).all()
+        assert np.isfinite(weights.to_numpy()).all()
+
 
 class TestRiskBudgetWeights:
     """Tests for calculate_risk_budget_weights."""
@@ -426,6 +453,29 @@ class TestRiskBudgetWeights:
         weights = calculate_risk_budget_weights(returns, budget, max_iter=1, annualize=False)
         assert len(weights) == 2
         assert abs(weights.sum() - 1.0) < 1e-6
+        assert np.isfinite(weights.to_numpy()).all()
+
+    def test_risk_budget_long_only_clamps_weights(self) -> None:
+        """The long_only clamp keeps risk-budget weights non-negative and normalized.
+
+        Exercises the long_only clamp branch (quant_trading/risk/metrics.py:956)
+        and the weight_sum guard (quant_trading/risk/metrics.py:958-960), which is
+        provably unreachable for the same reason as the ERC counterpart.
+        """
+        np.random.seed(42)
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 200),
+                "B": np.random.normal(0.001, 0.03, 200),
+                "C": np.random.normal(0.001, 0.015, 200),
+            }
+        )
+        budget = pd.Series([0.4, 0.3, 0.3], index=["A", "B", "C"])
+        weights = calculate_risk_budget_weights(returns, budget, long_only=True, annualize=False)
+        assert len(weights) == 3
+        assert weights.index.tolist() == ["A", "B", "C"]
+        assert abs(weights.sum() - 1.0) < 1e-6
+        assert (weights >= 0).all()
         assert np.isfinite(weights.to_numpy()).all()
 
 
