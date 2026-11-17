@@ -2098,6 +2098,140 @@ def test_documented_returns_match_signature() -> None:
     assert not mismatches, "docstring Returns type contradicts signature:\n" + "\n".join(mismatches)
 
 
+# Return-annotation bases whose first type argument is the yielded value type.
+_YIELD_ANNOTATION_BASES: frozenset[str] = frozenset({"Generator", "Iterator", "AsyncGenerator"})
+
+
+def _docstring_yields_type(docstring: str) -> str | None:
+    """Extract a type-like prefix from the ``Yields:`` section of a docstring.
+
+    Mirrors :func:`_docstring_returns_type` but scans the ``Yields:`` section,
+    recognising the same type prefixes (e.g. ``"int value"``, ``"Series of
+    floats"``, ``"RiskMetrics object"``). Returns the normalized type string,
+    or ``None`` when no recognizable prefix is found.
+    """
+    in_yields = False
+    for line in docstring.splitlines():
+        stripped = line.strip()
+        if re.match(r"^Yields:\s*$", stripped):
+            in_yields = True
+            continue
+        if in_yields and _DOC_SECTION_END.match(stripped):
+            break
+        if not in_yields:
+            continue
+        match = _DOC_RETURNS_TYPE_PREFIX.match(stripped)
+        if match:
+            full = match.group(0).strip()
+            if " of " in full.lower():
+                return full.split(" of ")[0].strip()
+            parts = full.split()
+            return parts[0]
+    return None
+
+
+def _normalize_yield_annotation(annotation: ast.expr | None) -> str | None:
+    """Convert a generator/iterator return annotation to its yield type string.
+
+    Handles ``Generator[X, ...]``, ``Iterator[X]`` and ``AsyncGenerator[X, ...]``
+    (including qualified bases such as ``typing.Generator[X, ...]``), returning
+    the normalized yield type (e.g. ``"Int"``) or ``None`` when the annotation
+    is not one of those types or declares no yield type argument.
+    """
+    if annotation is None:
+        return None
+
+    if isinstance(annotation, ast.Subscript):
+        base = annotation.value
+        slice_expr = annotation.slice
+    else:
+        return None
+
+    base_name: str | None = None
+    if isinstance(base, ast.Name):
+        base_name = base.id
+    elif isinstance(base, ast.Attribute):
+        base_name = base.attr
+    if base_name not in _YIELD_ANNOTATION_BASES:
+        return None
+
+    if isinstance(slice_expr, ast.Tuple):
+        candidates = slice_expr.elts
+    elif slice_expr is not None:
+        candidates = [slice_expr]
+    else:
+        return None
+    if not candidates:
+        return None
+    return _normalize_return_annotation(candidates[0])
+
+
+def _tree_yields_mismatches(tree: ast.Module, rel: str) -> list[str]:
+    """Return the docstring/signature yield type mismatches found in one parsed module."""
+    mismatches: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        docstring = ast.get_docstring(node)
+        if not docstring:
+            continue
+        sig_type = _normalize_yield_annotation(_signature_return_annotation(node))
+        if sig_type is None:
+            continue
+        doc_type = _docstring_yields_type(docstring)
+        if doc_type is None:
+            continue
+        if not _returns_type_match(doc_type, sig_type):
+            mismatches.append(
+                f"{rel}:{node.lineno}: {node.name} documented Yields type "
+                f"{doc_type!r} but signature yields {sig_type!r}"
+            )
+    return mismatches
+
+
+def _documented_yields_mismatches() -> list[str]:
+    """Return every generator whose docstring Yields type contradicts its signature."""
+    mismatches: list[str] = []
+    for directory in _DOC_SCAN_DIRS:
+        for path in sorted((REPO_ROOT / directory).rglob("*.py")):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            mismatches.extend(_tree_yields_mismatches(_parse(path), rel))
+    return mismatches
+
+
+def test_documented_yields_match_signature() -> None:
+    """Every ``Yields:`` type prefix must match the signature's yield type.
+
+    A docstring that advertises the wrong yield type misleads callers about what
+    a generator produces. This guard parses every function's ``Yields:`` section
+    (AST, no imports) and fails when a recognizable type prefix disagrees with
+    the yield type argument of a ``Generator``/``Iterator``/``AsyncGenerator``
+    return annotation. It is deliberately conservative: only functions with both
+    a clear type prefix in the Yields section and a generator return annotation
+    are compared; prose-only Yields sections and non-generator functions are
+    skipped.
+
+    A negative control feeds the detector a synthetic generator whose docstring
+    claims it yields ``int`` while the signature annotates
+    ``-> Generator[str, None, None]`` and asserts the drift is reported, proving
+    the guard fires on the defect it guards against rather than passing
+    vacuously.
+    """
+    synthetic = (
+        "from typing import Generator\n"
+        "def f() -> Generator[str, None, None]:\n"
+        "    '''Do a thing.\n\n"
+        "    Yields:\n"
+        "        int value.\n"
+        "    '''\n"
+    )
+    injected = _tree_yields_mismatches(ast.parse(synthetic), "synthetic.py")
+    assert injected, "guard did not fire on an injected docstring/signature yield type drift"
+
+    mismatches = _documented_yields_mismatches()
+    assert not mismatches, "docstring Yields type contradicts signature:\n" + "\n".join(mismatches)
+
+
 def _tree_default_mismatches(tree: ast.Module, rel: str) -> list[str]:
     """Return the docstring/signature default mismatches found in one parsed module.
 
