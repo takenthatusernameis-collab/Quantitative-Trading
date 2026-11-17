@@ -3411,3 +3411,86 @@ def test_documented_notes_are_valid() -> None:
 
     mismatches = _documented_notes_mismatches()
     assert not mismatches, "docstring Notes section is empty:\n" + "\n".join(mismatches)
+
+
+def _docstring_attributes_content(docstring: str) -> list[str]:
+    """Return the content lines of the ``Attributes:`` section.
+
+    Returns the raw lines between the section header and the next section
+    header. An empty list means the section exists but has no content.
+    """
+    in_attributes = False
+    content: list[str] = []
+    for line in docstring.splitlines():
+        stripped = line.strip()
+        if re.match(r"^Attributes:\s*$", stripped):
+            in_attributes = True
+            continue
+        if in_attributes and _DOC_SECTION_END.match(stripped):
+            in_attributes = False
+            continue
+        if not in_attributes:
+            continue
+        content.append(line)
+    return content
+
+
+def _tree_attributes_mismatches(tree: ast.Module, rel: str) -> list[str]:
+    """Return the docstring Attributes section issues found in one parsed module."""
+    offenders: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        docstring = ast.get_docstring(node)
+        if not docstring:
+            continue
+        if "Attributes:" not in docstring:
+            continue
+        content = _docstring_attributes_content(docstring)
+        if not content or not any(c.strip() for c in content):
+            offenders.append(f"{rel}:{node.lineno}: {node.name} has an empty Attributes section")
+    return offenders
+
+
+def _documented_attributes_mismatches() -> list[str]:
+    mismatches: list[str] = []
+    for directory in _DOC_SCAN_DIRS:
+        for path in sorted((REPO_ROOT / directory).rglob("*.py")):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            mismatches.extend(_tree_attributes_mismatches(_parse(path), rel))
+    return mismatches
+
+
+def test_documented_attributes_are_valid() -> None:
+    """Every ``Attributes:`` section must be non-empty.
+
+    A docstring that advertises an Attributes section but leaves it empty
+    misleads the reader and suggests missing documentation. This guard parses
+    every function/class Attributes section (AST, no imports) and fails when
+    the section is empty. It is deliberately conservative: only objects that
+    actually have an Attributes section are checked.
+
+    A negative control feeds the detector a synthetic class with an empty
+    Attributes section, asserting it is reported. A positive control with
+    attribute content passes.
+    """
+    synthetic_empty = (
+        "class C:\n" "    '''Do a thing.\n\n" "    Attributes:\n" "    '''\n" "    pass\n"
+    )
+    injected_empty = _tree_attributes_mismatches(ast.parse(synthetic_empty), "synthetic.py")
+    assert injected_empty, "guard did not fire on an injected empty Attributes section"
+
+    synthetic_ok = (
+        "class C:\n"
+        "    '''Do a thing.\n\n"
+        "    Attributes:\n"
+        "        x: The x value.\n"
+        "    '''\n"
+        "    pass\n"
+    )
+    assert not _tree_attributes_mismatches(
+        ast.parse(synthetic_ok), "synthetic.py"
+    ), "guard falsely flagged a valid Attributes section"
+
+    mismatches = _documented_attributes_mismatches()
+    assert not mismatches, "docstring Attributes section is empty:\n" + "\n".join(mismatches)
