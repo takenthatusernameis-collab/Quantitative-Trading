@@ -815,7 +815,7 @@ def calculate_equal_risk_contribution_weights(
         tol: Convergence tolerance for weight changes (default 1e-8).
         annualize: Whether to annualize volatility (default True).
         periods_per_year: Periods per year for annualization (default 252).
-        long_only: If True, constrain weights to be non-negative (default True).
+        long_only: If True, constrain weights to be non-negative (default False).
 
     Returns:
         Series of ERC weights indexed by asset name, summing to 1.0.
@@ -901,7 +901,7 @@ def calculate_risk_budget_weights(
         tol: Convergence tolerance for weight changes (default 1e-8).
         annualize: Whether to annualize volatility (default True).
         periods_per_year: Periods per year for annualization (default 252).
-        long_only: If True, constrain weights to be non-negative (default True).
+        long_only: If True, constrain weights to be non-negative (default False).
 
     Returns:
         Series of risk budget weights indexed by asset name, summing to 1.0.

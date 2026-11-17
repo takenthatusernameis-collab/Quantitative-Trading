@@ -1489,3 +1489,190 @@ def test_readme_backtick_quant_trading_names_resolve() -> None:
             except (ImportError, AttributeError) as exc:
                 failures.append(f"{dotted}: {exc!r}")
     assert not failures, "README backtick quant_trading names unresolvable:\n" + "\n".join(failures)
+
+
+# User-facing source the docstring-default guard scans. The library API and the
+# copyable examples are what a reader trusts; internal test helpers are excluded
+# so the guard cannot misfire on a test-local docstring.
+_DOC_SCAN_DIRS = ("quant_trading", "examples")
+
+# An ``(default X)`` note inside a docstring Args entry.
+_DOC_DEFAULT_NOTE = re.compile(r"\(default ([^)]+)\)")
+# The start of a docstring Args entry: ``name: description``.
+_DOC_ARG_ENTRY = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$")
+# A clean literal a docstring can claim: True, False, None, or a number.
+_DOC_LITERAL = re.compile(r"^(True|False|None|-?\d+(?:\.\d+)?)$")
+# Section headers that end an ``Args:`` block (numpydoc/Google style).
+_DOC_SECTION_END = re.compile(
+    r"^(Returns|Raises|Yields|Examples|Example|Notes?|Attributes|See Also|References):\s*$"
+)
+
+
+def _literal_default(text: str) -> tuple[bool, object]:
+    """Parse a docstring ``(default X)`` note into a Python literal.
+
+    Returns ``(True, value)`` when the note is exactly ``True``, ``False``,
+    ``None`` or an int/float literal, and ``(False, None)`` for any other
+    wording (for example ``"252 for daily data"`` or ``"the class default"``)
+    so descriptive notes are skipped rather than mis-compared.
+    """
+    text = text.strip()
+    if not _DOC_LITERAL.match(text):
+        return False, None
+    if text == "True":
+        return True, True
+    if text == "False":
+        return True, False
+    if text == "None":
+        return True, None
+    try:
+        return True, float(text) if "." in text else int(text)
+    except ValueError:  # pragma: no cover - _DOC_LITERAL guarantees this parses
+        return False, None
+
+
+def _docstring_arg_default_notes(docstring: str) -> list[tuple[str, str]]:
+    """Return ``(arg_name, default_note)`` for every Args entry with a default note.
+
+    Only the ``Args:`` section is scanned. A new entry starts at a line of the
+    form ``name: description``; continuation lines belong to the current entry.
+    Only the first ``(default X)`` note in each entry is reported.
+    """
+    notes: list[tuple[str, str]] = []
+    in_args = False
+    current: str | None = None
+    for line in docstring.splitlines():
+        stripped = line.strip()
+        if re.match(r"^Args:\s*$", stripped):
+            in_args = True
+            current = None
+            continue
+        if in_args and _DOC_SECTION_END.match(stripped):
+            in_args = False
+            current = None
+            continue
+        if not in_args:
+            continue
+        entry = _DOC_ARG_ENTRY.match(stripped)
+        if entry:
+            current = entry.group(1)
+            entry_text = entry.group(2)
+        elif current is not None:
+            entry_text = stripped
+        else:
+            continue
+        note = _DOC_DEFAULT_NOTE.search(entry_text)
+        if note and current is not None:
+            notes.append((current, note.group(1)))
+    return notes
+
+
+def _signature_defaults(node: ast.FunctionDef | ast.AsyncFunctionDef) -> dict[str, ast.expr | None]:
+    """Map each parameter name to its default AST node (``None`` when required)."""
+    args = node.args
+    positional = args.posonlyargs + args.args
+    defaults: dict[str, ast.expr | None] = {}
+    padded: list[ast.expr | None] = [None] * (len(positional) - len(args.defaults)) + list(
+        args.defaults
+    )
+    for arg, default in zip(positional, padded):
+        defaults[arg.arg] = default
+    for arg, default in zip(args.kwonlyargs, args.kw_defaults):
+        defaults[arg.arg] = default
+    return defaults
+
+
+def _tree_default_mismatches(tree: ast.Module, rel: str) -> list[str]:
+    """Return the docstring/signature default mismatches found in one parsed module.
+
+    Split out from :func:`_documented_default_mismatches` so a caller can feed
+    it a synthetic tree (the guard's negative control does exactly that) without
+    writing to disk.
+    """
+    mismatches: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        docstring = ast.get_docstring(node)
+        if not docstring:
+            continue
+        defaults = _signature_defaults(node)
+        for arg_name, note in _docstring_arg_default_notes(docstring):
+            is_literal, claimed = _literal_default(note)
+            if not is_literal:
+                continue
+            default = defaults.get(arg_name)
+            if default is None or not isinstance(default, ast.Constant):
+                # Required parameter or non-literal default: nothing to compare.
+                continue
+            actual = default.value
+            if isinstance(actual, bool) or isinstance(claimed, bool):
+                matches = actual is claimed
+            elif isinstance(actual, (int, float)) and isinstance(claimed, (int, float)):
+                matches = float(actual) == float(claimed)
+            else:
+                matches = actual == claimed
+            if not matches:
+                mismatches.append(
+                    f"{rel}:{node.lineno}: {node.name}({arg_name}) documented "
+                    f"default {note!r} but signature default is {actual!r}"
+                )
+    return mismatches
+
+
+def _documented_default_mismatches() -> list[str]:
+    """Return every function whose docstring ``(default X)`` contradicts its signature.
+
+    A docstring that tells the reader a parameter defaults to ``X`` while the
+    signature actually defaults to ``Y`` is a documentation defect: a caller who
+    trusts the docstring relies on a value the library does not use by default,
+    so the documented and actual behaviour silently diverge. The check is purely
+    structural (AST) and only compares a *clean* literal default note against a
+    literal signature default; descriptive notes and non-literal defaults are
+    skipped so the guard cannot produce false positives.
+    """
+    mismatches: list[str] = []
+    for directory in _DOC_SCAN_DIRS:
+        for path in sorted((REPO_ROOT / directory).rglob("*.py")):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            mismatches.extend(_tree_default_mismatches(_parse(path), rel))
+    return mismatches
+
+
+def test_documented_arg_defaults_match_signature() -> None:
+    """Every ``(default X)`` docstring note must match the parameter's real default.
+
+    A docstring that advertises the wrong default is a live trap for callers:
+    they read ``(default True)`` and rely on it, but the function actually
+    defaults to ``False``, so behaviour differs from the documentation. This
+    guard parses every function's ``Args:`` section (AST, no imports) and fails
+    when a clean literal default note disagrees with the signature default. It
+    caught ``calculate_equal_risk_contribution_weights`` and
+    ``calculate_risk_budget_weights`` documenting ``long_only`` as defaulting to
+    ``True`` while both signatures default to ``False``.
+
+    The check is deliberately conservative: only ``True``/``False``/``None`` and
+    numeric literal notes are compared, and only against literal signature
+    defaults. Descriptive notes such as ``(default 252 for daily data)`` or
+    ``(default the class default)`` are skipped, so the guard cannot misfire on
+    prose.
+
+    A negative control feeds the detector a synthetic function whose docstring
+    claims ``flag`` defaults to ``True`` while the signature defaults to
+    ``False`` and asserts the drift is reported, proving the guard fires on the
+    defect it guards against rather than passing vacuously.
+    """
+    synthetic = (
+        "def f(flag: bool = False) -> None:\n"
+        "    '''Do a thing.\n\n"
+        "    Args:\n"
+        "        flag: Toggle the thing (default True).\n"
+        "    '''\n"
+    )
+    injected = _tree_default_mismatches(ast.parse(synthetic), "synthetic.py")
+    assert injected, "guard did not fire on an injected docstring/signature default drift"
+
+    mismatches = _documented_default_mismatches()
+    assert not mismatches, "docstring default notes contradict signatures:\n" + "\n".join(
+        mismatches
+    )
