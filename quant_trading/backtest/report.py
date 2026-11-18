@@ -189,6 +189,30 @@ def _create_equity_curve_chart(result: BacktestResult, colors: dict[str, str], d
     return _fig_to_base64(fig, dpi)
 
 
+def _drawdown_series(equity: pd.Series) -> pd.Series:
+    """Return a finite percentage drawdown series for chart rendering.
+
+    Percentage drawdown is undefined while the running peak is not strictly
+    positive (for example an equity curve that starts at zero or is entirely
+    negative). Those points are reported as ``0.0`` so that chart inputs never
+    contain ``NaN`` or ``inf``.
+
+    Args:
+        equity: Equity curve series (cumulative value).
+
+    Returns:
+        Series aligned with ``equity`` whose values are percentage drawdowns
+        (``0.0`` at running highs) and are always finite.
+
+    """
+    if len(equity) == 0:
+        return equity.astype(float)
+    peak = equity.expanding().max()
+    with np.errstate(divide="ignore", invalid="ignore"):
+        drawdown = (equity - peak) / peak.where(peak > 0) * 100
+    return drawdown.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+
 def _create_drawdown_chart(result: BacktestResult, colors: dict[str, str], dpi: int) -> str:
     """Create drawdown chart and return as base64 string."""
     _check_matplotlib()
@@ -196,8 +220,7 @@ def _create_drawdown_chart(result: BacktestResult, colors: dict[str, str], dpi: 
     ax.set_facecolor(colors["bg"])
 
     equity = result.equity_curve
-    peak = equity.expanding().max()
-    drawdown = (equity - peak) / peak * 100
+    drawdown = _drawdown_series(equity)
 
     ax.fill_between(
         drawdown.index,
@@ -1080,8 +1103,7 @@ def _create_comparison_drawdown_chart(
         equity = result.equity_curve
         if len(equity) > 0:
             color = palette[i % len(palette)]
-            peak = equity.expanding().max()
-            drawdown = (equity - peak) / peak * 100
+            drawdown = _drawdown_series(equity)
             ax.plot(
                 drawdown.index,
                 drawdown.values,

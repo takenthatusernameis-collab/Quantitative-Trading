@@ -13,6 +13,7 @@ from quant_trading.backtest.metrics import BacktestMetrics
 from quant_trading.backtest.report import (
     MATPLOTLIB_AVAILABLE,
     ReportConfig,
+    _drawdown_series,
     generate_comparison_report,
     generate_html_report,
     generate_report_from_dict,
@@ -2459,3 +2460,34 @@ def test_build_comparison_risk_attribution_metric_fn_raises() -> None:
 
     assert "Risk Attribution Comparison" in html
     assert "N/A" in html
+
+
+def test_drawdown_series_is_finite_when_equity_goes_negative() -> None:
+    """Drawdown charts must not receive -inf from a zero running peak."""
+    drawdown = _drawdown_series(pd.Series([0.0, -5.0, 10.0]))
+
+    assert drawdown.tolist() == [0.0, 0.0, 0.0]
+    assert np.isfinite(drawdown.to_numpy()).all()
+
+
+def test_drawdown_series_reports_normal_drawdown() -> None:
+    """A regular peak-to-trough decline is expressed as a negative percent."""
+    drawdown = _drawdown_series(pd.Series([100.0, 110.0, 90.0]))
+
+    assert drawdown.tolist() == pytest.approx([0.0, 0.0, -20.0 / 110.0 * 100.0])
+
+
+def test_drawdown_series_keeps_later_drawdown_after_zero_prefix() -> None:
+    """Zero-peak points are neutral but do not hide a later real drawdown."""
+    drawdown = _drawdown_series(pd.Series([0.0, 100.0, 50.0]))
+
+    assert drawdown.tolist() == pytest.approx([0.0, 0.0, -50.0])
+
+
+def test_drawdown_series_handles_empty_and_all_negative_curves() -> None:
+    """Empty and entirely negative curves produce finite, neutral series."""
+    empty = _drawdown_series(pd.Series([], dtype=float))
+    negative = _drawdown_series(pd.Series([-10.0, -20.0]))
+
+    assert empty.empty
+    assert negative.tolist() == [0.0, 0.0]
