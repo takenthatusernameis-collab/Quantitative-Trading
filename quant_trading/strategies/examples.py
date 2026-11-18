@@ -8073,3 +8073,155 @@ class FisherTransformStrategy(Strategy):
                 )
 
         return signals
+
+
+class KSTStrategy(Strategy):
+    """Know Sure Thing (KST) strategy.
+
+    The KST is a smoothed momentum oscillator that combines four rate-of-change
+    windows with weights that favour longer horizons:
+
+    - KST = SMA(ROC(10), 10) + 2*SMA(ROC(15), 10) + 3*SMA(ROC(20), 10)
+      + 4*SMA(ROC(30), 15)
+    - signal line = SMA(KST, ``signal_period``)
+
+    A buy signal is emitted when the KST crosses above its signal line and a
+    sell signal when it crosses below. ``ROC`` values are expressed in percent.
+
+    Requires the ``"close"`` column.
+
+    Examples:
+        >>> from quant_trading.strategies.examples import KSTStrategy
+        >>> s = KSTStrategy(signal_period=9)
+        >>> s.signal_period
+        9
+    """
+
+    def __init__(self, signal_period: int = 9, name: str = "KST") -> None:
+        """Initialize the Know Sure Thing strategy.
+
+        Args:
+            signal_period: Smoothing window for the KST signal line.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If ``signal_period`` is not positive.
+
+        """
+        super().__init__(name, {"signal_period": signal_period})
+        self.signal_period = signal_period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``signal_period`` is not positive.
+
+        """
+        if self.signal_period <= 0:
+            raise ValueError("signal_period must be positive")
+
+    def _calculate_kst(self, df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+        """Calculate the KST line and its signal line.
+
+        Args:
+            df: DataFrame containing the ``"close"`` column.
+
+        Returns:
+            Tuple of the KST series and its smoothed signal series, both
+            indexed like ``df`` and ``NaN`` where history is insufficient.
+
+        Examples:
+            >>> import pandas as pd
+            >>> from quant_trading.strategies.examples import KSTStrategy
+            >>> df = pd.DataFrame({"close": [float(i) for i in range(1, 61)]})
+            >>> kst, signal = KSTStrategy(signal_period=9)._calculate_kst(df)
+            >>> round(float(kst.iloc[-1]), 4), round(float(signal.iloc[-1]), 4)
+            (196.1494, 195.1681)
+
+        """
+        close = df["close"]
+        roc = {
+            10: close.pct_change(10).rolling(window=10).mean() * 100.0,
+            15: close.pct_change(15).rolling(window=10).mean() * 100.0,
+            20: close.pct_change(20).rolling(window=10).mean() * 100.0,
+            30: close.pct_change(30).rolling(window=15).mean() * 100.0,
+        }
+        kst = roc[10] + 2.0 * roc[15] + 3.0 * roc[20] + 4.0 * roc[30]
+        signal_line = kst.rolling(window=self.signal_period).mean()
+        return cast(pd.Series, kst), cast(pd.Series, signal_line)
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from KST crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame with a ``"close"`` column
+                indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose KST line crosses
+            its signal line on the final bar.
+
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < 30 + 15 + self.signal_period:
+                continue
+            if "close" not in df.columns:
+                continue
+            if pd.isna(df["close"].iloc[-1]):
+                continue
+
+            kst, signal_line = self._calculate_kst(df)
+            current_kst = kst.iloc[-1]
+            previous_kst = kst.iloc[-2]
+            current_signal = signal_line.iloc[-1]
+            previous_signal = signal_line.iloc[-2]
+            if (
+                pd.isna(current_kst)
+                or pd.isna(previous_kst)
+                or pd.isna(current_signal)
+                or pd.isna(previous_signal)
+            ):
+                continue
+
+            current_price = float(df["close"].iloc[-1])
+            timestamp = df.index[-1]
+            strength = float(min(1.0, abs(current_kst - current_signal) / 10.0 + 0.5))
+
+            if previous_kst <= previous_signal and current_kst > current_signal:
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "kst": float(current_kst),
+                            "signal_line": float(current_signal),
+                            "signal_period": self.signal_period,
+                            "signal_type": "bullish_cross",
+                        },
+                    )
+                )
+            elif previous_kst >= previous_signal and current_kst < current_signal:
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "kst": float(current_kst),
+                            "signal_line": float(current_signal),
+                            "signal_period": self.signal_period,
+                            "signal_type": "bearish_cross",
+                        },
+                    )
+                )
+
+        return signals
