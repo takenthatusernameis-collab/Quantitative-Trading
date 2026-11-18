@@ -34,6 +34,7 @@ __all__ = [
     "IchimokuCloudStrategy",
     "KeltnerChannelStrategy",
     "KlingerOscillatorStrategy",
+    "KSTStrategy",
     "MACDStrategy",
     "MomentumStrategy",
     "MoneyFlowIndexStrategy",
