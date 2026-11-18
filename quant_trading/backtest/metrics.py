@@ -34,6 +34,7 @@ from quant_trading.risk.metrics import (
     calculate_sharpe_ratio,
     calculate_sortino_ratio,
     calculate_treynor_ratio,
+    calculate_ulcer_index,
     calculate_var,
     calculate_volatility,
 )
@@ -144,6 +145,7 @@ class BacktestMetrics:
     treynor_ratio: float = 0.0
     information_ratio: float = 0.0
     omega_ratio: float = 0.0
+    ulcer_index: float = 0.0
 
     # Unrealized PnL of the positions that are still open. It is declared last
     # so that the positional order of the fields above stays the same for
@@ -188,6 +190,7 @@ class BacktestMetrics:
             "treynor_ratio": self.treynor_ratio,
             "information_ratio": self.information_ratio,
             "omega_ratio": self.omega_ratio,
+            "ulcer_index": self.ulcer_index,
             "unrealized_pnl": self.unrealized_pnl,
         }
 
@@ -236,6 +239,7 @@ class BacktestMetrics:
             treynor_ratio=data.get("treynor_ratio", 0.0),
             information_ratio=data.get("information_ratio", 0.0),
             omega_ratio=data.get("omega_ratio", 0.0),
+            ulcer_index=data.get("ulcer_index", 0.0),
             unrealized_pnl=data.get("unrealized_pnl", 0.0),
         )
 
@@ -343,6 +347,7 @@ def calculate_backtest_metrics(
         metrics.cvar_95 = calculate_cvar(returns, 0.95)
         metrics.cvar_99 = calculate_cvar(returns, 0.99)
         metrics.omega_ratio = calculate_omega_ratio(returns, periods_per_year=periods_per_year)
+        metrics.ulcer_index = calculate_ulcer_index(equity_curve)
 
     # Market-relative metrics (require market_returns)
     if market_returns is not None and len(market_returns) > 0:

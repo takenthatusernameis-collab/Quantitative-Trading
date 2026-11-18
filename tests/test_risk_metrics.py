@@ -539,6 +539,7 @@ class TestRiskMetricsDataclass:
             "treynor_ratio",
             "information_ratio",
             "omega_ratio",
+            "ulcer_index",
         }
         assert data["sharpe_ratio"] == pytest.approx(1.5)
         assert data["calmar_ratio"] == pytest.approx(2.3)
@@ -597,6 +598,7 @@ class TestCalculateAllMetrics:
         assert isinstance(metrics.sharpe_ratio, float)
         assert isinstance(metrics.volatility, float)
         assert isinstance(metrics.var_95, float)
+        assert metrics.ulcer_index == pytest.approx(calculate_ulcer_index(equity))
         result = metrics.to_dict()
         assert set(result.keys()) == RiskMetrics().to_dict().keys()
 
@@ -980,6 +982,7 @@ class TestRiskMetricsDataclassExtended:
             treynor_ratio=0.03,
             information_ratio=0.5,
             omega_ratio=1.8,
+            ulcer_index=0.07,
         )
         data = metrics.to_dict()
         assert "cvar_95" in data
@@ -987,11 +990,13 @@ class TestRiskMetricsDataclassExtended:
         assert "treynor_ratio" in data
         assert "information_ratio" in data
         assert "omega_ratio" in data
+        assert "ulcer_index" in data
         assert data["cvar_95"] == pytest.approx(-0.06)
         assert data["cvar_99"] == pytest.approx(-0.10)
         assert data["treynor_ratio"] == pytest.approx(0.03)
         assert data["information_ratio"] == pytest.approx(0.5)
         assert data["omega_ratio"] == pytest.approx(1.8)
+        assert data["ulcer_index"] == pytest.approx(0.07)
 
     def test_from_dict_round_trip_new_fields(self) -> None:
         metrics = RiskMetrics(
@@ -1000,6 +1005,7 @@ class TestRiskMetricsDataclassExtended:
             treynor_ratio=0.03,
             information_ratio=0.5,
             omega_ratio=1.8,
+            ulcer_index=0.07,
         )
         restored = RiskMetrics.from_dict(metrics.to_dict())
         assert restored.cvar_95 == pytest.approx(-0.06)
@@ -1007,6 +1013,7 @@ class TestRiskMetricsDataclassExtended:
         assert restored.treynor_ratio == pytest.approx(0.03)
         assert restored.information_ratio == pytest.approx(0.5)
         assert restored.omega_ratio == pytest.approx(1.8)
+        assert restored.ulcer_index == pytest.approx(0.07)
 
     def test_from_dict_defaults_new_fields(self) -> None:
         restored = RiskMetrics.from_dict({"sharpe_ratio": 1.5})
@@ -1015,6 +1022,7 @@ class TestRiskMetricsDataclassExtended:
         assert restored.treynor_ratio == 0.0
         assert restored.information_ratio == 0.0
         assert restored.omega_ratio == 0.0
+        assert restored.ulcer_index == 0.0
 
 
 class TestCalculateAllMetricsExtended:
@@ -1030,8 +1038,10 @@ class TestCalculateAllMetricsExtended:
         assert isinstance(metrics.cvar_95, float)
         assert isinstance(metrics.cvar_99, float)
         assert isinstance(metrics.omega_ratio, float)
+        assert isinstance(metrics.ulcer_index, float)
         assert metrics.cvar_95 <= metrics.var_95
         assert metrics.cvar_99 <= metrics.var_99
+        assert metrics.ulcer_index >= 0.0
 
     def test_with_market_returns_includes_treynor_info(self) -> None:
         equity = pd.Series([100.0, 105.0, 110.0, 108.0, 112.0, 118.0])
@@ -1040,6 +1050,7 @@ class TestCalculateAllMetricsExtended:
         assert metrics.beta == pytest.approx(1.0)
         assert metrics.treynor_ratio != 0.0
         assert metrics.information_ratio == pytest.approx(0.0)
+        assert metrics.ulcer_index == pytest.approx(calculate_ulcer_index(equity))
 
     def test_periods_per_year_threaded_to_new_metrics(self) -> None:
         equity = pd.Series([100.0, 105.0, 110.0, 108.0, 115.0, 112.0, 120.0])

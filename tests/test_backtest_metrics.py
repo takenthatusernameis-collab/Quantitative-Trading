@@ -525,6 +525,7 @@ class TestBacktestMetricsNewRiskMetrics:
         assert "treynor_ratio" in d
         assert "information_ratio" in d
         assert "omega_ratio" in d
+        assert "ulcer_index" in d
 
     def test_new_metrics_default_to_zero_in_dataclass(self) -> None:
         """Test that new metrics default to zero in BacktestMetrics constructor."""
@@ -538,6 +539,7 @@ class TestBacktestMetricsNewRiskMetrics:
         assert metrics.treynor_ratio == 0.0
         assert metrics.information_ratio == 0.0
         assert metrics.omega_ratio == 0.0
+        assert metrics.ulcer_index == 0.0
 
 
 class TestBacktestMetricsFromDict:
@@ -575,6 +577,7 @@ class TestBacktestMetricsFromDict:
             treynor_ratio=0.09,
             information_ratio=0.4,
             omega_ratio=1.25,
+            ulcer_index=0.07,
             unrealized_pnl=300.0,
         )
         reconstructed = BacktestMetrics.from_dict(metrics.to_dict())
@@ -613,6 +616,7 @@ class TestBacktestMetricsFromDict:
         assert metrics.treynor_ratio == 0.0
         assert metrics.information_ratio == 0.0
         assert metrics.omega_ratio == 0.0
+        assert metrics.ulcer_index == 0.0
         assert metrics.unrealized_pnl == 0.0
 
     def test_from_dict_ignores_extra_keys(self) -> None:

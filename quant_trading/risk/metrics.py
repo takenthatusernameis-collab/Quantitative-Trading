@@ -44,6 +44,7 @@ class RiskMetrics:
         treynor_ratio: Treynor ratio (excess return / beta).
         information_ratio: Information ratio (active return / tracking error).
         omega_ratio: Omega ratio (probability-weighted gains/losses vs threshold).
+        ulcer_index: Ulcer Index (root-mean-square of percentage drawdowns).
 
     Examples:
         >>> metrics = RiskMetrics(sharpe_ratio=1.2, max_drawdown=-0.05)
@@ -66,6 +67,7 @@ class RiskMetrics:
     treynor_ratio: float = 0.0
     information_ratio: float = 0.0
     omega_ratio: float = 0.0
+    ulcer_index: float = 0.0
 
     def to_dict(self) -> dict[str, float]:
         """Convert metrics to a dictionary.
@@ -90,6 +92,7 @@ class RiskMetrics:
             "treynor_ratio": self.treynor_ratio,
             "information_ratio": self.information_ratio,
             "omega_ratio": self.omega_ratio,
+            "ulcer_index": self.ulcer_index,
         }
 
     @classmethod
@@ -110,6 +113,7 @@ class RiskMetrics:
             treynor_ratio=data.get("treynor_ratio", 0.0),
             information_ratio=data.get("information_ratio", 0.0),
             omega_ratio=data.get("omega_ratio", 0.0),
+            ulcer_index=data.get("ulcer_index", 0.0),
         )
 
 
@@ -977,10 +981,10 @@ def calculate_all_metrics(
 ) -> RiskMetrics:
     """Calculate all risk metrics from an equity curve.
 
-    Calculates Sharpe ratio, Sortino ratio, max drawdown, volatility,
-    VaR (95% and 99%), CVaR (95% and 99%), Calmar ratio, and optionally
-    beta, alpha, Treynor ratio, Information ratio, and Omega ratio if
-    market returns are provided.
+    Calculates Sharpe ratio, Sortino ratio, max drawdown, Ulcer Index,
+    volatility, VaR (95% and 99%), CVaR (95% and 99%), Calmar ratio, and
+    optionally beta, alpha, Treynor ratio, Information ratio, and Omega
+    ratio if market returns are provided.
 
     Args:
         equity_curve: Equity curve series (cumulative value).
@@ -1022,6 +1026,7 @@ def calculate_all_metrics(
             returns, equity_curve, periods_per_year=periods_per_year
         ),
         omega_ratio=calculate_omega_ratio(returns, periods_per_year=periods_per_year),
+        ulcer_index=calculate_ulcer_index(equity_curve),
     )
 
     if market_returns is not None:
