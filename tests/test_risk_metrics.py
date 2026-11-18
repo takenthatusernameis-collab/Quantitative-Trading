@@ -250,6 +250,14 @@ class TestCalculateUlcerIndex:
         equity = pd.Series([100.0, 90.0, 120.0, 60.0, 130.0])
         assert calculate_ulcer_index(equity) >= 0.0
 
+    def test_all_negative_equity_reports_neutral_ulcer_index(self) -> None:
+        result = calculate_ulcer_index(pd.Series([-5.0, -10.0, -3.0]))
+        assert result == pytest.approx(0.0)
+
+    def test_zero_and_negative_equity_reports_neutral_ulcer_index(self) -> None:
+        result = calculate_ulcer_index(pd.Series([0.0, -5.0, -2.0]))
+        assert result == pytest.approx(0.0)
+
 
 class TestCalculateSharpeRatio:
     """Tests for calculate_sharpe_ratio."""

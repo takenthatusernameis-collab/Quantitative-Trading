@@ -1075,7 +1075,9 @@ def calculate_ulcer_index(equity_curve: pd.Series) -> float:
     Returns:
         The Ulcer Index as a non-negative decimal (``0.0`` for a curve that
         only rises or is flat), or ``0.0`` if the curve is empty or its
-        running peak is zero everywhere.
+        running peak is never strictly positive (an all-zero, all-negative,
+        or zero-and-negative equity curve), in which case the drawdown ratio
+        is undefined and is reported as neutral.
 
     Examples:
         >>> import pandas as pd
@@ -1084,13 +1086,15 @@ def calculate_ulcer_index(equity_curve: pd.Series) -> float:
         0.10365
         >>> calculate_ulcer_index(pd.Series([100, 101, 102]))
         0.0
+        >>> calculate_ulcer_index(pd.Series([-5.0, -10.0, -3.0]))
+        0.0
 
     """
     equity_curve = equity_curve.dropna()
     if len(equity_curve) == 0:
         return 0.0
     running_max = equity_curve.cummax()
-    if running_max.eq(0).all():
+    if running_max.max() <= 0:
         return 0.0
     # Drawdown from the running peak as a non-positive fraction. A zero peak
     # (an equity curve that starts at or drops to zero) makes the ratio
