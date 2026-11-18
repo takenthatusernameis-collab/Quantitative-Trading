@@ -9005,6 +9005,138 @@ class TestRunWalkForwardBranches:
         assert "Train Return%" in out
         assert "Test Return%" in out
 
+    def test_run_walk_forward_combined_analysis_and_report(self, tmp_path: Path) -> None:
+        """Walk-forward combined analysis and HTML report branches run end-to-end.
+
+        Exercises the ``--regime``/``--monte-carlo``/``--trade-analysis`` reporting
+        block for the combined walk-forward test result, the JSON output
+        enrichment with each analysis payload, and HTML report generation.
+        """
+        import io
+        import json
+        from argparse import Namespace
+        from contextlib import ExitStack, redirect_stdout
+        from datetime import datetime, timedelta
+        from unittest.mock import MagicMock, patch
+
+        from examples.cli import run_walk_forward
+
+        regime_analysis = MagicMock()
+        regime_analysis.to_dict.return_value = {"segments": 2}
+        mc_analysis = MagicMock()
+        mc_analysis.summary.return_value = {"mean_return": 0.01}
+        trade_analysis = MagicMock()
+        trade_analysis.to_dict.return_value = {"num_trades": 5}
+
+        mock_optimizer_instance = MagicMock()
+        mock_optimizer_instance.run.return_value = self._make_mock_result(empty_df=False)
+
+        args = Namespace(
+            strategy="ma",
+            objective="sharpe",
+            optimizer="grid",
+            wf_optimizer="grid",
+            symbols=["AAPL"],
+            interval="1d",
+            ma_fast_range="5,15,5",
+            ma_slow_range="20,30,10",
+            rsi_period_range="10,20,2",
+            rsi_oversold_range="20,35,5",
+            rsi_overbought_range="65,80,5",
+            bb_period_range="10,30,5",
+            bb_std_range="1.5,3.0,0.5",
+            macd_fast_range="8,16,2",
+            macd_slow_range="20,30,2",
+            macd_signal_range="7,12,1",
+            st_period_range="7,20,1",
+            st_multiplier_range="2.0,4.0,0.5",
+            dc_period_range="10,40,5",
+            dc_exit_period_range="5,20,5",
+            aroon_period_range="10,50,5",
+            kc_ema_period_range="10,30,5",
+            kc_atr_period_range="5,20,2",
+            kc_multiplier_range="1.0,3.0,0.5",
+            stoch_k_period_range="10,20,2",
+            stoch_d_period_range="2,5,1",
+            stoch_oversold_range="10,30,5",
+            stoch_overbought_range="70,90,5",
+            ichimoku_tenkan_period_range="5,15,2",
+            ichimoku_kijun_period_range="10,30,5",
+            ichimoku_senkou_b_period_range="20,60,10",
+            sar_step_range="0.01,0.05,0.01",
+            sar_max_step_range="0.10,0.20,0.05",
+            atr_period_range="10,30,5",
+            atr_multiplier_range="1.0,3.0,0.5",
+            wf_windows=2,
+            wf_train_size=0.7,
+            wf_anchored=True,
+            wf_step_size=1.0,
+            n_iter=10,
+            n_jobs=1,
+            bayesian_n_initial=10,
+            bayesian_acq_func="EI",
+            bayesian_acq_optimizer="auto",
+            bayesian_noise=1e-6,
+            output=str(tmp_path / "wf.json"),
+            output_format="json",
+            output_strategy_config=None,
+            regime=True,
+            monte_carlo=True,
+            trade_analysis=True,
+            report=str(tmp_path / "wf_report.html"),
+        )
+
+        config = Config()
+        config.data.provider = "yfinance"
+        config.data.offline = False
+        config.backtest.initial_capital = 100000.0
+        config.backtest.commission = 0.001
+        config.backtest.slippage = 0.0005
+        config.backtest.periods_per_year = 252
+        config.backtest.risk_free_rate = 0.02
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=60)
+
+        output = io.StringIO()
+        with ExitStack() as stack:
+            stack.enter_context(
+                patch("examples.cli.WalkForwardOptimizer", return_value=mock_optimizer_instance)
+            )
+            stack.enter_context(
+                patch("examples.cli._get_regime_analysis", return_value=regime_analysis)
+            )
+            regime_print = stack.enter_context(patch("examples.cli._print_regime_analysis"))
+            stack.enter_context(
+                patch("examples.cli._get_monte_carlo_analysis", return_value=mc_analysis)
+            )
+            mc_print = stack.enter_context(patch("examples.cli._print_monte_carlo_analysis"))
+            stack.enter_context(
+                patch("examples.cli._get_trade_analysis", return_value=trade_analysis)
+            )
+            trade_print = stack.enter_context(patch("examples.cli._print_trade_analysis"))
+            mock_report = stack.enter_context(patch("examples.cli.generate_html_report"))
+
+            with redirect_stdout(output):
+                result = run_walk_forward(args, config, start_date, end_date)
+
+        assert result == 0
+        out = output.getvalue()
+        assert "Analysis of the combined walk-forward test result:" in out
+        assert "HTML walk-forward report saved to" in out
+
+        regime_print.assert_called_once_with(regime_analysis)
+        mc_print.assert_called_once_with(mc_analysis)
+        trade_print.assert_called_once_with(trade_analysis)
+        mock_report.assert_called_once()
+        report_kwargs = mock_report.call_args.kwargs
+        assert report_kwargs["output_path"] == str(tmp_path / "wf_report.html")
+
+        saved = json.loads((tmp_path / "wf.json").read_text())
+        assert saved["regime_analysis"] == {"segments": 2}
+        assert saved["monte_carlo"] == {"mean_return": 0.01}
+        assert saved["trade_analysis"] == {"num_trades": 5}
+
 
 class TestMainSystemExitHandling:
     """Test main() SystemExit handling."""
