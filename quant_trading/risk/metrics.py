@@ -1039,6 +1039,52 @@ def calculate_all_metrics(
     return metrics
 
 
+def calculate_ulcer_index(equity_curve: pd.Series) -> float:
+    """Calculate the Ulcer Index from an equity curve.
+
+    The Ulcer Index measures downside risk as the root-mean-square of the
+    percentage drawdowns from the running peak of the equity curve. It grows
+    with both the depth and the duration of drawdowns, so a curve that stays
+    far below its peak for a long time scores higher (worse) than one with the
+    same maximum drawdown that recovers quickly. Unlike
+    :func:`calculate_max_drawdown`, which reports only the single deepest
+    point, the Ulcer Index accounts for the whole drawdown path.
+
+    Args:
+        equity_curve: Equity curve series (cumulative value).
+
+    Returns:
+        The Ulcer Index as a non-negative decimal (``0.0`` for a curve that
+        only rises or is flat), or ``0.0`` if the curve is empty or its
+        running peak is zero everywhere.
+
+    Examples:
+        >>> import pandas as pd
+        >>> equity = pd.Series([100, 110, 105, 90, 95])
+        >>> round(calculate_ulcer_index(equity), 5)
+        0.10365
+        >>> calculate_ulcer_index(pd.Series([100, 101, 102]))
+        0.0
+
+    """
+    equity_curve = equity_curve.dropna()
+    if len(equity_curve) == 0:
+        return 0.0
+    running_max = equity_curve.cummax()
+    if running_max.eq(0).all():
+        return 0.0
+    # Drawdown from the running peak as a non-positive fraction. A zero peak
+    # (an equity curve that starts at or drops to zero) makes the ratio
+    # undefined for that point, so it contributes no drawdown.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        drawdown = (equity_curve - running_max) / running_max
+    drawdown = drawdown.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    ulcer = float(np.sqrt(np.mean(drawdown**2)))
+    if not np.isfinite(ulcer):
+        return 0.0
+    return ulcer
+
+
 __all__ = [
     "RiskMetrics",
     "calculate_all_metrics",
@@ -1057,6 +1103,7 @@ __all__ = [
     "calculate_sharpe_ratio",
     "calculate_sortino_ratio",
     "calculate_treynor_ratio",
+    "calculate_ulcer_index",
     "calculate_var",
     "calculate_volatility",
     "calculate_volatility_contributions",

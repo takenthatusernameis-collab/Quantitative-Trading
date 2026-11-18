@@ -19,6 +19,7 @@ from quant_trading.risk.metrics import (
     calculate_sharpe_ratio,
     calculate_sortino_ratio,
     calculate_treynor_ratio,
+    calculate_ulcer_index,
     calculate_var,
     calculate_volatility,
 )
@@ -164,6 +165,63 @@ class TestCalculateMaxDrawdown:
         result = calculate_max_drawdown(pd.Series([0.0, 0.0, 5.0, 10.0]))
         assert not np.isnan(result)
         assert result == pytest.approx(0.0)
+
+
+class TestCalculateUlcerIndex:
+    """Tests for calculate_ulcer_index."""
+
+    def test_ulcer_matches_manual_rms_of_drawdowns(self) -> None:
+        equity = pd.Series([100.0, 110.0, 105.0, 90.0, 95.0])
+        running_max = equity.cummax()
+        drawdown = (equity - running_max) / running_max
+        expected = float(np.sqrt(np.mean(drawdown**2)))
+        assert calculate_ulcer_index(equity) == pytest.approx(expected)
+
+    def test_ulcer_known_value(self) -> None:
+        equity = pd.Series([100.0, 110.0, 105.0, 90.0, 95.0])
+        assert calculate_ulcer_index(equity) == pytest.approx(0.10365231137264891)
+
+    def test_monotonic_increasing_is_zero(self) -> None:
+        equity = pd.Series([100.0, 101.0, 102.0, 103.0])
+        assert calculate_ulcer_index(equity) == pytest.approx(0.0)
+
+    def test_deeper_drawdown_scores_higher(self) -> None:
+        shallow = pd.Series([100.0, 110.0, 105.0, 110.0])
+        deep = pd.Series([100.0, 110.0, 80.0, 110.0])
+        assert calculate_ulcer_index(deep) > calculate_ulcer_index(shallow)
+
+    def test_duration_increases_index(self) -> None:
+        """A drawdown held longer scores higher than a brief one of equal depth."""
+        brief = pd.Series([100.0, 110.0, 99.0, 110.0])
+        prolonged = pd.Series([100.0, 110.0, 99.0, 99.0, 110.0])
+        assert calculate_ulcer_index(prolonged) > calculate_ulcer_index(brief)
+
+    def test_empty_zero(self) -> None:
+        assert calculate_ulcer_index(pd.Series([], dtype=float)) == pytest.approx(0.0)
+
+    def test_single_value_zero(self) -> None:
+        assert calculate_ulcer_index(pd.Series([100.0])) == pytest.approx(0.0)
+
+    def test_nan_dropped(self) -> None:
+        equity = pd.Series([100.0, float("nan"), 90.0, 95.0])
+        result = calculate_ulcer_index(equity)
+        assert not np.isnan(result)
+        # The NaN row is dropped, so the result matches the curve without it.
+        expected = calculate_ulcer_index(pd.Series([100.0, 90.0, 95.0]))
+        assert result == pytest.approx(expected)
+
+    def test_all_zero_equity_no_nan(self) -> None:
+        result = calculate_ulcer_index(pd.Series([0.0, 0.0, 0.0]))
+        assert not np.isnan(result)
+        assert result == pytest.approx(0.0)
+
+    def test_zero_then_positive_no_nan(self) -> None:
+        result = calculate_ulcer_index(pd.Series([0.0, 0.0, 5.0, 10.0]))
+        assert not np.isnan(result)
+
+    def test_non_negative(self) -> None:
+        equity = pd.Series([100.0, 90.0, 120.0, 60.0, 130.0])
+        assert calculate_ulcer_index(equity) >= 0.0
 
 
 class TestCalculateSharpeRatio:
