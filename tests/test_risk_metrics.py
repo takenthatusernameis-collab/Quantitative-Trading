@@ -166,6 +166,18 @@ class TestCalculateMaxDrawdown:
         assert not np.isnan(result)
         assert result == pytest.approx(0.0)
 
+    def test_negative_equity_against_zero_peak_is_finite(self) -> None:
+        """A negative value while the running peak is zero must not return -inf."""
+        result = calculate_max_drawdown(pd.Series([0.0, -5.0, 10.0]))
+        assert np.isfinite(result)
+        assert result == pytest.approx(0.0)
+
+    def test_zero_peak_is_ignored_before_later_drawdown(self) -> None:
+        """Undefined zero-peak points are skipped; later drawdowns still count."""
+        result = calculate_max_drawdown(pd.Series([0.0, -5.0, 10.0, 5.0]))
+        assert np.isfinite(result)
+        assert result == pytest.approx(-0.5)
+
 
 class TestCalculateUlcerIndex:
     """Tests for calculate_ulcer_index."""

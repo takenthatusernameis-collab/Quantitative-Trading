@@ -243,6 +243,15 @@ class TestBacktestMetricsNanHandling:
         assert not np.isnan(metrics.sharpe_ratio)
         assert metrics.sharpe_ratio == pytest.approx(0.0)
 
+    def test_negative_equity_with_zero_peak_is_finite(self) -> None:
+        """A drawdown against a zero peak must stay finite, not become -inf."""
+        equity_curve = pd.Series([0.0, -5.0, 10.0])
+        metrics = calculate_backtest_metrics(equity_curve)
+        assert np.isfinite(metrics.max_drawdown)
+        assert np.isfinite(metrics.max_drawdown_pct)
+        assert np.isfinite(metrics.calmar_ratio)
+        assert metrics.max_drawdown == pytest.approx(0.0)
+
 
 class TestBacktestMetricsPeriodsPerYear:
     """Test the ``periods_per_year`` annualization parameter."""
