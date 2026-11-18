@@ -1,5 +1,7 @@
 """Tests for risk attribution and decomposition functions."""
 
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -321,12 +323,12 @@ class TestEqualRiskContribution:
     def test_erc_long_only_clamps_weights(self) -> None:
         """The long_only clamp keeps ERC weights non-negative and normalized.
 
-        Exercises the long_only clamp branch (quant_trading/risk/metrics.py:867)
-        and the weight_sum guard (quant_trading/risk/metrics.py:870-871). The
-        guard's break is provably unreachable: target = portfolio_vol / n >= 0,
-        so when target > 0 some positive contribution has positive weight and
-        weight_sum stays > 0 after clamping; when target == 0 the loop breaks at
-        the earlier target == 0 guard instead.
+        Exercises the long_only clamp branch (quant_trading/risk/metrics.py:867).
+        The weight_sum guard's break (quant_trading/risk/metrics.py:870-871) is
+        covered separately by
+        ``test_erc_canceling_contributions_stop_iteration``: the guard is
+        reachable when mixed-sign (long/short) risk contributions cancel the
+        rescaled weights to exactly zero.
         """
         np.random.seed(42)
         returns = pd.DataFrame(
@@ -344,6 +346,29 @@ class TestEqualRiskContribution:
         assert abs(weights.sum() - 1.0) < 1e-6
         assert (weights >= 0).all()
         assert np.isfinite(weights.to_numpy()).all()
+
+
+    def test_erc_canceling_contributions_stop_iteration(self) -> None:
+        """Exactly cancelling scaled weights trigger the weight_sum guard.
+
+        When the rescaled weights sum to exactly zero the iteration cannot
+        normalize them, so it stops and returns the weights it has
+        (quant_trading/risk/metrics.py:870-871). Mixed-sign risk
+        contributions (long/short books) can cancel this way; the degenerate
+        contribution series is patched in to make the float-exact
+        cancellation deterministic: initial weights (1/3, 1/3, 1/3) scaled by
+        target/contrib = (1/2, 1/2, -1) sum to exactly zero.
+        """
+        returns = pd.DataFrame({"A": [0.01, 0.02], "B": [0.02, 0.01], "C": [0.0, 0.01]})
+        degenerate = pd.Series([2.0, 2.0, -1.0], index=["A", "B", "C"])
+        with patch(
+            "quant_trading.risk.metrics.calculate_volatility_contributions",
+            return_value=degenerate,
+        ):
+            weights = calculate_equal_risk_contribution_weights(returns, annualize=False)
+        assert weights.index.tolist() == ["A", "B", "C"]
+        np.testing.assert_allclose(weights.to_numpy(), [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0])
+        assert abs(weights.sum() - 1.0) < 1e-6
 
 
 class TestRiskBudgetWeights:
@@ -458,9 +483,12 @@ class TestRiskBudgetWeights:
     def test_risk_budget_long_only_clamps_weights(self) -> None:
         """The long_only clamp keeps risk-budget weights non-negative and normalized.
 
-        Exercises the long_only clamp branch (quant_trading/risk/metrics.py:956)
-        and the weight_sum guard (quant_trading/risk/metrics.py:958-960), which is
-        provably unreachable for the same reason as the ERC counterpart.
+        Exercises the long_only clamp branch (quant_trading/risk/metrics.py:956).
+        The weight_sum guard's break (quant_trading/risk/metrics.py:959-960) is
+        covered separately by
+        ``test_risk_budget_canceling_contributions_stop_iteration``: the guard
+        is reachable when mixed-sign (long/short) risk contributions cancel the
+        rescaled weights to exactly zero.
         """
         np.random.seed(42)
         returns = pd.DataFrame(
@@ -477,6 +505,28 @@ class TestRiskBudgetWeights:
         assert abs(weights.sum() - 1.0) < 1e-6
         assert (weights >= 0).all()
         assert np.isfinite(weights.to_numpy()).all()
+
+    def test_risk_budget_canceling_contributions_stop_iteration(self) -> None:
+        """Exactly cancelling scaled weights trigger the weight_sum guard.
+
+        The rescaled weights can sum to exactly zero when risk contributions
+        have mixed signs (long/short books); the iteration then stops and
+        returns the budget weights unchanged
+        (quant_trading/risk/metrics.py:959-960). The degenerate contribution
+        series is patched in to make the cancellation deterministic: budget
+        (0.5, 0.5, 0.0) rescaled by budget/actual with actual proportional to
+        (1, -1, 5) yields (r, -r, 0), which sums to exactly zero.
+        """
+        returns = pd.DataFrame({"A": [0.01, 0.02], "B": [0.02, 0.01], "C": [0.0, 0.01]})
+        budget = pd.Series([0.5, 0.5, 0.0], index=["A", "B", "C"])
+        degenerate = pd.Series([1.0, -1.0, 5.0], index=["A", "B", "C"])
+        with patch(
+            "quant_trading.risk.metrics.calculate_volatility_contributions",
+            return_value=degenerate,
+        ):
+            weights = calculate_risk_budget_weights(returns, budget, annualize=False)
+        assert weights.index.tolist() == ["A", "B", "C"]
+        np.testing.assert_allclose(weights.to_numpy(), [0.5, 0.5, 0.0])
 
 
 class TestRiskAttributionIntegration:

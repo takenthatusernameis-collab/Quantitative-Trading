@@ -372,6 +372,42 @@ class TestMatplotlibUnavailable:
         with pytest.raises(ImportError, match="matplotlib is required"):
             create_1d_sensitivity_plot(df, "fast_period", "score")
 
+    def test_import_fallback_when_matplotlib_missing(self):
+        """A failed matplotlib import flips MATPLOTLIB_AVAILABLE to False.
+
+        ``sensitivity`` probes matplotlib at import time and falls back to
+        chart-free operation when the import raises ``ImportError``
+        (quant_trading/optimization/sensitivity.py:16-24). That fallback arm
+        only runs when the import itself fails, so this test hides matplotlib
+        in ``sys.modules`` (``None`` there makes ``import matplotlib`` raise
+        ``ImportError``), reloads the module, and restores the original state
+        afterwards so the rest of the suite sees the normal module.
+        """
+        import importlib
+        import sys
+
+        import pandas as pd
+
+        from quant_trading.optimization import sensitivity
+
+        missing = object()
+        previous = sys.modules.get("matplotlib", missing)
+        sys.modules["matplotlib"] = None
+        try:
+            reloaded = importlib.reload(sensitivity)
+            assert reloaded.MATPLOTLIB_AVAILABLE is False
+            # The chart helpers refuse cleanly through the import-time flag.
+            df = pd.DataFrame({"fast_period": [5, 10], "score": [1.0, 2.0]})
+            with pytest.raises(ImportError, match="matplotlib is required"):
+                reloaded.create_1d_sensitivity_plot(df, "fast_period", "score")
+        finally:
+            if previous is missing:
+                del sys.modules["matplotlib"]
+            else:
+                sys.modules["matplotlib"] = previous
+            # Restore the module's normal (matplotlib-probing) state.
+            importlib.reload(sensitivity)
+
 
 class TestSensitivityReportHtmlStructure:
     """Tests for generate_sensitivity_report_html structural guarantees."""

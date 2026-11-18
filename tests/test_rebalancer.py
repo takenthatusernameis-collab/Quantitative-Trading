@@ -272,6 +272,35 @@ class TestRebalancer:
         with pytest.raises(ValueError, match="invalid frequency"):
             Rebalancer(self.portfolio, frequency="yearly")
 
+    def test_should_rebalance_mutated_frequency_returns_false(self) -> None:
+        """An unrecognized frequency (e.g. after attribute mutation) returns False.
+
+        The constructor rejects unknown frequencies, but ``frequency`` is a
+        public attribute; the check still defends against a mutated value by
+        falling through every branch to the final ``return False``
+        (quant_trading/portfolio/rebalancer.py:482-485).
+        """
+        self.rebalancer.last_rebalance = datetime.now()
+        self.rebalancer.frequency = "yearly"
+        assert self.rebalancer.should_rebalance() is False
+
+    def test_generate_rebalance_actions_zero_deviation_plans_nothing(self) -> None:
+        """A symbol exactly at its target deviates by zero and plans no trade.
+
+        When ``diff == 0`` the ``elif diff < 0`` arm is false and the loop
+        moves on without an action (quant_trading/portfolio/rebalancer.py:630).
+        With a valid non-negative threshold a zero deviation can never enter
+        the deviation check (``0 > threshold`` is false), so the threshold is
+        mutated to a negative value to make the zero-deviation case reachable
+        and assert it still plans nothing.
+        """
+        portfolio = Portfolio(cash=1000.0, initial_capital=1000.0)
+        portfolio.add_holding("AAPL", 10, 100.0)  # $1,000 at $100, cash $0
+        rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 1.0})
+        rebalancer.rebalance_threshold = -0.01
+        actions = rebalancer.generate_rebalance_actions(prices={"AAPL": 100.0})
+        assert actions == []
+
     def test_resolve_buy_quantity_from_signals(self) -> None:
         """_resolve_buy_quantity derives a price from matching signals when no
         holding or price dict is available."""
