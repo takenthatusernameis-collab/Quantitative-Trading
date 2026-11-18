@@ -1,5 +1,6 @@
 """Tests for the backtest report module."""
 
+import base64
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -2531,3 +2532,51 @@ def test_finite_series_all_non_finite_returns_empty() -> None:
     cleaned = _finite_series(pd.Series([np.inf, -np.inf, np.nan, np.nan]))
 
     assert cleaned.empty
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+@pytest.mark.parametrize(
+    "helper_name",
+    [
+        "_create_equity_curve_chart",
+        "_create_drawdown_chart",
+        "_create_monthly_returns_heatmap",
+        "_create_rolling_sharpe_chart",
+        "_create_rolling_volatility_chart",
+    ],
+)
+def test_core_chart_helpers_return_base64_png(helper_name: str) -> None:
+    """Each single-result chart helper returns a valid base64-encoded PNG."""
+    from quant_trading.backtest import report as report_mod
+
+    result = _create_sample_result()
+    helper = getattr(report_mod, helper_name)
+
+    encoded = helper(result, report_mod._get_theme_colors("light"), 120)
+
+    assert isinstance(encoded, str)
+    assert encoded
+    assert base64.b64decode(encoded).startswith(b"\x89PNG\r\n\x1a\n")
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+@pytest.mark.parametrize(
+    "helper_name",
+    ["_create_rolling_sharpe_chart", "_create_rolling_volatility_chart"],
+)
+def test_rolling_chart_helpers_render_insufficient_data_placeholder(helper_name: str) -> None:
+    """Rolling charts fall back to a placeholder image when fewer than 60 bars exist."""
+    from quant_trading.backtest import report as report_mod
+
+    result = _create_sample_result()
+    short_dates = result.equity_curve.index[:30]
+    result.equity_curve = pd.Series(
+        np.linspace(100000.0, 101000.0, len(short_dates)), index=short_dates
+    )
+    helper = getattr(report_mod, helper_name)
+
+    encoded = helper(result, report_mod._get_theme_colors("dark"), 100)
+
+    assert isinstance(encoded, str)
+    assert encoded
+    assert base64.b64decode(encoded).startswith(b"\x89PNG\r\n\x1a\n")
