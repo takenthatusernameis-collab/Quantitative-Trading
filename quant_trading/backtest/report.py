@@ -12,7 +12,7 @@ import io
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -210,7 +210,7 @@ def _drawdown_series(equity: pd.Series) -> pd.Series:
     peak = equity.expanding().max()
     with np.errstate(divide="ignore", invalid="ignore"):
         drawdown = (equity - peak) / peak.where(peak > 0) * 100
-    return drawdown.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    return cast(pd.Series, drawdown.replace([np.inf, -np.inf], np.nan).fillna(0.0))
 
 
 def _finite_series(series: pd.Series) -> pd.Series:
@@ -231,7 +231,7 @@ def _finite_series(series: pd.Series) -> pd.Series:
     """
     if len(series) == 0:
         return series.astype(float)
-    return series.replace([np.inf, -np.inf], np.nan).dropna()
+    return cast(pd.Series, series.replace([np.inf, -np.inf], np.nan).dropna())
 
 
 def _create_drawdown_chart(result: BacktestResult, colors: dict[str, str], dpi: int) -> str:
