@@ -347,7 +347,6 @@ class TestEqualRiskContribution:
         assert (weights >= 0).all()
         assert np.isfinite(weights.to_numpy()).all()
 
-
     def test_erc_canceling_contributions_stop_iteration(self) -> None:
         """Exactly cancelling scaled weights trigger the weight_sum guard.
 
