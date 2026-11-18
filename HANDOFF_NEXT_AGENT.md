@@ -1,63 +1,81 @@
 ## What changed (this session)
 
-- Recreated `.github/workflows/core-only-tests.yml` for real (the prior
-  handoff's claim that it existed/staged was incorrect; the file was never
-  committed). The file:
-  - Triggers on push to `main`, pull requests, and `workflow_dispatch`.
-  - Sets up Python 3.11, installs only `pip install -e .` (no `[reporting]`
-    / `[bayesian]` extras) plus `pytest`/`pytest-cov`.
-  - Asserts `matplotlib` and `skopt` are genuinely absent before running tests
-    (fails the job if either imports).
-  - Runs `pytest -q -rs` (fails on any non-skip/deselect outcome).
-- Committed locally as `770cb0a` ("Add core-only CI workflow", 1 file,
-  42 insertions). Working tree is clean.
-- No production code or test files changed.
+- Added `tests/test_core_only_imports.py` (new file, untracked, not yet
+  committed). It locks the **core-only import invariant** into the ordinary
+  `pytest` run: a subprocess blocks `matplotlib` and `skopt` via a
+  meta-path finder, then imports every core subpackage, runs a deterministic
+  offline backtest (`create_synthetic_provider(..., seed=42, end_date=...)` +
+  `MovingAverageCrossover`, fixed 2023-01-01 end date → 16 trades), and
+  asserts that chart helpers raise a clean `ImportError` (not a crash) when
+  the optional extras are absent.
+- This is a **materially different approach** to the same goal the previous
+  sessions pursued via a `.github/workflows/core-only-tests.yml` file, which
+  could never be committed (see "Approaches that failed"). A committed test
+  achieves the guarantee in a route that the automation *can* persist.
+- No production code changed. No existing tests changed.
 
 ## What was actually verified (evidence)
 
-- `.github/workflows/core-only-tests.yml` parses cleanly via both
-  `ruby -e 'require "yaml"; YAML.load_file(...)'` and Python `yaml.safe_load`.
-- Staged whitespace check `git diff --cached --check` -> clean (before commit).
-- Local baseline (extras present, matching production env):
-  `pytest -q -m "not slow and not network"` -> **4056 passed, 142 deselected**,
-  exit 0 (matches prior session's "all extras" baseline).
-- Note: in core-only CI `matplotlib`/`skopt` will be absent, so the
-  matplotlib/skopt-dependent README commands skip instead of pass; this is the
-  intended invariant (core-only path must not require optional extras).
+- Ground-truth baseline re-confirmed at session start: `pytest -q -m "not slow
+  and not network"` → **4056 passed, 142 deselected**, exit 0.
+- New test passes in isolation: `pytest tests/test_core_only_imports.py -q` →
+  **1 passed** (~0.5s).
+- **Negative test (regression guard proof):** injecting an unguarded
+  top-level `import matplotlib.pyplot` into `quant_trading/backtest/report.py`
+  makes the new test **fail** (subprocess exits 1, reports the
+  `ModuleNotFoundError`); restoring the file makes it **pass** again. So the
+  test genuinely catches the class of regression it targets.
+- Lint/format/types: `ruff check` clean, `black --check` clean, `mypy` clean
+  (via `python -m ruff/black/mypy`; the bare `ruff`/`black`/`mypy` console
+  scripts are not on PATH in this environment).
+- Related modules re-run: `test_packaging.py test_readme_cli_commands.py
+  test_repository_integrity.py test_backtest_report.py` → **257 passed, 3
+  deselected**.
+- Full default suite with the new test: **4057 passed, 142 deselected**, exit
+  0 (was 4056; +1 = the new test). Baseline preserved, no regressions.
 
-## What remains unresolved / not verified
+## Repository state / important context
 
-- **The commit has NOT been pushed.** `git push origin main` was rejected:
-  `refusing to allow a GitHub App to create or update workflow
-  .github/workflows/core-only-tests.yml without workflows permission`.
-  The local commit `770cb0a` is 1 commit ahead of `origin/main`.
-- The CI job has not run on GitHub Actions (no runner in this sandbox); local
-  baseline + YAML parse are the evidence the check is sound.
-- `--combined` commands remain `slow` (deselected by default).
-- Network-marked tests deselected as usual.
+- `HEAD == origin/main == b1bbda5`; working tree otherwise clean except the
+  new untracked test file.
+- `b1bbda5` (empty commit message, author `kilo-autonomous`) **deleted**
+  `.github/workflows/core-only-tests.yml` that `770cb0a` had added, and
+  rewrote `HANDOFF_NEXT_AGENT.md`. So the prior handoff's "push 770cb0a"
+  task is moot: that commit is already an ancestor of `origin/main`, and the
+  workflow file it introduced is gone. The workflow-based core-only check is
+  not live and cannot be made live by this automation.
+- The core-only CI idea is therefore superseded by the committed test added
+  this session.
 
 ## Approaches that failed
 
-- `git push origin main`: rejected by the remote because the authenticating
-  GitHub App lacks the `workflows` permission required to create/update a
-  workflow file. Do NOT retry the same push unchanged — it will fail again
-  until a token/PAT with `workflows` scope is used or the app permission is
-  added.
+- **Pushing a workflow file** (`.github/workflows/core-only-tests.yml`):
+  `git push origin main` was rejected with `refusing to allow a GitHub App to
+  create or update workflow ... without workflows permission`. Retried across
+  multiple sessions; deterministic blocker, not transient. Do NOT retry
+  pushing workflow changes unchanged — the GitHub App token lacks the
+  `workflows` scope and this is a safety boundary, not a code defect.
+- Treating the prior handoff at face value: it described a workflow that did
+  not exist on disk (and later, a commit that was already pushed). Always
+  verify against `git`/`ls` rather than trusting the handoff text.
 
 ## One precise next task
 
-Push the local commit `770cb0a` to `origin/main` so the core-only check is
-live, then optionally trigger it manually via `workflow_dispatch` to confirm it
-passes on real CI runners.
+Commit `tests/test_core_only_imports.py` with a clear message (e.g. "Add
+core-only import regression test") and push it to `origin/main`. Non-workflow
+file pushes have succeeded before (e.g. `b1bbda5` is on `origin/main`), so
+this should persist where the workflow could not.
 
 Constraints/evidence:
-- Commit: `770cb0a Add core-only CI workflow` (file:
-  `.github/workflows/core-only-tests.yml`).
-- Push requires a credential with the `workflows` permission/scope; the
-  current GitHub App token does not have it. Obtain such a credential or have
-  the app permission added before pushing.
-- Do not alter the workflow content to work around the permission rejection;
-  the permission is a safety boundary, not a code defect.
-- Once pushed, verify the run succeeds via the Actions tab / `workflow_dispatch`.
+- File to commit: `tests/test_core_only_imports.py` (only untracked change;
+  `git status` shows nothing else). Do not touch `.github/workflows/`.
+- Verify before/after: `python -m pytest tests/test_core_only_imports.py -q`
+  (expect 1 passed) and `python -m ruff/black/mypy` on the file (expect
+  clean).
+- Optional follow-up (only if the commit lands cleanly): add the *inverse*
+  direction — a companion assertion that the previously skip-marked
+  matplotlib/skopt README commands actually run (exit 0) when the extras ARE
+  installed — to lock both directions of the invariant. See
+  `tests/test_readme_cli_commands.py` for the existing skip logic to mirror.
 
 (End of file)
