@@ -557,6 +557,7 @@ def _build_metrics_table(result: BacktestResult, colors: dict[str, str]) -> str:
         ("Calmar Ratio", _format_metric(getattr(metrics, "calmar_ratio", None))),
         ("Max Drawdown", _format_metric(getattr(metrics, "max_drawdown_pct", None), "{:.2f}%")),
         ("Max Drawdown ($)", _format_metric(getattr(metrics, "max_drawdown", None), "${:,.2f}")),
+        ("Ulcer Index", _format_metric(getattr(metrics, "ulcer_index", None))),
         ("Profit Factor", _format_metric(getattr(metrics, "profit_factor", None))),
         ("Win Rate", _format_metric(getattr(metrics, "win_rate", None), "{:.2%}")),
         ("Total Trades", _format_metric(getattr(metrics, "num_trades", None), "{:.0f}")),
@@ -1532,6 +1533,7 @@ def _build_comparison_table(
             "Max Drawdown ($)",
             lambda r: _format_metric(getattr(r.metrics, "max_drawdown", None), "${:,.2f}"),
         ),
+        ("Ulcer Index", lambda r: _format_metric(getattr(r.metrics, "ulcer_index", None))),
         ("Profit Factor", lambda r: _format_metric(getattr(r.metrics, "profit_factor", None))),
         ("Win Rate", lambda r: _format_metric(getattr(r.metrics, "win_rate", None), "{:.2%}")),
         (
@@ -1777,6 +1779,7 @@ def _build_comparison_summary_cards(
                 <div><strong>Return:</strong> {result.total_return_pct:.2f}%</div>
                 <div><strong>Sharpe:</strong> {getattr(metrics, "sharpe_ratio", 0):.2f}</div>
                 <div><strong>Max DD:</strong> {getattr(metrics, "max_drawdown_pct", 0):.2f}%</div>
+                <div><strong>Ulcer:</strong> {getattr(metrics, "ulcer_index", 0):.4f}</div>
                 <div><strong>Win Rate:</strong> {getattr(metrics, "win_rate", 0):.1%}</div>
                 <div><strong>Trades:</strong> {getattr(metrics, "num_trades", 0)}</div>
                 <div><strong>Costs:</strong> ${result.total_costs:,.2f}</div>
