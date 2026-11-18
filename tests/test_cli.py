@@ -5,6 +5,8 @@ import itertools
 import json
 import sys
 import tempfile
+from argparse import Namespace
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, ClassVar
 from unittest.mock import MagicMock, patch
@@ -9136,6 +9138,198 @@ class TestRunWalkForwardBranches:
         assert saved["regime_analysis"] == {"segments": 2}
         assert saved["monte_carlo"] == {"mean_return": 0.01}
         assert saved["trade_analysis"] == {"num_trades": 5}
+
+    @patch("examples.cli.WalkForwardOptimizer")
+    def test_run_walk_forward_report_import_error_returns_one(
+        self,
+        mock_wfo: MagicMock,
+        capsys: CaptureFixture[Any],
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        """Missing matplotlib in walk-forward mode --report is a one-line error."""
+        from examples.cli import run_walk_forward
+
+        def _raise_import_error(*args: Any, **kwargs: Any) -> None:
+            raise ImportError(
+                "matplotlib is required for chart generation. "
+                "Install with: pip install quant-trading[reporting]"
+            )
+
+        monkeypatch.setattr("examples.cli.generate_html_report", _raise_import_error)
+
+        mock_optimizer_instance = MagicMock()
+        mock_optimizer_instance.run.return_value = self._make_mock_result(empty_df=False)
+        mock_wfo.return_value = mock_optimizer_instance
+
+        report_path = tmp_path / "wf_report.html"
+        args = Namespace(
+            strategy="ma",
+            objective="sharpe",
+            optimizer="grid",
+            wf_optimizer="grid",
+            symbols=["AAPL"],
+            interval="1d",
+            ma_fast_range="5,15,5",
+            ma_slow_range="20,30,10",
+            rsi_period_range="10,20,2",
+            rsi_oversold_range="20,35,5",
+            rsi_overbought_range="65,80,5",
+            bb_period_range="10,30,5",
+            bb_std_range="1.5,3.0,0.5",
+            macd_fast_range="8,16,2",
+            macd_slow_range="20,30,2",
+            macd_signal_range="7,12,1",
+            st_period_range="7,20,1",
+            st_multiplier_range="2.0,4.0,0.5",
+            dc_period_range="10,40,5",
+            dc_exit_period_range="5,20,5",
+            aroon_period_range="10,50,5",
+            kc_ema_period_range="10,30,5",
+            kc_atr_period_range="5,20,2",
+            kc_multiplier_range="1.0,3.0,0.5",
+            stoch_k_period_range="10,20,2",
+            stoch_d_period_range="2,5,1",
+            stoch_oversold_range="10,30,5",
+            stoch_overbought_range="70,90,5",
+            ichimoku_tenkan_period_range="5,15,2",
+            ichimoku_kijun_period_range="10,30,5",
+            ichimoku_senkou_b_period_range="20,60,10",
+            sar_step_range="0.01,0.05,0.01",
+            sar_max_step_range="0.10,0.20,0.05",
+            atr_period_range="10,30,5",
+            atr_multiplier_range="1.0,3.0,0.5",
+            wf_windows=2,
+            wf_train_size=0.7,
+            wf_anchored=True,
+            wf_step_size=1.0,
+            n_iter=10,
+            n_jobs=1,
+            bayesian_n_initial=10,
+            bayesian_acq_func="EI",
+            bayesian_acq_optimizer="auto",
+            bayesian_noise=1e-6,
+            output=None,
+            output_format=None,
+            output_strategy_config=None,
+            report=str(report_path),
+        )
+
+        config = Config()
+        config.data.provider = "synthetic"
+        config.data.offline = True
+        config.data.synthetic_days = 60
+        config.data.synthetic_seed = 42
+        config.backtest.initial_capital = 100000.0
+        config.backtest.commission = 0.001
+        config.backtest.slippage = 0.0005
+        config.backtest.periods_per_year = 252
+        config.backtest.risk_free_rate = 0.02
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=60)
+
+        result = run_walk_forward(args, config, start_date, end_date)
+        assert result == 1
+
+        captured = capsys.readouterr()
+        assert "matplotlib" in captured.out
+        assert "Traceback" not in captured.out
+
+    @patch("examples.cli.WalkForwardOptimizer")
+    def test_run_walk_forward_report_os_error_returns_one(
+        self,
+        mock_wfo: MagicMock,
+        capsys: CaptureFixture[Any],
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        """File write error in walk-forward mode --report is a one-line error."""
+        from examples.cli import run_walk_forward
+
+        def _raise_os_error(*args: Any, **kwargs: Any) -> None:
+            raise OSError("Permission denied")
+
+        monkeypatch.setattr("examples.cli.generate_html_report", _raise_os_error)
+
+        mock_optimizer_instance = MagicMock()
+        mock_optimizer_instance.run.return_value = self._make_mock_result(empty_df=False)
+        mock_wfo.return_value = mock_optimizer_instance
+
+        report_path = tmp_path / "wf_report.html"
+        args = Namespace(
+            strategy="ma",
+            objective="sharpe",
+            optimizer="grid",
+            wf_optimizer="grid",
+            symbols=["AAPL"],
+            interval="1d",
+            ma_fast_range="5,15,5",
+            ma_slow_range="20,30,10",
+            rsi_period_range="10,20,2",
+            rsi_oversold_range="20,35,5",
+            rsi_overbought_range="65,80,5",
+            bb_period_range="10,30,5",
+            bb_std_range="1.5,3.0,0.5",
+            macd_fast_range="8,16,2",
+            macd_slow_range="20,30,2",
+            macd_signal_range="7,12,1",
+            st_period_range="7,20,1",
+            st_multiplier_range="2.0,4.0,0.5",
+            dc_period_range="10,40,5",
+            dc_exit_period_range="5,20,5",
+            aroon_period_range="10,50,5",
+            kc_ema_period_range="10,30,5",
+            kc_atr_period_range="5,20,2",
+            kc_multiplier_range="1.0,3.0,0.5",
+            stoch_k_period_range="10,20,2",
+            stoch_d_period_range="2,5,1",
+            stoch_oversold_range="10,30,5",
+            stoch_overbought_range="70,90,5",
+            ichimoku_tenkan_period_range="5,15,2",
+            ichimoku_kijun_period_range="10,30,5",
+            ichimoku_senkou_b_period_range="20,60,10",
+            sar_step_range="0.01,0.05,0.01",
+            sar_max_step_range="0.10,0.20,0.05",
+            atr_period_range="10,30,5",
+            atr_multiplier_range="1.0,3.0,0.5",
+            wf_windows=2,
+            wf_train_size=0.7,
+            wf_anchored=True,
+            wf_step_size=1.0,
+            n_iter=10,
+            n_jobs=1,
+            bayesian_n_initial=10,
+            bayesian_acq_func="EI",
+            bayesian_acq_optimizer="auto",
+            bayesian_noise=1e-6,
+            output=None,
+            output_format=None,
+            output_strategy_config=None,
+            report=str(report_path),
+        )
+
+        config = Config()
+        config.data.provider = "synthetic"
+        config.data.offline = True
+        config.data.synthetic_days = 60
+        config.data.synthetic_seed = 42
+        config.backtest.initial_capital = 100000.0
+        config.backtest.commission = 0.001
+        config.backtest.slippage = 0.0005
+        config.backtest.periods_per_year = 252
+        config.backtest.risk_free_rate = 0.02
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=60)
+
+        result = run_walk_forward(args, config, start_date, end_date)
+        assert result == 1
+
+        captured = capsys.readouterr()
+        assert "could not write report file" in captured.out
+        assert "Permission denied" in captured.out
+        assert "Traceback" not in captured.out
 
 
 class TestMainSystemExitHandling:
