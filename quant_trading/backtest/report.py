@@ -213,6 +213,27 @@ def _drawdown_series(equity: pd.Series) -> pd.Series:
     return drawdown.replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
 
+def _finite_series(series: pd.Series) -> pd.Series:
+    """Return ``series`` with non-finite values removed.
+
+    A rolling ratio computed against a zero-variance window can produce
+    ``inf`` (for example ``mean / std`` when ``std`` is zero). Plotting an
+    ``inf`` value raises or silently corrupts the chart, so chart inputs are
+    filtered to drop ``NaN`` and ``±inf`` before they reach matplotlib.
+
+    Args:
+        series: Input series (typically a rolling metric).
+
+    Returns:
+        Series aligned with ``series`` whose values are all finite. Empty
+        input returns an empty float series.
+
+    """
+    if len(series) == 0:
+        return series.astype(float)
+    return series.replace([np.inf, -np.inf], np.nan).dropna()
+
+
 def _create_drawdown_chart(result: BacktestResult, colors: dict[str, str], dpi: int) -> str:
     """Create drawdown chart and return as base64 string."""
     _check_matplotlib()
@@ -472,6 +493,23 @@ def _create_rolling_sharpe_chart(result: BacktestResult, colors: dict[str, str],
     rolling_sharpe = (
         returns.rolling(window=60).mean() / returns.rolling(window=60).std() * np.sqrt(252)
     )
+    rolling_sharpe = _finite_series(rolling_sharpe)
+
+    if rolling_sharpe.empty:
+        ax.text(
+            0.5,
+            0.5,
+            "Insufficient data for rolling Sharpe (need 60+ bars)",
+            ha="center",
+            va="center",
+            color=colors["fg"],
+            transform=ax.transAxes,
+        )
+        ax.set_title(
+            "Rolling Sharpe Ratio (60-period)", color=colors["fg"], fontsize=14, fontweight="bold"
+        )
+        ax.axis("off")
+        return _fig_to_base64(fig, dpi)
 
     ax.plot(
         rolling_sharpe.index,
@@ -526,6 +564,23 @@ def _create_rolling_volatility_chart(
 
     returns = equity.pct_change().dropna()
     rolling_vol = returns.rolling(window=60).std() * np.sqrt(252) * 100
+    rolling_vol = _finite_series(rolling_vol)
+
+    if rolling_vol.empty:
+        ax.text(
+            0.5,
+            0.5,
+            "Insufficient data for rolling volatility (need 60+ bars)",
+            ha="center",
+            va="center",
+            color=colors["fg"],
+            transform=ax.transAxes,
+        )
+        ax.set_title(
+            "Rolling Volatility (60-period)", color=colors["fg"], fontsize=14, fontweight="bold"
+        )
+        ax.axis("off")
+        return _fig_to_base64(fig, dpi)
 
     ax.plot(
         rolling_vol.index,
@@ -1390,8 +1445,9 @@ def _create_comparison_rolling_sharpe_chart(
         rolling_sharpe = (
             returns.rolling(window=60).mean() / returns.rolling(window=60).std() * np.sqrt(252)
         )
+        rolling_sharpe = _finite_series(rolling_sharpe)
 
-        if rolling_sharpe.dropna().empty:
+        if rolling_sharpe.empty:
             continue
 
         color = palette[i % len(palette)]
@@ -1474,8 +1530,9 @@ def _create_comparison_rolling_volatility_chart(
 
         returns = equity.pct_change().dropna()
         rolling_vol = returns.rolling(window=60).std() * np.sqrt(252) * 100
+        rolling_vol = _finite_series(rolling_vol)
 
-        if rolling_vol.dropna().empty:
+        if rolling_vol.empty:
             continue
 
         color = palette[i % len(palette)]

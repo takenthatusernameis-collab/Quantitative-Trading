@@ -2491,3 +2491,43 @@ def test_drawdown_series_handles_empty_and_all_negative_curves() -> None:
 
     assert empty.empty
     assert negative.tolist() == [0.0, 0.0]
+
+
+def test_finite_series_drops_inf_and_nan_values() -> None:
+    """``_finite_series`` removes ``inf``/``-inf``/``NaN`` from chart inputs."""
+    from quant_trading.backtest.report import _finite_series
+
+    cleaned = _finite_series(pd.Series([0.0, np.inf, -np.inf, 1.0, np.nan, 2.5]))
+
+    assert cleaned.tolist() == [0.0, 1.0, 2.5]
+    assert np.isfinite(cleaned.to_numpy()).all()
+
+
+def test_finite_series_preserves_finite_values() -> None:
+    """A fully finite series is returned unchanged (same values, same index)."""
+    from quant_trading.backtest.report import _finite_series
+
+    original = pd.Series([1.0, 2.0, 3.0], index=pd.Index([10, 20, 30], name="bar"))
+    cleaned = _finite_series(original)
+
+    assert cleaned.tolist() == [1.0, 2.0, 3.0]
+    assert cleaned.index.tolist() == [10, 20, 30]
+
+
+def test_finite_series_empty_input_returns_empty() -> None:
+    """An empty input yields an empty float series."""
+    from quant_trading.backtest.report import _finite_series
+
+    empty = _finite_series(pd.Series([], dtype=float))
+
+    assert empty.empty
+    assert empty.dtype == float
+
+
+def test_finite_series_all_non_finite_returns_empty() -> None:
+    """A series whose every value is non-finite collapses to an empty series."""
+    from quant_trading.backtest.report import _finite_series
+
+    cleaned = _finite_series(pd.Series([np.inf, -np.inf, np.nan, np.nan]))
+
+    assert cleaned.empty
