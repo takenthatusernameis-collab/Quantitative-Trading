@@ -1775,6 +1775,45 @@ def test_comparison_rolling_volatility_chart_empty_after_dropna() -> None:
     assert isinstance(png, str) and len(png) > 0
 
 
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_rolling_sharpe_chart_empty_after_dropna() -> None:
+    """_create_rolling_sharpe_chart must handle empty rolling_sharpe after filtering."""
+    from quant_trading.backtest.report import _create_rolling_sharpe_chart, _get_theme_colors
+
+    # Constant equity yields zero-variance returns, so every rolling Sharpe is
+    # NaN and the finite-series filter leaves nothing to plot.
+    dates = pd.date_range("2024-01-01", periods=70, freq="D")
+    equity = pd.Series([100000.0] * 70, index=dates)
+
+    class Result:
+        def __init__(self, equity: pd.Series) -> None:
+            self.equity_curve = equity
+
+    png = _create_rolling_sharpe_chart(Result(equity), _get_theme_colors("light"), 150)  # type: ignore[arg-type]
+    assert isinstance(png, str) and len(png) > 0
+
+
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
+def test_rolling_volatility_chart_empty_after_dropna() -> None:
+    """_create_rolling_volatility_chart must handle empty rolling_vol after filtering."""
+    from quant_trading.backtest.report import (
+        _create_rolling_volatility_chart,
+        _get_theme_colors,
+    )
+
+    # Equity that oscillates through zero produces infinite returns in every
+    # rolling window, so the finite-series filter leaves nothing to plot.
+    dates = pd.date_range("2024-01-01", periods=70, freq="D")
+    equity = pd.Series([100000.0 if i % 2 == 0 else 0.0 for i in range(70)], index=dates)
+
+    class Result:
+        def __init__(self, equity: pd.Series) -> None:
+            self.equity_curve = equity
+
+    png = _create_rolling_volatility_chart(Result(equity), _get_theme_colors("light"), 150)  # type: ignore[arg-type]
+    assert isinstance(png, str) and len(png) > 0
+
+
 # Tests for uncovered lines in _build_comparison_risk_attribution
 def test_build_comparison_risk_attribution_exception_handling() -> None:
     """_build_comparison_risk_attribution must handle metric_fn exceptions (lines 1621-1624)."""
