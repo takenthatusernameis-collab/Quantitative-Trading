@@ -2041,6 +2041,7 @@ def run_optimization(
         print(f"Max Drawdown:    {result.best_result.metrics.max_drawdown_pct:.2f}%")
         print(f"Win Rate:        {result.best_result.metrics.win_rate:.2%}")
         print(f"Profit Factor:   {result.best_result.metrics.profit_factor:.4f}")
+        print(f"Ulcer Index:     {result.best_result.metrics.ulcer_index:.4f}")
         print(f"Total Trades:    {result.best_result.metrics.num_trades}")
 
     # Print top 10
@@ -2079,6 +2080,9 @@ def run_optimization(
                     "win_rate": result.best_result.metrics.win_rate if result.best_result else None,
                     "profit_factor": (
                         result.best_result.metrics.profit_factor if result.best_result else None
+                    ),
+                    "ulcer_index": (
+                        result.best_result.metrics.ulcer_index if result.best_result else None
                     ),
                     "num_trades": (
                         result.best_result.metrics.num_trades if result.best_result else None
@@ -2576,6 +2580,7 @@ def _run_cli() -> int:
         print(f"Volatility:      {result.metrics.volatility:.2%}")
         print(f"VaR (95%):       {result.metrics.var_95:.2%}")
         print(f"Calmar Ratio:    {result.metrics.calmar_ratio:.2f}")
+        print(f"Ulcer Index:     {result.metrics.ulcer_index:.2f}")
 
         if args.regime:
             regime_analysis = _get_regime_analysis(
@@ -2624,6 +2629,7 @@ def _run_cli() -> int:
                 "volatility": result.metrics.volatility,
                 "var_95": result.metrics.var_95,
                 "calmar_ratio": result.metrics.calmar_ratio,
+                "ulcer_index": result.metrics.ulcer_index,
             }
             if args.regime:
                 output_data["regime_analysis"] = regime_analysis.to_dict()
@@ -2798,6 +2804,7 @@ def run_combined(
                     "unrealized_pnl": result.metrics.unrealized_pnl,
                     "sharpe_ratio": result.metrics.sharpe_ratio,
                     "max_drawdown_pct": result.metrics.max_drawdown_pct,
+                    "ulcer_index": result.metrics.ulcer_index,
                     "win_rate": result.metrics.win_rate,
                     "num_trades": result.metrics.num_trades,
                 }
