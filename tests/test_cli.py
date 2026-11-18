@@ -2609,6 +2609,7 @@ class TestRunCombined:
                 data = json.load(f)
             assert "comparison" in data
             assert "best_strategy" in data
+            assert all("ulcer_index" in entry for entry in data["comparison"])
 
     def test_main_offline_combined_end_to_end(self, capsys: CaptureFixture[Any]) -> None:
         """Running offline --combined executes all strategies end-to-end (no mocks)."""
@@ -2668,6 +2669,7 @@ class TestRunCombined:
                 assert "total_pnl" in entry
                 assert "unrealized_pnl" in entry
                 assert "total_return" in entry
+                assert "ulcer_index" in entry
 
     @patch("examples.cli.run_backtest")
     def test_run_combined_strategy_error_returns_one(
