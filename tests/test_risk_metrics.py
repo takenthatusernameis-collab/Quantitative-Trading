@@ -178,6 +178,21 @@ class TestCalculateMaxDrawdown:
         assert np.isfinite(result)
         assert result == pytest.approx(-0.5)
 
+    def test_all_negative_equity_reports_neutral_drawdown(self) -> None:
+        """An all-negative equity curve has no positive running peak, so the
+        drawdown ratio is undefined everywhere and reports neutral (0.0),
+        matching the chart-level drawdown series."""
+        result = calculate_max_drawdown(pd.Series([-5.0, -10.0, -3.0]))
+        assert np.isfinite(result)
+        assert result == pytest.approx(0.0)
+
+    def test_zero_and_negative_equity_reports_neutral_drawdown(self) -> None:
+        """An equity curve that is zero or negative throughout reports a
+        neutral drawdown because no running peak is strictly positive."""
+        result = calculate_max_drawdown(pd.Series([0.0, -5.0, -2.0]))
+        assert np.isfinite(result)
+        assert result == pytest.approx(0.0)
+
 
 class TestCalculateUlcerIndex:
     """Tests for calculate_ulcer_index."""

@@ -185,10 +185,12 @@ def calculate_max_drawdown(equity_curve: pd.Series) -> float:
 
     Returns:
         Maximum drawdown as a decimal (e.g., -0.05 for 5% drawdown), or
-        0.0 if insufficient data. Drawdowns measured against a zero running
-        peak are undefined and are ignored, so an equity curve that dips
-        below zero while its peak is still zero reports a finite value
-        instead of ``-inf``.
+        0.0 if insufficient data or if the running peak is never strictly
+        positive (an all-zero or all-negative equity curve), in which case
+        the drawdown ratio is undefined and is reported as neutral.
+        Drawdowns measured against a zero running peak are undefined and
+        are ignored, so an equity curve that dips below zero while its peak
+        is still zero reports a finite value instead of ``-inf``.
 
     Examples:
         >>> import pandas as pd
@@ -203,7 +205,7 @@ def calculate_max_drawdown(equity_curve: pd.Series) -> float:
     if len(equity_curve) == 0:
         return 0.0
     running_max = equity_curve.cummax()
-    if running_max.eq(0).all():
+    if running_max.max() <= 0:
         return 0.0
     with np.errstate(divide="ignore", invalid="ignore"):
         drawdown = (equity_curve - running_max) / running_max
