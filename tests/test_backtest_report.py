@@ -575,6 +575,7 @@ def test_report_matplotlib_unavailable_branch(monkeypatch: pytest.MonkeyPatch) -
     importlib.reload(report_module)
 
 
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_generate_html_report_uses_default_config_when_config_is_none() -> None:
     """generate_html_report must fall back to ReportConfig() when config is None."""
     result = _create_sample_result()
@@ -585,6 +586,7 @@ def test_generate_html_report_uses_default_config_when_config_is_none() -> None:
     assert "Equity Curve" in html
 
 
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_generate_html_report_omits_monthly_heatmap_when_disabled() -> None:
     """include_monthly_heatmap=False must exclude the monthly returns chart."""
     result = _create_sample_result()
@@ -594,6 +596,7 @@ def test_generate_html_report_omits_monthly_heatmap_when_disabled() -> None:
     assert "Equity Curve" in html
 
 
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_generate_html_report_omits_rolling_metrics_when_disabled() -> None:
     """include_rolling_metrics=False must exclude the rolling metric chart cards."""
     result = _create_sample_result()
@@ -1487,6 +1490,7 @@ def test_single_result_report_no_tight_layout_warning() -> None:
     assert tight_layout_warnings == []
 
 
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_fig_to_base64_skips_bbox_tight_for_constrained_layout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1516,6 +1520,7 @@ def test_fig_to_base64_skips_bbox_tight_for_constrained_layout(
     assert captured.get("format") == "png"
 
 
+@pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_fig_to_base64_uses_bbox_tight_without_layout_engine(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

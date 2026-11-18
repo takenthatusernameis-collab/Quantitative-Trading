@@ -31,6 +31,7 @@ from examples.cli import (
     resolve_periods_per_year,
     run_combined,
 )
+from quant_trading.backtest.report import MATPLOTLIB_AVAILABLE
 from quant_trading.config.settings import Config
 from quant_trading.strategies.examples import (
     BollingerBandsStrategy,
@@ -5374,6 +5375,7 @@ class TestHtmlReportFlag:
         captured = capsys.readouterr()
         return result, captured.out + captured.err
 
+    @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
     def test_report_writes_html_file(self, capsys: CaptureFixture[Any], tmp_path: Path) -> None:
         """``--report`` writes an HTML file and exits 0."""
         report_path = tmp_path / "report.html"
@@ -5423,6 +5425,7 @@ class TestHtmlReportFlag:
         assert "<!DOCTYPE html>" in content
         assert "data:image/png;base64," not in content
 
+    @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
     def test_report_dark_theme(self, capsys: CaptureFixture[Any], tmp_path: Path) -> None:
         """``--report-theme dark`` embeds the dark background color."""
         report_path = tmp_path / "dark.html"
@@ -5446,6 +5449,7 @@ class TestHtmlReportFlag:
         content = report_path.read_text(encoding="utf-8")
         assert "#1e1e1e" in content
 
+    @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
     def test_report_combined_writes_html_for_best_strategy(
         self, capsys: CaptureFixture[Any], tmp_path: Path
     ) -> None:
@@ -5545,6 +5549,7 @@ class TestHtmlReportFlag:
         assert "could not write report file" in output
         assert "Traceback" not in output
 
+    @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
     def test_report_without_trades_omits_trade_details_section(
         self, capsys: CaptureFixture[Any], tmp_path: Path
     ) -> None:
@@ -5572,6 +5577,7 @@ class TestHtmlReportFlag:
         # The Performance Summary section is always present.
         assert "<h2>Performance Summary</h2>" in content
 
+    @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
     def test_report_without_trades_keeps_charts(
         self, capsys: CaptureFixture[Any], tmp_path: Path
     ) -> None:
@@ -5597,6 +5603,7 @@ class TestHtmlReportFlag:
         assert "data:image/png;base64," in content
         assert "<h2>Charts</h2>" in content
 
+    @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
     def test_report_without_monthly_omits_monthly_heatmap(
         self, capsys: CaptureFixture[Any], tmp_path: Path
     ) -> None:
@@ -5624,6 +5631,7 @@ class TestHtmlReportFlag:
         # Other charts are still rendered.
         assert "Equity Curve" in content
 
+    @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
     def test_report_without_rolling_omits_rolling_charts(
         self, capsys: CaptureFixture[Any], tmp_path: Path
     ) -> None:
@@ -5745,6 +5753,7 @@ class TestHtmlReportFlag:
         assert "data:image/png;base64," not in content
         assert "<h2>Charts</h2>" not in content
 
+    @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
     def test_combined_report_without_trades_is_wired_and_harmless(
         self, capsys: CaptureFixture[Any], tmp_path: Path
     ) -> None:
@@ -5778,6 +5787,7 @@ class TestHtmlReportFlag:
         assert "<!DOCTYPE html>" in content
         assert "<h2>Strategy Comparison</h2>" in content
 
+    @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
     def test_combined_report_without_monthly_keeps_charts(
         self, capsys: CaptureFixture[Any], tmp_path: Path
     ) -> None:

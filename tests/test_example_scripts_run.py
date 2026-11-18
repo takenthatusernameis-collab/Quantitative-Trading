@@ -37,6 +37,14 @@ def test_example_script_runs_documented_invocation(script: Path) -> None:
             "yfinance",
             reason="run_backtest.py requires yfinance (networked example, not offline demo set)",
         )
+    # ``run_sensitivity.py`` renders charts via the optional ``reporting``
+    # extra (matplotlib); skip it in core-only environments instead of
+    # red-flaging installations that deliberately omit optional extras.
+    if script.name == "run_sensitivity.py":
+        pytest.importorskip(
+            "matplotlib",
+            reason="run_sensitivity.py requires the optional 'reporting' extra (matplotlib)",
+        )
     completed = subprocess.run(
         [sys.executable, str(script)],
         check=False,
