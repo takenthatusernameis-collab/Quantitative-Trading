@@ -1,81 +1,45 @@
 ## What changed (this session)
 
-- Added `tests/test_core_only_imports.py` (new file, untracked, not yet
-  committed). It locks the **core-only import invariant** into the ordinary
-  `pytest` run: a subprocess blocks `matplotlib` and `skopt` via a
-  meta-path finder, then imports every core subpackage, runs a deterministic
-  offline backtest (`create_synthetic_provider(..., seed=42, end_date=...)` +
-  `MovingAverageCrossover`, fixed 2023-01-01 end date → 16 trades), and
-  asserts that chart helpers raise a clean `ImportError` (not a crash) when
-  the optional extras are absent.
-- This is a **materially different approach** to the same goal the previous
-  sessions pursued via a `.github/workflows/core-only-tests.yml` file, which
-  could never be committed (see "Approaches that failed"). A committed test
-  achieves the guarantee in a route that the automation *can* persist.
-- No production code changed. No existing tests changed.
+- No production or test code changed. The prior session's assigned work is **already complete**:
+  - `tests/test_core_only_imports.py` is committed in `81dd0e2` and pushed (`HEAD == origin/main`). It locks the core-only import invariant (core import + deterministic backtest succeed; chart helpers raise clean `ImportError` when matplotlib/skopt are absent).
+  - `tests/test_optional_extras_readme_commands.py` is also committed and tracked. It locks the inverse direction (README chart/bayesian CLI commands run exit 0 when matplotlib/skopt are present), skip-marked when the extras are absent.
+- Corrected this handoff file (it previously described `test_core_only_imports.py` as untracked and its commit/push as pending; both are already done).
 
-## What was actually verified (evidence)
+## What was actually verified (evidence, this session)
 
-- Ground-truth baseline re-confirmed at session start: `pytest -q -m "not slow
-  and not network"` → **4056 passed, 142 deselected**, exit 0.
-- New test passes in isolation: `pytest tests/test_core_only_imports.py -q` →
-  **1 passed** (~0.5s).
-- **Negative test (regression guard proof):** injecting an unguarded
-  top-level `import matplotlib.pyplot` into `quant_trading/backtest/report.py`
-  makes the new test **fail** (subprocess exits 1, reports the
-  `ModuleNotFoundError`); restoring the file makes it **pass** again. So the
-  test genuinely catches the class of regression it targets.
-- Lint/format/types: `ruff check` clean, `black --check` clean, `mypy` clean
-  (via `python -m ruff/black/mypy`; the bare `ruff`/`black`/`mypy` console
-  scripts are not on PATH in this environment).
-- Related modules re-run: `test_packaging.py test_readme_cli_commands.py
-  test_repository_integrity.py test_backtest_report.py` → **257 passed, 3
-  deselected**.
-- Full default suite with the new test: **4057 passed, 142 deselected**, exit
-  0 (was 4056; +1 = the new test). Baseline preserved, no regressions.
+- `pip install -r requirements.txt` succeeded; core deps (pandas/numpy/PyYAML/requests) importable.
+- `python3 -m pytest tests/test_core_only_imports.py tests/test_optional_extras_readme_commands.py -q` → **1 passed, 2 skipped** in 0.73s.
+  - core-only test passes (extras absent here).
+  - the two inverse-direction tests correctly skip because matplotlib/skopt are not installed in this env.
+- `python3 -m ruff check` on both files → **All checks passed**.
+- `python3 -m black --check` on both files → **2 files would be left unchanged**.
+- `git status` clean; `git rev-parse HEAD == origin/main == 81dd0e2`.
+
+Note: the full default suite (`4057 passed`) was verified in the prior session in a fully-provisioned env; this session's env lacks the optional extras, so the inverse-direction tests skip rather than run here.
 
 ## Repository state / important context
 
-- `HEAD == origin/main == b1bbda5`; working tree otherwise clean except the
-  new untracked test file.
-- `b1bbda5` (empty commit message, author `kilo-autonomous`) **deleted**
-  `.github/workflows/core-only-tests.yml` that `770cb0a` had added, and
-  rewrote `HANDOFF_NEXT_AGENT.md`. So the prior handoff's "push 770cb0a"
-  task is moot: that commit is already an ancestor of `origin/main`, and the
-  workflow file it introduced is gone. The workflow-based core-only check is
-  not live and cannot be made live by this automation.
-- The core-only CI idea is therefore superseded by the committed test added
-  this session.
+- `HEAD == origin/main == 81dd0e27666fb895005783c8abdc6553b63335bc`; working tree clean.
+- Both invariant tests are committed and pushed. Do NOT re-commit or re-push them.
+- Do NOT touch `.github/workflows/` — workflow pushes are blocked by the GitHub App token (lacks `workflows` scope; deterministic blocker, see prior handoff).
+- pytest/ruff/black console scripts are not on PATH in this env; use `python3 -m pytest/ruff/black`.
 
 ## Approaches that failed
 
-- **Pushing a workflow file** (`.github/workflows/core-only-tests.yml`):
-  `git push origin main` was rejected with `refusing to allow a GitHub App to
-  create or update workflow ... without workflows permission`. Retried across
-  multiple sessions; deterministic blocker, not transient. Do NOT retry
-  pushing workflow changes unchanged — the GitHub App token lacks the
-  `workflows` scope and this is a safety boundary, not a code defect.
-- Treating the prior handoff at face value: it described a workflow that did
-  not exist on disk (and later, a commit that was already pushed). Always
-  verify against `git`/`ls` rather than trusting the handoff text.
+- Pushing `.github/workflows/core-only-tests.yml`: rejected (`workflows` permission). Do not retry unchanged. Superseded by the committed tests.
 
 ## One precise next task
 
-Commit `tests/test_core_only_imports.py` with a clear message (e.g. "Add
-core-only import regression test") and push it to `origin/main`. Non-workflow
-file pushes have succeeded before (e.g. `b1bbda5` is on `origin/main`), so
-this should persist where the workflow could not.
+Run the full verification in an environment where the optional extras ARE installed, so the inverse-direction test actually executes (exit 0) instead of skipping — this completes "lock both directions of the invariant":
 
-Constraints/evidence:
-- File to commit: `tests/test_core_only_imports.py` (only untracked change;
-  `git status` shows nothing else). Do not touch `.github/workflows/`.
-- Verify before/after: `python -m pytest tests/test_core_only_imports.py -q`
-  (expect 1 passed) and `python -m ruff/black/mypy` on the file (expect
-  clean).
-- Optional follow-up (only if the commit lands cleanly): add the *inverse*
-  direction — a companion assertion that the previously skip-marked
-  matplotlib/skopt README commands actually run (exit 0) when the extras ARE
-  installed — to lock both directions of the invariant. See
-  `tests/test_readme_cli_commands.py` for the existing skip logic to mirror.
+```
+pip install -e ".[dev]"      # installs matplotlib + scikit-optimize
+python3 -m pytest tests/test_core_only_imports.py tests/test_optional_extras_readme_commands.py -q
+# expect: core-only test passes; both inverse tests run and pass (no skips)
+python3 -m ruff check tests/test_core_only_imports.py tests/test_optional_extras_readme_commands.py
+python3 -m black --check tests/test_core_only_imports.py tests/test_optional_extras_readme_commands.py
+```
+
+Constraint: only proceed if `matplotlib` and `skopt` are importable; otherwise the inverse tests legitimately skip. Once this passes, the assigned work is fully done and there is no remaining task.
 
 (End of file)
