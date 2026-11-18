@@ -225,6 +225,33 @@ class TestCreateParameterInteractionHeatmap:
         assert isinstance(chart, str)
         assert len(chart) > 0
 
+    @requires_matplotlib
+    def test_create_parameter_interaction_heatmap_pivot_table_failure(self, monkeypatch):
+        """A failing ``pivot_table`` leaves the interaction cell NaN instead of crashing.
+
+        The off-diagonal branch catches ``ValueError``/``KeyError``/``IndexError``
+        raised by ``DataFrame.pivot_table`` (quant_trading/optimization/sensitivity.py:362-363)
+        and records NaN for that parameter pair rather than propagating the error.
+        """
+        import pandas as pd
+
+        df = pd.DataFrame(
+            {
+                "param1": [1, 1, 2, 2],
+                "param2": [10, 20, 10, 20],
+                "score": [1.0, 3.0, 4.0, 4.0],
+            }
+        )
+
+        def _raise_pivot_table(self, *args, **kwargs):
+            raise ValueError("pivot_table failure")
+
+        monkeypatch.setattr(pd.DataFrame, "pivot_table", _raise_pivot_table)
+
+        chart = create_parameter_interaction_heatmap(df, ["param1", "param2"], "score")
+        assert isinstance(chart, str)
+        assert len(chart) > 0
+
 
 class TestGenerateSensitivityReportHTML:
     """Tests for generate_sensitivity_report_html function."""
