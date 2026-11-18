@@ -3266,6 +3266,7 @@ class TestMain:
             assert "monte_carlo" in data
             assert "trade_analysis" in data
             assert "total_costs" in data
+            assert "ulcer_index" in data
 
     def test_main_offline_optimize_ichimoku_calls_run_optimization(self) -> None:
         """Running offline with --optimize and ichimoku strategy calls run_optimization."""

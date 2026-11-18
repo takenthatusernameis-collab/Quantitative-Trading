@@ -1,17 +1,15 @@
 ## Status
 
-Audited CLI/reporting paths for `ulcer_index` exposure. Already present in `examples/cli.py`: single-run console print, single-run JSON output, and combined-run JSON output (per-strategy + best). No concrete gap found; no code changes made.
+Added focused CLI test assertion that `ulcer_index` appears in single-run JSON output (`tests/test_cli.py`, `test_main_with_regime_monte_carlo_trade_analysis_output`).
 
 ## What was actually verified
 
-- grep confirmed `ulcer_index` at lines 2044, 2084-2085, 2583, 2632, 2807 of `examples/cli.py`.
-- pytest unavailable in this environment (no pytest installed); could not run tests.
+- `python -m pytest tests/test_cli.py -k "regime_monte_carlo_trade_analysis_output"` passed.
 
 ## Remaining work / unresolved
 
-- `tests/test_cli.py` has no `ulcer_index` assertions; could add focused tests if desired, but not required by guards.
-- Working tree unchanged (no commits).
+- Combined-run JSON (`per-strategy + best`) could gain analogous assertions if desired.
 
 ## One precise next task
 
-Pick another bounded high-value task (e.g., add focused CLI tests asserting `ulcer_index` appears in JSON output) or move to a new feature area.
+Add `ulcer_index` assertions to combined-run JSON tests or move to a new feature area.
