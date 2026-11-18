@@ -193,6 +193,22 @@ class TestCalculateMaxDrawdown:
         assert np.isfinite(result)
         assert result == pytest.approx(0.0)
 
+    def test_all_infinite_equity_reports_neutral_drawdown(self) -> None:
+        """An equity curve whose values are all infinite has no finite
+        running peak, so every drawdown ratio is non-finite and the
+        empty-drawdown fallback (metrics.py:217) reports neutral."""
+        result = calculate_max_drawdown(pd.Series([np.inf, np.inf, np.inf]))
+        assert np.isfinite(result)
+        assert result == pytest.approx(0.0)
+
+    def test_zero_then_infinite_reports_neutral_drawdown(self) -> None:
+        """Zero running peak makes the ratio undefined; a later infinite
+        value is dropped, leaving an empty drawdown series that hits the
+        metrics.py:217 fallback."""
+        result = calculate_max_drawdown(pd.Series([0.0, np.inf]))
+        assert np.isfinite(result)
+        assert result == pytest.approx(0.0)
+
 
 class TestCalculateUlcerIndex:
     """Tests for calculate_ulcer_index."""
@@ -256,6 +272,20 @@ class TestCalculateUlcerIndex:
 
     def test_zero_and_negative_equity_reports_neutral_ulcer_index(self) -> None:
         result = calculate_ulcer_index(pd.Series([0.0, -5.0, -2.0]))
+        assert result == pytest.approx(0.0)
+
+    def test_overflow_drawdown_reports_neutral_ulcer_index(self) -> None:
+        """An equity curve that collapses by ~1e155 produces a non-finite
+        ulcer (metrics.py:1107) and must report neutral rather than NaN."""
+        result = calculate_ulcer_index(pd.Series([1.0, 1.0 - 1e155]))
+        assert np.isfinite(result)
+        assert result == pytest.approx(0.0)
+
+    def test_extreme_negative_drawdown_reports_neutral_ulcer_index(self) -> None:
+        """A drop to -1e200 from a tiny peak overflows the squared drawdown,
+        triggering the non-finite ulcer guard at metrics.py:1107."""
+        result = calculate_ulcer_index(pd.Series([1.0, -1e200]))
+        assert np.isfinite(result)
         assert result == pytest.approx(0.0)
 
 
