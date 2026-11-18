@@ -2216,13 +2216,13 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str, int]] = frozenset(
         ("quant_trading/risk/manager.py", "total_component_var", 279),
         ("quant_trading/risk/manager.py", "total_value", 423),
         ("quant_trading/risk/manager.py", "total_volatility_contribution", 304),
-        ("quant_trading/risk/metrics.py", "_align_series", 352),
-        ("quant_trading/risk/metrics.py", "calculate_alpha", 419),
-        ("quant_trading/risk/metrics.py", "calculate_component_var", 717),
-        ("quant_trading/risk/metrics.py", "calculate_equal_risk_contribution_weights", 814),
-        ("quant_trading/risk/metrics.py", "calculate_marginal_var", 656),
-        ("quant_trading/risk/metrics.py", "calculate_risk_budget_weights", 899),
-        ("quant_trading/risk/metrics.py", "calculate_volatility_contributions", 755),
+        ("quant_trading/risk/metrics.py", "_align_series", 354),
+        ("quant_trading/risk/metrics.py", "calculate_alpha", 421),
+        ("quant_trading/risk/metrics.py", "calculate_component_var", 719),
+        ("quant_trading/risk/metrics.py", "calculate_equal_risk_contribution_weights", 816),
+        ("quant_trading/risk/metrics.py", "calculate_marginal_var", 658),
+        ("quant_trading/risk/metrics.py", "calculate_risk_budget_weights", 901),
+        ("quant_trading/risk/metrics.py", "calculate_volatility_contributions", 757),
         ("quant_trading/risk/metrics.py", "from_dict", 99),
         ("quant_trading/risk/metrics.py", "to_dict", 72),
         ("quant_trading/strategies/__init__.py", "available_strategies", 219),
@@ -2397,6 +2397,13 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str, int]] = frozenset(
         ("quant_trading/utils/logging.py", "get_logger", 57),
         ("quant_trading/utils/logging.py", "setup_logger", 8),
     }
+)
+
+# Name-only projection used for matching so that inserting lines above an
+# allowlisted def does not invalidate the entry. The lineno is retained in
+# _EXAMPLES_ALLOWLIST for staleness detection (see test_examples_allowlist_lineno_current).
+_EXAMPLES_ALLOWLIST_NAMES: frozenset[tuple[str, str]] = frozenset(
+    (rel, name) for rel, name, _ in _EXAMPLES_ALLOWLIST
 )
 
 
@@ -3697,7 +3704,7 @@ def _tree_examples_mismatches(tree: ast.Module, rel: str) -> list[str]:
             continue
         content = _docstring_examples_content(docstring)
         if not content:
-            if (rel, node.name, node.lineno) in _EXAMPLES_ALLOWLIST:
+            if (rel, node.name) in _EXAMPLES_ALLOWLIST_NAMES:
                 continue
             offenders.append(
                 f"{rel}:{node.lineno}: {node.name} has an empty Examples/Example section"
@@ -3707,7 +3714,7 @@ def _tree_examples_mismatches(tree: ast.Module, rel: str) -> list[str]:
         if _has_doctest_line(content):
             errors = _validate_doctest_lines(content)
             for err in errors:
-                if (rel, node.name, node.lineno) in _EXAMPLES_ALLOWLIST:
+                if (rel, node.name) in _EXAMPLES_ALLOWLIST_NAMES:
                     continue
                 offenders.append(
                     f"{rel}:{node.lineno}: {node.name} Examples/Example section has "
@@ -4445,3 +4452,36 @@ def test_repository_is_mypy_clean() -> None:
         if result.returncode != 0:
             offenders.append(f"{directory}: mypy failed\n{result.stderr}{result.stdout}")
     assert not offenders, "repository is not mypy-clean:\n" + "\n".join(offenders)
+
+
+def test_examples_allowlist_lineno_current() -> None:
+    """Every _EXAMPLES_ALLOWLIST entry's lineno must match the AST's current lineno."""
+    import ast as _ast
+    import pathlib as _pathlib
+
+    stale = []
+    by_file: dict[str, list[tuple[str, int]]] = {}
+    for rel, name, lineno in _EXAMPLES_ALLOWLIST:
+        by_file.setdefault(rel, []).append((name, lineno))
+    for rel, entries in by_file.items():
+        tree = _ast.parse((_pathlib.Path(rel)).read_text())
+        from collections import Counter
+
+        names = [
+            n.name
+            for n in _ast.walk(tree)
+            if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+        ]
+        counts = Counter(names)
+        current_map: dict[str, list[int]] = {}
+        for n in _ast.walk(tree):
+            if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                current_map.setdefault(n.name, []).append(n.lineno)
+        for name, lineno in entries:
+            if counts.get(name, 0) != 1:
+                continue
+            if current_map.get(name, [None])[0] != lineno:
+                stale.append(
+                    f"{rel}:{name}: allowlist says {lineno}, AST says {current_map.get(name)}"
+                )
+    assert not stale, "stale allowlist entries (update line numbers):\n" + "\n".join(stale)
