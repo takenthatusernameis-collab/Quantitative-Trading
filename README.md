@@ -5,7 +5,7 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 ## Features
 
 - **Strategy Framework**: Abstract base class for creating custom trading strategies
-- **Built-in Strategies**: 48 registered strategies (see Strategy Registry below), including MA/EMA crossover, RSI, Stochastic RSI, Bollinger Bands/%B, MACD, SuperTrend, Donchian/Keltner channels, ATR channel breakout, Ichimoku, HMA, Parabolic SAR, VWAP, VWMA crossover, Vortex, ADX, CCI, Williams %R, OBV/CMF/MFI/Force Index, Elder Ray, momentum/ROC/TRIX/DPO, volume oscillators (VROC, PVO, VPT, NVI/PVI), Aroon, PPO, Chande/Chaikin oscillators, Ultimate Oscillator, SMI, Accumulation/Distribution, and more
+- **Built-in Strategies**: 49 registered strategies (see Strategy Registry below), including MA/EMA crossover, RSI, Stochastic RSI, Bollinger Bands/%B, MACD, SuperTrend, Donchian/Keltner channels, ATR channel breakout, Ichimoku, HMA, Parabolic SAR, VWAP, VWMA crossover, Vortex, ADX, CCI, Williams %R, OBV/CMF/MFI/Force Index, Elder Ray, momentum/ROC/TRIX/DPO, volume oscillators (VROC, PVO, VPT, NVI/PVI), Aroon, PPO, Chande/Chaikin oscillators, Ultimate Oscillator, SMI, Fisher Transform, Accumulation/Distribution, and more
 - **Backtesting Engine**: Event-driven backtest with realistic costs (commission, slippage), long and short positions
 - **Data Providers**: Yahoo Finance and Alpha Vantage integrations with caching support, plus an offline synthetic data provider (`SyntheticDataProvider`, `create_synthetic_data`, `create_synthetic_provider`)
 - **Portfolio Management**: Position tracking, rebalancing, and allocation
@@ -130,6 +130,7 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `vortex` (alias: `vortex_indicator`) → `VortexStrategy`
 - `vpt` (alias: `volume_price_trend`) → `VolumePriceTrendStrategy`
 - `chop` (aliases: `choppiness`, `choppiness_index`) → `ChoppinessIndexStrategy`
+- `fisher` (alias: `fisher_transform`) → `FisherTransformStrategy`
 - `vroc` (alias: `volume_rate_of_change`) → `VolumeRateOfChangeStrategy`
 - `ao` (alias: `awesome_oscillator`) → `AwesomeOscillatorStrategy`
 - `vol` (alias: `volume_oscillator`) → `VolumeOscillatorStrategy`
@@ -1147,6 +1148,15 @@ environment):
 
 ```bash
 python examples/run_choppiness_index.py
+```
+
+For a Fisher Transform demonstration, see `examples/run_fisher_transform.py`.
+It runs the `FisherTransformStrategy` against seeded synthetic data, generating
+buy signals when the Fisher line crosses above its one-bar signal line and sell
+signals when it crosses below:
+
+```bash
+python examples/run_fisher_transform.py
 ```
 
 For a Detrended Price Oscillator demonstration, see

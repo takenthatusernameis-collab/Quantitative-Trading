@@ -28,6 +28,7 @@ __all__ = [
     "EMACrossover",
     "EaseOfMovementStrategy",
     "ElderRayStrategy",
+    "FisherTransformStrategy",
     "ForceIndexStrategy",
     "HullMovingAverageStrategy",
     "IchimokuCloudStrategy",
@@ -7902,6 +7903,170 @@ class MovingAverageEnvelopeStrategy(Strategy):
                             "period": self.period,
                             "percentage": self.percentage,
                             "signal_type": "upper_envelope_cross",
+                        },
+                    )
+                )
+
+        return signals
+
+
+class FisherTransformStrategy(Strategy):
+    """Fisher Transform strategy.
+
+    The Fisher Transform turns the median price of a lookback window into an
+    approximately Gaussian oscillator, which makes turning points easier to
+    see than on the raw price series. The oscillator is compared with a
+    one-bar signal line: a buy signal is emitted when the Fisher line crosses
+    above its signal line and a sell signal when it crosses below.
+
+    Requires ``"high"``, ``"low"`` and ``"close"`` columns.
+
+    Examples:
+        >>> from quant_trading.strategies.examples import FisherTransformStrategy
+        >>> s = FisherTransformStrategy(period=9)
+        >>> s.period
+        9
+    """
+
+    def __init__(self, period: int = 9, name: str = "Fisher_Transform") -> None:
+        """Initialize the Fisher Transform strategy.
+
+        Args:
+            period: Lookback window used to normalize the median price.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If ``period`` is not positive.
+
+        """
+        super().__init__(name, {"period": period})
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is not positive.
+
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate_fisher_transform(self, df: pd.DataFrame) -> pd.Series:
+        """Calculate the Fisher Transform of the median price.
+
+        The median price is normalized into ``[-1, 1]`` over ``period`` bars,
+        smoothed recursively (Ehlers' formulation), and then mapped through
+        the inverse hyperbolic tangent. Bars without a usable normalization
+        window are left as ``NaN``.
+
+        Args:
+            df: DataFrame containing ``"high"`` and ``"low"`` columns.
+
+        Returns:
+            Series of Fisher Transform values indexed like ``df``.
+
+        Examples:
+            >>> import pandas as pd
+            >>> from quant_trading.strategies.examples import FisherTransformStrategy
+            >>> df = pd.DataFrame({"high": [10.0, 11.0, 12.0, 13.0], "low": [8.0, 9.0, 10.0, 11.0]})
+            >>> fisher = FisherTransformStrategy(period=2)._calculate_fisher_transform(df)
+            >>> round(float(fisher.iloc[-1]), 6)
+            5.898213
+
+        """
+        median = (df["high"] + df["low"]) / 2.0
+        lowest = median.rolling(window=self.period).min()
+        highest = median.rolling(window=self.period).max()
+        span = (highest - lowest).replace(0.0, np.nan)
+        normalized = (2.0 * (median - lowest) / span - 1.0).clip(-0.999, 0.999)
+
+        fisher_values = np.full(len(df), np.nan)
+        previous_value = 0.0
+        previous_fisher = 0.0
+        for i, x in enumerate(normalized.to_numpy(dtype=float)):
+            if not np.isfinite(x):
+                continue
+            previous_value = min(0.999, max(-0.999, 0.33 * 2.0 * x + 0.67 * previous_value))
+            previous_fisher = (
+                0.5 * math.log((1.0 + previous_value) / (1.0 - previous_value))
+                + 0.5 * previous_fisher
+            )
+            fisher_values[i] = previous_fisher
+
+        return cast(pd.Series, pd.Series(fisher_values, index=df.index))
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from Fisher Transform crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame with ``"high"``, ``"low"``
+                and ``"close"`` columns indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose Fisher line
+            crosses its one-bar signal line on the final bar.
+
+        """
+        signals: list[Signal] = []
+
+        for symbol, df in data.items():
+            if len(df) < self.period + 2:
+                continue
+            if "high" not in df.columns or "low" not in df.columns or "close" not in df.columns:
+                continue
+            if pd.isna(df["close"].iloc[-1]):
+                continue
+
+            fisher = self._calculate_fisher_transform(df)
+            signal_line = fisher.shift(1)
+
+            current_fisher = fisher.iloc[-1]
+            previous_fisher = fisher.iloc[-2]
+            current_signal = signal_line.iloc[-1]
+            previous_signal = signal_line.iloc[-2]
+            if (
+                pd.isna(current_fisher)
+                or pd.isna(previous_fisher)
+                or pd.isna(current_signal)
+                or pd.isna(previous_signal)
+            ):
+                continue
+
+            current_price = float(df["close"].iloc[-1])
+            timestamp = df.index[-1]
+            strength = float(min(1.0, abs(current_fisher - current_signal) / 2.0 + 0.5))
+
+            if previous_fisher <= previous_signal and current_fisher > current_signal:
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "fisher": float(current_fisher),
+                            "signal_line": float(current_signal),
+                            "period": self.period,
+                            "signal_type": "bullish_cross",
+                        },
+                    )
+                )
+            elif previous_fisher >= previous_signal and current_fisher < current_signal:
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=current_price,
+                        timestamp=timestamp,
+                        metadata={
+                            "fisher": float(current_fisher),
+                            "signal_line": float(current_signal),
+                            "period": self.period,
+                            "signal_type": "bearish_cross",
                         },
                     )
                 )

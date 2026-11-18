@@ -21,6 +21,7 @@ from .examples import (
     EaseOfMovementStrategy,
     ElderRayStrategy,
     EMACrossover,
+    FisherTransformStrategy,
     ForceIndexStrategy,
     HullMovingAverageStrategy,
     IchimokuCloudStrategy,
@@ -132,6 +133,7 @@ register_strategy("ultimate_oscillator", UltimateOscillatorStrategy, aliases=["u
 register_strategy("dpo", DetrendedPriceOscillatorStrategy, aliases=["detrended_price_oscillator"])
 register_strategy("smi", StochasticMomentumIndexStrategy, aliases=["stochastic_momentum_index"])
 register_strategy("chop", ChoppinessIndexStrategy, aliases=["choppiness", "choppiness_index"])
+register_strategy("fisher", FisherTransformStrategy, aliases=["fisher_transform"])
 
 
 __all__ = [
@@ -155,6 +157,7 @@ __all__ = [
     "EMACrossover",
     "EaseOfMovementStrategy",
     "ElderRayStrategy",
+    "FisherTransformStrategy",
     "ForceIndexStrategy",
     "HullMovingAverageStrategy",
     "IchimokuCloudStrategy",

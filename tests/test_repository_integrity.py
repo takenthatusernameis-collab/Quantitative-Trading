@@ -1228,6 +1228,7 @@ _STRATEGIES_WITHOUT_DEDICATED_CLI_FLAGS: frozenset[str] = frozenset(
         "dpo",
         "elder_ray",
         "eom",
+        "fisher",
         "force_index",
         "hma",
         "klinger",

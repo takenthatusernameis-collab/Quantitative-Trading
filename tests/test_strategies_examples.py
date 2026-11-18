@@ -25,6 +25,7 @@ from quant_trading.strategies.examples import (
     EaseOfMovementStrategy,
     ElderRayStrategy,
     EMACrossover,
+    FisherTransformStrategy,
     ForceIndexStrategy,
     HullMovingAverageStrategy,
     IchimokuCloudStrategy,
@@ -7642,6 +7643,118 @@ class TestMovingAverageEnvelopeStrategy:
         for signal in signals:
             assert signal.symbol in ("AAPL", "MSFT")
             assert 0.0 <= signal.strength <= 1.0
+
+
+class TestFisherTransformStrategy:
+    """Tests for FisherTransformStrategy."""
+
+    @staticmethod
+    def _oscillating_data(periods: int = 80) -> pd.DataFrame:
+        median = np.array([100.0 + 10.0 * np.sin(2 * np.pi * i / 20) for i in range(periods)])
+        dates = pd.date_range("2023-01-01", periods=periods, freq="D")
+        return pd.DataFrame(  # type: ignore[no-any-return]
+            {
+                "open": median,
+                "high": median + 1.0,
+                "low": median - 1.0,
+                "close": median,
+                "volume": np.full(periods, 1000),
+            },
+            index=dates,
+        )
+
+    def test_initialization(self) -> None:
+        strategy = FisherTransformStrategy(period=14, name="Test_Fisher")
+        assert strategy.name == "Test_Fisher"
+        assert strategy.period == 14
+        assert strategy.parameters == {"period": 14}
+
+    def test_validate_parameters(self) -> None:
+        with pytest.raises(ValueError, match="period must be positive"):
+            FisherTransformStrategy(period=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            FisherTransformStrategy(period=-3)
+
+    def test_generate_signals_insufficient_data(self) -> None:
+        strategy = FisherTransformStrategy(period=9)
+        data = {"AAPL": self._oscillating_data().iloc[:10]}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_returns_list(self) -> None:
+        strategy = FisherTransformStrategy(period=9)
+        data = {"AAPL": create_trending_data("AAPL", days=60)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
+    def test_generate_buy_signal_on_bullish_cross(self) -> None:
+        strategy = FisherTransformStrategy(period=9)
+        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:19]})
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "buy"
+        assert signal.metadata["signal_type"] == "bullish_cross"
+        assert signal.metadata["period"] == 9
+        assert 0.0 <= signal.strength <= 1.0
+
+    def test_generate_sell_signal_on_bearish_cross(self) -> None:
+        strategy = FisherTransformStrategy(period=9)
+        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:29]})
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "sell"
+        assert signal.metadata["signal_type"] == "bearish_cross"
+        assert 0.0 <= signal.strength <= 1.0
+
+    def test_generate_no_signal_without_cross(self) -> None:
+        strategy = FisherTransformStrategy(period=9)
+        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:12]})
+        assert signals == []
+
+    def test_generate_signals_multi_symbol(self) -> None:
+        strategy = FisherTransformStrategy(period=9)
+        data = {
+            "AAPL": self._oscillating_data().iloc[:19],
+            "MSFT": self._oscillating_data().iloc[:29],
+        }
+        signals = strategy.generate_signals(data)
+        assert {signal.symbol for signal in signals} == {"AAPL", "MSFT"}
+        actions = {signal.symbol: signal.action for signal in signals}
+        assert actions == {"AAPL": "buy", "MSFT": "sell"}
+
+    def test_generate_signals_skips_missing_columns(self) -> None:
+        strategy = FisherTransformStrategy(period=9)
+        df = self._oscillating_data().iloc[:19]
+        for column in ("high", "low", "close"):
+            data = {"AAPL": df.drop(columns=[column])}
+            assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_nan_last_close(self) -> None:
+        strategy = FisherTransformStrategy(period=9)
+        df = self._oscillating_data().iloc[:19].copy()
+        df.iloc[-1, df.columns.get_loc("close")] = np.nan
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    def test_generate_signals_skips_when_fisher_is_nan(self) -> None:
+        strategy = FisherTransformStrategy(period=9)
+        dates = pd.date_range("2023-01-01", periods=20, freq="D")
+        df = pd.DataFrame(
+            {
+                "open": [100.0] * 20,
+                "high": [100.0] * 20,
+                "low": [100.0] * 20,
+                "close": [100.0] * 20,
+                "volume": [1000] * 20,
+            },
+            index=dates,
+        )
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    def test_generate_signals_skips_nan_previous_fisher(self) -> None:
+        strategy = FisherTransformStrategy(period=9)
+        df = self._oscillating_data().iloc[:20].copy()
+        df.iloc[-2, df.columns.get_loc("high")] = np.nan
+        df.iloc[-2, df.columns.get_loc("low")] = np.nan
+        assert strategy.generate_signals({"AAPL": df}) == []
 
 
 class TestExamplesRemainingCoverage:

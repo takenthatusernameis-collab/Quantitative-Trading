@@ -2434,6 +2434,7 @@ class TestRunCombined:
             ("Accumulation_Distribution", 11.0),
             ("ATR_14_2.0", 16.0),
             ("MA_Envelope", 16.2),
+            ("Fisher_Transform", 12.0),
         ]:
             m = MagicMock(
                 spec=[
@@ -2519,6 +2520,7 @@ class TestRunCombined:
         assert "Keltner_20_10_2.0" in captured.out
         assert "ATR_14_2.0" in captured.out
         assert "MA_Envelope" in captured.out
+        assert "Fisher_Transform" in captured.out
         assert "Stoch_14_3_20_80" in captured.out
         assert "Ichimoku_Cloud" in captured.out
         assert "Parabolic_SAR" in captured.out
