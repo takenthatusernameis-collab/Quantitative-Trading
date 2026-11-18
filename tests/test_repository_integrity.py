@@ -2400,11 +2400,9 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
 )
 
 # Name-only projection used for matching so that inserting lines above an
-# allowlisted def does not invalidate the entry. The lineno is retained in
-# _EXAMPLES_ALLOWLIST for staleness detection (see test_examples_allowlist_lineno_current).
-_EXAMPLES_ALLOWLIST_NAMES: frozenset[tuple[str, str]] = frozenset(
-    _EXAMPLES_ALLOWLIST
-)
+# allowlisted def does not invalidate the entry. Each entry must still resolve
+# to an AST def (see test_examples_allowlist_names_exist).
+_EXAMPLES_ALLOWLIST_NAMES: frozenset[tuple[str, str]] = frozenset(_EXAMPLES_ALLOWLIST)
 
 
 def _docstring_arg_names(docstring: str) -> list[str]:
@@ -4455,7 +4453,12 @@ def test_repository_is_mypy_clean() -> None:
 
 
 def test_examples_allowlist_names_exist() -> None:
-    """Every _EXAMPLES_ALLOWLIST entry must still resolve to an AST def."""
+    """Every _EXAMPLES_ALLOWLIST entry must still resolve to an AST def.
+
+    Entries are keyed by ``(rel, name)`` only, so inserting lines above an
+    allowlisted def does not invalidate the entry. This guard catches entries
+    whose name has been renamed or removed from the source file.
+    """
     import ast as _ast
     import pathlib as _pathlib
 
