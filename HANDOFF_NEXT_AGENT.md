@@ -1,23 +1,29 @@
 ## Status
 
-Verified green on 2026-11-18, after fixing a real regression and closing the
-last coverage gap in the reporting module.
+Verified green on 2026-11-18, after closing the last two coverage gaps in
+`quant_trading/risk/metrics.py`.
 
 ## What changed
 
-- `quant_trading/backtest/report.py`: added `typing.cast(pd.Series, ...)` to the
-  return values of `_drawdown_series` (line ~213) and `_finite_series` (line
-  ~234). Newer pandas-stubs types `Series.replace(...).fillna/dropna` as `Any`,
-  so `mypy` reported two `no-any-return` errors and
-  `tests/test_repository_integrity.py::test_repository_is_mypy_clean` failed.
-  Behaviour is unchanged; this is a typing-only fix.
-- `tests/test_backtest_report.py`: added
-  `test_rolling_sharpe_chart_empty_after_dropna` and
-  `test_rolling_volatility_chart_empty_after_dropna`, mirroring the existing
-  comparison-chart tests. These cover the previously-uncovered fallback
-  branches at `report.py` ~499-512 and ~570-583.
+Both previously-uncovered lines in `quant_trading/risk/metrics.py` were
+probed empirically and found **reachable** — they are NOT dead code. Added
+regression tests in `tests/test_risk_metrics.py`:
 
-Commits: `829bd85` (mypy fix), `7a9fc1f` (chart fallback tests).
+- `test_all_infinite_equity_reports_neutral_drawdown` and
+  `test_zero_then_infinite_reports_neutral_drawdown` — hit
+  `metrics.py:217` (`return 0.0` when every drawdown ratio is non-finite
+  after `.replace([inf, -inf], nan).dropna()`). Triggered by equity curves
+  whose values are all `inf`, or a zero running peak followed by `inf`.
+- `test_overflow_drawdown_reports_neutral_ulcer_index` and
+  `test_extreme_negative_drawdown_reports_neutral_ulcer_index` — hit
+  `metrics.py:1107` (`return 0.0` when `not np.isfinite(ulcer)`). Triggered
+  by a ~1e155 drawdown (squared drawdown overflows to `inf`) and a drop to
+  `-1e200` from a finite peak.
+
+No production code was modified; the guards are load-bearing and correctly
+return `0.0` for these pathological-but-valid inputs.
+
+Commit: `dfef90f`.
 
 ## Environment note (important for the next runner)
 
@@ -38,42 +44,27 @@ full suite actually runs.
 ## What was actually verified
 
 - `MPLBACKEND=Agg python -m pytest -q -p no:cacheprovider`
-  -> **4107 passed, 142 deselected, 0 skipped** (5m08s).
+  -> **4111 passed, 142 deselected, 0 skipped** (5m15s).
 - `python -m mypy quant_trading examples tests` -> **no issues in 162 files**.
-- `python -m black --check` and `python -m ruff check` on both changed files
-  -> clean.
-- Coverage now works with a different core:
-  `COVERAGE_CORE=sysmon python -m coverage run --source=quant_trading -m pytest ...`
-  -> **99% total**, `quant_trading/backtest/report.py` **100%**.
-  The old `pytest --cov` / default coverage core failure on Python 3.14
-  ("cannot load module more than once per process") is avoided by
-  `COVERAGE_CORE=sysmon`; use that, do not repeat the default invocation.
+- `python -m black --check` and `python -m ruff check` on
+  `tests/test_risk_metrics.py` -> clean.
+- `COVERAGE_CORE=sysmon python -m coverage run --source=quant_trading -m pytest ...`
+  -> **TOTAL 100%** (8880 stmts, 0 miss, 3130 branches, 0 partial),
+  `quant_trading/risk/metrics.py` **100%** (273 stmts, 0 miss).
 
 ## Remaining work / unresolved
 
-Only two uncovered statements remain in the whole package
-(`COVERAGE_CORE=sysmon python -m coverage report -m --skip-covered`):
-
-- `quant_trading/risk/metrics.py:217` — `return 0.0` after
-  `calculate_max_drawdown` drops all non-finite drawdowns. If
-  `running_max.max() > 0`, the point at the running max has equity equal to the
-  peak and a finite 0 drawdown, so this line looks unreachable for any real
-  input; it may be dead defensive code.
-- `quant_trading/risk/metrics.py:1107` — `return 0.0` when
-  `not np.isfinite(ulcer)`. `drawdown` is already finite and non-empty at that
-  point, so this is also likely unreachable.
-
-Do not delete these guards blindly; they encode "never return NaN/inf to a
-caller" invariants.
+None. The entire `quant_trading` package is at 100% coverage, the mypy gate
+is clean, and the full suite is green.
 
 ## One precise next task
 
-Determine empirically whether `quant_trading/risk/metrics.py:217` and `:1107`
-are reachable with a pathological but valid equity curve (e.g. `Series` of
-length > 0 whose running max is positive but whose drawdown becomes non-finite,
-or extreme magnitudes near float overflow). Write a short script under
-`/home/runner/work/_temp/kilo-tmp/` to probe both. If a reachable input exists,
-add a regression test in `tests/test_risk_metrics.py`; if not, mark exactly
-those two lines `# pragma: no cover` with a one-line justification and confirm
-`COVERAGE_CORE=sysmon ... coverage report -m` shows the file at 100%. Verify
-with the full suite and the mypy gate from `tests/test_repository_integrity.py`.
+The repository is in a fully-green, fully-covered state. The next bounded,
+high-value task should be chosen from the product backlog (e.g. a new
+indicator in `quant_trading/indicators/`, a strategy in
+`quant_trading/strategies/`, or an example in `examples/`), implemented
+with tests, and verified with the same gates:
+`MPLBACKEND=Agg python -m pytest -q -p no:cacheprovider`,
+`python -m mypy quant_trading examples tests`,
+`COVERAGE_CORE=sysmon python -m coverage run --source=quant_trading -m pytest ...`,
+plus `black --check` and `ruff check` on changed files.
