@@ -2435,6 +2435,7 @@ class TestRunCombined:
             ("ATR_14_2.0", 16.0),
             ("MA_Envelope", 16.2),
             ("Fisher_Transform", 12.0),
+            ("KST", 12.0),
         ]:
             m = MagicMock(
                 spec=[

@@ -1232,6 +1232,7 @@ _STRATEGIES_WITHOUT_DEDICATED_CLI_FLAGS: frozenset[str] = frozenset(
         "force_index",
         "hma",
         "klinger",
+        "kst",
         "ma_envelope",
         "mfi",
         "momentum",

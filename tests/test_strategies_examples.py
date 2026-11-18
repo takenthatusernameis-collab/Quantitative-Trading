@@ -31,6 +31,7 @@ from quant_trading.strategies.examples import (
     IchimokuCloudStrategy,
     KeltnerChannelStrategy,
     KlingerOscillatorStrategy,
+    KSTStrategy,
     MACDStrategy,
     MomentumStrategy,
     MoneyFlowIndexStrategy,
@@ -7755,6 +7756,93 @@ class TestFisherTransformStrategy:
         df.iloc[-2, df.columns.get_loc("high")] = np.nan
         df.iloc[-2, df.columns.get_loc("low")] = np.nan
         assert strategy.generate_signals({"AAPL": df}) == []
+
+
+class TestKSTStrategy:
+    """Tests for KSTStrategy."""
+
+    def test_initialization(self) -> None:
+        strategy = KSTStrategy(signal_period=9, name="Test_KST")
+        assert strategy.name == "Test_KST"
+        assert strategy.signal_period == 9
+        assert strategy.parameters == {"signal_period": 9}
+
+    def test_validate_parameters(self) -> None:
+        with pytest.raises(ValueError, match="signal_period must be positive"):
+            KSTStrategy(signal_period=0)
+        with pytest.raises(ValueError, match="signal_period must be positive"):
+            KSTStrategy(signal_period=-5)
+
+    def test_generate_signals_insufficient_data(self) -> None:
+        strategy = KSTStrategy(signal_period=9)
+        data = {"AAPL": create_trending_data("AAPL", days=30)}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_returns_list(self) -> None:
+        strategy = KSTStrategy(signal_period=9)
+        data = {"AAPL": create_trending_data("AAPL", days=120)}
+        signals = strategy.generate_signals(data)
+        assert isinstance(signals, list)
+
+    def test_generate_buy_signal_on_bullish_cross(self) -> None:
+        strategy = KSTStrategy(signal_period=9)
+        # A sustained uptrend that pushes KST above its signal line.
+        closes = [100.0 + i * 0.5 for i in range(60)]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "buy"
+        assert signal.metadata["signal_type"] == "bullish_cross"
+        assert signal.metadata["signal_period"] == 9
+        assert 0.0 <= signal.strength <= 1.0
+
+    def test_generate_sell_signal_on_bearish_cross(self) -> None:
+        strategy = KSTStrategy(signal_period=9)
+        # A sustained downtrend that pushes KST below its signal line.
+        closes = [200.0 - i * 0.5 for i in range(60)]
+        data = {"AAPL": create_donchian_data("AAPL", closes)}
+        signals = strategy.generate_signals(data)
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "sell"
+        assert signal.metadata["signal_type"] == "bearish_cross"
+        assert 0.0 <= signal.strength <= 1.0
+
+    def test_generate_no_signal_without_cross(self) -> None:
+        strategy = KSTStrategy(signal_period=9)
+        # Flat prices produce no KST crossover.
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 60)}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_multi_symbol(self) -> None:
+        strategy = KSTStrategy(signal_period=9)
+        data = {
+            "AAPL": create_donchian_data("AAPL", [100.0 + i * 0.5 for i in range(60)]),
+            "MSFT": create_donchian_data("MSFT", [200.0 - i * 0.5 for i in range(60)]),
+        }
+        signals = strategy.generate_signals(data)
+        assert {signal.symbol for signal in signals} == {"AAPL", "MSFT"}
+        actions = {signal.symbol: signal.action for signal in signals}
+        assert actions == {"AAPL": "buy", "MSFT": "sell"}
+
+    def test_generate_signals_skips_missing_columns(self) -> None:
+        strategy = KSTStrategy(signal_period=9)
+        df = create_donchian_data("AAPL", [100.0 + i * 0.5 for i in range(60)])
+        data = {"AAPL": df.drop(columns=["close"])}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_signals_skips_nan_last_close(self) -> None:
+        strategy = KSTStrategy(signal_period=9)
+        df = create_donchian_data("AAPL", [100.0 + i * 0.5 for i in range(60)]).copy()
+        df.iloc[-1, df.columns.get_loc("close")] = np.nan
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    def test_generate_signals_skips_when_kst_is_nan(self) -> None:
+        strategy = KSTStrategy(signal_period=9)
+        # Flat prices produce a NaN KST on the final bar.
+        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 60)}
+        assert strategy.generate_signals(data) == []
 
 
 class TestExamplesRemainingCoverage:

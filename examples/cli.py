@@ -75,6 +75,7 @@ BUILTIN_STRATEGY_KEYS = [
     "stochrsi",
     "ichimoku",
     "klinger",
+    "kst",
     "hma",
     "sar",
     "vwap",
