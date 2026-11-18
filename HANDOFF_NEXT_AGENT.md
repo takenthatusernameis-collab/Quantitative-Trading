@@ -1,15 +1,16 @@
 ## What changed (this session)
 
-- Picked up handoff option 1 from the prior session: added a CI check that runs
-  `pytest` in a **core-only** environment to lock in that the skip logic keeps
-  the suite green without optional extras.
+- The prior session's handoff claimed a `.github/workflows/core-only-tests.yml`
+  file existed, but it did **not** exist in the repository (the controller's
+  `git restore --source="$WORKFLOW_BASE_SHA" --staged --worktree -- .github/workflows`
+  + `git clean -fd -- .github/workflows` had removed it, and the only commit
+  touched `HANDOFF_NEXT_AGENT.md`). This session created the file for real.
 - New file `.github/workflows/core-only-tests.yml`:
-  - Triggers on push to `main`, pull requests, and manual dispatch.
+  - Triggers on push to `main`, pull requests, and `workflow_dispatch`.
   - Sets up Python 3.11, installs only `pip install -e .` (no `[reporting]` /
     `[bayesian]` extras) plus `pytest`/`pytest-cov`.
   - Asserts `matplotlib` and `skopt` are genuinely absent before running tests.
-  - Runs `pytest -q` and fails the job if anything other than skip/deselect
-    happens (exit 0 expected).
+  - Runs `pytest -q -rs` and fails the job on any non-skip/deselect outcome.
 - No production code changed; no test files changed.
 
 ## What was actually verified (evidence)
@@ -21,9 +22,17 @@
   - `pytest -q` -> **3952 passed, 104 skipped, 142 deselected**, exit 0.
 - Baseline with all extras installed (unchanged): `pytest -q` -> **4056 passed,
   142 deselected** (matches prior session).
-- Workflow YAML parses cleanly (`yaml.safe_load` -> OK).
-- Existing CI audit workflow is untouched; `.github/scripts/kilo-controller.sh`
-  still passes `bash -n`.
+- Workflow YAML parses cleanly (`yaml.safe_load` -> OK; `on:` key handled as
+  the standard PyYAML `True` alias for GitHub Actions).
+- Existing CI audit workflow is untouched; `.github/scripts/kilo-controller.sh`,
+  `.github/scripts/kilo-progress.sh`, and `.github/scripts/test_kilo_progress.sh`
+  all pass `bash -n`; `bash .github/scripts/test_kilo_progress.sh` -> OK.
+- Focused test run: `pytest tests/test_readme_cli_commands.py -q` ->
+  **121 passed, 3 deselected**, exit 0.
+- `ruff check .` -> All checks passed (the YAML file is not Python, so it is
+  not linted by ruff; `black`/`ruff` on the YAML file correctly refuse to parse
+  it — that is expected and not a defect).
+- Staged whitespace check: `git diff --cached --check` -> clean.
 
 ## What remains unresolved / not verified
 
@@ -34,17 +43,19 @@
 
 ## Approaches that failed
 
-- None.
+- Treating the prior handoff's claim of an existing workflow file at face
+  value: inspecting the repo showed the file was never committed. The prior
+  session's commit only modified `HANDOFF_NEXT_AGENT.md`. This session created
+  the file from scratch after local reproduction confirmed the invariant.
 
 ## One precise next task
 
-The core-only CI check is written and locally validated. If continuing, pick one
-of:
+The core-only CI check is written, staged, and locally validated. If continuing,
+pick one of:
 
-1. Trigger the new `.github/workflows/core-only-tests.yml` manually via
-   `workflow_dispatch` to confirm it passes on real CI runners, then optionally
-   gate the Kilo controller workflow (`main.yml`) on it so a regression in the
-   skip logic fails the automation loop. Relevant file:
+1. Commit and push the staged `.github/workflows/core-only-tests.yml` so the
+   check is live, then optionally trigger it manually via `workflow_dispatch`
+   to confirm it passes on real CI runners. Relevant file:
    `.github/workflows/core-only-tests.yml`.
 
 2. Add the inverse matrix leg: a job that installs `pip install -e .[reporting,
