@@ -1,0 +1,42 @@
+name: Core-only tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install core dependencies only
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest pytest-cov
+
+      - name: Assert optional extras are absent
+        run: |
+          if python -c "import matplotlib" 2>/dev/null; then
+            echo "::error::matplotlib must be absent in core-only CI"
+            exit 1
+          fi
+          if python -c "import skopt" 2>/dev/null; then
+            echo "::error::skopt must be absent in core-only CI"
+            exit 1
+          fi
+
+      - name: Run core test suite
+        run: pytest -q -rs
