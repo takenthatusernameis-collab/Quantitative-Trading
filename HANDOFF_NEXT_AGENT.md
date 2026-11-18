@@ -1,67 +1,63 @@
 ## What changed (this session)
 
-- The prior session's handoff claimed a `.github/workflows/core-only-tests.yml`
-  file existed, but it did **not** exist in the repository (the controller's
-  `git restore --source="$WORKFLOW_BASE_SHA" --staged --worktree -- .github/workflows`
-  + `git clean -fd -- .github/workflows` had removed it, and the only commit
-  touched `HANDOFF_NEXT_AGENT.md`). This session created the file for real.
-- New file `.github/workflows/core-only-tests.yml`:
+- Recreated `.github/workflows/core-only-tests.yml` for real (the prior
+  handoff's claim that it existed/staged was incorrect; the file was never
+  committed). The file:
   - Triggers on push to `main`, pull requests, and `workflow_dispatch`.
-  - Sets up Python 3.11, installs only `pip install -e .` (no `[reporting]` /
-    `[bayesian]` extras) plus `pytest`/`pytest-cov`.
-  - Asserts `matplotlib` and `skopt` are genuinely absent before running tests.
-  - Runs `pytest -q -rs` and fails the job on any non-skip/deselect outcome.
-- No production code changed; no test files changed.
+  - Sets up Python 3.11, installs only `pip install -e .` (no `[reporting]`
+    / `[bayesian]` extras) plus `pytest`/`pytest-cov`.
+  - Asserts `matplotlib` and `skopt` are genuinely absent before running tests
+    (fails the job if either imports).
+  - Runs `pytest -q -rs` (fails on any non-skip/deselect outcome).
+- Committed locally as `770cb0a` ("Add core-only CI workflow", 1 file,
+  42 insertions). Working tree is clean.
+- No production code or test files changed.
 
 ## What was actually verified (evidence)
 
-- Reproduced the core-only environment locally *before* writing the workflow:
-  - `python -m venv /tmp/coreonly-venv`
-  - `pip install -e .` (core only) + `pytest`/`pytest-cov`
-  - Confirmed `import matplotlib` and `import skopt` both raise ModuleNotFoundError.
-  - `pytest -q` -> **3952 passed, 104 skipped, 142 deselected**, exit 0.
-- Baseline with all extras installed (unchanged): `pytest -q` -> **4056 passed,
-  142 deselected** (matches prior session).
-- Workflow YAML parses cleanly (`yaml.safe_load` -> OK; `on:` key handled as
-  the standard PyYAML `True` alias for GitHub Actions).
-- Existing CI audit workflow is untouched; `.github/scripts/kilo-controller.sh`,
-  `.github/scripts/kilo-progress.sh`, and `.github/scripts/test_kilo_progress.sh`
-  all pass `bash -n`; `bash .github/scripts/test_kilo_progress.sh` -> OK.
-- Focused test run: `pytest tests/test_readme_cli_commands.py -q` ->
-  **121 passed, 3 deselected**, exit 0.
-- `ruff check .` -> All checks passed (the YAML file is not Python, so it is
-  not linted by ruff; `black`/`ruff` on the YAML file correctly refuse to parse
-  it — that is expected and not a defect).
-- Staged whitespace check: `git diff --cached --check` -> clean.
+- `.github/workflows/core-only-tests.yml` parses cleanly via both
+  `ruby -e 'require "yaml"; YAML.load_file(...)'` and Python `yaml.safe_load`.
+- Staged whitespace check `git diff --cached --check` -> clean (before commit).
+- Local baseline (extras present, matching production env):
+  `pytest -q -m "not slow and not network"` -> **4056 passed, 142 deselected**,
+  exit 0 (matches prior session's "all extras" baseline).
+- Note: in core-only CI `matplotlib`/`skopt` will be absent, so the
+  matplotlib/skopt-dependent README commands skip instead of pass; this is the
+  intended invariant (core-only path must not require optional extras).
 
 ## What remains unresolved / not verified
 
-- The CI job has not been executed in GitHub Actions (this sandbox has no
-  runner); the local venv reproduction is the evidence that the check is sound.
-- `--combined` commands remain marked `slow` (deselected by default).
+- **The commit has NOT been pushed.** `git push origin main` was rejected:
+  `refusing to allow a GitHub App to create or update workflow
+  .github/workflows/core-only-tests.yml without workflows permission`.
+  The local commit `770cb0a` is 1 commit ahead of `origin/main`.
+- The CI job has not run on GitHub Actions (no runner in this sandbox); local
+  baseline + YAML parse are the evidence the check is sound.
+- `--combined` commands remain `slow` (deselected by default).
 - Network-marked tests deselected as usual.
 
 ## Approaches that failed
 
-- Treating the prior handoff's claim of an existing workflow file at face
-  value: inspecting the repo showed the file was never committed. The prior
-  session's commit only modified `HANDOFF_NEXT_AGENT.md`. This session created
-  the file from scratch after local reproduction confirmed the invariant.
+- `git push origin main`: rejected by the remote because the authenticating
+  GitHub App lacks the `workflows` permission required to create/update a
+  workflow file. Do NOT retry the same push unchanged — it will fail again
+  until a token/PAT with `workflows` scope is used or the app permission is
+  added.
 
 ## One precise next task
 
-The core-only CI check is written, staged, and locally validated. If continuing,
-pick one of:
+Push the local commit `770cb0a` to `origin/main` so the core-only check is
+live, then optionally trigger it manually via `workflow_dispatch` to confirm it
+passes on real CI runners.
 
-1. Commit and push the staged `.github/workflows/core-only-tests.yml` so the
-   check is live, then optionally trigger it manually via `workflow_dispatch`
-   to confirm it passes on real CI runners. Relevant file:
-   `.github/workflows/core-only-tests.yml`.
+Constraints/evidence:
+- Commit: `770cb0a Add core-only CI workflow` (file:
+  `.github/workflows/core-only-tests.yml`).
+- Push requires a credential with the `workflows` permission/scope; the
+  current GitHub App token does not have it. Obtain such a credential or have
+  the app permission added before pushing.
+- Do not alter the workflow content to work around the permission rejection;
+  the permission is a safety boundary, not a code defect.
+- Once pushed, verify the run succeeds via the Actions tab / `workflow_dispatch`.
 
-2. Add the inverse matrix leg: a job that installs `pip install -e .[reporting,
-   bayesian]` and asserts the previously-skip-marked README commands now run
-   (exit 0) instead of being skipped, locking both directions of the invariant.
-   Relevant files: `.github/workflows/core-only-tests.yml` +
-   `tests/test_readme_cli_commands.py`.
-
-(End of file - total 66 lines)
+(End of file)
