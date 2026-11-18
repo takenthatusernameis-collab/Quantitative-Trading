@@ -1315,6 +1315,7 @@ class TestConfigFileEndToEnd:
             mock_metrics.calmar_ratio = 0.0
             mock_metrics.total_pnl = 0.0
             mock_metrics.unrealized_pnl = 0.0
+            mock_metrics.ulcer_index = 0.0
             mock_result.metrics = mock_metrics
 
             with (
@@ -2381,6 +2382,7 @@ class TestRunCombined:
         mock_metrics.profit_factor = 2.0
         mock_metrics.total_pnl = 0.0
         mock_metrics.unrealized_pnl = 0.0
+        mock_metrics.ulcer_index = 0.0
 
         mock_results = []
         for name, ret in [
@@ -2547,6 +2549,7 @@ class TestRunCombined:
         mock_metrics.profit_factor = 2.0
         mock_metrics.total_pnl = 0.0
         mock_metrics.unrealized_pnl = 0.0
+        mock_metrics.ulcer_index = 0.0
 
         mock_result = MagicMock(
             spec=[
@@ -2686,6 +2689,7 @@ class TestRunCombined:
         mock_metrics.profit_factor = 2.0
         mock_metrics.total_pnl = 0.0
         mock_metrics.unrealized_pnl = 0.0
+        mock_metrics.ulcer_index = 0.0
 
         def side_effect(*args: Any, **kwargs: Any) -> MagicMock:
             strategy = kwargs.get("strategy")
@@ -3473,6 +3477,7 @@ class TestFactoryIntegration:
                 mock_metrics.profit_factor = 1.0
                 mock_metrics.total_pnl = 0.0
                 mock_metrics.unrealized_pnl = 0.0
+                mock_metrics.ulcer_index = 0.0
 
                 mock_result = MagicMock()
                 mock_result.name = "CustomStrategy"
@@ -4113,6 +4118,7 @@ class TestIntervalEndToEnd:
             mock_metrics.calmar_ratio = 0.0
             mock_metrics.total_pnl = 0.0
             mock_metrics.unrealized_pnl = 0.0
+            mock_metrics.ulcer_index = 0.0
             mock_result.metrics = mock_metrics
 
             with (
@@ -4159,6 +4165,7 @@ class TestIntervalEndToEnd:
             mock_metrics.calmar_ratio = 0.0
             mock_metrics.total_pnl = 0.0
             mock_metrics.unrealized_pnl = 0.0
+            mock_metrics.ulcer_index = 0.0
             mock_result.metrics = mock_metrics
 
             with (
@@ -7757,6 +7764,7 @@ class TestRunCombinedJsonOutputBranches:
         mock_metrics.profit_factor = 2.0
         mock_metrics.total_pnl = 0.0
         mock_metrics.unrealized_pnl = 0.0
+        mock_metrics.ulcer_index = 0.0
 
         mock_result = MagicMock(
             spec=[
@@ -7879,6 +7887,7 @@ class TestRunCombinedJsonOutputBranches:
         mock_metrics.profit_factor = 2.0
         mock_metrics.total_pnl = 0.0
         mock_metrics.unrealized_pnl = 0.0
+        mock_metrics.ulcer_index = 0.0
 
         mock_result = MagicMock(
             spec=[
@@ -7986,6 +7995,7 @@ class TestRunCombinedJsonOutputBranches:
         mock_metrics.profit_factor = 2.0
         mock_metrics.total_pnl = 0.0
         mock_metrics.unrealized_pnl = 0.0
+        mock_metrics.ulcer_index = 0.0
 
         mock_result = MagicMock(
             spec=[
@@ -8093,6 +8103,7 @@ class TestRunCombinedJsonOutputBranches:
         mock_metrics.profit_factor = 2.0
         mock_metrics.total_pnl = 0.0
         mock_metrics.unrealized_pnl = 0.0
+        mock_metrics.ulcer_index = 0.0
 
         mock_result = MagicMock(
             spec=[
@@ -8202,6 +8213,7 @@ class TestRunCombinedSaveFailure:
         mock_metrics.profit_factor = 2.0
         mock_metrics.total_pnl = 0.0
         mock_metrics.unrealized_pnl = 0.0
+        mock_metrics.ulcer_index = 0.0
 
         mock_result = MagicMock(
             spec=[
@@ -9614,6 +9626,7 @@ class TestRunCombinedOutputSaveFailure:
         mock_metrics.profit_factor = 2.0
         mock_metrics.total_pnl = 0.0
         mock_metrics.unrealized_pnl = 0.0
+        mock_metrics.ulcer_index = 0.0
 
         mock_result = MagicMock(
             spec=[
