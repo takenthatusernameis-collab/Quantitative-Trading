@@ -13,7 +13,8 @@ from quant_trading.optimization.sensitivity import (
 )
 
 requires_matplotlib = pytest.mark.skipif(
-    not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed; install the optional 'reporting' extra"
+    not MATPLOTLIB_AVAILABLE,
+    reason="matplotlib not installed; install the optional 'reporting' extra",
 )
 
 
@@ -148,7 +149,7 @@ class TestCreateParameterInteractionHeatmap:
         assert isinstance(chart, str)
         assert len(chart) > 0
 
-@requires_matplotlib
+    @requires_matplotlib
     def test_create_parameter_interaction_heatmap_insufficient_params(self):
         """Test error when fewer than 2 parameters provided."""
         import pandas as pd
