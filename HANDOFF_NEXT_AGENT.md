@@ -1,56 +1,57 @@
 ## Status
 
-Verified green on 2026-11-19. Repository at 100% statement/branch coverage with a clean mypy/black/ruff gate and a passing suite (4142 passed, 146 deselected).
+Verified green on 2026-11-19. Repository at 100% statement/branch coverage with a clean mypy/black/ruff gate and a passing suite (4142 passed, 147 deselected including the new slow wheel test, 0 failed).
 
 ## What changed
 
-Executed the previous handoff: smoke-tested the `quant-trading` console-script entry point (previously only ever exercised in-process via `examples.cli.main`), then encoded the invariant that made that smoke test meaningful.
+Executed the previous handoff: verified the built **wheel** ships everything needed to run the CLI from outside the source tree, then automated that confirmation as a test.
 
 Files touched this session:
 
-- `tests/test_packaging.py` — added `TestConsoleScript`, which parses `[project.scripts]` from `pyproject.toml` and (a) asserts the `quant-trading` entry exists, (b) resolves `<module>:<attr>` via `importlib` and asserts it is callable. Guards against a renamed `main` or a typo in the entry-point target, which would otherwise only surface after `pip install`.
+- `tests/test_packaging.py` — added `TestWheelContents.test_built_wheel_ships_cli_and_typing_marker` (marked `slow`), which builds the wheel via `pip wheel --no-deps --no-build-isolation` and asserts it contains `quant_trading/py.typed`, `examples/__init__.py`, `examples/cli.py`, and the `quant-trading = examples.cli:main` entry point. Also added `subprocess`/`sys`/`zipfile`/`pytest` imports.
 - `HANDOFF_NEXT_AGENT.md` — this file.
 
-No production code changed; no coverage delta (source tree untouched).
+No production code changed.
 
 ## What was actually verified
 
-Console script (installed editable with `python -m pip install -e . --no-deps --no-build-isolation`):
+Wheel contents (zip listing):
+
+- `examples/cli.py` present (entry point depends on it).
+- `quant_trading/py.typed` present (PEP 561 marker).
+
+Console script (installed from the wheel into a fresh venv at `/tmp/qvenv`, run from `/tmp`):
 
 - `quant-trading --version` -> `quant-trading 0.1.0`, exit 0.
-- `quant-trading --list-strategies` -> full 50-strategy list incl. `kst` (aliases `know_sure_thing`), exit 0.
-- `quant-trading --offline --list-providers` -> `yfinance`/`alphavantage`/`synthetic`, exit 0.
-- `quant-trading --offline --strategy kst --symbols AAPL --days 60` -> runs end to end on synthetic data, exit 0 (0 trades over 60 days is expected: KST needs long ROC history).
-- `quant-trading --help` -> usage text, exit 0.
-- `quant-trading --offline --days 0 --symbols AAPL` -> `Error: invalid --days: the value must be at least 1 (got 0)`, exit 1, no traceback.
+- `quant-trading --offline --strategy kst --symbols AAPL --days 60 | tail -5` -> metrics printed, exit 0.
+- `python -c "import quant_trading, examples.cli; print('import ok')"` -> exit 0.
 
-Gate:
+Automated test:
 
-- `MPLBACKEND=Agg python -m pytest -q -p no:cacheprovider` -> **4142 passed, 146 deselected, 0 failed** (5m33s).
-- `python -m black --check tests/test_packaging.py`, `python -m ruff check tests/test_packaging.py`, `python -m mypy tests/test_packaging.py` -> clean.
+- `pytest tests/test_packaging.py::TestWheelContents -m slow` -> 1 passed.
+- `pytest tests/test_packaging.py` -> 9 passed, 1 deselected.
+- Full suite -> **4142 passed, 147 deselected, 0 failed** (5m13s).
+- `python -m black --check`, `python -m ruff check`, `python -m mypy` on `tests/test_packaging.py` -> clean.
 
 ## Failed approaches / gotchas (do not repeat)
 
-- `python -m pip install -e ".[dev]"` is not usable offline in this sandbox; `--no-deps --no-build-isolation` works and is sufficient to register the console script (deps are already present).
-- The console script installs to `/home/runner/work/_temp/kilo-home/.local/bin`, which is not on `PATH`; prefix `PATH` when invoking it.
-- The CI workflow (`.github/workflows/main.yml`) does **not** `pip install` the project, so any test asserting an *installed* `quant-trading` binary would fail in CI. The new guard is deliberately structural (pyproject + importlib), not subprocess-based.
+- `python -m pip install -e ".[dev]"` is not usable offline in this sandbox; `--no-deps --no-build-isolation` works and is sufficient.
+- The console script installed by `pip install -e .` lands in `~/.local/bin`, which is not on `PATH`; prefix `PATH` when invoking.
+- The CI workflow (`.github/workflows/main.yml`) does **not** `pip install` the project, so any test asserting an *installed* `quant-trading` binary would fail in CI. Guards are deliberately structural (pyproject + importlib); the wheel test is `slow`-marked so it is deselected by default (`-m "not slow and not network"`).
 
 ## Remaining work / unresolved
 
-None for the console-script smoke test.
+None for the wheel verification.
 
 ## One precise next task
 
-Verify the built **wheel** (not the editable install) ships everything needed to run the CLI from outside the source tree:
+Re-run the complete gate after any future packaging/pyproject change and confirm coverage stays at 100%:
 
 ```bash
-rm -rf /tmp/qw /tmp/qvenv
-python -m pip wheel . --no-deps --no-build-isolation -w /tmp/qw
-python -m venv --system-site-packages /tmp/qvenv
-/tmp/qvenv/bin/python -m pip install --no-deps /tmp/qw/quant_trading-*.whl
-cd /tmp && /tmp/qvenv/bin/quant-trading --version
-cd /tmp && /tmp/qvenv/bin/quant-trading --offline --strategy kst --symbols AAPL --days 60 | tail -5
-/tmp/qvenv/bin/python -c "import quant_trading, examples.cli; print('import ok')"
+MPLBACKEND=Agg python -m pytest -q -p no:cacheprovider          # 4142 passed, 0 failed
+python -m black --check tests/ quant_trading/ examples/
+python -m ruff check tests/ quant_trading/ examples/
+python -m mypy tests/ quant_trading/ examples/
 ```
 
-Confirm: the wheel contains `examples/` (the entry point depends on it), `quant_trading/py.typed` is present in the wheel, and all three commands exit 0 with no traceback when run from `/tmp`. If the wheel is missing `examples*` or `py.typed`, fix `[tool.setuptools.packages.find]` / `package-data` in `pyproject.toml` — do not change the entry point.
+If coverage drifts below 100%, restore it with the smallest targeted test before declaring the session complete.

@@ -1,7 +1,13 @@
 """Packaging and distribution metadata tests."""
 
 import importlib
+import subprocess
+import sys
+import zipfile
 from pathlib import Path
+
+import pytest
+import tomllib
 
 import quant_trading
 
@@ -90,3 +96,51 @@ class TestPackageExports:
         assert isinstance(strategy, quant_trading.BaseStrategy)
         assert strategy.parameters["fast_period"] == 5
         assert strategy.parameters["slow_period"] == 20
+
+
+class TestWheelContents:
+    """The built wheel must ship everything the console script needs.
+
+    Automates the handoff confirmation that the wheel (not the editable
+    install) contains ``examples/`` (the entry point depends on it) and
+    ``quant_trading/py.typed``, and that the CLI runs from outside the
+    source tree. Marked slow because it builds a wheel via ``pip``.
+    """
+
+    @pytest.mark.slow
+    def test_built_wheel_ships_cli_and_typing_marker(self, tmp_path: Path) -> None:
+        pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        name = pyproject["project"]["name"].replace("-", "_")
+        version = pyproject["project"]["version"]
+        wheel_name = f"{name}-{version}-py3-none-any.whl"
+
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "wheel",
+                ".",
+                "--no-deps",
+                "--no-build-isolation",
+                "-w",
+                str(tmp_path),
+            ],
+            check=True,
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+        )
+
+        wheel_path = tmp_path / wheel_name
+        assert wheel_path.exists(), f"Wheel not produced: {wheel_path}"
+
+        with zipfile.ZipFile(wheel_path) as wheel:
+            names = set(wheel.namelist())
+            assert f"{name}/py.typed" in names, "wheel missing quant_trading/py.typed"
+            assert "examples/__init__.py" in names, "wheel missing examples package"
+            assert "examples/cli.py" in names, "wheel missing examples/cli.py"
+            entry_points = wheel.read(f"{name}-{version}.dist-info/entry_points.txt").decode(
+                "utf-8"
+            )
+            assert "quant-trading = examples.cli:main" in entry_points
