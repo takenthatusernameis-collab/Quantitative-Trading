@@ -5426,10 +5426,10 @@ class KlingerOscillatorStrategy(Strategy):
             >>> from quant_trading.strategies.examples import KlingerOscillatorStrategy
             >>> dates = pd.date_range("2023-01-01", periods=10, freq="D")
             >>> df = pd.DataFrame({
-            ...     "open": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0],
-            ...     "high": [101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0, 110.0],
-            ...     "low": [99.0, 100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0],
-            ...     "close": [100.5, 101.5, 102.5, 103.5, 104.5, 105.5, 106.5, 107.5, 108.5, 109.5],
+            ...     "open": [100.0] * 10,
+            ...     "high": [100.0] * 10,
+            ...     "low": [100.0] * 10,
+            ...     "close": [100.0] * 10,
             ...     "volume": [1000.0] * 10
             ... }, index=dates)
             >>> strategy = KlingerOscillatorStrategy(fast_period=4, slow_period=8)
@@ -5458,12 +5458,12 @@ class KlingerOscillatorStrategy(Strategy):
         volume_force = volume * direction * price_change * 100.0
 
         # KO = EMA(volume_force, fast) - EMA(volume_force, slow)
-        fast_ema_vf = volume_force.ewm(span=self.fast_period, adjust=False).mean()
-        slow_ema_vf = volume_force.ewm(span=self.slow_period, adjust=False).mean()
+        fast_ema_vf = self._ema(volume_force, self.fast_period)
+        slow_ema_vf = self._ema(volume_force, self.slow_period)
         ko = fast_ema_vf - slow_ema_vf
 
         # Signal line = EMA(KO, 13) - standard signal period
-        signal_line = ko.ewm(span=13, adjust=False).mean()
+        signal_line = self._ema(ko, 13)
 
         return cast(pd.Series, volume_force), cast(pd.Series, ko), cast(pd.Series, signal_line)
 
