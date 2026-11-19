@@ -547,7 +547,7 @@ class TestCalculateCalmarRatio:
     """Tests for calculate_calmar_ratio."""
 
     def test_calmar_value(self) -> None:
-        equity = pd.Series([100.0, 110.0, 90.0, 95.0])
+        equity = pd.Series([100.0, 110.0, 90.0, 95.0, 98.0])
         calmar = calculate_calmar_ratio(RETURNS, equity)
         expected = (RETURNS.mean() * 252) / abs(calculate_max_drawdown(equity))
         assert calmar == pytest.approx(expected)
@@ -562,10 +562,45 @@ class TestCalculateCalmarRatio:
 
     def test_calmar_periods_per_year_scales_annual_return(self) -> None:
         """The annualized return in the Calmar ratio must follow periods_per_year."""
-        equity = pd.Series([100.0, 110.0, 90.0, 95.0])
+        equity = pd.Series([100.0, 110.0, 90.0, 95.0, 98.0])
         expected = (RETURNS.mean() * 12) / abs(calculate_max_drawdown(equity))
         calmar = calculate_calmar_ratio(RETURNS, equity, periods_per_year=12)
         assert calmar == pytest.approx(expected)
+
+    def test_calmar_uses_aligned_sample(self) -> None:
+        """Both the return and the drawdown must come from the shared index."""
+        returns = pd.Series([0.10, 0.20, -0.50, 0.01], index=list("abcd"))
+        equity = pd.Series([100.0, 60.0, 200.0, 150.0], index=list("bcde"))
+        # Only b/c/d are shared; 'a' has no equity value and 'e' has no return.
+        aligned_returns = returns.loc[["b", "c", "d"]]
+        aligned_equity = equity.loc[["b", "c", "d"]]
+        expected = (aligned_returns.mean() * 252) / abs(calculate_max_drawdown(aligned_equity))
+        assert calculate_calmar_ratio(returns, equity) == pytest.approx(expected)
+        # The old raw-mixing result (mean of all returns over the full curve)
+        # differs, so this actually exercises the alignment.
+        mixed = (returns.mean() * 252) / abs(calculate_max_drawdown(equity))
+        assert calculate_calmar_ratio(returns, equity) != pytest.approx(mixed)
+
+    def test_calmar_aligns_dropping_nan_rows(self) -> None:
+        """A NaN row must drop the observation from both numerator and denominator."""
+        equity = pd.Series([100.0, 120.0, float("nan"), 90.0, 80.0], index=list("abcde"))
+        returns = pd.Series([0.50, -0.25, -0.111], index=list("cde"))
+        aligned_equity = equity.loc[["c", "d", "e"]].dropna()
+        aligned_returns = returns.loc[aligned_equity.index]
+        expected = (aligned_returns.mean() * 252) / abs(calculate_max_drawdown(aligned_equity))
+        assert calculate_calmar_ratio(returns, equity) == pytest.approx(expected)
+
+    def test_calmar_falls_back_to_positional_when_indices_are_disjoint(self) -> None:
+        """Disjoint indices fall back to positional pairing, mirroring _align_series."""
+        returns = pd.Series([0.10, 0.20, -0.50], index=list("abc"))
+        equity = pd.Series([100.0, 60.0, 200.0], index=list("xyz"))
+        expected = (returns.mean() * 252) / abs(calculate_max_drawdown(equity))
+        assert calculate_calmar_ratio(returns, equity) == pytest.approx(expected)
+
+    def test_calmar_returns_zero_with_fewer_than_two_aligned_points(self) -> None:
+        returns = pd.Series([0.10], index=["a"])
+        equity = pd.Series([100.0], index=["a"])
+        assert calculate_calmar_ratio(returns, equity) == pytest.approx(0.0)
 
 
 class TestRiskMetricsDataclass:

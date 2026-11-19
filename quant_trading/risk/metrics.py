@@ -466,6 +466,12 @@ def calculate_calmar_ratio(
     The Calmar ratio measures risk-adjusted performance as annualized
     returns divided by the absolute maximum drawdown.
 
+    The annualized return and the drawdown are computed from the same
+    aligned sample: the two series are matched on their shared index (falling
+    back to positional alignment when they do not overlap), so a caller that
+    passes series with different indices or NaN rows cannot mix the numerator
+    from one period with the denominator from another.
+
     Args:
         returns: Return series.
         equity_curve: Equity curve series.
@@ -473,7 +479,8 @@ def calculate_calmar_ratio(
             return (default 252 for daily data).
 
     Returns:
-        Calmar ratio, or 0.0 if insufficient data or zero drawdown.
+        Calmar ratio, or 0.0 if fewer than two aligned observations remain or
+        the drawdown over the aligned sample is zero.
 
     Examples:
         >>> import pandas as pd
@@ -486,10 +493,11 @@ def calculate_calmar_ratio(
 
     """
     returns = returns.dropna()
-    if len(returns) == 0:
+    aligned = _align_series(returns, equity_curve)
+    if len(aligned) < 2:
         return 0.0
-    annual_return = returns.mean() * periods_per_year
-    max_dd = calculate_max_drawdown(equity_curve)
+    annual_return = aligned.iloc[:, 0].mean() * periods_per_year
+    max_dd = calculate_max_drawdown(aligned.iloc[:, 1])
     if max_dd == 0:
         return 0.0
     return float(annual_return / abs(max_dd))
@@ -674,6 +682,11 @@ def _weights_array(weights: np.ndarray | pd.Series, columns: pd.Index) -> np.nda
 
     Returns:
         The weights as a float array in ``columns`` order.
+
+    Examples:
+        >>> import pandas as pd
+        >>> _weights_array(pd.Series({"b": 0.3, "a": 0.7}), pd.Index(["a", "b"]))
+        array([0.7, 0.3])
 
     """
     if isinstance(weights, pd.Series):
