@@ -4824,11 +4824,10 @@ class TestKlingerOscillatorStrategy:
         assert signals == []
 
     def test_generate_signals_klinger_bullish_crossover(self) -> None:
-        """A final price surge flips the fast Klinger EMA above the slow EMA (buy)."""
+        """A final price surge pushes KO above zero (buy)."""
         strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
-        # 25 flat bars keep both EMAs at zero; the final bar jumps to 300,
-        # pushing the fast Klinger EMA above the slow Klinger EMA on the last
-        # bar only.
+        # 25 flat bars keep KO at zero; the final bar jumps to 300,
+        # pushing KO above zero on the last bar only.
         data = {"AAPL": create_klinger_oscillator_data("AAPL", [100.0] * 25 + [300.0])}
         signals = strategy.generate_signals(data)
 
@@ -4836,18 +4835,23 @@ class TestKlingerOscillatorStrategy:
         signal = signals[0]
         assert signal.symbol == "AAPL"
         assert signal.action == "buy"
-        assert signal.strength == pytest.approx(0.4)
+        # Strength approaches 1.0 for large KO values
+        assert signal.strength == pytest.approx(1.0, rel=1e-6)
         assert signal.price == pytest.approx(300.0)
         assert signal.timestamp is not None
         assert signal.metadata["signal_type"] == "klinger_bullish_crossover"
-        assert signal.metadata["klinger"] == pytest.approx(1_000_000.0)
-        assert signal.metadata["fast_ema"] == pytest.approx(333333.3333333333)
-        assert signal.metadata["slow_ema"] == pytest.approx(142857.14285714284)
+        # Canonical KO = EMA(VF, fast) - EMA(VF, slow)
+        # VF = volume * direction * |price_change| * 100
+        # For 100->300 jump: VF = 1e6 * 1 * 200 * 100 = 2e10
+        # Fast EMA(5) = 2e10 * (2/6) = 6.666...e9
+        # Slow EMA(13) = 2e10 * (2/14) = 2.857...e9
+        # KO = 3.8095...e9
+        assert signal.metadata["ko"] == pytest.approx(3809523809.523809)
         assert signal.metadata["fast_period"] == 5
         assert signal.metadata["slow_period"] == 13
 
     def test_generate_signals_klinger_bearish_crossover(self) -> None:
-        """A final price drop flips the fast Klinger EMA below the slow EMA (sell)."""
+        """A final price drop pushes KO below zero (sell)."""
         strategy = KlingerOscillatorStrategy(fast_period=5, slow_period=13)
         data = {"AAPL": create_klinger_oscillator_data("AAPL", [100.0] * 25 + [1.0])}
         signals = strategy.generate_signals(data)
@@ -4856,13 +4860,15 @@ class TestKlingerOscillatorStrategy:
         signal = signals[0]
         assert signal.symbol == "AAPL"
         assert signal.action == "sell"
-        assert signal.strength == pytest.approx(0.4)
+        assert signal.strength == pytest.approx(1.0, rel=1e-6)
         assert signal.price == pytest.approx(1.0)
         assert signal.timestamp is not None
         assert signal.metadata["signal_type"] == "klinger_bearish_crossover"
-        assert signal.metadata["klinger"] == pytest.approx(-1_000_000.0)
-        assert signal.metadata["fast_ema"] == pytest.approx(-333333.3333333333)
-        assert signal.metadata["slow_ema"] == pytest.approx(-142857.14285714284)
+        # For 100->1 drop: VF = 1e6 * (-1) * 99 * 100 = -9.9e9
+        # Fast EMA(5) = -9.9e9 * (2/6) = -3.3e9
+        # Slow EMA(13) = -9.9e9 * (2/14) = -1.4142857...e9
+        # KO = -1.8857142857...e9
+        assert signal.metadata["ko"] == pytest.approx(-1885714285.7142859)
         assert signal.metadata["fast_period"] == 5
         assert signal.metadata["slow_period"] == 13
 

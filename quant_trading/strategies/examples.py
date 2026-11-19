@@ -5340,21 +5340,20 @@ class VolumePriceTrendStrategy(Strategy):
 class KlingerOscillatorStrategy(Strategy):
     """Klinger Oscillator Strategy.
 
-    The Klinger Oscillator is a volume-based momentum indicator that
+    The Klinger Oscillator (KVO) is a volume-based momentum indicator that
     measures the difference between a fast and a slow exponential moving
-    average of the cumulative money flow. Money flow is the volume-weighted
-    direction of the typical price:
+    average of the Volume Force. Volume Force incorporates price trend,
+    volume, and the magnitude of price changes:
 
     - ``typical_price = (high + low + close) / 3``
-    - ``money_flow = volume * sign(typical_price - prev_typical_price)``
-      (the first bar contributes zero because there is no previous typical
-      price)
-    - ``klinger = cumsum(money_flow)``
-    - ``KO = EMA(klinger, fast) - EMA(klinger, slow)``
+    - ``direction = sign(typical_price - prev_typical_price)``
+      (+1 for rising, -1 for falling, 0 for unchanged; first bar is 0)
+    - ``volume_force = volume * direction * |typical_price - prev_typical_price| * 100``
+    - ``KO = EMA(volume_force, fast_period) - EMA(volume_force, slow_period)``
 
-    Trading signals:
-    - Buy when the fast Klinger EMA crosses above the slow Klinger EMA.
-    - Sell when the fast Klinger EMA crosses below the slow Klinger EMA.
+    Trading signals (zero-line crossovers):
+    - Buy when the KO crosses above zero (fast EMA crosses above slow EMA).
+    - Sell when the KO crosses below zero (fast EMA crosses below slow EMA).
 
     Requires ``"high"``, ``"low"``, ``"close"`` and ``"volume"`` columns.
 
@@ -5410,31 +5409,63 @@ class KlingerOscillatorStrategy(Strategy):
         if self.fast_period >= self.slow_period:
             raise ValueError("fast_period must be less than slow_period")
 
-    def _calculate_klinger(self, df: pd.DataFrame) -> pd.Series:
-        """Calculate the Klinger Oscillator series.
+    def _calculate_klinger(self, df: pd.DataFrame) -> tuple[pd.Series, pd.Series, pd.Series]:
+        """Calculate the Volume Force, KO, and signal line series.
 
         Args:
             df: DataFrame containing at least ``"high"``, ``"low"``,
                 ``"close"`` and ``"volume"`` columns.
 
         Returns:
-            Series of Klinger values aligned with ``df`` index.
+            Tuple of (volume_force, ko, signal_line) series aligned with ``df``
+            index. Bars without enough history yield ``NaN``.
+
+        Examples:
+            >>> import pandas as pd
+            >>> import numpy as np
+            >>> from quant_trading.strategies.examples import KlingerOscillatorStrategy
+            >>> dates = pd.date_range("2023-01-01", periods=10, freq="D")
+            >>> df = pd.DataFrame({
+            ...     "open": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0],
+            ...     "high": [101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0, 110.0],
+            ...     "low": [99.0, 100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0],
+            ...     "close": [100.5, 101.5, 102.5, 103.5, 104.5, 105.5, 106.5, 107.5, 108.5, 109.5],
+            ...     "volume": [1000.0] * 10
+            ... }, index=dates)
+            >>> strategy = KlingerOscillatorStrategy(fast_period=4, slow_period=8)
+            >>> vf, ko, signal = strategy._calculate_klinger(df)
+            >>> round(float(vf.iloc[-1]), 6)
+            0.0
+            >>> round(float(ko.iloc[-1]), 6)
+            0.0
+            >>> round(float(signal.iloc[-1]), 6)
+            0.0
 
         """
         typical_price = (df["high"] + df["low"] + df["close"]) / 3.0
         volume = df["volume"]
         prev_typical = typical_price.shift(1)
-        # Direction of money flow: +1 when the typical price rises, -1 when
-        # it falls, 0 when it is unchanged. The first bar has no previous
-        # typical price, so its contribution is zero.
+
+        # Direction: +1 when typical price rises, -1 when it falls, 0 when unchanged
         direction = np.where(
             typical_price > prev_typical,
             1.0,
             np.where(typical_price < prev_typical, -1.0, 0.0),
         )
-        money_flow = volume * direction
-        klinger: pd.Series = money_flow.cumsum()
-        return klinger
+
+        # Volume Force = volume * direction * |price_change| * 100
+        price_change = (typical_price - prev_typical).abs()
+        volume_force = volume * direction * price_change * 100.0
+
+        # KO = EMA(volume_force, fast) - EMA(volume_force, slow)
+        fast_ema_vf = volume_force.ewm(span=self.fast_period, adjust=False).mean()
+        slow_ema_vf = volume_force.ewm(span=self.slow_period, adjust=False).mean()
+        ko = fast_ema_vf - slow_ema_vf
+
+        # Signal line = EMA(KO, 13) - standard signal period
+        signal_line = ko.ewm(span=13, adjust=False).mean()
+
+        return cast(pd.Series, volume_force), cast(pd.Series, ko), cast(pd.Series, signal_line)
 
     def _ema(self, series: pd.Series, period: int) -> pd.Series:
         """Calculate an Exponential Moving Average.
@@ -5450,7 +5481,7 @@ class KlingerOscillatorStrategy(Strategy):
         return series.ewm(span=period, adjust=False).mean()
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
-        """Generate buy/sell signals from Klinger EMA crossovers.
+        """Generate buy/sell signals from KO zero-line crossovers.
 
         Args:
             data: Mapping of symbol to a DataFrame containing at least a
@@ -5458,8 +5489,8 @@ class KlingerOscillatorStrategy(Strategy):
                 indexed by timestamp.
 
         Returns:
-            List of :class:`Signal` objects for symbols whose fast Klinger
-            EMA crosses the slow Klinger EMA between the last two bars.
+            List of :class:`Signal` objects for symbols whose KO crosses
+            the zero line between the last two bars.
 
         """
         signals: list[Signal] = []
@@ -5470,40 +5501,21 @@ class KlingerOscillatorStrategy(Strategy):
 
             close = df["close"]
             current_price = close.iloc[-1]
-            # The signal is emitted at the last close, so a close that is not a
-            # number is rejected before anything is derived from it.
             if pd.isna(current_price) or current_price == 0:
                 continue
 
-            klinger = self._calculate_klinger(df)
-            fast_ema = self._ema(klinger, self.fast_period)
-            slow_ema = self._ema(klinger, self.slow_period)
+            _, ko, _ = self._calculate_klinger(df)
 
-            fast_current = fast_ema.iloc[-1]
-            fast_prev = fast_ema.iloc[-2]
-            slow_current = slow_ema.iloc[-1]
-            slow_prev = slow_ema.iloc[-2]
+            ko_current = ko.iloc[-1]
+            ko_prev = ko.iloc[-2]
             timestamp = df.index[-1]
 
-            if (
-                pd.isna(fast_current)
-                or pd.isna(fast_prev)
-                or pd.isna(slow_current)
-                or pd.isna(slow_prev)
-            ):
+            if pd.isna(ko_current) or pd.isna(ko_prev):
                 continue  # pragma: no cover
 
-            # Bullish crossover: fast Klinger EMA crosses above slow EMA
-            if fast_prev <= slow_prev and fast_current > slow_current:
-                strength = (
-                    min(
-                        1.0,
-                        abs(float(fast_current - slow_current))
-                        / (abs(float(fast_current)) + abs(float(slow_current))),
-                    )
-                    if fast_current != 0 or slow_current != 0
-                    else 0.5
-                )
+            # Bullish crossover: KO crosses above zero
+            if ko_prev <= 0.0 and ko_current > 0.0:
+                strength = min(1.0, abs(float(ko_current)) / (abs(float(ko_current)) + 1.0))
                 signals.append(
                     Signal(
                         symbol=symbol,
@@ -5512,26 +5524,16 @@ class KlingerOscillatorStrategy(Strategy):
                         price=current_price,
                         timestamp=timestamp,
                         metadata={
-                            "klinger": float(klinger.iloc[-1]),
-                            "fast_ema": float(fast_current),
-                            "slow_ema": float(slow_current),
+                            "ko": float(ko_current),
                             "fast_period": self.fast_period,
                             "slow_period": self.slow_period,
                             "signal_type": "klinger_bullish_crossover",
                         },
                     )
                 )
-            # Bearish crossover: fast Klinger EMA crosses below slow EMA
-            elif fast_prev >= slow_prev and fast_current < slow_current:
-                strength = (
-                    min(
-                        1.0,
-                        abs(float(slow_current - fast_current))
-                        / (abs(float(fast_current)) + abs(float(slow_current))),
-                    )
-                    if fast_current != 0 or slow_current != 0
-                    else 0.5
-                )
+            # Bearish crossover: KO crosses below zero
+            elif ko_prev >= 0.0 and ko_current < 0.0:
+                strength = min(1.0, abs(float(ko_current)) / (abs(float(ko_current)) + 1.0))
                 signals.append(
                     Signal(
                         symbol=symbol,
@@ -5540,9 +5542,7 @@ class KlingerOscillatorStrategy(Strategy):
                         price=current_price,
                         timestamp=timestamp,
                         metadata={
-                            "klinger": float(klinger.iloc[-1]),
-                            "fast_ema": float(fast_current),
-                            "slow_ema": float(slow_current),
+                            "ko": float(ko_current),
                             "fast_period": self.fast_period,
                             "slow_period": self.slow_period,
                             "signal_type": "klinger_bearish_crossover",
