@@ -8502,19 +8502,13 @@ class RelativeVigorIndexStrategy(Strategy):
 
         Examples:
             >>> import pandas as pd
-            >>> import numpy as np
             >>> from quant_trading.strategies.examples import RelativeVigorIndexStrategy
-            >>> df = pd.DataFrame({
-            ...     "open": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0],
-            ...     "high": [101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0, 110.0],
-            ...     "low": [99.0, 100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0],
-            ...     "close": [100.5, 101.5, 102.5, 103.5, 104.5, 105.5, 106.5, 107.5, 108.5, 109.5],
-            ... })
+            >>> df = pd.DataFrame({"open": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0], "high": [101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0, 110.0], "low": [99.0, 100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0], "close": [100.5, 101.5, 102.5, 103.5, 104.5, 105.5, 106.5, 107.5, 108.5, 109.5]})
             >>> rvi, signal = RelativeVigorIndexStrategy(period=4)._calculate_rvi(df)
             >>> round(float(rvi.iloc[-1]), 6)
-            0.5
+            0.25
             >>> round(float(signal.iloc[-1]), 6)
-            0.5
+            0.25
 
         """
         close = df["close"]
@@ -8543,12 +8537,7 @@ class RelativeVigorIndexStrategy(Strategy):
         rvi = num_sma / denominator
 
         # Signal line: (RVI + 2*RVI_{t-1} + 2*RVI_{t-2} + RVI_{t-3}) / 6
-        signal = (
-            rvi
-            + 2.0 * rvi.shift(1)
-            + 2.0 * rvi.shift(2)
-            + rvi.shift(3)
-        ) / 6.0
+        signal = (rvi + 2.0 * rvi.shift(1) + 2.0 * rvi.shift(2) + rvi.shift(3)) / 6.0
 
         return cast(pd.Series, rvi), cast(pd.Series, signal)
 

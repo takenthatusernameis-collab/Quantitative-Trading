@@ -8741,18 +8741,91 @@ class TestRelativeVigorIndexStrategy:
 
     @staticmethod
     def _oscillating_data(periods: int = 60) -> pd.DataFrame:
-        close = np.array([100.0 + 10.0 * np.sin(2.0 * np.pi * i / 20.0) for i in range(periods)])
-        open_ = close - 0.5  # Slightly lower open for bullish bias
+        """Build OHLC data whose (close - open) spread oscillates.
+
+        A constant spread makes the RVI and its signal line identical, so no
+        crossover ever fires; the spread here ramps up and down across the
+        window to force both a bullish and a bearish cross.
+        """
+        n = periods
+        spread = np.array(
+            [
+                0.5,
+                1.0,
+                1.5,
+                2.0,
+                1.5,
+                1.0,
+                0.5,
+                1.0,
+                1.5,
+                2.0,
+                2.5,
+                2.0,
+                1.5,
+                1.0,
+                0.5,
+                0.0,
+                0.5,
+                1.0,
+                1.5,
+                2.0,
+                2.5,
+                3.0,
+                2.5,
+                2.0,
+                1.5,
+                1.0,
+                0.5,
+                0.0,
+                -0.5,
+                0.0,
+                0.5,
+                1.0,
+                1.5,
+                2.0,
+                2.5,
+                3.0,
+                3.5,
+                3.0,
+                2.5,
+                2.0,
+                1.5,
+                1.0,
+                0.5,
+                0.0,
+                -0.5,
+                -1.0,
+                -0.5,
+                0.0,
+                0.5,
+                1.0,
+                1.5,
+                2.0,
+                2.5,
+                3.0,
+                3.5,
+                4.0,
+                3.5,
+                3.0,
+                2.5,
+                2.0,
+            ]
+        )
+        if n > len(spread):
+            spread = np.resize(spread, n)
+        close = np.array([100.0 + i for i in range(n)])
+        open_ = close - spread
         high = close + 1.0
         low = open_ - 1.0
-        dates = pd.date_range("2023-01-01", periods=periods, freq="D")
+        dates = pd.date_range("2023-01-01", periods=n, freq="D")
         return pd.DataFrame(  # type: ignore[no-any-return]
             {
                 "open": open_,
                 "high": high,
                 "low": low,
                 "close": close,
-                "volume": np.full(periods, 1000),
+                "volume": np.full(n, 1000),
             },
             index=dates,
         )
@@ -8776,7 +8849,7 @@ class TestRelativeVigorIndexStrategy:
 
     def test_generate_buy_signal_on_bullish_cross(self) -> None:
         strategy = RelativeVigorIndexStrategy(period=4)
-        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:17]})
+        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:11]})
         assert len(signals) == 1
         signal = signals[0]
         assert signal.action == "buy"
@@ -8786,7 +8859,7 @@ class TestRelativeVigorIndexStrategy:
 
     def test_generate_sell_signal_on_bearish_cross(self) -> None:
         strategy = RelativeVigorIndexStrategy(period=4)
-        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:27]})
+        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:16]})
         assert len(signals) == 1
         signal = signals[0]
         assert signal.action == "sell"
@@ -8795,14 +8868,14 @@ class TestRelativeVigorIndexStrategy:
 
     def test_generate_no_signal_without_cross(self) -> None:
         strategy = RelativeVigorIndexStrategy(period=4)
-        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:20]})
+        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:18]})
         assert signals == []
 
     def test_generate_signals_multi_symbol(self) -> None:
         strategy = RelativeVigorIndexStrategy(period=4)
         data = {
-            "AAPL": self._oscillating_data().iloc[:17],
-            "MSFT": self._oscillating_data().iloc[:27],
+            "AAPL": self._oscillating_data().iloc[:11],
+            "MSFT": self._oscillating_data().iloc[:16],
         }
         signals = strategy.generate_signals(data)
         actions = {signal.symbol: signal.action for signal in signals}
@@ -8810,27 +8883,27 @@ class TestRelativeVigorIndexStrategy:
 
     def test_generate_signals_skips_missing_open_column(self) -> None:
         strategy = RelativeVigorIndexStrategy(period=4)
-        df = self._oscillating_data().iloc[:17].drop(columns=["open"])
+        df = self._oscillating_data().iloc[:11].drop(columns=["open"])
         assert strategy.generate_signals({"AAPL": df}) == []
 
     def test_generate_signals_skips_missing_high_column(self) -> None:
         strategy = RelativeVigorIndexStrategy(period=4)
-        df = self._oscillating_data().iloc[:17].drop(columns=["high"])
+        df = self._oscillating_data().iloc[:11].drop(columns=["high"])
         assert strategy.generate_signals({"AAPL": df}) == []
 
     def test_generate_signals_skips_missing_low_column(self) -> None:
         strategy = RelativeVigorIndexStrategy(period=4)
-        df = self._oscillating_data().iloc[:17].drop(columns=["low"])
+        df = self._oscillating_data().iloc[:11].drop(columns=["low"])
         assert strategy.generate_signals({"AAPL": df}) == []
 
     def test_generate_signals_skips_missing_close_column(self) -> None:
         strategy = RelativeVigorIndexStrategy(period=4)
-        df = self._oscillating_data().iloc[:17].drop(columns=["close"])
+        df = self._oscillating_data().iloc[:11].drop(columns=["close"])
         assert strategy.generate_signals({"AAPL": df}) == []
 
     def test_generate_signals_skips_nan_last_close(self) -> None:
         strategy = RelativeVigorIndexStrategy(period=4)
-        df = self._oscillating_data().iloc[:17].copy()
+        df = self._oscillating_data().iloc[:11].copy()
         df.iloc[-1, df.columns.get_loc("close")] = np.nan
         assert strategy.generate_signals({"AAPL": df}) == []
 
