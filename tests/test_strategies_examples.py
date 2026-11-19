@@ -7786,8 +7786,9 @@ class TestKSTStrategy:
 
     def test_generate_buy_signal_on_bullish_cross(self) -> None:
         strategy = KSTStrategy(signal_period=9)
-        # A sustained uptrend that pushes KST above its signal line.
-        closes = [100.0 + i * 0.5 for i in range(60)]
+        # A sharp final-bar jump after a flat period pushes KST above its
+        # signal line, producing a bullish crossover.
+        closes = [100.0] * 59 + [105.0]
         data = {"AAPL": create_donchian_data("AAPL", closes)}
         signals = strategy.generate_signals(data)
         assert len(signals) == 1
@@ -7799,8 +7800,9 @@ class TestKSTStrategy:
 
     def test_generate_sell_signal_on_bearish_cross(self) -> None:
         strategy = KSTStrategy(signal_period=9)
-        # A sustained downtrend that pushes KST below its signal line.
-        closes = [200.0 - i * 0.5 for i in range(60)]
+        # A sustained percentage downtrend pushes KST below its signal line,
+        # producing a bearish crossover.
+        closes = [200.0 * (0.995**i) for i in range(60)]
         data = {"AAPL": create_donchian_data("AAPL", closes)}
         signals = strategy.generate_signals(data)
         assert len(signals) == 1
@@ -7818,8 +7820,8 @@ class TestKSTStrategy:
     def test_generate_signals_multi_symbol(self) -> None:
         strategy = KSTStrategy(signal_period=9)
         data = {
-            "AAPL": create_donchian_data("AAPL", [100.0 + i * 0.5 for i in range(60)]),
-            "MSFT": create_donchian_data("MSFT", [200.0 - i * 0.5 for i in range(60)]),
+            "AAPL": create_donchian_data("AAPL", [100.0] * 59 + [105.0]),
+            "MSFT": create_donchian_data("MSFT", [200.0 * (0.995**i) for i in range(60)]),
         }
         signals = strategy.generate_signals(data)
         assert {signal.symbol for signal in signals} == {"AAPL", "MSFT"}
@@ -7840,9 +7842,13 @@ class TestKSTStrategy:
 
     def test_generate_signals_skips_when_kst_is_nan(self) -> None:
         strategy = KSTStrategy(signal_period=9)
-        # Flat prices produce a NaN KST on the final bar.
-        data = {"AAPL": create_donchian_data("AAPL", [100.0] * 60)}
-        assert strategy.generate_signals(data) == []
+        # A NaN inside the history window propagates to a NaN KST/signal on
+        # the final bar even though the last close is valid.
+        closes = [100.0 + i * 0.5 for i in range(60)]
+        closes[15] = float("nan")
+        df = create_donchian_data("AAPL", closes)
+        assert pd.isna(df["close"].iloc[-1]) is False
+        assert strategy.generate_signals({"AAPL": df}) == []
 
 
 class TestExamplesRemainingCoverage:

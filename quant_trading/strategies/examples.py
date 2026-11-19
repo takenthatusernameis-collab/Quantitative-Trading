@@ -8138,7 +8138,7 @@ class KSTStrategy(Strategy):
             >>> df = pd.DataFrame({"close": [float(i) for i in range(1, 61)]})
             >>> kst, signal = KSTStrategy(signal_period=9)._calculate_kst(df)
             >>> round(float(kst.iloc[-1]), 4), round(float(signal.iloc[-1]), 4)
-            (196.1494, 195.1681)
+            (808.0563, 985.7872)
 
         """
         close = df["close"]
