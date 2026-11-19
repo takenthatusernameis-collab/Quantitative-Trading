@@ -1,33 +1,64 @@
 ## Status
 
-**Task complete (this session).** Recreated and committed `.github/workflows/ci.yml` — the bounded CI gate (test + 100% coverage + black + ruff + mypy) that the previous session produced but left uncommitted, so it had been lost.
+**Task complete (this session).** Fixed a real correctness bug in the Treynor ratio and
+recorded why the previous handoff's requested workflow edit was not attempted.
+
+The previous handoff asked to add `.github/workflows/ci.yml` to the
+`kilo-workflow-audit.yml` paths/actionlint/YAML lists. That task is **invalid for an
+agent session**: `.github/scripts/kilo-controller.sh` (lines 307-313) restores every
+workflow file to `WORKFLOW_BASE_SHA` and runs `git clean -fd -- .github/workflows`
+after each session, and `stage_repository_changes` excludes `.github/workflows/**`.
+Commit `ced5187` (empty message, deletes only `ci.yml`) is the controller enforcing
+that policy, not a regression. Do not re-add `ci.yml`; workflow definitions are
+maintainer-managed by design.
 
 ## What changed
 
-- Added `.github/workflows/ci.yml` (commit includes this handoff).
-  - Triggers on push/PR to `main`, path-filtered to `quant_trading/**`, `tests/**`, `examples/**`, `pyproject.toml`, `requirements.txt`, and the workflow itself, plus `workflow_dispatch`.
-  - Single `gate` job on `ubuntu-latest`, 30-min timeout, `contents: read`.
-  - Steps: checkout@v6 → setup-python@v5 (3.12, pip cache) → `pip install -e ".[dev]"` → coverage gate → black → ruff → mypy.
-  - Coverage gate runs `MPLBACKEND=Agg python -m pytest -q -p no:cacheprovider --cov --cov-report=term -m "not slow and not network"`, tees to `coverage.log`, parses the `TOTAL` row with `read -r _ stmts miss branches partial pct`, and fails if `miss != 0` or `partial != 0`.
+- `quant_trading/risk/metrics.py`: `calculate_treynor_ratio` now computes the
+  annualized excess return over the **same aligned sample** that
+  `calculate_beta` uses, matching `calculate_alpha`/`calculate_information_ratio`.
+  Before the fix beta came from the aligned sample but the mean return came from the
+  raw returns, so a `market_returns` series with a NaN produced a numerator and
+  denominator describing different observations.
+- `tests/test_risk_metrics.py`: added `test_treynor_uses_aligned_sample`, which
+  asserts the aligned result and that it differs from the old unaligned formula.
+
+Evidence for the bug (before the fix):
+
+```
+returns = [0.01, 0.02, 0.50, 0.004] (dates)
+market  = [0.008, NaN, 0.004, 0.002]
+beta = -16.6429 (aligned sample of 3 points)
+old treynor = -2.0202   # used all 4 raw returns in the mean
+aligned treynor = -2.5931
+```
 
 ## What was actually verified (this session)
 
-- Full suite: `TOTAL 10046 0 3570 0 100%`, `4180 passed, 151 deselected in 640.87s` (Python 3.14 local).
-- `python -m black --check tests/ quant_trading/ examples/` → `166 files would be left unchanged.`
-- `python -m ruff check tests/ quant_trading/ examples/` → `All checks passed!`
-- `python -m mypy tests/ quant_trading/ examples/` → `Success: no issues found in 166 source files`
-- `yaml.safe_load('.github/workflows/ci.yml')` OK; one job `gate` with expected steps.
-- Inline coverage script extracted to a file passes `bash -n`.
-- Whitespace-split parser verified against `TOTAL 10046 0 3570 0 100%` → miss=0, partial=0 → pass.
+- `python -m pytest tests/test_risk_metrics.py tests/test_backtest_metrics.py -m "not slow and not network"` -> `182 passed`.
+- Full suite via `python -m coverage run --branch -m pytest -q -p no:cacheprovider -m "not slow and not network"` -> `4181 passed, 151 deselected in 629.35s`.
+- `python -m coverage report` -> `TOTAL 10046 0 3570 0 100%`.
+- `python -m black --check tests/ quant_trading/ examples/` -> `166 files would be left unchanged.`
+- `python -m ruff check tests/ quant_trading/ examples/` -> `All checks passed!`
+- `python -m mypy tests/ quant_trading/ examples/` -> `Success: no issues found in 166 source files`.
 
 ## Failed approaches / gotchas (do not repeat)
 
-- `black`/`ruff`/`mypy` are not on PATH; always invoke `python -m <tool>` (the workflow already does).
-- `bash -n` on the whole workflow file fails on `${{ }}` expressions (false positive); validate only the extracted inline `run:` script.
-- The previous session's `ci.yml` was uncommitted and disappeared; commit durable artifacts in the same session.
+- Do **not** modify `.github/workflows/*` from an agent session; the controller
+  reverts/removes those files and excludes them from checkpoint commits.
+- Local env is Python 3.14.4 + numpy 2.5.5 + coverage 7.17.3. `pytest --cov` (the
+  `pytest-cov` plugin) fails at collection with
+  `ImportError: cannot load module more than once per process`; use
+  `python -m coverage run --branch -m pytest ...` followed by
+  `python -m coverage report` instead. CI pins Python 3.12, so this is local-only.
+- Invoke `black`/`ruff`/`mypy` as `python -m <tool>` (not on PATH).
 
 ## One precise next task
 
-Add `.github/workflows/ci.yml` to the trigger `paths` of `.github/workflows/kilo-workflow-audit.yml` and to its actionlint args + YAML-parse step, so CI-workflow edits are syntax-validated. Verify with `bash -n .github/scripts/*.sh`, a `yaml.safe_load` of the audit workflow, and `rhysd/actionlint` semantics (same patterns already used in that file). Keep the change limited to those path/validation lists.
-
-(End of file)
+Add an end-to-end regression test in `tests/test_backtest_metrics.py` that passes a
+gapped `market_returns` series (containing NaN) to `calculate_backtest_metrics` and
+asserts `metrics.treynor_ratio` equals the manual aligned formula
+`(aligned_returns.mean() * periods_per_year - risk_free_rate) / beta`, and differs
+from the unaligned formula. This locks the fixed behavior in at the public API layer
+used by the engine/CLI. Verify with the focused test files, `python -m coverage run`
+full suite (expect 100%), plus black/ruff/mypy. Do not touch workflow files.

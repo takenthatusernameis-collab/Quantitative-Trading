@@ -503,8 +503,11 @@ def calculate_treynor_ratio(
 ) -> float:
     """Calculate Treynor ratio.
 
-    Treynor ratio = (mean(returns) - risk_free_rate / periods_per_year) / beta,
-    where beta is the portfolio's sensitivity to market returns.
+    Treynor ratio = (annualized mean excess return) / beta, where beta is the
+    portfolio's sensitivity to market returns. The excess return is computed
+    over the same aligned (overlapping-index) sample that ``calculate_beta``
+    uses, so the numerator and denominator always describe the same
+    observations, as they do for :func:`calculate_alpha`.
 
     Args:
         returns: Portfolio return series.
@@ -528,12 +531,14 @@ def calculate_treynor_ratio(
     if beta == 0:
         return 0.0
 
-    returns = returns.dropna()
-    if len(returns) == 0:  # pragma: no cover  (beta != 0 implies non-empty after dropna)
+    # Use the same aligned sample as calculate_beta so the average return and
+    # the beta describe the same observations (mirrors calculate_alpha).
+    aligned = _align_series(returns, market_returns)
+    if len(aligned) < 2:  # pragma: no cover  (beta != 0 implies >= 2 aligned points)
         return 0.0
 
-    excess_return = returns.mean() - risk_free_rate / periods_per_year
-    return float(excess_return / beta * periods_per_year)
+    excess_return = float(aligned.iloc[:, 0].mean() * periods_per_year - risk_free_rate)
+    return float(excess_return / beta)
 
 
 def calculate_information_ratio(

@@ -933,6 +933,18 @@ class TestCalculateTreynorRatio:
         )
         assert monthly != pytest.approx(daily)
 
+    def test_treynor_uses_aligned_sample(self) -> None:
+        """Treynor uses the same aligned sample as beta, not the raw returns."""
+        index = pd.date_range("2024-01-01", periods=4)
+        returns = pd.Series([0.01, 0.02, 0.5, 0.004], index=index)
+        market = pd.Series([0.008, np.nan, 0.004, 0.002], index=index)
+        beta = calculate_beta(returns, market)
+        aligned = _align_series(returns, market)
+        expected = (aligned.iloc[:, 0].mean() * 252 - 0.02) / beta
+        assert calculate_treynor_ratio(returns, market) == pytest.approx(expected)
+        unaligned = (returns.mean() * 252 - 0.02) / beta
+        assert calculate_treynor_ratio(returns, market) != pytest.approx(unaligned)
+
 
 class TestCalculateInformationRatio:
     """Tests for calculate_information_ratio."""
