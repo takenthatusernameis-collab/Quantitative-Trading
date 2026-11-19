@@ -1,5 +1,6 @@
 """Packaging and distribution metadata tests."""
 
+import importlib
 from pathlib import Path
 
 import quant_trading
@@ -45,6 +46,28 @@ class TestPackageVersion:
         assert re.fullmatch(
             r"\d+\.\d+\.\d+", quant_trading.__version__
         ), f"Expected MAJOR.MINOR.PATCH version, got: {quant_trading.__version__!r}"
+
+
+class TestConsoleScript:
+    """The documented ``quant-trading`` console script must resolve to the CLI.
+
+    ``[project.scripts]`` is how users launch the tool after
+    ``pip install quant-trading``; a renamed ``main`` or a typo in the target
+    would only surface at install time. Resolve the declared target here so a
+    drift fails fast in the test suite instead.
+    """
+
+    def test_console_script_target_is_declared(self) -> None:
+        pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        scripts = pyproject["project"]["scripts"]
+        assert scripts.get("quant-trading"), "missing quant-trading entry point"
+
+    def test_console_script_target_resolves_to_callable(self) -> None:
+        pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        module_path, _, attribute = pyproject["project"]["scripts"]["quant-trading"].partition(":")
+        assert module_path and attribute, "entry point must be '<module>:<attr>'"
+        entry = getattr(importlib.import_module(module_path), attribute)
+        assert callable(entry)
 
 
 class TestPackageExports:
