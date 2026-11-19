@@ -84,6 +84,23 @@ class TestMarginalVaR:
         assert mvar.index.tolist() == ["A", "B"]
         assert (mvar == 0.0).all()
 
+    def test_marginal_var_respects_series_labels(self) -> None:
+        """A reordered labeled Series must not shift weights between assets."""
+        np.random.seed(42)
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.01, 500),
+                "B": np.random.normal(0.001, 0.04, 500),
+            }
+        )
+        weights = pd.Series({"A": 0.8, "B": 0.2})
+        reversed_weights = weights.reindex(["B", "A"])
+
+        expected = calculate_marginal_var(returns, weights)
+        actual = calculate_marginal_var(returns, reversed_weights)
+
+        pd.testing.assert_series_equal(actual, expected)
+
 
 class TestComponentVaR:
     """Tests for calculate_component_var."""
@@ -120,6 +137,23 @@ class TestComponentVaR:
         # The component VaRs are negative losses and their sum equals the
         # portfolio Expected Shortfall (CVaR), not the quantile-based VaR.
         assert abs(cvar.sum() - portfolio_cvar) < 1e-6
+
+    def test_component_var_respects_series_labels(self) -> None:
+        """A reordered labeled Series must not shift weights between assets."""
+        np.random.seed(42)
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.01, 500),
+                "B": np.random.normal(0.001, 0.04, 500),
+            }
+        )
+        weights = pd.Series({"A": 0.8, "B": 0.2})
+        reversed_weights = weights.reindex(["B", "A"])
+
+        expected = calculate_component_var(returns, weights)
+        actual = calculate_component_var(returns, reversed_weights)
+
+        pd.testing.assert_series_equal(actual, expected)
 
     def test_component_var_single_asset(self) -> None:
         np.random.seed(42)
@@ -234,6 +268,23 @@ class TestVolatilityContributions:
         contrib = calculate_volatility_contributions(returns, weights, annualize=False)
         assert contrib.index.tolist() == ["A", "B"]
         assert (contrib == 0.0).all()
+
+    def test_vol_contrib_respects_series_labels(self) -> None:
+        """A reordered labeled Series must not shift weights between assets."""
+        np.random.seed(42)
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.01, 500),
+                "B": np.random.normal(0.001, 0.04, 500),
+            }
+        )
+        weights = pd.Series({"A": 0.8, "B": 0.2})
+        reversed_weights = weights.reindex(["B", "A"])
+
+        expected = calculate_volatility_contributions(returns, weights, annualize=False)
+        actual = calculate_volatility_contributions(returns, reversed_weights, annualize=False)
+
+        pd.testing.assert_series_equal(actual, expected)
 
 
 class TestEqualRiskContribution:
@@ -386,6 +437,23 @@ class TestRiskBudgetWeights:
         assert len(weights) == 2
         assert weights.index.tolist() == ["A", "B"]
         assert abs(weights.sum() - 1.0) < 1e-6
+
+    def test_risk_budget_respects_series_labels(self) -> None:
+        """A reordered labeled budget must not shift targets between assets."""
+        np.random.seed(42)
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.01, 500),
+                "B": np.random.normal(0.001, 0.04, 500),
+            }
+        )
+        budget = pd.Series({"A": 0.8, "B": 0.2})
+        reversed_budget = budget.reindex(["B", "A"])
+
+        expected = calculate_risk_budget_weights(returns, budget, annualize=False)
+        actual = calculate_risk_budget_weights(returns, reversed_budget, annualize=False)
+
+        pd.testing.assert_series_equal(actual, expected)
 
     def test_risk_budget_matches_contributions(self) -> None:
         np.random.seed(42)

@@ -660,6 +660,27 @@ def calculate_omega_ratio(
     return float(gains / losses)
 
 
+def _weights_array(weights: np.ndarray | pd.Series, columns: pd.Index) -> np.ndarray:
+    """Return ``weights`` as a float array ordered like ``columns``.
+
+    A labeled ``pd.Series`` is reindexed to the asset columns first, so the
+    caller's Series order cannot silently pair one asset's weight with a
+    different column. A plain array is assumed to already follow ``columns``
+    order.
+
+    Args:
+        weights: Portfolio weights, either labeled by asset or positional.
+        columns: Asset columns the weights must line up with.
+
+    Returns:
+        The weights as a float array in ``columns`` order.
+
+    """
+    if isinstance(weights, pd.Series):
+        weights = weights.reindex(columns)
+    return np.asarray(weights, dtype=float)
+
+
 def calculate_marginal_var(
     returns: pd.DataFrame,
     weights: np.ndarray | pd.Series,
@@ -700,7 +721,7 @@ def calculate_marginal_var(
     if len(returns) < 2:
         return cast(pd.Series, pd.Series(0.0, index=returns.columns))
 
-    weights = np.asarray(weights, dtype=float)
+    weights = _weights_array(weights, returns.columns)
     if not np.isfinite(weights).all() or abs(weights.sum() - 1.0) > 1e-6:
         raise ValueError("weights must be finite and sum to 1.0")
 
@@ -753,7 +774,7 @@ def calculate_component_var(
         True
 
     """
-    weights = np.asarray(weights, dtype=float)
+    weights = _weights_array(weights, returns.columns)
     marginal_var = calculate_marginal_var(returns, weights, confidence)
     component_var = weights * marginal_var
     return cast(pd.Series, pd.Series(component_var, index=returns.columns))
@@ -799,7 +820,7 @@ def calculate_volatility_contributions(
     if len(returns) < 2:
         return cast(pd.Series, pd.Series(0.0, index=returns.columns))
 
-    weights = np.asarray(weights, dtype=float)
+    weights = _weights_array(weights, returns.columns)
     if not np.isfinite(weights).all() or abs(weights.sum() - 1.0) > 1e-6:
         raise ValueError("weights must be finite and sum to 1.0")
 
@@ -948,7 +969,7 @@ def calculate_risk_budget_weights(
         n = len(returns.columns) if len(returns.columns) > 0 else 1
         return cast(pd.Series, pd.Series(1.0 / n, index=returns.columns))
 
-    budget = np.asarray(risk_budget, dtype=float)
+    budget = _weights_array(risk_budget, returns.columns)
     if not np.isfinite(budget).all() or abs(budget.sum() - 1.0) > 1e-6:
         raise ValueError("risk_budget must be finite and sum to 1.0")
 
