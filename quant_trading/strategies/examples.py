@@ -50,6 +50,7 @@ __all__ = [
     "PositiveVolumeIndexStrategy",
     "RSIStrategy",
     "RateOfChangeStrategy",
+    "RelativeVigorIndexStrategy",
     "StochRSIStrategy",
     "StochasticMomentumIndexStrategy",
     "StochasticOscillatorStrategy",
@@ -8419,6 +8420,206 @@ class TrueStrengthIndexStrategy(Strategy):
                             "long_period": self.long_period,
                             "short_period": self.short_period,
                             "signal_period": self.signal_period,
+                            "signal_type": "bearish_cross",
+                        },
+                    )
+                )
+
+        return signals
+
+
+class RelativeVigorIndexStrategy(Strategy):
+    """Relative Vigor Index (RVI) strategy.
+
+    The Relative Vigor Index is a momentum oscillator that measures the
+    conviction of a price move by comparing the closing price to the opening
+    price relative to the trading range. The standard formulation uses a
+    4-period symmetric weighting for both numerator and denominator:
+
+    - Numerator = (close - open) + 2*(close_{t-1} - open_{t-1}) +
+                  2*(close_{t-2} - open_{t-2}) + (close_{t-3} - open_{t-3})
+    - Denominator = (high - low) + 2*(high_{t-1} - low_{t-1}) +
+                    2*(high_{t-2} - low_{t-2}) + (high_{t-3} - low_{t-3})
+    - RVI = SMA(numerator, period) / SMA(denominator, period)
+    - Signal line = (RVI + 2*RVI_{t-1} + 2*RVI_{t-2} + RVI_{t-3}) / 6
+
+    A buy signal is emitted when the RVI crosses above its signal line and a
+    sell signal when it crosses below. Requires ``"open"``, ``"high"``,
+    ``"low"``, and ``"close"`` columns.
+
+    Examples:
+        >>> from quant_trading.strategies.examples import RelativeVigorIndexStrategy
+        >>> s = RelativeVigorIndexStrategy(period=10)
+        >>> s.period
+        10
+    """
+
+    def __init__(
+        self,
+        period: int = 10,
+        name: str = "Relative_Vigor_Index",
+    ) -> None:
+        """Initialize the Relative Vigor Index strategy.
+
+        Args:
+            period: Lookback window for the RVI smoothing (SMA).
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If ``period`` is not positive.
+
+        """
+        super().__init__(
+            name,
+            {
+                "period": period,
+            },
+        )
+        self.period = period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is not positive.
+
+        """
+        if self.period <= 0:
+            raise ValueError("period must be positive")
+
+    def _calculate_rvi(self, df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+        """Calculate the RVI line and its signal line.
+
+        Args:
+            df: DataFrame containing ``"open"``, ``"high"``, ``"low"``,
+                and ``"close"`` columns.
+
+        Returns:
+            Tuple of the RVI series and its signal series, both indexed like
+            ``df``. Bars without enough history yield ``NaN``; a zero
+            denominator also yields ``NaN``.
+
+        Examples:
+            >>> import pandas as pd
+            >>> import numpy as np
+            >>> from quant_trading.strategies.examples import RelativeVigorIndexStrategy
+            >>> df = pd.DataFrame({
+            ...     "open": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0],
+            ...     "high": [101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0, 110.0],
+            ...     "low": [99.0, 100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0],
+            ...     "close": [100.5, 101.5, 102.5, 103.5, 104.5, 105.5, 106.5, 107.5, 108.5, 109.5],
+            ... })
+            >>> rvi, signal = RelativeVigorIndexStrategy(period=4)._calculate_rvi(df)
+            >>> round(float(rvi.iloc[-1]), 6)
+            0.5
+            >>> round(float(signal.iloc[-1]), 6)
+            0.5
+
+        """
+        close = df["close"]
+        open_ = df["open"]
+        high = df["high"]
+        low = df["low"]
+
+        # 4-period symmetric weighting for numerator and denominator
+        num = (
+            (close - open_)
+            + 2.0 * (close.shift(1) - open_.shift(1))
+            + 2.0 * (close.shift(2) - open_.shift(2))
+            + (close.shift(3) - open_.shift(3))
+        )
+        den = (
+            (high - low)
+            + 2.0 * (high.shift(1) - low.shift(1))
+            + 2.0 * (high.shift(2) - low.shift(2))
+            + (high.shift(3) - low.shift(3))
+        )
+
+        num_sma = num.rolling(window=self.period, min_periods=self.period).mean()
+        den_sma = den.rolling(window=self.period, min_periods=self.period).mean()
+
+        denominator = den_sma.where(den_sma != 0.0)
+        rvi = num_sma / denominator
+
+        # Signal line: (RVI + 2*RVI_{t-1} + 2*RVI_{t-2} + RVI_{t-3}) / 6
+        signal = (
+            rvi
+            + 2.0 * rvi.shift(1)
+            + 2.0 * rvi.shift(2)
+            + rvi.shift(3)
+        ) / 6.0
+
+        return cast(pd.Series, rvi), cast(pd.Series, signal)
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from RVI signal-line crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame with ``"open"``, ``"high"``,
+                ``"low"``, and ``"close"`` columns indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose RVI crosses its
+            signal line on the final bar.
+
+        """
+        signals: list[Signal] = []
+        min_history = self.period + 3  # period for SMA + 3 for signal line weighting
+
+        for symbol, df in data.items():
+            if len(df) < min_history:
+                continue
+            required_cols = {"open", "high", "low", "close"}
+            if not required_cols.issubset(df.columns):
+                continue
+            current_price = df["close"].iloc[-1]
+            if pd.isna(current_price):
+                continue
+
+            rvi, signal_line = self._calculate_rvi(df)
+            current_rvi = rvi.iloc[-1]
+            previous_rvi = rvi.iloc[-2]
+            current_signal = signal_line.iloc[-1]
+            previous_signal = signal_line.iloc[-2]
+            if (
+                pd.isna(current_rvi)
+                or pd.isna(previous_rvi)
+                or pd.isna(current_signal)
+                or pd.isna(previous_signal)
+            ):
+                continue
+
+            timestamp = df.index[-1]
+            strength = float(min(1.0, abs(current_rvi - current_signal) / 2.0 + 0.5))
+            if previous_rvi <= previous_signal and current_rvi > current_signal:
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=float(current_price),
+                        timestamp=timestamp,
+                        metadata={
+                            "rvi": float(current_rvi),
+                            "signal_line": float(current_signal),
+                            "period": self.period,
+                            "signal_type": "bullish_cross",
+                        },
+                    )
+                )
+            elif previous_rvi >= previous_signal and current_rvi < current_signal:
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=float(current_price),
+                        timestamp=timestamp,
+                        metadata={
+                            "rvi": float(current_rvi),
+                            "signal_line": float(current_signal),
+                            "period": self.period,
                             "signal_type": "bearish_cross",
                         },
                     )

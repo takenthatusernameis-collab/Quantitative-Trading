@@ -5,7 +5,7 @@ A modular Python framework for algorithmic trading strategies, backtesting, and 
 ## Features
 
 - **Strategy Framework**: Abstract base class for creating custom trading strategies
-- **Built-in Strategies**: 51 registered strategies (see Strategy Registry below), including MA/EMA crossover, RSI, Stochastic RSI, Bollinger Bands/%B, MACD, SuperTrend, Donchian/Keltner channels, ATR channel breakout, Ichimoku, HMA, Parabolic SAR, VWAP, VWMA crossover, Vortex, ADX, CCI, Williams %R, OBV/CMF/MFI/Force Index, Elder Ray, momentum/ROC/TRIX/DPO, volume oscillators (VROC, PVO, VPT, NVI/PVI), Aroon, PPO, Chande/Chaikin oscillators, Ultimate Oscillator, SMI, Fisher Transform, KST, True Strength Index, Accumulation/Distribution, and more
+- **Built-in Strategies**: 52 registered strategies (see Strategy Registry below), including MA/EMA crossover, RSI, Stochastic RSI, Bollinger Bands/%B, MACD, SuperTrend, Donchian/Keltner channels, ATR channel breakout, Ichimoku, HMA, Parabolic SAR, VWAP, VWMA crossover, Vortex, ADX, CCI, Williams %R, OBV/CMF/MFI/Force Index, Elder Ray, momentum/ROC/TRIX/DPO, volume oscillators (VROC, PVO, VPT, NVI/PVI), Aroon, PPO, Chande/Chaikin oscillators, Ultimate Oscillator, SMI, Fisher Transform, KST, True Strength Index, Relative Vigor Index, Accumulation/Distribution, and more
 - **Backtesting Engine**: Event-driven backtest with realistic costs (commission, slippage), long and short positions
 - **Data Providers**: Yahoo Finance and Alpha Vantage integrations with caching support, plus an offline synthetic data provider (`SyntheticDataProvider`, `create_synthetic_data`, `create_synthetic_provider`)
 - **Portfolio Management**: Position tracking, rebalancing, and allocation
@@ -158,6 +158,7 @@ key, with optional aliases. The built-in strategies are pre-registered:
 - `elder_ray` (aliases: `elder_ray_index`, `erp`) → `ElderRayStrategy`
 - `adl` (aliases: `accumulation_distribution`, `ad_line`) → `AccumulationDistributionStrategy`
 - `tsi` (aliases: `true_strength_index`, `tsi_indicator`) → `TrueStrengthIndexStrategy`
+- `rvi` (aliases: `relative_vigor_index`, `rvi_indicator`) → `RelativeVigorIndexStrategy`
 
 ```python
 from quant_trading.strategies import (
@@ -1300,6 +1301,15 @@ crosses below:
 
 ```bash
 python examples/run_true_strength_index.py
+```
+
+For a Relative Vigor Index demonstration, see `examples/run_relative_vigor_index.py`.
+It runs the `RelativeVigorIndexStrategy` against seeded synthetic data, generating
+buy signals when the RVI crosses above its signal line and sell signals when it
+crosses below:
+
+```bash
+python examples/run_relative_vigor_index.py
 ```
 
 For a KST demonstration, see `examples/run_kst.py`. It runs the `KSTStrategy`

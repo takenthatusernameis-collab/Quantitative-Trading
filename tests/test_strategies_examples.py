@@ -44,6 +44,7 @@ from quant_trading.strategies.examples import (
     PercentageVolumeOscillatorStrategy,
     PositiveVolumeIndexStrategy,
     RateOfChangeStrategy,
+    RelativeVigorIndexStrategy,
     RSIStrategy,
     StochasticMomentumIndexStrategy,
     StochasticOscillatorStrategy,
@@ -8732,4 +8733,117 @@ class TestTrueStrengthIndexStrategy:
         strategy = TrueStrengthIndexStrategy(long_period=5, short_period=3, signal_period=3)
         dates = pd.date_range("2023-01-01", periods=20, freq="D")
         df = pd.DataFrame({"close": [100.0] * 20}, index=dates)
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+
+class TestRelativeVigorIndexStrategy:
+    """Tests for RelativeVigorIndexStrategy."""
+
+    @staticmethod
+    def _oscillating_data(periods: int = 60) -> pd.DataFrame:
+        close = np.array([100.0 + 10.0 * np.sin(2.0 * np.pi * i / 20.0) for i in range(periods)])
+        open_ = close - 0.5  # Slightly lower open for bullish bias
+        high = close + 1.0
+        low = open_ - 1.0
+        dates = pd.date_range("2023-01-01", periods=periods, freq="D")
+        return pd.DataFrame(  # type: ignore[no-any-return]
+            {
+                "open": open_,
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": np.full(periods, 1000),
+            },
+            index=dates,
+        )
+
+    def test_initialization(self) -> None:
+        strategy = RelativeVigorIndexStrategy(period=14, name="Test_RVI")
+        assert strategy.name == "Test_RVI"
+        assert strategy.period == 14
+        assert strategy.parameters == {"period": 14}
+
+    def test_validate_parameters(self) -> None:
+        with pytest.raises(ValueError, match="period must be positive"):
+            RelativeVigorIndexStrategy(period=0)
+        with pytest.raises(ValueError, match="period must be positive"):
+            RelativeVigorIndexStrategy(period=-1)
+
+    def test_generate_signals_insufficient_data(self) -> None:
+        strategy = RelativeVigorIndexStrategy(period=10)
+        data = {"AAPL": self._oscillating_data().iloc[:10]}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_buy_signal_on_bullish_cross(self) -> None:
+        strategy = RelativeVigorIndexStrategy(period=4)
+        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:17]})
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "buy"
+        assert signal.metadata["signal_type"] == "bullish_cross"
+        assert signal.metadata["period"] == 4
+        assert 0.0 <= signal.strength <= 1.0
+
+    def test_generate_sell_signal_on_bearish_cross(self) -> None:
+        strategy = RelativeVigorIndexStrategy(period=4)
+        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:27]})
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "sell"
+        assert signal.metadata["signal_type"] == "bearish_cross"
+        assert 0.0 <= signal.strength <= 1.0
+
+    def test_generate_no_signal_without_cross(self) -> None:
+        strategy = RelativeVigorIndexStrategy(period=4)
+        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:20]})
+        assert signals == []
+
+    def test_generate_signals_multi_symbol(self) -> None:
+        strategy = RelativeVigorIndexStrategy(period=4)
+        data = {
+            "AAPL": self._oscillating_data().iloc[:17],
+            "MSFT": self._oscillating_data().iloc[:27],
+        }
+        signals = strategy.generate_signals(data)
+        actions = {signal.symbol: signal.action for signal in signals}
+        assert actions == {"AAPL": "buy", "MSFT": "sell"}
+
+    def test_generate_signals_skips_missing_open_column(self) -> None:
+        strategy = RelativeVigorIndexStrategy(period=4)
+        df = self._oscillating_data().iloc[:17].drop(columns=["open"])
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    def test_generate_signals_skips_missing_high_column(self) -> None:
+        strategy = RelativeVigorIndexStrategy(period=4)
+        df = self._oscillating_data().iloc[:17].drop(columns=["high"])
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    def test_generate_signals_skips_missing_low_column(self) -> None:
+        strategy = RelativeVigorIndexStrategy(period=4)
+        df = self._oscillating_data().iloc[:17].drop(columns=["low"])
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    def test_generate_signals_skips_missing_close_column(self) -> None:
+        strategy = RelativeVigorIndexStrategy(period=4)
+        df = self._oscillating_data().iloc[:17].drop(columns=["close"])
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    def test_generate_signals_skips_nan_last_close(self) -> None:
+        strategy = RelativeVigorIndexStrategy(period=4)
+        df = self._oscillating_data().iloc[:17].copy()
+        df.iloc[-1, df.columns.get_loc("close")] = np.nan
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    def test_generate_signals_skips_when_rvi_is_nan(self) -> None:
+        strategy = RelativeVigorIndexStrategy(period=4)
+        dates = pd.date_range("2023-01-01", periods=20, freq="D")
+        df = pd.DataFrame(
+            {
+                "open": [100.0] * 20,
+                "high": [101.0] * 20,
+                "low": [99.0] * 20,
+                "close": [100.0] * 20,
+            },
+            index=dates,
+        )
         assert strategy.generate_signals({"AAPL": df}) == []

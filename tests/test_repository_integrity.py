@@ -1252,6 +1252,7 @@ _STRATEGIES_WITHOUT_DEDICATED_CLI_FLAGS: frozenset[str] = frozenset(
         "vroc",
         "williamsr",
         "tsi",
+        "rvi",
     }
 )
 

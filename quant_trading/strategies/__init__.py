@@ -42,6 +42,7 @@ from .examples import (
     PPOStrategy,
     PVOStrategy,
     RateOfChangeStrategy,
+    RelativeVigorIndexStrategy,
     RSIStrategy,
     StochasticMomentumIndexStrategy,
     StochasticOscillatorStrategy,
@@ -142,6 +143,11 @@ register_strategy(
     TrueStrengthIndexStrategy,
     aliases=["true_strength_index", "tsi_indicator"],
 )
+register_strategy(
+    "rvi",
+    RelativeVigorIndexStrategy,
+    aliases=["relative_vigor_index", "rvi_indicator"],
+)
 
 
 __all__ = [
@@ -188,6 +194,7 @@ __all__ = [
     "PositiveVolumeIndexStrategy",
     "RSIStrategy",
     "RateOfChangeStrategy",
+    "RelativeVigorIndexStrategy",
     "Signal",
     "StochRSIStrategy",
     "StochasticMomentumIndexStrategy",

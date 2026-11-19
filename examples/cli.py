@@ -111,6 +111,7 @@ BUILTIN_STRATEGY_KEYS = [
     "ultimate_oscillator",
     "fisher",
     "tsi",
+    "rvi",
 ]
 
 PROVIDERS = {
