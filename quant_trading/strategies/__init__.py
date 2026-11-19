@@ -48,6 +48,7 @@ from .examples import (
     StochRSIStrategy,
     SuperTrendStrategy,
     TrixStrategy,
+    TrueStrengthIndexStrategy,
     UltimateOscillatorStrategy,
     VolumeOscillatorStrategy,
     VolumePriceTrendStrategy,
@@ -136,6 +137,11 @@ register_strategy("dpo", DetrendedPriceOscillatorStrategy, aliases=["detrended_p
 register_strategy("smi", StochasticMomentumIndexStrategy, aliases=["stochastic_momentum_index"])
 register_strategy("chop", ChoppinessIndexStrategy, aliases=["choppiness", "choppiness_index"])
 register_strategy("fisher", FisherTransformStrategy, aliases=["fisher_transform"])
+register_strategy(
+    "tsi",
+    TrueStrengthIndexStrategy,
+    aliases=["true_strength_index", "tsi_indicator"],
+)
 
 
 __all__ = [
@@ -191,6 +197,7 @@ __all__ = [
     "StrategyRegistry",
     "SuperTrendStrategy",
     "TrixStrategy",
+    "TrueStrengthIndexStrategy",
     "UltimateOscillatorStrategy",
     "VWAPStrategy",
     "VolumeOscillatorStrategy",

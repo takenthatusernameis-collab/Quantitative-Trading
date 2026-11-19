@@ -1,6 +1,6 @@
 """Registry-level coverage tests for every registered strategy.
 
-The global strategy registry exposes 50 built-in strategies. This module
+The global strategy registry exposes 51 built-in strategies. This module
 provides regression coverage for the whole registry: every registered strategy
 must be constructible via :func:`create_strategy` with default parameters, must
 carry a non-empty ``parameters`` mapping, and must be able to run
@@ -206,6 +206,8 @@ def test_aliases_resolve_to_primary_class() -> None:
         "choppiness_index": "chop",
         "fisher_transform": "fisher",
         "know_sure_thing": "kst",
+        "true_strength_index": "tsi",
+        "tsi_indicator": "tsi",
     }
     for alias, primary in aliases.items():
         assert registry.get(alias) is registry.get(

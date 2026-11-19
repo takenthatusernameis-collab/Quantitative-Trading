@@ -50,6 +50,7 @@ from quant_trading.strategies.examples import (
     StochRSIStrategy,
     SuperTrendStrategy,
     TrixStrategy,
+    TrueStrengthIndexStrategy,
     UltimateOscillatorStrategy,
     VolumeOscillatorStrategy,
     VolumePriceTrendStrategy,
@@ -8633,3 +8634,102 @@ class TestExamplesRemainingCoverage:
         strategy2 = ChoppinessIndexStrategy(period=14, low_threshold=38.2, high_threshold=61.8)
         res_sell = strategy2.generate_signals({"AAPL": df.iloc[:69]})
         assert isinstance(res_sell, list)
+
+
+class TestTrueStrengthIndexStrategy:
+    """Tests for TrueStrengthIndexStrategy."""
+
+    @staticmethod
+    def _oscillating_data(periods: int = 60) -> pd.DataFrame:
+        close = np.array([100.0 + 10.0 * np.sin(2.0 * np.pi * i / 20.0) for i in range(periods)])
+        dates = pd.date_range("2023-01-01", periods=periods, freq="D")
+        return pd.DataFrame(  # type: ignore[no-any-return]
+            {
+                "open": close,
+                "high": close + 1.0,
+                "low": close - 1.0,
+                "close": close,
+                "volume": np.full(periods, 1000),
+            },
+            index=dates,
+        )
+
+    def test_initialization(self) -> None:
+        strategy = TrueStrengthIndexStrategy(
+            long_period=21, short_period=7, signal_period=5, name="Test_TSI"
+        )
+        assert strategy.name == "Test_TSI"
+        assert strategy.long_period == 21
+        assert strategy.short_period == 7
+        assert strategy.signal_period == 5
+        assert strategy.parameters == {
+            "long_period": 21,
+            "short_period": 7,
+            "signal_period": 5,
+        }
+
+    def test_validate_parameters(self) -> None:
+        with pytest.raises(ValueError, match="long_period must be positive"):
+            TrueStrengthIndexStrategy(long_period=0)
+        with pytest.raises(ValueError, match="short_period must be positive"):
+            TrueStrengthIndexStrategy(short_period=-1)
+        with pytest.raises(ValueError, match="signal_period must be positive"):
+            TrueStrengthIndexStrategy(signal_period=0)
+
+    def test_generate_signals_insufficient_data(self) -> None:
+        strategy = TrueStrengthIndexStrategy(long_period=5, short_period=3, signal_period=3)
+        data = {"AAPL": self._oscillating_data().iloc[:10]}
+        assert strategy.generate_signals(data) == []
+
+    def test_generate_buy_signal_on_bullish_cross(self) -> None:
+        strategy = TrueStrengthIndexStrategy(long_period=5, short_period=3, signal_period=3)
+        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:17]})
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "buy"
+        assert signal.metadata["signal_type"] == "bullish_cross"
+        assert signal.metadata["long_period"] == 5
+        assert signal.metadata["short_period"] == 3
+        assert signal.metadata["signal_period"] == 3
+        assert 0.0 <= signal.strength <= 1.0
+
+    def test_generate_sell_signal_on_bearish_cross(self) -> None:
+        strategy = TrueStrengthIndexStrategy(long_period=5, short_period=3, signal_period=3)
+        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:27]})
+        assert len(signals) == 1
+        signal = signals[0]
+        assert signal.action == "sell"
+        assert signal.metadata["signal_type"] == "bearish_cross"
+        assert 0.0 <= signal.strength <= 1.0
+
+    def test_generate_no_signal_without_cross(self) -> None:
+        strategy = TrueStrengthIndexStrategy(long_period=5, short_period=3, signal_period=3)
+        signals = strategy.generate_signals({"AAPL": self._oscillating_data().iloc[:20]})
+        assert signals == []
+
+    def test_generate_signals_multi_symbol(self) -> None:
+        strategy = TrueStrengthIndexStrategy(long_period=5, short_period=3, signal_period=3)
+        data = {
+            "AAPL": self._oscillating_data().iloc[:17],
+            "MSFT": self._oscillating_data().iloc[:27],
+        }
+        signals = strategy.generate_signals(data)
+        actions = {signal.symbol: signal.action for signal in signals}
+        assert actions == {"AAPL": "buy", "MSFT": "sell"}
+
+    def test_generate_signals_skips_missing_close_column(self) -> None:
+        strategy = TrueStrengthIndexStrategy(long_period=5, short_period=3, signal_period=3)
+        df = self._oscillating_data().iloc[:17].drop(columns=["close"])
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    def test_generate_signals_skips_nan_last_close(self) -> None:
+        strategy = TrueStrengthIndexStrategy(long_period=5, short_period=3, signal_period=3)
+        df = self._oscillating_data().iloc[:17].copy()
+        df.iloc[-1, df.columns.get_loc("close")] = np.nan
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    def test_generate_signals_skips_when_tsi_is_nan(self) -> None:
+        strategy = TrueStrengthIndexStrategy(long_period=5, short_period=3, signal_period=3)
+        dates = pd.date_range("2023-01-01", periods=20, freq="D")
+        df = pd.DataFrame({"close": [100.0] * 20}, index=dates)
+        assert strategy.generate_signals({"AAPL": df}) == []

@@ -2436,6 +2436,7 @@ class TestRunCombined:
             ("MA_Envelope", 16.2),
             ("Fisher_Transform", 12.0),
             ("KST", 12.0),
+            ("True_Strength_Index", 12.0),
         ]:
             m = MagicMock(
                 spec=[

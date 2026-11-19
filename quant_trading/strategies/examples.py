@@ -55,6 +55,7 @@ __all__ = [
     "StochasticOscillatorStrategy",
     "SuperTrendStrategy",
     "TrixStrategy",
+    "TrueStrengthIndexStrategy",
     "UltimateOscillatorStrategy",
     "VWAPStrategy",
     "VolumeOscillatorStrategy",
@@ -8218,6 +8219,205 @@ class KSTStrategy(Strategy):
                         metadata={
                             "kst": float(current_kst),
                             "signal_line": float(current_signal),
+                            "signal_period": self.signal_period,
+                            "signal_type": "bearish_cross",
+                        },
+                    )
+                )
+
+        return signals
+
+
+class TrueStrengthIndexStrategy(Strategy):
+    """True Strength Index (TSI) strategy.
+
+    The True Strength Index is a double-smoothed momentum oscillator. Both the
+    close-to-close change (momentum) and its absolute value are smoothed by two
+    exponential moving averages (a fast ``short_period`` pass followed by a slow
+    ``long_period`` pass), and their ratio yields an oscillator bounded between
+    -100 and +100:
+
+    - momentum = close - close.shift(1)
+    - smoothed(x) = EMA(EMA(x, short_period), long_period)
+    - TSI = 100 * smoothed(momentum) / smoothed(|momentum|)
+    - signal line = EMA(TSI, signal_period)
+
+    A buy signal is emitted when the TSI crosses above its signal line and a
+    sell signal when it crosses below. Requires the ``"close"`` column.
+
+    Examples:
+        >>> from quant_trading.strategies.examples import TrueStrengthIndexStrategy
+        >>> s = TrueStrengthIndexStrategy(short_period=3, long_period=5)
+        >>> s.short_period, s.long_period
+        (3, 5)
+    """
+
+    def __init__(
+        self,
+        long_period: int = 25,
+        short_period: int = 13,
+        signal_period: int = 13,
+        name: str = "True_Strength_Index",
+    ) -> None:
+        """Initialize the True Strength Index strategy.
+
+        Args:
+            long_period: Slow EMA span applied to the first-smoothed momentum.
+            short_period: Fast EMA span applied to momentum before the slow pass.
+            signal_period: EMA span of the TSI signal line.
+            name: Human-readable name of the strategy.
+
+        Raises:
+            ValueError: If any period is not positive.
+
+        """
+        super().__init__(
+            name,
+            {
+                "long_period": long_period,
+                "short_period": short_period,
+                "signal_period": signal_period,
+            },
+        )
+        self.long_period = long_period
+        self.short_period = short_period
+        self.signal_period = signal_period
+        self.validate_parameters()
+
+    def validate_parameters(self) -> None:
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If any period is not positive.
+
+        """
+        periods = (
+            ("long_period", self.long_period),
+            ("short_period", self.short_period),
+            ("signal_period", self.signal_period),
+        )
+        for label, value in periods:
+            if value <= 0:
+                raise ValueError(f"{label} must be positive")
+
+    def _double_smooth(self, series: pd.Series) -> pd.Series:
+        """Apply the fast-then-slow exponential smoothing used by the TSI.
+
+        Args:
+            series: Series to smooth (momentum or its absolute value).
+
+        Returns:
+            Series smoothed by ``short_period`` then ``long_period`` EMAs.
+
+        Examples:
+            >>> import pandas as pd
+            >>> from quant_trading.strategies.examples import TrueStrengthIndexStrategy
+            >>> s = TrueStrengthIndexStrategy(long_period=3, short_period=2)
+            >>> round(float(s._double_smooth(pd.Series([1.0, 2.0, 3.0])).iloc[-1]), 6)
+            1.944444
+
+        """
+        fast = series.ewm(span=self.short_period, adjust=False).mean()
+        return cast(pd.Series, fast.ewm(span=self.long_period, adjust=False).mean())
+
+    def _calculate_tsi(self, df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+        """Calculate the TSI line and its signal line.
+
+        Args:
+            df: DataFrame containing the ``"close"`` column.
+
+        Returns:
+            Tuple of the TSI series and its EMA signal series, both indexed like
+            ``df``. Bars without history are ``NaN``; a flat price series has a
+            zero denominator and therefore also yields ``NaN``.
+
+        Examples:
+            >>> import pandas as pd
+            >>> from quant_trading.strategies.examples import TrueStrengthIndexStrategy
+            >>> df = pd.DataFrame({"close": [1.0, 2.0, 3.0, 2.0, 1.0]})
+            >>> tsi, signal = TrueStrengthIndexStrategy(long_period=3, short_period=2, signal_period=2)._calculate_tsi(df)
+            >>> round(float(tsi.iloc[-1]), 6), round(float(signal.iloc[-1]), 6)
+            (-22.222222, 3.703704)
+
+        """
+        momentum = df["close"].diff()
+        smoothed = self._double_smooth(momentum)
+        smoothed_abs = self._double_smooth(momentum.abs())
+        denominator = smoothed_abs.where(smoothed_abs != 0.0)
+        tsi = 100.0 * smoothed / denominator
+        signal_line = tsi.ewm(span=self.signal_period, adjust=False).mean()
+        return cast(pd.Series, tsi), cast(pd.Series, signal_line)
+
+    def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
+        """Generate buy/sell signals from TSI signal-line crossovers.
+
+        Args:
+            data: Mapping of symbol to a DataFrame with a ``"close"`` column
+                indexed by timestamp.
+
+        Returns:
+            List of :class:`Signal` objects for symbols whose TSI crosses its
+            signal line on the final bar.
+
+        """
+        signals: list[Signal] = []
+        min_history = self.short_period + self.long_period + self.signal_period
+
+        for symbol, df in data.items():
+            if len(df) < min_history:
+                continue
+            if "close" not in df.columns:
+                continue
+            current_price = df["close"].iloc[-1]
+            if pd.isna(current_price):
+                continue
+
+            tsi, signal_line = self._calculate_tsi(df)
+            current_tsi = tsi.iloc[-1]
+            previous_tsi = tsi.iloc[-2]
+            current_signal = signal_line.iloc[-1]
+            previous_signal = signal_line.iloc[-2]
+            if (
+                pd.isna(current_tsi)
+                or pd.isna(previous_tsi)
+                or pd.isna(current_signal)
+                or pd.isna(previous_signal)
+            ):
+                continue
+
+            timestamp = df.index[-1]
+            strength = float(min(1.0, abs(current_tsi - current_signal) / 100.0 + 0.5))
+            if previous_tsi <= previous_signal and current_tsi > current_signal:
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="buy",
+                        strength=strength,
+                        price=float(current_price),
+                        timestamp=timestamp,
+                        metadata={
+                            "tsi": float(current_tsi),
+                            "signal_line": float(current_signal),
+                            "long_period": self.long_period,
+                            "short_period": self.short_period,
+                            "signal_period": self.signal_period,
+                            "signal_type": "bullish_cross",
+                        },
+                    )
+                )
+            elif previous_tsi >= previous_signal and current_tsi < current_signal:
+                signals.append(
+                    Signal(
+                        symbol=symbol,
+                        action="sell",
+                        strength=strength,
+                        price=float(current_price),
+                        timestamp=timestamp,
+                        metadata={
+                            "tsi": float(current_tsi),
+                            "signal_line": float(current_signal),
+                            "long_period": self.long_period,
+                            "short_period": self.short_period,
                             "signal_period": self.signal_period,
                             "signal_type": "bearish_cross",
                         },
