@@ -645,3 +645,42 @@ class TestBacktestMetricsFromDict:
         assert reconstructed.num_winning_trades == 4
         assert reconstructed.num_losing_trades == 3
         assert isinstance(reconstructed.num_trades, int)
+
+
+class TestBacktestMetricsTreynorAlignedSample:
+    """Treynor ratio must use the aligned sample even when market returns have gaps.
+
+    Regression test for the bug where the Treynor numerator (mean return) came
+    from the raw returns while the denominator (beta) came from the aligned
+    sample, so a NaN in ``market_returns`` made numerator and denominator
+    describe different observations.
+    """
+
+    EQUITY = pd.Series([100.0, 102.0, 101.0, 104.0, 103.0, 106.0, 108.0])
+    RISK_FREE_RATE = 0.02
+    PERIODS_PER_YEAR = 252
+
+    def test_treynor_uses_aligned_sample_when_market_has_nan(self) -> None:
+        """A NaN in market_returns must not desynchronize Treynor's numerator
+        and denominator; both must describe the aligned overlapping sample."""
+        market_returns = pd.Series([0.01, np.nan, -0.005, 0.012, -0.003, 0.008, 0.01])
+        metrics = calculate_backtest_metrics(
+            self.EQUITY,
+            market_returns=market_returns,
+            risk_free_rate=self.RISK_FREE_RATE,
+            periods_per_year=self.PERIODS_PER_YEAR,
+        )
+
+        returns = self.EQUITY.pct_change().dropna()
+        aligned = pd.concat([returns, market_returns], axis=1).dropna()
+        aligned_returns = aligned.iloc[:, 0]
+        beta = metrics.beta
+        assert beta != 0.0
+
+        aligned_treynor = (
+            aligned_returns.mean() * self.PERIODS_PER_YEAR - self.RISK_FREE_RATE
+        ) / beta
+        assert metrics.treynor_ratio == pytest.approx(aligned_treynor)
+
+        unaligned_treynor = (returns.mean() * self.PERIODS_PER_YEAR - self.RISK_FREE_RATE) / beta
+        assert metrics.treynor_ratio != pytest.approx(unaligned_treynor)
