@@ -272,6 +272,34 @@ class TestRebalancer:
         with pytest.raises(ValueError, match="invalid frequency"):
             Rebalancer(self.portfolio, frequency="yearly")
 
+    def test_rebalancer_invalid_target_allocation_weight(self) -> None:
+        """Invalid target_allocation weight raises ValueError."""
+        with pytest.raises(ValueError, match="invalid target_allocation"):
+            Rebalancer(self.portfolio, target_allocation={"AAPL": float("nan")})
+        with pytest.raises(ValueError, match="invalid target_allocation"):
+            Rebalancer(self.portfolio, target_allocation={"AAPL": float("inf")})
+        with pytest.raises(ValueError, match="invalid target_allocation"):
+            Rebalancer(self.portfolio, target_allocation={"AAPL": float("-inf")})
+
+    def test_rebalancer_invalid_rebalance_threshold(self) -> None:
+        """Invalid rebalance_threshold raises ValueError."""
+        with pytest.raises(ValueError, match="invalid rebalance_threshold"):
+            Rebalancer(self.portfolio, rebalance_threshold=-0.1)
+        with pytest.raises(ValueError, match="invalid rebalance_threshold"):
+            Rebalancer(self.portfolio, rebalance_threshold=1.5)
+
+    def test_resolve_sell_quantity_uses_holding_price(self) -> None:
+        """_resolve_sell_quantity uses holding.current_price when price is None."""
+        self.portfolio.add_holding("AAPL", 100, 150.0)
+        self.portfolio.holdings["AAPL"].current_price = 155.0
+        qty = self.rebalancer._resolve_sell_quantity("AAPL", 1550.0, price=None)
+        assert qty == pytest.approx(10.0)
+
+    def test_set_target_allocation_zero_sum_raises(self) -> None:
+        """set_target_allocation raises ValueError when fractions sum to zero."""
+        with pytest.raises(ValueError, match="must not sum to zero"):
+            self.rebalancer.set_target_allocation({"AAPL": 0.0, "MSFT": 0.0})
+
     def test_should_rebalance_mutated_frequency_returns_false(self) -> None:
         """An unrecognized frequency (e.g. after attribute mutation) returns False.
 

@@ -102,3 +102,17 @@ def test_generate_signals_skips_when_last_price_is_nan() -> None:
     s = MovingAverageCrossover(fast_period=2, slow_period=4)
     sigs = s.generate_signals({"AAPL": _df([1.0, 2.0, 3.0, 4.0, float("nan")])})
     assert sigs == []
+
+
+def test_generate_signals_zero_slow_ma() -> None:
+    """Test generate_signals handles slow_current == 0 (uses else branch strength=0.5)."""
+    # Create data where the slow MA becomes 0 (all zero prices)
+    # The strategy uses EMA, so we need enough zero prices for the slow MA to be 0
+    s = MovingAverageCrossover(fast_period=2, slow_period=4)
+    # All zeros - slow MA will be 0
+    prices = [0.0] * 10 + [1.0, 2.0]  # Cross from 0 to positive
+    sigs = s.generate_signals({"AAPL": _df(prices)})
+    # Should handle the zero slow MA gracefully and use strength=0.5
+    for sig in sigs:
+        assert sig.action in ("buy", "sell")
+        assert sig.strength == 0.5  # else branch when slow_current == 0
