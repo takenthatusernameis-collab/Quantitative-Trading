@@ -638,6 +638,15 @@ class TestCalculateCalmarRatio:
         assert np.isfinite(calculate_calmar_ratio(returns, equity))
         assert calculate_calmar_ratio(returns, equity) == pytest.approx(91.035)
 
+    def test_calmar_no_seed_bar_when_first_aligned_at_position_zero(self) -> None:
+        # When the first aligned equity bar is already the first bar of the
+        # curve, pos == 0 and the seed-bar prepend branch is skipped.
+        idx = pd.date_range("2020-01-01", periods=5)
+        equity = pd.Series([100.0, 90.0, 80.0, 85.0, 82.0], index=idx)
+        returns = pd.Series([0.0, -0.1, -0.111, 0.0625, -0.0353], index=idx)
+        expected = (returns.mean() * 252) / abs(calculate_max_drawdown(equity))
+        assert calculate_calmar_ratio(returns, equity) == pytest.approx(expected)
+
 
 class TestRiskMetricsDataclass:
     """Tests for RiskMetrics container."""
