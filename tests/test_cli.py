@@ -4568,6 +4568,8 @@ class TestCombinedAnalysis:
         for rate in ("0.0", "0.05"):
             args = [
                 "--combined",
+                "--combined-strategies",
+                "ma,rsi,bb,macd",
                 "--offline",
                 "--monte-carlo",
                 "--mc-simulations",
@@ -4579,7 +4581,7 @@ class TestCombinedAnalysis:
                 "--symbols",
                 "AAPL",
                 "--days",
-                "60",
+                "30",
             ]
             with patch("sys.argv", ["cli.py"] + args):
                 result = main()
@@ -4606,6 +4608,8 @@ class TestCombinedAnalysis:
         for periods in ([], ["--periods-per-year", "52"]):
             args = [
                 "--combined",
+                "--combined-strategies",
+                "supertrend,donchian,aroon,keltner,stoch,sar,macd",
                 "--offline",
                 "--trade-analysis",
                 "--risk-free-rate",
@@ -4613,7 +4617,7 @@ class TestCombinedAnalysis:
                 "--symbols",
                 "AAPL",
                 "--days",
-                "90",
+                "150",
             ] + periods
             with patch("sys.argv", ["cli.py"] + args):
                 result = main()
