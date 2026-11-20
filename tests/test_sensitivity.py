@@ -309,6 +309,26 @@ class TestGenerateSensitivityReportHTML:
         assert "2D Sensitivity" not in html
         assert "Parameter Interactions" not in html
 
+    def test_generate_sensitivity_report_html_custom_score_key(self):
+        """A custom score_key does not crash report generation.
+
+        ``prepare_sensitivity_data`` always stores the score under the literal
+        column name ``"score"`` regardless of the caller's ``score_key``. The
+        report generator must therefore reference that column name (not
+        ``score_key``) for its DataFrame operations; otherwise a non-default
+        ``score_key`` raises ``KeyError`` and aborts the whole report.
+        """
+        all_results = [
+            {"params": {"fast_period": 5, "slow_period": 20}, "sharpe": 1.5},
+            {"params": {"fast_period": 10, "slow_period": 20}, "sharpe": 2.0},
+            {"params": {"fast_period": 5, "slow_period": 30}, "sharpe": 1.0},
+        ]
+        html = generate_sensitivity_report_html(all_results, score_key="sharpe")
+        assert "Summary Statistics" in html
+        assert "1D Sensitivity: fast_period" in html
+        assert "1D Sensitivity: slow_period" in html
+        assert "2D Sensitivity: fast_period vs slow_period" in html
+
     def test_generate_sensitivity_report_html_survives_chart_errors(self, monkeypatch):
         """A failing chart helper is skipped without aborting the report.
 

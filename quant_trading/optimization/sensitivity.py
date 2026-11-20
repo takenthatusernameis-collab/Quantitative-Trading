@@ -439,8 +439,13 @@ def generate_sensitivity_report_html(
     if df.empty:
         return "<html><body><h1>No data for sensitivity analysis</h1></body></html>"
 
+    # prepare_sensitivity_data always stores the score under the literal column
+    # name "score" regardless of the caller's score_key, so downstream
+    # operations must reference that column name rather than score_key.
+    score_col = "score"
+
     if param_names is None:
-        param_names = [c for c in df.columns if c != score_key]
+        param_names = [c for c in df.columns if c != score_col]
 
     # Document every analysis section the report covers, independent of whether
     # matplotlib is available to render a chart for it.
@@ -458,7 +463,7 @@ def generate_sensitivity_report_html(
         for param in param_names:
             try:
                 charts[f"1D Sensitivity: {param}"] = create_1d_sensitivity_plot(
-                    df, param, score_key, config
+                    df, param, score_col, config
                 )
             except (ValueError, KeyError, IndexError):
                 pass
@@ -466,14 +471,14 @@ def generate_sensitivity_report_html(
             for param_y in param_names[i + 1 :]:
                 try:
                     charts[f"2D Sensitivity: {param_x} vs {param_y}"] = (
-                        create_2d_sensitivity_heatmap(df, param_x, param_y, score_key, config)
+                        create_2d_sensitivity_heatmap(df, param_x, param_y, score_col, config)
                     )
                 except (ValueError, KeyError, IndexError):
                     pass
         if len(param_names) >= 2:
             try:
                 charts["Parameter Interactions"] = create_parameter_interaction_heatmap(
-                    df, param_names, score_key, config
+                    df, param_names, score_col, config
                 )
             except (ValueError, KeyError, IndexError):
                 pass
@@ -481,7 +486,7 @@ def generate_sensitivity_report_html(
     # Build summary table
     summary_rows = []
     for param in param_names:
-        grouped = df.groupby(param)[score_key].agg(["mean", "std", "min", "max"]).reset_index()
+        grouped = df.groupby(param)[score_col].agg(["mean", "std", "min", "max"]).reset_index()
         sensitivity_range = grouped["mean"].max() - grouped["mean"].min()
         summary_rows.append(
             {
