@@ -373,22 +373,18 @@ def _align_series(returns: pd.Series, market_returns: pd.Series) -> pd.DataFrame
         NaN rows dropped.
 
     """
-    # Positional fallback when index alignment is unsafe: duplicate index
-    # labels (or a cartesian expansion) would otherwise pair the wrong rows.
-    dup_returns = returns.index.duplicated().any()
-    dup_market = market_returns.index.duplicated().any()
-    if dup_returns or dup_market:
-        # Label alignment cannot be attempted at all here: pandas raises
-        # "cannot reindex on an axis with duplicate labels" when it has to
-        # reindex one side onto the other side's labels. Pair by position
-        # before that happens.
-        return pd.concat(
-            [returns.reset_index(drop=True), market_returns.reset_index(drop=True)],
-            axis=1,
-        ).dropna()
-    aligned: pd.DataFrame = pd.concat([returns, market_returns], axis=1, sort=False).dropna()
-    if len(aligned) > min(len(returns), len(market_returns)) or (
-        len(aligned) < 2 and len(returns) >= 2 and len(market_returns) >= 2
+    # Attempt label alignment first. Only fall back to positional alignment
+    # when label alignment would produce a cartesian expansion (more rows than
+    # either input) or insufficient overlap; duplicate labels alone do not
+    # force positional alignment when they do not cause such expansion.
+    try:
+        aligned: pd.DataFrame = pd.concat([returns, market_returns], axis=1, sort=False).dropna()
+    except ValueError:
+        aligned = pd.DataFrame()
+    if (
+        len(aligned) == 0
+        or len(aligned) > min(len(returns), len(market_returns))
+        or (len(aligned) < 2 and len(returns) >= 2 and len(market_returns) >= 2)
     ):
         aligned = pd.concat(
             [returns.reset_index(drop=True), market_returns.reset_index(drop=True)],
