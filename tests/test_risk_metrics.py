@@ -1201,5 +1201,29 @@ class TestCalculateAllMetricsExtended:
         )
 
 
+class TestAlignSeries:
+    """Tests for _align_series alignment and duplicate-index positional fallback."""
+
+    def test_duplicate_indices_both_series_positional_fallback(self) -> None:
+        # Both series carry duplicate labels; index alignment would produce a
+        # cartesian expansion (4 rows for label "a" + 1 for "b" = 5 rows),
+        # so _align_series must fall back to positional pairing by row.
+        returns = pd.Series([0.01, 0.02, 0.03], index=["a", "a", "b"])
+        market = pd.Series([0.10, 0.20, 0.30], index=["a", "a", "b"])
+        aligned = _align_series(returns, market)
+        expected = pd.DataFrame({0: [0.01, 0.02, 0.03], 1: [0.10, 0.20, 0.30]})
+        pd.testing.assert_frame_equal(aligned.reset_index(drop=True), expected)
+
+    def test_positional_fallback_pairs_by_position_not_label(self) -> None:
+        # Duplicate labels must not pair observations sharing a label across
+        # rows; each observation pairs with the one at the same position.
+        returns = pd.Series([1.0, 2.0, 3.0], index=["x", "x", "y"])
+        market = pd.Series([4.0, 5.0, 6.0], index=["x", "x", "y"])
+        aligned = _align_series(returns, market)
+        assert aligned.shape == (3, 2)
+        assert aligned.iloc[:, 0].tolist() == [1.0, 2.0, 3.0]
+        assert aligned.iloc[:, 1].tolist() == [4.0, 5.0, 6.0]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
