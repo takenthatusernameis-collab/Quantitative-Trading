@@ -590,6 +590,17 @@ class TestCalculateCalmarRatio:
         expected = (aligned_returns.mean() * 252) / abs(calculate_max_drawdown(aligned_equity))
         assert calculate_calmar_ratio(returns, equity) == pytest.approx(expected)
 
+    def test_calmar_drawdown_includes_bar_that_seeds_first_return(self) -> None:
+        """A global peak at the first bar must not be dropped from the drawdown."""
+        idx = pd.date_range("2020-01-01", periods=5)
+        equity = pd.Series([100.0, 90.0, 80.0, 85.0, 82.0], index=idx)
+        returns = calculate_returns(equity)
+        # Returns index starts at equity.index[1:], so the first bar is the peak.
+        assert calculate_max_drawdown(equity) == pytest.approx(-0.2)
+        assert calculate_max_drawdown(equity.iloc[1:]) == pytest.approx(-0.111111, abs=1e-5)
+        expected = (returns.mean() * 252) / abs(calculate_max_drawdown(equity))
+        assert calculate_calmar_ratio(returns, equity) == pytest.approx(expected)
+
     def test_calmar_falls_back_to_positional_when_indices_are_disjoint(self) -> None:
         """Disjoint indices fall back to positional pairing, mirroring _align_series."""
         returns = pd.Series([0.10, 0.20, -0.50], index=list("abc"))

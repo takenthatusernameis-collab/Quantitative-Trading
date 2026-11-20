@@ -373,7 +373,7 @@ def _align_series(returns: pd.Series, market_returns: pd.Series) -> pd.DataFrame
         NaN rows dropped.
 
     """
-    aligned: pd.DataFrame = pd.concat([returns, market_returns], axis=1).dropna()
+    aligned: pd.DataFrame = pd.concat([returns, market_returns], axis=1, sort=False).dropna()
     if len(aligned) < 2 and len(returns) >= 2 and len(market_returns) >= 2:
         aligned = pd.concat(
             [returns.reset_index(drop=True), market_returns.reset_index(drop=True)],
@@ -508,7 +508,7 @@ def calculate_calmar_ratio(
                 pos = int(np.asarray(pos).ravel()[0]) if np.asarray(pos).size else 0
             if pos > 0:
                 seed = equity_curve.iloc[[pos - 1]]
-                drawdown_equity = pd.concat([seed, aligned_equity])
+                drawdown_equity = pd.concat([seed, aligned_equity], sort=False)
         except (KeyError, TypeError, ValueError):
             pass
     max_dd = calculate_max_drawdown(drawdown_equity)
