@@ -43,13 +43,18 @@ _CODE_BLOCK = re.compile(r"```bash\n(?P<body>.*?)```", re.DOTALL)
 _COMMAND = re.compile(r"^(?:python\s+examples/cli\.py|quant-trading)(?P<args>.*)$")
 
 
-def _cli_section() -> str:
-    """Return the body of the README "Command Line Interface" section."""
+def _readme_section(title: str) -> str:
+    """Return the body of the README section with the given level-2 heading."""
     text = README_PATH.read_text(encoding="utf-8")
-    start = text.index("## Command Line Interface")
+    start = text.index("## " + title)
     remainder = text[start + 1 :]
     end = remainder.find("\n## ")
     return remainder if end == -1 else remainder[:end]
+
+
+def _cli_section() -> str:
+    """Return the body of the README "Command Line Interface" section."""
+    return _readme_section("Command Line Interface")
 
 
 def _module_available(name: str) -> bool:
@@ -80,20 +85,17 @@ def _requires_skopt(args: list[str]) -> bool:
     return False
 
 
-def _readme_commands() -> list[pytest.ParameterSet]:
-    """Extract the ``examples/cli.py`` argument lists documented in the README.
+def _commands_from_section(
+    section_text: str, params: list[pytest.ParameterSet], seen: set[tuple[str, ...]]
+) -> None:
+    """Append the CLI commands documented in a README section body to ``params``.
 
     Backslash-continued command lines are joined into a single command.
-    Comment lines (``# ...``) are ignored.
-
-    Commands that run every builtin strategy (``--combined``) are slow; they are
-    marked ``slow`` so they are deselected by default (``-m "not slow"``) and
-    excluded from the default coverage run, which otherwise exceeds the session
-    timeout on these long-running invocations.
+    Comment lines (``# ...``) are ignored. Commands already seen (by their
+    argument tuple) are skipped so the same invocation documented in two
+    sections does not produce duplicate parametrize ids.
     """
-    params: list[pytest.ParameterSet] = []
-    section = _cli_section()
-    for block in _CODE_BLOCK.finditer(section):
+    for block in _CODE_BLOCK.finditer(section_text):
         logical_lines: list[str] = []
         for raw_line in block.group("body").splitlines():
             line = raw_line.strip()
@@ -114,6 +116,9 @@ def _readme_commands() -> list[pytest.ParameterSet]:
             match = _COMMAND.match(line)
             if match:
                 args = match.group("args").strip().split()
+                key = tuple(args)
+                if key in seen:
+                    continue
                 # Commands that rely on the README pre-creating a broken config
                 # file (``cat /tmp/cfg.yaml`` / ``cat /tmp/broken.yaml``) cannot
                 # be reproduced by the harness, which writes a valid config in
@@ -124,6 +129,7 @@ def _readme_commands() -> list[pytest.ParameterSet]:
                     or ("--strategy-config" in args and "broken.yaml" in args)
                 ):
                     continue
+                seen.add(key)
                 test_id = " ".join(args)[:70]
                 marks = [pytest.mark.slow] if "--combined" in args else []
                 # Commands that need an optional extra are skipped (not failed)
@@ -144,6 +150,33 @@ def _readme_commands() -> list[pytest.ParameterSet]:
                         )
                     )
                 params.append(pytest.param(args, marks=marks, id=test_id))
+
+
+def _readme_commands() -> list[pytest.ParameterSet]:
+    """Extract the ``examples/cli.py`` argument lists documented in the README.
+
+    Commands are taken from the ``## Command Line Interface`` section and from
+    the later top-level sections that document runnable CLI invocations
+    (``## Market Regime Analysis``, ``## Monte Carlo Simulation``, ``## Trade
+    Analysis``, ``## Annualization Periods``), so every documented CLI command
+    is executed end-to-end rather than only the ones in the CLI section.
+
+    Commands that run every builtin strategy (``--combined``) are slow; they are
+    marked ``slow`` so they are deselected by default (``-m "not slow"``) and
+    excluded from the default coverage run, which otherwise exceeds the session
+    timeout on these long-running invocations.
+    """
+    params: list[pytest.ParameterSet] = []
+    seen: set[tuple[str, ...]] = set()
+    sections = [
+        "Command Line Interface",
+        "Market Regime Analysis",
+        "Monte Carlo Simulation",
+        "Trade Analysis",
+        "Annualization Periods",
+    ]
+    for section in sections:
+        _commands_from_section(_readme_section(section), params, seen)
     return params
 
 
