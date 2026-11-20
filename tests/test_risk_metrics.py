@@ -630,6 +630,16 @@ class TestCalculateCalmarRatio:
         assert calculate_calmar_ratio(returns, equity) == pytest.approx(106.75)
 
 
+    def test_calmar_duplicate_labels_get_loc_ndarray_seed_branch(self) -> None:
+        # Non-contiguous duplicate labels make get_loc return an ndarray whose
+        # first element is truthy (>0 after int conversion), exercising the
+        # seed-bar prepended branch (lines 521-522).
+        equity = pd.Series([100.0, 90.0, 80.0, 120.0], index=["a", "b", "a", "b"])
+        returns = pd.Series([0.0, -0.1, -0.111, 0.5], index=["a", "b", "a", "b"])
+        assert np.isfinite(calculate_calmar_ratio(returns, equity))
+        assert calculate_calmar_ratio(returns, equity) == pytest.approx(91.035)
+
+
 class TestRiskMetricsDataclass:
     """Tests for RiskMetrics container."""
 
