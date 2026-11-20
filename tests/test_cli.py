@@ -4633,6 +4633,23 @@ class TestCombinedAnalysis:
         assert "Analysis of the best strategy:" in outputs[0]
         assert _trade_sharpe(outputs[0]) != _trade_sharpe(outputs[1])
 
+    def test_main_combined_rejects_unknown_strategy(self, capsys: CaptureFixture[Any]) -> None:
+        """``--combined-strategies`` rejects a key that is not in the registry."""
+        args = [
+            "--combined",
+            "--combined-strategies",
+            "ma,not_a_real_strategy",
+            "--offline",
+            "--symbols",
+            "AAPL",
+            "--days",
+            "30",
+        ]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 1
+        assert "Unknown strategy: not_a_real_strategy" in capsys.readouterr().out
+
 
 class TestUnrealizedPnlReporting:
     """The CLI reports the realized and the unrealized PnL of the run.

@@ -704,7 +704,7 @@ def _create_parser() -> argparse.ArgumentParser:
         "--combined-strategies",
         type=str,
         default=None,
-        help="Comma-separated list of strategy keys to run in combined mode (default: all built-in strategies)",
+        help="Comma-separated list of strategy keys to run in combined mode; when omitted, all built-in strategies run",
     )
     parser.add_argument(
         "--output",
