@@ -355,15 +355,21 @@ def calculate_backtest_metrics(
 
         beta = calculate_beta(returns, market_returns)
         metrics.beta = beta
+        # The information ratio is active return divided by tracking error. It
+        # does not depend on beta, so it stays defined even when the portfolio
+        # is uncorrelated with the benchmark (beta == 0, for example a flat
+        # benchmark whose returns have no variance). Computing it outside the
+        # beta guard keeps this function consistent with
+        # ``quant_trading.risk.metrics.calculate_all_metrics``.
+        metrics.information_ratio = calculate_information_ratio(
+            returns, market_returns, periods_per_year=periods_per_year
+        )
         if beta != 0:
             metrics.alpha = calculate_alpha(
                 returns, market_returns, risk_free_rate, periods_per_year=periods_per_year
             )
             metrics.treynor_ratio = calculate_treynor_ratio(
                 returns, market_returns, risk_free_rate, periods_per_year=periods_per_year
-            )
-            metrics.information_ratio = calculate_information_ratio(
-                returns, market_returns, periods_per_year=periods_per_year
             )
 
     # Trade statistics

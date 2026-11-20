@@ -12,6 +12,11 @@ import pytest
 
 from quant_trading.backtest.engine import BacktestResult
 from quant_trading.backtest.metrics import BacktestMetrics, calculate_backtest_metrics
+from quant_trading.risk.metrics import (
+    calculate_all_metrics,
+    calculate_information_ratio,
+    calculate_returns,
+)
 
 
 def _result(metrics: Any) -> BacktestResult:
@@ -498,19 +503,50 @@ class TestBacktestMetricsNewRiskMetrics:
         assert metrics.treynor_ratio != 0.0
         assert metrics.information_ratio != 0.0
 
-    def test_market_relative_metrics_zero_beta_skips_derived_metrics(self) -> None:
-        """When market_returns are provided but beta is zero, alpha/treynor/info stay at defaults.
+    def test_market_relative_metrics_zero_beta_keeps_information_ratio(self) -> None:
+        """A zero beta is undefined for alpha/Treynor but not for the information ratio.
 
-        Covers the ``if beta != 0:`` branch in calculate_backtest_metrics (metrics.py:353).
+        Alpha and the Treynor ratio divide by beta, so they stay at their
+        defaults when beta is zero. The information ratio is active return
+        divided by tracking error and does not depend on beta, so it must still
+        be reported. This also keeps the figure consistent with
+        ``quant_trading.risk.metrics.calculate_all_metrics``.
         """
         market_returns = pd.Series([0.01, 0.015, -0.005, 0.012, -0.003, 0.008, 0.01])
         with patch("quant_trading.risk.metrics.calculate_beta", return_value=0.0):
             metrics = calculate_backtest_metrics(self.EQUITY, market_returns=market_returns)
 
+        expected_info_ratio = calculate_information_ratio(
+            calculate_returns(self.EQUITY), market_returns
+        )
         assert metrics.beta == 0.0
         assert metrics.alpha == 0.0
         assert metrics.treynor_ratio == 0.0
-        assert metrics.information_ratio == 0.0
+        assert metrics.information_ratio == pytest.approx(expected_info_ratio)
+        assert metrics.information_ratio != 0.0
+
+    def test_information_ratio_matches_calculate_all_metrics_with_flat_benchmark(self) -> None:
+        """A flat benchmark (zero variance, so beta is zero) still has an information ratio.
+
+        ``calculate_beta`` reports 0.0 when the benchmark returns have no
+        variance. Active return and tracking error are still defined, so the
+        engine-level metrics must agree with ``calculate_all_metrics`` and not
+        silently drop the information ratio.
+        """
+        equity = pd.Series(
+            [100.0, 102.0, 101.0, 104.0, 103.0, 106.0, 108.0],
+            index=pd.date_range("2024-01-01", periods=7, freq="D"),
+        )
+        market_returns = pd.Series(
+            [0.005] * 7, index=pd.date_range("2024-01-01", periods=7, freq="D")
+        )
+
+        backtest = calculate_backtest_metrics(equity, market_returns=market_returns)
+        risk = calculate_all_metrics(equity, market_returns=market_returns)
+
+        assert backtest.beta == 0.0
+        assert risk.information_ratio != 0.0
+        assert backtest.information_ratio == pytest.approx(risk.information_ratio)
 
     def test_market_relative_metrics_zero_when_no_market_returns(self) -> None:
         """Test that market-relative metrics remain zero when market_returns not provided."""

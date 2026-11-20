@@ -2765,6 +2765,26 @@ class TestBenchmarkRelativeMetrics:
         assert metrics.treynor_ratio == metrics.treynor_ratio
         assert metrics.information_ratio == metrics.information_ratio
 
+    def test_flat_benchmark_keeps_a_nonzero_information_ratio(self) -> None:
+        """A zero beta from a flat benchmark must not drop the information ratio.
+
+        A benchmark whose price never moves has constant returns, so
+        ``calculate_beta`` reports ``0.0``. Alpha and the Treynor ratio divide
+        by beta and correctly stay at their defaults, but the information ratio
+        is active return divided by tracking error and remains defined, so the
+        engine must still report it (matching
+        ``quant_trading.risk.metrics.calculate_all_metrics``).
+        """
+        data = {
+            "TEST": _price_frame([50.0, 55.0, 60.5, 66.55]),
+            "BENCH": _price_frame([100.0, 100.0, 100.0, 100.0]),
+        }
+        result = self._run(data, ["TEST"], "BENCH", [("buy", 1.0)])
+
+        metrics = result.metrics
+        assert metrics.beta == 0.0
+        assert metrics.information_ratio != 0.0
+
     def test_no_benchmark_leaves_the_market_relative_metrics_at_zero(self) -> None:
         """Without a benchmark the market-relative metrics stay at their defaults."""
         data = {"TEST": _price_frame([50.0, 55.0, 60.5, 66.55])}
