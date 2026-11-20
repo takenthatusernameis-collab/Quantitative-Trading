@@ -2813,6 +2813,37 @@ class TestMaxDrawdownNonPositivePeak:
         assert metrics.max_drawdown_pct == pytest.approx(expected * 100)
 
 
+class TestMaxDrawdownPositivePeak:
+    """``calculate_max_drawdown`` must report a defined non-zero value for a
+    normal positive-peak equity curve.
+
+    The engine feeds its equity curve to ``calculate_max_drawdown`` through
+    ``calculate_backtest_metrics`` (quant_trading/backtest/engine.py:929).
+    When the running peak is strictly positive, drawdowns are defined and the
+    max drawdown is finite, non-NaN, strictly negative (< 0, because the curve
+    dips below its peak), and equals a direct call to
+    quant_trading/risk/metrics.py:calculate_max_drawdown.
+    """
+
+    @staticmethod
+    def _metrics(equity_curve: pd.Series):
+        return calculate_backtest_metrics(equity_curve)
+
+    def test_positive_peak_reports_finite_negative_max_drawdown_matching_direct_call(
+        self,
+    ) -> None:
+        """A normal equity curve with a positive peak reports Max Drawdown < 0."""
+        equity_curve = pd.Series([100.0, 110.0, 105.0, 90.0, 95.0])
+        metrics = self._metrics(equity_curve)
+        expected = calculate_max_drawdown(equity_curve)
+        assert np.isfinite(expected)
+        assert not np.isnan(expected)
+        assert expected < 0.0
+        assert metrics.max_drawdown == pytest.approx(expected)
+        assert metrics.max_drawdown < 0.0
+        assert metrics.max_drawdown_pct == pytest.approx(expected * 100)
+
+
 class TestUlcerIndexNonPositivePeak:
     """``calculate_ulcer_index`` must stay finite for non-positive peaks.
 
