@@ -373,8 +373,17 @@ def _align_series(returns: pd.Series, market_returns: pd.Series) -> pd.DataFrame
         NaN rows dropped.
 
     """
+    # Positional fallback when index alignment is unsafe: duplicate index
+    # labels (or a cartesian expansion) would otherwise pair the wrong rows.
+    dup_returns = returns.index.duplicated().any()
+    dup_market = market_returns.index.duplicated().any()
     aligned: pd.DataFrame = pd.concat([returns, market_returns], axis=1, sort=False).dropna()
-    if len(aligned) < 2 and len(returns) >= 2 and len(market_returns) >= 2:
+    if (
+        dup_returns
+        or dup_market
+        or len(aligned) > min(len(returns), len(market_returns))
+        or (len(aligned) < 2 and len(returns) >= 2 and len(market_returns) >= 2)
+    ):
         aligned = pd.concat(
             [returns.reset_index(drop=True), market_returns.reset_index(drop=True)],
             axis=1,
@@ -510,7 +519,7 @@ def calculate_calmar_ratio(
                 seed = equity_curve.iloc[[pos - 1]]
                 drawdown_equity = pd.concat([seed, aligned_equity], sort=False)
         except (KeyError, TypeError, ValueError):
-            pass
+            drawdown_equity = equity_curve
     max_dd = calculate_max_drawdown(drawdown_equity)
     if max_dd == 0:
         return 0.0
