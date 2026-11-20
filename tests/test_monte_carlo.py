@@ -23,7 +23,7 @@ def _make_equity_curve(n: int = 60, seed: int = 0) -> pd.Series:
     returns = rng.normal(loc=0.0008, scale=0.01, size=n - 1)
     equity = 100_000.0 * np.cumprod(1 + returns)
     equity = np.concatenate([[100_000.0], equity])
-    return pd.Series(equity)
+    return pd.Series(equity)  # type: ignore[no-any-return]
 
 
 def _make_result(equity: pd.Series | None = None) -> BacktestResult:

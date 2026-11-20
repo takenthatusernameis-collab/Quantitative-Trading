@@ -40,7 +40,7 @@ def _make_equity(n: int = 80, trend: float = 0.001, vol: float = 0.01, seed: int
     equity = 100_000.0 * np.cumprod(1 + returns)
     equity = np.concatenate([[100_000.0], equity])
     dates = pd.date_range("2024-01-01", periods=n, freq="D")
-    return pd.Series(equity, index=dates)
+    return pd.Series(equity, index=dates)  # type: ignore[no-any-return]
 
 
 def test_analyze_regimes_returns_backtest_regime_analysis() -> None:

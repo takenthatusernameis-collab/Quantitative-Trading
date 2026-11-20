@@ -20,7 +20,7 @@ def _make_series(n: int = 100, trend: float = 0.0, vol: float = 0.01, seed: int 
     prices = 100.0 * np.cumprod(1 + returns)
     prices = np.concatenate([[100.0], prices])
     dates = pd.date_range("2024-01-01", periods=n, freq="D")
-    return pd.Series(prices, index=dates)
+    return pd.Series(prices, index=dates)  # type: ignore[no-any-return]
 
 
 def test_regime_detector_defaults() -> None:

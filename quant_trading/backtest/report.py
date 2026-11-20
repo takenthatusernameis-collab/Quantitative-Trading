@@ -160,7 +160,7 @@ def _create_equity_curve_chart(result: BacktestResult, colors: dict[str, str], d
     equity = result.equity_curve
     ax.plot(
         equity.index,
-        equity.values,
+        equity.to_numpy(dtype=float),
         color=colors["neutral"],
         linewidth=1.5,
         label="Equity Curve",
@@ -245,7 +245,7 @@ def _create_drawdown_chart(result: BacktestResult, colors: dict[str, str], dpi: 
 
     ax.fill_between(
         drawdown.index,
-        drawdown.values,
+        drawdown.to_numpy(dtype=float),
         0,
         color=colors["negative"],
         alpha=0.3,
@@ -253,7 +253,7 @@ def _create_drawdown_chart(result: BacktestResult, colors: dict[str, str], dpi: 
     )
     ax.plot(
         drawdown.index,
-        drawdown.values,
+        drawdown.to_numpy(dtype=float),
         color=colors["negative"],
         linewidth=1,
     )
@@ -348,7 +348,7 @@ def _create_monthly_returns_heatmap(
     ax.set_facecolor(colors["bg"])
 
     im = ax.imshow(
-        pivot.values,
+        pivot.to_numpy(dtype=float),
         cmap="RdYlGn",
         aspect="auto",
         vmin=-max(abs(pivot.min().min()), abs(pivot.max().max())),
@@ -513,7 +513,7 @@ def _create_rolling_sharpe_chart(result: BacktestResult, colors: dict[str, str],
 
     ax.plot(
         rolling_sharpe.index,
-        rolling_sharpe.values,
+        rolling_sharpe.to_numpy(dtype=float),
         color=colors["accent"],
         linewidth=1,
         label="Rolling Sharpe (60)",
@@ -584,7 +584,7 @@ def _create_rolling_volatility_chart(
 
     ax.plot(
         rolling_vol.index,
-        rolling_vol.values,
+        rolling_vol.to_numpy(dtype=float),
         color=colors["neutral"],
         linewidth=1,
         label="Rolling Vol (60)",
@@ -1113,7 +1113,7 @@ def _create_comparison_equity_chart(
             color = palette[i % len(palette)]
             ax.plot(
                 equity.index,
-                equity.values,
+                equity.to_numpy(dtype=float),
                 color=color,
                 linewidth=1.5,
                 label=name,
@@ -1161,7 +1161,7 @@ def _create_comparison_drawdown_chart(
             drawdown = _drawdown_series(equity)
             ax.plot(
                 drawdown.index,
-                drawdown.values,
+                drawdown.to_numpy(dtype=float),
                 color=color,
                 linewidth=1,
                 label=name,
@@ -1273,7 +1273,7 @@ def _create_comparison_monthly_returns_heatmap(
         vmax = max(abs(pivot.min().min()), abs(pivot.max().max())) if not pivot.empty else 1
 
         im = ax.imshow(
-            pivot.values,
+            pivot.to_numpy(dtype=float),
             cmap="RdYlGn",
             aspect="auto",
             vmin=vmin,
@@ -1453,7 +1453,7 @@ def _create_comparison_rolling_sharpe_chart(
         color = palette[i % len(palette)]
         ax.plot(
             rolling_sharpe.index,
-            rolling_sharpe.values,
+            rolling_sharpe.to_numpy(dtype=float),
             color=color,
             linewidth=1,
             label=name,
@@ -1538,7 +1538,7 @@ def _create_comparison_rolling_volatility_chart(
         color = palette[i % len(palette)]
         ax.plot(
             rolling_vol.index,
-            rolling_vol.values,
+            rolling_vol.to_numpy(dtype=float),
             color=color,
             linewidth=1,
             label=name,
