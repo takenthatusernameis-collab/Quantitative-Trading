@@ -2959,6 +2959,59 @@ class TestCalmarRatioPositivePeak:
         assert metrics.calmar_ratio > 0.0
 
 
+class TestCalmarRatioNonPositivePeak:
+    """``calculate_calmar_ratio`` must stay finite for non-positive peaks.
+
+    The engine feeds its equity curve and returns to
+    ``calculate_calmar_ratio`` through ``calculate_backtest_metrics``
+    (quant_trading/backtest/engine.py:929), which derives ``returns`` via
+    ``calculate_returns`` (quant_trading/backtest/metrics.py:329). When the
+    running peak is never strictly positive (an all-zero or all-negative equity
+    curve) the max drawdown is 0, so the Calmar ratio is reported as 0.0
+    instead of NaN/inf, and the engine's reported ``calmar_ratio`` must match a
+    direct call to quant_trading/risk/metrics.py:calculate_calmar_ratio.
+    """
+
+    @staticmethod
+    def _metrics(equity_curve: pd.Series):
+        return calculate_backtest_metrics(equity_curve)
+
+    def test_zero_peak_reports_finite_calmar_matching_direct_call(self) -> None:
+        """An equity curve whose running peak is zero stays finite."""
+        equity_curve = pd.Series([0.0, -5.0, -10.0])
+        metrics = self._metrics(equity_curve)
+        returns = calculate_returns(equity_curve)
+        expected = calculate_calmar_ratio(returns, equity_curve)
+        assert np.isfinite(expected)
+        assert not np.isnan(expected)
+        assert expected == 0.0
+        assert metrics.calmar_ratio == pytest.approx(expected)
+
+    def test_negative_peak_reports_finite_calmar_matching_direct_call(self) -> None:
+        """An equity curve whose running peak is negative stays finite."""
+        equity_curve = pd.Series([-5.0, -10.0, -3.0])
+        metrics = self._metrics(equity_curve)
+        returns = calculate_returns(equity_curve)
+        expected = calculate_calmar_ratio(returns, equity_curve)
+        assert np.isfinite(expected)
+        assert not np.isnan(expected)
+        assert expected == 0.0
+        assert metrics.calmar_ratio == pytest.approx(expected)
+
+    def test_zero_start_then_recovery_reports_finite_calmar_matching_direct_call(
+        self,
+    ) -> None:
+        """An equity curve starting at zero and recovering stays finite."""
+        equity_curve = pd.Series([0.0, -5.0, 10.0])
+        metrics = self._metrics(equity_curve)
+        returns = calculate_returns(equity_curve)
+        expected = calculate_calmar_ratio(returns, equity_curve)
+        assert np.isfinite(expected)
+        assert not np.isnan(expected)
+        assert expected == 0.0
+        assert metrics.calmar_ratio == pytest.approx(expected)
+
+
 class TestBenchmarkRelativeMetrics:
     """The engine wires a benchmark's returns into the market-relative metrics.
 
