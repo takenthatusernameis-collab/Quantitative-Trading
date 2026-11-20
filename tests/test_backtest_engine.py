@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -2758,6 +2759,57 @@ class TestDrawdownIncludesFirstEquityBar:
         assert result.metrics.alpha == pytest.approx(exp_alpha)
         assert result.metrics.treynor_ratio == pytest.approx(exp_treynor)
         assert result.metrics.information_ratio == pytest.approx(exp_info)
+
+
+class TestMaxDrawdownNonPositivePeak:
+    """``calculate_max_drawdown`` must stay finite for non-positive peaks.
+
+    The engine feeds its equity curve to ``calculate_max_drawdown`` through
+    ``calculate_backtest_metrics`` (quant_trading/backtest/engine.py:929).
+    When the running peak is never strictly positive (an all-zero or
+    all-negative equity curve) the drawdown ratio is undefined, so the
+    function must report neutral 0.0 instead of NaN/inf, and the engine's
+    reported ``max_drawdown`` must match a direct call to
+    quant_trading/risk/metrics.py:calculate_max_drawdown.
+    """
+
+    @staticmethod
+    def _metrics(equity_curve: pd.Series):
+        return calculate_backtest_metrics(equity_curve)
+
+    def test_zero_peak_reports_finite_drawdown_matching_direct_call(self) -> None:
+        """An equity curve whose running peak is zero stays finite."""
+        equity_curve = pd.Series([0.0, -5.0, -10.0, -7.0])
+        metrics = self._metrics(equity_curve)
+        expected = calculate_max_drawdown(equity_curve)
+        assert np.isfinite(expected)
+        assert not np.isnan(expected)
+        assert expected == 0.0
+        assert metrics.max_drawdown == pytest.approx(expected)
+        assert metrics.max_drawdown_pct == pytest.approx(expected * 100)
+
+    def test_negative_peak_reports_finite_drawdown_matching_direct_call(self) -> None:
+        """An equity curve whose running peak is negative stays finite."""
+        equity_curve = pd.Series([-5.0, -10.0, -3.0])
+        metrics = self._metrics(equity_curve)
+        expected = calculate_max_drawdown(equity_curve)
+        assert np.isfinite(expected)
+        assert not np.isnan(expected)
+        assert expected == 0.0
+        assert metrics.max_drawdown == pytest.approx(expected)
+        assert metrics.max_drawdown_pct == pytest.approx(expected * 100)
+
+    def test_zero_start_then_recovery_reports_finite_drawdown_matching_direct_call(
+        self,
+    ) -> None:
+        """An equity curve starting at zero and recovering stays finite."""
+        equity_curve = pd.Series([0.0, -5.0, 10.0])
+        metrics = self._metrics(equity_curve)
+        expected = calculate_max_drawdown(equity_curve)
+        assert np.isfinite(expected)
+        assert not np.isnan(expected)
+        assert metrics.max_drawdown == pytest.approx(expected)
+        assert metrics.max_drawdown_pct == pytest.approx(expected * 100)
 
 
 class TestBenchmarkRelativeMetrics:

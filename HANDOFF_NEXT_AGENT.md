@@ -1,25 +1,29 @@
 ## Status
 
-**_align_series duplicate-index (both series) unit test added and verified.**
+**calculate_max_drawdown zero/negative-peak engine-level regression test added and verified.**
 
-The assigned task — add a unit test in `tests/test_risk_metrics.py` directly exercising `_align_series` with duplicate indices in both input series to verify the positional fallback triggers and produces the expected paired frame — is complete.
+The assigned task — add an engine-level regression test in `tests/test_backtest_engine.py` covering `calculate_max_drawdown` zero/negative-peak semantics — is complete.
 
 ## What changed
 
-- `tests/test_risk_metrics.py`: Added `TestAlignSeries` class with two tests:
-  - `test_duplicate_indices_both_series_positional_fallback`: both series carry duplicate labels ("a","a","b"); index alignment would cartesian-expand (5 rows), so `_align_series` must fall back to positional pairing. Asserts the paired frame equals `[[0.01,0.10],[0.02,0.20],[0.03,0.30]]`.
-  - `test_positional_fallback_pairs_by_position_not_label`: verifies duplicate labels do not pair observations sharing a label across rows; each observation pairs with the one at the same position.
-- No production behaviour change; `_align_series` logic untouched.
+- `tests/test_backtest_engine.py`:
+  - Added `import numpy as np`.
+  - Added `TestMaxDrawdownNonPositivePeak` class with three tests:
+    - `test_zero_peak_reports_finite_drawdown_matching_direct_call`: equity `[0.0, -5.0, -10.0, -7.0]` (running peak zero) reports finite, non-NaN drawdown equal to a direct `calculate_max_drawdown` call.
+    - `test_negative_peak_reports_finite_drawdown_matching_direct_call`: equity `[-5.0, -10.0, -3.0]` (running peak negative) reports finite, non-NaN drawdown equal to the direct call.
+    - `test_zero_start_then_recovery_reports_finite_drawdown_matching_direct_call`: equity `[0.0, -5.0, 10.0]` reports finite, non-NaN drawdown equal to the direct call.
+  - Each test drives the engine's metrics path via `calculate_backtest_metrics` (the same call the engine makes at `quant_trading/backtest/engine.py:929`) and asserts `max_drawdown`/`max_drawdown_pct` match `quant_trading/risk/metrics.py:calculate_max_drawdown` directly.
+- No production behaviour change; `_align_series`/`calculate_max_drawdown` logic untouched.
 
 ## What was verified
 
-- `tests/test_risk_metrics.py tests/test_risk_attribution.py tests/test_backtest_engine.py tests/test_backtest_metrics.py tests/test_repository_integrity.py` → 414 passed (412 original + 2 new).
-- `black --check`, `ruff check`, `mypy` clean.
+- `tests/test_risk_metrics.py tests/test_risk_attribution.py tests/test_backtest_engine.py tests/test_backtest_metrics.py tests/test_repository_integrity.py` → 417 passed (414 original + 3 new).
+- `black --check`, `ruff check`, `mypy` clean on `tests/test_backtest_engine.py`.
 
 ## Unresolved
 
-- `calculate_max_drawdown` zero/negative-peak semantics untested at engine level (pre-existing).
+- None from the prior assignment.
 
 ## One precise next task
 
-Add an engine-level regression test in `tests/test_backtest_engine.py` covering `calculate_max_drawdown` zero/negative-peak semantics (e.g. an equity curve whose peak is zero or negative, verifying drawdown does not produce NaN/inf and matches `quant_trading/risk/metrics.py:calculate_max_drawdown` directly). Re-run the five test files + black/ruff/mypy. Do not touch workflows.
+Add an engine-level regression test in `tests/test_backtest_engine.py` covering `calculate_ulcer_index` zero/negative-peak semantics (e.g. equity curves `[0.0, -5.0, -10.0]`, `[-5.0, -10.0, -3.0]`, `[0.0, -5.0, 10.0]`), verifying the Ulcer Index does not produce NaN/inf and matches `quant_trading/risk/metrics.py:calculate_ulcer_index` directly, driven through `calculate_backtest_metrics` (the engine's path at `quant_trading/backtest/engine.py:929`). Mirror the `TestMaxDrawdownNonPositivePeak` structure just added. Re-run the five test files + black/ruff/mypy. Do not touch workflows.
