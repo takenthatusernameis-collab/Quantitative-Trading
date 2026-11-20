@@ -2711,6 +2711,54 @@ class TestDrawdownIncludesFirstEquityBar:
             calculate_returns(equity).mean() * 252 / abs(calculate_max_drawdown(equity))
         )
 
+    def test_duplicate_first_bar_market_relative_metrics_use_align_series(
+        self,
+    ) -> None:
+        """On a duplicate-first-bar run, beta/alpha/treynor/information_ratio
+        must match the values computed by _align_series.
+
+        The engine aligns benchmark returns to unique equity dates (see
+        _benchmark_returns). The portfolio returns come from the equity curve.
+        _align_series aligns these two series (index alignment in this case,
+        since neither has duplicate indices). The engine's market-relative
+        metrics must equal the metrics computed from that _align_series frame.
+        """
+        from quant_trading.risk.metrics import _align_series
+
+        data = {
+            "TEST": _price_frame([100.0, 90.0, 80.0, 70.0]),
+            "BENCH": _price_frame([100.0, 95.0, 90.0, 85.0]),
+        }
+        result, _ = _run_script([("buy", 1.0)], data, benchmark="BENCH")
+        equity = result.equity_curve
+
+        assert equity.index.duplicated().any()
+
+        # Equity returns from the equity curve (with duplicate timestamp).
+        equity_returns = calculate_returns(equity)
+
+        # Benchmark returns aligned to unique equity dates (replicates
+        # _benchmark_returns logic).
+        unique_equity_dates = equity.index.drop_duplicates()
+        bench_close_aligned = data["BENCH"]["close"].reindex(unique_equity_dates, method="ffill")
+        bench_returns = bench_close_aligned.pct_change().dropna()
+
+        # _align_series aligns the two series. In this case it uses index
+        # alignment because neither series has duplicate indices.
+        aligned = _align_series(equity_returns, bench_returns)
+
+        # Compute expected metrics from the _align_series frame.
+        exp_beta = calculate_beta(aligned.iloc[:, 0], aligned.iloc[:, 1])
+        exp_alpha = calculate_alpha(aligned.iloc[:, 0], aligned.iloc[:, 1])
+        exp_treynor = calculate_treynor_ratio(aligned.iloc[:, 0], aligned.iloc[:, 1])
+        exp_info = calculate_information_ratio(aligned.iloc[:, 0], aligned.iloc[:, 1])
+
+        # Engine metrics must match the _align_series-based values.
+        assert result.metrics.beta == pytest.approx(exp_beta)
+        assert result.metrics.alpha == pytest.approx(exp_alpha)
+        assert result.metrics.treynor_ratio == pytest.approx(exp_treynor)
+        assert result.metrics.information_ratio == pytest.approx(exp_info)
+
 
 class TestBenchmarkRelativeMetrics:
     """The engine wires a benchmark's returns into the market-relative metrics.
