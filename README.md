@@ -205,11 +205,12 @@ pytest -v
 # Linting
 ruff check .
 
-# Type checking
-mypy quant_trading/
+# Type checking (quant_trading/ is the library; examples/ ships the
+# ``quant-trading`` console entry point, so both are type-checked)
+mypy quant_trading/ examples/
 
 # Formatting
-black quant_trading/
+black quant_trading/ examples/
 ```
 
 ## Command Line Interface
