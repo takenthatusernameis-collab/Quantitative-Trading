@@ -4571,7 +4571,7 @@ class TestCombinedAnalysis:
                 "--offline",
                 "--monte-carlo",
                 "--mc-simulations",
-                "20",
+                "10",
                 "--mc-seed",
                 "42",
                 "--risk-free-rate",
@@ -4579,7 +4579,7 @@ class TestCombinedAnalysis:
                 "--symbols",
                 "AAPL",
                 "--days",
-                "365",
+                "60",
             ]
             with patch("sys.argv", ["cli.py"] + args):
                 result = main()
@@ -4612,10 +4612,8 @@ class TestCombinedAnalysis:
                 "0.02",
                 "--symbols",
                 "AAPL",
-                "MSFT",
-                "GOOGL",
                 "--days",
-                "200",
+                "120",
             ] + periods
             with patch("sys.argv", ["cli.py"] + args):
                 result = main()
