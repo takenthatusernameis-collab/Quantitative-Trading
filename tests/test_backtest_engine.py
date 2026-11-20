@@ -2863,6 +2863,36 @@ class TestUlcerIndexNonPositivePeak:
         assert metrics.ulcer_index == pytest.approx(expected)
 
 
+class TestUlcerIndexPositivePeak:
+    """``calculate_ulcer_index`` must report a defined non-zero value for a
+    normal positive-peak equity curve.
+
+    The engine feeds its equity curve to ``calculate_ulcer_index`` through
+    ``calculate_backtest_metrics`` (quant_trading/backtest/engine.py:929).
+    When the running peak is strictly positive, drawdowns are defined and the
+    Ulcer Index is finite, non-NaN, strictly positive (because the curve dips
+    below its peak), and equals a direct call to
+    quant_trading/risk/metrics.py:calculate_ulcer_index.
+    """
+
+    @staticmethod
+    def _metrics(equity_curve: pd.Series):
+        return calculate_backtest_metrics(equity_curve)
+
+    def test_positive_peak_reports_finite_positive_ulcer_index_matching_direct_call(
+        self,
+    ) -> None:
+        """A normal equity curve with a positive peak reports Ulcer Index > 0."""
+        equity_curve = pd.Series([100.0, 110.0, 105.0, 90.0, 95.0])
+        metrics = self._metrics(equity_curve)
+        expected = calculate_ulcer_index(equity_curve)
+        assert np.isfinite(expected)
+        assert not np.isnan(expected)
+        assert expected > 0.0
+        assert metrics.ulcer_index == pytest.approx(expected)
+        assert metrics.ulcer_index > 0.0
+
+
 class TestBenchmarkRelativeMetrics:
     """The engine wires a benchmark's returns into the market-relative metrics.
 
