@@ -1,6 +1,6 @@
 ## Status
 
-**This session's task complete:** Executed the prior handoff's "one precise next task" — installed the dev extras (`pip install -e ".[dev]"`, providing `matplotlib>=3.7.0` and `scikit-optimize>=0.10.0`) and re-ran the focused suite plus all quality gates. Both previously-environmentally-blocked modules are now fully covered, so no new tests were required.
+**This session's task complete:** Raised `quant_trading/strategies/examples.py` and `quant_trading/portfolio/rebalancer.py` to **100% test coverage** by adding focused regression tests for their last uncovered lines, then verified the full suite and all quality gates.
 
 **Prior session's task complete:** Fixed a real defect in `quant_trading/optimization/sensitivity.py` (custom `score_key` KeyError) and added a regression test.
 
@@ -8,25 +8,38 @@
 
 ## What changed
 
-Nothing in the repository. The working tree is clean (`git status` reports no changes). The only action taken this session was the dependency install, which populated the previously-missing optional dependencies so the existing test suite could exercise the matplotlib/skopt code paths.
+- `tests/test_strategies_examples.py`: added `TestRelativeVigorIndexStrategy.test_generate_signals_skips_when_rvi_and_signal_are_nan` — zero price range (`high == low`) makes the RVI denominator NaN, exercising the NaN guard at `quant_trading/strategies/examples.py:8580`.
+- `tests/test_rebalancer.py`: imported `_RebalancePlan` and added `TestRebalancePlan` (4 tests) covering `_RebalancePlan.to_dict`/`from_dict` and their defaults at `quant_trading/portfolio/rebalancer.py:317, 347-348`.
+
+No source files were modified — only additive tests.
 
 ## What was verified
 
-- `pip install -e ".[dev]"` → succeeded; `matplotlib 3.11.2` and `scikit-optimize 0.10.2` (with scipy 1.18.1, scikit-learn 1.9.1) now importable.
-- Focused suite `test_sensitivity + test_optimization + test_backtest_analysis + test_monte_carlo + test_regime + test_backtest_report` → 494 passed, 0 failed.
-  - `quant_trading/backtest/report.py` → **100%** coverage (was ~440 missed statements when matplotlib was absent; now 0 missed, 0 branch partials).
-  - `quant_trading/optimization/bayesian.py` → **100%** coverage (was 35% / 67 missed statements when `skopt` was absent; now 0 missed, 0 branch partials).
-- Full suite `python -m pytest -q` → **4234 passed, 151 deselected** in ~333s.
+- `python -m pytest -q` full suite → **4239 passed, 151 deselected** (was 4234; +5 new tests), ~327s, 0 failed.
+- Focused rebalancer + strategy tests → 657 passed.
+- Coverage:
+  - `quant_trading/strategies/examples.py` → **100%** (0 missed statements, 0 branch partials; was 99% / line 8580).
+  - `quant_trading/portfolio/rebalancer.py` → **100%** (0 missed; was 99% / lines 317, 347-348).
 - `python -m black --check .` → 166 files unchanged.
-- `python -m ruff check .` → All checks passed.
+- `python -m ruff check .` → all checks passed.
 - `python -m mypy quant_trading/` → no issues in 39 source files.
 
 ## Unresolved
 
-None. The remaining lower-coverage modules (`quant_trading/data/yfinance_provider.py` at 8%, `quant_trading/strategies/examples.py` at 12%, `quant_trading/portfolio/rebalancer.py` at 12%, etc.) are outside the scope of the handoff task and are not environmental blockers — they are simply not exercised by the existing test suite. No defects were found in any of them during the full-suite run.
+None for the two targeted modules. Remaining lower-coverage modules (e.g. `quant_trading/data/yfinance_provider.py`, network-dependent) are outside this session's scope — they are not exercised by the existing offline test suite and no defects were found during the full-suite run.
+
+## Approaches that failed (do not repeat unchanged)
+
+- `python -m coverage run --source=quant_trading.portfolio.rebalancer ...` (and any `--source` filter) fails at collection with `ImportError: cannot load module more than once per process` (numpy 2.5.5 under coverage on Python 3.14). **Workaround that works:** run coverage without `--source` (`python -m coverage run -m pytest ...`), then `python -m coverage report --include=<module> -m`. Use this for any future coverage work.
 
 ## One precise next task
 
-No further task. The handoff's stated objective — attempt the dev install and close the matplotlib/skopt coverage gaps — is fully achieved and the repo is green across all four gates (tests, black, ruff, mypy). If a future session wants to raise overall coverage, the highest-value bounded targets are the strategy examples in `quant_trading/strategies/examples.py` (already has per-strategy test files in `tests/test_strategy_*.py`) and the rebalancer, not the report/bayesian modules which are now at 100%.
+Run package-wide coverage to find the next-lowest-coverage module in `quant_trading/` and add targeted tests for it:
+
+1. `python -m coverage run -m pytest -q` (no `--source` — see workaround above)
+2. `python -m coverage report --include="quant_trading/" -m` and pick the module with the lowest coverage that has an existing offline test file (prefer `quant_trading/data/yfinance_provider.py` only if network/mocking is feasible; otherwise the next pure-offline module).
+3. Add the fewest tests needed to cover its missing lines, then re-run black/ruff/mypy and the full suite.
+
+Constraint: keep changes additive (tests only), preserve the green baseline (4239 passed), and do not weaken any safety/gate checks.
 
 (End of file)

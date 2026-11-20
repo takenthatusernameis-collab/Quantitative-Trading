@@ -8921,7 +8921,29 @@ class TestRelativeVigorIndexStrategy:
                 "open": [100.0] * 20,
                 "high": [101.0] * 20,
                 "low": [99.0] * 20,
-                "close": [100.0] * 20,
+                "        close": [100.0] * 20,
+            },
+            index=dates,
+        )
+        assert strategy.generate_signals({"AAPL": df}) == []
+
+    def test_generate_signals_skips_when_rvi_and_signal_are_nan(self) -> None:
+        """A zero price range makes the RVI denominator NaN, so line 8580 skips.
+
+        When ``high == low`` for at least ``period`` bars, ``den_sma`` is zero,
+        ``denominator`` becomes NaN, and ``rvi`` is NaN. The NaN guard at
+        quant_trading/strategies/examples.py:8580 then skips the symbol instead
+        of propagating NaN into a signal.
+        """
+        strategy = RelativeVigorIndexStrategy(period=4)
+        dates = pd.date_range("2023-01-01", periods=10, freq="D")
+        df = pd.DataFrame(
+            {
+                "open": [100.0] * 10,
+                "high": [100.0] * 10,
+                "low": [100.0] * 10,
+                "close": [100.0] * 10,
+                "volume": [1000] * 10,
             },
             index=dates,
         )

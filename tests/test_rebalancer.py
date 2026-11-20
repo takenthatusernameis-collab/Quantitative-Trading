@@ -5,7 +5,11 @@ from datetime import datetime
 import pytest
 
 from quant_trading.portfolio.portfolio import Portfolio
-from quant_trading.portfolio.rebalancer import RebalanceAction, Rebalancer
+from quant_trading.portfolio.rebalancer import (
+    RebalanceAction,
+    Rebalancer,
+    _RebalancePlan,
+)
 from quant_trading.strategies.base import Signal
 
 
@@ -25,6 +29,36 @@ class TestRebalanceAction:
         assert action.quantity == 10.0
         assert action.reason == "target_allocation"
         assert action.timestamp is not None
+
+
+class TestRebalancePlan:
+    """Tests for the private _RebalancePlan batch-state helper."""
+
+    def test_to_dict(self) -> None:
+        plan = _RebalancePlan(cash=10000.0, fee_rate=0.001)
+        d = plan.to_dict()
+        assert d["cash"] == 10000.0
+        assert d["fee_rate"] == 0.001
+        assert d["positions"] == {}
+
+    def test_to_dict_with_positions(self) -> None:
+        plan = _RebalancePlan(cash=5000.0, fee_rate=0.002, positions={"AAPL": 10.0, "MSFT": 5.0})
+        d = plan.to_dict()
+        assert d["cash"] == 5000.0
+        assert d["fee_rate"] == 0.002
+        assert d["positions"] == {"AAPL": 10.0, "MSFT": 5.0}
+
+    def test_from_dict(self) -> None:
+        restored = _RebalancePlan.from_dict({"cash": 10000.0, "positions": {"AAPL": 5.0}})
+        assert restored.cash == 10000.0
+        assert restored.fee_rate == 0.0
+        assert restored.positions == {"AAPL": 5.0}
+
+    def test_from_dict_defaults(self) -> None:
+        restored = _RebalancePlan.from_dict({})
+        assert restored.cash == 0.0
+        assert restored.fee_rate == 0.0
+        assert restored.positions == {}
 
 
 class TestRebalancer:
