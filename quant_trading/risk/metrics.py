@@ -706,7 +706,11 @@ def calculate_marginal_var(
     observations). This is the standard historical simulation approach and
     naturally satisfies the Euler decomposition:
     Component VaR_i = weight_i * Marginal VaR_i
-    Sum of Component VaRs = Portfolio VaR
+    Sum of Component VaRs = Portfolio CVaR (Expected Shortfall)
+
+    Because the tail statistic is a mean rather than a quantile, the
+    component sum reproduces the portfolio expected shortfall (CVaR), not the
+    quantile-based ``calculate_var``.
 
     Args:
         returns: DataFrame of asset returns (columns = assets, rows = periods).
@@ -725,9 +729,9 @@ def calculate_marginal_var(
         ...     "B": np.random.normal(0.001, 0.02, 100),
         ... })
         >>> weights = pd.Series([0.5, 0.5], index=["A", "B"])
-    >>> mvar = calculate_marginal_var(returns, weights, confidence=0.95)
-    >>> len(mvar) == 2
-    True
+        >>> mvar = calculate_marginal_var(returns, weights, confidence=0.95)
+        >>> len(mvar) == 2
+        True
 
     """
     returns = returns.dropna()
@@ -762,8 +766,10 @@ def calculate_component_var(
 ) -> pd.Series:
     """Calculate component VaR for each position using historical simulation.
 
-    Component VaR = weight * Marginal VaR. The sum of component VaRs equals
-    the total portfolio VaR exactly (Euler's theorem for homogeneous functions).
+    Component VaR = weight * Marginal VaR. Because the marginal statistics are
+    tail means, the component VaRs sum to the portfolio Expected Shortfall
+    (CVaR) exactly (Euler's theorem for homogeneous functions), not to the
+    quantile-based ``calculate_var``.
 
     Args:
         returns: DataFrame of asset returns (columns = assets, rows = periods).

@@ -119,7 +119,7 @@ class TestComponentVaR:
         assert cvar.index.tolist() == ["A", "B"]
         assert np.isfinite(cvar.values).all()
 
-    def test_component_var_sums_to_portfolio_var(self) -> None:
+    def test_component_var_sums_to_portfolio_cvar(self) -> None:
         np.random.seed(42)
         returns = pd.DataFrame(
             {
