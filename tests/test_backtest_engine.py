@@ -28,7 +28,11 @@ from quant_trading.data.providers import DataManager, DataProvider, FetchResult,
 from quant_trading.data.synthetic import create_synthetic_data
 from quant_trading.portfolio.portfolio import Holding
 from quant_trading.risk.manager import RiskManager
-from quant_trading.risk.metrics import calculate_max_drawdown, calculate_returns
+from quant_trading.risk.metrics import (
+    calculate_calmar_ratio,
+    calculate_max_drawdown,
+    calculate_returns,
+)
 from quant_trading.strategies.base import Signal, Strategy
 from quant_trading.strategies.examples import MovingAverageCrossover
 
@@ -2678,6 +2682,28 @@ class TestDrawdownIncludesFirstEquityBar:
         # Guard against the Calmar denominator silently reverting to the
         # first-bar-dropped drawdown.
         assert result.metrics.calmar_ratio != pytest.approx(annual_return / abs(dropped_drawdown))
+
+    def test_duplicate_first_bar_does_not_double_count_return(self) -> None:
+        """A run that starts on the first data date must not duplicate the return.
+
+        When a backtest begins on the first data bar, ``equity_curve`` carries
+        two rows at that timestamp (initial capital, then the post-trade mark),
+        so the returns series has a duplicate index label. ``_align_series``
+        must fall back to positional alignment in that case rather than
+        producing a cartesian 2x1 match that inflates the numerator over a
+        duplicated return (quant_trading/risk/metrics.py:_align_series).
+        """
+        data = {"TEST": _price_frame([100.0, 90.0, 80.0, 70.0])}
+        result, _ = _run_script([("buy", 1.0)], data)
+        equity = result.equity_curve
+
+        assert equity.index.duplicated().any()
+        returns = calculate_returns(equity)
+        expected = calculate_calmar_ratio(returns, equity)
+        assert result.metrics.calmar_ratio == pytest.approx(expected)
+        assert result.metrics.calmar_ratio == pytest.approx(
+            calculate_returns(equity).mean() * 252 / abs(calculate_max_drawdown(equity))
+        )
 
 
 class TestBenchmarkRelativeMetrics:
