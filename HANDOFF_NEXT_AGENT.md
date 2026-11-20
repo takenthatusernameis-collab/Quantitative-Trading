@@ -1,60 +1,57 @@
 ## Status
 
-**Calmar drawdown-understatement line of work is now closed.**
+**Calmar/drawdown "first bar is the peak" invariant is now covered end-to-end.**
 
-The previous handoff's assigned fix (seed the drawdown sample with the equity
-bar preceding the first aligned return) was already present in
-`quant_trading/risk/metrics.py:501-517` but had **no regression test**. This
-session added that test, verified the fix, and removed the two pandas
-`FutureWarning`s (deprecated default `sort` in `pd.concat`) that the fix and
-`_align_series` were emitting.
+The previous handoff's assigned task — an engine-level regression proving
+`BacktestResult.metrics.max_drawdown` and `.calmar_ratio` use the full equity
+curve rather than `curve.iloc[1:]` — is implemented and passing.
 
 ## What changed
 
-- `tests/test_risk_metrics.py`
-  - New `TestCalculateCalmarRatio.test_calmar_drawdown_includes_bar_that_seeds_first_return`
-    using the handoff repro:
-    ```
-    idx = pd.date_range("2020-01-01", periods=5)
-    equity = pd.Series([100.0, 90.0, 80.0, 85.0, 82.0], index=idx)
-    calculate_max_drawdown(equity)                 # -0.2
-    calculate_max_drawdown(equity.iloc[1:])        # -0.1111...
-    calculate_calmar_ratio(calculate_returns(equity), equity)
-    ```
-    Asserts both the true drawdown and that Calmar uses the `-0.2` denominator
-    (old understated value was `-0.111`).
-- `quant_trading/risk/metrics.py`
-  - `_align_series`: `pd.concat(..., sort=False)` (was warning on DatetimeIndex).
-  - `calculate_calmar_ratio`: `pd.concat([seed, aligned_equity], sort=False)`.
-  - `black` reflow of the new concat call only.
-
-Behaviour is unchanged: `dropna()` already removed non-overlapping rows, so
-the aligned sample is the same; the flag just makes that explicit and silences
-`Pandas4Warning`.
+- `tests/test_backtest_engine.py`
+  - New `TestDrawdownIncludesFirstEquityBar`:
+    - `_run_declining` buys on the first data bar via a full-size `RiskConfig`
+      and holds while prices fall `[100, 90, 80, 70]`. It starts the run one
+      day before the data so the initial-capital equity bar has a unique
+      timestamp instead of duplicating the first data bar.
+    - `test_first_bar_peak_counts_in_max_drawdown_and_calmar` asserts:
+      `equity.iloc[0] == equity.max()`,
+      `calculate_max_drawdown(equity) < calculate_max_drawdown(equity.iloc[1:])`,
+      `metrics.max_drawdown == calculate_max_drawdown(equity)`,
+      `result.max_drawdown == calculate_max_drawdown(equity)`, and
+      `metrics.calmar_ratio == annual_return / abs(full_drawdown)`.
+      It also asserts the ratio is **not** the first-bar-dropped value.
+  - Imported `calculate_max_drawdown` / `calculate_returns` from
+    `quant_trading.risk.metrics` (ruff-sorted).
+- No production code changed.
 
 ## What was verified (this session)
 
-- `test_calmar_drawdown_includes_bar_that_seeds_first_return` passes on the
-  current code and fails if the seed bar is dropped (checked against
-  `calculate_max_drawdown(equity.iloc[1:]) == -0.1111`).
-- `python -W error::FutureWarning -m pytest tests/test_risk_metrics.py
-  tests/test_risk_attribution.py tests/test_risk_manager.py
-  tests/test_backtest_metrics.py tests/test_backtest_engine.py
-  tests/test_optimization.py tests/test_repository_integrity.py
-  --doctest-modules quant_trading/risk/metrics.py -q -p no:randomly`
-  -> **892 passed in 40.65s**.
+- New test passes: `pytest tests/test_backtest_engine.py::TestDrawdownIncludesFirstEquityBar`.
+- Negative control: temporarily deleting the seed block in
+  `quant_trading/risk/metrics.py` (`calculate_calmar_ratio`) makes the new
+  test fail with `-70.8978 == -70.6510 ± 7.1e-05` (dropped-bar denominator).
+  `metrics.py` was restored with `git checkout --`, working tree only has the
+  test change.
+- `python -W error::FutureWarning -m pytest tests/test_backtest_metrics.py
+  tests/test_backtest_engine.py tests/test_risk_metrics.py
+  tests/test_repository_integrity.py -q -p no:randomly` -> **363 passed**.
 - `python -m black --check`, `python -m ruff check`,
-  `python -m mypy quant_trading/risk/metrics.py` -> clean.
-- End-to-end path checked by reading code: `quant_trading/backtest/metrics.py:342`
-  calls `calculate_calmar_ratio(returns, equity_curve)`, so backtest Calmar now
-  also counts a first-bar peak.
+  `python -m mypy tests/test_backtest_engine.py` -> clean.
 
 ## Unresolved / confirmed
 
-- None known in this area. `calculate_max_drawdown` "no positive peak" and
-  zero-drawdown semantics were left untouched.
-- Prior handoff note still stands: the ~80s CLI test premise was wrong; do not
-  reopen it.
+- **Duplicate-timestamp equity curves are mishandled by Calmar.**
+  When a backtest starts on the first data date (the default `_run_script`
+  path), `equity_curve` has two rows at that timestamp (initial capital, then
+  post-trade mark). `_align_series` (`pd.concat(axis=1)`) then produces a
+  cartesian 2x1 match for that label, so the aligned frame has 5 rows from 4
+  returns, and the Calmar numerator is computed over a duplicated return.
+  Repro: `_run_script([("buy", 1.0)], {"TEST": _price_frame([100.0, 90.0, 80.0, 70.0])})`
+  gives `calmar = -51.1684` while `calculate_returns(eq).mean()*252/abs(calculate_max_drawdown(eq))`
+  is `-63.6471`. This affects every metric routed through `_align_series`
+  (beta/alpha/Treynor/information ratio too).
+- `calculate_max_drawdown` zero/negative-peak semantics were left untouched.
 
 ## Gotchas (do not repeat)
 
@@ -66,23 +63,29 @@ the aligned sample is the same; the flag just makes that explicit and silences
 - Any function with an `Examples:` section needs at least one parseable `>>>`
   line or `test_repository_integrity.py::test_documented_examples_are_valid`
   fails.
+- New imports must be ruff/I001-sorted before `test_repository_integrity.py`
+  passes.
 
 ## One precise next task
 
-Broaden the "first bar is the global peak" invariant beyond the unit test: add
-an engine-level regression in `tests/test_backtest_engine.py` that builds a
-small synthetic equity curve whose first bar is the maximum and asserts that
-`BacktestResult.metrics.max_drawdown` and `.calmar_ratio` reflect that peak
-(i.e. drawdown computed over the full curve, not `curve.iloc[1:]`).
+Make return-to-equity alignment robust to duplicate timestamps. In
+`quant_trading/risk/metrics.py::_align_series`, detect when either series has
+duplicate index labels (or when index alignment expands the row count beyond
+`min(len(returns), len(equity))`) and fall back to positional alignment —
+because the engine derives returns positionally from the curve, so label
+matching over duplicated bars is wrong. Add a regression in
+`tests/test_risk_metrics.py` (or `test_backtest_engine.py` for the engine path)
+asserting the `_run_script` duplicate-first-bar run above yields
+`calculate_calmar_ratio(...) == pytest.approx(calculate_returns(eq).mean()*252 / abs(calculate_max_drawdown(eq)))`.
 
 Constraints/evidence:
 
-- Follow existing synthetic-run helpers in `tests/test_backtest_engine.py`;
-  do not add new dependencies.
-- Expected invariant: `metrics.max_drawdown == calculate_max_drawdown(full_curve)`
-  and Calmar denominator equals `abs(max_drawdown)`, not the first-bar-dropped
-  drawdown.
-- Re-run `tests/test_backtest_metrics.py tests/test_backtest_engine.py
-  tests/test_risk_metrics.py tests/test_repository_integrity.py` plus
-  `python -m black --check` / `ruff` / `mypy` on touched files.
+- Keep the existing behaviour for unique indexes (index alignment preferred,
+  positional fallback only when overlap < 2).
+- Preserve the seeded-drawdown logic added previously; do not remove the
+  first-bar peak handling.
+- Verify for both `_align_series`-based metrics and the engine run; re-run
+  `tests/test_risk_metrics.py tests/test_risk_attribution.py
+  tests/test_backtest_engine.py tests/test_backtest_metrics.py
+  tests/test_repository_integrity.py` plus black/ruff/mypy.
 - Do not touch workflow files.

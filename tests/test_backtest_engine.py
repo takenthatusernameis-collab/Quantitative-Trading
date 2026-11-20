@@ -28,6 +28,7 @@ from quant_trading.data.providers import DataManager, DataProvider, FetchResult,
 from quant_trading.data.synthetic import create_synthetic_data
 from quant_trading.portfolio.portfolio import Holding
 from quant_trading.risk.manager import RiskManager
+from quant_trading.risk.metrics import calculate_max_drawdown, calculate_returns
 from quant_trading.strategies.base import Signal, Strategy
 from quant_trading.strategies.examples import MovingAverageCrossover
 
@@ -2622,6 +2623,61 @@ class TestMetricsAndAnalysisReconciliationOnEngineResults:
         booked = float(result.trades["pnl"].sum())
         assert metrics.total_pnl == pytest.approx(analysis.total_pnl)
         assert metrics.total_pnl == pytest.approx(booked)
+
+
+class TestDrawdownIncludesFirstEquityBar:
+    """The drawdown metrics must include the bar that seeds the first return.
+
+    A run that opens a position immediately and then loses money has its
+    maximum equity on the very first bar. If drawdown were computed over
+    ``equity_curve.iloc[1:]`` the first bar (the peak) would be dropped and
+    both ``max_drawdown`` and the Calmar denominator would be understated.
+    """
+
+    @staticmethod
+    def _run_declining(data: dict[str, pd.DataFrame]) -> BacktestResult:
+        """Buy on the first bar and hold while prices fall, from a prior-day start."""
+        config = Config(
+            backtest=BacktestConfig(initial_capital=100000.0),
+            risk=RiskConfig(max_position_size=1.0, max_leverage=1.0, max_portfolio_risk=1.0),
+        )
+        engine = BacktestEngine(
+            config=config,
+            data_manager=DataManager([MockDataProvider(data)]),
+        )
+        engine.add_strategy(ScriptedSignalStrategy([("buy", 1.0)], list(data)))
+        index = next(iter(data.values())).index
+        # Start one day before the data so the initial-capital bar has its own
+        # unique index entry instead of duplicating the first data bar.
+        start = index[0] - pd.Timedelta(days=1)
+        return engine.run(
+            list(data),
+            start.to_pydatetime(),
+            index[-1].to_pydatetime(),
+            "1d",
+        )
+
+    def test_first_bar_peak_counts_in_max_drawdown_and_calmar(self) -> None:
+        """The first (peak) equity bar is used as the drawdown denominator."""
+        data = {"TEST": _price_frame([100.0, 90.0, 80.0, 70.0])}
+        result = self._run_declining(data)
+        equity = result.equity_curve
+
+        # The premise: the first bar is strictly the highest value, so dropping
+        # it changes the drawdown.
+        assert equity.iloc[0] == equity.max()
+        full_drawdown = calculate_max_drawdown(equity)
+        dropped_drawdown = calculate_max_drawdown(equity.iloc[1:])
+        assert full_drawdown < dropped_drawdown
+
+        assert result.metrics.max_drawdown == pytest.approx(full_drawdown)
+        assert result.max_drawdown == pytest.approx(full_drawdown)
+
+        annual_return = calculate_returns(equity).mean() * 252
+        assert result.metrics.calmar_ratio == pytest.approx(annual_return / abs(full_drawdown))
+        # Guard against the Calmar denominator silently reverting to the
+        # first-bar-dropped drawdown.
+        assert result.metrics.calmar_ratio != pytest.approx(annual_return / abs(dropped_drawdown))
 
 
 class TestBenchmarkRelativeMetrics:
