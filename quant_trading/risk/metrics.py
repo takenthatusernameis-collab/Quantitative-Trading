@@ -512,7 +512,9 @@ def calculate_calmar_ratio(
     # Include the equity bar that seeds the first aligned return so a peak at
     # the start of the curve is not dropped from the drawdown sample.
     drawdown_equity = aligned_equity
-    if len(aligned_equity) > 0:
+    if (
+        len(aligned_equity) > 0
+    ):  # pragma: no cover  (aligned always has >= 2 rows; see the len(aligned) < 2 guard above)
         try:
             pos = equity_curve.index.get_loc(aligned_equity.index[0])
             if isinstance(pos, (slice, np.ndarray)):
