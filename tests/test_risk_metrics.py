@@ -613,6 +613,12 @@ class TestCalculateCalmarRatio:
         equity = pd.Series([100.0], index=["a"])
         assert calculate_calmar_ratio(returns, equity) == pytest.approx(0.0)
 
+    def test_calmar_duplicate_equity_labels_get_loc_branch(self) -> None:
+        equity = pd.Series([100.0, 90.0, 80.0, 120.0], index=["a", "a", "b", "b"])
+        returns = calculate_returns(equity)
+        assert np.isfinite(calculate_calmar_ratio(returns, equity))
+        assert calculate_calmar_ratio(returns, equity) == pytest.approx(121.3333333333333)
+
 
 class TestRiskMetricsDataclass:
     """Tests for RiskMetrics container."""
@@ -1017,6 +1023,11 @@ class TestCalculateInformationRatio:
         daily = calculate_information_ratio(RETURNS, MARKET_RETURNS)
         monthly = calculate_information_ratio(RETURNS, MARKET_RETURNS, periods_per_year=12)
         assert monthly == pytest.approx(daily * np.sqrt(12 / 252))
+
+    def test_information_ratio_duplicate_labels_finite(self) -> None:
+        returns = pd.Series([0.01, 0.02, 0.03, 0.04], index=["a", "b", "b", "c"])
+        benchmark = pd.Series([0.01, 0.02, 0.03, 0.04], index=["a", "a", "b", "c"])
+        assert np.isfinite(calculate_information_ratio(returns, benchmark))
 
 
 class TestCalculateCVaR:
