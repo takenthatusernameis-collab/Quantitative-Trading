@@ -6092,6 +6092,7 @@ class TestCliHelpers:
             mc_confidence=0.90,
             mc_method="parametric",
             mc_seed=7,
+            mc_jobs=1,
         )
 
         mc = _get_monte_carlo_analysis(result, args, periods_per_year=252, risk_free_rate=0.02)
@@ -6176,6 +6177,7 @@ class TestCliHelpers:
             mc_confidence=0.90,
             mc_method="parametric",
             mc_seed=7,
+            mc_jobs=1,
         )
 
         class _LockedMC:

@@ -818,6 +818,12 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Monte Carlo random seed (default: nondeterministic)",
     )
     parser.add_argument(
+        "--mc-jobs",
+        type=int,
+        default=1,
+        help="Number of parallel worker processes for Monte Carlo. Set to -1 to use all CPUs (default: 1)",
+    )
+    parser.add_argument(
         "--trade-analysis",
         action="store_true",
         help="Run detailed trade-level analysis",
@@ -2375,6 +2381,7 @@ def _get_monte_carlo_analysis(
         random_state=args.mc_seed,
         periods_per_year=periods_per_year,
         risk_free_rate=risk_free_rate,
+        n_jobs=args.mc_jobs,
     )
     # Store method for printing
     try:

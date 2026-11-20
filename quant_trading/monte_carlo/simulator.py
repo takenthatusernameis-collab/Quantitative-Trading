@@ -38,6 +38,8 @@ True
 
 """
 
+import os
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -47,6 +49,126 @@ import pandas as pd
 
 from quant_trading.backtest.engine import BacktestResult
 from quant_trading.backtest.metrics import BacktestMetrics
+
+
+def _bootstrap_worker(
+    returns: np.ndarray,
+    initial_capital: float,
+    risk_free_rate: float,
+    periods_per_year: int,
+    n_simulations: int,
+    seed: int,
+) -> list[BacktestMetrics]:
+    """Run bootstrap simulations in a worker process.
+
+    This function must remain at module level so it can be pickled and sent to
+    a :class:`concurrent.futures.ProcessPoolExecutor` worker.
+
+    Args:
+        returns: Historical daily returns to resample.
+        initial_capital: Starting capital for each simulated curve.
+        risk_free_rate: Annual risk-free rate for Sharpe/Sortino metrics.
+        periods_per_year: Trading periods per year for annualization.
+        n_simulations: Number of simulations to run in this worker.
+        seed: Random seed for this worker's RNG.
+
+    Returns:
+        List of :class:`BacktestMetrics`, one per simulation.
+
+    Examples:
+        >>> import numpy as np
+        >>> returns = np.array([0.001, -0.002, 0.003, 0.001])
+        >>> metrics = _bootstrap_worker(returns, 100000.0, 0.02, 252, 5, 42)
+        >>> len(metrics)
+        5
+        >>> all(isinstance(m, BacktestMetrics) for m in metrics)
+        True
+
+    """
+    from quant_trading.backtest.metrics import calculate_backtest_metrics
+
+    rng = np.random.default_rng(seed)
+    n_days = len(returns)
+    simulations = []
+
+    for _ in range(n_simulations):
+        # Resample returns with replacement
+        sim_returns = rng.choice(returns, size=n_days, replace=True)
+
+        # Build equity curve
+        equity = np.concatenate([[initial_capital], initial_capital * np.cumprod(1 + sim_returns)])
+        equity_series = pd.Series(equity)
+
+        # Calculate metrics
+        metrics = calculate_backtest_metrics(
+            equity_series,
+            risk_free_rate=risk_free_rate,
+            periods_per_year=periods_per_year,
+        )
+        simulations.append(metrics)
+
+    return simulations
+
+
+def _parametric_worker(
+    returns: np.ndarray,
+    initial_capital: float,
+    risk_free_rate: float,
+    periods_per_year: int,
+    n_simulations: int,
+    seed: int,
+) -> list[BacktestMetrics]:
+    """Run parametric simulations in a worker process.
+
+    This function must remain at module level so it can be pickled and sent to
+    a :class:`concurrent.futures.ProcessPoolExecutor` worker.
+
+    Args:
+        returns: Historical daily returns used to fit the distribution.
+        initial_capital: Starting capital for each simulated curve.
+        risk_free_rate: Annual risk-free rate for Sharpe/Sortino metrics.
+        periods_per_year: Trading periods per year for annualization.
+        n_simulations: Number of simulations to run in this worker.
+        seed: Random seed for this worker's RNG.
+
+    Returns:
+        List of :class:`BacktestMetrics`, one per simulation.
+
+    Examples:
+        >>> import numpy as np
+        >>> returns = np.array([0.001, -0.002, 0.003, 0.001])
+        >>> metrics = _parametric_worker(returns, 100000.0, 0.02, 252, 5, 42)
+        >>> len(metrics)
+        5
+        >>> all(isinstance(m, BacktestMetrics) for m in metrics)
+        True
+
+    """
+    from quant_trading.backtest.metrics import calculate_backtest_metrics
+
+    rng = np.random.default_rng(seed)
+    mean_return = np.mean(returns)
+    std_return = np.std(returns)
+    n_days = len(returns)
+    simulations = []
+
+    for _ in range(n_simulations):
+        # Sample from normal distribution
+        sim_returns = rng.normal(mean_return, std_return, n_days)
+
+        # Build equity curve
+        equity = np.concatenate([[initial_capital], initial_capital * np.cumprod(1 + sim_returns)])
+        equity_series = pd.Series(equity)
+
+        # Calculate metrics
+        metrics = calculate_backtest_metrics(
+            equity_series,
+            risk_free_rate=risk_free_rate,
+            periods_per_year=periods_per_year,
+        )
+        simulations.append(metrics)
+
+    return simulations
 
 
 @dataclass
@@ -353,12 +475,16 @@ class MonteCarloSimulator:
     * ``"bootstrap"`` - non-parametric resampling with replacement.
     * ``"parametric"`` - sampling from a fitted normal distribution.
 
+    Execution is sequential by default; set ``n_jobs > 1`` to parallelize across
+    worker processes.
+
     Attributes:
         n_simulations: Number of alternative equity curves to generate.
         confidence_level: Confidence level used for intervals (0-1).
         random_state: Seed for reproducible simulation runs.
         risk_free_rate: Annual risk-free rate used for the simulated
             Sharpe/Sortino metrics (default 0.02).
+        n_jobs: Number of parallel worker processes (default 1).
         _rng: Internal numpy random generator.
 
     Examples:
@@ -368,6 +494,8 @@ class MonteCarloSimulator:
         10
         >>> sim.confidence_level
         0.95
+        >>> sim.n_jobs
+        1
 
     """
 
@@ -378,6 +506,7 @@ class MonteCarloSimulator:
         random_state: int | None = None,
         periods_per_year: int = 252,
         risk_free_rate: float = 0.02,
+        n_jobs: int = 1,
     ) -> None:
         """Initialize the Monte Carlo simulator.
 
@@ -390,6 +519,8 @@ class MonteCarloSimulator:
                 for daily data).
             risk_free_rate: Annual risk-free rate used for the simulated
                 Sharpe/Sortino metrics (default 0.02).
+            n_jobs: Number of parallel worker processes. Set to -1 to use all
+                available CPUs. Default is 1 (sequential execution).
 
         """
         self.n_simulations = n_simulations
@@ -397,6 +528,10 @@ class MonteCarloSimulator:
         self.random_state = random_state
         self.periods_per_year = periods_per_year
         self.risk_free_rate = risk_free_rate
+        if n_jobs == -1:
+            n_jobs = os.cpu_count() or 1
+        n_jobs = max(n_jobs, 1)
+        self.n_jobs = n_jobs
         self._rng = np.random.default_rng(random_state)
 
         # Validate the simulator configuration. Invalid values do not raise here
@@ -473,9 +608,17 @@ class MonteCarloSimulator:
         original_metrics = result.metrics
 
         if method == "bootstrap":
-            simulations = self._run_bootstrap(returns, result.initial_capital, original_metrics)
+            if self.n_jobs > 1:
+                simulations = self._run_bootstrap_parallel(returns, result.initial_capital)
+            else:
+                simulations = self._run_bootstrap(returns, result.initial_capital, original_metrics)
         elif method == "parametric":
-            simulations = self._run_parametric(returns, result.initial_capital, original_metrics)
+            if self.n_jobs > 1:
+                simulations = self._run_parametric_parallel(returns, result.initial_capital)
+            else:
+                simulations = self._run_parametric(
+                    returns, result.initial_capital, original_metrics
+                )
         else:
             raise ValueError(f"Unknown method: {method}")
 
@@ -602,6 +745,106 @@ class MonteCarloSimulator:
 
         return simulations
 
+    def _run_bootstrap_parallel(
+        self,
+        returns: np.ndarray,
+        initial_capital: float,
+    ) -> list[BacktestMetrics]:
+        """Run bootstrap resampling simulations in parallel.
+
+        Distributes the simulations across worker processes using
+        :class:`concurrent.futures.ProcessPoolExecutor`.
+
+        Args:
+            returns: Historical daily returns to resample.
+            initial_capital: Starting capital for each simulated curve.
+
+        Returns:
+            List of :class:`BacktestMetrics`, one per simulation.
+
+        """
+        n_workers = self.n_jobs
+        simulations_per_worker = self.n_simulations // n_workers
+        remainder = self.n_simulations % n_workers
+
+        # Generate seeds for each worker to ensure reproducibility
+        base_seed = self.random_state if self.random_state is not None else 0
+        worker_seeds = [base_seed + i * 10000 for i in range(n_workers)]
+
+        all_simulations = []
+
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            futures = []
+            for i in range(n_workers):
+                n_sim = simulations_per_worker + (1 if i < remainder else 0)
+                if n_sim > 0:
+                    future = executor.submit(
+                        _bootstrap_worker,
+                        returns,
+                        initial_capital,
+                        self.risk_free_rate,
+                        self.periods_per_year,
+                        n_sim,
+                        worker_seeds[i],
+                    )
+                    futures.append(future)
+
+            # Collect results in submission order to ensure reproducibility
+            for future in futures:
+                all_simulations.extend(future.result())
+
+        return all_simulations
+
+    def _run_parametric_parallel(
+        self,
+        returns: np.ndarray,
+        initial_capital: float,
+    ) -> list[BacktestMetrics]:
+        """Run parametric simulations in parallel.
+
+        Distributes the simulations across worker processes using
+        :class:`concurrent.futures.ProcessPoolExecutor`.
+
+        Args:
+            returns: Historical daily returns used to fit the distribution.
+            initial_capital: Starting capital for each simulated curve.
+
+        Returns:
+            List of :class:`BacktestMetrics`, one per simulation.
+
+        """
+        n_workers = self.n_jobs
+        simulations_per_worker = self.n_simulations // n_workers
+        remainder = self.n_simulations % n_workers
+
+        # Generate seeds for each worker to ensure reproducibility
+        base_seed = self.random_state if self.random_state is not None else 0
+        worker_seeds = [base_seed + i * 10000 for i in range(n_workers)]
+
+        all_simulations = []
+
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            futures = []
+            for i in range(n_workers):
+                n_sim = simulations_per_worker + (1 if i < remainder else 0)
+                if n_sim > 0:
+                    future = executor.submit(
+                        _parametric_worker,
+                        returns,
+                        initial_capital,
+                        self.risk_free_rate,
+                        self.periods_per_year,
+                        n_sim,
+                        worker_seeds[i],
+                    )
+                    futures.append(future)
+
+            # Collect results in submission order to ensure reproducibility
+            for future in futures:
+                all_simulations.extend(future.result())
+
+        return all_simulations
+
 
 def run_monte_carlo(
     result: BacktestResult,
@@ -611,6 +854,7 @@ def run_monte_carlo(
     random_state: int | None = None,
     periods_per_year: int = 252,
     risk_free_rate: float = 0.02,
+    n_jobs: int = 1,
 ) -> MonteCarloResult:
     """Run Monte Carlo simulation for a backtest result.
 
@@ -625,6 +869,8 @@ def run_monte_carlo(
             data).
         risk_free_rate: Annual risk-free rate used for the simulated
             Sharpe/Sortino metrics (default 0.02).
+        n_jobs: Number of parallel worker processes. Set to -1 to use all
+            available CPUs. Default is 1 (sequential execution).
 
     Returns:
         MonteCarloResult with simulation statistics.
@@ -666,6 +912,7 @@ def run_monte_carlo(
         random_state=random_state,
         periods_per_year=periods_per_year,
         risk_free_rate=risk_free_rate,
+        n_jobs=n_jobs,
     )
     return simulator.run(result, method=method)
 

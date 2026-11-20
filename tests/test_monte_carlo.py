@@ -466,3 +466,109 @@ class TestMonteCarloResultSerialization:
         reconstructed = MonteCarloResult.from_dict(mc.to_dict())
         assert reconstructed.simulations == []
         assert reconstructed.n_simulations == 0
+
+
+class TestMonteCarloParallelExecution:
+    """Tests for parallel Monte Carlo execution."""
+
+    def test_monte_carlo_parallel_bootstrap_runs(self) -> None:
+        """Parallel bootstrap execution runs and produces correct number of simulations."""
+        result = _make_result()
+        sim = MonteCarloSimulator(n_simulations=20, random_state=7, n_jobs=2)
+        mc = sim.run(result, method="bootstrap")
+
+        assert mc.n_simulations == 20
+        assert len(mc.simulations) == 20
+        for metric in mc.simulations:
+            assert isinstance(metric, BacktestMetrics)
+
+    def test_monte_carlo_parallel_parametric_runs(self) -> None:
+        """Parallel parametric execution runs and produces correct number of simulations."""
+        result = _make_result()
+        sim = MonteCarloSimulator(n_simulations=20, random_state=7, n_jobs=2)
+        mc = sim.run(result, method="parametric")
+
+        assert mc.n_simulations == 20
+        assert len(mc.simulations) == 20
+        for metric in mc.simulations:
+            assert isinstance(metric, BacktestMetrics)
+
+    def test_monte_carlo_parallel_reproducible_with_seed(self) -> None:
+        """Parallel execution is reproducible with the same seed."""
+        result = _make_result()
+        a = MonteCarloSimulator(n_simulations=30, random_state=123, n_jobs=2).run(
+            result, method="bootstrap"
+        )
+        b = MonteCarloSimulator(n_simulations=30, random_state=123, n_jobs=2).run(
+            result, method="bootstrap"
+        )
+
+        assert a.n_simulations == b.n_simulations
+        for ma, mb in zip(a.simulations, b.simulations):
+            assert ma.total_return_pct == pytest.approx(mb.total_return_pct)
+
+    def test_monte_carlo_parametric_parallel_reproducible_with_seed(self) -> None:
+        """Parallel parametric execution is reproducible with the same seed."""
+        result = _make_result()
+        a = MonteCarloSimulator(n_simulations=30, random_state=123, n_jobs=2).run(
+            result, method="parametric"
+        )
+        b = MonteCarloSimulator(n_simulations=30, random_state=123, n_jobs=2).run(
+            result, method="parametric"
+        )
+
+        assert a.n_simulations == b.n_simulations
+        for ma, mb in zip(a.simulations, b.simulations):
+            assert ma.total_return_pct == pytest.approx(mb.total_return_pct)
+
+    def test_run_monte_carlo_convenience_function_with_n_jobs(self) -> None:
+        """run_monte_carlo convenience function accepts n_jobs parameter."""
+        result = _make_result()
+        mc = run_monte_carlo(result, n_simulations=20, random_state=7, n_jobs=2)
+
+        assert mc.n_simulations == 20
+        assert len(mc.simulations) == 20
+
+    def test_monte_carlo_parallel_n_jobs_minus_one(self) -> None:
+        """n_jobs=-1 uses all available CPUs."""
+        import os
+
+        result = _make_result()
+        sim = MonteCarloSimulator(n_simulations=10, random_state=7, n_jobs=-1)
+        expected_jobs = os.cpu_count() or 1
+        assert sim.n_jobs == expected_jobs
+        mc = sim.run(result, method="bootstrap")
+        assert mc.n_simulations == 10
+
+    def test_monte_carlo_parallel_invalid_n_jobs_clamped(self) -> None:
+        """Invalid n_jobs values are clamped to minimum of 1."""
+        sim = MonteCarloSimulator(n_simulations=10, random_state=7, n_jobs=0)
+        assert sim.n_jobs == 1
+        sim = MonteCarloSimulator(n_simulations=10, random_state=7, n_jobs=-5)
+        assert sim.n_jobs == 1
+
+    def test_monte_carlo_parallel_statistical_properties(self) -> None:
+        """Parallel execution produces statistically similar results to sequential."""
+        import numpy as np
+
+        result = _make_result()
+
+        seq = MonteCarloSimulator(n_simulations=200, random_state=42, n_jobs=1).run(
+            result, method="bootstrap"
+        )
+        par = MonteCarloSimulator(n_simulations=200, random_state=42, n_jobs=2).run(
+            result, method="bootstrap"
+        )
+
+        seq_returns = [m.total_return_pct for m in seq.simulations]
+        par_returns = [m.total_return_pct for m in par.simulations]
+
+        # Means should be close (within 20% relative difference)
+        seq_mean = np.mean(seq_returns)
+        par_mean = np.mean(par_returns)
+        assert abs(seq_mean - par_mean) / max(abs(seq_mean), 1e-10) < 0.2
+
+        # Standard deviations should be close
+        seq_std = np.std(seq_returns)
+        par_std = np.std(par_returns)
+        assert abs(seq_std - par_std) / max(abs(seq_std), 1e-10) < 0.2
