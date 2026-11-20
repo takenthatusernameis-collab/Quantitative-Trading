@@ -4613,7 +4613,7 @@ class TestCombinedAnalysis:
                 "--symbols",
                 "AAPL",
                 "--days",
-                "120",
+                "90",
             ] + periods
             with patch("sys.argv", ["cli.py"] + args):
                 result = main()
