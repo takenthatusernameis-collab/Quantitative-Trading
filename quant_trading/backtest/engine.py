@@ -984,9 +984,13 @@ class BacktestEngine:
         The benchmark close series is fetched over the same range and interval
         as the backtest, forward-filled onto the equity curve's dates so the
         returns share an index with the equity curve's own returns, and turned
-        into simple returns. A missing benchmark, a fetch error or an empty
-        series yields ``None`` so the market-relative metrics stay at their
-        defaults instead of failing the run.
+        into simple returns. Duplicate equity labels (the initial-capital bar
+        and the first post-trade bar share the start date when a run begins on
+        the first data bar) are dropped before reindexing, so the benchmark
+        series has exactly one row per equity bar and no spurious zero return
+        is fabricated at the duplicated label. A missing benchmark, a fetch
+        error or an empty series yields ``None`` so the market-relative metrics
+        stay at their defaults instead of failing the run.
 
         Args:
             benchmark: Benchmark symbol, or ``None`` to skip the fetch.
@@ -1012,9 +1016,16 @@ class BacktestEngine:
 
         close = market_data.data["close"]
         try:
-            # Forward-fill the benchmark close onto the equity curve's dates so
-            # each return is measured against the last known benchmark close.
-            aligned = close.reindex(pd.DatetimeIndex(equity_index), method="ffill")
+            # The equity curve can carry a duplicated first timestamp (the
+            # initial-capital bar and the first post-trade bar share the
+            # start date). Reindexing the benchmark close onto that duplicated
+            # index forward-fills a duplicate row, so pct_change fabricates a
+            # spurious zero return at the duplicated label and the market
+            # metrics are computed over an extra observation. Drop the
+            # duplicates before reindexing so the benchmark series has exactly
+            # one row per equity bar.
+            unique_index = pd.DatetimeIndex(equity_index).drop_duplicates()
+            aligned = close.reindex(unique_index, method="ffill")
         except (TypeError, ValueError):
             return None
 

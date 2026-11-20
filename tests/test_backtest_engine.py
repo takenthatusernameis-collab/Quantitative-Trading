@@ -29,9 +29,13 @@ from quant_trading.data.synthetic import create_synthetic_data
 from quant_trading.portfolio.portfolio import Holding
 from quant_trading.risk.manager import RiskManager
 from quant_trading.risk.metrics import (
+    calculate_alpha,
+    calculate_beta,
     calculate_calmar_ratio,
+    calculate_information_ratio,
     calculate_max_drawdown,
     calculate_returns,
+    calculate_treynor_ratio,
 )
 from quant_trading.strategies.base import Signal, Strategy
 from quant_trading.strategies.examples import MovingAverageCrossover
@@ -1545,6 +1549,7 @@ def _run_script(
     config: Config | None = None,
     same_bar: bool = False,
     risk_manager: RiskManager | None = None,
+    benchmark: str | None = None,
 ) -> tuple[BacktestResult, BacktestEngine]:
     """Run a scripted backtest and return its result and the engine."""
     symbols = list(data.keys())
@@ -1566,6 +1571,7 @@ def _run_script(
         index[0].to_pydatetime(),
         index[-1].to_pydatetime(),
         "1d",
+        benchmark=benchmark,
     )
     return result, engine
 
@@ -2817,6 +2823,53 @@ class TestBenchmarkRelativeMetrics:
         assert result.metrics.alpha == 0.0
         assert result.metrics.treynor_ratio == 0.0
         assert result.metrics.information_ratio == 0.0
+
+    def test_benchmark_metrics_are_correct_when_run_starts_on_first_data_bar(self) -> None:
+        """A run starting on the first data bar must not fabricate a benchmark return.
+
+        When a backtest begins on the first data bar, ``equity_curve`` carries
+        two rows at that timestamp (initial capital, then the post-trade mark),
+        so the equity returns have a duplicate index label. ``_benchmark_returns``
+        forward-fills the benchmark close onto that duplicated index, which
+        produces a duplicate row and a spurious zero benchmark return at the
+        duplicated label. The market-relative metrics are then computed over an
+        extra observation instead of over the real benchmark returns.
+
+        The metrics must match the ground truth computed from the benchmark's
+        own returns paired positionally with the equity returns that fall on
+        real trading dates (quant_trading/backtest/engine.py:_benchmark_returns).
+        """
+        data = {
+            "TEST": _price_frame([100.0, 90.0, 80.0, 70.0]),
+            "BENCH": _price_frame([100.0, 90.0, 80.0, 70.0]),
+        }
+        # Default _run_script path: starts on the first data bar, so the
+        # equity curve has a duplicated first timestamp.
+        result, _ = _run_script([("buy", 1.0)], data, benchmark="BENCH")
+
+        equity = result.equity_curve
+        assert equity.index.duplicated().any()
+
+        returns = calculate_returns(equity)
+        # The equity return at the duplicated first bar is the mark-to-market
+        # of the first trade; the real benchmark comparison starts at the
+        # second bar. Slice both series to the real trading dates.
+        real_dates = equity.index.drop_duplicates()
+        aligned_returns = returns.reindex(real_dates).dropna()
+        benchmark_returns = calculate_returns(data["BENCH"]["close"])
+
+        assert result.metrics.beta == pytest.approx(
+            calculate_beta(aligned_returns, benchmark_returns)
+        )
+        assert result.metrics.alpha == pytest.approx(
+            calculate_alpha(aligned_returns, benchmark_returns)
+        )
+        assert result.metrics.treynor_ratio == pytest.approx(
+            calculate_treynor_ratio(aligned_returns, benchmark_returns)
+        )
+        assert result.metrics.information_ratio == pytest.approx(
+            calculate_information_ratio(aligned_returns, benchmark_returns)
+        )
 
 
 class TestBacktestResultSerialization:
