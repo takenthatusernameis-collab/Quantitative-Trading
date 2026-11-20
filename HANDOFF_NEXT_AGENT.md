@@ -1,28 +1,29 @@
 ## Status
 
-**calculate_calmar_ratio positive-peak engine-level regression test added and verified.**
+**Fixed a crash in `_align_series` when only one input series has duplicate index labels; verified.**
 
-The assigned task — add an engine-level regression test in `tests/test_backtest_engine.py` covering `calculate_calmar_ratio` on a normal positive-peak equity curve with positive net return — is complete.
+The assigned task (`TestCalmarRatioNonPositivePeak`) was already committed in `cbea7f6`; this session verified it and then fixed a reproducible defect found while probing the same metric path.
 
 ## What changed
 
-- `tests/test_backtest_engine.py`:
-  - Added `TestCalmarRatioPositivePeak` class after `TestUlcerIndexPositivePeak`, mirroring `TestMaxDrawdownPositivePeak` / `TestUlcerIndexPositivePeak`:
-    - `test_positive_peak_positive_return_reports_finite_positive_calmar_matching_direct_call`: equity `[100.0, 90.0, 110.0, 105.0, 120.0]` (positive running peak, positive net return) reports finite, non-NaN, strictly positive Calmar ratio (~138.36) matching `quant_trading/risk/metrics.py:calculate_calmar_ratio` directly, with `metrics.calmar_ratio == pytest.approx(expected)` and `metrics.calmar_ratio > 0.0`.
-    - Derives `returns` consistently with `calculate_backtest_metrics` (via `calculate_returns` from `quant_trading/backtest/metrics.py:329`), then calls `calculate_calmar_ratio(returns, equity_curve)`.
-- No production behaviour change; `calculate_calmar_ratio` logic untouched.
+- `quant_trading/risk/metrics.py` (`_align_series`): duplicate-label detection already existed, but the label-alignment `pd.concat` ran **before** the fallback and raised `ValueError: cannot reindex on an axis with duplicate labels` whenever one series had duplicate labels and the other needed reindexing. The duplicate case now pairs rows positionally before any label alignment. Affects `calculate_beta`, `calculate_alpha`, `calculate_treynor_ratio`, `calculate_information_ratio`, and `calculate_calmar_ratio`.
+- `tests/test_risk_metrics.py` (`TestAlignSeries`):
+  - `test_duplicate_labels_in_one_series_fall_back_instead_of_raising`: duplicate labels on one side, disjoint labels on the other; asserts positional pairing `[[0.01,0.10],[0.02,0.20],[0.03,0.30]]` instead of raising.
+  - `test_duplicate_equity_labels_do_not_break_beta`: both sides carry duplicate labels (different positions); asserts `calculate_beta` stays finite.
+- No other production behaviour changed; non-duplicate label alignment and the <2-overlap fallback are unchanged.
 
 ## What was verified
 
-- `tests/test_backtest_engine.py tests/test_risk_metrics.py tests/test_risk_attribution.py tests/test_backtest_metrics.py tests/test_repository_integrity.py` → 423 passed (422 original + 1 new calmar positive-peak).
-- `black --check`, `ruff check`, `mypy` clean on `tests/test_backtest_engine.py`.
+- Pre-fix reproduction: both new tests failed with `ValueError: cannot reindex on an axis with duplicate labels`; post-fix both pass.
+- `tests/test_risk_metrics.py tests/test_risk_attribution.py tests/test_backtest_metrics.py tests/test_backtest_engine.py tests/test_repository_integrity.py` → 428 passed.
+- Full suite → 4102 passed, 113 skipped, 151 deselected.
+- `black --check`, `ruff check`, `mypy` clean on both changed files.
+- Manual check: `calculate_calmar_ratio` on an equity curve with duplicate labels (`["a","a","b","b"]`) now returns 121.33 instead of raising.
 
 ## Unresolved
 
-- None from this assignment.
+- `quant_trading/risk/metrics.py:515-517` (the `get_loc` slice/ndarray conversion used to seed the pre-return equity bar) is still uncovered by tests; it is only reachable with duplicate equity labels, the exact case just fixed.
 
 ## One precise next task
 
-Add an engine-level regression test in `tests/test_backtest_engine.py` covering `calculate_calmar_ratio` on a **non-positive-peak** equity curve (mirroring `TestMaxDrawdownNonPositivePeak` / `TestUlcerIndexNonPositivePeak`): a `TestCalmarRatioNonPositivePeak` class with a `_metrics` staticmethod returning `calculate_backtest_metrics(equity_curve)`, and tests for an all-zero-peak curve (`[0.0, -5.0, -10.0]`), an all-negative-peak curve (`[-5.0, -10.0, -3.0]`), and a zero-start-then-recovery curve (`[0.0, -5.0, 10.0]`). Each must assert the direct `calculate_calmar_ratio(returns, equity_curve)` call is finite, non-NaN, equals `0.0` (since max drawdown is 0 on a non-positive peak), and that `metrics.calmar_ratio == pytest.approx(expected)`. Derive `returns` via `calculate_returns(equity_curve)` as in `quant_trading/backtest/metrics.py:329`. Re-run the five test files + black/ruff/mypy. Do not touch workflows.
-
-(End of file - total 26 lines)
+Add a regression test in `tests/test_risk_metrics.py` covering `calculate_calmar_ratio` with duplicate equity index labels so the `get_loc` slice/ndarray branch at `quant_trading/risk/metrics.py:515-517` executes: equity `pd.Series([100.0, 90.0, 80.0, 120.0], index=["a","a","b","b"])`, returns via `calculate_returns(equity)`. Assert no exception, finite positive result matching `pytest.approx(121.3333333333333)` computed from `annual_return / abs(max_drawdown)` over the seeded drawdown sample, and add an equivalent duplicate-label `calculate_information_ratio` finite assertion. Re-run the five/five-plus test files + black/ruff/mypy, and re-check coverage reports lines 515-517 as hit. Do not touch workflows.

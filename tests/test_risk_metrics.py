@@ -1224,6 +1224,23 @@ class TestAlignSeries:
         assert aligned.iloc[:, 0].tolist() == [1.0, 2.0, 3.0]
         assert aligned.iloc[:, 1].tolist() == [4.0, 5.0, 6.0]
 
+    def test_duplicate_labels_in_one_series_fall_back_instead_of_raising(self) -> None:
+        # A duplicate label on one side only would make label alignment grow
+        # the frame or raise "cannot reindex on an axis with duplicate
+        # labels"; the helper must pair rows positionally instead.
+        returns = pd.Series([0.01, 0.02, 0.03], index=["a", "a", "b"])
+        market = pd.Series([0.10, 0.20, 0.30], index=["a", "b", "c"])
+        aligned = _align_series(returns, market)
+        expected = pd.DataFrame({0: [0.01, 0.02, 0.03], 1: [0.10, 0.20, 0.30]})
+        pd.testing.assert_frame_equal(aligned.reset_index(drop=True), expected)
+
+    def test_duplicate_equity_labels_do_not_break_beta(self) -> None:
+        # Duplicate date labels are realistic for resampled data; the metric
+        # path must stay finite instead of propagating a reindex ValueError.
+        returns = pd.Series([0.01, 0.02, 0.03, 0.04], index=["a", "b", "b", "c"])
+        market = pd.Series([0.01, 0.02, 0.03, 0.04], index=["a", "a", "b", "c"])
+        assert np.isfinite(calculate_beta(returns, market))
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
