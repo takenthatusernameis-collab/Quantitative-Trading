@@ -37,6 +37,7 @@ from quant_trading.risk.metrics import (
     calculate_max_drawdown,
     calculate_returns,
     calculate_treynor_ratio,
+    calculate_ulcer_index,
 )
 from quant_trading.strategies.base import Signal, Strategy
 from quant_trading.strategies.examples import MovingAverageCrossover
@@ -2810,6 +2811,56 @@ class TestMaxDrawdownNonPositivePeak:
         assert not np.isnan(expected)
         assert metrics.max_drawdown == pytest.approx(expected)
         assert metrics.max_drawdown_pct == pytest.approx(expected * 100)
+
+
+class TestUlcerIndexNonPositivePeak:
+    """``calculate_ulcer_index`` must stay finite for non-positive peaks.
+
+    The engine feeds its equity curve to ``calculate_ulcer_index`` through
+    ``calculate_backtest_metrics`` (quant_trading/backtest/engine.py:929).
+    When the running peak is never strictly positive (an all-zero or
+    all-negative equity curve) the drawdown ratio is undefined, so the
+    function must report neutral 0.0 instead of NaN/inf, and the engine's
+    reported ``ulcer_index`` must match a direct call to
+    quant_trading/risk/metrics.py:calculate_ulcer_index.
+    """
+
+    @staticmethod
+    def _metrics(equity_curve: pd.Series):
+        return calculate_backtest_metrics(equity_curve)
+
+    def test_zero_peak_reports_finite_ulcer_index_matching_direct_call(self) -> None:
+        """An equity curve whose running peak is zero stays finite."""
+        equity_curve = pd.Series([0.0, -5.0, -10.0])
+        metrics = self._metrics(equity_curve)
+        expected = calculate_ulcer_index(equity_curve)
+        assert np.isfinite(expected)
+        assert not np.isnan(expected)
+        assert expected == 0.0
+        assert metrics.ulcer_index == pytest.approx(expected)
+
+    def test_negative_peak_reports_finite_ulcer_index_matching_direct_call(
+        self,
+    ) -> None:
+        """An equity curve whose running peak is negative stays finite."""
+        equity_curve = pd.Series([-5.0, -10.0, -3.0])
+        metrics = self._metrics(equity_curve)
+        expected = calculate_ulcer_index(equity_curve)
+        assert np.isfinite(expected)
+        assert not np.isnan(expected)
+        assert expected == 0.0
+        assert metrics.ulcer_index == pytest.approx(expected)
+
+    def test_zero_start_then_recovery_reports_finite_ulcer_index_matching_direct_call(
+        self,
+    ) -> None:
+        """An equity curve starting at zero and recovering stays finite."""
+        equity_curve = pd.Series([0.0, -5.0, 10.0])
+        metrics = self._metrics(equity_curve)
+        expected = calculate_ulcer_index(equity_curve)
+        assert np.isfinite(expected)
+        assert not np.isnan(expected)
+        assert metrics.ulcer_index == pytest.approx(expected)
 
 
 class TestBenchmarkRelativeMetrics:
