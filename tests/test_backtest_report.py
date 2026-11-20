@@ -1220,6 +1220,134 @@ def test_build_comparison_table_metric_value_error() -> None:
     assert "N/A" in html
 
 
+def test_get_theme_colors_dark_theme() -> None:
+    """_get_theme_colors must return the dark palette for theme="dark"."""
+    from quant_trading.backtest.report import _get_theme_colors
+
+    colors = _get_theme_colors("dark")
+    assert colors["bg"] == "#1e1e1e"
+    assert colors["fg"] == "#e0e0e0"
+    assert colors["grid"] == "#333333"
+    assert colors["positive"] == "#4caf50"
+    assert colors["negative"] == "#f44336"
+    assert colors["neutral"] == "#2196f3"
+    assert colors["accent"] == "#ff9800"
+
+
+def test_get_theme_colors_unknown_theme_falls_back_to_light() -> None:
+    """_get_theme_colors must fall back to the light palette for unknown themes."""
+    from quant_trading.backtest.report import _get_theme_colors
+
+    assert _get_theme_colors("light") == _get_theme_colors("no-such-theme")
+    assert _get_theme_colors("light")["bg"] == "#ffffff"
+
+
+def test_drawdown_series_empty_equity() -> None:
+    """_drawdown_series must return an empty float series for empty input."""
+    from quant_trading.backtest.report import _drawdown_series
+
+    empty = pd.Series(dtype=float)
+    result = _drawdown_series(empty)
+    assert len(result) == 0
+    assert result.dtype == float
+
+
+def test_drawdown_series_non_positive_peak() -> None:
+    """_drawdown_series must report 0.0 when the running peak is not positive."""
+    from quant_trading.backtest.report import _drawdown_series
+
+    equity = pd.Series([0.0, 0.0, -10.0, -5.0])
+    result = _drawdown_series(equity)
+    assert (result == 0.0).all()
+    assert np.isfinite(result).all()
+
+
+def test_drawdown_series_inf_and_nan_are_finite() -> None:
+    """_drawdown_series must never yield NaN or +/-inf."""
+    from quant_trading.backtest.report import _drawdown_series
+
+    equity = pd.Series([100.0, np.inf, 50.0, np.nan, 200.0])
+    result = _drawdown_series(equity)
+    assert np.isfinite(result).all()
+
+
+def test_finite_series_empty() -> None:
+    """_finite_series must return an empty float series for empty input."""
+    from quant_trading.backtest.report import _finite_series
+
+    empty = pd.Series(dtype=float)
+    result = _finite_series(empty)
+    assert len(result) == 0
+    assert result.dtype == float
+
+
+def test_finite_series_removes_non_finite() -> None:
+    """_finite_series must drop NaN and +/-inf values."""
+    from quant_trading.backtest.report import _finite_series
+
+    series = pd.Series([1.0, np.nan, np.inf, -np.inf, 2.0])
+    result = _finite_series(series)
+    assert list(result) == [1.0, 2.0]
+
+
+def test_format_metric_returns_na_for_none() -> None:
+    """_format_metric must render "N/A" for None."""
+    from quant_trading.backtest.report import _format_metric
+
+    assert _format_metric(None) == "N/A"
+
+
+def test_format_metric_returns_na_for_non_finite_float() -> None:
+    """_format_metric must render "N/A" for NaN and +/-inf floats."""
+    from quant_trading.backtest.report import _format_metric
+
+    assert _format_metric(np.nan) == "N/A"
+    assert _format_metric(np.inf) == "N/A"
+    assert _format_metric(-np.inf) == "N/A"
+
+
+def test_format_metric_formats_finite_float() -> None:
+    """_format_metric must format a finite float with the given format."""
+    from quant_trading.backtest.report import _format_metric
+
+    assert _format_metric(0.826, "{:.2f}") == "0.83"
+    assert _format_metric(5.0, "{:.2%}") == "500.00%"
+
+
+def test_format_metric_returns_str_for_non_float() -> None:
+    """_format_metric must return str(value) for non-float inputs."""
+    from quant_trading.backtest.report import _format_metric
+
+    assert _format_metric("N/A") == "N/A"
+    assert _format_metric(42) == "42"
+
+
+def test_build_risk_attribution_table_none_returns_empty() -> None:
+    """_build_risk_attribution_table must return "" when attribution is absent."""
+    from quant_trading.backtest.report import (
+        _build_risk_attribution_table,
+        _get_theme_colors,
+    )
+
+    result = _create_sample_result()
+    assert getattr(result, "risk_attribution", None) is None
+    html = _build_risk_attribution_table(result, _get_theme_colors("light"))
+    assert html == ""
+
+
+def test_build_risk_attribution_table_non_dict_returns_empty() -> None:
+    """_build_risk_attribution_table must return "" for a non-dict attribution."""
+    from quant_trading.backtest.report import (
+        _build_risk_attribution_table,
+        _get_theme_colors,
+    )
+
+    result = _create_sample_result()
+    result.risk_attribution = object()  # type: ignore[assignment]
+    html = _build_risk_attribution_table(result, _get_theme_colors("light"))
+    assert html == ""
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
