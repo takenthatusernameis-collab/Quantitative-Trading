@@ -2924,6 +2924,41 @@ class TestUlcerIndexPositivePeak:
         assert metrics.ulcer_index > 0.0
 
 
+class TestCalmarRatioPositivePeak:
+    """``calculate_calmar_ratio`` must report a defined non-zero value for a
+    normal positive-peak equity curve with positive net return.
+
+    The engine feeds its equity curve and returns to ``calculate_calmar_ratio``
+    through ``calculate_backtest_metrics`` (quant_trading/backtest/engine.py:929),
+    which derives ``returns`` from the equity curve via
+    ``calculate_returns`` (quant_trading/backtest/metrics.py:329). When the
+    running peak is strictly positive and the net return is positive, the
+    Calmar ratio is finite, non-NaN, strictly positive (> 0, because the
+    annualized return is positive and the max drawdown is negative), and equals
+    a direct call to quant_trading/risk/metrics.py:calculate_calmar_ratio with
+    the same returns and equity curve.
+    """
+
+    @staticmethod
+    def _metrics(equity_curve: pd.Series):
+        return calculate_backtest_metrics(equity_curve)
+
+    def test_positive_peak_positive_return_reports_finite_positive_calmar_matching_direct_call(
+        self,
+    ) -> None:
+        """A normal equity curve with a positive peak and positive net return
+        reports Calmar Ratio > 0."""
+        equity_curve = pd.Series([100.0, 90.0, 110.0, 105.0, 120.0])
+        metrics = self._metrics(equity_curve)
+        returns = calculate_returns(equity_curve)
+        expected = calculate_calmar_ratio(returns, equity_curve)
+        assert np.isfinite(expected)
+        assert not np.isnan(expected)
+        assert expected > 0.0
+        assert metrics.calmar_ratio == pytest.approx(expected)
+        assert metrics.calmar_ratio > 0.0
+
+
 class TestBenchmarkRelativeMetrics:
     """The engine wires a benchmark's returns into the market-relative metrics.
 
