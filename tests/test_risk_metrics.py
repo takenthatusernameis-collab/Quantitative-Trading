@@ -619,6 +619,16 @@ class TestCalculateCalmarRatio:
         assert np.isfinite(calculate_calmar_ratio(returns, equity))
         assert calculate_calmar_ratio(returns, equity) == pytest.approx(121.3333333333333)
 
+    def test_calmar_duplicate_labels_get_loc_slice_branch(self) -> None:
+        # Contiguous duplicate labels keep label alignment intact (identical
+        # indexes), so equity_curve.index.get_loc returns a slice for the first
+        # aligned label and the slice/ndarray branch of calculate_calmar_ratio
+        # is exercised instead of the positional-fallback or KeyError paths.
+        equity = pd.Series([100.0, 90.0, 80.0, 120.0], index=["a", "a", "a", "b"])
+        returns = pd.Series([-0.10, -1 / 9, 0.50, 0.05], index=["a", "a", "a", "b"])
+        assert np.isfinite(calculate_calmar_ratio(returns, equity))
+        assert calculate_calmar_ratio(returns, equity) == pytest.approx(106.75)
+
 
 class TestRiskMetricsDataclass:
     """Tests for RiskMetrics container."""
