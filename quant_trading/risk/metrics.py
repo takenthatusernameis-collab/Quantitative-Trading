@@ -497,7 +497,21 @@ def calculate_calmar_ratio(
     if len(aligned) < 2:
         return 0.0
     annual_return = aligned.iloc[:, 0].mean() * periods_per_year
-    max_dd = calculate_max_drawdown(aligned.iloc[:, 1])
+    aligned_equity = aligned.iloc[:, 1]
+    # Include the equity bar that seeds the first aligned return so a peak at
+    # the start of the curve is not dropped from the drawdown sample.
+    drawdown_equity = aligned_equity
+    if len(aligned_equity) > 0:
+        try:
+            pos = equity_curve.index.get_loc(aligned_equity.index[0])
+            if isinstance(pos, (slice, np.ndarray)):
+                pos = int(np.asarray(pos).ravel()[0]) if np.asarray(pos).size else 0
+            if pos > 0:
+                seed = equity_curve.iloc[[pos - 1]]
+                drawdown_equity = pd.concat([seed, aligned_equity])
+        except (KeyError, TypeError, ValueError):
+            pass
+    max_dd = calculate_max_drawdown(drawdown_equity)
     if max_dd == 0:
         return 0.0
     return float(annual_return / abs(max_dd))
