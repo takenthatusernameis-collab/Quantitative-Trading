@@ -36,6 +36,21 @@ from typing import Any
 import yaml
 
 
+def _finite(value: Any, default: float = 0.0) -> float:
+    """Return value if finite, otherwise default. Rejects bool and non-numeric types."""
+    if (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    ):
+        return float(value)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
+
+
 @dataclass
 class DataConfig:
     """Configuration for market data retrieval and caching.
@@ -167,8 +182,8 @@ class DataConfig:
             default_interval=str(data.get("default_interval", "1d")),
             default_period=str(data.get("default_period", "1y")),
             offline=bool(data.get("offline", False)),
-            synthetic_days=int(data.get("synthetic_days", 365)),
-            synthetic_seed=int(data.get("synthetic_seed", 42)),
+            synthetic_days=int(_finite(data.get("synthetic_days", 365))),
+            synthetic_seed=int(_finite(data.get("synthetic_seed", 42))),
             alphavantage_api_key=data.get("alphavantage_api_key"),
         )
 
@@ -385,11 +400,11 @@ class BacktestConfig:
 
         """
         return cls(
-            initial_capital=float(data.get("initial_capital", 100000.0)),
-            commission=float(data.get("commission", 0.001)),
-            slippage=float(data.get("slippage", 0.0005)),
-            risk_free_rate=float(data.get("risk_free_rate", 0.02)),
-            periods_per_year=int(data.get("periods_per_year", 252)),
+            initial_capital=_finite(data.get("initial_capital", 100000.0)),
+            commission=_finite(data.get("commission", 0.001)),
+            slippage=_finite(data.get("slippage", 0.0005)),
+            risk_free_rate=_finite(data.get("risk_free_rate", 0.02)),
+            periods_per_year=int(_finite(data.get("periods_per_year", 252))),
             halt_on_portfolio_violation=bool(data.get("halt_on_portfolio_violation", False)),
             enable_stop_exits=bool(data.get("enable_stop_exits", False)),
         )
@@ -532,14 +547,14 @@ class RiskConfig:
 
         """
         return cls(
-            max_position_size=float(data.get("max_position_size", 0.1)),
-            max_portfolio_risk=float(data.get("max_portfolio_risk", 0.02)),
-            stop_loss_pct=float(data.get("stop_loss_pct", 0.05)),
-            take_profit_pct=float(data.get("take_profit_pct", 0.15)),
-            max_drawdown=float(data.get("max_drawdown", 0.20)),
-            max_leverage=float(data.get("max_leverage", 1.0)),
-            trailing_stop_pct=float(data.get("trailing_stop_pct", 0.0)),
-            trailing_stop_activation_pct=float(data.get("trailing_stop_activation_pct", 0.0)),
+            max_position_size=_finite(data.get("max_position_size", 0.1)),
+            max_portfolio_risk=_finite(data.get("max_portfolio_risk", 0.02)),
+            stop_loss_pct=_finite(data.get("stop_loss_pct", 0.05)),
+            take_profit_pct=_finite(data.get("take_profit_pct", 0.15)),
+            max_drawdown=_finite(data.get("max_drawdown", 0.20)),
+            max_leverage=_finite(data.get("max_leverage", 1.0)),
+            trailing_stop_pct=_finite(data.get("trailing_stop_pct", 0.0)),
+            trailing_stop_activation_pct=_finite(data.get("trailing_stop_activation_pct", 0.0)),
         )
 
 
@@ -629,8 +644,8 @@ class PortfolioConfig:
         """
         return cls(
             rebalance_frequency=str(data.get("rebalance_frequency", "monthly")),
-            max_positions=int(data.get("max_positions", 20)),
-            min_position_size=float(data.get("min_position_size", 0.01)),
+            max_positions=int(_finite(data.get("max_positions", 20))),
+            min_position_size=_finite(data.get("min_position_size", 0.01)),
         )
 
 

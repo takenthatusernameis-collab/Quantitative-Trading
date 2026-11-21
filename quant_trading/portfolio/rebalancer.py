@@ -37,6 +37,21 @@ from quant_trading.risk.manager import RiskManager
 from quant_trading.strategies.base import Signal
 
 
+def _finite(value: Any, default: float = 0.0) -> float:
+    """Return value if finite, otherwise default. Rejects bool and non-numeric types."""
+    if (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and isfinite(value)
+    ):
+        return float(value)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if isfinite(result) else default
+
+
 def _iso(value: datetime | None) -> str | None:
     """Return ISO-8601 string for a datetime, or None for None."""
     if value is None:
@@ -142,7 +157,7 @@ class RebalanceAction:
         """Deserialize a :class:`RebalanceAction` from a dictionary.
 
         Missing keys fall back to safe defaults. ISO-8601 timestamps are
-        accepted.
+        accepted. Non-finite numeric values (NaN/inf) are sanitized to safe defaults.
 
         Args:
             data: Dictionary previously produced by :meth:`to_dict`.
@@ -164,7 +179,7 @@ class RebalanceAction:
         return cls(
             symbol=str(data.get("symbol", "")),
             action=str(data.get("action", "hold")),
-            quantity=float(data.get("quantity", 0.0)),
+            quantity=_finite(data.get("quantity", 0.0)),
             reason=str(data.get("reason", "")),
             timestamp=_coerce_datetime(data.get("timestamp")) or datetime.now(),
         )
@@ -259,7 +274,7 @@ class RebalanceExecution:
         """Deserialize a :class:`RebalanceExecution` from a dictionary.
 
         Missing keys fall back to safe defaults. ISO-8601 timestamps are
-        accepted.
+        accepted. Non-finite numeric values (NaN/inf) are sanitized to safe defaults.
 
         Args:
             data: Dictionary previously produced by :meth:`to_dict`.
@@ -281,10 +296,10 @@ class RebalanceExecution:
         return cls(
             symbol=str(data.get("symbol", "")),
             action=str(data.get("action", "hold")),
-            requested_quantity=float(data.get("requested_quantity", 0.0)),
-            executed_quantity=float(data.get("executed_quantity", 0.0)),
-            price=float(data.get("price", 0.0)),
-            cash_effect=float(data.get("cash_effect", 0.0)),
+            requested_quantity=_finite(data.get("requested_quantity", 0.0)),
+            executed_quantity=_finite(data.get("executed_quantity", 0.0)),
+            price=_finite(data.get("price", 0.0)),
+            cash_effect=_finite(data.get("cash_effect", 0.0)),
             reason=str(data.get("reason", "")),
             timestamp=_coerce_datetime(data.get("timestamp")) or datetime.now(),
         )
@@ -353,7 +368,8 @@ class _RebalancePlan:
         """Deserialize a :class:`_RebalancePlan` from a dictionary.
 
         Missing keys fall back to safe defaults. The ``positions`` mapping is
-        coerced to ``dict[str, float]``.
+        coerced to ``dict[str, float]``. Non-finite numeric values (NaN/inf)
+        are sanitized to safe defaults.
 
         Args:
             data: Dictionary previously produced by :meth:`to_dict`.
@@ -374,9 +390,9 @@ class _RebalancePlan:
         """
         raw_positions = data.get("positions", {}) or {}
         return cls(
-            cash=float(data.get("cash", 0.0)),
-            fee_rate=float(data.get("fee_rate", 0.0)),
-            positions={str(k): float(v) for k, v in raw_positions.items()},
+            cash=_finite(data.get("cash", 0.0)),
+            fee_rate=_finite(data.get("fee_rate", 0.0)),
+            positions={str(k): _finite(v) for k, v in raw_positions.items()},
         )
 
 

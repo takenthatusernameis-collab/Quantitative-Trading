@@ -28,8 +28,24 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, cast
 
+import math
 import numpy as np
 import pandas as pd
+
+
+def _finite(value: Any, default: float = 0.0) -> float:
+    """Return value if finite, otherwise default. Rejects bool and non-numeric types."""
+    if (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    ):
+        return float(value)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
 
 
 class Regime(Enum):
@@ -144,6 +160,7 @@ class RegimeSegment:
         Missing keys fall back to the dataclass defaults. Extra keys are
         ignored. The ``regime`` value is rebuilt from its serialized string
         form, and ``start``/``end`` are parsed back into timestamps.
+        Non-finite numeric values (NaN/inf) are sanitized to safe defaults.
 
         Args:
             data: Dictionary whose keys match segment attribute names.
@@ -156,10 +173,10 @@ class RegimeSegment:
             regime=Regime(data.get("regime", Regime.UNKNOWN.value)),
             start=pd.Timestamp(data.get("start", pd.Timestamp.now())),
             end=pd.Timestamp(data.get("end", pd.Timestamp.now())),
-            start_index=data.get("start_index", 0),
-            end_index=data.get("end_index", 0),
-            volatility=data.get("volatility", 0.0),
-            return_pct=data.get("return_pct", 0.0),
+            start_index=int(_finite(data.get("start_index", 0))),
+            end_index=int(_finite(data.get("end_index", 0))),
+            volatility=_finite(data.get("volatility", 0.0)),
+            return_pct=_finite(data.get("return_pct", 0.0)),
         )
 
 
@@ -231,6 +248,7 @@ class RegimeResult:
         Missing keys fall back to the dataclass defaults. Extra keys are
         ignored. Segments are rebuilt from their serialized form and the
         ``regimes`` list and ``n_segments`` are computed from them.
+        Non-finite numeric values (NaN/inf) are sanitized to safe defaults.
 
         Args:
             data: Dictionary whose keys match result attribute names.
@@ -247,8 +265,8 @@ class RegimeResult:
             regimes=regimes,
             n_segments=len(segments),
             current_regime=Regime(data.get("current_regime", Regime.UNKNOWN.value)),
-            total_volatility=data.get("total_volatility", 0.0),
-            total_return_pct=data.get("total_return_pct", 0.0),
+            total_volatility=_finite(data.get("total_volatility", 0.0)),
+            total_return_pct=_finite(data.get("total_return_pct", 0.0)),
         )
 
     def to_dataframe(self) -> pd.DataFrame:

@@ -35,12 +35,28 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+import math
 import numpy as np
 import pandas as pd
 
 from quant_trading.backtest.engine import BacktestResult
 from quant_trading.backtest.trade_log import split_trade_log
 from quant_trading.risk.metrics import calculate_sharpe_ratio, calculate_sortino_ratio
+
+
+def _finite(value: Any, default: float = 0.0) -> float:
+    """Return value if finite, otherwise default. Rejects bool and non-numeric types."""
+    if (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    ):
+        return float(value)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
 
 
 @dataclass
@@ -198,6 +214,7 @@ class TradeAnalysis:
         Missing keys fall back to the dataclass defaults, so a dictionary
         produced by :meth:`to_dict` (for example after a JSON round-trip) can
         be reconstructed without carrying every field. Extra keys are ignored.
+        Non-finite numeric values (NaN/inf) are sanitized to safe defaults.
 
         Args:
             data: Dictionary whose keys match trade analysis attribute names.
@@ -207,34 +224,34 @@ class TradeAnalysis:
 
         """
         return cls(
-            total_trades=data.get("total_trades", 0),
-            winning_trades=data.get("winning_trades", 0),
-            losing_trades=data.get("losing_trades", 0),
-            win_rate=data.get("win_rate", 0.0),
-            total_pnl=data.get("total_pnl", 0.0),
-            open_position_pnl=data.get("open_position_pnl", 0.0),
-            avg_pnl=data.get("avg_pnl", 0.0),
-            median_pnl=data.get("median_pnl", 0.0),
-            std_pnl=data.get("std_pnl", 0.0),
-            avg_win=data.get("avg_win", 0.0),
-            avg_loss=data.get("avg_loss", 0.0),
-            largest_win=data.get("largest_win", 0.0),
-            largest_loss=data.get("largest_loss", 0.0),
-            profit_factor=data.get("profit_factor", 0.0),
-            avg_holding_period=data.get("avg_holding_period", 0.0),
-            median_holding_period=data.get("median_holding_period", 0.0),
-            min_holding_period=data.get("min_holding_period", 0.0),
-            max_holding_period=data.get("max_holding_period", 0.0),
-            max_consecutive_wins=data.get("max_consecutive_wins", 0),
-            max_consecutive_losses=data.get("max_consecutive_losses", 0),
-            current_streak=data.get("current_streak", 0),
-            current_streak_type=data.get("current_streak_type", ""),
+            total_trades=int(_finite(data.get("total_trades", 0))),
+            winning_trades=int(_finite(data.get("winning_trades", 0))),
+            losing_trades=int(_finite(data.get("losing_trades", 0))),
+            win_rate=_finite(data.get("win_rate", 0.0)),
+            total_pnl=_finite(data.get("total_pnl", 0.0)),
+            open_position_pnl=_finite(data.get("open_position_pnl", 0.0)),
+            avg_pnl=_finite(data.get("avg_pnl", 0.0)),
+            median_pnl=_finite(data.get("median_pnl", 0.0)),
+            std_pnl=_finite(data.get("std_pnl", 0.0)),
+            avg_win=_finite(data.get("avg_win", 0.0)),
+            avg_loss=_finite(data.get("avg_loss", 0.0)),
+            largest_win=_finite(data.get("largest_win", 0.0)),
+            largest_loss=_finite(data.get("largest_loss", 0.0)),
+            profit_factor=_finite(data.get("profit_factor", 0.0)),
+            avg_holding_period=_finite(data.get("avg_holding_period", 0.0)),
+            median_holding_period=_finite(data.get("median_holding_period", 0.0)),
+            min_holding_period=_finite(data.get("min_holding_period", 0.0)),
+            max_holding_period=_finite(data.get("max_holding_period", 0.0)),
+            max_consecutive_wins=int(_finite(data.get("max_consecutive_wins", 0))),
+            max_consecutive_losses=int(_finite(data.get("max_consecutive_losses", 0))),
+            current_streak=int(_finite(data.get("current_streak", 0))),
+            current_streak_type=str(data.get("current_streak_type", "")),
             monthly_returns=data.get("monthly_returns"),
             weekly_returns=data.get("weekly_returns"),
             symbol_stats=data.get("symbol_stats"),
-            expectancy=data.get("expectancy", 0.0),
-            sharpe_ratio=data.get("sharpe_ratio", 0.0),
-            sortino_ratio=data.get("sortino_ratio", 0.0),
+            expectancy=_finite(data.get("expectancy", 0.0)),
+            sharpe_ratio=_finite(data.get("sharpe_ratio", 0.0)),
+            sortino_ratio=_finite(data.get("sortino_ratio", 0.0)),
         )
 
 

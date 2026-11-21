@@ -44,11 +44,27 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+import math
 import numpy as np
 import pandas as pd
 
 from quant_trading.backtest.engine import BacktestResult
 from quant_trading.backtest.metrics import BacktestMetrics
+
+
+def _finite(value: Any, default: float = 0.0) -> float:
+    """Return value if finite, otherwise default. Rejects bool and non-numeric types."""
+    if (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    ):
+        return float(value)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
 
 
 def _bootstrap_worker(
@@ -396,7 +412,8 @@ class MonteCarloResult:
 
         Missing keys fall back to safe defaults, so a dictionary produced by
         :meth:`to_dict` (for example after a JSON round-trip) can be
-        reconstructed. Extra keys are ignored.
+        reconstructed. Extra keys are ignored. Non-finite numeric values
+        (NaN/inf) are sanitized to safe defaults.
 
         Args:
             data: Dictionary whose keys match the serialized field names.
@@ -415,8 +432,8 @@ class MonteCarloResult:
         return cls(
             simulations=simulations,
             original_metrics=BacktestMetrics.from_dict(original),
-            n_simulations=int(data.get("n_simulations", len(simulations))),
-            confidence_level=float(data.get("confidence_level", 0.95)),
+            n_simulations=int(_finite(data.get("n_simulations", len(simulations)))),
+            confidence_level=_finite(data.get("confidence_level", 0.95)),
             start_time=start,
             end_time=end,
         )

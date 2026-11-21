@@ -39,6 +39,7 @@ Examples:
 from dataclasses import dataclass
 from typing import Any
 
+import math
 import pandas as pd
 
 from quant_trading.backtest.engine import BacktestResult
@@ -49,6 +50,21 @@ from quant_trading.regime import (
     RegimeSegment,
     detect_regimes,
 )
+
+
+def _finite(value: Any, default: float = 0.0) -> float:
+    """Return value if finite, otherwise default. Rejects bool and non-numeric types."""
+    if (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    ):
+        return float(value)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
 
 
 @dataclass
@@ -256,6 +272,7 @@ class BacktestRegimeAnalysis:
         """Deserialize regime analysis from a dictionary.
 
         Missing keys fall back to the dataclass defaults. Extra keys are ignored.
+        Non-finite numeric values (NaN/inf) are sanitized to safe defaults.
 
         Args:
             data: Dictionary whose keys match regime analysis attribute names.
@@ -277,10 +294,10 @@ class BacktestRegimeAnalysis:
                     regime=regime,
                     start=pd.Timestamp(seg_data.get("start", pd.Timestamp.now())),
                     end=pd.Timestamp(seg_data.get("end", pd.Timestamp.now())),
-                    start_index=seg_data.get("start_index", 0),
-                    end_index=seg_data.get("end_index", 0),
-                    volatility=seg_data.get("volatility", 0.0),
-                    return_pct=seg_data.get("return_pct", 0.0),
+                    start_index=int(_finite(seg_data.get("start_index", 0))),
+                    end_index=int(_finite(seg_data.get("end_index", 0))),
+                    volatility=_finite(seg_data.get("volatility", 0.0)),
+                    return_pct=_finite(seg_data.get("return_pct", 0.0)),
                 )
             )
             regimes.append(regime)
@@ -291,17 +308,17 @@ class BacktestRegimeAnalysis:
             regimes=regimes,
             n_segments=len(segments),
             current_regime=Regime(data.get("current_regime", "unknown")),
-            total_volatility=data.get("total_volatility", 0.0),
-            total_return_pct=data.get("total_return_pct", 0.0),
+            total_volatility=_finite(data.get("total_volatility", 0.0)),
+            total_return_pct=_finite(data.get("total_return_pct", 0.0)),
         )
 
         return cls(
             result=result,
             equity_curve=pd.Series(dtype=float),  # Placeholder, not serialized
-            window=data.get("window", 20),
-            vol_threshold=data.get("vol_threshold", 0.0),
-            return_threshold=data.get("return_threshold", 0.0),
-            periods_per_year=data.get("periods_per_year", 252),
+            window=int(_finite(data.get("window", 20))),
+            vol_threshold=_finite(data.get("vol_threshold", 0.0)),
+            return_threshold=_finite(data.get("return_threshold", 0.0)),
+            periods_per_year=int(_finite(data.get("periods_per_year", 252))),
         )
 
     def to_dataframe(self) -> pd.DataFrame:

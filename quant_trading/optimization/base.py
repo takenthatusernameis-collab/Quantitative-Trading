@@ -33,6 +33,21 @@ import pandas as pd
 from quant_trading.backtest.engine import BacktestResult
 from quant_trading.strategies.base import Strategy
 
+def _finite(value: Any, default: float = 0.0) -> float:
+    """Return value if finite, otherwise default. Rejects bool and non-numeric types."""
+    if (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    ):
+        return float(value)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
+
+
 _PARAM_TYPE_BY_NAME: dict[str, type] = {"float": float, "int": int, "bool": bool}
 
 
@@ -172,7 +187,8 @@ class ParameterSpace:
         """Deserialize a :class:`ParameterSpace` from a dictionary.
 
         Missing keys fall back to safe defaults. ``param_type`` is accepted by
-        name (``"float"``/``"int"``/``"bool"``).
+        name (``"float"``/``"int"``/``"bool"``). Non-finite numeric values
+        (NaN/inf) are sanitized to safe defaults.
 
         Args:
             data: Dictionary previously produced by :meth:`to_dict`.
@@ -192,9 +208,9 @@ class ParameterSpace:
         return cls(
             name=str(data.get("name", "")),
             values=list(data["values"]) if data.get("values") is not None else None,
-            min_val=data.get("min_val"),
-            max_val=data.get("max_val"),
-            step=data.get("step"),
+            min_val=_finite(data.get("min_val")) if data.get("min_val") is not None else None,
+            max_val=_finite(data.get("max_val")) if data.get("max_val") is not None else None,
+            step=_finite(data.get("step")) if data.get("step") is not None else None,
             distribution=data.get("distribution"),
             param_type=_PARAM_TYPE_BY_NAME.get(data.get("param_type", "float"), float),
         )
