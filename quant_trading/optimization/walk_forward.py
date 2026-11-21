@@ -502,6 +502,13 @@ class WalkForwardOptimizer:
                 metrics in the combined test result (default 0.02).
             verbose: Print progress.
 
+        Raises:
+            ValueError: If ``n_windows`` is below 1, ``train_size`` or
+                ``step_size`` is outside ``(0, 1]``, ``initial_capital`` is not
+                positive and finite, ``periods_per_year`` is below 1,
+                ``commission`` or ``slippage`` is outside ``[0, 1]``, or
+                ``risk_free_rate`` is not finite.
+
         """
         self.strategy_cls = strategy_cls
         self.param_grid = param_grid
@@ -566,6 +573,10 @@ class WalkForwardOptimizer:
         if not (0.0 <= self.slippage <= 1.0):
             raise ValueError(
                 f"invalid slippage: the value must be in the range [0, 1] " f"(got {self.slippage})"
+            )
+        if not math.isfinite(self.risk_free_rate):
+            raise ValueError(
+                f"invalid risk_free_rate: the value must be finite " f"(got {self.risk_free_rate})"
             )
 
     def _create_optimizer(self) -> BaseOptimizer:

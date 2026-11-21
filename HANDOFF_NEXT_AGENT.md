@@ -185,3 +185,88 @@ Added doctest coverage for `_finite` bool rejection in `quant_trading/risk/limit
 - **Full `pytest` suite verified locally in this session: `4491 passed, 151 deselected` (slow/network) in 248.60s (~4 min) via `python -m pytest` (addopts `--doctest-modules -m "not slow and not network"`). No regressions; working tree clean.**
 
 No further task assigned. The deserialization hardening chain, CLI error-reporting audit, `_finite` edge-case tests/doctests, and full-suite regression check are all complete and verified.
+
+---
+
+## Session 2026-11-21 (this session)
+
+Closed a construction-time validation gap for `risk_free_rate` in two library
+classes that accept it but never validated it, unlike `BacktestConfig` (which
+already rejects non-finite rates) and the CLI (which rejects `--risk-free-rate
+nan`).
+
+### What changed
+
+**quant_trading/monte_carlo/simulator.py**
+- `MonteCarloSimulator.__init__` now raises
+  `ValueError: invalid risk_free_rate: the value must be finite (got ...)`
+  when `risk_free_rate` is NaN/inf/-inf, after the existing
+  `n_simulations`/`confidence_level`/`periods_per_year` checks.
+- Added a `Raises:` section to the `__init__` docstring.
+
+**quant_trading/optimization/walk_forward.py**
+- `WalkForwardOptimizer.__init__` now raises the same
+  `invalid risk_free_rate: ...` error for non-finite rates, after the existing
+  `slippage` check.
+- Added a `Raises:` section to the `__init__` docstring.
+
+**tests/test_monte_carlo.py**
+- `test_monte_carlo_rejects_invalid_risk_free_rate` (parametrized nan/inf/-inf).
+- `test_monte_carlo_accepts_finite_risk_free_rate`.
+- `test_monte_carlo_run_monte_carlo_rejects_invalid_risk_free_rate` (covers the
+  `run_monte_carlo` convenience wrapper).
+
+**tests/test_walk_forward.py**
+- `TestWalkForwardInitValidation.test_rejects_invalid_risk_free_rate`
+  (parametrized nan/inf/-inf).
+- `TestWalkForwardInitValidation.test_accepts_finite_risk_free_rate`
+  (0.0, 0.02, 0.10, -0.01 — finite negatives are valid, matching
+  `BacktestConfig`, which only requires finiteness).
+
+### Root cause / evidence
+
+Reproduced before the fix:
+`MonteCarloSimulator(n_simulations=5, risk_free_rate=float("nan"))` and
+`WalkForwardOptimizer(..., risk_free_rate=float("inf"))` both constructed
+without error. The non-finite rate flows into
+`calculate_sharpe_ratio`/`calculate_sortino_ratio` (and the combined
+walk-forward result), turning those metrics into NaN instead of failing fast.
+
+### What was verified
+
+- `pytest tests/test_monte_carlo.py tests/test_walk_forward.py`: **123 passed**
+  (was 111; +12 new cases).
+- Doctests on both changed modules: **21 passed**.
+- `pytest tests/test_repository_integrity.py`: **51 passed** (docstring,
+  formatting, ruff, black, mypy guards all green).
+- `pytest tests/test_optimization.py tests/test_serialization_roundtrip.py
+  tests/test_config.py tests/test_backtest_engine.py`: **578 passed**.
+- Full `pytest` suite: **4503 passed, 151 deselected** in 257.33s (~4 min)
+  (was 4491 passed; +12 new tests). No regressions.
+- `ruff check`, `black --check`, `mypy` on all four changed files: **clean**.
+
+### What remains unresolved
+
+- Nothing for this task.
+- Note: `WalkForwardOptimizer` does not forward `risk_free_rate` to the
+  backend optimizers (`GridSearch`/`RandomSearch`/`BayesianOptimizer`), only
+  to the combined-result metric calculation. That is pre-existing behavior and
+  out of scope here; the new guard only rejects non-finite values, so it does
+  not change any valid run.
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- No task assigned. Possible bounded follow-ups (unverified, for a future
+  session to scope):
+  - `RiskManager` / `BacktestEngine` construction-time validation audit for
+    any remaining numeric field accepted without a finiteness/range check
+    (mirror the `BacktestConfig` pattern).
+  - `format_shares` in `quant_trading/utils/formatting.py` renders large
+    fractional quantities in scientific notation
+    (`format_shares(1234567.5)` -> `'1.23457e+06'`) because it uses the `:g`
+    format; a bounded fix + regression test is possible if that helper is ever
+    surfaced to users.

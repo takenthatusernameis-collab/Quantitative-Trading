@@ -86,6 +86,16 @@ class TestWalkForwardInitValidation:
         with pytest.raises(ValueError, match="invalid slippage"):
             WalkForwardOptimizer(**_minimal_kwargs(), slippage=slippage)
 
+    @pytest.mark.parametrize("risk_free_rate", [float("nan"), float("inf"), float("-inf")])
+    def test_rejects_invalid_risk_free_rate(self, risk_free_rate: float) -> None:
+        with pytest.raises(ValueError, match="invalid risk_free_rate"):
+            WalkForwardOptimizer(**_minimal_kwargs(), risk_free_rate=risk_free_rate)
+
+    @pytest.mark.parametrize("risk_free_rate", [0.0, 0.02, 0.10, -0.01])
+    def test_accepts_finite_risk_free_rate(self, risk_free_rate: float) -> None:
+        optimizer = WalkForwardOptimizer(**_minimal_kwargs(), risk_free_rate=risk_free_rate)
+        assert optimizer.risk_free_rate == risk_free_rate
+
     @pytest.mark.parametrize("slippage", [0.0, 1.0])
     def test_accepts_slippage_boundaries(self, slippage: float) -> None:
         optimizer = WalkForwardOptimizer(**_minimal_kwargs(), slippage=slippage)

@@ -569,6 +569,11 @@ class MonteCarloSimulator:
             n_jobs: Number of parallel worker processes. Set to -1 to use all
                 available CPUs. Default is 1 (sequential execution).
 
+        Raises:
+            ValueError: If ``n_simulations`` is below 1, ``confidence_level`` is
+                outside ``(0, 1)``, ``periods_per_year`` is below 1, or
+                ``risk_free_rate`` is not finite.
+
         """
         self.n_simulations = n_simulations
         self.confidence_level = confidence_level
@@ -599,6 +604,10 @@ class MonteCarloSimulator:
             raise ValueError(
                 f"invalid periods_per_year: the value must be at least 1 "
                 f"(got {self.periods_per_year})"
+            )
+        if not math.isfinite(self.risk_free_rate):
+            raise ValueError(
+                f"invalid risk_free_rate: the value must be finite " f"(got {self.risk_free_rate})"
             )
 
     def run(

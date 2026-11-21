@@ -345,6 +345,23 @@ def test_monte_carlo_rejects_invalid_periods_per_year(periods_per_year: int) -> 
         MonteCarloSimulator(n_simulations=10, periods_per_year=periods_per_year, random_state=7)
 
 
+@pytest.mark.parametrize("risk_free_rate", [float("nan"), float("inf"), float("-inf")])
+def test_monte_carlo_rejects_invalid_risk_free_rate(risk_free_rate: float) -> None:
+    """A non-finite risk-free rate is rejected at construction time.
+
+    Without this guard the rate flows into ``calculate_sharpe_ratio`` /
+    ``calculate_sortino_ratio`` and turns every simulated Sharpe/Sortino into
+    NaN, matching the construction-time check ``BacktestConfig`` already applies.
+    """
+    with pytest.raises(ValueError, match="invalid risk_free_rate"):
+        MonteCarloSimulator(n_simulations=10, risk_free_rate=risk_free_rate, random_state=7)
+
+
+def test_monte_carlo_accepts_finite_risk_free_rate() -> None:
+    simulator = MonteCarloSimulator(n_simulations=10, risk_free_rate=0.05, random_state=7)
+    assert simulator.risk_free_rate == 0.05
+
+
 def test_monte_carlo_accepts_minimal_valid_values() -> None:
     simulator = MonteCarloSimulator(
         n_simulations=1,
@@ -361,6 +378,12 @@ def test_monte_carlo_run_monte_carlo_rejects_invalid_n_simulations() -> None:
     result = _make_result()
     with pytest.raises(ValueError, match="invalid n_simulations"):
         run_monte_carlo(result, n_simulations=0, random_state=7)
+
+
+def test_monte_carlo_run_monte_carlo_rejects_invalid_risk_free_rate() -> None:
+    result = _make_result()
+    with pytest.raises(ValueError, match="invalid risk_free_rate"):
+        run_monte_carlo(result, n_simulations=10, random_state=7, risk_free_rate=float("nan"))
 
 
 def test_monte_carlo_risk_free_rate_reaches_simulated_metrics() -> None:
