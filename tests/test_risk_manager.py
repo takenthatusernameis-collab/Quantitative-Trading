@@ -1,5 +1,6 @@
 """Tests for the risk manager."""
 
+import math
 from typing import Any
 
 import numpy as np
@@ -1629,6 +1630,121 @@ class TestLimitsCoverage:
         res.add_violation("boom")
         assert res.passed is False
         assert "boom" in res.violations
+
+
+class TestNonFiniteInputs:
+    """Regression tests: non-finite inputs must not leak into outputs or decisions."""
+
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf"), 0.0, -1.0])
+    def test_check_signal_rejects_non_finite_portfolio_value(self, value: float) -> None:
+        rm = RiskManager(initial_capital=100000.0)
+        signal = Signal(symbol="AAPL", action="buy", price=150.0, strength=1.0)
+        result = rm.check_signal(signal, portfolio_value=value)
+        assert result.passed is False
+        assert any("zero or negative" in v or "not finite" in v for v in result.violations)
+
+    @pytest.mark.parametrize("action", ["buy", "short"])
+    @pytest.mark.parametrize("price", [float("nan"), float("inf"), float("-inf")])
+    def test_check_signal_rejects_non_finite_price(self, action: str, price: float) -> None:
+        rm = RiskManager(initial_capital=100000.0)
+        signal = Signal(symbol="AAPL", action=action, price=price, strength=1.0)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("no price" in v for v in result.violations)
+
+    @pytest.mark.parametrize("action", ["buy", "short"])
+    @pytest.mark.parametrize("strength", [float("nan"), float("inf"), float("-inf")])
+    def test_check_signal_rejects_non_finite_strength(self, action: str, strength: float) -> None:
+        rm = RiskManager(initial_capital=100000.0)
+        signal = Signal(symbol="AAPL", action=action, price=150.0, strength=strength)
+        result = rm.check_signal(signal)
+        assert result.passed is False
+        assert any("invalid strength" in v for v in result.violations)
+
+    def test_check_signal_non_finite_inputs_violate_consistency(self) -> None:
+        """Accept-reject decisions and violations stay consistent for dirty signals."""
+        rm = RiskManager(initial_capital=100000.0)
+        for price in (float("nan"), float("inf")):
+            for action in ("buy", "short"):
+                signal = Signal(symbol="AAPL", action=action, price=price, strength=1.0)
+                result = rm.check_signal(signal)
+                assert result.passed is False
+                assert len(result.violations) > 0
+
+    def test_update_portfolio_value_keeps_outputs_finite_with_nan_cash(self) -> None:
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value({}, float("nan"))
+        assert math.isfinite(rm.portfolio_risk.total_market_value)
+        assert math.isfinite(rm.portfolio_risk.current_drawdown)
+        assert math.isfinite(rm.portfolio_risk.leverage)
+        assert math.isfinite(rm.peak_value)
+
+    def test_update_portfolio_value_keeps_outputs_finite_with_inf_cash(self) -> None:
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value({}, float("inf"))
+        assert math.isfinite(rm.portfolio_risk.total_market_value)
+        assert math.isfinite(rm.portfolio_risk.current_drawdown)
+        assert math.isfinite(rm.peak_value)
+
+    def test_update_portfolio_value_keeps_outputs_finite_with_nan_price(self) -> None:
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value({"AAPL": Position("AAPL", 100, 150.0, float("nan"))}, 50000.0)
+        assert math.isfinite(rm.portfolio_risk.positions_value)
+        assert math.isfinite(rm.portfolio_risk.total_market_value)
+        assert math.isfinite(rm.portfolio_risk.current_drawdown)
+
+    def test_update_trailing_stop_ignores_non_finite_price(self) -> None:
+        rm = RiskManager(initial_capital=100000.0, trailing_stop_pct=0.05)
+        rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+        assert rm.get_trailing_stop("AAPL") == pytest.approx(95.0)
+        assert rm.update_trailing_stop("AAPL", float("nan")) is None
+        assert rm.update_trailing_stop("AAPL", float("inf")) is None
+        trailing_stop = rm.get_trailing_stop("AAPL")
+        assert trailing_stop is not None and math.isfinite(trailing_stop)
+
+    def test_get_position_stop_loss_and_take_profit_reject_nan_avg_price(self) -> None:
+        rm = RiskManager(initial_capital=100000.0, stop_loss_pct=0.10, take_profit_pct=0.15)
+        rm.positions = {"AAPL": Position("AAPL", 100, float("nan"), 160.0)}
+        assert rm.get_position_stop_loss("AAPL") is None
+        assert rm.get_position_take_profit("AAPL") is None
+        assert rm.should_stop_loss("AAPL", 100.0) is False
+        assert rm.should_take_profit("AAPL", 200.0) is False
+
+    def test_position_weights_raises_on_non_finite_market_value(self) -> None:
+        rm = RiskManager()
+        rm.positions = {"AAPL": Position("AAPL", 100, 150.0, float("nan"))}
+        frame = pd.DataFrame({"AAPL": [0.01, 0.02]})
+        with pytest.raises(ValueError, match="cannot attribute risk"):
+            rm._position_weights(frame)
+
+    def test_calculate_metrics_rejects_non_finite_periods_per_year(self) -> None:
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value({}, 110000.0)
+        rm.update_portfolio_value({}, 105000.0)
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            rm.calculate_metrics(periods_per_year=float("nan"))  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            rm.calculate_metrics(periods_per_year=float("inf"))  # type: ignore[arg-type]
+
+    def test_calculate_metrics_rejects_non_finite_risk_free_rate(self) -> None:
+        rm = RiskManager(initial_capital=100000.0)
+        rm.update_portfolio_value({}, 110000.0)
+        with pytest.raises(ValueError, match="invalid risk_free_rate"):
+            rm.calculate_metrics(risk_free_rate=float("nan"))
+
+    def test_init_rejects_non_finite_risk_free_rate(self) -> None:
+        with pytest.raises(ValueError, match="invalid risk_free_rate"):
+            RiskManager(risk_free_rate=float("nan"))  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="invalid risk_free_rate"):
+            RiskManager(risk_free_rate=float("inf"))
+
+    def test_check_portfolio_rejects_non_finite_state(self) -> None:
+        rm = RiskManager(initial_capital=100000.0)
+        rm.portfolio_risk = PortfolioRisk(total_market_value=float("nan"), peak_value=float("nan"))
+        rm.peak_value = float("nan")
+        result = rm.check_portfolio()
+        assert result.passed is False
+        assert any("not finite" in v for v in result.violations)
 
 
 if __name__ == "__main__":

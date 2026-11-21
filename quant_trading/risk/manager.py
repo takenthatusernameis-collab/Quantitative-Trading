@@ -504,6 +504,10 @@ class RiskManager:
         """
         self.initial_capital = initial_capital
         self.risk_free_rate = risk_free_rate
+        if not math.isfinite(risk_free_rate):
+            raise ValueError(
+                f"invalid risk_free_rate: the value must be finite " f"(got {risk_free_rate})"
+            )
 
         # Validate the risk manager configuration before the limit objects are
         # built from these values, so invalid input raises here with a clear
@@ -592,6 +596,52 @@ class RiskManager:
         self._trailing_highs: dict[str, float] = {}
         self._trailing_lows: dict[str, float] = {}
 
+    def _sanitize_position(self, position: Position) -> Position:
+        """Return ``position`` with non-finite numeric fields zeroed out.
+
+        Non-finite quantity, entry price, or market price would propagate
+        into position weights, risk figures, trailing stops, and limit
+        checks, so a corrupt position is treated as flat/flat-priced
+        instead of poisoning the manager's view.
+
+        Args:
+            position: Position to sanitize.
+
+        Returns:
+            The position unchanged when every numeric field is finite,
+            otherwise a copy with non-finite ``quantity``, ``avg_price``,
+            and ``current_price`` replaced by 0.0.
+
+        Examples:
+            >>> from quant_trading.risk.manager import RiskManager
+            >>> from quant_trading.strategies.base import Position
+            >>> rm = RiskManager()
+            >>> clean = Position("AAPL", 100, 150.0, 160.0)
+            >>> rm._sanitize_position(clean) is clean
+            True
+            >>> corrupt = Position("AAPL", 100, float("nan"), float("inf"))
+            >>> fixed = rm._sanitize_position(corrupt)
+            >>> fixed.quantity, fixed.avg_price, fixed.current_price
+            (100, 0.0, 0.0)
+
+        """
+        if (
+            math.isfinite(position.quantity)
+            and math.isfinite(position.avg_price)
+            and math.isfinite(position.current_price)
+        ):
+            return position
+        return Position(
+            symbol=position.symbol,
+            quantity=position.quantity if math.isfinite(position.quantity) else 0.0,
+            avg_price=position.avg_price if math.isfinite(position.avg_price) else 0.0,
+            current_price=(
+                position.current_price if math.isfinite(position.current_price) else 0.0
+            ),
+            unrealized_pnl=position.unrealized_pnl,
+            realized_pnl=position.realized_pnl,
+        )
+
     def update_portfolio_value(self, positions: dict[str, Position], cash: float) -> None:
         """Update portfolio value and track equity curve.
 
@@ -614,8 +664,11 @@ class RiskManager:
                 True
 
         """
-        self.positions = positions
-        positions_value = sum(p.market_value for p in positions.values())
+        self.positions = {
+            symbol: self._sanitize_position(position) for symbol, position in positions.items()
+        }
+        cash = cash if math.isfinite(cash) else 0.0
+        positions_value = sum(p.market_value for p in self.positions.values())
         total_value = cash + positions_value
 
         # A position that is no longer held cannot carry a trailing stop, and
@@ -701,6 +754,7 @@ class RiskManager:
             # the old direction no longer applies to the new one.
             self._clear_trailing_state(symbol)
 
+        position = self._sanitize_position(position)
         self.positions[symbol] = position
         self.update_trailing_stop(symbol, position.current_price)
 
@@ -870,13 +924,13 @@ class RiskManager:
         value = (
             self.portfolio_risk.total_market_value if portfolio_value is None else portfolio_value
         )
-        if value <= 0:
+        if not math.isfinite(value) or value <= 0:
             result.add_violation("Portfolio value is zero or negative")
             return result
 
         if signal.action == "buy":
             position = self.positions.get(signal.symbol)
-            if signal.price is None:
+            if signal.price is None or not math.isfinite(signal.price):
                 result.add_violation("Buy signal has no price")
                 return result
             if position is not None and position.quantity < 0:
@@ -886,6 +940,9 @@ class RiskManager:
             if self._reject_signal_if_in_drawdown_breach(result, "Buy"):
                 return result
             if self._reject_new_position_if_at_the_limit(result, "Buy", signal.symbol):
+                return result
+            if not math.isfinite(signal.strength):
+                result.add_violation("Buy signal has invalid strength")
                 return result
             current_gross = abs(position.quantity) * signal.price if position else 0.0
             self._check_exposure_increase(
@@ -908,12 +965,15 @@ class RiskManager:
             if position is not None and position.quantity > 0:
                 result.add_violation("Short signal for position with long holdings")
                 return result
-            if signal.price is None:
+            if signal.price is None or not math.isfinite(signal.price):
                 result.add_violation("Short signal has no price")
                 return result
             if self._reject_signal_if_in_drawdown_breach(result, "Short"):
                 return result
             if self._reject_new_position_if_at_the_limit(result, "Short", signal.symbol):
+                return result
+            if not math.isfinite(signal.strength):
+                result.add_violation("Short signal has invalid strength")
                 return result
             current_gross = abs(position.quantity) * signal.price if position else 0.0
             self._check_exposure_increase(
@@ -1015,6 +1075,12 @@ class RiskManager:
         if not self.risk_enabled:
             return result
 
+        if not math.isfinite(self.portfolio_risk.total_market_value) or not math.isfinite(
+            self.peak_value
+        ):
+            result.add_violation("Portfolio value is not finite")
+            return result
+
         violations = self.portfolio_limit.check(
             self.positions,
             self.portfolio_risk.total_market_value,
@@ -1045,10 +1111,16 @@ class RiskManager:
 
         """
         equity_series = pd.Series(self.equity_curve)
+        _validate_periods_per_year(periods_per_year)
+        effective_risk_free_rate = self.risk_free_rate if risk_free_rate is None else risk_free_rate
+        if not math.isfinite(effective_risk_free_rate):
+            raise ValueError(
+                f"invalid risk_free_rate: the value must be finite " f"(got {risk_free_rate})"
+            )
         self.risk_metrics = calculate_all_metrics(
             equity_series,
             market_returns=market_returns,
-            risk_free_rate=self.risk_free_rate if risk_free_rate is None else risk_free_rate,
+            risk_free_rate=effective_risk_free_rate,
             periods_per_year=periods_per_year,
         )
         return self.risk_metrics
@@ -1116,7 +1188,7 @@ class RiskManager:
 
         """
         total = sum(abs(position.market_value) for position in self.positions.values())
-        if total <= 0:
+        if not math.isfinite(total) or total <= 0:
             raise ValueError("cannot attribute risk: the open positions carry no market value")
         return np.array(
             [abs(self.positions[symbol].market_value) / total for symbol in frame.columns],
@@ -1549,7 +1621,7 @@ class RiskManager:
 
         """
         position = self.positions.get(symbol)
-        if position is None or position.avg_price <= 0:
+        if position is None or not math.isfinite(position.avg_price) or position.avg_price <= 0:
             return None
         if position.quantity < 0:
             fixed_stop = position.avg_price * (1 + self.position_limit.stop_loss_pct)
@@ -1632,7 +1704,7 @@ class RiskManager:
                 84.0
 
         """
-        if self.trailing_stop_pct <= 0 or price <= 0:
+        if self.trailing_stop_pct <= 0 or not math.isfinite(price) or price <= 0:
             return None
 
         position = self.positions.get(symbol)
@@ -1707,7 +1779,7 @@ class RiskManager:
 
         """
         position = self.positions.get(symbol)
-        if position is None or position.avg_price <= 0:
+        if position is None or not math.isfinite(position.avg_price) or position.avg_price <= 0:
             return None
         if position.quantity < 0:
             return position.avg_price * (1 - self.position_limit.take_profit_pct)
