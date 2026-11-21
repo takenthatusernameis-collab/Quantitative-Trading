@@ -4598,6 +4598,21 @@ class TestBaseOptimizerInitValidation:
         optimizer = _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), slippage=slippage)
         assert optimizer.slippage == slippage
 
+    @pytest.mark.parametrize("n_jobs", [float("nan"), float("inf")])
+    def test_rejects_invalid_n_jobs(self, n_jobs: float) -> None:
+        with pytest.raises(ValueError, match="invalid n_jobs"):
+            _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), n_jobs=cast(int, n_jobs))
+
+    @pytest.mark.parametrize("n_jobs", [1, 2, 4])
+    def test_accepts_valid_n_jobs(self, n_jobs: int) -> None:
+        optimizer = _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), n_jobs=n_jobs)
+        assert optimizer.n_jobs == n_jobs
+
+    @pytest.mark.parametrize("n_jobs", [0, -1, -2, -5])
+    def test_clamps_non_positive_n_jobs_to_one(self, n_jobs: int) -> None:
+        optimizer = _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), n_jobs=n_jobs)
+        assert optimizer.n_jobs >= 1
+
     def test_accepts_all_boundary_valid_values(self) -> None:
         optimizer = _ConcreteBaseOptimizer(
             **_base_optimizer_minimal_kwargs(),
@@ -4711,6 +4726,28 @@ class TestSubclassOptimizerInitValidation:
         kwargs, cls = kwargs_factory()
         with pytest.raises(ValueError, match="invalid slippage"):
             cls(**kwargs, slippage=slippage)
+
+    @pytest.mark.parametrize("n_jobs", [float("nan"), float("inf")])
+    def test_rejects_invalid_n_jobs(
+        self,
+        kwargs_factory: Callable[[], tuple[dict[str, Any], type[BaseOptimizer]]],
+        n_jobs: float,
+    ) -> None:
+        kwargs, cls = kwargs_factory()
+        kwargs.pop("n_jobs", None)
+        with pytest.raises(ValueError, match="invalid n_jobs"):
+            cls(**kwargs, n_jobs=cast(int, n_jobs))
+
+    @pytest.mark.parametrize("n_jobs", [0, -1, -2, -5])
+    def test_clamps_non_positive_n_jobs_to_one(
+        self,
+        kwargs_factory: Callable[[], tuple[dict[str, Any], type[BaseOptimizer]]],
+        n_jobs: int,
+    ) -> None:
+        kwargs, cls = kwargs_factory()
+        kwargs.pop("n_jobs", None)
+        optimizer = cls(**kwargs, n_jobs=n_jobs)
+        assert optimizer.n_jobs >= 1
 
     def test_accepts_boundary_valid_values(
         self, kwargs_factory: Callable[[], tuple[dict[str, Any], type[BaseOptimizer]]]

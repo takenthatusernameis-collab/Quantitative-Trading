@@ -947,6 +947,10 @@ class BaseOptimizer(ABC):
             raise ValueError(
                 f"invalid slippage: the value must be in the range [0, 1] " f"(got {self.slippage})"
             )
+        if not math.isfinite(self.n_jobs) or self.n_jobs < 1:
+            raise ValueError(
+                f"invalid n_jobs: the value must be at least 1 and finite " f"(got {self.n_jobs})"
+            )
 
     @abstractmethod
     def run(self) -> OptimizationResult:

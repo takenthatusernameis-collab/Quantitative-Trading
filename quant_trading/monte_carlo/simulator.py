@@ -583,6 +583,10 @@ class MonteCarloSimulator:
         if n_jobs == -1:
             n_jobs = os.cpu_count() or 1
         n_jobs = max(n_jobs, 1)
+        if not math.isfinite(n_jobs) or n_jobs < 1:
+            raise ValueError(
+                f"invalid n_jobs: the value must be at least 1 and finite " f"(got {n_jobs})"
+            )
         self.n_jobs = n_jobs
         self._rng = np.random.default_rng(random_state)
 

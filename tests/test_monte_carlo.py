@@ -374,6 +374,20 @@ def test_monte_carlo_accepts_minimal_valid_values() -> None:
     assert simulator.periods_per_year == 1
 
 
+@pytest.mark.parametrize("n_jobs", [float("nan"), float("inf")])
+def test_monte_carlo_rejects_invalid_n_jobs(n_jobs: float) -> None:
+    """Non-finite n_jobs values are rejected at construction time."""
+    with pytest.raises(ValueError, match="invalid n_jobs"):
+        MonteCarloSimulator(n_simulations=10, n_jobs=n_jobs, random_state=7)
+
+
+@pytest.mark.parametrize("n_jobs", [0, -1, -2, -5])
+def test_monte_carlo_clamps_non_positive_n_jobs_to_one(n_jobs: int) -> None:
+    """Non-positive n_jobs values (except -1 for auto) are clamped to 1."""
+    simulator = MonteCarloSimulator(n_simulations=10, n_jobs=n_jobs, random_state=7)
+    assert simulator.n_jobs >= 1
+
+
 def test_monte_carlo_run_monte_carlo_rejects_invalid_n_simulations() -> None:
     result = _make_result()
     with pytest.raises(ValueError, match="invalid n_simulations"):
@@ -564,7 +578,7 @@ class TestMonteCarloParallelExecution:
         assert mc.n_simulations == 10
 
     def test_monte_carlo_parallel_invalid_n_jobs_clamped(self) -> None:
-        """Invalid n_jobs values are clamped to minimum of 1."""
+        """Non-positive n_jobs values are clamped to minimum of 1."""
         sim = MonteCarloSimulator(n_simulations=10, random_state=7, n_jobs=0)
         assert sim.n_jobs == 1
         sim = MonteCarloSimulator(n_simulations=10, random_state=7, n_jobs=-5)
