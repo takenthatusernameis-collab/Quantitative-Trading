@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime
+from typing import cast
 
 import pandas as pd
 import pytest
@@ -378,7 +379,7 @@ def test_monte_carlo_accepts_minimal_valid_values() -> None:
 def test_monte_carlo_rejects_invalid_n_jobs(n_jobs: float) -> None:
     """Non-finite n_jobs values are rejected at construction time."""
     with pytest.raises(ValueError, match="invalid n_jobs"):
-        MonteCarloSimulator(n_simulations=10, n_jobs=n_jobs, random_state=7)
+        MonteCarloSimulator(n_simulations=10, n_jobs=cast(int, n_jobs), random_state=7)
 
 
 @pytest.mark.parametrize("n_jobs", [0, -1, -2, -5])

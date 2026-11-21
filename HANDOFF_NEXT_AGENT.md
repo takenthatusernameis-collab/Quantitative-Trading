@@ -270,3 +270,51 @@ walk-forward result), turning those metrics into NaN instead of failing fast.
     (`format_shares(1234567.5)` -> `'1.23457e+06'`) because it uses the `:g`
     format; a bounded fix + regression test is possible if that helper is ever
     surfaced to users.
+
+---
+
+## Session 2026-11-21 (this session)
+
+Fixed a real, bounded regression: the full `pytest` suite had exactly one
+failure — `tests/test_repository_integrity.py::test_repository_is_mypy_clean`
+— due to a mypy error in `tests/test_monte_carlo.py:381` where
+`test_monte_carlo_rejects_invalid_n_jobs` passed `float("nan")` /
+`float("inf")` to `MonteCarloSimulator(n_jobs: int = 1)`. The constructor
+correctly rejects non-finite `n_jobs` at runtime via `math.isfinite`, but
+mypy rejected the `float` argument to the `int`-typed parameter.
+
+### What changed
+
+**tests/test_monte_carlo.py**
+- Added `from typing import cast`.
+- `test_monte_carlo_rejects_invalid_n_jobs`: pass `n_jobs=cast(int, n_jobs)`
+  so mypy is satisfied while the float still reaches the constructor's
+  `math.isfinite` check at runtime (nan/inf are still rejected with
+  `invalid n_jobs`).
+
+### What was verified
+
+- `python -m mypy tests/test_monte_carlo.py`: clean.
+- `pytest tests/test_monte_carlo.py -k "rejects_invalid_n_jobs"`: 2 passed
+  (nan and inf cases).
+- `pytest tests/test_monte_carlo.py`: 68 passed.
+- `pytest tests/test_repository_integrity.py`: 51 passed (whole-repo mypy +
+  docstring/format/ruff/black guards green).
+- `ruff check tests/test_monte_carlo.py`: clean.
+- `black --check tests/test_monte_carlo.py`: clean.
+
+Full suite baseline (pre-fix): 4530 passed, 1 failed (the mypy integrity
+test), 151 deselected in 257.50s. Post-fix the integrity test is green; the
+remaining suite is unchanged.
+
+### What remains unresolved
+
+- Nothing for this task.
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- None assigned. See the bounded follow-ups listed above for a future session.
