@@ -682,3 +682,48 @@ class TestExplicitCombinedAndStrategyConfigErrors:
         assert "Traceback" not in out
         assert "invalid config field BacktestConfig.initial_capital" in out
         assert "expected <class 'float'>, got str ('abc')" in out
+
+    def test_output_to_nonexistent_directory_reported_pre_run(self, tmp_path: Path) -> None:
+        """``--output`` to a directory that does not exist is rejected pre-run.
+
+        The README's "Error Reporting" section lists a ``--output`` path whose
+        directory does not exist among the mistakes reported as a one-line
+        error with exit code 1 instead of failing deep inside the library (or
+        only after a long backtest run has finished).
+        """
+        import contextlib
+        import io
+        import os
+        import sys
+        from pathlib import Path
+
+        old_cwd = Path.cwd()
+        old_argv = sys.argv
+        output = io.StringIO()
+        try:
+            os.chdir(tmp_path)
+            sys.argv = [
+                "cli.py",
+                "--offline",
+                "--output",
+                "nonexistent_dir/results.json",
+                "--symbols",
+                "AAPL",
+                "--days",
+                "5",
+            ]
+            with contextlib.redirect_stdout(output):
+                try:
+                    rc = main()
+                except SystemExit as exc:
+                    rc = exc.code if isinstance(exc.code, int) else 1
+        finally:
+            os.chdir(old_cwd)
+            sys.argv = old_argv
+        out = output.getvalue()
+        assert rc == 1, f"expected exit code 1, got {rc}\noutput:\n{out}"
+        assert "Traceback" not in out, f"error-reporting command produced a traceback:\n{out}"
+        assert "Error:" in out, f"error-reporting command did not report an error:\n{out}"
+        assert not (
+            tmp_path / "nonexistent_dir"
+        ).exists(), "pre-run validation must not create the missing output directory"

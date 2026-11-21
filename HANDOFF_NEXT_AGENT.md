@@ -82,3 +82,48 @@ Verified:
 - ruff check / black --check / mypy on tests/test_config.py: **clean**
 
 Next task: audit the CLI validations documented in README.md "Error Reporting" section (e.g. `--risk-free-rate nan`, `--initial-capital nan`, `--synthetic-seed -1`, `--commission 1.5`, `--mc-simulations 0`) against `examples/cli.py` and close gaps where a documented error case is not caught pre-run with a one-line `Error:` + exit 1.
+
+---
+
+## Session 2026-11-21 (this session)
+
+Completed the CLI error-reporting audit against `examples/cli.py`.
+
+### What changed
+
+**examples/cli.py**
+- Added `import os`.
+- Added a pre-run validation in `parse_args()` (after the `--slippage` check): `--output` is rejected before any backtest runs when its parent directory does not exist, with
+  `Error: invalid --output: the output directory does not exist '<dir>'` and exit code 1. The missing directory is NOT created.
+  Previously this was only caught post-run inside `_save_json_output` (after a potentially long backtest), while the README's "Error Reporting" section lists it among the mistakes reported pre-run like config-file errors.
+- No change to `--report`: it still auto-creates parent directories (exit 0) and is not documented as an error case.
+
+**tests/test_cli.py**
+- `test_unwritable_output_file_is_reported`: now asserts the new pre-run message `invalid --output: the output directory does not exist`, exit 1, no traceback.
+
+**tests/test_examples_smoke.py**
+- `CLI_USER_ERRORS` "unwritable-output" case: expected substring updated from `could not write output file` to `invalid --output: the output directory does not exist`.
+
+**tests/test_readme_cli_commands.py**
+- Added `TestExplicitCombinedAndStrategyConfigErrors.test_output_to_nonexistent_directory_reported_pre_run`: exit 1, `Error:` present, no `Traceback`, and the missing directory is not created.
+
+### What was verified
+
+- Live audit of every documented error case (`--risk-free-rate nan`, `--initial-capital nan`, `--synthetic-seed -1`, `--commission 1.5`, `--slippage 1.5`, `--mc-simulations 0`, `--mc-seed -1`, `--synthetic-days 0`, `--days 0`, `--wf-windows 0`, `--wf-step-size 0`, `--periods-per-year 0`, `--regime-window 1`, `--regime-vol-threshold nan`, `--regime-return-threshold inf`, `--bayesian-noise 0`, `--n-iter 0`, `--n-jobs 0`, range step 0, unknown strategy, missing/invalid/wrongly-typed config files): all exit 1 with one-line `Error:` and no traceback.
+- `--output new_dir/results.json` → exit 1, no traceback, directory not created (pre-run, no backtest output printed). `--output results.json` (relative) → exit 0.
+- `ruff check`, `black --check`, `mypy examples/cli.py`: clean.
+- `pytest tests/test_readme_cli_commands.py tests/test_readme_cli.py`: 129 passed.
+- `pytest tests/test_cli.py`: 356 passed (incl. the updated unwritable-output test).
+- `pytest tests/test_examples_smoke.py -k user_errors -m slow`: 4 passed.
+
+### What remains unresolved
+
+- Nothing for this task. Full `pytest` suite times out locally (>5 min, pre-existing slowness, `-m "not slow and not network"` deselects the slow README command invocations); verify in CI if available.
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- None assigned — the deserialization hardening chain and the CLI error-reporting audit are both complete. If picking up new work, a bounded candidate would be adding unit tests for `quant_trading/risk/limits.py:_finite` edge cases not yet covered by doctests, or checking `git status`/diff before any checkpoint.

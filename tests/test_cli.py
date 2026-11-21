@@ -4953,7 +4953,7 @@ class TestUserErrorReporting:
     def test_unwritable_output_file_is_reported(
         self, capsys: CaptureFixture[Any], tmp_path: Path
     ) -> None:
-        """An output file in a directory that does not exist is a message."""
+        """An output file in a directory that does not exist is rejected pre-run."""
         missing = tmp_path / "missing" / "output.json"
         result, output = self._run(
             [
@@ -4968,7 +4968,7 @@ class TestUserErrorReporting:
             capsys,
         )
         assert result == 1
-        assert "could not write output file" in output
+        assert "invalid --output: the output directory does not exist" in output
         assert "Traceback" not in output
 
     def test_a_malformed_strategy_config_is_reported(

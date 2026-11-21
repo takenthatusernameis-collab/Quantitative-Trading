@@ -10,6 +10,7 @@ Additional feature:
 import argparse
 import inspect
 import math
+import os
 import re
 import sys
 from datetime import datetime, timedelta
@@ -1181,6 +1182,12 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             f"invalid --slippage: the value must be in the range [0, 1] " f"(got {args.slippage})"
         )
+    if args.output:
+        output_dir = os.path.dirname(os.path.abspath(args.output))
+        if not os.path.isdir(output_dir):
+            raise ValueError(
+                f"invalid --output: the output directory does not exist " f"'{output_dir}'"
+            )
     if args.risk_free_rate is not None and not math.isfinite(args.risk_free_rate):
         raise ValueError(
             f"invalid --risk-free-rate: the value must be finite " f"(got {args.risk_free_rate})"
