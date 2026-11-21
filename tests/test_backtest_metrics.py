@@ -690,6 +690,36 @@ class TestBacktestMetricsFromDict:
         assert isinstance(reconstructed.num_trades, int)
 
 
+class TestBacktestMetricsFromDictNonFiniteSanitization:
+    """Non-finite and non-numeric values must be sanitized in ``from_dict``."""
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("total_return", float("nan")),
+            ("total_return", float("inf")),
+            ("sharpe_ratio", float("-inf")),
+            ("max_drawdown", "not a number"),
+            ("win_rate", None),
+            ("num_trades", float("nan")),
+            ("num_trades", "not a number"),
+            ("num_trades", None),
+            ("volatility", float("nan")),
+            ("num_winning_trades", None),
+        ],
+    )
+    def test_non_finite_fields_are_sanitized_to_defaults(self, field, value):
+        data = {"sharpe_ratio": 1.5, "num_trades": 3}
+        data[field] = value
+        metrics = BacktestMetrics.from_dict(data)
+        expected = 0 if field in ("num_trades", "num_winning_trades", "num_losing_trades") else 0.0
+        assert getattr(metrics, field) == expected
+        # Every numeric field must be finite, so corruption cannot leak through.
+        for name, val in metrics.to_dict().items():
+            if isinstance(val, (int, float, np.integer, np.floating)):
+                assert np.isfinite(val), f"{name} is not finite: {val!r}"
+
+
 class TestBacktestMetricsTreynorAlignedSample:
     """Treynor ratio must use the aligned sample even when market returns have gaps.
 

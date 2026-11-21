@@ -1,5 +1,6 @@
 """Tests for the strategy base classes."""
 
+import math
 from datetime import datetime
 
 import pandas as pd
@@ -117,6 +118,37 @@ class TestPositionSerialization:
         restored = Position.from_dict(data)
         assert restored == Position("AAPL", 10, 100.0)
 
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("quantity", float("nan")),
+            ("quantity", float("inf")),
+            ("quantity", float("-inf")),
+            ("quantity", "not a number"),
+            ("quantity", None),
+            ("avg_price", float("nan")),
+            ("current_price", "not a number"),
+            ("unrealized_pnl", None),
+            ("realized_pnl", float("inf")),
+        ],
+    )
+    def test_from_dict_sanitizes_non_finite_numeric_fields(self, field, value):
+        """Non-finite and non-numeric position fields fall back to 0.0."""
+        data = {"symbol": "AAPL", "quantity": 10.0, "avg_price": 100.0}
+        data[field] = value
+        restored = Position.from_dict(data)
+        assert getattr(restored, field) == 0.0
+        for name in (
+            "quantity",
+            "avg_price",
+            "current_price",
+            "unrealized_pnl",
+            "realized_pnl",
+        ):
+            assert math.isfinite(
+                getattr(restored, name)
+            ), f"{name} is not finite: {getattr(restored, name)!r}"
+
 
 class TestSignalSerialization:
     """Tests for Signal.to_dict/from_dict serialization."""
@@ -187,6 +219,30 @@ class TestSignalSerialization:
         assert restored.strength == 1.0
         assert restored.price is None
         assert restored.metadata == {}
+
+    @pytest.mark.parametrize(
+        "field,value,expected",
+        [
+            ("strength", float("nan"), 1.0),
+            ("strength", float("inf"), 1.0),
+            ("strength", "not a number", 1.0),
+            ("strength", None, 1.0),
+            ("price", float("nan"), 0.0),
+            ("price", float("inf"), 0.0),
+            ("price", "not a number", 0.0),
+        ],
+    )
+    def test_from_dict_sanitizes_non_finite_numeric_fields(self, field, value, expected):
+        """Non-finite and non-numeric signal fields fall back to their defaults."""
+        data = {"symbol": "AAPL", "action": "buy", "strength": 0.5, "price": 150.0}
+        data[field] = value
+        restored = Signal.from_dict(data)
+        assert getattr(restored, field) == expected
+
+    def test_from_dict_keeps_missing_price_none(self) -> None:
+        """A missing price must stay None instead of being coerced to 0.0."""
+        restored = Signal.from_dict({"symbol": "AAPL", "action": "buy"})
+        assert restored.price is None
         assert restored.timestamp is not None
 
 

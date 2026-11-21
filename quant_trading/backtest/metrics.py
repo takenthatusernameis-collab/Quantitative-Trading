@@ -18,6 +18,7 @@ Examples:
 
 """
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -39,6 +40,47 @@ from quant_trading.risk.metrics import (
     calculate_var,
     calculate_volatility,
 )
+
+
+def _finite(value: Any, default: float = 0.0) -> float:
+    """Convert a value to a finite float, falling back to ``default``.
+
+    Non-numeric, non-finite (NaN/inf), and unconvertible values are replaced
+    with ``default`` so a corrupted dictionary cannot poison a reconstructed
+    metrics object with NaN/inf.
+
+    Args:
+        value: The value to sanitize.
+        default: The fallback value when ``value`` is not a finite number.
+
+    Returns:
+        A finite float.
+
+    Examples:
+        >>> _finite(1.5)
+        1.5
+        >>> _finite(float("nan"))
+        0.0
+        >>> _finite(float("inf"))
+        0.0
+        >>> _finite("not a number")
+        0.0
+        >>> _finite(None)
+        0.0
+        >>> _finite("3.14")
+        3.14
+    """
+    # Explicitly reject bool since bool is a subclass of int but we don't want
+    # True/False to be treated as 1.0/0.0
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)) and math.isfinite(value):
+        return float(value)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
 
 
 @dataclass
@@ -203,45 +245,69 @@ class BacktestMetrics:
         produced by :meth:`to_dict` (for example after a JSON round-trip) can
         be reconstructed without carrying every field. Extra keys are ignored.
 
+        Non-finite (NaN/inf), non-numeric, and missing numeric fields are
+        sanitized to their defaults (``0.0`` for ratios and values, ``0`` for
+        trade counts) so a corrupted dictionary cannot poison a reconstructed
+        metrics object with NaN/inf.
+
         Args:
             data: Dictionary whose keys match metric attribute names.
 
         Returns:
             BacktestMetrics object populated from the dictionary.
 
+        Examples:
+            >>> from quant_trading.backtest.metrics import BacktestMetrics
+            >>> restored = BacktestMetrics.from_dict({
+            ...     "sharpe_ratio": 1.5,
+            ...     "num_trades": 7,
+            ... })
+            >>> restored.sharpe_ratio, restored.num_trades
+            (1.5, 7)
+            >>> sanitized = BacktestMetrics.from_dict({
+            ...     "sharpe_ratio": float("nan"),
+            ...     "max_drawdown": float("inf"),
+            ...     "num_trades": "not a number",
+            ...     "win_rate": None,
+            ... })
+            >>> sanitized.sharpe_ratio, sanitized.max_drawdown
+            (0.0, 0.0)
+            >>> sanitized.num_trades, sanitized.win_rate
+            (0, 0.0)
+
         """
         return cls(
-            total_return=data.get("total_return", 0.0),
-            total_pnl=data.get("total_pnl", 0.0),
-            total_return_pct=data.get("total_return_pct", 0.0),
-            annual_return=data.get("annual_return", 0.0),
-            annual_return_pct=data.get("annual_return_pct", 0.0),
-            volatility=data.get("volatility", 0.0),
-            max_drawdown=data.get("max_drawdown", 0.0),
-            max_drawdown_pct=data.get("max_drawdown_pct", 0.0),
-            sharpe_ratio=data.get("sharpe_ratio", 0.0),
-            sortino_ratio=data.get("sortino_ratio", 0.0),
-            calmar_ratio=data.get("calmar_ratio", 0.0),
-            win_rate=data.get("win_rate", 0.0),
-            profit_factor=data.get("profit_factor", 0.0),
-            num_trades=data.get("num_trades", 0),
-            num_winning_trades=data.get("num_winning_trades", 0),
-            num_losing_trades=data.get("num_losing_trades", 0),
-            avg_win=data.get("avg_win", 0.0),
-            avg_loss=data.get("avg_loss", 0.0),
-            largest_win=data.get("largest_win", 0.0),
-            largest_loss=data.get("largest_loss", 0.0),
-            var_95=data.get("var_95", 0.0),
-            var_99=data.get("var_99", 0.0),
-            cvar_95=data.get("cvar_95", 0.0),
-            cvar_99=data.get("cvar_99", 0.0),
-            beta=data.get("beta", 0.0),
-            alpha=data.get("alpha", 0.0),
-            treynor_ratio=data.get("treynor_ratio", 0.0),
-            information_ratio=data.get("information_ratio", 0.0),
-            omega_ratio=data.get("omega_ratio", 0.0),
-            ulcer_index=data.get("ulcer_index", 0.0),
-            unrealized_pnl=data.get("unrealized_pnl", 0.0),
+            total_return=_finite(data.get("total_return", 0.0), 0.0),
+            total_pnl=_finite(data.get("total_pnl", 0.0), 0.0),
+            total_return_pct=_finite(data.get("total_return_pct", 0.0), 0.0),
+            annual_return=_finite(data.get("annual_return", 0.0), 0.0),
+            annual_return_pct=_finite(data.get("annual_return_pct", 0.0), 0.0),
+            volatility=_finite(data.get("volatility", 0.0), 0.0),
+            max_drawdown=_finite(data.get("max_drawdown", 0.0), 0.0),
+            max_drawdown_pct=_finite(data.get("max_drawdown_pct", 0.0), 0.0),
+            sharpe_ratio=_finite(data.get("sharpe_ratio", 0.0), 0.0),
+            sortino_ratio=_finite(data.get("sortino_ratio", 0.0), 0.0),
+            calmar_ratio=_finite(data.get("calmar_ratio", 0.0), 0.0),
+            win_rate=_finite(data.get("win_rate", 0.0), 0.0),
+            profit_factor=_finite(data.get("profit_factor", 0.0), 0.0),
+            num_trades=int(_finite(data.get("num_trades", 0), 0)),
+            num_winning_trades=int(_finite(data.get("num_winning_trades", 0), 0)),
+            num_losing_trades=int(_finite(data.get("num_losing_trades", 0), 0)),
+            avg_win=_finite(data.get("avg_win", 0.0), 0.0),
+            avg_loss=_finite(data.get("avg_loss", 0.0), 0.0),
+            largest_win=_finite(data.get("largest_win", 0.0), 0.0),
+            largest_loss=_finite(data.get("largest_loss", 0.0), 0.0),
+            var_95=_finite(data.get("var_95", 0.0), 0.0),
+            var_99=_finite(data.get("var_99", 0.0), 0.0),
+            cvar_95=_finite(data.get("cvar_95", 0.0), 0.0),
+            cvar_99=_finite(data.get("cvar_99", 0.0), 0.0),
+            beta=_finite(data.get("beta", 0.0), 0.0),
+            alpha=_finite(data.get("alpha", 0.0), 0.0),
+            treynor_ratio=_finite(data.get("treynor_ratio", 0.0), 0.0),
+            information_ratio=_finite(data.get("information_ratio", 0.0), 0.0),
+            omega_ratio=_finite(data.get("omega_ratio", 0.0), 0.0),
+            ulcer_index=_finite(data.get("ulcer_index", 0.0), 0.0),
+            unrealized_pnl=_finite(data.get("unrealized_pnl", 0.0), 0.0),
         )
 
 

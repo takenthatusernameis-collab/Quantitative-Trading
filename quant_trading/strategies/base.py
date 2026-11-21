@@ -1,5 +1,6 @@
 """Base strategy classes and interfaces."""
 
+import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -8,6 +9,47 @@ from typing import Any
 import pandas as pd
 
 __all__ = ["BaseStrategy", "Position", "Signal", "Strategy", "StrategyManager"]
+
+
+def _finite(value: Any, default: float = 0.0) -> float:
+    """Convert a value to a finite float, falling back to ``default``.
+
+    Non-numeric, non-finite (NaN/inf), and unconvertible values are replaced
+    with ``default`` so a corrupted dictionary cannot poison a reconstructed
+    object with NaN/inf.
+
+    Args:
+        value: The value to sanitize.
+        default: The fallback value when ``value`` is not a finite number.
+
+    Returns:
+        A finite float.
+
+    Examples:
+        >>> _finite(1.5)
+        1.5
+        >>> _finite(float("nan"))
+        0.0
+        >>> _finite(float("inf"))
+        0.0
+        >>> _finite("not a number")
+        0.0
+        >>> _finite(None)
+        0.0
+        >>> _finite("3.14")
+        3.14
+    """
+    # Explicitly reject bool since bool is a subclass of int but we don't want
+    # True/False to be treated as 1.0/0.0
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)) and math.isfinite(value):
+        return float(value)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
 
 
 @dataclass
@@ -125,16 +167,30 @@ class Signal:
             1.0
             >>> restored.timestamp is not None
             True
+            >>> sanitized = Signal.from_dict({
+            ...     "symbol": "AAPL",
+            ...     "action": "buy",
+            ...     "strength": float("nan"),
+            ...     "price": float("inf"),
+            ... })
+            >>> sanitized.strength, sanitized.price
+            (1.0, 0.0)
+            >>> restored = Signal.from_dict({"symbol": "AAPL", "action": "hold"})
+            >>> restored.price is None
+            True
 
         """
         timestamp = data.get("timestamp")
         if timestamp is not None:
             timestamp = datetime.fromisoformat(timestamp)
+        price = data.get("price")
+        if price is not None:
+            price = _finite(price, 0.0)
         return cls(
             symbol=data.get("symbol", ""),
             action=data.get("action", "hold"),
-            strength=float(data.get("strength", 1.0)),
-            price=data.get("price"),
+            strength=_finite(data.get("strength", 1.0), 1.0),
+            price=price,
             timestamp=timestamp,
             metadata=dict(data.get("metadata") or {}),
         )
@@ -243,18 +299,29 @@ class Position:
             >>> from quant_trading.strategies.base import Position
             >>> restored = Position.from_dict({"symbol": "AAPL", "quantity": 100, "avg_price": 150.0})
             >>> restored.symbol, restored.quantity, restored.avg_price
-            ('AAPL', 100, 150.0)
+            ('AAPL', 100.0, 150.0)
             >>> restored.current_price
             0.0
+            >>> sanitized = Position.from_dict({
+            ...     "symbol": "AAPL",
+            ...     "quantity": float("nan"),
+            ...     "avg_price": float("inf"),
+            ...     "current_price": "not a number",
+            ...     "unrealized_pnl": None,
+            ... })
+            >>> sanitized.quantity, sanitized.avg_price, sanitized.current_price
+            (0.0, 0.0, 0.0)
+            >>> sanitized.unrealized_pnl, sanitized.realized_pnl
+            (0.0, 0.0)
 
         """
         return cls(
             symbol=data.get("symbol", ""),
-            quantity=data.get("quantity", 0.0),
-            avg_price=data.get("avg_price", 0.0),
-            current_price=data.get("current_price", 0.0),
-            unrealized_pnl=data.get("unrealized_pnl", 0.0),
-            realized_pnl=data.get("realized_pnl", 0.0),
+            quantity=_finite(data.get("quantity", 0.0), 0.0),
+            avg_price=_finite(data.get("avg_price", 0.0), 0.0),
+            current_price=_finite(data.get("current_price", 0.0), 0.0),
+            unrealized_pnl=_finite(data.get("unrealized_pnl", 0.0), 0.0),
+            realized_pnl=_finite(data.get("realized_pnl", 0.0), 0.0),
         )
 
 
