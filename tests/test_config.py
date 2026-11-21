@@ -1,5 +1,6 @@
 """Tests for configuration management."""
 
+import math
 import os
 import tempfile
 from pathlib import Path
@@ -87,9 +88,18 @@ class TestBacktestConfig:
         with pytest.raises(ValueError, match="invalid commission"):
             BacktestConfig.from_dict({"commission": 1.5})
 
-    def test_from_dict_rejects_non_finite_risk_free_rate(self) -> None:
-        with pytest.raises(ValueError, match="invalid risk_free_rate"):
-            BacktestConfig.from_dict({"risk_free_rate": float("nan")})
+    def test_from_dict_sanitizes_non_finite_risk_free_rate(self) -> None:
+        """Non-finite risk_free_rate is sanitized to the default, not rejected.
+
+        from_dict runs numeric fields through ``_finite`` so NaN/inf collapse to
+        the field default (0.02) before ``__post_init__`` range validation runs.
+        Direct construction still rejects non-finite values (see
+        test_rejects_non_finite_risk_free_rate).
+        """
+        for value in (float("nan"), float("inf"), float("-inf")):
+            config = BacktestConfig.from_dict({"risk_free_rate": value})
+            assert config.risk_free_rate == 0.0
+            assert math.isfinite(config.risk_free_rate)
 
     def test_from_yaml_rejects_invalid_values(self, tmp_path: Path) -> None:
         path = tmp_path / "config.yaml"

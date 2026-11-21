@@ -70,3 +70,15 @@ Full `pytest` suite times out locally (>5 min) — pre-existing slowness
 unrelated to this change; verify in CI if available.
 
 There is no remaining follow-up task for the deserialization hardening chain.
+
+## Session 2026-11-21 (this session)
+
+Fixed a pre-existing failing test in `tests/test_config.py`:
+- `test_from_dict_rejects_non_finite_risk_free_rate` expected `BacktestConfig.from_dict({"risk_free_rate": nan})` to raise `ValueError`, but `from_dict` sanitizes numerics via `_finite` (collapsing NaN/inf to `0.0`), so no exception is raised. Direct construction still rejects non-finite values via `__post_init__`.
+- Renamed to `test_from_dict_sanitizes_non_finite_risk_free_rate`, asserting nan/inf/-inf → `0.0`, finite, no exception. Added `import math`.
+
+Verified:
+- pytest tests/test_config.py: **144 passed** (was 1 failed, 143 passed)
+- ruff check / black --check / mypy on tests/test_config.py: **clean**
+
+Next task: audit the CLI validations documented in README.md "Error Reporting" section (e.g. `--risk-free-rate nan`, `--initial-capital nan`, `--synthetic-seed -1`, `--commission 1.5`, `--mc-simulations 0`) against `examples/cli.py` and close gaps where a documented error case is not caught pre-run with a one-line `Error:` + exit 1.
