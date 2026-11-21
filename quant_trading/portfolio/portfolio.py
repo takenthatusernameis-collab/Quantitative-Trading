@@ -29,7 +29,7 @@ Produce a serializable summary of portfolio state::
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from math import copysign
+from math import copysign, isfinite
 from typing import Any
 
 from quant_trading.strategies.base import Position
@@ -93,13 +93,17 @@ class Holding:
         here rather than left to the caller. A zero-quantity holding has no
         market value and keeps the ``0.0`` default.
         """
-        if self.quantity != 0:
+        if self.quantity != 0 and isfinite(self.quantity) and isfinite(self.current_price):
             self.market_value = self.quantity * self.current_price
+        else:
+            self.market_value = 0.0
 
     @property
     def unrealized_pnl(self) -> float:
         """Unrealized profit and loss for this holding."""
         if self.quantity == 0 or self.avg_cost == 0:
+            return 0.0
+        if not (isfinite(self.quantity) and isfinite(self.avg_cost) and isfinite(self.current_price)):
             return 0.0
         return self.quantity * (self.current_price - self.avg_cost)
 
@@ -117,6 +121,8 @@ class Holding:
         """
         if self.quantity == 0 or self.avg_cost == 0:
             return 0.0
+        if not (isfinite(self.quantity) and isfinite(self.avg_cost) and isfinite(self.current_price)):
+            return 0.0
         return copysign(1.0, self.quantity) * (self.current_price - self.avg_cost) / self.avg_cost
 
     def update_price(self, price: float) -> None:
@@ -127,7 +133,10 @@ class Holding:
 
         """
         self.current_price = price
-        self.market_value = self.quantity * price
+        if isfinite(price) and isfinite(self.quantity):
+            self.market_value = self.quantity * price
+        else:
+            self.market_value = 0.0
 
     def to_position(self) -> Position:
         """Convert to a Position object.
@@ -199,12 +208,20 @@ class Portfolio:
 
     def __post_init__(self) -> None:
         """Derive initial capital and total value when not explicitly provided."""
+        if not isfinite(self.cash):
+            self.cash = 0.0
+        if not isfinite(self.initial_capital):
+            self.initial_capital = 0.0
         if self.initial_capital == 0 and self.cash == 0:
             self.initial_capital = 0.0
         elif self.initial_capital == 0 and self.cash > 0:
             self.initial_capital = self.cash
         if self.total_value == 0:
             self.total_value = self.cash + self.get_holdings_value()
+        if not isfinite(self.total_value):
+            self.total_value = 0.0 if not isfinite(self.cash) else self.cash
+        if not isfinite(self.total_value):
+            self.total_value = 0.0
 
     def get_holdings_value(self) -> float:
         """Calculate total value of all holdings.
@@ -252,9 +269,12 @@ class Portfolio:
             when total value is non-positive.
 
         """
-        if self.total_value <= 0:
+        if self.total_value <= 0 or not isfinite(self.total_value):
             return 0.0
-        return self.get_position_value(symbol) / self.total_value
+        value = self.get_position_value(symbol)
+        if not isfinite(value):
+            return 0.0
+        return value / self.total_value
 
     def add_holding(
         self,
@@ -294,9 +314,11 @@ class Portfolio:
         """
         holding = self.holdings.get(symbol)
 
-        if quantity == 0:
-            # A zero-sized trade must not create a position.
+        if quantity == 0 or not isfinite(quantity) or not isfinite(price):
+            # A zero-sized or non-finite trade must not create a position.
             self.total_value = self.cash + self.get_holdings_value()
+            if not isfinite(self.total_value):
+                self.total_value = 0.0 if not isfinite(self.cash) else self.cash
             return
 
         if holding is None or holding.quantity == 0:
@@ -347,6 +369,8 @@ class Portfolio:
             self.cash += abs(executed) * price * (1 - commission - slippage)
 
         self.total_value = self.cash + self.get_holdings_value()
+        if not isfinite(self.total_value):
+            self.total_value = 0.0 if not isfinite(self.cash) else self.cash
 
     def remove_holding(
         self,
@@ -393,6 +417,8 @@ class Portfolio:
 
         self.cash += cash_effect
         self.total_value = self.cash + self.get_holdings_value()
+        if not isfinite(self.total_value):
+            self.total_value = 0.0 if not isfinite(self.cash) else self.cash
         return cash_effect
 
     def update_prices(self, prices: dict[str, float]) -> None:
@@ -410,6 +436,8 @@ class Portfolio:
             if symbol in self.holdings:
                 self.holdings[symbol].update_price(price)
         self.total_value = self.cash + self.get_holdings_value()
+        if not isfinite(self.total_value):
+            self.total_value = 0.0 if not isfinite(self.cash) else self.cash
 
     def get_positions(self) -> dict[str, Position]:
         """Get all positions as Position objects.
@@ -434,7 +462,7 @@ class Portfolio:
             an empty dictionary when total value is non-positive.
 
         """
-        if self.total_value <= 0:
+        if self.total_value <= 0 or not isfinite(self.total_value):
             return {}
         if use_absolute:
             return {sym: abs(h.market_value) / self.total_value for sym, h in self.holdings.items()}
@@ -482,7 +510,7 @@ class Portfolio:
             "pnl": self.total_value - self.initial_capital,
             "pnl_pct": (
                 (self.total_value - self.initial_capital) / self.initial_capital
-                if self.initial_capital > 0
+                if self.initial_capital > 0 and isfinite(self.initial_capital) and isfinite(self.total_value)
                 else 0
             ),
         }
