@@ -815,6 +815,25 @@ def test_bayesian_optimizer() -> None:
 
 
 @skip_if_no_skopt
+def test_bayesian_optimizer_config_from_dict_sanitizes_non_finite_noise() -> None:
+    """Non-finite and non-numeric noise is sanitized to the default."""
+    config = BayesianOptimizerConfig.from_dict({"noise": float("nan")})
+    assert config.noise == 1e-6
+    config = BayesianOptimizerConfig.from_dict({"noise": float("inf")})
+    assert config.noise == 1e-6
+    config = BayesianOptimizerConfig.from_dict({"noise": -float("inf")})
+    assert config.noise == 1e-6
+    config = BayesianOptimizerConfig.from_dict({"noise": "not a number"})
+    assert config.noise == 1e-6
+    config = BayesianOptimizerConfig.from_dict({"noise": None})
+    assert config.noise == 1e-6
+    config = BayesianOptimizerConfig.from_dict({"noise": True})
+    assert config.noise == 1.0
+    config = BayesianOptimizerConfig.from_dict({"noise": 0.001})
+    assert config.noise == 0.001
+
+
+@skip_if_no_skopt
 def test_bayesian_optimizer_categorical() -> None:
     """Test BayesianOptimizer with categorical parameters."""
     symbols = ["AAPL"]
@@ -1061,6 +1080,24 @@ def test_optimization_result_to_dataframe_empty() -> None:
     result = OptimizationResult(best_params={}, best_score=0.0)
     df = result.to_dataframe()
     assert df.empty
+
+
+def test_optimization_result_from_dict_sanitizes_non_finite_best_score() -> None:
+    """Non-finite and non-numeric best_score is sanitized to 0.0."""
+    result = OptimizationResult.from_dict({"best_score": float("nan")})
+    assert result.best_score == 0.0
+    result = OptimizationResult.from_dict({"best_score": float("inf")})
+    assert result.best_score == 0.0
+    result = OptimizationResult.from_dict({"best_score": -float("inf")})
+    assert result.best_score == 0.0
+    result = OptimizationResult.from_dict({"best_score": "not a number"})
+    assert result.best_score == 0.0
+    result = OptimizationResult.from_dict({"best_score": None})
+    assert result.best_score == 0.0
+    result = OptimizationResult.from_dict({"best_score": True})
+    assert result.best_score == 1.0
+    result = OptimizationResult.from_dict({"best_score": 1.5})
+    assert result.best_score == 1.5
 
 
 def test_base_optimizer_evaluate_params_error() -> None:

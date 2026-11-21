@@ -24,4 +24,49 @@ Full `pytest` suite times out locally (>5 min) — appears to be pre-existing sl
 
 ## Next Task
 
-The hardening chain for risk limit deserializers is complete. Remaining `from_dict` methods in the codebase (e.g., `BacktestMetrics.from_dict`, `Trade.from_dict`, config classes) either already have inline `_finite` helpers or are protected by callers that sanitize first. Scan for any other exposed deserializers accepting raw untrusted dictionaries that lack hardening, add regression tests, and verify with pytest + doctest + ruff/black/mypy. If none remain, the hardening chain is complete.
+The hardening chain is complete. The scan found every remaining `from_dict`
+deserializer was already hardened with `_finite` (or an inline equivalent)
+except two, which were hardened in this session:
+
+1. `OptimizationResult.from_dict` (`quant_trading/optimization/base.py`):
+   `best_score` now runs through `_finite` instead of a raw `float(...)` cast,
+   so NaN/inf/non-numeric/unconvertible values sanitize to `0.0`. Doctest added.
+2. `BayesianOptimizerConfig.from_dict` (`quant_trading/optimization/bayesian.py`):
+   `noise` now runs through `_finite(..., 1e-6)`; imports `_finite` from
+   `quant_trading.optimization.base`. Doctest added.
+
+Regression tests added to `tests/test_optimization.py`:
+- `test_optimization_result_from_dict_sanitizes_non_finite_best_score`
+- `test_bayesian_optimizer_config_from_dict_sanitizes_non_finite_noise`
+
+No other exposed deserializers accepting raw untrusted dictionaries lack
+hardening: `PositionLimit`, `PortfolioLimit`, `CheckResult` (risk/limits.py),
+`RiskMetrics` (risk/metrics.py), `RiskAttribution`, `PortfolioRisk`
+(risk/manager.py), `BacktestMetrics`, `Trade`, `BacktestResult`
+(backtest/engine.py), `BacktestRegimeAnalysis` (backtest/analysis.py),
+`TradeAnalysis` (backtest/trade_analysis.py), `RegimeSegment`, `RegimeResult`
+(regime/detector.py), `MonteCarloResult` (monte_carlo/simulator.py),
+`ParameterSpace`, `ParameterGrid`, `OptimizationResult`
+(optimization/base.py), `BayesianOptimizerConfig` (optimization/bayesian.py),
+`SensitivityConfig` (optimization/sensitivity.py), `WalkForwardWindow`,
+`WalkForwardResult` (optimization/walk_forward.py), `Signal`, `Position`
+(strategies/base.py), `Holding`, `Portfolio` (portfolio/portfolio.py),
+`RebalanceAction`, `RebalanceExecution`, `_RebalancePlan`
+(portfolio/rebalancer.py), and all config classes (config/settings.py) are
+hardened or delegate to hardened sub-deserializers.
+
+## Verified (this session)
+
+- pytest tests/test_optimization.py: **232 passed, 11 skipped**
+- pytest tests/test_serialization_roundtrip.py tests/test_backtest_engine.py: **191 passed**
+- doctest quant_trading/optimization/base.py + bayesian.py: **25 passed**
+- mypy on both changed modules: **clean**
+- black --check on changed files: **clean** (pre-existing `_finite`
+  formatting in base.py:36 untouched, not part of this change)
+- ruff check on changed files: **clean** except pre-existing I001 import
+  sort in base.py (untouched, not part of this change)
+
+Full `pytest` suite times out locally (>5 min) — pre-existing slowness
+unrelated to this change; verify in CI if available.
+
+There is no remaining follow-up task for the deserialization hardening chain.

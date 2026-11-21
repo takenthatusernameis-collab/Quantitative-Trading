@@ -760,6 +760,12 @@ class OptimizationResult:
             ... )
             >>> restored.best_params, restored.best_score
             ({'x': 1}, 1.0)
+            >>> restored = OptimizationResult.from_dict({"best_score": float("nan")})
+            >>> restored.best_score
+            0.0
+            >>> restored = OptimizationResult.from_dict({"best_score": "not a number"})
+            >>> restored.best_score
+            0.0
 
         """
         best_result_raw = data.get("best_result")
@@ -772,7 +778,7 @@ class OptimizationResult:
             best_result = best_result_raw
         return cls(
             best_params=dict(data.get("best_params") or {}),
-            best_score=float(data.get("best_score", 0.0)),
+            best_score=_finite(data.get("best_score", 0.0)),
             best_result=best_result,
             all_results=[dict(entry) for entry in (data.get("all_results") or [])],
             start_time=_coerce_datetime(data.get("start_time")),

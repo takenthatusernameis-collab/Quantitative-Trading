@@ -29,6 +29,7 @@ from .base import (
     ObjectiveFunction,
     OptimizationResult,
     ParameterGrid,
+    _finite,
 )
 
 
@@ -91,6 +92,12 @@ class BayesianOptimizerConfig:
         20
         >>> cfg.acq_func
         'EI'
+        >>> restored = BayesianOptimizerConfig.from_dict({"noise": float("nan")})
+        >>> restored.noise
+        1e-06
+        >>> restored = BayesianOptimizerConfig.from_dict({"noise": "not a number"})
+        >>> restored.noise
+        1e-06
 
     """
 
@@ -154,7 +161,7 @@ class BayesianOptimizerConfig:
             acq_func=str(data.get("acq_func", "EI")),
             acq_optimizer=str(data.get("acq_optimizer", "auto")),
             random_state=data.get("random_state"),
-            noise=float(data.get("noise", 1e-6)),
+            noise=_finite(data.get("noise", 1e-6), 1e-6),
         )
 
 
