@@ -547,6 +547,25 @@ class TestMonteCarloParallelExecution:
         sim = MonteCarloSimulator(n_simulations=10, random_state=7, n_jobs=-5)
         assert sim.n_jobs == 1
 
+    @pytest.mark.parametrize("method", ["bootstrap", "parametric"])
+    def test_monte_carlo_parallel_more_workers_than_simulations(self, method: str) -> None:
+        """Workers beyond the simulation count are skipped without error.
+
+        When ``n_jobs`` exceeds ``n_simulations`` some workers are assigned
+        zero simulations. They must be skipped (the ``n_sim > 0`` guard in the
+        parallel runners) so that exactly ``n_simulations`` results are produced.
+        """
+        result = _make_result()
+        sim = MonteCarloSimulator(n_simulations=2, random_state=7, n_jobs=4)
+        assert sim.n_jobs == 4
+
+        mc = sim.run(result, method=method)
+
+        assert mc.n_simulations == 2
+        assert len(mc.simulations) == 2
+        for metric in mc.simulations:
+            assert isinstance(metric, BacktestMetrics)
+
     def test_monte_carlo_parallel_statistical_properties(self) -> None:
         """Parallel execution produces statistically similar results to sequential."""
         import numpy as np
