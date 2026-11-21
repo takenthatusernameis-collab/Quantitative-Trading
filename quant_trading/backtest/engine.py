@@ -160,9 +160,19 @@ class Trade:
         are credited (cost is reduced) by the commission and slippage rates.
 
         Returns:
-            The gross trade value adjusted for commission and slippage.
+            The gross trade value adjusted for commission and slippage. A
+            non-finite ``quantity``, ``price``, ``commission`` or ``slippage``
+            yields ``0.0`` instead of NaN/inf, so a malformed trade cannot
+            poison downstream aggregation.
 
         """
+        if not (
+            math.isfinite(self.quantity)
+            and math.isfinite(self.price)
+            and math.isfinite(self.commission)
+            and math.isfinite(self.slippage)
+        ):
+            return 0.0
         base = self.quantity * self.price
         if self.action in ("buy", "cover"):
             return base * (1 + self.commission + self.slippage)
@@ -177,7 +187,9 @@ class Trade:
                 for both buys and sells.
 
                 Returns:
-                    ``quantity * price * (commission + slippage)``.
+                    ``quantity * price * (commission + slippage)``. A non-finite
+                    ``quantity``, ``price``, ``commission`` or ``slippage`` yields
+                    ``0.0`` instead of NaN/inf.
 
         Examples:
                 >>> from datetime import datetime
@@ -195,6 +207,13 @@ class Trade:
                 22.5
 
         """
+        if not (
+            math.isfinite(self.quantity)
+            and math.isfinite(self.price)
+            and math.isfinite(self.commission)
+            and math.isfinite(self.slippage)
+        ):
+            return 0.0
         return self.quantity * self.price * (self.commission + self.slippage)
 
     @property
@@ -276,15 +295,29 @@ class Trade:
         """
         timestamp_raw = data["timestamp"]
         timestamp = datetime.fromisoformat(timestamp_raw)
+
+        def _finite(value: Any, default: Any = 0.0) -> Any:
+            if (
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and math.isfinite(value)
+            ):
+                return value
+            try:
+                result = float(value)
+            except (TypeError, ValueError):
+                return default
+            return result if math.isfinite(result) else default
+
         return cls(
             symbol=data["symbol"],
             action=data["action"],
-            quantity=data["quantity"],
-            price=data["price"],
+            quantity=_finite(data["quantity"]),
+            price=_finite(data["price"]),
             timestamp=timestamp,
-            commission=data.get("commission", 0.0),
-            slippage=data.get("slippage", 0.0),
-            realized_pnl=data.get("realized_pnl", 0.0),
+            commission=_finite(data.get("commission", 0.0)),
+            slippage=_finite(data.get("slippage", 0.0)),
+            realized_pnl=_finite(data.get("realized_pnl", 0.0)),
         )
 
 
@@ -614,21 +647,63 @@ class BacktestResult:
                 return _datetime.fromisoformat(value.replace("Z", "+00:00"))
             return _datetime(1970, 1, 1)
 
+        def _finite(value: Any, default: float = 0.0) -> float:
+            try:
+                result = float(value)
+            except (TypeError, ValueError):
+                return default
+            return result if math.isfinite(result) else default
+
+        # Non-finite numeric fields (NaN/inf) can appear in a hand-built or
+        # JSON-serialized dictionary; they are sanitized to 0.0 so a
+        # deserialized result never carries NaN/inf into downstream
+        # aggregation, the same way the engine sanitizes live inputs.
         metrics_data = dict(data)
         # to_dict() exports total_trades; BacktestMetrics.from_dict() reads num_trades.
         if "num_trades" not in metrics_data and "total_trades" in metrics_data:
             metrics_data["num_trades"] = metrics_data["total_trades"]
+        for _key in (
+            "total_return",
+            "total_pnl",
+            "total_return_pct",
+            "annual_return",
+            "annual_return_pct",
+            "volatility",
+            "max_drawdown",
+            "max_drawdown_pct",
+            "sharpe_ratio",
+            "sortino_ratio",
+            "calmar_ratio",
+            "win_rate",
+            "profit_factor",
+            "avg_win",
+            "avg_loss",
+            "largest_win",
+            "largest_loss",
+            "var_95",
+            "var_99",
+            "cvar_95",
+            "cvar_99",
+            "beta",
+            "alpha",
+            "treynor_ratio",
+            "information_ratio",
+            "omega_ratio",
+            "ulcer_index",
+            "unrealized_pnl",
+        ):
+            if _key in metrics_data:
+                metrics_data[_key] = _finite(metrics_data[_key])
         metrics = BacktestMetrics.from_dict(metrics_data)
 
-        initial_capital = float(data.get("initial_capital", 0.0) or 0.0)
-        final_value = float(data.get("final_value", 0.0) or 0.0)
-        total_return = float(data.get("total_return", final_value - initial_capital) or 0.0)
-        total_return_pct = float(
+        initial_capital = _finite(data.get("initial_capital", 0.0))
+        final_value = _finite(data.get("final_value", 0.0))
+        total_return = _finite(data.get("total_return", final_value - initial_capital))
+        total_return_pct = _finite(
             data.get(
                 "total_return_pct",
                 (total_return / initial_capital * 100) if initial_capital else 0.0,
             )
-            or 0.0
         )
 
         result = cls(
@@ -643,7 +718,7 @@ class BacktestResult:
             total_return=total_return,
             total_return_pct=total_return_pct,
             portfolio_violations=list(data.get("portfolio_violations", []) or []),
-            total_costs=float(data.get("total_costs", 0.0) or 0.0),
+            total_costs=_finite(data.get("total_costs", 0.0)),
         )
 
         regime_data = data.get("regime_analysis")

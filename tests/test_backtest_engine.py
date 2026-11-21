@@ -3365,3 +3365,162 @@ class TestBacktestResultSerialization:
         assert reconstructed.monte_carlo.end_time == result.monte_carlo.end_time
         # The serialized form must round-trip stably.
         assert reconstructed.monte_carlo.to_dict() == result.monte_carlo.to_dict()
+
+
+class TestNonFiniteDeserialization:
+    """Non-finite inputs to the dict/deserialization boundary are sanitized.
+
+    A serialized result or trade can carry NaN/inf when it is hand-built,
+    produced by a JSON round-trip that preserved non-finite floats, or fed
+    from an upstream that did not validate. The deserialization boundary
+    must sanitize those to 0.0 so a reconstructed object never carries
+    NaN/inf into downstream aggregation, mirroring the live-input
+    sanitization in :class:`~quant_trading.risk.manager.RiskManager` and
+    :class:`~quant_trading.portfolio.portfolio.Portfolio`.
+    """
+
+    def test_trade_from_dict_sanitizes_non_finite_quantity(self) -> None:
+        trade = Trade.from_dict(
+            {
+                "symbol": "AAPL",
+                "action": "buy",
+                "quantity": float("nan"),
+                "price": 150.0,
+                "timestamp": "2024-01-01T00:00:00",
+            }
+        )
+        assert trade.quantity == 0.0
+
+    def test_trade_from_dict_sanitizes_non_finite_price(self) -> None:
+        trade = Trade.from_dict(
+            {
+                "symbol": "AAPL",
+                "action": "buy",
+                "quantity": 100,
+                "price": float("inf"),
+                "timestamp": "2024-01-01T00:00:00",
+            }
+        )
+        assert trade.price == 0.0
+
+    def test_trade_from_dict_sanitizes_non_finite_cost_fields(self) -> None:
+        trade = Trade.from_dict(
+            {
+                "symbol": "AAPL",
+                "action": "buy",
+                "quantity": 100,
+                "price": 150.0,
+                "timestamp": "2024-01-01T00:00:00",
+                "commission": float("nan"),
+                "slippage": float("-inf"),
+                "realized_pnl": float("nan"),
+            }
+        )
+        assert trade.commission == 0.0
+        assert trade.slippage == 0.0
+        assert trade.realized_pnl == 0.0
+
+    def test_trade_from_dict_preserves_finite_int_quantity(self) -> None:
+        """A finite int quantity must round-trip as an int, not be coerced."""
+        trade = Trade.from_dict(
+            {
+                "symbol": "AAPL",
+                "action": "buy",
+                "quantity": 100,
+                "price": 150.0,
+                "timestamp": "2024-01-01T00:00:00",
+            }
+        )
+        assert trade.quantity == 100
+        assert isinstance(trade.quantity, int)
+
+    def test_trade_cost_returns_zero_for_non_finite_quantity(self) -> None:
+        trade = Trade(
+            symbol="AAPL",
+            action="buy",
+            quantity=float("nan"),
+            price=150.0,
+            timestamp=datetime(2024, 1, 1),
+        )
+        assert trade.cost == 0.0
+
+    def test_trade_cost_returns_zero_for_non_finite_price(self) -> None:
+        trade = Trade(
+            symbol="AAPL",
+            action="buy",
+            quantity=100,
+            price=float("inf"),
+            timestamp=datetime(2024, 1, 1),
+        )
+        assert trade.cost == 0.0
+
+    def test_trade_fee_returns_zero_for_non_finite_inputs(self) -> None:
+        trade = Trade(
+            symbol="AAPL",
+            action="buy",
+            quantity=100,
+            price=150.0,
+            timestamp=datetime(2024, 1, 1),
+            commission=float("nan"),
+        )
+        assert trade.fee == 0.0
+
+    def test_backtest_result_from_dict_sanitizes_non_finite_summary(self) -> None:
+        result = BacktestResult.from_dict(
+            {
+                "initial_capital": float("nan"),
+                "final_value": float("inf"),
+                "total_return": float("-inf"),
+                "total_return_pct": float("nan"),
+                "total_costs": float("nan"),
+            }
+        )
+        assert result.initial_capital == 0.0
+        assert result.final_value == 0.0
+        assert result.total_return == 0.0
+        assert result.total_return_pct == 0.0
+        assert result.total_costs == 0.0
+
+    def test_backtest_result_from_dict_sanitizes_non_finite_metrics(self) -> None:
+        result = BacktestResult.from_dict(
+            {
+                "initial_capital": 100000.0,
+                "final_value": 103000.0,
+                "sharpe_ratio": float("nan"),
+                "sortino_ratio": float("inf"),
+                "volatility": float("-inf"),
+                "max_drawdown": float("nan"),
+                "win_rate": float("nan"),
+                "profit_factor": float("inf"),
+            }
+        )
+        assert result.metrics.sharpe_ratio == 0.0
+        assert result.metrics.sortino_ratio == 0.0
+        assert result.metrics.volatility == 0.0
+        assert result.metrics.max_drawdown == 0.0
+        assert result.metrics.win_rate == 0.0
+        assert result.metrics.profit_factor == 0.0
+
+    def test_backtest_result_from_dict_round_trip_still_works(self) -> None:
+        """A normal round-trip is unaffected by the non-finite sanitization."""
+        dates = pd.date_range("2024-01-01", periods=5, freq="D")
+        equity = pd.Series([100000.0, 101000.0, 100500.0, 102000.0, 103000.0], index=dates)
+        metrics = calculate_backtest_metrics(equity)
+        original = BacktestResult(
+            equity_curve=equity,
+            trades=pd.DataFrame({"symbol": ["AAPL"], "pnl": [100.0]}),
+            positions={},
+            metrics=metrics,
+            start_date=datetime(2024, 1, 1),
+            end_date=datetime(2024, 1, 5),
+            initial_capital=100000.0,
+            final_value=103000.0,
+            total_return=3000.0,
+            total_return_pct=3.0,
+            total_costs=12.5,
+        )
+        reconstructed = BacktestResult.from_dict(original.to_dict())
+        assert reconstructed.initial_capital == 100000.0
+        assert reconstructed.final_value == 103000.0
+        assert reconstructed.total_costs == 12.5
+        assert reconstructed.metrics.sharpe_ratio == pytest.approx(metrics.sharpe_ratio)
