@@ -35,6 +35,7 @@ Examples:
 
 from typing import NamedTuple
 
+import numpy as np
 import pandas as pd
 
 # The columns that are needed to pair a short entry with the cover that
@@ -105,7 +106,14 @@ def split_trade_log(trades: pd.DataFrame) -> TradeLog:
 
     if not all(column in trades.columns for column in PAIRING_COLUMNS):
         entries = trades.copy()
-        return TradeLog(entries=entries, round_trips=entries[entries["pnl"] != 0].copy())
+        # A round trip is recognized by the row that closes it, not by the
+        # PnL that row booked, so a non-finite PnL does not disqualify a row
+        # from being a trade. The non-finite PnL is dropped from the round
+        # trips' PnL column so it cannot leak into derived statistics, while
+        # the row itself is still counted as a trade.
+        round_trips = entries[entries["pnl"] != 0].copy()
+        round_trips["pnl"] = round_trips["pnl"].replace([np.inf, -np.inf], np.nan)
+        return TradeLog(entries=entries, round_trips=round_trips)
 
     entries = trades.copy()
     if "timestamp" in entries.columns:
@@ -113,8 +121,10 @@ def split_trade_log(trades: pd.DataFrame) -> TradeLog:
     entries = entries.reset_index(drop=True)
 
     # The PnL is carried as a float, so folding a fee into a cover cannot
-    # truncate the result.
-    pnl = entries["pnl"].astype(float)
+    # truncate the result. Non-finite PnL values are treated as missing data:
+    # they are dropped from the PnL column so they cannot leak into derived
+    # statistics, but the rows that carry them still count as trades.
+    pnl = entries["pnl"].astype(float).replace([np.inf, -np.inf], np.nan)
 
     # Short entries are paired with their covers FIFO per symbol; the entry's
     # fee is folded into the cover that closes it and the entry row is dropped.
@@ -183,8 +193,12 @@ def split_trade_log(trades: pd.DataFrame) -> TradeLog:
 
     # The shorts that were never covered are still open at the end of the
     # run. They booked their entry fee, and that fee is part of the PnL of
-    # the run, so it is reported apart from the round trips.
-    open_pnl = sum(entry[1] for queue in short_queues.values() for entry in queue)
+    # the run, so it is reported apart from the round trips. A non-finite
+    # entry fee is treated as missing data and excluded from the total.
+    open_pnl = sum(
+        entry[1] for queue in short_queues.values() for entry in queue
+        if np.isfinite(entry[1])
+    )
 
     return TradeLog(entries=entries, round_trips=round_trips, open_pnl=open_pnl)
 
