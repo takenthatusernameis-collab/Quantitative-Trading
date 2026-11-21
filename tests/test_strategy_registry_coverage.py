@@ -20,6 +20,9 @@ import ast
 import re
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
+
 from quant_trading.data.synthetic import create_synthetic_data
 from quant_trading.strategies.base import Signal
 from quant_trading.strategies.factory import (
@@ -335,3 +338,104 @@ def test_module_docstring_strategy_count_matches_registry() -> None:
     assert claimed == actual, (
         f"module docstring claims {claimed} built-in strategies, " f"registry has {actual}"
     )
+
+
+def _degenerate_datasets() -> dict[str, dict[str, pd.DataFrame]]:
+    """Return deterministic OHLCV datasets that stress numerical edge cases.
+
+    ``test_every_registered_strategy_is_constructible_and_runnable`` exercises
+    the registry on one well-behaved synthetic sample, where every indicator is
+    comfortably defined. That leaves the numerical edge cases untested: a flat
+    series (zero variance / zero mean deviation), zero volume (division by zero
+    in volume-weighted indicators), and a near-zero trading range. A strategy
+    that divides by one of these quantities without guarding it would emit a
+    NaN/inf into ``Signal.price`` or ``Signal.metadata`` rather than raising,
+    which a "does not raise" assertion cannot catch.
+
+    Each frame is built from a fixed seed so the assertions are deterministic.
+    """
+    n = 120
+    rng = np.random.default_rng(1234)
+    close = 100.0 + np.cumsum(rng.normal(0.0, 1.0, n))
+    close = np.abs(close) + 10.0
+    index = pd.date_range("2021-01-01", periods=n, freq="D")
+
+    base = pd.DataFrame(
+        {
+            "open": close + rng.normal(0.0, 0.5, n),
+            "high": close + rng.uniform(0.1, 2.0, n),
+            "low": close - rng.uniform(0.1, 2.0, n),
+            "close": close,
+            "volume": rng.uniform(1_000_000, 5_000_000, n),
+        },
+        index=index,
+    )
+
+    flat = base.copy()
+    for column in ("open", "high", "low", "close"):
+        flat[column] = 100.0
+    flat["volume"] = 1_000_000.0
+
+    zero_volume = base.copy()
+    zero_volume["volume"] = 0.0
+
+    tiny_range = base.copy()
+    tiny_range["high"] = tiny_range["close"] + 1e-9
+    tiny_range["low"] = tiny_range["close"] - 1e-9
+
+    return {
+        "flat": {"AAPL": flat},
+        "zero_volume": {"AAPL": zero_volume},
+        "tiny_range": {"AAPL": tiny_range},
+    }
+
+
+def _assert_signal_invariants(signal: Signal, valid_symbols: set[str]) -> None:
+    """Assert a single signal carries only finite, well-formed values.
+
+    A strategy that divides by a degenerate quantity (zero variance, zero
+    volume, zero range) can leak a NaN or inf into ``strength``, ``price``, or
+    a numeric ``metadata`` entry without raising. Such a value would propagate
+    into the backtest as a corrupt order, so it is asserted against here.
+    """
+    assert signal.symbol in valid_symbols
+    assert signal.action in ("buy", "sell", "hold", "short")
+    assert np.isfinite(signal.strength)
+    assert 0.0 <= signal.strength <= 1.0
+    if signal.price is not None:
+        assert np.isfinite(signal.price)
+        assert signal.price > 0.0
+    for key, value in (signal.metadata or {}).items():
+        if isinstance(value, (int, float, np.integer, np.floating)) and not isinstance(value, bool):
+            assert np.isfinite(value), f"signal.metadata[{key!r}] is not finite: {value!r}"
+
+
+def test_every_strategy_emits_only_finite_signal_values() -> None:
+    """Every registered strategy emits finite prices, strengths and metadata.
+
+    ``test_every_registered_strategy_is_constructible_and_runnable`` only checks
+    the action and strength on a single well-behaved sample. This test extends
+    the guarantee to the numeric payload that reaches the backtest: the limit
+    ``price`` must be finite and strictly positive, and every numeric
+    ``metadata`` entry (the indicator value a strategy reports, e.g. an RSI or
+    CCI reading) must be finite. It runs each strategy on degenerate inputs
+    (flat series, zero volume, near-zero range) that force the divisions those
+    indicators rely on, so a future change that drops a divide-by-zero guard
+    surfaces here instead of corrupting a live run.
+    """
+    registry = get_registry()
+    datasets = {"synthetic": _synthetic_data(), **_degenerate_datasets()}
+    for key in registry.primary_keys():
+        strategy = create_strategy(key)
+        for dataset_name, data in datasets.items():
+            symbols = set(data.keys())
+            signals = strategy.generate_signals(data)
+            for signal in signals:
+                assert isinstance(signal, Signal)
+                try:
+                    _assert_signal_invariants(signal, symbols)
+                except AssertionError as exc:
+                    raise AssertionError(
+                        f"strategy {key!r} on {dataset_name!r} data emitted an "
+                        f"invalid signal: {exc}"
+                    ) from exc
