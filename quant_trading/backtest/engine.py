@@ -59,6 +59,7 @@ __all__ = [
     "run_backtest",
 ]
 
+import math
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
@@ -1068,7 +1069,7 @@ class BacktestEngine:
         symbol = signal.symbol
         holding = self.portfolio.holdings.get(symbol)
         price = signal.price or (holding.current_price if holding else None)
-        if price is None or price <= 0:
+        if price is None or not math.isfinite(price) or price <= 0:
             return
 
         if signal.action == "buy":
@@ -1122,9 +1123,13 @@ class BacktestEngine:
         # snapshotted first.
         for symbol in list(self.portfolio.holdings):
             price = prices.get(symbol)
-            if price is None or price <= 0:
-                # The symbol has no price on this bar, so no level can be
-                # measured against it.
+            if price is None or not math.isfinite(price) or price <= 0:
+                # The symbol has no usable price on this bar, so no level can
+                # be measured against it. A non-finite close (NaN/inf) must
+                # not be treated as a stop or target hit: the portfolio's
+                # remove_holding would no-op on it, so a trade recorded here
+                # would not actually close the position and would poison the
+                # trade log with a non-finite price/PnL.
                 continue
 
             holding = self.portfolio.holdings.get(symbol)
