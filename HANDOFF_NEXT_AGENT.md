@@ -101,17 +101,24 @@ was abandoned for them.
 
 ## One Precise Next Task
 
-Audit `quant_trading/backtest/trade_analysis.py` and the round-trip behavior in
-`quant_trading/backtest/trade_log.py` for the same degenerate/non-finite-input
-defects now that `calculate_backtest_metrics` excludes non-finite PnL from its
-derived statistics.
+The trade-analysis/trade-log audit is complete (this session). `analyze_trades`
+and `_calculate_symbol_stats` now treat non-finite PnL as missing data so every
+numeric field stays finite and trade/round-trip counts stay consistent with
+`calculate_backtest_metrics`. Verified with:
 
-Start with `analyze_trades` using empty logs, a single opening row, and PnL
-values containing `NaN`, `+inf`, and `-inf`; assert every numeric trade-analysis
-field stays finite and that trade/round-trip counts remain consistent with
-`calculate_backtest_metrics`. Do not change trade-count semantics without a
+- `python -m pytest -q tests/test_trade_analysis.py tests/test_backtest_metrics.py tests/test_trade_log.py` — 156 passed.
+- Module doctests `quant_trading/backtest/trade_analysis.py trade_log.py metrics.py` — 8 passed.
+- `python -m mypy quant_trading/backtest/trade_analysis.py` — clean.
+- `python -m ruff check` and `python -m black --check` on the two changed files — clean.
+- Working tree not committed or pushed.
+
+Next bounded task: audit `quant_trading/portfolio/` and the rebalancer
+(`quant_trading/rebalancer/`) for the same degenerate/non-finite-input defects
+(empty positions, NaN/+inf/-inf prices, weights, or cash). Assert every numeric
+output stays finite and that any trade/position counts stay consistent across
+the portfolio and rebalancer APIs. Do not change count semantics without a
 failing focused test. Keep the fix minimal and rerun:
 
 ```bash
-python -m pytest -q tests/test_trade_analysis.py tests/test_backtest_metrics.py
+python -m pytest -q tests/test_portfolio.py tests/test_rebalancer.py tests/test_portfolio_invariants.py tests/test_rebalancer_risk_integration.py
 ```

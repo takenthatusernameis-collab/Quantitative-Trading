@@ -935,6 +935,85 @@ def test_analyze_trades_reports_the_chronological_current_streak() -> None:
     assert analysis.current_streak_type == "loss"
 
 
+def test_analyze_trades_non_finite_pnl_stays_finite() -> None:
+    """Every numeric field stays finite when round-trip PnL holds NaN/inf.
+
+    Non-finite PnL is treated as missing data: the round trips still count as
+    trades but are excluded from the win/loss split and from every derived
+    PnL statistic.
+    """
+    import math
+
+    analysis = analyze_trades(
+        _result_with_trades([float("nan"), float("inf"), float("-inf"), 50.0, -20.0])
+    )
+
+    # Non-finite PnL still counts as a trade but is neither winning nor losing.
+    assert analysis.total_trades == 5
+    assert analysis.winning_trades == 1
+    assert analysis.losing_trades == 1
+    assert analysis.win_rate == 0.2
+
+    # Every scalar numeric field is finite.
+    for name, value in analysis.to_dict().items():
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, dict):
+            for stat in value.values():
+                if isinstance(stat, (int, float)) and not isinstance(stat, bool):
+                    assert math.isfinite(float(stat)), f"{name} stat is not finite: {stat!r}"
+            continue
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            assert math.isfinite(float(value)), f"{name} is not finite: {value!r}"
+
+
+def test_analyze_trades_non_finite_pnl_agrees_with_metrics() -> None:
+    """Trade counts and total PnL match calculate_backtest_metrics with dirty PnL."""
+    import math
+
+    from quant_trading.backtest.metrics import calculate_backtest_metrics
+
+    pnls = [float("nan"), float("inf"), float("-inf"), 50.0, -20.0]
+    result = _result_with_trades(pnls)
+    metrics = calculate_backtest_metrics(result.equity_curve, result.trades)
+    analysis = analyze_trades(result)
+
+    assert metrics.num_trades == analysis.total_trades == 5
+    assert metrics.num_winning_trades == analysis.winning_trades == 1
+    assert metrics.num_losing_trades == analysis.losing_trades == 1
+    assert metrics.win_rate == pytest.approx(analysis.win_rate)
+    assert metrics.total_pnl == pytest.approx(analysis.total_pnl)
+    assert math.isfinite(metrics.total_pnl)
+    assert math.isfinite(analysis.total_pnl)
+
+
+def test_analyze_trades_all_non_finite_pnl_stays_finite() -> None:
+    """When every round trip has non-finite PnL the analysis still yields zeros."""
+    import math
+
+    analysis = analyze_trades(_result_with_trades([float("nan"), float("inf"), float("-inf")]))
+
+    assert analysis.total_trades == 3
+    assert analysis.winning_trades == 0
+    assert analysis.losing_trades == 0
+    assert analysis.win_rate == 0.0
+    assert analysis.total_pnl == 0.0
+    assert analysis.avg_pnl == 0.0
+    assert analysis.median_pnl == 0.0
+    assert analysis.std_pnl == 0.0
+    assert analysis.expectancy == 0.0
+    assert analysis.sharpe_ratio == 0.0
+    assert analysis.sortino_ratio == 0.0
+
+    for name, value in analysis.to_dict().items():
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, dict):
+            continue
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            assert math.isfinite(float(value)), f"{name} is not finite: {value!r}"
+
+
 def _short_result(trades_rows: list[dict[str, Any]]) -> BacktestResult:
     """Build a BacktestResult whose trades are the given short/cover rows."""
     from quant_trading.backtest.engine import BacktestResult

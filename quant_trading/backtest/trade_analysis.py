@@ -453,16 +453,19 @@ def _calculate_symbol_stats(
     for symbol in entries["symbol"].unique():
         symbol_trades = round_trips[round_trips["symbol"] == symbol]
         symbol_entries = entries[entries["symbol"] == symbol]
-        winning = symbol_trades[symbol_trades["pnl"] > 0]
-        losing = symbol_trades[symbol_trades["pnl"] < 0]
+        finite_pnl = symbol_trades["pnl"].replace([np.inf, -np.inf], np.nan)
+        winning = symbol_trades[finite_pnl > 0]
+        losing = symbol_trades[finite_pnl < 0]
+        finite_pnl = finite_pnl.dropna()
+        finite_count = len(finite_pnl)
 
         stats[symbol] = {
             "total_trades": len(symbol_trades),
             "winning_trades": len(winning),
             "losing_trades": len(losing),
             "win_rate": len(winning) / len(symbol_trades) if len(symbol_trades) > 0 else 0,
-            "total_pnl": float(symbol_entries["pnl"].sum()),
-            "avg_pnl": float(symbol_trades["pnl"].mean()) if len(symbol_trades) > 0 else 0,
+            "total_pnl": float(symbol_entries["pnl"].replace([np.inf, -np.inf], np.nan).sum()),
+            "avg_pnl": float(finite_pnl.mean()) if finite_count > 0 else 0,
             "avg_win": float(winning["pnl"].mean()) if len(winning) > 0 else 0,
             "avg_loss": float(losing["pnl"].mean()) if len(losing) > 0 else 0,
             "largest_win": float(winning["pnl"].max()) if len(winning) > 0 else 0,
@@ -625,14 +628,21 @@ def analyze_trades(
     # The round trips are the trades with a PnL (opening trades excluded).
     pnl_trades = log.round_trips
 
-    winning = pnl_trades[pnl_trades["pnl"] > 0]
-    losing = pnl_trades[pnl_trades["pnl"] < 0]
+    # Non-finite PnL is treated as missing data: the round trips still count
+    # as trades, but non-finite PnL values are excluded from the win/loss
+    # split and from every derived PnL statistic. This mirrors
+    # ``calculate_backtest_metrics`` so the two APIs stay consistent.
+    finite_pnl = pnl_trades["pnl"].replace([np.inf, -np.inf], np.nan)
+    winning = pnl_trades[finite_pnl > 0]
+    losing = pnl_trades[finite_pnl < 0]
+    finite_pnl = finite_pnl.dropna()
+    finite_count = len(finite_pnl)
 
     # The PnL of the run is the PnL the whole log booked: the PnL of the
     # completed round trips and the PnL of the positions that are still open.
     # A run that ends with an open short booked the fee of that short, so
     # the PnL of the run is not the PnL of the round trips alone.
-    total_pnl = float(log.entries["pnl"].sum())
+    total_pnl = float(log.entries["pnl"].replace([np.inf, -np.inf], np.nan).sum())
     open_position_pnl = log.open_pnl
 
     gross_profit = float(winning["pnl"].sum()) if len(winning) > 0 else 0.0
@@ -680,9 +690,9 @@ def analyze_trades(
         win_rate=win_rate,
         total_pnl=total_pnl,
         open_position_pnl=open_position_pnl,
-        avg_pnl=float(pnl_trades["pnl"].mean()) if len(pnl_trades) > 0 else 0.0,
-        median_pnl=float(pnl_trades["pnl"].median()) if len(pnl_trades) > 0 else 0.0,
-        std_pnl=float(pnl_trades["pnl"].std()) if len(pnl_trades) > 1 else 0.0,
+        avg_pnl=float(finite_pnl.mean()) if finite_count > 0 else 0.0,
+        median_pnl=float(finite_pnl.median()) if finite_count > 0 else 0.0,
+        std_pnl=float(finite_pnl.std()) if finite_count > 1 else 0.0,
         avg_win=avg_win,
         avg_loss=avg_loss,
         largest_win=float(winning["pnl"].max()) if len(winning) > 0 else 0.0,
