@@ -35,8 +35,42 @@ from quant_trading.strategies.base import Strategy
 
 
 def _finite(value: Any, default: float = 0.0) -> float:
-    """Return value if finite, otherwise default. Rejects bool and non-numeric types."""
-    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+    """Convert a value to a finite float, falling back to ``default``.
+
+    Non-numeric, non-finite (NaN/inf), and unconvertible values are replaced
+    with ``default`` so a corrupted dictionary cannot poison a reconstructed
+    object with NaN/inf.
+
+    Args:
+        value: The value to sanitize.
+        default: The fallback value when ``value`` is not a finite number.
+
+    Returns:
+        A finite float.
+
+    Examples:
+        >>> _finite(1.5)
+        1.5
+        >>> _finite(float("nan"))
+        0.0
+        >>> _finite(float("inf"))
+        0.0
+        >>> _finite("not a number")
+        0.0
+        >>> _finite(None)
+        0.0
+        >>> _finite(True)
+        0.0
+        >>> _finite(False)
+        0.0
+        >>> _finite("3.14")
+        3.14
+    """
+    # Explicitly reject bool since bool is a subclass of int but we don't want
+    # True/False to be treated as 1.0/0.0
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)) and math.isfinite(value):
         return float(value)
     try:
         result = float(value)

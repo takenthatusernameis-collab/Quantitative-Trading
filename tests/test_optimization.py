@@ -828,7 +828,7 @@ def test_bayesian_optimizer_config_from_dict_sanitizes_non_finite_noise() -> Non
     config = BayesianOptimizerConfig.from_dict({"noise": None})
     assert config.noise == 1e-6
     config = BayesianOptimizerConfig.from_dict({"noise": True})
-    assert config.noise == 1.0
+    assert config.noise == 1e-6
     config = BayesianOptimizerConfig.from_dict({"noise": 0.001})
     assert config.noise == 0.001
 
@@ -1095,7 +1095,7 @@ def test_optimization_result_from_dict_sanitizes_non_finite_best_score() -> None
     result = OptimizationResult.from_dict({"best_score": None})
     assert result.best_score == 0.0
     result = OptimizationResult.from_dict({"best_score": True})
-    assert result.best_score == 1.0
+    assert result.best_score == 0.0
     result = OptimizationResult.from_dict({"best_score": 1.5})
     assert result.best_score == 1.5
 

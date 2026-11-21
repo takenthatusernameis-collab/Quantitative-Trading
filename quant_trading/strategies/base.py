@@ -167,12 +167,7 @@ class Signal:
             1.0
             >>> restored.timestamp is not None
             True
-            >>> sanitized = Signal.from_dict({
-            ...     "symbol": "AAPL",
-            ...     "action": "buy",
-            ...     "strength": float("nan"),
-            ...     "price": float("inf"),
-            ... })
+            >>> sanitized = Signal.from_dict({"symbol": "AAPL", "action": "buy", "strength": float("nan"), "price": float("inf")})
             >>> sanitized.strength, sanitized.price
             (1.0, 0.0)
             >>> restored = Signal.from_dict({"symbol": "AAPL", "action": "hold"})
@@ -302,13 +297,7 @@ class Position:
             ('AAPL', 100.0, 150.0)
             >>> restored.current_price
             0.0
-            >>> sanitized = Position.from_dict({
-            ...     "symbol": "AAPL",
-            ...     "quantity": float("nan"),
-            ...     "avg_price": float("inf"),
-            ...     "current_price": "not a number",
-            ...     "unrealized_pnl": None,
-            ... })
+            >>> sanitized = Position.from_dict({"symbol": "AAPL", "quantity": float("nan"), "avg_price": float("inf"), "current_price": "not a number", "unrealized_pnl": None})
             >>> sanitized.quantity, sanitized.avg_price, sanitized.current_price
             (0.0, 0.0, 0.0)
             >>> sanitized.unrealized_pnl, sanitized.realized_pnl
