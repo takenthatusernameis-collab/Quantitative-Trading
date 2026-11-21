@@ -360,7 +360,18 @@ ObjectiveFunction = Callable[[BacktestResult], float]
 def _finite_or_zero(value: float | None) -> float:
     """Return value if finite, otherwise 0.0.
 
-    Handles both None and NaN values.
+    Args:
+        value: Metric value that may be None, NaN, or infinite.
+
+    Returns:
+        ``value`` when it is finite, otherwise ``0.0``.
+
+    Examples:
+        >>> _finite_or_zero(float("nan"))
+        0.0
+        >>> _finite_or_zero(1.5)
+        1.5
+
     """
     if value is None:
         return 0.0

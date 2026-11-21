@@ -4780,7 +4780,7 @@ class TestObjectiveFunctionNaNHandling:
 
     def test_maximize_win_rate_with_nan(self) -> None:
         result = self._make_result(win_rate=float("nan"))
-        result.win_rate_pct = float("nan")
+        vars(result)["win_rate_pct"] = float("nan")
         assert maximize_win_rate(result) == 0.0
 
 

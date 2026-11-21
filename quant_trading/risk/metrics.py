@@ -24,6 +24,43 @@ import numpy as np
 import pandas as pd
 
 
+def _drop_non_finite(values: pd.Series) -> pd.Series:
+    """Drop NaN and infinite observations from a return or value series.
+
+    Args:
+        values: Series to clean.
+
+    Returns:
+        The finite observations from ``values``.
+
+    Examples:
+        >>> import pandas as pd
+        >>> _drop_non_finite(pd.Series([1.0, float("nan"), float("inf")])).tolist()
+        [1.0]
+
+    """
+    return cast(pd.Series, values.replace([np.inf, -np.inf], np.nan).dropna())
+
+
+def _drop_non_finite_rows(returns: pd.DataFrame) -> pd.DataFrame:
+    """Drop rows containing NaN or infinite observations.
+
+    Args:
+        returns: DataFrame of asset returns.
+
+    Returns:
+        The rows whose values are all finite.
+
+    Examples:
+        >>> import pandas as pd
+        >>> frame = pd.DataFrame({"a": [1.0, float("nan"), float("inf")]})
+        >>> _drop_non_finite_rows(frame).shape
+        (1, 1)
+
+    """
+    return cast(pd.DataFrame, returns.replace([np.inf, -np.inf], np.nan).dropna())
+
+
 @dataclass
 class RiskMetrics:
     """Container for portfolio risk metrics.
@@ -165,7 +202,7 @@ def calculate_volatility(
         0.00862
 
     """
-    returns = returns.dropna()
+    returns = _drop_non_finite(returns)
     if len(returns) < 2:
         return 0.0
     vol = returns.std()
@@ -201,7 +238,7 @@ def calculate_max_drawdown(equity_curve: pd.Series) -> float:
         0.0
 
     """
-    equity_curve = equity_curve.dropna()
+    equity_curve = _drop_non_finite(equity_curve)
     if len(equity_curve) == 0:
         return 0.0
     running_max = equity_curve.cummax()
@@ -248,7 +285,7 @@ def calculate_sharpe_ratio(
         1.06
 
     """
-    returns = returns.dropna()
+    returns = _drop_non_finite(returns)
     if len(returns) == 0:
         return 0.0
     std = returns.std()
@@ -300,7 +337,7 @@ def calculate_sortino_ratio(
         4.37
 
     """
-    returns = returns.dropna()
+    returns = _drop_non_finite(returns)
     if len(returns) == 0:
         return 0.0
     # A constant or undefined-variance return series has no downside to
@@ -345,7 +382,7 @@ def calculate_var(returns: pd.Series, confidence: float = 0.95) -> float:
         -0.028
 
     """
-    returns = returns.dropna()
+    returns = _drop_non_finite(returns)
     if len(returns) == 0:
         return 0.0
     return float(np.percentile(returns, (1 - confidence) * 100))
@@ -414,6 +451,8 @@ def calculate_beta(returns: pd.Series, market_returns: pd.Series) -> float:
         1.46
 
     """
+    if np.isinf(returns).any() or np.isinf(market_returns).any():
+        return 0.0
     if len(returns) < 2 or len(market_returns) < 2:
         return 0.0
     aligned = _align_series(returns, market_returns)
@@ -426,7 +465,8 @@ def calculate_beta(returns: pd.Series, market_returns: pd.Series) -> float:
     var = market.var()
     if not np.isfinite(var) or var == 0:
         return 0.0
-    return float(cov / var)
+    beta = cov / var
+    return float(beta) if np.isfinite(beta) else 0.0
 
 
 def calculate_alpha(
@@ -503,7 +543,7 @@ def calculate_calmar_ratio(
         504.0
 
     """
-    returns = returns.dropna()
+    returns = _drop_non_finite(returns)
     aligned = _align_series(returns, equity_curve)
     if len(aligned) < 2:
         return 0.0
@@ -604,6 +644,8 @@ def calculate_information_ratio(
         13.22
 
     """
+    if np.isinf(returns).any() or np.isinf(benchmark_returns).any():
+        return 0.0
     aligned = _align_series(returns, benchmark_returns)
     if len(aligned) < 2:
         return 0.0
@@ -642,7 +684,7 @@ def calculate_cvar(
         -0.03
 
     """
-    returns = returns.dropna()
+    returns = _drop_non_finite(returns)
     if len(returns) == 0:
         return 0.0
 
@@ -682,7 +724,7 @@ def calculate_omega_ratio(
         3.0
 
     """
-    returns = returns.dropna()
+    returns = _drop_non_finite(returns)
     if len(returns) == 0:
         return 0.0
 
@@ -761,7 +803,7 @@ def calculate_marginal_var(
         True
 
     """
-    returns = returns.dropna()
+    returns = _drop_non_finite_rows(returns)
     if len(returns) < 2:
         return cast(pd.Series, pd.Series(0.0, index=returns.columns))
 
@@ -862,7 +904,7 @@ def calculate_volatility_contributions(
         True
 
     """
-    returns = returns.dropna()
+    returns = _drop_non_finite_rows(returns)
     if len(returns) < 2:
         return cast(pd.Series, pd.Series(0.0, index=returns.columns))
 
@@ -925,7 +967,7 @@ def calculate_equal_risk_contribution_weights(
         True
 
     """
-    returns = returns.dropna()
+    returns = _drop_non_finite_rows(returns)
     if len(returns) < 2:
         n = len(returns.columns) if len(returns.columns) > 0 else 1
         return cast(pd.Series, pd.Series(1.0 / n, index=returns.columns))
@@ -1010,7 +1052,7 @@ def calculate_risk_budget_weights(
         True
 
     """
-    returns = returns.dropna()
+    returns = _drop_non_finite_rows(returns)
     if len(returns) < 2:
         n = len(returns.columns) if len(returns.columns) > 0 else 1
         return cast(pd.Series, pd.Series(1.0 / n, index=returns.columns))
@@ -1162,7 +1204,7 @@ def calculate_ulcer_index(equity_curve: pd.Series) -> float:
         0.0
 
     """
-    equity_curve = equity_curve.dropna()
+    equity_curve = _drop_non_finite(equity_curve)
     if len(equity_curve) == 0:
         return 0.0
     running_max = equity_curve.cummax()

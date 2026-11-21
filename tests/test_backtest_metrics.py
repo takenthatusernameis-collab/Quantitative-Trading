@@ -37,6 +37,13 @@ def _result(metrics: Any) -> BacktestResult:
     )
 
 
+def _assert_finite_metrics(metrics: BacktestMetrics) -> None:
+    """Assert every numeric field in a metrics object is finite."""
+    for name, value in metrics.to_dict().items():
+        if isinstance(value, (int, float, np.integer, np.floating)):
+            assert np.isfinite(value), f"{name} is not finite: {value!r}"
+
+
 def test_calculate_metrics_no_trades_empty() -> None:
     """Test metrics when there are no trades."""
     equity_curve = pd.Series([100000, 110000, 105000, 115000])
@@ -720,3 +727,69 @@ class TestBacktestMetricsTreynorAlignedSample:
 
         unaligned_treynor = (returns.mean() * self.PERIODS_PER_YEAR - self.RISK_FREE_RATE) / beta
         assert metrics.treynor_ratio != pytest.approx(unaligned_treynor)
+
+
+class TestBacktestMetricsNonFiniteInputs:
+    """Non-finite observations must not leak into reported metrics."""
+
+    @pytest.mark.parametrize(
+        "equity_curve",
+        [
+            pd.Series([np.nan, 100.0, 200.0]),
+            pd.Series([100.0, np.nan, 200.0]),
+            pd.Series([100.0, 200.0, np.nan]),
+            pd.Series([np.inf, 100.0, 200.0]),
+            pd.Series([100.0, np.inf, 200.0]),
+            pd.Series([100.0, 200.0, np.inf]),
+            pd.Series([-np.inf, 100.0, 200.0]),
+            pd.Series([100.0, 200.0, -np.inf]),
+            pd.Series([np.nan, np.inf, -np.inf]),
+        ],
+        ids=[
+            "nan_start",
+            "nan_interior",
+            "nan_end",
+            "positive_inf_start",
+            "positive_inf_interior",
+            "positive_inf_end",
+            "negative_inf_start",
+            "negative_inf_end",
+            "all_non_finite",
+        ],
+    )
+    def test_non_finite_equity_keeps_all_metrics_finite(self, equity_curve: pd.Series) -> None:
+        _assert_finite_metrics(calculate_backtest_metrics(equity_curve))
+
+    def test_non_finite_market_returns_keep_all_metrics_finite(self) -> None:
+        equity_curve = pd.Series([100.0, 102.0, 101.0, 104.0, 103.0, 106.0, 108.0])
+        market_returns = pd.Series([0.01, np.inf, np.nan, 0.02, -0.01, 0.03])
+        _assert_finite_metrics(
+            calculate_backtest_metrics(equity_curve, market_returns=market_returns)
+        )
+
+    @pytest.mark.parametrize(
+        "pnl",
+        [
+            [np.nan],
+            [np.inf],
+            [-np.inf],
+            [1.0, np.inf, -np.inf, np.nan, 0.0],
+        ],
+        ids=["nan", "positive_inf", "negative_inf", "mixed"],
+    )
+    def test_non_finite_trade_pnl_keeps_all_metrics_finite(self, pnl: list[float]) -> None:
+        trades = pd.DataFrame({"pnl": pnl})
+        _assert_finite_metrics(calculate_backtest_metrics(pd.Series([100.0, 110.0]), trades=trades))
+
+    def test_non_finite_pnl_is_excluded_from_trade_statistics(self) -> None:
+        trades = pd.DataFrame({"pnl": [10.0, np.inf, -np.inf, np.nan, -5.0]})
+        metrics = calculate_backtest_metrics(pd.Series([100.0, 110.0]), trades=trades)
+
+        assert metrics.total_pnl == pytest.approx(5.0)
+        assert metrics.num_trades == 5
+        assert metrics.num_winning_trades == 1
+        assert metrics.num_losing_trades == 1
+        assert metrics.avg_win == pytest.approx(10.0)
+        assert metrics.avg_loss == pytest.approx(-5.0)
+        assert metrics.largest_win == pytest.approx(10.0)
+        assert metrics.largest_loss == pytest.approx(-5.0)

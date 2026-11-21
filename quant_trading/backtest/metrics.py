@@ -21,6 +21,7 @@ Examples:
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from quant_trading.backtest.trade_log import split_trade_log
@@ -314,6 +315,7 @@ def calculate_backtest_metrics(
     else:
         metrics.unrealized_pnl = 0.0
 
+    equity_curve = equity_curve.replace([np.inf, -np.inf], np.nan).dropna()
     if len(equity_curve) < 2:
         return metrics
 
@@ -350,6 +352,8 @@ def calculate_backtest_metrics(
         metrics.ulcer_index = calculate_ulcer_index(equity_curve)
 
     # Market-relative metrics (require market_returns)
+    if market_returns is not None:
+        market_returns = market_returns.replace([np.inf, -np.inf], np.nan).dropna()
     if market_returns is not None and len(market_returns) > 0:
         from quant_trading.risk.metrics import calculate_alpha, calculate_beta
 
@@ -386,10 +390,11 @@ def calculate_backtest_metrics(
         # whenever the caller already verified len(trades) > 0 and a ``pnl``
         # column is present, so ``log.entries`` is never empty here.
         if not log.entries.empty:  # pragma: no cover
-            metrics.total_pnl = float(log.entries["pnl"].sum())
+            metrics.total_pnl = float(log.entries["pnl"].replace([np.inf, -np.inf], np.nan).sum())
 
-        winning = round_trips[round_trips["pnl"] > 0]
-        losing = round_trips[round_trips["pnl"] < 0]
+        finite_pnl = round_trips["pnl"].replace([np.inf, -np.inf], np.nan)
+        winning = round_trips[finite_pnl > 0]
+        losing = round_trips[finite_pnl < 0]
 
         metrics.num_trades = len(round_trips)
         metrics.num_winning_trades = len(winning)

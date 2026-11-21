@@ -1,5 +1,7 @@
 """Tests for risk metrics calculation utilities."""
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -1279,6 +1281,55 @@ class TestAlignSeries:
         returns = pd.Series([0.01, 0.02, 0.03, 0.04], index=["a", "b", "b", "c"])
         market = pd.Series([0.01, 0.02, 0.03, 0.04], index=["a", "a", "b", "c"])
         assert np.isfinite(calculate_beta(returns, market))
+
+
+class TestNonFiniteInputHandling:
+    """Non-finite observations must not contaminate scalar risk metrics."""
+
+    @pytest.mark.parametrize(
+        "series",
+        [
+            pd.Series([np.inf, 0.1, 0.2, 0.3]),
+            pd.Series([-np.inf, 0.1, 0.2, 0.3]),
+            pd.Series([np.inf, -np.inf, 0.1, 0.2]),
+        ],
+        ids=["positive_inf", "negative_inf", "both_inf"],
+    )
+    @pytest.mark.parametrize(
+        "metric",
+        [
+            calculate_volatility,
+            lambda returns: calculate_var(returns, confidence=0.95),
+            lambda returns: calculate_var(returns, confidence=0.99),
+            lambda returns: calculate_cvar(returns, confidence=0.95),
+            lambda returns: calculate_cvar(returns, confidence=0.99),
+            calculate_omega_ratio,
+        ],
+        ids=["volatility", "var95", "var99", "cvar95", "cvar99", "omega"],
+    )
+    def test_return_metrics_ignore_non_finite_values(self, series: pd.Series, metric: Any) -> None:
+        assert np.isfinite(metric(series))
+
+    @pytest.mark.parametrize(
+        "metric",
+        [
+            calculate_beta,
+            calculate_alpha,
+            calculate_treynor_ratio,
+            calculate_information_ratio,
+        ],
+        ids=["beta", "alpha", "treynor", "information"],
+    )
+    def test_market_relative_metrics_ignore_non_finite_returns(self, metric: Any) -> None:
+        returns = pd.Series([np.inf, 0.01, 0.02, 0.03])
+        market = pd.Series([0.01, 0.02, 0.03, 0.04])
+        assert np.isfinite(metric(returns, market))
+
+    def test_all_metrics_ignore_non_finite_equity_and_benchmark_values(self) -> None:
+        equity = pd.Series([100.0, np.inf, np.nan, 90.0, 110.0])
+        market = pd.Series([0.01, np.inf, 0.02, np.nan, 0.03])
+        metrics = calculate_all_metrics(equity, market_returns=market)
+        assert all(np.isfinite(value) for value in metrics.to_dict().values())
 
 
 if __name__ == "__main__":

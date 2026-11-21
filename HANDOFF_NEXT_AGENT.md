@@ -1,55 +1,117 @@
 ## Status
 
-Completed audit and fix of genuine numerical defects in `quant_trading/optimization/*.py`. Found and fixed 4 related issues:
+Completed the assigned numerical audit of `quant_trading/risk/metrics.py` and
+`quant_trading/backtest/metrics.py`. The existing empty/constant/single/zero
+guards were mostly sound; direct probing found real remaining failures when
+NaN/inf observations were present.
 
-1. **BayesianOptimizer crashed when parameter bounds collapsed to a single point** (min_val == max_val) — scikit-optimize requires lower < upper for Integer/Real dimensions
-2. **Objective functions returned NaN when metrics were NaN** — the `or 0.0` pattern only handled None, not NaN
-3. **Optimizers stored NaN scores in all_results** — `_evaluate_params` didn't guard against non-finite scores
-4. **BayesianOptimizer crashed on NaN/inf scores** — `gp_minimize` cannot handle infinite values
+Reproduced defects that are now fixed:
 
-All fixes are minimal, reversible, and preserve the existing green baseline.
+1. Non-finite return observations produced NaN volatility/VaR/CVaR/Omega
+   results.
+2. A non-finite portfolio return could produce NaN beta/alpha/Treynor results.
+3. Non-finite rows in allocation inputs produced NaN volatility contributions
+   or non-finite/non-normalized ERC/risk-budget weights.
+4. NaN/inf equity endpoints leaked into `BacktestMetrics.total_return` and
+   `total_return_pct`.
+5. NaN/inf trade PnL contaminated `total_pnl`, average win/loss, extrema, and
+   profit factor.
 
 ## What Changed
 
-### `quant_trading/optimization/base.py`
-- Added `_finite_or_zero(value)` helper that returns 0.0 for None, NaN, or inf
-- Updated all 7 objective functions to use `_finite_or_zero`:
-  - `maximize_sharpe`, `maximize_calmar`, `maximize_sortino`, `maximize_profit_factor`, `maximize_win_rate` — now guard against NaN
-  - `maximize_total_return` — now guards against NaN (previously had no fallback)
-  - `minimize_max_drawdown` — now guards against NaN (previously had no fallback)
-- Modified `_evaluate_params` to check `math.isfinite(score)` and convert non-finite scores to `-inf` with verbose logging
+### `quant_trading/risk/metrics.py`
+- Added private `_drop_non_finite` and `_drop_non_finite_rows` helpers.
+- Return/equity-based metrics now ignore NaN and infinite observations before
+  calculating:
+  - `calculate_volatility`, `calculate_max_drawdown`, `calculate_sharpe_ratio`,
+    `calculate_sortino_ratio`, `calculate_var`, `calculate_cvar`,
+    `calculate_omega_ratio`, `calculate_calmar_ratio`, `calculate_ulcer_index`.
+- DataFrame allocation metrics now drop rows containing non-finite values:
+  `calculate_marginal_var`, `calculate_volatility_contributions`,
+  `calculate_equal_risk_contribution_weights`, and
+  `calculate_risk_budget_weights`.
+- `calculate_beta` and `calculate_information_ratio` return their neutral
+  `0.0` result when either input contains an infinity, preserving the existing
+  contract while avoiding undefined covariance/tracking-error arithmetic.
+- `calculate_beta` also guards a non-finite computed beta.
 
-### `quant_trading/optimization/bayesian.py`
-- Added `import math`
-- Modified `_create_skopt_space` to detect collapsed bounds (min_val == max_val) and convert them to `Categorical` with a single value instead of `Integer`/`Real` which require lower < upper
-- Modified `objective_func` wrapper to return a large finite penalty (1e10) instead of `inf` when score is non-finite, preventing `gp_minimize` "Input y contains infinity" errors
+### `quant_trading/backtest/metrics.py`
+- `calculate_backtest_metrics` drops NaN/inf equity and benchmark observations
+  before computing returns and market-relative metrics.
+- Trade totals and derived trade statistics exclude non-finite PnL values.
+  Structural trade counts remain unchanged.
 
-### `tests/test_optimization.py`
-Added 12 regression tests:
-- `TestObjectiveFunctionNaNHandling` (7 tests) — all objective functions return 0.0 for NaN metrics
-- `TestOptimizerNaNScoreHandling` (2 tests) — `_evaluate_params` converts NaN to -inf; GridSearch doesn't select NaN as best
-- `TestBayesianOptimizerCollapsedBounds` (3 tests) — BayesianOptimizer works with collapsed integer/float/all bounds
+### Repository-integrity fixes
+- Added missing Args/Returns/Examples docs for the new risk helpers and the
+  existing `quant_trading/optimization/base.py::_finite_or_zero` helper.
+- Updated `tests/test_optimization.py` to set its intentionally dynamic
+  `win_rate_pct` attribute through `vars(result)`, satisfying mypy without
+  violating Ruff.
+
+### Tests added
+- `tests/test_risk_metrics.py`: non-finite scalar returns, market-relative
+  metrics, and `calculate_all_metrics`.
+- `tests/test_backtest_metrics.py`: non-finite equity endpoints, benchmark
+  returns, trade PnL, and a finiteness invariant over all numeric fields.
+- `tests/test_risk_attribution.py`: non-finite allocation inputs for
+  volatility contributions, ERC weights, and risk-budget weights.
 
 ## What Was Verified
 
-- Full optimization test suite: **241 passed** (229 original + 12 new)
-- `black --check`, `ruff check`, `mypy` — all clean on optimization module and tests
-- Example script `examples/run_optimization.py` runs successfully
-- Smoke test `tests/test_run_optimization_smoke.py` passes
-- Strategy registry coverage tests pass (including new `test_every_strategy_emits_only_finite_signal_values`)
+- Targeted suites plus changed-module doctests:
+  `python -m pytest -q tests/test_risk_metrics.py tests/test_backtest_metrics.py tests/test_risk_attribution.py quant_trading/risk/metrics.py quant_trading/optimization/base.py quant_trading/backtest/metrics.py`
+  — **329 passed**.
+- Full suite: `python -m pytest -q` — **4,312 passed, 151 deselected** in
+  341.21s.
+- `python -m mypy quant_trading tests/test_optimization.py` — clean.
+- `python -m ruff check` on all changed Python files — clean.
+- `python -m black --check` on all changed Python files — clean.
+- `git diff --check` — clean.
+- Working tree was not committed or pushed.
 
 ## Unresolved / Notes
 
-- The fix for collapsed bounds uses `Categorical` with a single value. This means the parameter is technically "optimizable" but only has one possible value. This is the correct behavior — if the user specifies min_val == max_val, they intend that parameter to be fixed.
-- The penalty value `1e10` for failed Bayesian evaluations is arbitrary but sufficiently large to be worse than any realistic score.
-- No changes were made to `grid_search.py`, `random_search.py`, `walk_forward.py`, or `sensitivity.py` — they already handled edge cases correctly or inherited the fixed behavior from `BaseOptimizer`.
+- Non-finite observations are now treated as missing data and excluded from
+  calculations. This is intentional and matches the existing NaN-dropping
+  behavior, but callers that need to distinguish dirty data from valid zeros
+  must validate upstream.
+- Non-finite trade PnL is excluded from derived trade statistics while
+  `num_trades` still reflects completed round-trip rows. This preserves the
+  existing trade-count contract.
+- `calculate_beta`/`calculate_information_ratio` return `0.0` when either input
+  contains an infinity. This preserves the repository's existing beta contract;
+  do not silently change it to positional cleaning without updating tests.
+- No Hypothesis dependency was added; focused parametrized manual edge cases
+  cover the reproduced failures.
+
+## Failed Approach / Evidence
+
+An initial fix sanitized infinities inside `_align_series`. This broke the
+existing contract that a benchmark containing `inf` must produce beta `0.0`
+(`TestCalculateBeta.test_beta_non_finite_market_variance` changed from 0.0 to
+2.0). The change was reverted; the narrower final fix keeps NaN dropping in
+`_align_series` and guards infinity in the public beta/information-ratio
+functions.
+
+The first full-suite run also exposed repository-integrity failures that were
+already present or caused by the new helpers: missing docstring sections on
+`_finite_or_zero` and the two new risk helpers, plus a test-only mypy error from
+assigning a dynamic attribute. These were fixed directly; no alternate approach
+was abandoned for them.
 
 ## One Precise Next Task
 
-Audit `quant_trading/risk/metrics.py` and `quant_trading/backtest/metrics.py` for similar numerical defects:
-- Check for divisions that could produce NaN/inf without guards
-- Verify all public metric functions return finite values for degenerate inputs (empty series, constant series, single observation, all zeros, etc.)
-- Add focused property-based tests using `hypothesis` or manual fuzz inputs if not already covered
-- If no defects reproduce, add one non-redundant invariant test asserting finiteness of all metric outputs across degenerate inputs and say so plainly rather than inventing a fix
+Audit `quant_trading/backtest/trade_analysis.py` and the round-trip behavior in
+`quant_trading/backtest/trade_log.py` for the same degenerate/non-finite-input
+defects now that `calculate_backtest_metrics` excludes non-finite PnL from its
+derived statistics.
 
-(End of file)
+Start with `analyze_trades` using empty logs, a single opening row, and PnL
+values containing `NaN`, `+inf`, and `-inf`; assert every numeric trade-analysis
+field stays finite and that trade/round-trip counts remain consistent with
+`calculate_backtest_metrics`. Do not change trade-count semantics without a
+failing focused test. Keep the fix minimal and rerun:
+
+```bash
+python -m pytest -q tests/test_trade_analysis.py tests/test_backtest_metrics.py
+```

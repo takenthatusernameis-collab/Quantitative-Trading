@@ -675,5 +675,33 @@ class TestRiskAttributionIntegration:
         assert abs(weights.sum() - 1.0) < 1e-6
 
 
+class TestNonFiniteAllocationInputs:
+    """Non-finite return observations must not contaminate allocation metrics."""
+
+    RETURNS = pd.DataFrame(
+        {
+            "A": [np.inf, -np.inf, 0.03, 0.004],
+            "B": [0.02, np.inf, -0.01, 0.004],
+        }
+    )
+    WEIGHTS = pd.Series({"A": 0.5, "B": 0.5})
+
+    def test_volatility_contributions_ignore_non_finite_rows(self) -> None:
+        contributions = calculate_volatility_contributions(
+            self.RETURNS, self.WEIGHTS, annualize=False
+        )
+        assert np.isfinite(contributions).all()
+
+    def test_equal_risk_contribution_weights_ignore_non_finite_rows(self) -> None:
+        weights = calculate_equal_risk_contribution_weights(self.RETURNS, annualize=False)
+        assert np.isfinite(weights).all()
+        assert weights.sum() == pytest.approx(1.0)
+
+    def test_risk_budget_weights_ignore_non_finite_rows(self) -> None:
+        weights = calculate_risk_budget_weights(self.RETURNS, self.WEIGHTS, annualize=False)
+        assert np.isfinite(weights).all()
+        assert weights.sum() == pytest.approx(1.0)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
