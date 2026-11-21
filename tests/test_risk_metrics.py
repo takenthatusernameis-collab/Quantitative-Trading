@@ -1,5 +1,6 @@
 """Tests for risk metrics calculation utilities."""
 
+import math
 from typing import Any
 
 import numpy as np
@@ -732,6 +733,65 @@ class TestRiskMetricsDataclass:
         """from_dict tolerates an empty dict."""
         restored = RiskMetrics.from_dict({})
         assert all(v == 0.0 for v in restored.to_dict().values())
+
+
+class TestRiskMetricsFromDictNonFinite:
+    """Regression tests: from_dict must never leak NaN/inf through."""
+
+    NON_FINITE = (float("nan"), float("inf"), -float("inf"))
+
+    def test_from_dict_sanitizes_non_finite_fields(self) -> None:
+        """Every non-finite numeric field becomes 0.0."""
+        for bad in self.NON_FINITE:
+            data = {field: bad for field in RiskMetrics.__dataclass_fields__}
+            restored = RiskMetrics.from_dict(data)
+            assert all(
+                math.isfinite(value) and value == 0.0 for value in restored.to_dict().values()
+            ), f"leaked {bad!r}"
+
+    def test_from_dict_sanitizes_mixed_non_finite(self) -> None:
+        """A mix of nan/inf/-inf fields all become 0.0."""
+        data = {
+            "sharpe_ratio": float("nan"),
+            "sortino_ratio": float("inf"),
+            "max_drawdown": -float("inf"),
+            "volatility": float("nan"),
+            "ulcer_index": float("inf"),
+        }
+        restored = RiskMetrics.from_dict(data)
+        assert restored.sharpe_ratio == 0.0
+        assert restored.sortino_ratio == 0.0
+        assert restored.max_drawdown == 0.0
+        assert restored.volatility == 0.0
+        assert restored.ulcer_index == 0.0
+
+    def test_from_dict_rejects_uncoercible_values(self) -> None:
+        """Non-numeric values fall back to 0.0."""
+        data: dict[str, Any] = {
+            "sharpe_ratio": "not-a-number",
+            "beta": None,
+            "alpha": [1, 2, 3],
+        }
+        restored = RiskMetrics.from_dict(data)
+        assert restored.sharpe_ratio == 0.0
+        assert restored.beta == 0.0
+        assert restored.alpha == 0.0
+
+    def test_from_dict_preserves_finite_values(self) -> None:
+        """Finite values round-trip unchanged."""
+        data = {
+            "sharpe_ratio": 1.5,
+            "sortino_ratio": 0.8,
+            "max_drawdown": -0.1,
+            "beta": 1.1,
+            "ulcer_index": 0.04,
+        }
+        restored = RiskMetrics.from_dict(data)
+        assert restored.sharpe_ratio == pytest.approx(1.5)
+        assert restored.sortino_ratio == pytest.approx(0.8)
+        assert restored.max_drawdown == pytest.approx(-0.1)
+        assert restored.beta == pytest.approx(1.1)
+        assert restored.ulcer_index == pytest.approx(0.04)
 
 
 class TestCalculateAllMetrics:

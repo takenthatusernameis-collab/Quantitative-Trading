@@ -17,8 +17,9 @@ Examples:
 
 """
 
+import math
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -134,23 +135,63 @@ class RiskMetrics:
 
     @classmethod
     def from_dict(cls, data: dict[str, float]) -> "RiskMetrics":
-        """Deserialize risk metrics from a dictionary."""
+        """Deserialize risk metrics from a dictionary.
+
+        Non-finite values are replaced with ``0.0`` so a reconstructed result
+        never carries NaN/inf into downstream reporting.
+
+        Missing optional keys fall back to the field defaults. Extra keys are
+        ignored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`RiskMetrics` whose every metric is finite.
+
+        Examples:
+            >>> from quant_trading.risk.metrics import RiskMetrics
+            >>> metrics = RiskMetrics.from_dict({
+            ...     "sharpe_ratio": float("nan"),
+            ...     "max_drawdown": float("inf"),
+            ...     "beta": -float("inf"),
+            ... })
+            >>> metrics.sharpe_ratio, metrics.max_drawdown, metrics.beta
+            (0.0, 0.0, 0.0)
+            >>> normal = RiskMetrics.from_dict({"sharpe_ratio": 1.25})
+            >>> normal.sharpe_ratio
+            1.25
+        """
+
+        def _finite(value: Any, default: float = 0.0) -> float:
+            if (
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and math.isfinite(value)
+            ):
+                return float(value)
+            try:
+                result = float(value)
+            except (TypeError, ValueError):
+                return default
+            return result if math.isfinite(result) else default
+
         return cls(
-            sharpe_ratio=data.get("sharpe_ratio", 0.0),
-            sortino_ratio=data.get("sortino_ratio", 0.0),
-            max_drawdown=data.get("max_drawdown", 0.0),
-            volatility=data.get("volatility", 0.0),
-            var_95=data.get("var_95", 0.0),
-            var_99=data.get("var_99", 0.0),
-            cvar_95=data.get("cvar_95", 0.0),
-            cvar_99=data.get("cvar_99", 0.0),
-            beta=data.get("beta", 0.0),
-            alpha=data.get("alpha", 0.0),
-            calmar_ratio=data.get("calmar_ratio", 0.0),
-            treynor_ratio=data.get("treynor_ratio", 0.0),
-            information_ratio=data.get("information_ratio", 0.0),
-            omega_ratio=data.get("omega_ratio", 0.0),
-            ulcer_index=data.get("ulcer_index", 0.0),
+            sharpe_ratio=_finite(data.get("sharpe_ratio", 0.0)),
+            sortino_ratio=_finite(data.get("sortino_ratio", 0.0)),
+            max_drawdown=_finite(data.get("max_drawdown", 0.0)),
+            volatility=_finite(data.get("volatility", 0.0)),
+            var_95=_finite(data.get("var_95", 0.0)),
+            var_99=_finite(data.get("var_99", 0.0)),
+            cvar_95=_finite(data.get("cvar_95", 0.0)),
+            cvar_99=_finite(data.get("cvar_99", 0.0)),
+            beta=_finite(data.get("beta", 0.0)),
+            alpha=_finite(data.get("alpha", 0.0)),
+            calmar_ratio=_finite(data.get("calmar_ratio", 0.0)),
+            treynor_ratio=_finite(data.get("treynor_ratio", 0.0)),
+            information_ratio=_finite(data.get("information_ratio", 0.0)),
+            omega_ratio=_finite(data.get("omega_ratio", 0.0)),
+            ulcer_index=_finite(data.get("ulcer_index", 0.0)),
         )
 
 
