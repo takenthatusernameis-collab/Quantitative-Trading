@@ -1,124 +1,91 @@
 ## Status
 
-Completed the assigned numerical audit of `quant_trading/risk/metrics.py` and
-`quant_trading/backtest/metrics.py`. The existing empty/constant/single/zero
-guards were mostly sound; direct probing found real remaining failures when
-NaN/inf observations were present.
-
-Reproduced defects that are now fixed:
-
-1. Non-finite return observations produced NaN volatility/VaR/CVaR/Omega
-   results.
-2. A non-finite portfolio return could produce NaN beta/alpha/Treynor results.
-3. Non-finite rows in allocation inputs produced NaN volatility contributions
-   or non-finite/non-normalized ERC/risk-budget weights.
-4. NaN/inf equity endpoints leaked into `BacktestMetrics.total_return` and
-   `total_return_pct`.
-5. NaN/inf trade PnL contaminated `total_pnl`, average win/loss, extrema, and
-   profit factor.
+Completed the assigned non-finite-input audit of `quant_trading/portfolio/`
+and `quant_trading/portfolio/rebalancer/`. Degenerate inputs (empty positions,
+NaN/+inf/-inf prices, weights, cash) no longer produce non-finite numeric
+outputs, and trade/position counts stay consistent with `calculate_backtest_metrics`.
 
 ## What Changed
 
-### `quant_trading/risk/metrics.py`
-- Added private `_drop_non_finite` and `_drop_non_finite_rows` helpers.
-- Return/equity-based metrics now ignore NaN and infinite observations before
-  calculating:
-  - `calculate_volatility`, `calculate_max_drawdown`, `calculate_sharpe_ratio`,
-    `calculate_sortino_ratio`, `calculate_var`, `calculate_cvar`,
-    `calculate_omega_ratio`, `calculate_calmar_ratio`, `calculate_ulcer_index`.
-- DataFrame allocation metrics now drop rows containing non-finite values:
-  `calculate_marginal_var`, `calculate_volatility_contributions`,
-  `calculate_equal_risk_contribution_weights`, and
-  `calculate_risk_budget_weights`.
-- `calculate_beta` and `calculate_information_ratio` return their neutral
-  `0.0` result when either input contains an infinity, preserving the existing
-  contract while avoiding undefined covariance/tracking-error arithmetic.
-- `calculate_beta` also guards a non-finite computed beta.
+### `quant_trading/portfolio/portfolio.py`
+- Added `_finite_or_default` helper: non-finite / non-numeric values are
+  restored as `0.0` (missing data), matching the existing `__post_init__` /
+  `reset` sanitization contract.
+- `Portfolio.from_dict` now sanitizes `cash`, `initial_capital`, and
+  `total_value` (non-finite total value falls back to restored cash), so
+  `summary()` fields (`total_value`, `cash`, `holdings_value`, `pnl`,
+  `pnl_pct`) always stay finite.
+- `Holding.from_dict` now sanitizes `quantity`, `avg_cost`, `current_price`,
+  `market_value`, so a restored holding never carries a non-finite quantity
+  (which previously inflated `num_positions` while reporting zero value).
 
-### `quant_trading/backtest/metrics.py`
-- `calculate_backtest_metrics` drops NaN/inf equity and benchmark observations
-  before computing returns and market-relative metrics.
-- Trade totals and derived trade statistics exclude non-finite PnL values.
-  Structural trade counts remain unchanged.
-
-### Repository-integrity fixes
-- Added missing Args/Returns/Examples docs for the new risk helpers and the
-  existing `quant_trading/optimization/base.py::_finite_or_zero` helper.
-- Updated `tests/test_optimization.py` to set its intentionally dynamic
-  `win_rate_pct` attribute through `vars(result)`, satisfying mypy without
-  violating Ruff.
+### `quant_trading/portfolio/rebalancer.py`
+- `calculate_target_values` returns `{}` when the portfolio value is
+  non-finite instead of leaking `inf`/`nan` targets.
+- `generate_rebalance_actions` returns `[]` (and records an empty run) when
+  the portfolio value is non-finite, since no trade can be sized against it.
+- The signal-sell branch skips a holding with a non-finite quantity (no
+  `nan`-quantity action, no corrupted `_plan_sell` state).
+- `execute_actions` treats a non-finite action quantity as `0.0`: the action
+  is skipped and reported with `executed_quantity` / `requested_quantity` of
+  `0.0`.
 
 ### Tests added
-- `tests/test_risk_metrics.py`: non-finite scalar returns, market-relative
-  metrics, and `calculate_all_metrics`.
-- `tests/test_backtest_metrics.py`: non-finite equity endpoints, benchmark
-  returns, trade PnL, and a finiteness invariant over all numeric fields.
-- `tests/test_risk_attribution.py`: non-finite allocation inputs for
-  volatility contributions, ERC weights, and risk-budget weights.
+- `tests/test_portfolio.py`: `from_dict` sanitization of non-finite cash,
+  total value, initial capital, and holding fields; `summary()` finiteness
+  invariant after a non-finite restore; `Holding.from_dict` sanitization.
+- `tests/test_rebalancer.py`: non-finite portfolio value yields no targets
+  and no actions; signal sell skips non-finite quantity; infinite prices
+  produce only finite action quantities; `execute_actions` skips non-finite
+  action quantities.
 
 ## What Was Verified
 
 - Targeted suites plus changed-module doctests:
-  `python -m pytest -q tests/test_risk_metrics.py tests/test_backtest_metrics.py tests/test_risk_attribution.py quant_trading/risk/metrics.py quant_trading/optimization/base.py quant_trading/backtest/metrics.py`
-  — **329 passed**.
-- Full suite: `python -m pytest -q` — **4,312 passed, 151 deselected** in
-  341.21s.
-- `python -m mypy quant_trading tests/test_optimization.py` — clean.
-- `python -m ruff check` on all changed Python files — clean.
-- `python -m black --check` on all changed Python files — clean.
+  `python -m pytest -q tests/test_portfolio.py tests/test_portfolio_invariants.py tests/test_rebalancer.py tests/test_rebalancer_risk_integration.py tests/test_rebalancer_execution.py tests/test_rebalancer_extra_coverage.py tests/test_rebalancer_sizing_invariants.py tests/test_rebalancer_risk_parity.py quant_trading/portfolio/` — **323 passed**.
+- `python -m mypy quant_trading/portfolio/` — clean.
+- `python -m ruff check` on all changed files — clean.
+- `python -m black --check` on all changed files — clean.
 - `git diff --check` — clean.
-- Working tree was not committed or pushed.
+- Working tree not committed or pushed.
+
+Full suite: **4,240 passed, 89 skipped, 151 deselected**; the only 4 failures
+were in `tests/test_repository_integrity.py` and are all resolved by this
+session except one (see Unresolved).
 
 ## Unresolved / Notes
 
-- Non-finite observations are now treated as missing data and excluded from
-  calculations. This is intentional and matches the existing NaN-dropping
-  behavior, but callers that need to distinguish dirty data from valid zeros
-  must validate upstream.
-- Non-finite trade PnL is excluded from derived trade statistics while
-  `num_trades` still reflects completed round-trip rows. This preserves the
-  existing trade-count contract.
-- `calculate_beta`/`calculate_information_ratio` return `0.0` when either input
-  contains an infinity. This preserves the repository's existing beta contract;
-  do not silently change it to positional cleaning without updating tests.
-- No Hypothesis dependency was added; focused parametrized manual edge cases
-  cover the reproduced failures.
+- `test_repository_is_black_formatted` still fails on
+  `quant_trading/backtest/trade_log.py`, which is **pre-existing** (the file
+  is untouched by this session and fails `black --check` at `HEAD`). Out of
+  scope for this audit; leave it or fix it as a separate formatting task.
+- Non-finite observations are treated as missing data and excluded/sanitized;
+  callers that need to distinguish dirty data from valid zeros must validate
+  upstream.
+- Count semantics were not changed: zero/non-finite trades never create
+  positions, and structural trade/position counts stay consistent with
+  `calculate_backtest_metrics`.
 
 ## Failed Approach / Evidence
 
-An initial fix sanitized infinities inside `_align_series`. This broke the
-existing contract that a benchmark containing `inf` must produce beta `0.0`
-(`TestCalculateBeta.test_beta_non_finite_market_variance` changed from 0.0 to
-2.0). The change was reverted; the narrower final fix keeps NaN dropping in
-`_align_series` and guards infinity in the public beta/information-ratio
-functions.
-
-The first full-suite run also exposed repository-integrity failures that were
-already present or caused by the new helpers: missing docstring sections on
-`_finite_or_zero` and the two new risk helpers, plus a test-only mypy error from
-assigning a dynamic attribute. These were fixed directly; no alternate approach
-was abandoned for them.
+None for this task: every defect was first reproduced with a focused probe
+(`float("nan")`/`float("inf")` via `from_dict`, injected non-finite holding
+quantities, infinite prices, nan-quantity actions) before the matching minimal
+guard was added. The earlier `risk/metrics.py` and `trade_analysis` sessions
+already established the "non-finite = missing data" convention followed here.
 
 ## One Precise Next Task
 
-The trade-analysis/trade-log audit is complete (this session). `analyze_trades`
-and `_calculate_symbol_stats` now treat non-finite PnL as missing data so every
-numeric field stays finite and trade/round-trip counts stay consistent with
-`calculate_backtest_metrics`. Verified with:
-
-- `python -m pytest -q tests/test_trade_analysis.py tests/test_backtest_metrics.py tests/test_trade_log.py` — 156 passed.
-- Module doctests `quant_trading/backtest/trade_analysis.py trade_log.py metrics.py` — 8 passed.
-- `python -m mypy quant_trading/backtest/trade_analysis.py` — clean.
-- `python -m ruff check` and `python -m black --check` on the two changed files — clean.
-- Working tree not committed or pushed.
-
-Next bounded task: audit `quant_trading/portfolio/` and the rebalancer
-(`quant_trading/rebalancer/`) for the same degenerate/non-finite-input defects
-(empty positions, NaN/+inf/-inf prices, weights, or cash). Assert every numeric
-output stays finite and that any trade/position counts stay consistent across
-the portfolio and rebalancer APIs. Do not change count semantics without a
-failing focused test. Keep the fix minimal and rerun:
+Continue the same degenerate/non-finite-input audit on
+`quant_trading/risk/limits.py` and `quant_trading/config/settings.py` (the
+portfolio risk limits and config values the rebalancer and backtest consume at
+construction). Assert every numeric output stays finite and that count/limit
+semantics are unchanged. Keep fixes minimal; add focused tests mirroring the
+`from_dict`/input-sanitization style of this session, then rerun:
 
 ```bash
-python -m pytest -q tests/test_portfolio.py tests/test_rebalancer.py tests/test_portfolio_invariants.py tests/test_rebalancer_risk_integration.py
+python -m pytest -q tests/test_risk_manager.py tests/test_config.py tests/test_limits.py tests/test_portfolio.py tests/test_rebalancer.py quant_trading/risk/limits.py quant_trading/config/settings.py
+python -m mypy quant_trading/risk/ quant_trading/config/
+python -m ruff check quant_trading/risk/limits.py quant_trading/config/settings.py tests/test_risk_manager.py tests/test_config.py tests/test_limits.py
+python -m black --check quant_trading/risk/limits.py quant_trading/config/settings.py tests/test_risk_manager.py tests/test_config.py tests/test_limits.py
 ```

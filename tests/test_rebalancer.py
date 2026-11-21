@@ -1,10 +1,11 @@
 """Tests for the portfolio rebalancer."""
 
 from datetime import datetime
+from math import isfinite
 
 import pytest
 
-from quant_trading.portfolio.portfolio import Portfolio
+from quant_trading.portfolio.portfolio import Holding, Portfolio
 from quant_trading.portfolio.rebalancer import (
     RebalanceAction,
     Rebalancer,
@@ -482,6 +483,70 @@ class TestRebalancer:
         self.portfolio.total_value = 100000.0
         signals = [Signal(symbol="AAPL", action="buy", strength=1.0, price=-5.0)]
         assert self.rebalancer._resolve_buy_quantity("AAPL", 1000.0, signals, {}) == 0.0
+
+    def test_calculate_target_values_non_finite_portfolio_value(self) -> None:
+        """A non-finite portfolio value yields no target values."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.holdings["AAPL"] = Holding(
+            symbol="AAPL", quantity=float("inf"), avg_cost=100.0, current_price=100.0
+        )
+        rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.5})
+        assert rebalancer.calculate_target_values({"AAPL": 100.0}) == {}
+
+    def test_generate_rebalance_actions_non_finite_portfolio_value(self) -> None:
+        """No actions are generated when the portfolio value is non-finite."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.holdings["AAPL"] = Holding(
+            symbol="AAPL", quantity=float("inf"), avg_cost=100.0, current_price=100.0
+        )
+        rebalancer = Rebalancer(portfolio, target_allocation={"AAPL": 0.5})
+        actions = rebalancer.generate_rebalance_actions(prices={"AAPL": 100.0})
+        assert actions == []
+
+    def test_generate_rebalance_actions_signal_sell_skips_non_finite_quantity(
+        self,
+    ) -> None:
+        """A sell signal on a non-finite holding quantity emits no action."""
+        self.portfolio.cash = 100000.0
+        self.portfolio.total_value = 100000.0
+        self.portfolio.holdings["AAPL"] = Holding(
+            symbol="AAPL",
+            quantity=float("nan"),
+            avg_cost=100.0,
+            current_price=150.0,
+        )
+        signals = [Signal(symbol="AAPL", action="sell", strength=1.0, price=150.0)]
+        actions = self.rebalancer.generate_rebalance_actions(signals=signals)
+        signal_actions = [a for a in actions if a.reason.startswith("signal_")]
+        assert signal_actions == []
+        assert all(isfinite(a.quantity) for a in actions)
+
+    def test_generate_rebalance_actions_infinite_prices(self) -> None:
+        """Infinite prices produce no non-finite action quantities."""
+        self.portfolio.cash = 100000.0
+        self.portfolio.total_value = 100000.0
+        actions = self.rebalancer.generate_rebalance_actions(
+            prices={"AAPL": float("inf"), "MSFT": float("inf")}
+        )
+        assert all(isfinite(a.quantity) for a in actions)
+
+    def test_execute_actions_skips_non_finite_action_quantity(self) -> None:
+        """An action with a non-finite quantity is skipped and reported as 0.0."""
+        self.portfolio.add_holding("AAPL", 100, 100.0)
+        self.portfolio.total_value = self.portfolio.cash + self.portfolio.get_holdings_value()
+        cash_before = self.portfolio.cash
+
+        action = RebalanceAction(symbol="AAPL", action="buy", quantity=float("nan"), reason="test")
+        executions = self.rebalancer.execute_actions([action], prices={"AAPL": 100.0})
+
+        assert len(executions) == 1
+        assert executions[0].executed_quantity == 0.0
+        assert executions[0].requested_quantity == 0.0
+        assert executions[0].cash_effect == 0.0
+        assert self.portfolio.cash == pytest.approx(cash_before)
+        assert self.portfolio.holdings["AAPL"].quantity == pytest.approx(100.0)
+        assert self.portfolio.cash == pytest.approx(cash_before)
+        assert self.portfolio.holdings["AAPL"].quantity == pytest.approx(100.0)
 
 
 if __name__ == "__main__":

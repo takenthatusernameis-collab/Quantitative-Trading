@@ -1,6 +1,7 @@
 """Tests for the portfolio data structures."""
 
 from datetime import datetime
+from math import isfinite
 
 import pytest
 
@@ -74,6 +75,24 @@ class TestHolding:
         holding.update_price(float("inf"))
         assert holding.current_price == 100.0
         assert holding.market_value == 0.0
+
+    def test_from_dict_sanitizes_non_finite_fields(self) -> None:
+        """Non-finite numeric fields are restored as 0.0."""
+        holding = Holding.from_dict(
+            {
+                "symbol": "AAPL",
+                "quantity": float("nan"),
+                "avg_cost": float("inf"),
+                "current_price": float("-inf"),
+                "market_value": float("nan"),
+            }
+        )
+        assert holding.quantity == 0.0
+        assert holding.avg_cost == 0.0
+        assert holding.current_price == 0.0
+        assert holding.market_value == 0.0
+        assert holding.unrealized_pnl == 0.0
+        assert holding.unrealized_pnl_pct == 0.0
 
 
 class TestPortfolio:
@@ -516,6 +535,67 @@ class TestPortfolio:
 
         assert "AAPL" not in portfolio.holdings
         assert portfolio.cash == pytest.approx(cash_before)
+
+    def test_from_dict_sanitizes_non_finite_cash(self) -> None:
+        """Non-finite cash is restored as 0.0."""
+        portfolio = Portfolio.from_dict(
+            {"cash": float("nan"), "initial_capital": 100000.0, "holdings": {}}
+        )
+        assert portfolio.cash == 0.0
+        assert portfolio.total_value == 0.0
+        assert portfolio.initial_capital == 100000.0
+
+    def test_from_dict_sanitizes_non_finite_total_value(self) -> None:
+        """Non-finite total value falls back to the restored cash."""
+        portfolio = Portfolio.from_dict(
+            {"cash": 50000.0, "total_value": float("inf"), "holdings": {}}
+        )
+        assert portfolio.cash == 50000.0
+        assert portfolio.total_value == 50000.0
+
+    def test_from_dict_sanitizes_non_finite_initial_capital(self) -> None:
+        """Non-finite initial capital is restored as 0.0."""
+        portfolio = Portfolio.from_dict(
+            {"cash": 0.0, "initial_capital": float("nan"), "holdings": {}}
+        )
+        assert portfolio.initial_capital == 0.0
+        assert portfolio.total_value == 0.0
+
+    def test_from_dict_sanitizes_non_finite_holding_fields(self) -> None:
+        """A restored holding never carries non-finite numeric fields."""
+        portfolio = Portfolio.from_dict(
+            {
+                "cash": 100000.0,
+                "holdings": {
+                    "AAPL": {
+                        "symbol": "AAPL",
+                        "quantity": float("nan"),
+                        "avg_cost": float("inf"),
+                        "current_price": float("-inf"),
+                        "market_value": float("nan"),
+                    }
+                },
+            }
+        )
+        holding = portfolio.holdings["AAPL"]
+        assert holding.quantity == 0.0
+        assert holding.avg_cost == 0.0
+        assert holding.current_price == 0.0
+        assert holding.market_value == 0.0
+        assert holding.unrealized_pnl == 0.0
+        assert holding.unrealized_pnl_pct == 0.0
+
+    def test_summary_numeric_fields_stay_finite(self) -> None:
+        """summary() keeps every numeric field finite after a non-finite restore."""
+        portfolio = Portfolio.from_dict(
+            {"cash": float("nan"), "total_value": float("inf"), "holdings": {}}
+        )
+        summary = portfolio.summary()
+        assert isfinite(summary["total_value"])
+        assert isfinite(summary["cash"])
+        assert isfinite(summary["holdings_value"])
+        assert isfinite(summary["pnl"])
+        assert isfinite(summary["pnl_pct"])
 
 
 if __name__ == "__main__":

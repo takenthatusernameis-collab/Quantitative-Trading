@@ -523,6 +523,10 @@ class Rebalancer:
 
         """
         total_value = self._portfolio_value_at_prices(prices or {})
+        if not isfinite(total_value):
+            # A non-finite portfolio value cannot be split into finite
+            # targets, so there is nothing to target.
+            return {}
         targets = {}
         for symbol, pct in self.target_allocation.items():
             targets[symbol] = total_value * pct
@@ -587,6 +591,17 @@ class Rebalancer:
         actions = []
         prices = prices or {}
         total_value = self._portfolio_value_at_prices(prices)
+        if not isfinite(total_value):
+            # No trade can be sized against a non-finite portfolio value.
+            self.last_rebalance = datetime.now()
+            self.rebalance_history.append(
+                {
+                    "timestamp": self.last_rebalance,
+                    "actions": [],
+                    "portfolio_value": self.portfolio.total_value,
+                }
+            )
+            return []
         targets = self.calculate_target_values(prices)
         plan = _RebalancePlan(
             cash=self.portfolio.cash,
@@ -682,7 +697,7 @@ class Rebalancer:
                                 )
                 elif signal.action == "sell":
                     holding = self.portfolio.holdings.get(signal.symbol)
-                    if holding and holding.quantity != 0:
+                    if holding and holding.quantity != 0 and isfinite(holding.quantity):
                         price = self._resolve_execution_price(signal.symbol, prices)
                         quantity = abs(holding.quantity)
                         self._plan_sell(plan, signal.symbol, quantity, price)
@@ -887,7 +902,7 @@ class Rebalancer:
             if action.action not in ("buy", "sell", "hold"):
                 raise ValueError(f"Unknown rebalance action: {action.action!r}")
 
-            quantity = abs(action.quantity)
+            quantity = abs(action.quantity) if isfinite(action.quantity) else 0.0
             price = self._resolve_execution_price(action.symbol, prices)
             position_before = self._position_of(action.symbol)
             cash_before = self.portfolio.cash
@@ -909,7 +924,7 @@ class Rebalancer:
                 RebalanceExecution(
                     symbol=action.symbol,
                     action=action.action,
-                    requested_quantity=abs(action.quantity),
+                    requested_quantity=quantity,
                     executed_quantity=abs(position_after - position_before),
                     price=price,
                     cash_effect=self.portfolio.cash - cash_before,

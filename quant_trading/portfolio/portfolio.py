@@ -35,6 +35,34 @@ from typing import Any
 from quant_trading.strategies.base import Position
 
 
+def _finite_or_default(value: Any, default: float = 0.0) -> float:
+    """Return ``value`` when it is a finite number, otherwise ``default``.
+
+    Non-finite values (``nan``, ``inf``, ``-inf``) and non-numeric values are
+    treated as missing data, so restored objects never carry non-finite
+    numbers.
+
+    Args:
+        value: The value to validate.
+        default: The value returned when ``value`` is not a finite number.
+
+    Returns:
+        ``value`` when it is finite, otherwise ``default``.
+
+    Examples:
+        >>> from quant_trading.portfolio.portfolio import _finite_or_default
+        >>> _finite_or_default(float("nan"), 0.0)
+        0.0
+        >>> _finite_or_default(3.5, 0.0)
+        3.5
+        >>> _finite_or_default(float("inf"), 1.0)
+        1.0
+    """
+    if isinstance(value, (int, float)) and isfinite(value):
+        return value
+    return default
+
+
 @dataclass
 class Holding:
     """Represents a holding in the portfolio.
@@ -169,13 +197,25 @@ class Holding:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Holding":
-        """Deserialize holding from a dictionary."""
+        """Deserialize holding from a dictionary.
+
+        Non-finite numeric values are treated as missing data and restored as
+        0.0, so a restored holding never carries a non-finite quantity,
+        average cost, price, or market value.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`Holding`.
+
+        """
         return cls(
             symbol=data["symbol"],
-            quantity=data.get("quantity", 0.0),
-            avg_cost=data.get("avg_cost", 0.0),
-            current_price=data.get("current_price", 0.0),
-            market_value=data.get("market_value", 0.0),
+            quantity=_finite_or_default(data.get("quantity", 0.0)),
+            avg_cost=_finite_or_default(data.get("avg_cost", 0.0)),
+            current_price=_finite_or_default(data.get("current_price", 0.0)),
+            market_value=_finite_or_default(data.get("market_value", 0.0)),
         )
 
 
@@ -550,7 +590,21 @@ class Portfolio:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Portfolio":
-        """Deserialize portfolio from a dictionary."""
+        """Deserialize portfolio from a dictionary.
+
+        Non-finite numeric values are treated as missing data: non-finite
+        cash or initial capital is restored as 0.0, and a non-finite total
+        value falls back to the restored cash. Holdings are restored through
+        :meth:`Holding.from_dict`, which sanitizes their numeric fields the
+        same way, so every numeric field of the restored portfolio is finite.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`Portfolio`.
+
+        """
         last_rebalance_raw = data.get("last_rebalance")
         last_rebalance: datetime | None = None
         if isinstance(last_rebalance_raw, str) and last_rebalance_raw:
@@ -561,10 +615,12 @@ class Portfolio:
         elif isinstance(last_rebalance_raw, datetime):
             last_rebalance = last_rebalance_raw
         portfolio = cls(
-            cash=data.get("cash", 0.0),
-            initial_capital=data.get("initial_capital", data.get("cash", 0.0)),
+            cash=_finite_or_default(data.get("cash", 0.0)),
+            initial_capital=_finite_or_default(data.get("initial_capital", data.get("cash", 0.0))),
         )
-        portfolio.total_value = data.get("total_value", portfolio.cash)
+        portfolio.total_value = _finite_or_default(
+            data.get("total_value", portfolio.cash), portfolio.cash
+        )
         portfolio.last_rebalance = last_rebalance
         portfolio.holdings = {}
         holdings_data = data.get("holdings", {}) or {}
