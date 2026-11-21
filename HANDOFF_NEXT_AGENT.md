@@ -154,3 +154,32 @@ Added unit tests for `quant_trading/risk/limits.py:_finite` edge cases not cover
 ### Next task
 
 - None assigned. A bounded candidate for the next session: run the full `pytest` suite in CI (it times out locally >5 min due to pre-existing slowness) to confirm no regressions across the whole suite, or continue the `_finite` doctest coverage gap by adding a doctest example for bool rejection (`_finite(True)` → `0.0`) in `quant_trading/risk/limits.py`.
+
+---
+
+## Session 2026-11-21 (this session)
+
+Added doctest coverage for `_finite` bool rejection in `quant_trading/risk/limits.py`:
+
+### What changed
+
+**quant_trading/risk/limits.py**
+- Added `_finite(True) -> 0.0` and `_finite(False) -> 0.0` doctest examples to the `_finite` docstring, covering the existing bool-rejection branch (bool is a subclass of int but is not treated as 1.0/0.0).
+
+### What was verified
+
+- doctest quant_trading/risk/limits.py: **66 passed** (was 64; +2 new bool doctests)
+- pytest tests/test_limits.py: **207 passed**
+- ruff check / black --check / mypy quant_trading/risk/limits.py: **clean**
+
+### What remains unresolved
+
+- Nothing for this task.
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- Run the full `pytest` suite in CI (times out locally >5 min due to pre-existing slowness, `-m "not slow and not network"` deselects the slow README command invocations) to confirm no regressions across the whole suite. No local code change is assigned.

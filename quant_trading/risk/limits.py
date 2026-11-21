@@ -45,6 +45,10 @@ def _finite(value: Any, default: float = 0.0) -> float:
         0.0
         >>> _finite(None)
         0.0
+        >>> _finite(True)
+        0.0
+        >>> _finite(False)
+        0.0
         >>> _finite("3.14")
         3.14
     """
