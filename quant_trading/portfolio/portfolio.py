@@ -176,13 +176,53 @@ class Holding:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Holding":
-        """Deserialize holding from a dictionary."""
+        """Deserialize holding from a dictionary.
+
+        Numeric fields that are missing, non-numeric, or non-finite are
+        sanitized to ``0.0`` so a corrupted dictionary cannot poison a
+        reconstructed holding with NaN or inf market values. Missing optional
+        keys fall back to the field defaults; extra keys are ignored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`Holding` whose numeric fields are finite.
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Holding
+            >>> holding = Holding.from_dict({
+            ...     "symbol": "AAPL",
+            ...     "quantity": float("nan"),
+            ...     "avg_cost": float("inf"),
+            ...     "current_price": -float("inf"),
+            ...     "market_value": float("nan"),
+            ... })
+            >>> holding.quantity, holding.avg_cost, holding.current_price, holding.market_value
+            (0.0, 0.0, 0.0, 0.0)
+            >>> normal = Holding.from_dict({
+            ...     "symbol": "AAPL", "quantity": 100, "avg_cost": 100.0,
+            ...     "current_price": 150.0, "market_value": 15000.0,
+            ... })
+            >>> normal.market_value
+            15000.0
+        """
+
+        def _finite(value: Any, default: float = 0.0) -> float:
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and isfinite(value):
+                return float(value)
+            try:
+                result = float(value)
+            except (TypeError, ValueError):
+                return default
+            return result if isfinite(result) else default
+
         return cls(
             symbol=data["symbol"],
-            quantity=data.get("quantity", 0.0),
-            avg_cost=data.get("avg_cost", 0.0),
-            current_price=data.get("current_price", 0.0),
-            market_value=data.get("market_value", 0.0),
+            quantity=_finite(data.get("quantity", 0.0)),
+            avg_cost=_finite(data.get("avg_cost", 0.0)),
+            current_price=_finite(data.get("current_price", 0.0)),
+            market_value=_finite(data.get("market_value", 0.0)),
         )
 
 
@@ -571,7 +611,35 @@ class Portfolio:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Portfolio":
-        """Deserialize portfolio from a dictionary."""
+        """Deserialize portfolio from a dictionary.
+
+        Numeric fields that are missing, non-numeric, or non-finite are
+        sanitized to ``0.0`` so a corrupted dictionary cannot poison a
+        reconstructed portfolio. Holdings are restored through
+        :meth:`Holding.from_dict`, which sanitizes each holding's numeric
+        fields the same way. Missing optional keys fall back to the field
+        defaults; extra keys are ignored.
+
+        Args:
+            data: Dictionary previously produced by :meth:`to_dict`.
+
+        Returns:
+            A reconstructed :class:`Portfolio` whose numeric fields are finite.
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio.from_dict({
+            ...     "cash": float("nan"),
+            ...     "initial_capital": float("inf"),
+            ...     "total_value": -float("inf"),
+            ...     "holdings": {},
+            ... })
+            >>> portfolio.cash, portfolio.initial_capital, portfolio.total_value
+            (0.0, 0.0, 0.0)
+            >>> normal = Portfolio.from_dict({"cash": 50000.0, "initial_capital": 50000.0})
+            >>> normal.cash, normal.initial_capital
+            (50000.0, 50000.0)
+        """
         last_rebalance_raw = data.get("last_rebalance")
         last_rebalance: datetime | None = None
         if isinstance(last_rebalance_raw, str) and last_rebalance_raw:
@@ -581,11 +649,24 @@ class Portfolio:
                 last_rebalance = None
         elif isinstance(last_rebalance_raw, datetime):
             last_rebalance = last_rebalance_raw
+
+        def _finite(value: Any, default: float = 0.0) -> float:
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and isfinite(value):
+                return float(value)
+            try:
+                result = float(value)
+            except (TypeError, ValueError):
+                return default
+            return result if isfinite(result) else default
+
+        cash = _finite(data.get("cash", 0.0))
         portfolio = cls(
-            cash=data.get("cash", 0.0),
-            initial_capital=data.get("initial_capital", data.get("cash", 0.0)),
+            cash=cash,
+            initial_capital=_finite(
+                data.get("initial_capital", data.get("cash", 0.0)), default=cash
+            ),
         )
-        portfolio.total_value = data.get("total_value", portfolio.cash)
+        portfolio.total_value = _finite(data.get("total_value", portfolio.cash))
         portfolio.last_rebalance = last_rebalance
         portfolio.holdings = {}
         holdings_data = data.get("holdings", {}) or {}

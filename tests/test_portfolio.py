@@ -592,6 +592,54 @@ class TestHoldingSerialization:
         assert restored.avg_cost == 0.0
         assert restored.current_price == 0.0
 
+    def test_from_dict_sanitizes_non_finite_values(self) -> None:
+        """from_dict replaces non-finite numeric fields with 0.0."""
+        restored = Holding.from_dict(
+            {
+                "symbol": "AAPL",
+                "quantity": float("nan"),
+                "avg_cost": float("inf"),
+                "current_price": -float("inf"),
+                "market_value": float("nan"),
+            }
+        )
+        assert restored.quantity == 0.0
+        assert restored.avg_cost == 0.0
+        assert restored.current_price == 0.0
+        assert restored.market_value == 0.0
+
+    def test_from_dict_rejects_non_numeric_values(self) -> None:
+        """from_dict replaces non-numeric values with 0.0."""
+        restored = Holding.from_dict(
+            {
+                "symbol": "AAPL",
+                "quantity": "not-a-number",
+                "avg_cost": None,
+                "current_price": [1, 2],
+                "market_value": object(),
+            }
+        )
+        assert restored.quantity == 0.0
+        assert restored.avg_cost == 0.0
+        assert restored.current_price == 0.0
+        assert restored.market_value == 0.0
+
+    def test_from_dict_converts_numeric_strings(self) -> None:
+        """from_dict converts numeric strings to floats."""
+        restored = Holding.from_dict(
+            {
+                "symbol": "AAPL",
+                "quantity": "100",
+                "avg_cost": "100.0",
+                "current_price": "150.0",
+                "market_value": "15000.0",
+            }
+        )
+        assert restored.quantity == 100.0
+        assert restored.avg_cost == 100.0
+        assert restored.current_price == 150.0
+        assert restored.market_value == 15000.0
+
 
 class TestPortfolioSerialization:
     """Tests for Portfolio.to_dict / Portfolio.from_dict."""
@@ -675,3 +723,56 @@ class TestPortfolioSerialization:
         }
         restored = Portfolio.from_dict(data)
         assert restored.last_rebalance == dt
+
+    def test_from_dict_sanitizes_non_finite_portfolio_fields(self) -> None:
+        """from_dict replaces non-finite portfolio-level numerics with 0.0."""
+        restored = Portfolio.from_dict(
+            {
+                "cash": float("nan"),
+                "initial_capital": float("inf"),
+                "total_value": -float("inf"),
+                "holdings": {},
+            }
+        )
+        assert restored.cash == 0.0
+        assert restored.initial_capital == 0.0
+        assert restored.total_value == 0.0
+
+    def test_from_dict_sanitizes_non_finite_holdings(self) -> None:
+        """from_dict sanitizes every holding's numeric fields."""
+        restored = Portfolio.from_dict(
+            {
+                "cash": 100000.0,
+                "initial_capital": 100000.0,
+                "total_value": 100000.0,
+                "holdings": {
+                    "AAPL": {
+                        "symbol": "AAPL",
+                        "quantity": float("nan"),
+                        "avg_cost": float("inf"),
+                        "current_price": -float("inf"),
+                        "market_value": float("nan"),
+                    }
+                },
+            }
+        )
+        assert "AAPL" in restored.holdings
+        holding = restored.holdings["AAPL"]
+        assert holding.quantity == 0.0
+        assert holding.avg_cost == 0.0
+        assert holding.current_price == 0.0
+        assert holding.market_value == 0.0
+
+    def test_from_dict_rejects_non_numeric_portfolio_fields(self) -> None:
+        """from_dict replaces non-numeric portfolio-level fields with 0.0."""
+        restored = Portfolio.from_dict(
+            {
+                "cash": "not-a-number",
+                "initial_capital": None,
+                "total_value": object(),
+                "holdings": {},
+            }
+        )
+        assert restored.cash == 0.0
+        assert restored.initial_capital == 0.0
+        assert restored.total_value == 0.0
