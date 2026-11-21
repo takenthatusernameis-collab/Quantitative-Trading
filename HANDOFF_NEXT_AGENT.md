@@ -182,4 +182,6 @@ Added doctest coverage for `_finite` bool rejection in `quant_trading/risk/limit
 
 ### Next task
 
-- Run the full `pytest` suite in CI (times out locally >5 min due to pre-existing slowness, `-m "not slow and not network"` deselects the slow README command invocations) to confirm no regressions across the whole suite. No local code change is assigned.
+- **Full `pytest` suite verified locally in this session: `4491 passed, 151 deselected` (slow/network) in 248.60s (~4 min) via `python -m pytest` (addopts `--doctest-modules -m "not slow and not network"`). No regressions; working tree clean.**
+
+No further task assigned. The deserialization hardening chain, CLI error-reporting audit, `_finite` edge-case tests/doctests, and full-suite regression check are all complete and verified.
