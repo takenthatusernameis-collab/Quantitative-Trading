@@ -95,6 +95,11 @@ class RebalanceAction:
     reason: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
 
+    def __post_init__(self) -> None:
+        """Sanitize non-finite quantity to prevent NaN/inf propagation."""
+        if not isfinite(self.quantity) or self.quantity < 0:
+            self.quantity = 0.0
+
     def to_dict(self) -> dict[str, Any]:
         """Convert the rebalance action to a plain dictionary.
 
@@ -297,6 +302,15 @@ class _RebalancePlan:
     cash: float
     fee_rate: float = 0.0
     positions: dict[str, float] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Sanitize non-finite inputs to prevent NaN/inf propagation."""
+        if not isfinite(self.cash):
+            self.cash = 0.0
+        if not isfinite(self.fee_rate):
+            self.fee_rate = 0.0
+        # Filter out non-finite position quantities
+        self.positions = {k: v for k, v in self.positions.items() if isfinite(v)}
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the planned batch state to a plain dictionary.
@@ -741,6 +755,15 @@ class Rebalancer:
             permitted.
 
         """
+        # Guard against non-finite inputs
+        if not isfinite(quantity) or quantity <= 0:
+            return 0.0
+        if not isfinite(price) or price <= 0:
+            return 0.0
+        total_value = self.portfolio.total_value
+        if not isfinite(total_value) or total_value <= 0:
+            return 0.0
+
         if self.risk_manager is None or not self.risk_manager.risk_enabled:
             return quantity
 
@@ -756,7 +779,6 @@ class Rebalancer:
             return 0.0
 
         limit = self.risk_manager.position_limit
-        total_value = self.portfolio.total_value
         max_position_value = min(limit.max_size * total_value, limit.max_value)
         current_position_value = current_position * price
         room = max_position_value - current_position_value
@@ -969,6 +991,7 @@ class Rebalancer:
         map first, then the current price of the holding -- so that a planned
         trade is priced exactly like the trade it produces.  When neither is
         available the average price of the matching signals is used.
+        Non-finite prices are treated as unavailable.
 
         Args:
             symbol: Symbol the trade applies to.
@@ -976,20 +999,24 @@ class Rebalancer:
             signals: Optional signals for the symbol, used as a price source.
 
         Returns:
-            The price, or 0.0 when no positive price is available.
+            The price, or 0.0 when no positive finite price is available.
 
         """
         price = prices.get(symbol)
-        if price is not None and price > 0:
+        if price is not None and isfinite(price) and price > 0:
             return price
         holding = self.portfolio.holdings.get(symbol)
-        if holding is not None and holding.current_price > 0:
+        if holding is not None and isfinite(holding.current_price) and holding.current_price > 0:
             return holding.current_price
         if signals:
-            signal_prices = [s.price for s in signals if s.symbol == symbol and s.price]
+            signal_prices = [
+                s.price
+                for s in signals
+                if s.symbol == symbol and s.price is not None and isfinite(s.price)
+            ]
             if signal_prices:
                 avg_price = sum(signal_prices) / len(signal_prices)
-                if avg_price > 0:
+                if isfinite(avg_price) and avg_price > 0:
                     return avg_price
         return 0.0
 
@@ -1075,6 +1102,14 @@ class Rebalancer:
             permitted.
 
         """
+        # Guard against non-finite inputs
+        if not isfinite(quantity) or quantity <= 0:
+            return 0.0
+        if not isfinite(price) or price <= 0:
+            return 0.0
+        if not isfinite(total_value) or total_value <= 0:
+            return 0.0
+
         if self.risk_manager is None or not self.risk_manager.risk_enabled:
             return quantity
 

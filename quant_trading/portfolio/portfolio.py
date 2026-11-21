@@ -91,8 +91,15 @@ class Holding:
         The market value of a position is always ``quantity *
         current_price``, for longs and for shorts alike, so it is derived
         here rather than left to the caller. A zero-quantity holding has no
-        market value and keeps the ``0.0`` default.
+        market value and keeps the ``0.0`` default. Non-finite inputs are
+        sanitized to 0.0 to prevent NaN/inf propagation.
         """
+        if not isfinite(self.quantity):
+            self.quantity = 0.0
+        if not isfinite(self.avg_cost):
+            self.avg_cost = 0.0
+        if not isfinite(self.current_price):
+            self.current_price = 0.0
         if self.quantity != 0 and isfinite(self.quantity) and isfinite(self.current_price):
             self.market_value = self.quantity * self.current_price
         else:
@@ -232,9 +239,10 @@ class Portfolio:
 
         Returns:
             Sum of market values across every holding in the portfolio.
+            Non-finite market values are ignored.
 
         """
-        return sum(h.market_value for h in self.holdings.values())
+        return sum(h.market_value for h in self.holdings.values() if isfinite(h.market_value))
 
     def get_position(self, symbol: str) -> Position | None:
         """Get a single holding as a Position object.
@@ -472,14 +480,23 @@ class Portfolio:
 
         Returns:
             Symbol-keyed market-value fractions of total portfolio value, or
-            an empty dictionary when total value is non-positive.
+            an empty dictionary when total value is non-positive or non-finite.
+            Holdings with non-finite market values are excluded.
 
         """
         if self.total_value <= 0 or not isfinite(self.total_value):
             return {}
         if use_absolute:
-            return {sym: abs(h.market_value) / self.total_value for sym, h in self.holdings.items()}
-        return {sym: h.market_value / self.total_value for sym, h in self.holdings.items()}
+            return {
+                sym: abs(h.market_value) / self.total_value
+                for sym, h in self.holdings.items()
+                if isfinite(h.market_value)
+            }
+        return {
+            sym: h.market_value / self.total_value
+            for sym, h in self.holdings.items()
+            if isfinite(h.market_value)
+        }
 
     def get_net_allocation(self) -> dict[str, float]:
         """Get net allocation (signed weights; shorts are negative)."""
@@ -513,21 +530,25 @@ class Portfolio:
 
         Returns:
             Dictionary with total_value, cash, holdings_value, num_positions,
-            allocation, pnl, and pnl_pct keys.
+            allocation, pnl, and pnl_pct keys. All numeric values are finite;
+            non-finite values are replaced with 0.0.
 
         """
+        total_value = self.total_value if isfinite(self.total_value) else 0.0
+        cash = self.cash if isfinite(self.cash) else 0.0
+        holdings_value = self.get_holdings_value()
         return {
-            "total_value": self.total_value,
-            "cash": self.cash,
-            "holdings_value": self.get_holdings_value(),
+            "total_value": total_value,
+            "cash": cash,
+            "holdings_value": holdings_value,
             "num_positions": len(self.holdings),
             "allocation": self.get_allocation(),
-            "pnl": self.total_value - self.initial_capital,
+            "pnl": total_value - self.initial_capital if isfinite(self.initial_capital) else 0.0,
             "pnl_pct": (
-                (self.total_value - self.initial_capital) / self.initial_capital
+                (total_value - self.initial_capital) / self.initial_capital
                 if self.initial_capital > 0
                 and isfinite(self.initial_capital)
-                and isfinite(self.total_value)
+                and isfinite(total_value)
                 else 0
             ),
         }
