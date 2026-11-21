@@ -126,4 +126,31 @@ Completed the CLI error-reporting audit against `examples/cli.py`.
 
 ### Next task
 
-- None assigned — the deserialization hardening chain and the CLI error-reporting audit are both complete. If picking up new work, a bounded candidate would be adding unit tests for `quant_trading/risk/limits.py:_finite` edge cases not yet covered by doctests, or checking `git status`/diff before any checkpoint.
+- None assigned — the deserialization hardening chain and the CLI error-reporting audit are both complete.
+
+---
+
+## Session 2026-11-21 (this session)
+
+Added unit tests for `quant_trading/risk/limits.py:_finite` edge cases not covered by the existing `TestFiniteHelper` suite:
+
+- `test_non_finite_numeric_strings_return_default`: `"inf"`, `"-inf"`, `"nan"`, `"1e999"`, `"Infinity"` → `default` (numeric strings that convert to non-finite floats are sanitized).
+- `test_large_and_small_finite_values_pass_through`: `1e308`, `-1e308`, `"1e308"`, `"1.5e-10"` → pass through unchanged.
+
+### What was verified
+
+- pytest tests/test_limits.py::TestFiniteHelper: **24 passed** (was 15; +9 new parametrized cases)
+- doctest quant_trading/risk/limits.py: **11 passed** (unchanged)
+- ruff check / black --check / mypy on tests/test_limits.py: **clean**
+
+### What remains unresolved
+
+- Nothing for this task.
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- None assigned. A bounded candidate for the next session: run the full `pytest` suite in CI (it times out locally >5 min due to pre-existing slowness) to confirm no regressions across the whole suite, or continue the `_finite` doctest coverage gap by adding a doctest example for bool rejection (`_finite(True)` → `0.0`) in `quant_trading/risk/limits.py`.

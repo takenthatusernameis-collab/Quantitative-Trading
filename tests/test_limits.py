@@ -702,6 +702,16 @@ class TestFiniteHelper:
         assert _finite(True) == 0.0
         assert _finite(False) == 0.0
 
+    @pytest.mark.parametrize("value", ["inf", "-inf", "nan", "1e999", "Infinity"])
+    def test_non_finite_numeric_strings_return_default(self, value: str) -> None:
+        # Numeric strings that convert to non-finite floats are sanitized too
+        assert _finite(value) == 0.0
+        assert _finite(value, default=5.5) == 5.5
+
+    @pytest.mark.parametrize("value", [1e308, -1e308, "1e308", "1.5e-10"])
+    def test_large_and_small_finite_values_pass_through(self, value: float) -> None:
+        assert _finite(value) == float(value)
+
 
 class TestCheckResultSerialization:
     """Tests for CheckResult.to_dict/from_dict branches."""
