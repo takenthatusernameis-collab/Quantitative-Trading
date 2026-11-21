@@ -90,6 +90,9 @@ def format_shares(quantity: float, decimals: int = 0) -> str:
     Args:
         quantity: Number of shares/units.
         decimals: Number of decimal places for fractional shares.
+            When 0 (default), fractional shares are formatted with up to
+            10 decimal places, trailing zeros trimmed, and no scientific
+            notation.
 
     Returns:
         Formatted share quantity string.
@@ -100,6 +103,10 @@ def format_shares(quantity: float, decimals: int = 0) -> str:
     '10.5'
     >>> format_shares(100, decimals=2)
     '100.00'
+    >>> format_shares(1234567.5)
+    '1,234,567.5'
+    >>> format_shares(10000000.5)
+    '10,000,000.5'
 
     """
     # Check if it's a whole number
@@ -111,8 +118,10 @@ def format_shares(quantity: float, decimals: int = 0) -> str:
     else:
         # Has fractional part
         if decimals == 0:
-            # Use reasonable precision for fractional shares
-            return f"{quantity:g}"
+            # Use fixed-point with up to 10 decimal places, trim trailing zeros,
+            # avoid scientific notation for large numbers
+            formatted = f"{quantity:,.10f}"
+            return formatted.rstrip("0").rstrip(".")
         else:
             return f"{quantity:,.{decimals}f}"
 

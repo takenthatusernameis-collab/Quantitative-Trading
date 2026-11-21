@@ -156,10 +156,19 @@ def test_get_logger_creates_or_returns_existing() -> None:
 
 def test_format_shares_fractional_and_edge_cases() -> None:
     assert format_shares(10.5, decimals=0) == "10.5"
-    assert format_shares(1000.25, decimals=0) == "1000.25"
+    assert format_shares(1000.25, decimals=0) == "1,000.25"
     assert format_shares(0) == "0"
     assert format_shares(0, decimals=2) == "0.00"
     assert format_shares(-10.5, decimals=0) == "-10.5"
+
+
+def test_format_shares_large_fractional_no_scientific_notation() -> None:
+    """Regression test: large fractional quantities must not use scientific notation."""
+    assert format_shares(1234567.5) == "1,234,567.5"
+    assert format_shares(10000000.5) == "10,000,000.5"
+    assert format_shares(1e10 + 0.5) == "10,000,000,000.5"
+    assert format_shares(1234567.5, decimals=2) == "1,234,567.50"
+    assert format_shares(10000000.5, decimals=2) == "10,000,000.50"
 
 
 def test_format_duration_days_weeks_months_years_edge_cases() -> None:
