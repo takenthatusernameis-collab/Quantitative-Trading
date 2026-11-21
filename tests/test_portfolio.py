@@ -65,6 +65,16 @@ class TestHolding:
         assert holding.current_price == 120.0
         assert holding.market_value == 12000.0
 
+    def test_update_price_non_finite_price(self) -> None:
+        """update_price with a non-finite price keeps current_price and zeroes market value."""
+        holding = Holding(symbol="AAPL", quantity=100, avg_cost=100.0, current_price=100.0)
+        holding.update_price(float("nan"))
+        assert holding.current_price == 100.0
+        assert holding.market_value == 0.0
+        holding.update_price(float("inf"))
+        assert holding.current_price == 100.0
+        assert holding.market_value == 0.0
+
 
 class TestPortfolio:
     """Tests for the Portfolio dataclass."""
@@ -443,6 +453,69 @@ class TestPortfolio:
         # total_value = 100000 + 10000 - 10000 = 100000; gross = (10000+10000)/100000 = 0.2
         assert sum(gross.values()) == pytest.approx(0.2)
         assert sum(gross.values()) > abs(sum(portfolio.get_net_allocation().values()))
+
+    def test_remove_holding_non_finite_quantity(self) -> None:
+        """remove_holding with a non-finite quantity does not mutate the portfolio."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 100, 100.0)
+        cash_before = portfolio.cash
+        total_before = portfolio.total_value
+
+        portfolio.remove_holding("AAPL", float("nan"), 100.0)
+
+        assert "AAPL" in portfolio.holdings
+        assert portfolio.holdings["AAPL"].quantity == pytest.approx(100.0)
+        assert portfolio.cash == pytest.approx(cash_before)
+        assert portfolio.total_value == pytest.approx(total_before)
+
+    def test_remove_holding_non_finite_price(self) -> None:
+        """remove_holding with a non-finite price does not mutate the portfolio."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 100, 100.0)
+        cash_before = portfolio.cash
+
+        portfolio.remove_holding("AAPL", 50, float("nan"))
+
+        assert "AAPL" in portfolio.holdings
+        assert portfolio.holdings["AAPL"].quantity == pytest.approx(100.0)
+        assert portfolio.cash == pytest.approx(cash_before)
+
+    def test_reset_non_finite_capital(self) -> None:
+        """reset with a non-finite capital sanitizes it to 0.0."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 100, 100.0)
+
+        portfolio.reset(float("nan"))
+
+        assert portfolio.cash == 0.0
+        assert portfolio.total_value == 0.0
+        assert portfolio.initial_capital == 0.0
+        assert portfolio.holdings == {}
+
+        portfolio.reset(float("inf"))
+        assert portfolio.cash == 0.0
+        assert portfolio.total_value == 0.0
+        assert portfolio.initial_capital == 0.0
+
+    def test_add_holding_non_finite_commission(self) -> None:
+        """add_holding with a non-finite commission is a no-op."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        cash_before = portfolio.cash
+
+        portfolio.add_holding("AAPL", 10, 100.0, commission=float("nan"))
+
+        assert "AAPL" not in portfolio.holdings
+        assert portfolio.cash == pytest.approx(cash_before)
+
+    def test_add_holding_non_finite_slippage(self) -> None:
+        """add_holding with a non-finite slippage is a no-op."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        cash_before = portfolio.cash
+
+        portfolio.add_holding("AAPL", 10, 100.0, slippage=float("inf"))
+
+        assert "AAPL" not in portfolio.holdings
+        assert portfolio.cash == pytest.approx(cash_before)
 
 
 if __name__ == "__main__":

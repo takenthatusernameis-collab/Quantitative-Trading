@@ -103,7 +103,9 @@ class Holding:
         """Unrealized profit and loss for this holding."""
         if self.quantity == 0 or self.avg_cost == 0:
             return 0.0
-        if not (isfinite(self.quantity) and isfinite(self.avg_cost) and isfinite(self.current_price)):
+        if not (
+            isfinite(self.quantity) and isfinite(self.avg_cost) and isfinite(self.current_price)
+        ):
             return 0.0
         return self.quantity * (self.current_price - self.avg_cost)
 
@@ -121,7 +123,9 @@ class Holding:
         """
         if self.quantity == 0 or self.avg_cost == 0:
             return 0.0
-        if not (isfinite(self.quantity) and isfinite(self.avg_cost) and isfinite(self.current_price)):
+        if not (
+            isfinite(self.quantity) and isfinite(self.avg_cost) and isfinite(self.current_price)
+        ):
             return 0.0
         return copysign(1.0, self.quantity) * (self.current_price - self.avg_cost) / self.avg_cost
 
@@ -132,8 +136,8 @@ class Holding:
             price: New current price per unit.
 
         """
-        self.current_price = price
         if isfinite(price) and isfinite(self.quantity):
+            self.current_price = price
             self.market_value = self.quantity * price
         else:
             self.market_value = 0.0
@@ -314,7 +318,13 @@ class Portfolio:
         """
         holding = self.holdings.get(symbol)
 
-        if quantity == 0 or not isfinite(quantity) or not isfinite(price):
+        if (
+            quantity == 0
+            or not isfinite(quantity)
+            or not isfinite(price)
+            or not isfinite(commission)
+            or not isfinite(slippage)
+        ):
             # A zero-sized or non-finite trade must not create a position.
             self.total_value = self.cash + self.get_holdings_value()
             if not isfinite(self.total_value):
@@ -397,6 +407,9 @@ class Portfolio:
         """
         holding = self.holdings.get(symbol)
         if holding is None:
+            return 0.0
+        if not isfinite(quantity) or not isfinite(price):
+            # A non-finite quantity or price must not mutate the portfolio.
             return 0.0
 
         size = min(abs(quantity), abs(holding.quantity))
@@ -487,6 +500,8 @@ class Portfolio:
             None.
 
         """
+        if not isfinite(capital):
+            capital = 0.0
         self.cash = capital
         self.holdings = {}
         self.total_value = capital
@@ -510,7 +525,9 @@ class Portfolio:
             "pnl": self.total_value - self.initial_capital,
             "pnl_pct": (
                 (self.total_value - self.initial_capital) / self.initial_capital
-                if self.initial_capital > 0 and isfinite(self.initial_capital) and isfinite(self.total_value)
+                if self.initial_capital > 0
+                and isfinite(self.initial_capital)
+                and isfinite(self.total_value)
                 else 0
             ),
         }

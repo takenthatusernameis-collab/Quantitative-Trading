@@ -75,3 +75,14 @@ def test_rebalancer_coerce_datetime_branches() -> None:
     assert _coerce_datetime(dt) is dt
     assert _coerce_datetime("2024-01-02T03:04:05") == dt
     assert _coerce_datetime(12345) is None
+
+
+def test_set_target_allocation_rejects_non_finite_weight() -> None:
+    """set_target_allocation rejects NaN and infinite weights."""
+    rebalancer = Rebalancer(Portfolio(cash=100000.0, initial_capital=100000.0))
+    with pytest.raises(ValueError, match="invalid target_allocation"):
+        rebalancer.set_target_allocation({"AAPL": float("nan")})
+    with pytest.raises(ValueError, match="invalid target_allocation"):
+        rebalancer.set_target_allocation({"AAPL": float("inf")})
+    with pytest.raises(ValueError, match="invalid target_allocation"):
+        rebalancer.set_target_allocation({"AAPL": float("-inf")})

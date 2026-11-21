@@ -1304,6 +1304,11 @@ class Rebalancer:
 
         """
         total = sum(allocation.values())
+        for symbol, weight in allocation.items():
+            if not isinstance(weight, (int, float)) or not isfinite(weight):
+                raise ValueError(
+                    f"invalid target_allocation: weight for {symbol!r} must be a finite number (got {weight!r})"
+                )
         if allocation and abs(total - 1.0) > 0.01:
             if total == 0:
                 raise ValueError("Target allocation fractions must not sum to zero")
