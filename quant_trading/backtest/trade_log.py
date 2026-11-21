@@ -196,8 +196,7 @@ def split_trade_log(trades: pd.DataFrame) -> TradeLog:
     # the run, so it is reported apart from the round trips. A non-finite
     # entry fee is treated as missing data and excluded from the total.
     open_pnl = sum(
-        entry[1] for queue in short_queues.values() for entry in queue
-        if np.isfinite(entry[1])
+        entry[1] for queue in short_queues.values() for entry in queue if np.isfinite(entry[1])
     )
 
     return TradeLog(entries=entries, round_trips=round_trips, open_pnl=open_pnl)

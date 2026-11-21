@@ -96,7 +96,14 @@ class RebalanceAction:
     timestamp: datetime = field(default_factory=datetime.now)
 
     def __post_init__(self) -> None:
-        """Sanitize non-finite quantity to prevent NaN/inf propagation."""
+        """Sanitize non-finite quantity to prevent NaN/inf propagation.
+
+        Examples:
+            >>> from quant_trading.portfolio.rebalancer import RebalanceAction
+            >>> a = RebalanceAction(symbol="AAPL", action="buy", quantity=float("nan"))
+            >>> a.quantity
+            0.0
+        """
         if not isfinite(self.quantity) or self.quantity < 0:
             self.quantity = 0.0
 
@@ -304,7 +311,14 @@ class _RebalancePlan:
     positions: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        """Sanitize non-finite inputs to prevent NaN/inf propagation."""
+        """Sanitize non-finite inputs to prevent NaN/inf propagation.
+
+        Examples:
+            >>> from quant_trading.portfolio.rebalancer import _RebalancePlan
+            >>> p = _RebalancePlan(cash=float("nan"))
+            >>> p.cash
+            0.0
+        """
         if not isfinite(self.cash):
             self.cash = 0.0
         if not isfinite(self.fee_rate):
