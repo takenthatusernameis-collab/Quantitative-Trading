@@ -19,6 +19,7 @@ Examples:
 
 """
 
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, cast
@@ -309,6 +310,9 @@ class BayesianOptimizer(BaseOptimizer):
         * Integer bounds become an :class:`Integer` dimension.
         * Float bounds become a :class:`Real` dimension, using a
             ``"log-uniform"`` prior when ``distribution == "log"``.
+        * Collapsed bounds (min_val == max_val) become a :class:`Categorical`
+            dimension with a single value, since skopt requires lower < upper
+            for Integer/Real dimensions.
 
         Returns:
             List of scikit-optimize dimension objects, one per parameter.
@@ -322,7 +326,14 @@ class BayesianOptimizer(BaseOptimizer):
                 # Categorical space for discrete values
                 space.append(Categorical(param_space.values, name=name))
             elif param_space.min_val is not None and param_space.max_val is not None:
-                if param_space.param_type == int:
+                # Check for collapsed bounds (min_val == max_val)
+                min_v = float(param_space.min_val)
+                max_v = float(param_space.max_val)
+                if min_v == max_v:
+                    # skopt Integer/Real require lower < upper, so use Categorical
+                    # with a single value for collapsed bounds
+                    space.append(Categorical([param_space.param_type(min_v)], name=name))
+                elif param_space.param_type == int:
                     space.append(
                         Integer(
                             int(param_space.min_val),
@@ -407,7 +418,11 @@ class BayesianOptimizer(BaseOptimizer):
                 if self.verbose:
                     print(f"  -> New best: {score:.4f} with {params_eval}")
 
-            # skopt minimizes, so return negative score
+            # skopt minimizes, so return negative score.
+            # Guard against non-finite scores (-inf -> +inf would break gp_minimize).
+            # Return a large finite penalty instead.
+            if not math.isfinite(score):
+                return 1e10
             return -score
 
         try:

@@ -357,6 +357,18 @@ class ParameterGrid:
 ObjectiveFunction = Callable[[BacktestResult], float]
 
 
+def _finite_or_zero(value: float | None) -> float:
+    """Return value if finite, otherwise 0.0.
+
+    Handles both None and NaN values.
+    """
+    if value is None:
+        return 0.0
+    if not math.isfinite(value):
+        return 0.0
+    return value
+
+
 def maximize_sharpe(result: BacktestResult) -> float:
     """Objective function that maximizes the Sharpe ratio.
 
@@ -389,7 +401,7 @@ def maximize_sharpe(result: BacktestResult) -> float:
         1.5
 
     """
-    return result.metrics.sharpe_ratio or 0.0
+    return _finite_or_zero(result.metrics.sharpe_ratio)
 
 
 def maximize_total_return(result: BacktestResult) -> float:
@@ -424,7 +436,7 @@ def maximize_total_return(result: BacktestResult) -> float:
         10.0
 
     """
-    return result.total_return_pct
+    return _finite_or_zero(result.total_return_pct)
 
 
 def maximize_calmar(result: BacktestResult) -> float:
@@ -459,7 +471,7 @@ def maximize_calmar(result: BacktestResult) -> float:
         2.0
 
     """
-    return result.metrics.calmar_ratio or 0.0
+    return _finite_or_zero(result.metrics.calmar_ratio)
 
 
 def maximize_sortino(result: BacktestResult) -> float:
@@ -498,7 +510,7 @@ def maximize_sortino(result: BacktestResult) -> float:
         2.5
 
     """
-    return result.metrics.sortino_ratio or 0.0
+    return _finite_or_zero(result.metrics.sortino_ratio)
 
 
 def minimize_max_drawdown(result: BacktestResult) -> float:
@@ -536,7 +548,7 @@ def minimize_max_drawdown(result: BacktestResult) -> float:
         -5.0
 
     """
-    return -result.metrics.max_drawdown_pct
+    return -_finite_or_zero(result.metrics.max_drawdown_pct)
 
 
 def maximize_profit_factor(result: BacktestResult) -> float:
@@ -571,7 +583,7 @@ def maximize_profit_factor(result: BacktestResult) -> float:
         2.5
 
     """
-    return result.metrics.profit_factor or 0.0
+    return _finite_or_zero(result.metrics.profit_factor)
 
 
 def maximize_win_rate(result: BacktestResult) -> float:
@@ -606,7 +618,9 @@ def maximize_win_rate(result: BacktestResult) -> float:
         0.7
 
     """
-    return getattr(result, "win_rate_pct", getattr(result.metrics, "win_rate", 0.0))
+    return _finite_or_zero(
+        getattr(result, "win_rate_pct", getattr(result.metrics, "win_rate", 0.0))
+    )
 
 
 @dataclass
@@ -949,6 +963,11 @@ class BaseOptimizer(ABC):
         try:
             result = self._run_single_backtest(params)
             score = self.objective(result)
+            # Guard against NaN scores from objective functions
+            if not math.isfinite(score):
+                if self.verbose:
+                    print(f"Non-finite score {score} for {params}, treating as failure")
+                return params, float("-inf"), None
             return params, score, result
         except (ValueError, RuntimeError, KeyError, TypeError) as e:
             if self.verbose:

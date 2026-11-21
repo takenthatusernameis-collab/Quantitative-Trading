@@ -17,6 +17,7 @@ import pandas as pd
 import pytest
 from typing_extensions import Self
 
+from quant_trading.backtest.engine import BacktestResult
 from quant_trading.data.providers import DataManager, DataProvider, FetchResult
 from quant_trading.optimization import (
     BaseOptimizer,
@@ -4723,3 +4724,365 @@ class TestBayesianOptimizerInitValidation:
         assert optimizer.periods_per_year == 1
         assert optimizer.commission == 0.0
         assert optimizer.slippage == 1.0
+
+
+class TestObjectiveFunctionNaNHandling:
+    """Tests for objective functions handling NaN metrics."""
+
+    def _make_result(self, **metric_overrides: Any) -> BacktestResult:
+        from quant_trading.backtest.metrics import BacktestMetrics
+
+        equity_curve = pd.Series(
+            [100000, 101000],
+            index=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-31")],
+        )
+        metrics = BacktestMetrics()
+        for k, v in metric_overrides.items():
+            setattr(metrics, k, v)
+        return BacktestResult(
+            equity_curve=equity_curve,
+            trades=pd.DataFrame(),
+            positions={},
+            metrics=metrics,
+            start_date=pd.Timestamp("2024-01-01"),
+            end_date=pd.Timestamp("2024-01-31"),
+            initial_capital=100000,
+            final_value=101000,
+            total_return=1000,
+            total_return_pct=1.0,
+        )
+
+    def test_maximize_sharpe_with_nan(self) -> None:
+        result = self._make_result(sharpe_ratio=float("nan"))
+        assert maximize_sharpe(result) == 0.0
+
+    def test_maximize_calmar_with_nan(self) -> None:
+        result = self._make_result(calmar_ratio=float("nan"))
+        assert maximize_calmar(result) == 0.0
+
+    def test_maximize_sortino_with_nan(self) -> None:
+        result = self._make_result(sortino_ratio=float("nan"))
+        assert maximize_sortino(result) == 0.0
+
+    def test_maximize_profit_factor_with_nan(self) -> None:
+        result = self._make_result(profit_factor=float("nan"))
+        assert maximize_profit_factor(result) == 0.0
+
+    def test_maximize_total_return_with_nan(self) -> None:
+        result = self._make_result()
+        # Override total_return_pct directly on result
+        result.total_return_pct = float("nan")
+        assert maximize_total_return(result) == 0.0
+
+    def test_minimize_max_drawdown_with_nan(self) -> None:
+        result = self._make_result(max_drawdown_pct=float("nan"))
+        assert minimize_max_drawdown(result) == 0.0
+
+    def test_maximize_win_rate_with_nan(self) -> None:
+        result = self._make_result(win_rate=float("nan"))
+        result.win_rate_pct = float("nan")
+        assert maximize_win_rate(result) == 0.0
+
+
+class TestOptimizerNaNScoreHandling:
+    """Tests for optimizers handling NaN scores from objective functions."""
+
+    def test_evaluate_params_converts_nan_to_neg_inf(self) -> None:
+        from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
+        from quant_trading.optimization.base import BaseOptimizer, ParameterGrid, ParameterSpace
+
+        class DummyStrategy(Strategy):
+            def generate_signals(self, data):
+                return []
+
+        class DummyProvider(DataProvider):
+            def __init__(self):
+                self._name = "dummy"
+
+            @property
+            def name(self):
+                return self._name
+
+            def fetch(self, symbols, start=None, end=None, interval="1d"):
+                result = FetchResult()
+                for symbol in symbols:
+                    dates = pd.date_range(end=datetime(2026, 1, 15), periods=10, freq="D")
+                    prices = np.ones(len(dates)) * 100
+                    result.data[symbol] = MarketData(
+                        symbol=symbol,
+                        data=pd.DataFrame(
+                            {
+                                "open": prices,
+                                "high": prices,
+                                "low": prices,
+                                "close": prices,
+                                "volume": np.ones(len(dates)) * 1000000,
+                            },
+                            index=dates,
+                        ),
+                        source=self.name,
+                        fetched_at=datetime(2026, 1, 15),
+                    )
+                return result
+
+            def fetch_latest(self, symbols):
+                return self.fetch(symbols)
+
+            def fetch_many(self, requests):
+                return {}
+
+        class TestOptimizer(BaseOptimizer):
+            def run(self) -> OptimizationResult:
+                return OptimizationResult(best_params={}, best_score=0.0)
+
+        provider = DummyProvider()
+        data_manager = DataManager([provider])
+
+        param_grid = ParameterGrid()
+        param_grid.add(ParameterSpace("test", values=[1]))
+
+        def nan_objective(result):
+            return float("nan")
+
+        optimizer = TestOptimizer(
+            strategy_cls=DummyStrategy,
+            param_grid=param_grid,
+            objective=nan_objective,
+            symbols=["AAPL"],
+            start=datetime(2026, 1, 15) - timedelta(days=5),
+            end=datetime(2026, 1, 15),
+            initial_capital=100000.0,
+            data_manager=data_manager,
+            verbose=False,
+        )
+
+        _params, score, result = optimizer._evaluate_params({"test": 1})
+        assert score == float("-inf")
+        assert result is None
+
+    def test_grid_search_nan_score_not_best(self) -> None:
+        from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
+        from quant_trading.optimization.grid_search import GridSearch
+
+        class ConditionalNaNStrategy(Strategy):
+            def __init__(self, **kwargs):
+                super().__init__("ConditionalNaN", kwargs)
+
+            def generate_signals(self, data):
+                return []
+
+        class DummyProvider(DataProvider):
+            def __init__(self):
+                self._name = "dummy"
+
+            @property
+            def name(self):
+                return self._name
+
+            def fetch(self, symbols, start=None, end=None, interval="1d"):
+                result = FetchResult()
+                for symbol in symbols:
+                    dates = pd.date_range(end=datetime(2026, 1, 15), periods=10, freq="D")
+                    prices = np.ones(len(dates)) * 100
+                    result.data[symbol] = MarketData(
+                        symbol=symbol,
+                        data=pd.DataFrame(
+                            {
+                                "open": prices,
+                                "high": prices,
+                                "low": prices,
+                                "close": prices,
+                                "volume": np.ones(len(dates)) * 1000000,
+                            },
+                            index=dates,
+                        ),
+                        source=self.name,
+                        fetched_at=datetime(2026, 1, 15),
+                    )
+                return result
+
+            def fetch_latest(self, symbols):
+                return self.fetch(symbols)
+
+            def fetch_many(self, requests):
+                return {}
+
+        provider = DummyProvider()
+        data_manager = DataManager([provider])
+
+        param_grid = ParameterGrid()
+        param_grid.add(ParameterSpace("test", values=[1, 2, 3]))
+
+        call_count = {"count": 0}
+
+        def conditional_objective(result):
+            call_count["count"] += 1
+            if call_count["count"] == 2:
+                return float("nan")
+            return 1.0
+
+        optimizer = GridSearch(
+            strategy_cls=ConditionalNaNStrategy,
+            param_grid=param_grid,
+            objective=conditional_objective,
+            symbols=["AAPL"],
+            start=datetime(2026, 1, 15) - timedelta(days=5),
+            end=datetime(2026, 1, 15),
+            initial_capital=100000.0,
+            data_manager=data_manager,
+            verbose=False,
+        )
+
+        result = optimizer.run()
+        assert result.best_score == 1.0
+        assert result.best_params == {"test": 1.0}
+        # NaN score should be converted to -inf and stored in all_results
+        scores = [r["score"] for r in result.all_results]
+        assert scores.count(1.0) == 2
+        assert scores.count(float("-inf")) == 1
+
+
+@skip_if_no_skopt
+class TestBayesianOptimizerCollapsedBounds:
+    """Tests for BayesianOptimizer handling collapsed parameter bounds."""
+
+    def _make_provider(self) -> DataManager:
+        from quant_trading.data.providers import DataManager, DataProvider, FetchResult, MarketData
+
+        class DummyProvider(DataProvider):
+            def __init__(self):
+                self._name = "dummy"
+
+            @property
+            def name(self):
+                return self._name
+
+            def fetch(self, symbols, start=None, end=None, interval="1d"):
+                result = FetchResult()
+                for symbol in symbols:
+                    dates = pd.date_range(end=datetime(2026, 1, 15), periods=60, freq="D")
+                    returns = np.random.normal(0.0005, 0.02, len(dates))
+                    prices = 100 * np.exp(np.cumsum(returns))
+                    result.data[symbol] = MarketData(
+                        symbol=symbol,
+                        data=pd.DataFrame(
+                            {
+                                "open": prices,
+                                "high": prices * 1.01,
+                                "low": prices * 0.99,
+                                "close": prices,
+                                "volume": np.ones(len(dates)) * 1000000,
+                            },
+                            index=dates,
+                        ),
+                        source=self.name,
+                        fetched_at=datetime(2026, 1, 15),
+                    )
+                return result
+
+            def fetch_latest(self, symbols):
+                return self.fetch(symbols)
+
+            def fetch_many(self, requests):
+                return {}
+
+        provider = DummyProvider()
+        return DataManager([provider])
+
+    def test_collapsed_integer_bounds(self) -> None:
+        """Integer parameter with min_val == max_val should work."""
+        data_manager = self._make_provider()
+        param_grid = ParameterGrid()
+        param_grid.add(ParameterSpace("fast_period", min_val=10, max_val=10, param_type=int))
+        param_grid.add(ParameterSpace("slow_period", min_val=20, max_val=30, param_type=int))
+
+        optimizer = BayesianOptimizer(
+            strategy_cls=MovingAverageCrossover,
+            param_grid=param_grid,
+            objective=lambda r: r.metrics.sharpe_ratio or 0.0,
+            symbols=["AAPL"],
+            start=datetime(2026, 1, 15) - timedelta(days=50),
+            end=datetime(2026, 1, 15),
+            initial_capital=100000.0,
+            data_manager=data_manager,
+            n_initial_points=2,
+            n_calls=4,
+            random_state=42,
+            verbose=False,
+        )
+
+        result = optimizer.run()
+        assert result.best_params is not None
+        assert result.best_params["fast_period"] == 10
+        assert 20 <= result.best_params["slow_period"] <= 30
+        assert len(result.all_results) == 4
+
+    def test_collapsed_float_bounds(self) -> None:
+        """Float parameter with min_val == max_val should work."""
+        data_manager = self._make_provider()
+
+        class SimpleStrategy(Strategy):
+            def __init__(self, **kwargs):
+                super().__init__("Simple", kwargs)
+
+            def generate_signals(self, data):
+                return []
+
+        param_grid = ParameterGrid()
+        param_grid.add(ParameterSpace("param1", min_val=0.5, max_val=0.5))
+        param_grid.add(ParameterSpace("param2", min_val=0.1, max_val=0.9))
+
+        optimizer = BayesianOptimizer(
+            strategy_cls=SimpleStrategy,
+            param_grid=param_grid,
+            objective=lambda r: 1.0,
+            symbols=["AAPL"],
+            start=datetime(2026, 1, 15) - timedelta(days=50),
+            end=datetime(2026, 1, 15),
+            initial_capital=100000.0,
+            data_manager=data_manager,
+            n_initial_points=2,
+            n_calls=4,
+            random_state=42,
+            verbose=False,
+        )
+
+        result = optimizer.run()
+        assert result.best_params is not None
+        assert result.best_params["param1"] == 0.5
+        assert 0.1 <= result.best_params["param2"] <= 0.9
+        assert len(result.all_results) == 4
+
+    def test_all_collapsed_bounds(self) -> None:
+        """All parameters collapsed to single point should work."""
+        data_manager = self._make_provider()
+
+        class SimpleStrategy(Strategy):
+            def __init__(self, **kwargs):
+                super().__init__("Simple", kwargs)
+
+            def generate_signals(self, data):
+                return []
+
+        param_grid = ParameterGrid()
+        param_grid.add(ParameterSpace("param1", min_val=0.5, max_val=0.5))
+        param_grid.add(ParameterSpace("param2", min_val=0.1, max_val=0.1))
+
+        optimizer = BayesianOptimizer(
+            strategy_cls=SimpleStrategy,
+            param_grid=param_grid,
+            objective=lambda r: 1.0,
+            symbols=["AAPL"],
+            start=datetime(2026, 1, 15) - timedelta(days=50),
+            end=datetime(2026, 1, 15),
+            initial_capital=100000.0,
+            data_manager=data_manager,
+            n_initial_points=2,
+            n_calls=4,
+            random_state=42,
+            verbose=False,
+        )
+
+        result = optimizer.run()
+        assert result.best_params == {"param1": 0.5, "param2": 0.1}
+        assert len(result.all_results) == 4
