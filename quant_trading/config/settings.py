@@ -38,11 +38,7 @@ import yaml
 
 def _finite(value: Any, default: float = 0.0) -> float:
     """Return value if finite, otherwise default. Rejects bool and non-numeric types."""
-    if (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-    ):
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
         return float(value)
     try:
         result = float(value)

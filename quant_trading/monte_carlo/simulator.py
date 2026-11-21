@@ -38,13 +38,13 @@ True
 
 """
 
+import math
 import os
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-import math
 import numpy as np
 import pandas as pd
 
@@ -54,11 +54,7 @@ from quant_trading.backtest.metrics import BacktestMetrics
 
 def _finite(value: Any, default: float = 0.0) -> float:
     """Return value if finite, otherwise default. Rejects bool and non-numeric types."""
-    if (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-    ):
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
         return float(value)
     try:
         result = float(value)

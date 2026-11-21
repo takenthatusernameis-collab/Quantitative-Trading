@@ -49,7 +49,11 @@ CLI_USER_ERRORS: list[tuple[str, str, str]] = [
         "{tmp}/missing/strategy.yaml",
         "could not read strategy config",
     ),
-    ("--output", "{tmp}/missing/output.json", "invalid --output: the output directory does not exist"),
+    (
+        "--output",
+        "{tmp}/missing/output.json",
+        "invalid --output: the output directory does not exist",
+    ),
 ]
 
 # A strategy config whose *content* is wrong. The file exists, so the path is

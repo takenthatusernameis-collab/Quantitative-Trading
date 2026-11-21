@@ -24,22 +24,18 @@ Examples:
 
 """
 
+import math
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, cast
 
-import math
 import numpy as np
 import pandas as pd
 
 
 def _finite(value: Any, default: float = 0.0) -> float:
     """Return value if finite, otherwise default. Rejects bool and non-numeric types."""
-    if (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-    ):
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
         return float(value)
     try:
         result = float(value)
