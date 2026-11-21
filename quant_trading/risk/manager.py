@@ -227,12 +227,26 @@ class RiskAttribution:
             0.02
 
         """
+
+        def _finite(value: Any, default: float = 0.0) -> float:
+            if (
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and math.isfinite(value)
+            ):
+                return float(value)
+            try:
+                result = float(value)
+            except (TypeError, ValueError):
+                return default
+            return result if math.isfinite(result) else default
+
         return cls(
-            confidence=float(data.get("confidence", 0.95)),
-            positions_value=float(data.get("positions_value", 0.0)),
-            portfolio_value=float(data.get("portfolio_value", 0.0)),
-            portfolio_var=float(data.get("portfolio_var", 0.0)),
-            portfolio_volatility=float(data.get("portfolio_volatility", 0.0)),
+            confidence=_finite(data.get("confidence", 0.95), 0.95),
+            positions_value=_finite(data.get("positions_value", 0.0)),
+            portfolio_value=_finite(data.get("portfolio_value", 0.0)),
+            portfolio_var=_finite(data.get("portfolio_var", 0.0)),
+            portfolio_volatility=_finite(data.get("portfolio_volatility", 0.0)),
             weights=_mapping_to_series(data.get("weights")),
             marginal_var=_mapping_to_series(data.get("marginal_var")),
             component_var=_mapping_to_series(data.get("component_var")),
@@ -409,13 +423,27 @@ class PortfolioRisk:
         risk_attribution = (
             RiskAttribution.from_dict(attribution) if isinstance(attribution, dict) else None
         )
+
+        def _finite(value: Any, default: float = 0.0) -> float:
+            if (
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and math.isfinite(value)
+            ):
+                return float(value)
+            try:
+                result = float(value)
+            except (TypeError, ValueError):
+                return default
+            return result if math.isfinite(result) else default
+
         return cls(
-            total_market_value=float(data.get("total_market_value", 0.0)),
-            cash=float(data.get("cash", 0.0)),
-            positions_value=float(data.get("positions_value", 0.0)),
-            leverage=float(data.get("leverage", 0.0)),
-            current_drawdown=float(data.get("current_drawdown", 0.0)),
-            peak_value=float(data.get("peak_value", 0.0)),
+            total_market_value=_finite(data.get("total_market_value", 0.0)),
+            cash=_finite(data.get("cash", 0.0)),
+            positions_value=_finite(data.get("positions_value", 0.0)),
+            leverage=_finite(data.get("leverage", 0.0)),
+            current_drawdown=_finite(data.get("current_drawdown", 0.0)),
+            peak_value=_finite(data.get("peak_value", 0.0)),
             risk_attribution=risk_attribution,
         )
 
