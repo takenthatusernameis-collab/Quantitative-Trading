@@ -20,6 +20,47 @@ from typing import Any
 from quant_trading.strategies.base import Position
 
 
+def _finite(value: Any, default: float = 0.0) -> float:
+    """Convert a value to a finite float, falling back to ``default``.
+
+    Non-numeric, non-finite (NaN/inf), and unconvertible values are replaced
+    with ``default`` so a corrupted dictionary cannot poison a reconstructed
+    object with NaN/inf.
+
+    Args:
+        value: The value to sanitize.
+        default: The fallback value when ``value`` is not a finite number.
+
+    Returns:
+        A finite float.
+
+    Examples:
+        >>> _finite(1.5)
+        1.5
+        >>> _finite(float("nan"))
+        0.0
+        >>> _finite(float("inf"))
+        0.0
+        >>> _finite("not a number")
+        0.0
+        >>> _finite(None)
+        0.0
+        >>> _finite("3.14")
+        3.14
+    """
+    # Explicitly reject bool since bool is a subclass of int but we don't want
+    # True/False to be treated as 1.0/0.0
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)) and math.isfinite(value):
+        return float(value)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
+
+
 def _iso(value: datetime | None) -> str | None:
     """Return ISO-8601 string for a datetime, or None for None."""
     if value is None:
@@ -135,7 +176,9 @@ class PositionLimit:
     def from_dict(cls, data: dict[str, Any]) -> "PositionLimit":
         """Deserialize a :class:`PositionLimit` from a dictionary.
 
-        Missing keys fall back to the class defaults.
+        Missing keys fall back to the class defaults. Non-finite and
+        non-numeric values are sanitized to ``0.0`` so a corrupted dictionary
+        cannot poison a reconstructed limit with NaN/inf.
 
         Args:
             data: Dictionary previously produced by :meth:`to_dict`.
@@ -148,13 +191,22 @@ class PositionLimit:
             >>> restored = PositionLimit.from_dict({"max_size": 0.2, "max_value": 100000.0})
             >>> restored.max_size, restored.max_value
             (0.2, 100000.0)
+            >>> sanitized = PositionLimit.from_dict({
+            ...     "max_size": float("nan"),
+            ...     "max_value": float("inf"),
+            ...     "stop_loss_pct": "not a number",
+            ... })
+            >>> sanitized.max_size, sanitized.max_value, sanitized.stop_loss_pct
+            (0.1, 50000.0, 0.05)
+            >>> sanitized.take_profit_pct
+            0.15
 
         """
         return cls(
-            max_size=float(data.get("max_size", 0.1)),
-            max_value=float(data.get("max_value", 50000.0)),
-            stop_loss_pct=float(data.get("stop_loss_pct", 0.05)),
-            take_profit_pct=float(data.get("take_profit_pct", 0.15)),
+            max_size=_finite(data.get("max_size"), 0.1),
+            max_value=_finite(data.get("max_value"), 50000.0),
+            stop_loss_pct=_finite(data.get("stop_loss_pct"), 0.05),
+            take_profit_pct=_finite(data.get("take_profit_pct"), 0.15),
         )
 
     def check(self, position: Position, portfolio_value: float) -> list[str]:
@@ -321,7 +373,9 @@ class PortfolioLimit:
     def from_dict(cls, data: dict[str, Any]) -> "PortfolioLimit":
         """Deserialize a :class:`PortfolioLimit` from a dictionary.
 
-        Missing keys fall back to the class defaults.
+        Missing keys fall back to the class defaults. Non-finite and
+        non-numeric values are sanitized to ``0.0`` so a corrupted dictionary
+        cannot poison a reconstructed limit with NaN/inf.
 
         Args:
             data: Dictionary previously produced by :meth:`to_dict`.
@@ -334,15 +388,24 @@ class PortfolioLimit:
             >>> restored = PortfolioLimit.from_dict({"max_positions": 10, "max_drawdown": 0.15})
             >>> restored.max_positions, restored.max_drawdown
             (10, 0.15)
+            >>> sanitized = PortfolioLimit.from_dict({
+            ...     "max_position_size": float("nan"),
+            ...     "max_portfolio_risk": float("inf"),
+            ...     "max_drawdown": "not a number",
+            ... })
+            >>> sanitized.max_position_size, sanitized.max_portfolio_risk, sanitized.max_drawdown
+            (0.1, 0.02, 0.2)
+            >>> sanitized.max_positions, sanitized.max_leverage, sanitized.stop_loss_pct
+            (20, 1.0, 0.05)
 
         """
         return cls(
-            max_positions=int(data.get("max_positions", 20)),
-            max_position_size=float(data.get("max_position_size", 0.1)),
-            max_portfolio_risk=float(data.get("max_portfolio_risk", 0.02)),
-            max_drawdown=float(data.get("max_drawdown", 0.20)),
-            max_leverage=float(data.get("max_leverage", 1.0)),
-            stop_loss_pct=float(data.get("stop_loss_pct", 0.05)),
+            max_positions=int(_finite(data.get("max_positions"), 20)),
+            max_position_size=_finite(data.get("max_position_size"), 0.1),
+            max_portfolio_risk=_finite(data.get("max_portfolio_risk"), 0.02),
+            max_drawdown=_finite(data.get("max_drawdown"), 0.20),
+            max_leverage=_finite(data.get("max_leverage"), 1.0),
+            stop_loss_pct=_finite(data.get("stop_loss_pct"), 0.05),
         )
 
     def position_risk(self, position: Position) -> float:
@@ -521,7 +584,9 @@ class CheckResult:
     def from_dict(cls, data: dict[str, Any]) -> "CheckResult":
         """Deserialize a :class:`CheckResult` from a dictionary.
 
-        Missing keys fall back to safe defaults. ISO-8601 timestamps are accepted.
+        Missing keys fall back to safe defaults. ISO-8601 timestamps are
+        accepted. Non-finite and non-numeric values in numeric fields are
+        sanitized to ``0.0``.
 
         Args:
             data: Dictionary previously produced by :meth:`to_dict`.
