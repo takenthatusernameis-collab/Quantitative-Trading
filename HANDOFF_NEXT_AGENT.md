@@ -720,3 +720,50 @@ hardened last session with `_validate_confidence`.
   individual weights (e.g. a weight of `2.0` with another of `-1.0` sums to
   1.0 and passes). Confirm whether negative/leverage weights are intentionally
   supported (the `long_only` flag suggests they are) before changing anything.
+
+---
+
+## Session 2026-11-22 (this session)
+
+Investigated the bounded candidate above: whether the ERC / risk-budget weight
+solvers (`calculate_equal_risk_contribution_weights`,
+`calculate_risk_budget_weights`) and `calculate_volatility_contributions` in
+`quant_trading/risk/metrics.py` should range-check individual weights (e.g. a
+weight of `2.0` with another of `-1.0` sums to 1.0 and currently passes).
+
+### What was confirmed (no code change — resolved as no-op)
+
+Leverage / negative weights are **intentionally supported**, so no per-weight
+range check is added. Evidence:
+
+- `calculate_equal_risk_contribution_weights` (metrics.py:1106) and
+  `calculate_risk_budget_weights` (metrics.py:1192) both declare
+  `long_only: bool = False`, explicitly permitting negative weights at the
+  library level.
+- `RiskManager.suggest_erc_weights` (manager.py:1447) and
+  `RiskManager.suggest_risk_budget_weights` (manager.py:1519) default
+  `long_only=True` only at the manager convenience wrapper layer; the
+  underlying solvers remain leverage-capable.
+- Existing validation only requires weights to be finite and sum to 1.0
+  (metrics.py:977 `calculate_marginal_var`, :1082
+  `calculate_volatility_contributions`, :1231 `calculate_risk_budget_weights`)
+  — no per-weight range check, consistent with leverage support.
+- Tests cover the clamp path:
+  `tests/test_risk_attribution.py::test_erc_long_only_clamps_weights` and
+  `test_risk_budget_long_only_clamps_weights`.
+
+### What was verified
+
+- `pytest tests/test_risk_attribution.py --doctest-modules quant_trading/risk/metrics.py`:
+  **90 passed**. Baseline green; no change in behavior.
+
+### Approaches that failed
+
+- None. (Adding a `[0, 1]` per-weight range check was considered and rejected:
+  it would break the intentional `long_only=False` leverage support.)
+
+### Next task
+
+- None assigned. All tracked hardening/validation chains are complete and the
+  focused suite is green. There is no remaining bounded candidate from the
+  handoff; future work would require a new defect report or feature request.
