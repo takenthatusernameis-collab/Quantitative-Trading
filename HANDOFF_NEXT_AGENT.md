@@ -379,3 +379,12 @@ Reproduced before the fix:
   regressions across the whole suite after this change. The deserialization
   hardening chain, CLI error-reporting audit, and config/construction-time
   validation audits are all complete.
+---
+
+## Session 2026-11-22 (this session)
+
+Ran the full `pytest` suite with `-m "not slow and not network"`: **4537 passed, 151 deselected** in 278.48s. No regressions. Working tree clean.
+
+### Next task
+
+- None assigned. All tracked work complete.
