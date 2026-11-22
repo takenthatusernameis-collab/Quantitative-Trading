@@ -525,3 +525,54 @@ Ran the full `pytest` suite to certify the previous session's
     zero-*price* case, not zero-volume, and was not reproduced here.
 
 No further task assigned. The oscillator audit is complete and verified.
+
+---
+
+## Session 2026-11-22 (this session)
+
+Fixed a pre-existing black-formatting regression that broke the
+`test_repository_is_black_formatted` repository-integrity guard.
+
+### What changed
+
+**quant_trading/strategies/examples.py**
+- Removed the redundant mid-function `from typing import cast` in
+  `RateOfChangeStrategy._calculate` (line 4640). `cast` is already imported at
+  module level (line 4: `from typing import Any, cast`). Black required a blank
+  line between the import and `return`; removing the dead import satisfies black
+  and eliminates redundant code. Behavior is unchanged.
+
+### Root cause / evidence
+
+`python -m black --check quant_trading/` flagged only
+`examples.py:4640-4641`. `test_repository_is_black_formatted` was failing; the
+full suite was 4591 passed / 1 failed (the black guard).
+
+### What was verified
+
+- `python -m black --check quant_trading/ examples/`: clean (100 files
+  unchanged).
+- `python -m ruff check quant_trading/strategies/examples.py`: clean.
+- `python -m mypy quant_trading/strategies/examples.py`: clean.
+- `pytest tests/test_strategies_examples.py tests/test_utils.py`: 634 passed.
+- `pytest
+  tests/test_repository_integrity.py::test_repository_is_black_formatted
+  tests/test_repository_integrity.py::test_repository_is_mypy_clean`: passed.
+- Full `pytest` suite: **4592 passed, 151 deselected** in ~8m47s. All green.
+  Working tree clean.
+
+### What remains unresolved
+
+- Nothing for this task. All deserialization-hardening, CLI error-reporting,
+  config/construction-time validation, synthetic-data validation, risk-metric
+  validation, oscillator-audit, and formatting work is complete and verified.
+
+### Next task
+
+- None strictly required; every tracked hardening/validation chain is complete
+  and the suite is green. Bounded candidate for a future session: harden the
+  user-surfaced format helpers in `quant_trading/utils/formatting.py`
+  (`format_shares`, `format_currency`, `format_number`, `format_percent`)
+  against non-finite (nan/inf) inputs, which currently raise
+  (`round(nan)` / formatting), mirroring the sanitize-then-default pattern used
+  elsewhere in the framework; add regression tests.
