@@ -191,6 +191,63 @@ class TestRiskManagerInitValidation:
         assert rm.portfolio_limit.max_positions == 1
         assert rm.portfolio_limit.max_leverage == 1e-9
 
+    @pytest.mark.parametrize(
+        "param,value",
+        [
+            ("risk_free_rate", True),
+            ("risk_free_rate", False),
+            ("risk_free_rate", "0.02"),
+            ("risk_free_rate", None),
+            ("initial_capital", True),
+            ("initial_capital", False),
+            ("initial_capital", "100000"),
+            ("initial_capital", None),
+            ("max_position_size", True),
+            ("max_position_size", False),
+            ("max_position_size", "0.1"),
+            ("max_position_size", None),
+            ("max_portfolio_risk", True),
+            ("max_portfolio_risk", False),
+            ("max_portfolio_risk", "0.02"),
+            ("max_portfolio_risk", None),
+            ("max_drawdown", True),
+            ("max_drawdown", False),
+            ("max_drawdown", "0.2"),
+            ("max_drawdown", None),
+            ("max_positions", True),
+            ("max_positions", False),
+            ("max_positions", "20"),
+            ("max_positions", None),
+            ("stop_loss_pct", True),
+            ("stop_loss_pct", False),
+            ("stop_loss_pct", "0.05"),
+            ("stop_loss_pct", None),
+            ("take_profit_pct", True),
+            ("take_profit_pct", False),
+            ("take_profit_pct", "0.15"),
+            ("take_profit_pct", None),
+            ("max_leverage", True),
+            ("max_leverage", False),
+            ("max_leverage", "1.0"),
+            ("max_leverage", None),
+            ("trailing_stop_pct", True),
+            ("trailing_stop_pct", False),
+            ("trailing_stop_pct", "0.0"),
+            ("trailing_stop_pct", None),
+            ("trailing_stop_activation_pct", True),
+            ("trailing_stop_activation_pct", False),
+            ("trailing_stop_activation_pct", "0.0"),
+            ("trailing_stop_activation_pct", None),
+        ],
+    )
+    def test_rejects_bool_and_non_numeric_init_params(self, param: str, value: Any) -> None:
+        with pytest.raises(ValueError, match=f"invalid {param}"):
+            RiskManager(**{param: value})
+
+    def test_accepts_negative_finite_risk_free_rate(self) -> None:
+        rm = RiskManager(risk_free_rate=-0.01)
+        assert rm.risk_free_rate == -0.01
+
 
 class TestPortfolioRiskSerialization:
     """Tests for PortfolioRisk.to_dict/from_dict serialization."""

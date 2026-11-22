@@ -113,6 +113,39 @@ def _validate_periods_per_year(periods_per_year: int) -> None:
         )
 
 
+def _validate_init_param(value: Any, name: str, predicate: Any, message: str) -> None:
+    """Validate a numeric ``RiskManager.__init__`` parameter before assignment.
+
+    Rejects booleans, non-numeric values, and non-finite numbers, then applies
+    ``predicate``. Bool is rejected even though it is a subclass of int, so
+    ``True``/``False`` are never silently coerced to ``1.0``/``0.0``.
+
+    Args:
+        value: The raw parameter value.
+        name: Parameter name, used in the error message.
+        predicate: Callable accepting a number and returning ``True`` when valid.
+        message: Requirement fragment included in the error message.
+
+    Raises:
+        ValueError: When ``value`` is a boolean, non-numeric, non-finite, or
+            fails ``predicate``.
+
+    Examples:
+        >>> _validate_init_param(0.05, "risk_free_rate", lambda v: True, "the value must be finite")
+        >>> _validate_init_param(True, "risk_free_rate", lambda v: True, "the value must be finite")
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid risk_free_rate: the value must be finite (got True)
+    """
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or not predicate(value)
+    ):
+        raise ValueError(f"invalid {name}: {message} (got {value})")
+
+
 @dataclass
 class RiskAttribution:
     """Risk attribution of the current portfolio positions.
@@ -530,66 +563,79 @@ class RiskManager:
             None.
 
         """
-        if not math.isfinite(risk_free_rate):
-            raise ValueError(
-                f"invalid risk_free_rate: the value must be finite " f"(got {risk_free_rate})"
-            )
+        # Validate all parameters before any assignment (fail fast, consistent
+        # with the Monte Carlo / optimizer constructors), rejecting booleans and
+        # non-numeric values with a clear ValueError instead of an opaque
+        # TypeError or a silently accepted bool.
+        _validate_init_param(
+            risk_free_rate,
+            "risk_free_rate",
+            lambda v: True,
+            "the value must be finite",
+        )
+        _validate_init_param(
+            initial_capital,
+            "initial_capital",
+            lambda v: v > 0,
+            "the value must be positive and finite",
+        )
+        _validate_init_param(
+            max_position_size,
+            "max_position_size",
+            lambda v: 0.0 < v <= 1.0,
+            "the value must be in the range (0, 1]",
+        )
+        _validate_init_param(
+            max_portfolio_risk,
+            "max_portfolio_risk",
+            lambda v: 0.0 < v <= 1.0,
+            "the value must be in the range (0, 1]",
+        )
+        _validate_init_param(
+            max_drawdown,
+            "max_drawdown",
+            lambda v: 0.0 <= v <= 1.0,
+            "the value must be in the range [0, 1]",
+        )
+        _validate_init_param(
+            max_positions,
+            "max_positions",
+            lambda v: v >= 1,
+            "the value must be at least 1 and finite",
+        )
+        _validate_init_param(
+            stop_loss_pct,
+            "stop_loss_pct",
+            lambda v: 0.0 <= v <= 1.0,
+            "the value must be in the range [0, 1]",
+        )
+        _validate_init_param(
+            take_profit_pct,
+            "take_profit_pct",
+            lambda v: 0.0 <= v <= 1.0,
+            "the value must be in the range [0, 1]",
+        )
+        _validate_init_param(
+            max_leverage,
+            "max_leverage",
+            lambda v: v >= 1e-9,
+            "the value must be positive and finite",
+        )
+        _validate_init_param(
+            trailing_stop_pct,
+            "trailing_stop_pct",
+            lambda v: 0.0 <= v <= 1.0,
+            "the value must be in the range [0, 1]",
+        )
+        _validate_init_param(
+            trailing_stop_activation_pct,
+            "trailing_stop_activation_pct",
+            lambda v: 0.0 <= v <= 1.0,
+            "the value must be in the range [0, 1]",
+        )
+
         self.initial_capital = initial_capital
         self.risk_free_rate = risk_free_rate
-
-        # Validate the risk manager configuration before the limit objects are
-        # built from these values, so invalid input raises here with a clear
-        # message instead of silently producing misleading risk decisions.
-        if not math.isfinite(initial_capital) or initial_capital <= 0:
-            raise ValueError(
-                f"invalid initial_capital: the value must be positive and finite "
-                f"(got {initial_capital})"
-            )
-        if not (0.0 < max_position_size <= 1.0):
-            raise ValueError(
-                f"invalid max_position_size: the value must be in the range (0, 1] "
-                f"(got {max_position_size})"
-            )
-        if not (0.0 < max_portfolio_risk <= 1.0):
-            raise ValueError(
-                f"invalid max_portfolio_risk: the value must be in the range (0, 1] "
-                f"(got {max_portfolio_risk})"
-            )
-        if not (0.0 <= max_drawdown <= 1.0):
-            raise ValueError(
-                f"invalid max_drawdown: the value must be in the range [0, 1] "
-                f"(got {max_drawdown})"
-            )
-        if not math.isfinite(max_positions) or max_positions < 1:
-            raise ValueError(
-                f"invalid max_positions: the value must be at least 1 and finite "
-                f"(got {max_positions})"
-            )
-        if not (0.0 <= stop_loss_pct <= 1.0):
-            raise ValueError(
-                f"invalid stop_loss_pct: the value must be in the range [0, 1] "
-                f"(got {stop_loss_pct})"
-            )
-        if not (0.0 <= take_profit_pct <= 1.0):
-            raise ValueError(
-                f"invalid take_profit_pct: the value must be in the range [0, 1] "
-                f"(got {take_profit_pct})"
-            )
-        if not math.isfinite(max_leverage) or max_leverage < 1e-9:
-            raise ValueError(
-                f"invalid max_leverage: the value must be positive and finite "
-                f"(got {max_leverage})"
-            )
-        if not (0.0 <= trailing_stop_pct <= 1.0):
-            raise ValueError(
-                f"invalid trailing_stop_pct: the value must be in the range [0, 1] "
-                f"(got {trailing_stop_pct})"
-            )
-        if not (0.0 <= trailing_stop_activation_pct <= 1.0):
-            raise ValueError(
-                f"invalid trailing_stop_activation_pct: the value must be in the range [0, 1] "
-                f"(got {trailing_stop_activation_pct})"
-            )
 
         self.position_limit = PositionLimit(
             max_size=max_position_size,

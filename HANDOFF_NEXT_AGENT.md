@@ -969,3 +969,66 @@ before assignment).
 
 None assigned. Candidate: audit remaining `__init__` validators that assign
 before checking (if any) for consistency; or extend doctest coverage.
+
+---
+
+## Session 2026-11-22 (this session)
+
+Closed the assign-before-validate gap in `RiskManager.__init__`
+(`quant_trading/risk/manager.py`), which assigned `self.initial_capital` and
+`self.risk_free_rate` before validating them and used raw `math.isfinite`/
+comparisons that accepted `bool` and raised an opaque `TypeError` on
+non-numeric strings. This mirrors the validate-before-assignment reordering
+just applied to Monte Carlo / BaseOptimizer / BayesianOptimizer /
+WalkForwardOptimizer (commit c81b6f5).
+
+### What changed
+
+**quant_trading/risk/manager.py**
+- Added `_validate_init_param(value, name, predicate, message)` helper
+  (manager.py:116): rejects booleans, non-numeric values, and non-finite
+  numbers, then applies a range predicate, raising a clear
+  `ValueError: invalid <name>: <message> (got <value>)`. Includes doctests
+  (a valid call and a `True` rejection), required by the
+  `test_documented_examples_are_valid` repository-integrity guard.
+- `RiskManager.__init__` now validates every parameter
+  (`risk_free_rate`, `initial_capital`, `max_position_size`,
+  `max_portfolio_risk`, `max_drawdown`, `max_positions`, `stop_loss_pct`,
+  `take_profit_pct`, `max_leverage`, `trailing_stop_pct`,
+  `trailing_stop_activation_pct`) before any assignment, then assigns all.
+  Valid-input behavior and types are unchanged; only invalid input now fails
+  fast with a clear `ValueError` instead of being silently accepted (bool) or
+  raising `TypeError` (non-numeric string).
+
+**tests/test_risk_manager.py**
+- `TestRiskManagerInitValidation.test_rejects_bool_and_non_numeric_init_params`
+  (38 parametrized cases: True/False/str/None across all 11 params).
+- `TestRiskManagerInitValidation.test_accepts_negative_finite_risk_free_rate`.
+
+### Root cause / evidence (reproduced before the fix)
+- `RiskManager(risk_free_rate=True)` was silently accepted (coerced to 1.0).
+- `RiskManager(initial_capital="abc")` raised `TypeError` from `math.isfinite`
+  instead of a clear `ValueError`.
+- `self.initial_capital` / `self.risk_free_rate` were assigned before the
+  rest of the config was validated.
+
+### What was verified
+- `pytest tests/test_risk_manager.py --doctest-modules quant_trading/risk/manager.py`: **334 passed** (was 263; +38 new parametrized cases + doctests).
+- `pytest tests/test_repository_integrity.py`: **51 passed** (incl. the docstring Examples guard).
+- Broad regression subset (`test_risk_manager, test_risk_metrics,
+  test_risk_attribution, test_portfolio, test_limits, test_config,
+  test_backtest_engine, test_monte_carlo, test_optimization,
+  test_walk_forward, test_serialization_roundtrip, test_utils` + doctests on
+  manager/metrics/formatting): **1705 passed, 41 skipped**.
+- `ruff check`, `black --check`, `mypy` on both changed files: **clean**.
+
+### What remains unresolved
+- Nothing for this task.
+
+### Approaches that failed
+- None.
+
+### Next task
+- None assigned. All tracked hardening/validation chains are complete and the
+  focused suites plus repository-integrity guards are green. Future work
+  requires a new defect report or feature request.
