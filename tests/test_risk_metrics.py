@@ -10,6 +10,7 @@ import pytest
 from quant_trading.risk.metrics import (
     RiskMetrics,
     _align_series,
+    _validate_periods_per_year,
     calculate_all_metrics,
     calculate_alpha,
     calculate_beta,
@@ -135,6 +136,33 @@ class TestCalculateVolatility:
         assert calculate_volatility(RETURNS, annualize=False, periods_per_year=52) == pytest.approx(
             raw
         )
+
+    def test_periods_per_year_rejects_invalid(self) -> None:
+        """Non-finite, non-numeric, bool and sub-1 periods_per_year are rejected."""
+        for bad in [0, -1, -252, float("nan"), float("inf"), float("-inf"), True, "252"]:
+            with pytest.raises(ValueError, match="invalid periods_per_year"):
+                calculate_volatility(RETURNS, periods_per_year=bad)  # type: ignore[arg-type]
+
+    def test_periods_per_year_accepts_valid(self) -> None:
+        """Finite periods_per_year of at least 1 are accepted."""
+        for good in [1, 12, 52, 252, 365]:
+            result = calculate_volatility(RETURNS, periods_per_year=good)
+            assert not np.isnan(result)
+
+
+class TestValidatePeriodsPerYear:
+    """Tests for the _validate_periods_per_year helper."""
+
+    @pytest.mark.parametrize(
+        "periods_per_year", [0, -1, -252, float("nan"), float("inf"), float("-inf"), True, "252"]
+    )
+    def test_rejects_invalid(self, periods_per_year: Any) -> None:
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            _validate_periods_per_year(periods_per_year)  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize("periods_per_year", [1, 12, 52, 252, 365])
+    def test_accepts_valid(self, periods_per_year: int) -> None:
+        _validate_periods_per_year(periods_per_year)
 
 
 class TestCalculateMaxDrawdown:
@@ -340,6 +368,13 @@ class TestCalculateSharpeRatio:
         result = calculate_sharpe_ratio(RETURNS, risk_free_rate=rate, annualize=False)
         assert result == pytest.approx((RETURNS.mean() - rate / 252) / RETURNS.std())
 
+    @pytest.mark.parametrize(
+        "bad", [0, -1, -252, float("nan"), float("inf"), float("-inf"), True, "252"]
+    )
+    def test_periods_per_year_rejects_invalid(self, bad: Any) -> None:
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            calculate_sharpe_ratio(RETURNS, periods_per_year=bad)  # type: ignore[arg-type]
+
 
 class TestCalculateSortinoRatio:
     """Tests for calculate_sortino_ratio."""
@@ -469,6 +504,13 @@ class TestCalculateSortinoRatio:
         expected = (RETURNS.mean() - mar) / downside_dev
         assert result == pytest.approx(expected)
 
+    @pytest.mark.parametrize(
+        "bad", [0, -1, -252, float("nan"), float("inf"), float("-inf"), True, "252"]
+    )
+    def test_periods_per_year_rejects_invalid(self, bad: Any) -> None:
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            calculate_sortino_ratio(RETURNS, periods_per_year=bad)  # type: ignore[arg-type]
+
 
 class TestCalculateVar:
     """Tests for calculate_var."""
@@ -576,6 +618,13 @@ class TestCalculateAlpha:
         alpha = calculate_alpha(RETURNS, MARKET_RETURNS, risk_free_rate=0.02, periods_per_year=12)
         assert alpha == pytest.approx(expected)
 
+    @pytest.mark.parametrize(
+        "bad", [0, -1, -252, float("nan"), float("inf"), float("-inf"), True, "252"]
+    )
+    def test_periods_per_year_rejects_invalid(self, bad: Any) -> None:
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            calculate_alpha(RETURNS, MARKET_RETURNS, periods_per_year=bad)  # type: ignore[arg-type]
+
 
 class TestCalculateCalmarRatio:
     """Tests for calculate_calmar_ratio."""
@@ -600,6 +649,14 @@ class TestCalculateCalmarRatio:
         expected = (RETURNS.mean() * 12) / abs(calculate_max_drawdown(equity))
         calmar = calculate_calmar_ratio(RETURNS, equity, periods_per_year=12)
         assert calmar == pytest.approx(expected)
+
+    @pytest.mark.parametrize(
+        "bad", [0, -1, -252, float("nan"), float("inf"), float("-inf"), True, "252"]
+    )
+    def test_periods_per_year_rejects_invalid(self, bad: Any) -> None:
+        equity = pd.Series([100.0, 110.0, 90.0, 95.0, 98.0])
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            calculate_calmar_ratio(RETURNS, equity, periods_per_year=bad)  # type: ignore[arg-type]
 
     def test_calmar_uses_aligned_sample(self) -> None:
         """Both the return and the drawdown must come from the shared index."""
@@ -1118,6 +1175,15 @@ class TestCalculateTreynorRatio:
         unaligned = (returns.mean() * 252 - 0.02) / beta
         assert calculate_treynor_ratio(returns, market) != pytest.approx(unaligned)
 
+    @pytest.mark.parametrize(
+        "bad", [0, -1, -252, float("nan"), float("inf"), float("-inf"), True, "252"]
+    )
+    def test_periods_per_year_rejects_invalid(self, bad: Any) -> None:
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            calculate_treynor_ratio(
+                RETURNS, MARKET_RETURNS, periods_per_year=bad  # type: ignore[arg-type]
+            )
+
 
 class TestCalculateInformationRatio:
     """Tests for calculate_information_ratio."""
@@ -1144,6 +1210,13 @@ class TestCalculateInformationRatio:
         daily = calculate_information_ratio(RETURNS, MARKET_RETURNS)
         monthly = calculate_information_ratio(RETURNS, MARKET_RETURNS, periods_per_year=12)
         assert monthly == pytest.approx(daily * np.sqrt(12 / 252))
+
+    @pytest.mark.parametrize(
+        "bad", [0, -1, -252, float("nan"), float("inf"), float("-inf"), True, "252"]
+    )
+    def test_periods_per_year_rejects_invalid(self, bad: Any) -> None:
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            calculate_information_ratio(RETURNS, MARKET_RETURNS, periods_per_year=bad)  # type: ignore[arg-type]
 
     def test_information_ratio_duplicate_labels_finite(self) -> None:
         returns = pd.Series([0.01, 0.02, 0.03, 0.04], index=["a", "b", "b", "c"])

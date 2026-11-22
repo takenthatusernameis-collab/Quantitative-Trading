@@ -148,6 +148,51 @@ def _validate_risk_free_rate(risk_free_rate: float) -> float:
     return float(risk_free_rate)
 
 
+def _validate_periods_per_year(periods_per_year: int) -> None:
+    """Validate the annualization factor used by volatility and risk ratios.
+
+    ``periods_per_year`` must be a finite number of at least 1. A value below
+    1 (including 0, negatives, NaN and ±inf) cannot annualize returns and
+    previously produced an opaque ``ZeroDivisionError`` (Sharpe / Sortino), a
+    silent zero volatility, or ``NaN`` from ``sqrt`` of a negative number.
+
+    Args:
+        periods_per_year: Periods per year to validate (default 252).
+
+    Returns:
+        None.
+
+    Raises:
+        ValueError: If ``periods_per_year`` is not a finite number of at
+            least 1.
+
+    Examples:
+        >>> _validate_periods_per_year(252)
+        >>> _validate_periods_per_year(1)
+        >>> _validate_periods_per_year(0)
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid periods_per_year: the value must be at least 1 (got 0)
+        >>> _validate_periods_per_year(float("nan"))
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid periods_per_year: the value must be at least 1 (got nan)
+        >>> _validate_periods_per_year(True)
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid periods_per_year: the value must be at least 1 (got True)
+    """
+    if (
+        isinstance(periods_per_year, bool)
+        or not isinstance(periods_per_year, (int, float))
+        or not math.isfinite(periods_per_year)
+        or periods_per_year < 1
+    ):
+        raise ValueError(
+            f"invalid periods_per_year: the value must be at least 1 " f"(got {periods_per_year})"
+        )
+
+
 @dataclass
 class RiskMetrics:
     """Container for portfolio risk metrics.
@@ -322,6 +367,10 @@ def calculate_volatility(
     Returns:
         Volatility (annualized if requested), or 0.0 if insufficient data.
 
+    Raises:
+        ValueError: If ``periods_per_year`` is not a finite number of at
+            least 1.
+
     Examples:
         >>> import pandas as pd
         >>> returns = pd.Series([0.01, -0.005, 0.015, -0.002, 0.01])
@@ -329,6 +378,7 @@ def calculate_volatility(
         0.00862
 
     """
+    _validate_periods_per_year(periods_per_year)
     returns = _drop_non_finite(returns)
     if len(returns) < 2:
         return 0.0
@@ -405,6 +455,10 @@ def calculate_sharpe_ratio(
         single observation has an undefined standard deviation and yields
         0.0 rather than NaN.
 
+    Raises:
+        ValueError: If ``periods_per_year`` is not a finite number of at
+            least 1, or if ``risk_free_rate`` is not finite.
+
     Examples:
         >>> import pandas as pd
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, 0.01])
@@ -413,6 +467,7 @@ def calculate_sharpe_ratio(
 
     """
     risk_free_rate = _validate_risk_free_rate(risk_free_rate)
+    _validate_periods_per_year(periods_per_year)
     returns = _drop_non_finite(returns)
     if len(returns) == 0:
         return 0.0
@@ -458,6 +513,10 @@ def calculate_sortino_ratio(
         Sortino ratio, or 0.0 if insufficient data or zero downside
         deviation (no return below the minimum acceptable return).
 
+    Raises:
+        ValueError: If ``periods_per_year`` is not a finite number of at
+            least 1, or if ``risk_free_rate`` is not finite.
+
     Examples:
         >>> import pandas as pd
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, 0.01])
@@ -466,6 +525,7 @@ def calculate_sortino_ratio(
 
     """
     risk_free_rate = _validate_risk_free_rate(risk_free_rate)
+    _validate_periods_per_year(periods_per_year)
     returns = _drop_non_finite(returns)
     if len(returns) == 0:
         return 0.0
@@ -629,7 +689,12 @@ def calculate_alpha(
     Returns:
         Annualized Jensen's alpha, or 0.0 when beta is undefined/zero.
 
+    Raises:
+        ValueError: If ``periods_per_year`` is not a finite number of at
+            least 1.
+
     """
+    _validate_periods_per_year(periods_per_year)
     beta = calculate_beta(returns, market_returns)
     if beta == 0:
         return 0.0
@@ -671,6 +736,10 @@ def calculate_calmar_ratio(
         Calmar ratio, or 0.0 if fewer than two aligned observations remain or
         the drawdown over the aligned sample is zero.
 
+    Raises:
+        ValueError: If ``periods_per_year`` is not a finite number of at
+            least 1.
+
     Examples:
         >>> import pandas as pd
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015])
@@ -681,6 +750,7 @@ def calculate_calmar_ratio(
         504.0
 
     """
+    _validate_periods_per_year(periods_per_year)
     returns = _drop_non_finite(returns)
     aligned = _align_series(returns, equity_curve)
     if len(aligned) < 2:
@@ -732,6 +802,10 @@ def calculate_treynor_ratio(
     Returns:
         Treynor ratio, or 0.0 if insufficient data or beta is zero/undefined.
 
+    Raises:
+        ValueError: If ``periods_per_year`` is not a finite number of at
+            least 1, or if ``risk_free_rate`` is not finite.
+
     Examples:
         >>> import pandas as pd
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, 0.01])
@@ -740,6 +814,8 @@ def calculate_treynor_ratio(
         1.77
 
     """
+    risk_free_rate = _validate_risk_free_rate(risk_free_rate)
+    _validate_periods_per_year(periods_per_year)
     beta = calculate_beta(returns, market_returns)
     if beta == 0:
         return 0.0
@@ -774,6 +850,10 @@ def calculate_information_ratio(
         Annualized Information ratio, or 0.0 if insufficient data or
         zero tracking error.
 
+    Raises:
+        ValueError: If ``periods_per_year`` is not a finite number of at
+            least 1.
+
     Examples:
         >>> import pandas as pd
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, 0.01])
@@ -782,6 +862,7 @@ def calculate_information_ratio(
         13.22
 
     """
+    _validate_periods_per_year(periods_per_year)
     if np.isinf(returns).any() or np.isinf(benchmark_returns).any():
         return 0.0
     aligned = _align_series(returns, benchmark_returns)

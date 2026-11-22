@@ -767,3 +767,69 @@ range check is added. Evidence:
 - None assigned. All tracked hardening/validation chains are complete and the
   focused suite is green. There is no remaining bounded candidate from the
   handoff; future work would require a new defect report or feature request.
+
+---
+
+## Session 2026-11-22 (this session)
+
+Closed a validation gap in `quant_trading/risk/metrics.py`: the `periods_per_year`
+parameter accepted by `calculate_volatility`, `calculate_sharpe_ratio`,
+`calculate_sortino_ratio`, `calculate_calmar_ratio`, `calculate_treynor_ratio`,
+`calculate_alpha` and `calculate_information_ratio` was never validated. A value
+of `0` produced an opaque `ZeroDivisionError` (Sharpe / Sortino, via
+`risk_free_rate / periods_per_year`), silently wrong results (Calmar / Treynor /
+Information ratio scaled by 0, volatility scaled by `sqrt(0) = 0`), or `NaN`
+from `sqrt` of a negative number. `RiskManager`, the optimizers and Monte Carlo
+already validated `periods_per_year` (manager.py:97), but the underlying metric
+functions did not, so library users calling them directly could hit the defect.
+
+### What changed
+
+**quant_trading/risk/metrics.py**
+- Added `_validate_periods_per_year(periods_per_year) -> None`: rejects bool,
+  non-numeric, NaN, ±inf and values `< 1` with
+  `ValueError: invalid periods_per_year: the value must be at least 1 (got ...)`,
+  mirroring `manager.py:_validate_periods_per_year` but additionally robust to
+  bool/non-numeric like `_validate_confidence`/`_validate_risk_free_rate`.
+  Includes doctests.
+- `calculate_volatility`, `calculate_sharpe_ratio`, `calculate_sortino_ratio`,
+  `calculate_calmar_ratio`, `calculate_treynor_ratio`, `calculate_alpha`,
+  `calculate_information_ratio` now call `_validate_periods_per_year` at the
+  top (fail fast on invalid input). `calculate_omega_ratio` deliberately left
+  unvalidated: its `periods_per_year` parameter is documented as unused.
+- Added `Raises:` sections to the affected docstrings.
+
+**tests/test_risk_metrics.py**
+- Imported `_validate_periods_per_year`.
+- `TestValidatePeriodsPerYear`: rejects `0, -1, -252, nan, inf, -inf, True,
+  "252"`; accepts `1, 12, 52, 252, 365`.
+- Per-function `test_periods_per_year_rejects_invalid` (parametrized over the
+  same bad values) for volatility, sharpe, sortino, calmar, alpha, treynor,
+  information_ratio.
+
+### Root cause / evidence (reproduced before the fix)
+- `calculate_sharpe_ratio(RETURNS, periods_per_year=0)` → `ZeroDivisionError:
+  float division by zero`.
+- `calculate_volatility(RETURNS, periods_per_year=0)` → `0.0` (silent wrong).
+- `calculate_volatility(RETURNS, periods_per_year=-1)` → `nan` + warning.
+- `calculate_calmar_ratio(RETURNS, EQUITY, periods_per_year=0)` → `0.0` (silent
+  wrong, annualized return collapsed to 0).
+
+### What was verified
+- `pytest tests/test_risk_metrics.py`: **277 passed**.
+- `pytest --doctest-modules quant_trading/risk/metrics.py`: **28 passed**.
+- Broad subset (`test_risk_metrics, test_risk_manager, test_backtest_metrics,
+  test_trade_analysis, test_backtest_engine`): **838 passed**.
+- `tests/test_repository_integrity.py, test_config.py, test_optimization.py,
+  test_walk_forward.py, test_monte_carlo.py`: **526 passed, 41 skipped**.
+- `ruff check`, `black --check`, `mypy` on both changed files: **clean**.
+
+### What remains unresolved
+- Nothing for this task.
+
+### Approaches that failed
+- None.
+
+### Next task
+- None assigned; all tracked hardening/validation chains are complete and the
+  focused suites are green.
