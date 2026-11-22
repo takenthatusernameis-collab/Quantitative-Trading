@@ -465,3 +465,53 @@ threshold (`0.0`), so no valid run changes behavior.
   `quant_trading/strategies/examples.py` (e.g. zero-division when a moving
   average is zero in Awesome/Chaikin/PPO) and apply the same validate/sanitize
   treatment if a real defect is reproduced.
+
+---
+
+## Session 2026-11-22 (this session)
+
+Ran the full `pytest` suite to certify the previous session's
+`calculate_var`/`calculate_cvar`/`calculate_omega_ratio` hardening
+(commit `7da743b`).
+
+### What changed
+
+- No code changes. Working tree clean; only this handoff entry appended.
+
+### What was verified
+
+- `python -m pytest -q` (default addopts `-m "not slow and not network"`):
+  **4592 passed, 151 deselected in 517.03s (~8m37s)**. No regressions from
+  `7da743b`. (Previous handoff predicted 4572; the count is now 4592 — the
+  extra tests are the `_finite`/risk-metric regression tests added across recent
+  sessions, not new failures.)
+
+### What remains unresolved
+
+- Nothing for this task. The VaR/CVaR/omega hardening and the full-suite
+  regression check are complete.
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- **RSI candidate RESOLVED as no-op (do not pursue):** a live probe showed
+  `RSIStrategy._calculate_rsi` on a strictly increasing series returns RSI
+  `100.0` (all-gains) and on a flat series returns `NaN` — exactly matching the
+  incremental path's explicit branches (`avg_loss==0 -> 100.0`; both-zero ->
+  `NaN`). No defect, no code change needed. This candidate is closed.
+- **Bounded candidate for the next session (unverified, not started):** audit
+  the zero-division cases in the mean-based oscillators/indicators in
+  `quant_trading/strategies/examples.py`, which the previous handoff flagged:
+  AwesomeOscillator (`close_volume.rolling(...).sum() / volume.rolling(...).sum()`
+  at lines 381-386), Chaikin, PPO, VWMA (`sum(close*vol)/sum(vol)` at line 290).
+  These divide by a rolling volume/price sum that can be zero on zero-volume
+  bars. Reproduce with a small probe (zero-volume bars) BEFORE changing anything;
+  apply the same validate/sanitize pattern only if a NaN/inf leak or an opaque
+  error is actually produced.
+  - Constraints: follow the existing validate/sanitize pattern; do not change
+    valid-run behavior; keep doctests + `tests/test_strategies_examples.py`
+    green; run ruff/black/mypy + `tests/test_repository_integrity.py`; finish
+    with a full `pytest -q` run.
