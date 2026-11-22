@@ -609,12 +609,43 @@ def _create_rolling_volatility_chart(
 
 
 def _format_metric(value: Any, fmt: str = "{:.2f}") -> str:
-    """Format a metric value for display."""
+    """Format a metric value for display.
+
+    Finite values are rendered with ``fmt``. ``None`` (an absent metric) renders
+    as ``"N/A"``. Non-finite floats (``nan``/``+/-inf``) are sanitized to the
+    format's zero default (e.g. ``"0.00"``, ``"$0.00"``) so an invalid metric
+    can never leak ``nan``/``inf`` into the report. This matches the
+    sanitize-to-default policy of the helpers in
+    :mod:`quant_trading.utils.formatting`.
+
+    Args:
+        value: The metric value to format, or ``None`` when the metric is absent.
+        fmt: The format spec applied to finite values (default ``"{:.2f}"``).
+
+    Returns:
+        The formatted metric string.
+
+    Examples:
+        >>> _format_metric(0.826, "{:.2f}")
+        '0.83'
+        >>> _format_metric(5.0, "{:.2%}")
+        '500.00%'
+        >>> _format_metric(None)
+        'N/A'
+        >>> _format_metric(float("nan"))
+        '0.00'
+        >>> _format_metric(float("inf"), "{:.2%}")
+        '0.00%'
+        >>> _format_metric(-float("inf"), "{:.2f}")
+        '0.00'
+        >>> _format_metric("N/A")
+        'N/A'
+    """
     if value is None:
         return "N/A"
     if isinstance(value, float):
         if np.isnan(value) or np.isinf(value):
-            return "N/A"
+            return fmt.format(0.0)
         return fmt.format(value)
     return str(value)
 

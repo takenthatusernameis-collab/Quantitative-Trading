@@ -1297,13 +1297,15 @@ def test_format_metric_returns_na_for_none() -> None:
     assert _format_metric(None) == "N/A"
 
 
-def test_format_metric_returns_na_for_non_finite_float() -> None:
-    """_format_metric must render "N/A" for NaN and +/-inf floats."""
+def test_format_metric_sanitizes_non_finite_float() -> None:
+    """_format_metric must render the format's zero default for NaN and +/-inf."""
     from quant_trading.backtest.report import _format_metric
 
-    assert _format_metric(np.nan) == "N/A"
-    assert _format_metric(np.inf) == "N/A"
-    assert _format_metric(-np.inf) == "N/A"
+    assert _format_metric(float("nan")) == "0.00"
+    assert _format_metric(float("inf")) == "0.00"
+    assert _format_metric(-float("inf")) == "0.00"
+    assert _format_metric(float("nan"), "{:.2%}") == "0.00%"
+    assert _format_metric(float("inf"), "${:,.2f}") == "$0.00"
 
 
 def test_format_metric_formats_finite_float() -> None:
