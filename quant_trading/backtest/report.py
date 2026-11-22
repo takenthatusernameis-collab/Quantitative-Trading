@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import io
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -30,6 +31,50 @@ except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
 
+def _finite(value: Any, default: float = 0.0) -> float:
+    """Convert a value to a finite float, falling back to ``default``.
+
+    Non-numeric, non-finite (NaN/inf), and unconvertible values are replaced
+    with ``default`` so a corrupted dictionary cannot poison a reconstructed
+    object with NaN/inf. Bool values are rejected and replaced with ``default``.
+
+    Args:
+        value: The value to sanitize.
+        default: The fallback value when ``value`` is not a finite number.
+
+    Returns:
+        A finite float.
+
+    Examples:
+        >>> from quant_trading.backtest.report import _finite
+        >>> _finite(1.5)
+        1.5
+        >>> _finite(float("nan"))
+        0.0
+        >>> _finite(float("inf"))
+        0.0
+        >>> _finite("not a number")
+        0.0
+        >>> _finite(None)
+        0.0
+        >>> _finite(True)
+        0.0
+        >>> _finite("3.14")
+        3.14
+    """
+    # Explicitly reject bool since bool is a subclass of int but we don't want
+    # True/False to be treated as 1.0/0.0
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)) and math.isfinite(value):
+        return float(value)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
+
+
 @dataclass
 class ReportConfig:
     """Configuration for report generation.
@@ -41,7 +86,12 @@ class ReportConfig:
         include_monthly_heatmap: Whether to include monthly returns heatmap.
         include_rolling_metrics: Whether to include rolling metrics charts.
         theme: Color theme ("light" or "dark").
-        dpi: DPI for chart images.
+        dpi: DPI for chart images (must be a finite number of at least 1).
+
+    Raises:
+        ValueError: If ``dpi`` is not a finite number of at least 1, or if
+            ``theme`` is not one of ``"light"`` or ``"dark"``.
+
     """
 
     title: str = "Backtest Report"
@@ -51,6 +101,35 @@ class ReportConfig:
     include_rolling_metrics: bool = True
     theme: str = "light"
     dpi: int = 150
+
+    def __post_init__(self) -> None:
+        """Reject invalid report-config inputs at construction time.
+
+        Invalid values are rejected when a config is built (directly, from a
+        dictionary, or from YAML) instead of silently propagating to the
+        matplotlib rendering layer, where they would produce opaque errors.
+
+        Examples:
+            >>> from quant_trading.backtest.report import ReportConfig
+            >>> cfg = ReportConfig(dpi=200, theme="dark")
+            >>> cfg.dpi, cfg.theme
+            (200, 'dark')
+        """
+        if (
+            isinstance(self.dpi, bool)
+            or not isinstance(self.dpi, (int, float))
+            or not math.isfinite(self.dpi)
+            or self.dpi < 1
+        ):
+            raise ValueError(
+                f"invalid dpi: the value must be a finite number of at least 1 "
+                f"(got {self.dpi!r})"
+            )
+        self.dpi = int(self.dpi)
+        if self.theme not in ("light", "dark"):
+            raise ValueError(
+                f"invalid theme: the value must be 'light' or 'dark' " f"(got {self.theme!r})"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the report configuration to a dictionary.
@@ -81,15 +160,36 @@ class ReportConfig:
             data: Dictionary whose keys match report configuration attribute
                 names.
 
+        Returns:
+            A reconstructed :class:`ReportConfig`.
+
+        Examples:
+            >>> from quant_trading.backtest.report import ReportConfig
+            >>> ReportConfig.from_dict({"dpi": 200, "theme": "dark"}).dpi
+            200
+            >>> ReportConfig.from_dict({"dpi": 200, "theme": "dark"}).theme
+            'dark'
+            >>> ReportConfig.from_dict({"dpi": float("nan")}).dpi
+            150
+            >>> ReportConfig.from_dict({"dpi": "high"}).dpi
+            150
+            >>> ReportConfig.from_dict({"theme": "neon"}).theme
+            'light'
+            >>> ReportConfig.from_dict({"theme": None}).theme
+            'light'
         """
+        dpi = int(_finite(data.get("dpi", 150), default=150.0))
+        theme = str(data.get("theme", "light"))
+        if theme not in ("light", "dark"):
+            theme = "light"
         return cls(
-            title=data.get("title", "Backtest Report"),
-            include_charts=data.get("include_charts", True),
-            include_trade_details=data.get("include_trade_details", True),
-            include_monthly_heatmap=data.get("include_monthly_heatmap", True),
-            include_rolling_metrics=data.get("include_rolling_metrics", True),
-            theme=data.get("theme", "light"),
-            dpi=data.get("dpi", 150),
+            title=str(data.get("title", "Backtest Report")),
+            include_charts=bool(data.get("include_charts", True)),
+            include_trade_details=bool(data.get("include_trade_details", True)),
+            include_monthly_heatmap=bool(data.get("include_monthly_heatmap", True)),
+            include_rolling_metrics=bool(data.get("include_rolling_metrics", True)),
+            theme=theme,
+            dpi=dpi,
         )
 
 

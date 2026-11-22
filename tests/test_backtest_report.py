@@ -141,6 +141,52 @@ def test_report_config_custom() -> None:
     assert config.dpi == 300
 
 
+@pytest.mark.parametrize(
+    "bad_dpi", [0, -1, -252, float("nan"), float("inf"), float("-inf"), True, "high", None]
+)
+def test_report_config_rejects_invalid_dpi(bad_dpi: Any) -> None:
+    """ReportConfig must reject non-finite / out-of-range / non-numeric dpi."""
+    with pytest.raises(ValueError, match="invalid dpi"):
+        ReportConfig(dpi=bad_dpi)
+
+
+@pytest.mark.parametrize("good_dpi", [1, 72, 150, 300, 1200])
+def test_report_config_accepts_valid_dpi(good_dpi: int) -> None:
+    """ReportConfig must accept finite dpi values of at least 1."""
+    config = ReportConfig(dpi=good_dpi)
+    assert config.dpi == good_dpi
+
+
+@pytest.mark.parametrize("bad_theme", ["neon", "", None, 123, True, "LIGHT"])
+def test_report_config_rejects_invalid_theme(bad_theme: Any) -> None:
+    """ReportConfig must reject themes other than 'light' or 'dark'."""
+    with pytest.raises(ValueError, match="invalid theme"):
+        ReportConfig(theme=bad_theme)
+
+
+@pytest.mark.parametrize("good_theme", ["light", "dark"])
+def test_report_config_accepts_valid_theme(good_theme: str) -> None:
+    """ReportConfig must accept the 'light' and 'dark' themes."""
+    assert ReportConfig(theme=good_theme).theme == good_theme
+
+
+def test_report_config_from_dict_sanitizes_invalid_dpi() -> None:
+    """from_dict must collapse non-finite / unconvertible dpi to the default."""
+    assert ReportConfig.from_dict({"dpi": float("nan")}).dpi == 150
+    assert ReportConfig.from_dict({"dpi": float("inf")}).dpi == 150
+    assert ReportConfig.from_dict({"dpi": "high"}).dpi == 150
+    assert ReportConfig.from_dict({"dpi": None}).dpi == 150
+    assert ReportConfig.from_dict({"dpi": True}).dpi == 150
+    assert ReportConfig.from_dict({"dpi": 200}).dpi == 200
+
+
+def test_report_config_from_dict_sanitizes_invalid_theme() -> None:
+    """from_dict must collapse invalid themes to the default 'light'."""
+    assert ReportConfig.from_dict({"theme": "neon"}).theme == "light"
+    assert ReportConfig.from_dict({"theme": None}).theme == "light"
+    assert ReportConfig.from_dict({"theme": "dark"}).theme == "dark"
+
+
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
 def test_generate_html_report_basic() -> None:
     """Test basic HTML report generation."""
