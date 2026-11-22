@@ -106,6 +106,48 @@ def _validate_confidence(confidence: float) -> float:
     return float(confidence)
 
 
+def _validate_risk_free_rate(risk_free_rate: float) -> float:
+    """Validate the risk-free rate used by Sharpe / Sortino / Treynor ratios.
+
+    A non-finite (NaN/±inf) or non-numeric rate would silently turn every
+    risk-adjusted ratio into NaN (or a wrong value), mirroring the defect
+    previously fixed for the VaR confidence level. Only finiteness is
+    required: negative rates are allowed, matching :class:`BacktestConfig`.
+
+    Args:
+        risk_free_rate: Annual risk-free rate to validate.
+
+    Returns:
+        The validated risk-free rate as a float.
+
+    Raises:
+        ValueError: If ``risk_free_rate`` is not a finite number.
+
+    Examples:
+        >>> _validate_risk_free_rate(0.02)
+        0.02
+        >>> _validate_risk_free_rate(-0.01)
+        -0.01
+        >>> _validate_risk_free_rate(float("nan"))
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid risk_free_rate: the value must be finite (got nan)
+        >>> _validate_risk_free_rate(True)
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid risk_free_rate: the value must be finite (got True)
+    """
+    if (
+        isinstance(risk_free_rate, bool)
+        or not isinstance(risk_free_rate, (int, float))
+        or not math.isfinite(risk_free_rate)
+    ):
+        raise ValueError(
+            f"invalid risk_free_rate: the value must be finite " f"(got {risk_free_rate})"
+        )
+    return float(risk_free_rate)
+
+
 @dataclass
 class RiskMetrics:
     """Container for portfolio risk metrics.
@@ -370,6 +412,7 @@ def calculate_sharpe_ratio(
         1.06
 
     """
+    risk_free_rate = _validate_risk_free_rate(risk_free_rate)
     returns = _drop_non_finite(returns)
     if len(returns) == 0:
         return 0.0
@@ -422,6 +465,7 @@ def calculate_sortino_ratio(
         4.37
 
     """
+    risk_free_rate = _validate_risk_free_rate(risk_free_rate)
     returns = _drop_non_finite(returns)
     if len(returns) == 0:
         return 0.0

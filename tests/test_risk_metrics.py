@@ -330,6 +330,16 @@ class TestCalculateSharpeRatio:
         monthly = calculate_sharpe_ratio(RETURNS, risk_free_rate=0.02, periods_per_year=12)
         assert monthly != pytest.approx(daily)
 
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf"), True, "0.02"])
+    def test_invalid_risk_free_rate_raises(self, bad: Any) -> None:
+        with pytest.raises(ValueError, match="invalid risk_free_rate"):
+            calculate_sharpe_ratio(RETURNS, risk_free_rate=bad)
+
+    @pytest.mark.parametrize("rate", [0.0, 0.02, -0.01])
+    def test_accepts_finite_risk_free_rate(self, rate: float) -> None:
+        result = calculate_sharpe_ratio(RETURNS, risk_free_rate=rate, annualize=False)
+        assert result == pytest.approx((RETURNS.mean() - rate / 252) / RETURNS.std())
+
 
 class TestCalculateSortinoRatio:
     """Tests for calculate_sortino_ratio."""
@@ -445,6 +455,19 @@ class TestCalculateSortinoRatio:
         expected = (RETURNS.mean() - mar) / downside_dev * np.sqrt(52)
         sortino = calculate_sortino_ratio(RETURNS, risk_free_rate=0.02, periods_per_year=52)
         assert sortino == pytest.approx(expected)
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf"), True, "0.02"])
+    def test_invalid_risk_free_rate_raises(self, bad: Any) -> None:
+        with pytest.raises(ValueError, match="invalid risk_free_rate"):
+            calculate_sortino_ratio(RETURNS, risk_free_rate=bad)
+
+    @pytest.mark.parametrize("rate", [0.0, 0.02, -0.01])
+    def test_accepts_finite_risk_free_rate(self, rate: float) -> None:
+        result = calculate_sortino_ratio(RETURNS, risk_free_rate=rate, annualize=False)
+        mar = rate / 252
+        downside_dev = self._downside_deviation(RETURNS, mar)
+        expected = (RETURNS.mean() - mar) / downside_dev
+        assert result == pytest.approx(expected)
 
 
 class TestCalculateVar:
