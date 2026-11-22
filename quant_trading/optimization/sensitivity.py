@@ -7,8 +7,9 @@ parameter interactions and line plots for 1D sensitivity analysis.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -24,21 +25,120 @@ except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
 
+def _finite(value: Any, default: float = 0.0) -> float:
+    """Convert a value to a finite float, falling back to ``default``.
+
+    Non-numeric, non-finite (NaN/inf), and unconvertible values are replaced
+    with ``default`` so a corrupted dictionary cannot poison a reconstructed
+    object with NaN/inf. Bool values are rejected and replaced with ``default``.
+
+    Args:
+        value: The value to sanitize.
+        default: The fallback value when ``value`` is not a finite number.
+
+    Returns:
+        A finite float.
+
+    Examples:
+        >>> from quant_trading.optimization.sensitivity import _finite
+        >>> _finite(1.5)
+        1.5
+        >>> _finite(float("nan"))
+        0.0
+        >>> _finite(float("inf"))
+        0.0
+        >>> _finite("not a number")
+        0.0
+        >>> _finite(None)
+        0.0
+        >>> _finite(True)
+        0.0
+        >>> _finite("3.14")
+        3.14
+    """
+    # Explicitly reject bool since bool is a subclass of int but we don't want
+    # True/False to be treated as 1.0/0.0
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)) and math.isfinite(value):
+        return float(value)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
+
+
 @dataclass
 class SensitivityConfig:
     """Configuration for sensitivity analysis plots.
 
     Attributes:
         include_charts: Whether to generate matplotlib charts.
-        dpi: DPI for chart images.
-        colormap: Colormap for heatmaps.
-        figure_size: Figure size as (width, height) in inches.
+        dpi: DPI for chart images (must be a finite number of at least 1).
+        colormap: Colormap for heatmaps (must be a non-empty string).
+        figure_size: Figure size as (width, height) in inches (each element must
+            be a positive finite integer).
+
+    Raises:
+        ValueError: If ``dpi`` is not a finite number of at least 1, if
+            ``colormap`` is not a non-empty string, if ``figure_size`` is not a
+            two-element sequence of positive finite integers, or if
+            ``include_charts`` is not a bool.
+
+    Examples:
+        >>> from quant_trading.optimization.sensitivity import SensitivityConfig
+        >>> cfg = SensitivityConfig(dpi=200, figure_size=(12, 8))
+        >>> cfg.dpi, cfg.figure_size
+        (200, (12, 8))
+        >>> cfg.colormap
+        'RdYlGn'
+
     """
 
     include_charts: bool = True
     dpi: int = 150
     colormap: str = "RdYlGn"
     figure_size: tuple[int, int] = (10, 6)
+
+    def __post_init__(self) -> None:
+        """Reject invalid sensitivity-config inputs at construction time.
+
+        Invalid values are rejected when a config is built (directly, from a
+        dictionary, or from YAML) instead of silently propagating to the
+        matplotlib rendering layer, where they would produce opaque errors.
+
+        Examples:
+            >>> from quant_trading.optimization.sensitivity import SensitivityConfig
+            >>> config = SensitivityConfig(dpi=200, figure_size=(12, 8))
+            >>> config.dpi, config.figure_size
+            (200, (12, 8))
+        """
+        if (
+            isinstance(self.dpi, bool)
+            or not isinstance(self.dpi, (int, float))
+            or not math.isfinite(self.dpi)
+            or self.dpi < 1
+        ):
+            raise ValueError(
+                f"invalid dpi: the value must be a finite number of at least 1 "
+                f"(got {self.dpi!r})"
+            )
+        if not isinstance(self.colormap, str) or not self.colormap:
+            raise ValueError(
+                f"invalid colormap: the value must be a non-empty string "
+                f"(got {self.colormap!r})"
+            )
+        if (
+            not isinstance(self.figure_size, (list, tuple))
+            or len(self.figure_size) != 2
+            or any(isinstance(v, bool) or not isinstance(v, int) or v < 1 for v in self.figure_size)
+        ):
+            raise ValueError(
+                f"invalid figure_size: the value must be a two-element sequence "
+                f"of positive finite integers (got {self.figure_size!r})"
+            )
+        self.figure_size = cast("tuple[int, int]", tuple(self.figure_size))
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the config to a plain, JSON-safe dictionary.
@@ -81,16 +181,26 @@ class SensitivityConfig:
             (200, (12, 8))
             >>> restored.colormap
             'RdYlGn'
+            >>> SensitivityConfig.from_dict({"dpi": float("nan")}).dpi
+            150
+            >>> SensitivityConfig.from_dict({"dpi": "high"}).dpi
+            150
+            >>> SensitivityConfig.from_dict({"figure_size": [float("nan"), float("inf")]}).figure_size
+            (10, 6)
 
         """
         figure_size = data.get("figure_size", (10, 6))
         if isinstance(figure_size, list):
             figure_size = tuple(figure_size)
+        if not isinstance(figure_size, (list, tuple)) or len(figure_size) != 2:
+            figure_size = (10, 6)
+        width = _finite(figure_size[0], default=10.0)
+        height = _finite(figure_size[1], default=6.0)
         return cls(
             include_charts=bool(data.get("include_charts", True)),
-            dpi=int(data.get("dpi", 150)),
+            dpi=int(_finite(data.get("dpi", 150), default=150.0)),
             colormap=str(data.get("colormap", "RdYlGn")),
-            figure_size=figure_size,
+            figure_size=(int(width), int(height)),
         )
 
 
