@@ -1362,12 +1362,16 @@ def test_format_metric_formats_finite_float() -> None:
     assert _format_metric(5.0, "{:.2%}") == "500.00%"
 
 
-def test_format_metric_returns_str_for_non_float() -> None:
-    """_format_metric must return str(value) for non-float inputs."""
+def test_format_metric_sanitizes_non_numeric() -> None:
+    """_format_metric must sanitize non-numeric/bool inputs to the format's zero default."""
     from quant_trading.backtest.report import _format_metric
 
-    assert _format_metric("N/A") == "N/A"
-    assert _format_metric(42) == "42"
+    assert _format_metric("N/A") == "0.00"
+    assert _format_metric(42) == "42.00"
+    assert _format_metric(True) == "0.00"
+    assert _format_metric(False) == "0.00"
+    assert _format_metric("1.5") == "1.50"
+    assert _format_metric(None) == "N/A"  # None is special-cased to "N/A"
 
 
 def test_build_risk_attribution_table_none_returns_empty() -> None:
@@ -2652,7 +2656,7 @@ def test_build_comparison_risk_attribution_chart_absent_without_attribution() ->
 
 
 def test_build_comparison_risk_attribution_metric_fn_raises() -> None:
-    """A metric value whose string conversion fails must render as N/A (lines 1629-1630)."""
+    """A metric value whose conversion fails must render as the sanitized default (0.00%)."""
     from quant_trading.backtest.report import _build_comparison_risk_attribution, _get_theme_colors
 
     class RaisesOnStr:
@@ -2675,7 +2679,8 @@ def test_build_comparison_risk_attribution_metric_fn_raises() -> None:
     html = _build_comparison_risk_attribution([("Strategy A", result)], _get_theme_colors("light"))
 
     assert "Risk Attribution Comparison" in html
-    assert "N/A" in html
+    # The failing metric is sanitized to 0.0 and formatted as "0.00%"
+    assert "0.00%" in html
 
 
 def test_drawdown_series_is_finite_when_equity_goes_negative() -> None:
