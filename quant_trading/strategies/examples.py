@@ -377,14 +377,12 @@ class VolumeWeightedMovingAverageCrossover(Strategy):
                 continue
 
             close_volume = close * volume
-            fast_vwma = (
-                close_volume.rolling(window=self.fast_period).sum()
-                / volume.rolling(window=self.fast_period).sum()
-            )
-            slow_vwma = (
-                close_volume.rolling(window=self.slow_period).sum()
-                / volume.rolling(window=self.slow_period).sum()
-            )
+            fast_vwma = close_volume.rolling(window=self.fast_period).sum() / volume.rolling(
+                window=self.fast_period
+            ).sum().replace(0, np.nan)
+            slow_vwma = close_volume.rolling(window=self.slow_period).sum() / volume.rolling(
+                window=self.slow_period
+            ).sum().replace(0, np.nan)
 
             fast_current = fast_vwma.iloc[-1]
             fast_prev = fast_vwma.iloc[-2]
@@ -4142,10 +4140,9 @@ class ChaikinMoneyFlowStrategy(Strategy):
         money_flow_multiplier = ((close - low) - (high - close)) / high_minus_low.replace(0, np.nan)
         money_flow_volume = money_flow_multiplier * volume
 
-        cmf: pd.Series = (
-            money_flow_volume.rolling(window=self.period).sum()
-            / volume.rolling(window=self.period).sum()
-        )
+        cmf: pd.Series = money_flow_volume.rolling(window=self.period).sum() / volume.rolling(
+            window=self.period
+        ).sum().replace(0, np.nan)
         return cmf
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
@@ -6533,6 +6530,7 @@ class PercentagePriceOscillatorStrategy(Strategy):
     def _calculate_ppo(self, close: pd.Series) -> tuple[pd.Series, pd.Series, pd.Series]:
         fast_ema = self._ema(close, self.fast_period)
         slow_ema = self._ema(close, self.slow_period)
+        slow_ema = slow_ema.replace(0, np.nan)
         ppo_line = (fast_ema - slow_ema) / slow_ema * 100.0
         signal_line = self._ema(ppo_line, self.signal_period)
         histogram = ppo_line - signal_line
