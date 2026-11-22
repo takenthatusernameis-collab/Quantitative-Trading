@@ -502,16 +502,26 @@ Ran the full `pytest` suite to certify the previous session's
   `100.0` (all-gains) and on a flat series returns `NaN` — exactly matching the
   incremental path's explicit branches (`avg_loss==0 -> 100.0`; both-zero ->
   `NaN`). No defect, no code change needed. This candidate is closed.
-- **Bounded candidate for the next session (unverified, not started):** audit
-  the zero-division cases in the mean-based oscillators/indicators in
-  `quant_trading/strategies/examples.py`, which the previous handoff flagged:
-  AwesomeOscillator (`close_volume.rolling(...).sum() / volume.rolling(...).sum()`
-  at lines 381-386), Chaikin, PPO, VWMA (`sum(close*vol)/sum(vol)` at line 290).
-  These divide by a rolling volume/price sum that can be zero on zero-volume
-  bars. Reproduce with a small probe (zero-volume bars) BEFORE changing anything;
-  apply the same validate/sanitize pattern only if a NaN/inf leak or an opaque
-  error is actually produced.
-  - Constraints: follow the existing validate/sanitize pattern; do not change
-    valid-run behavior; keep doctests + `tests/test_strategies_examples.py`
-    green; run ruff/black/mypy + `tests/test_repository_integrity.py`; finish
-    with a full `pytest -q` run.
+- **Oscillator zero-division audit RESOLVED as no-op (do not pursue):**
+  reproduced zero-volume bars across VWAP, VWMA, Chaikin Money Flow, MFI,
+  Chaikin Oscillator, Ease of Movement, PPO, PVO, VROC, Volume Oscillator,
+  Vortex, and Awesome Oscillator — no exceptions and no NaN/inf leaks in any
+  emitted signal metadata. Code inspection confirms every named case is already
+  guarded: VWMA (examples.py:380-385 `.replace(0, np.nan)`), Chaikin Oscillator
+  ADL (examples.py:5782), EOM (examples.py:5921-5923 errstate + replace inf),
+  PPO (examples.py:6533), PVO (examples.py:6711), Vortex (examples.py:6184-6185),
+  Volume Oscillator (examples.py:5053), VROC (examples.py:4754), CMF
+  (examples.py:4145). VWAP (examples.py:2681) and MFI (examples.py:4441) divide
+  without a `.replace(0, np.nan)` guard but produce only NaN (0/0) or finite
+  results (inf -> 100), both skipped by the existing `pd.isna` checks in
+  `generate_signals`, so no leak reaches the user and changing them would alter
+  valid-run behavior (MFI all-up bars currently yield mfi=100, a correct
+  extreme). Verified: a zero-volume probe across all 12 indicators raised no
+  exceptions and emitted no non-finite metadata; `pytest tests/test_strategies_examples.py`
+  **612 passed**.
+  - Out of scope / optional future candidate: `RateOfChangeStrategy._calculate`
+    (examples.py:4637) divides by `close.shift(period)`, which can be 0 on a
+    zero-price bar and is not caught by `pd.isna` (inf leaks); that is a
+    zero-*price* case, not zero-volume, and was not reproduced here.
+
+No further task assigned. The oscillator audit is complete and verified.
