@@ -919,3 +919,34 @@ This session only verified it.
   regressions across all ~4600 active tests after the sensitivity hardening change.**
   Focused tests and the repository-integrity guards are green; only the complete
   run remains to certify the change.
+
+---
+
+## Session 2026-11-22 (this session)
+
+Certified the sensitivity-config hardening (commit `a8797f9`) by running the
+full `pytest` suite. No regressions.
+
+### What changed
+
+- No code changes. Working tree clean; only this handoff entry appended.
+
+### What was verified
+
+- `python -m pytest -q` (default addopts `-m "not slow and not network"`):
+  **4517 passed, 206 skipped, 151 deselected, 0 failed** in 232.01s (~3m52s).
+  No regressions from `a8797f9`. (206 skipped vs. prior ~151 deselected reflects
+  the normal slow/network deselection plus collection-time skips in this run.)
+- `pytest tests/test_repository_integrity.py`: **51 passed** (repo-wide
+  ruff/black/mypy/docstring guards green).
+- `git status --short`: clean (no working-tree changes beyond this handoff).
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- None assigned. The sensitivity-config hardening is certified and all tracked
+  hardening/validation chains are complete and green. Future work requires a
+  new defect report or feature request.
