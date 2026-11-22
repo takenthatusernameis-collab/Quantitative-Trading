@@ -318,3 +318,64 @@ remaining suite is unchanged.
 ### Next task
 
 - None assigned. See the bounded follow-ups listed above for a future session.
+
+---
+
+## Session 2026-11-22 (this session)
+
+Added construction-time validation to synthetic data generation so invalid
+`days`/`seed` fail fast with a clear `ValueError` instead of silently returning
+empty data (the worst failure mode) or raising a confusing `OverflowError`.
+
+### What changed
+
+**quant_trading/data/synthetic.py**
+- Added `_validate_synthetic_days(days)`: rejects non-integer, bool, and
+  `days < 1` with `ValueError: invalid days: the value must be an integer of
+  at least 1 (got ...)`.
+- Added `_validate_synthetic_seed(seed)`: rejects non-integer, bool, and
+  negative seeds with `ValueError: invalid seed: ...`; `seed` of `None` still
+  passes through to `np.random.seed` (entropy-based seeding).
+- `create_synthetic_data` calls both validators before `np.random.seed`, so
+  `create_synthetic_provider` (which delegates to it) is covered too.
+
+**tests/test_synthetic.py**
+- `test_create_synthetic_data_rejects_invalid_days` (0, -1, -5, 1.5, "10",
+  True, None).
+- `test_create_synthetic_data_accepts_valid_days` (days=1).
+- `test_create_synthetic_data_rejects_invalid_seed` (-1, -5, 1.5, "42", True).
+- `test_create_synthetic_provider_rejects_invalid_days`.
+
+### Root cause / evidence
+
+Reproduced before the fix:
+- `create_synthetic_data(["AAPL"], days=0)` returned `{"AAPL": <empty frame>}`
+  with no error (silent failure).
+- `create_synthetic_data(["AAPL"], days=-5)` raised `OverflowError` from
+  numpy/pandas instead of a clear error.
+
+### What was verified
+
+- `pytest tests/test_synthetic.py`: **14 passed** (10 pre-existing + 4 new).
+- `pytest tests/test_data_providers.py --doctest-modules
+  quant_trading/data/synthetic.py`: **55 passed**.
+- `ruff check`, `black --check`, `mypy` on both changed files: **clean**.
+- Audited all callers of `create_synthetic_data`/`create_synthetic_provider`
+  (tests, examples, engine doctests): every call passes a positive integer
+  `days` and a valid seed, so no existing caller breaks.
+
+### What remains unresolved
+
+- Nothing for this task.
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- Run the full `pytest` suite (it times out locally >5 min; use
+  `-m "not slow and not network"` locally or verify in CI) to confirm no
+  regressions across the whole suite after this change. The deserialization
+  hardening chain, CLI error-reporting audit, and config/construction-time
+  validation audits are all complete.

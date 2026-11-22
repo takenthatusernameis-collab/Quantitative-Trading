@@ -5,6 +5,7 @@ Covers :func:`quant_trading.data.synthetic.create_synthetic_data` and
 """
 
 from datetime import datetime
+from typing import cast
 
 import pandas as pd
 
@@ -116,3 +117,38 @@ def test_synthetic_provider_fetch_latest() -> None:
 def test_default_seed_constant() -> None:
     """DEFAULT_SEED is the documented default of 42."""
     assert DEFAULT_SEED == 42
+
+
+def test_create_synthetic_data_rejects_invalid_days() -> None:
+    """Zero, negative, and non-integer days raise a clear ValueError."""
+    for days in (0, -1, -5, 1.5, "10", True, None):
+        try:
+            create_synthetic_data(["AAPL"], days=cast(int, days))
+        except ValueError:
+            continue
+        raise AssertionError(f"days={days!r} did not raise ValueError")
+
+
+def test_create_synthetic_data_accepts_valid_days() -> None:
+    """Positive integer days construct without error."""
+    data = create_synthetic_data(["AAPL"], days=1, seed=1)
+    assert len(data["AAPL"]) == 1
+
+
+def test_create_synthetic_data_rejects_invalid_seed() -> None:
+    """Negative and non-integer seeds raise a clear ValueError."""
+    for seed in (-1, -5, 1.5, "42", True):
+        try:
+            create_synthetic_data(["AAPL"], days=5, seed=cast(int, seed))
+        except ValueError:
+            continue
+        raise AssertionError(f"seed={seed!r} did not raise ValueError")
+
+
+def test_create_synthetic_provider_rejects_invalid_days() -> None:
+    """The convenience wrapper propagates the days validation."""
+    try:
+        create_synthetic_provider(["AAPL"], days=0)
+    except ValueError:
+        return
+    raise AssertionError("days=0 did not raise ValueError")

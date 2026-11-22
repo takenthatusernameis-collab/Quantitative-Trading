@@ -35,6 +35,40 @@ from quant_trading.data.providers import DataProvider, FetchResult, MarketData
 DEFAULT_SEED = 42
 
 
+def _validate_synthetic_days(days: int) -> None:
+    """Reject a non-positive or non-integer number of days.
+
+    Args:
+        days: Number of days to validate.
+
+    Returns:
+        None.
+
+    Raises:
+        ValueError: When ``days`` is not an integer or is below 1.
+    """
+    if isinstance(days, bool) or not isinstance(days, int) or days < 1:
+        raise ValueError(f"invalid days: the value must be an integer of at least 1 (got {days})")
+
+
+def _validate_synthetic_seed(seed: int) -> None:
+    """Reject a negative or non-integer random seed.
+
+    Args:
+        seed: Random seed to validate.
+
+    Returns:
+        None.
+
+    Raises:
+        ValueError: When ``seed`` is not an integer or is negative.
+    """
+    if seed is None:
+        return
+    if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
+        raise ValueError(f"invalid seed: the value must be a non-negative integer (got {seed})")
+
+
 def create_synthetic_data(
     symbols: list[str],
     days: int = 100,
@@ -74,6 +108,8 @@ def create_synthetic_data(
         True
 
     """
+    _validate_synthetic_days(days)
+    _validate_synthetic_seed(seed)
     np.random.seed(seed)
     end = end_date or datetime.now()
     dates = pd.date_range(end=end, periods=days, freq="D")
