@@ -46,6 +46,10 @@ def _validate_synthetic_days(days: int) -> None:
 
     Raises:
         ValueError: When ``days`` is not an integer or is below 1.
+
+    Examples:
+        >>> _validate_synthetic_days(10)
+        >>> _validate_synthetic_days(1)
     """
     if isinstance(days, bool) or not isinstance(days, int) or days < 1:
         raise ValueError(f"invalid days: the value must be an integer of at least 1 (got {days})")
@@ -62,6 +66,11 @@ def _validate_synthetic_seed(seed: int) -> None:
 
     Raises:
         ValueError: When ``seed`` is not an integer or is negative.
+
+    Examples:
+        >>> _validate_synthetic_seed(42)
+        >>> _validate_synthetic_seed(0)
+        >>> _validate_synthetic_seed(None)
     """
     if seed is None:
         return
