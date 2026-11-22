@@ -62,6 +62,50 @@ def _drop_non_finite_rows(returns: pd.DataFrame) -> pd.DataFrame:
     return cast(pd.DataFrame, returns.replace([np.inf, -np.inf], np.nan).dropna())
 
 
+def _validate_confidence(confidence: float) -> float:
+    """Validate a Value-at-Risk / Expected-Shortfall confidence level.
+
+    A confidence level must be a finite number strictly between 0 and 1 so the
+    tail probability ``1 - confidence`` is a valid probability. Values outside
+    that range (including ``0`` and ``1``) previously produced an opaque
+    third-party error or a silently wrong percentile, so they are rejected with
+    a clear message.
+
+    Args:
+        confidence: Confidence level to validate.
+
+    Returns:
+        The validated confidence level as a float.
+
+    Raises:
+        ValueError: If ``confidence`` is not a finite number strictly between
+            0 and 1.
+
+    Examples:
+        >>> _validate_confidence(0.95)
+        0.95
+        >>> _validate_confidence(0)
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid confidence: the value must be in the range (0, 1) (got 0)
+        >>> _validate_confidence(float("nan"))
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid confidence: the value must be in the range (0, 1) (got nan)
+
+    """
+    if (
+        isinstance(confidence, bool)
+        or not isinstance(confidence, (int, float))
+        or not math.isfinite(confidence)
+        or not (0.0 < confidence < 1.0)
+    ):
+        raise ValueError(
+            f"invalid confidence: the value must be in the range (0, 1) " f"(got {confidence})"
+        )
+    return float(confidence)
+
+
 @dataclass
 class RiskMetrics:
     """Container for portfolio risk metrics.
@@ -416,13 +460,22 @@ def calculate_var(returns: pd.Series, confidence: float = 0.95) -> float:
         Value at Risk (negative value indicates loss). Returns 0.0 if
         insufficient data.
 
+    Raises:
+        ValueError: If ``confidence`` is not a finite number strictly between
+            0 and 1.
+
     Examples:
         >>> import pandas as pd
         >>> returns = pd.Series([-0.02, 0.01, -0.01, 0.005, -0.03])
         >>> round(calculate_var(returns, 0.95), 3)
         -0.028
+        >>> calculate_var(returns, 0.0)
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid confidence: the value must be in the range (0, 1) (got 0.0)
 
     """
+    confidence = _validate_confidence(confidence)
     returns = _drop_non_finite(returns)
     if len(returns) == 0:
         return 0.0
@@ -718,13 +771,22 @@ def calculate_cvar(
         Conditional VaR (negative value indicates expected loss), or 0.0 if
         insufficient data.
 
+    Raises:
+        ValueError: If ``confidence`` is not a finite number strictly between
+            0 and 1.
+
     Examples:
         >>> import pandas as pd
         >>> returns = pd.Series([-0.02, 0.01, -0.01, 0.005, -0.03, -0.025])
         >>> round(calculate_cvar(returns, 0.95), 3)
         -0.03
+        >>> calculate_cvar(returns, 1.5)
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid confidence: the value must be in the range (0, 1) (got 1.5)
 
     """
+    confidence = _validate_confidence(confidence)
     returns = _drop_non_finite(returns)
     if len(returns) == 0:
         return 0.0
@@ -752,6 +814,8 @@ def calculate_omega_ratio(
     Args:
         returns: Return series.
         threshold: Threshold return (default 0.0 for zero return threshold).
+            A non-finite (NaN/inf) or non-numeric threshold is treated as
+            ``0.0`` so it cannot poison the ratio with NaN.
         periods_per_year: Number of periods per year (not used in calculation
             but kept for API consistency).
 
@@ -763,8 +827,16 @@ def calculate_omega_ratio(
         >>> returns = pd.Series([0.01, 0.02, -0.005, 0.015, -0.01])
         >>> round(calculate_omega_ratio(returns, threshold=0.0), 2)
         3.0
+        >>> calculate_omega_ratio(returns, threshold=float("nan")) == calculate_omega_ratio(returns, threshold=0.0)
+        True
 
     """
+    if (
+        isinstance(threshold, bool)
+        or not isinstance(threshold, (int, float))
+        or not math.isfinite(threshold)
+    ):
+        threshold = 0.0
     returns = _drop_non_finite(returns)
     if len(returns) == 0:
         return 0.0

@@ -461,6 +461,14 @@ class TestCalculateVar:
     def test_empty_returns_zero(self) -> None:
         assert calculate_var(pd.Series([], dtype=float)) == pytest.approx(0.0)
 
+    @pytest.mark.parametrize(
+        "bad",
+        [0, 1, -0.1, 1.5, float("nan"), float("inf"), float("-inf"), True],
+    )
+    def test_invalid_confidence_raises(self, bad: Any) -> None:
+        with pytest.raises(ValueError, match="invalid confidence"):
+            calculate_var(RETURNS, confidence=bad)
+
 
 class TestCalculateBeta:
     """Tests for calculate_beta."""
@@ -1151,6 +1159,14 @@ class TestCalculateCVaR:
         cvar = calculate_cvar(flat, confidence=0.95)
         assert cvar == pytest.approx(0.01)
 
+    @pytest.mark.parametrize(
+        "bad",
+        [0, 1, -0.1, 1.5, float("nan"), float("inf"), float("-inf"), True],
+    )
+    def test_invalid_confidence_raises(self, bad: Any) -> None:
+        with pytest.raises(ValueError, match="invalid confidence"):
+            calculate_cvar(RETURNS, confidence=bad)
+
 
 class TestCalculateOmegaRatio:
     """Tests for calculate_omega_ratio."""
@@ -1185,6 +1201,14 @@ class TestCalculateOmegaRatio:
         losses = np.sum(np.maximum(0.0 - negative, 0.0))
         expected = gains / losses
         assert omega == pytest.approx(expected)
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+    def test_non_finite_threshold_treated_as_zero(self, bad: Any) -> None:
+        returns = pd.Series([0.01, 0.02, -0.005, 0.015, -0.01])
+        sanitized = calculate_omega_ratio(returns, threshold=bad)
+        baseline = calculate_omega_ratio(returns, threshold=0.0)
+        assert sanitized == pytest.approx(baseline)
+        assert math.isfinite(sanitized)
 
 
 class TestRiskMetricsDataclassExtended:

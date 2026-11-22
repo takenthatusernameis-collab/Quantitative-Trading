@@ -388,3 +388,80 @@ Ran the full `pytest` suite with `-m "not slow and not network"`: **4537 passed,
 ### Next task
 
 - None assigned. All tracked work complete.
+
+---
+
+## Session 2026-11-22 (this session)
+
+Hardened three public risk-metric functions in `quant_trading/risk/metrics.py`
+against invalid numeric parameters that previously produced opaque third-party
+errors or silently wrong / NaN results. This is the same validate/sanitize
+pattern already applied to the risk-manager, monte-carlo and regime constructors.
+
+### What changed
+
+**quant_trading/risk/metrics.py**
+- Added `_validate_confidence(confidence)` helper: requires a finite number
+  strictly in `(0, 1)`; rejects `bool`, non-numeric, NaN, ±inf, `0` and `1`
+  with `ValueError: invalid confidence: the value must be in the range (0, 1)
+  (got ...)`. Includes doctests.
+- `calculate_var` and `calculate_cvar` call `_validate_confidence` before
+  computing the percentile. Added `Raises:` sections and doctests.
+- `calculate_omega_ratio` now treats a non-finite (NaN/±inf) or non-numeric
+  `threshold` as `0.0`, so a bad threshold can no longer poison the ratio with
+  NaN. Docstring note + doctest added.
+
+**tests/test_risk_metrics.py**
+- `TestCalculateVar.test_invalid_confidence_raises` and
+  `TestCalculateCVaR.test_invalid_confidence_raises` (parametrized over
+  `0, 1, -0.1, 1.5, nan, inf, -inf, True`).
+- `TestCalculateOmegaRatio.test_non_finite_threshold_treated_as_zero`
+  (`nan/inf/-inf` → equals `threshold=0.0` and stays finite).
+
+### Root cause / evidence (reproduced before the fix)
+
+- `calculate_var(returns, confidence=0.0)` returned `0.01` — the **maximum**
+  return, i.e. a silently wrong "VaR" (the 100th percentile, not a loss).
+- `calculate_var`/`calculate_cvar` with `confidence=1.5` or `confidence=nan`
+  raised an opaque `ValueError: Percentiles must be in the range [0, 100]`
+  from numpy.
+- `calculate_omega_ratio(returns, threshold=float("nan"))` returned `nan`.
+
+All internal callers pass constant confidences (`0.95`/`0.99`) and the default
+threshold (`0.0`), so no valid run changes behavior.
+
+### Verified
+
+- `pytest tests/test_risk_metrics.py`: **198 passed** (+19 new cases).
+- `pytest --doctest-modules quant_trading/risk/metrics.py`: **26 passed**.
+- `pytest tests/test_repository_integrity.py`: **51 passed** (repo-wide
+  ruff/black/mypy/docstring guards green).
+- Broad subset (`test_risk_metrics, test_risk_manager, test_backtest_metrics,
+  test_portfolio, test_limits, test_regime, test_walk_forward,
+  test_monte_carlo`): **1013 passed**.
+- `pytest tests/test_risk_manager.py tests/test_backtest_metrics.py
+  tests/test_serialization_roundtrip.py tests/test_monte_carlo.py`: **443 passed**.
+- `ruff check`, `black --check`, `mypy` on both changed files: clean.
+- Post-fix probe: `calculate_var`/`calculate_cvar` with `0.0|1.5|nan` all raise
+  a clear `ValueError`; `omega(nan) == omega(0.0) == 0.2235...` (finite).
+
+### Approaches that failed
+
+- One doctest iteration failed because the expected text said `got 0` while the
+  input `0.0` renders as `got 0.0`; corrected the expected message (self-fixed).
+
+### Next task
+
+- **Full `pytest` suite run to confirm no regressions across all 4572 active
+  tests.** The suite times out locally (>8 min; use `-m "not slow and not
+  network"`, which is the default in `addopts`) — the focused tests, the
+  repository-integrity guards, and the 1013-test broad subset all pass, so only
+  a complete run remains to certify the change. No code change is expected.
+- Note: commit `8ad980f` (RegimeDetector construction-time validation) is in the
+  tree but is not described by any earlier handoff entry; its behavior is
+  covered by `tests/test_regime.py` and it passed in the broad subset above.
+- Optional bounded candidate (unverified, not started): audit the numeric edge
+  cases of the oscillator/indicator helpers in
+  `quant_trading/strategies/examples.py` (e.g. zero-division when a moving
+  average is zero in Awesome/Chaikin/PPO) and apply the same validate/sanitize
+  treatment if a real defect is reproduced.
