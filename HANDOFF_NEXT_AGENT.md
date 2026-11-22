@@ -318,3 +318,39 @@ remaining suite is unchanged.
 ### Next task
 
 - None assigned. See the bounded follow-ups listed above for a future session.
+
+---
+
+## Session 2026-11-22 (this session)
+
+Hardened `ReportConfig.from_dict` in `quant_trading/backtest/report.py`, the last `from_dict` deserializer not covered by the `_finite` sanitization chain.
+
+### What changed
+
+**quant_trading/backtest/report.py**
+- Added `import math`.
+- `ReportConfig.from_dict` (line ~85) now sanitizes the numeric `dpi` field through a local `_finite` helper (default `150`): NaN/inf/-inf, non-numeric, and unconvertible values fall back to `150` instead of being handed raw to matplotlib's `Figure.savefig(dpi=...)`. `dpi` is coerced to `int`.
+- Added doctests to `from_dict` covering finite dpi pass-through, nan/inf/-inf, non-numeric string, None, bool rejection, numeric string, and the empty-dict default.
+
+**tests/test_backtest_report.py**
+- `test_report_config_from_dict_sanitizes_non_finite_dpi`: nan/inf/-inf/"not a number"/None/bool → `150`; "300"/300/72.0 pass through; `{}` → `150`.
+
+### What was verified
+
+- `pytest tests/test_backtest_report.py --doctest-modules quant_trading/backtest/report.py`: **111 passed** (doctest + unit tests).
+- `ruff check quant_trading/backtest/report.py tests/test_backtest_report.py`: **clean** (also removed a pre-existing redundant-quote UP037 on the `from_dict` return annotation).
+- `black --check` on both files: **clean**.
+- `mypy quant_trading/backtest/report.py`: **clean**.
+- `pytest tests/test_repository_integrity.py`: **51 passed** (whole-tree parse/import/guard checks green).
+
+### What remains unresolved
+
+- Full `pytest` suite not run locally (times out >5 min due to pre-existing slowness, `-m "not slow and not network"` deselects slow/README invocations); verify in CI if available.
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- Run the full `pytest` suite in CI (`pytest -m "not slow and not network"` plus the deselected slow/README command tests) to confirm no regressions across the whole suite, since local execution exceeds a practical timeout. This is the remaining verification gap after the deserialization-hardening chain and CLI error-reporting audit are both complete.

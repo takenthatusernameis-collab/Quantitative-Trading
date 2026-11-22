@@ -1142,6 +1142,23 @@ def test_report_config_from_dict_missing_keys_use_defaults() -> None:
     assert restored.dpi == 150
 
 
+def test_report_config_from_dict_sanitizes_non_finite_dpi() -> None:
+    """ReportConfig.from_dict must sanitize non-finite/non-numeric dpi to the default 150."""
+    from quant_trading.backtest.report import ReportConfig
+
+    assert ReportConfig.from_dict({"dpi": float("nan")}).dpi == 150
+    assert ReportConfig.from_dict({"dpi": float("inf")}).dpi == 150
+    assert ReportConfig.from_dict({"dpi": float("-inf")}).dpi == 150
+    assert ReportConfig.from_dict({"dpi": "not a number"}).dpi == 150
+    assert ReportConfig.from_dict({"dpi": None}).dpi == 150
+    assert ReportConfig.from_dict({"dpi": True}).dpi == 150
+    # Numeric strings and finite ints/float pass through unchanged.
+    assert ReportConfig.from_dict({"dpi": "300"}).dpi == 300
+    assert ReportConfig.from_dict({"dpi": 300}).dpi == 300
+    assert ReportConfig.from_dict({"dpi": 72.0}).dpi == 72
+    assert ReportConfig.from_dict({}).dpi == 150
+
+
 def test_check_matplotlib_raises_when_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
     """_check_matplotlib must raise ImportError when matplotlib is unavailable (report.py:99)."""
     import quant_trading.backtest.report as report_module

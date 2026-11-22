@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import io
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -76,12 +77,51 @@ class ReportConfig:
         Missing keys fall back to the dataclass defaults, so a dictionary
         produced by :meth:`to_dict` (for example after a JSON round-trip) can
         be reconstructed without carrying every field. Extra keys are ignored.
+        The numeric ``dpi`` field is sanitized through a local ``_finite``
+        helper: NaN, infinity, non-numeric, and unconvertible values fall back
+        to the default ``150`` so a corrupted dictionary cannot hand matplotlib
+        a non-finite ``dpi`` (which would fail or misrender inside
+        :meth:`~matplotlib.figure.Figure.savefig`).
 
         Args:
             data: Dictionary whose keys match report configuration attribute
                 names.
 
+        Returns:
+            A reconstructed :class:`ReportConfig`.
+
+        Examples:
+            >>> from quant_trading.backtest.report import ReportConfig
+            >>> restored = ReportConfig.from_dict({"title": "Q1", "dpi": 300})
+            >>> restored.title, restored.dpi
+            ('Q1', 300)
+            >>> ReportConfig.from_dict({"dpi": float("nan")}).dpi
+            150
+            >>> ReportConfig.from_dict({"dpi": float("inf")}).dpi
+            150
+            >>> ReportConfig.from_dict({"dpi": "not a number"}).dpi
+            150
+            >>> ReportConfig.from_dict({"dpi": None}).dpi
+            150
+            >>> ReportConfig.from_dict({"dpi": "300"}).dpi
+            300
+            >>> ReportConfig.from_dict({}).dpi
+            150
+
         """
+
+        def _finite(value: Any, default: float = 0.0) -> float:
+            if isinstance(value, bool):
+                return float(default)
+            if isinstance(value, (int, float)) and math.isfinite(value):
+                return float(value)
+            try:
+                result = float(value)
+            except (TypeError, ValueError):
+                return float(default)
+            return result if math.isfinite(result) else float(default)
+
+        dpi = _finite(data.get("dpi", 150), 150)
         return cls(
             title=data.get("title", "Backtest Report"),
             include_charts=data.get("include_charts", True),
@@ -89,7 +129,7 @@ class ReportConfig:
             include_monthly_heatmap=data.get("include_monthly_heatmap", True),
             include_rolling_metrics=data.get("include_rolling_metrics", True),
             theme=data.get("theme", "light"),
-            dpi=data.get("dpi", 150),
+            dpi=int(dpi),
         )
 
 
