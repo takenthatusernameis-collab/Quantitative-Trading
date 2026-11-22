@@ -648,3 +648,75 @@ silently emitted `nan`/`inf` strings.
   desired, decide whether the utils helpers should also emit `"N/A"` instead of
   `0.0`; that would change the behavior added here and is intentionally NOT
   done in this session.
+
+---
+
+## Session 2026-11-22 (this session)
+
+Closed a construction/validation gap in the risk-attribution VaR functions:
+`calculate_marginal_var` and `calculate_component_var` (the latter delegates to
+the former) in `quant_trading/risk/metrics.py` accepted a `confidence` parameter
+but never validated it, unlike `calculate_var`/`calculate_cvar` which were
+hardened last session with `_validate_confidence`.
+
+### What changed
+
+**quant_trading/risk/metrics.py**
+- `calculate_marginal_var` now calls `_validate_confidence(confidence)` before
+  any computation, so a `confidence` of `0`, `1`, `<0`, `>1`, NaN, ±inf, bool,
+  or non-numeric raises `ValueError: invalid confidence: the value must be in
+  the range (0, 1) (got ...)` instead of silently returning a wrong tail mean
+  (`confidence=0.0` returned the 100th-percentile "tail", i.e. the max) or an
+  opaque `ValueError: Percentiles must be in the range [0, 100]` from numpy
+  (`1.5`/`nan`).
+- Added a `Raises:` section and a doctest showing the `1.5` rejection.
+- `calculate_component_var` inherits the validation via delegation; added a
+  `Raises:` note documenting the propagated error.
+
+**tests/test_risk_attribution.py**
+- `TestMarginalVaR.test_marginal_var_invalid_confidence_raises` and
+  `TestComponentVaR.test_component_var_invalid_confidence_raises`
+  (parametrized over `0, 1, -0.1, 1.5, nan, inf, -inf, True`).
+- Added `from typing import Any`.
+
+### Root cause / evidence (reproduced before the fix)
+- `calculate_marginal_var(df, w, confidence=0.0)` returned a finite but
+  silently wrong result (the 100th-percentile tail = max, not a loss).
+- `confidence=1.5` / `confidence=nan` raised opaque numpy percentile errors.
+- Internal callers are safe: `RiskManager.calculate_risk_attribution`
+  (manager.py:1392) already calls `_validate_confidence` before delegating, and
+  all tests/examples pass constant confidences, so no valid run changes.
+
+### Verified
+- `pytest tests/test_risk_attribution.py tests/test_risk_metrics.py
+  --doctest-modules quant_trading/risk/metrics.py`: **287 passed**.
+- Downstream subset (`test_risk_manager, test_portfolio,
+  test_serialization_roundtrip, test_backtest_engine`): **535 passed**.
+- `pytest tests/test_repository_integrity.py`: **51 passed** (repo-wide
+  ruff/black/mypy/docstring guards green).
+- `ruff check`, `black --check`, `mypy` on both changed files: clean.
+- Full `python -m pytest -q` (default addopts `-m "not slow and not network"`):
+  **4630 passed, 151 deselected** in 522.13s (~8m42s) (was 4613; +17 = 16 new
+  parametrized cases + 1 new doctest). No regressions.
+
+### What remains unresolved
+
+- Nothing for this task.
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- None strictly required; the risk-metric `confidence` validation chain is now
+  complete (`calculate_var`, `calculate_cvar`, `calculate_marginal_var`,
+  `calculate_component_var`) and the full suite is green.
+- Bounded candidate (unverified, not started): the `confidence` parameter of
+  `RiskManager.calculate_risk_attribution` is validated, but the ERC /
+  risk-budget weight solvers (`calculate_equal_risk_contribution_weights`,
+  `calculate_risk_budget_weights`) and `calculate_volatility_contributions`
+  validate that weights are finite and sum to 1.0 but do not range-check
+  individual weights (e.g. a weight of `2.0` with another of `-1.0` sums to
+  1.0 and passes). Confirm whether negative/leverage weights are intentionally
+  supported (the `long_only` flag suggests they are) before changing anything.

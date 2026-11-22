@@ -1,5 +1,6 @@
 """Tests for risk attribution and decomposition functions."""
 
+from typing import Any
 from unittest.mock import patch
 
 import numpy as np
@@ -101,6 +102,22 @@ class TestMarginalVaR:
 
         pd.testing.assert_series_equal(actual, expected)
 
+    @pytest.mark.parametrize(
+        "bad",
+        [0, 1, -0.1, 1.5, float("nan"), float("inf"), float("-inf"), True],
+    )
+    def test_marginal_var_invalid_confidence_raises(self, bad: Any) -> None:
+        np.random.seed(42)
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 100),
+                "B": np.random.normal(0.001, 0.02, 100),
+            }
+        )
+        weights = pd.Series([0.5, 0.5], index=["A", "B"])
+        with pytest.raises(ValueError, match="invalid confidence"):
+            calculate_marginal_var(returns, weights, confidence=bad)
+
 
 class TestComponentVaR:
     """Tests for calculate_component_var."""
@@ -191,6 +208,22 @@ class TestComponentVaR:
         # The component sum tracks the tail mean (CVaR), not the quantile.
         assert abs(cvar.sum() - portfolio_cvar) < 1e-6
         assert abs(cvar.sum() - portfolio_var) > abs(portfolio_var) * 0.1
+
+    @pytest.mark.parametrize(
+        "bad",
+        [0, 1, -0.1, 1.5, float("nan"), float("inf"), float("-inf"), True],
+    )
+    def test_component_var_invalid_confidence_raises(self, bad: Any) -> None:
+        np.random.seed(42)
+        returns = pd.DataFrame(
+            {
+                "A": np.random.normal(0.001, 0.02, 100),
+                "B": np.random.normal(0.001, 0.02, 100),
+            }
+        )
+        weights = pd.Series([0.5, 0.5], index=["A", "B"])
+        with pytest.raises(ValueError, match="invalid confidence"):
+            calculate_component_var(returns, weights, confidence=bad)
 
 
 class TestVolatilityContributions:

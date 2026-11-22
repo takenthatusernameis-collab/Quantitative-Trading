@@ -902,6 +902,10 @@ def calculate_marginal_var(
     Returns:
         Series of marginal VaR values indexed by asset name.
 
+    Raises:
+        ValueError: If ``confidence`` is not a finite number strictly between
+            0 and 1.
+
     Examples:
         >>> import pandas as pd
         >>> import numpy as np
@@ -914,8 +918,13 @@ def calculate_marginal_var(
         >>> mvar = calculate_marginal_var(returns, weights, confidence=0.95)
         >>> len(mvar) == 2
         True
+        >>> calculate_marginal_var(returns, weights, confidence=1.5)
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid confidence: the value must be in the range (0, 1) (got 1.5)
 
     """
+    confidence = _validate_confidence(confidence)
     returns = _drop_non_finite_rows(returns)
     if len(returns) < 2:
         return cast(pd.Series, pd.Series(0.0, index=returns.columns))
@@ -960,6 +969,10 @@ def calculate_component_var(
 
     Returns:
         Series of component VaR values indexed by asset name.
+
+    Raises:
+        ValueError: If ``confidence`` is not a finite number strictly between
+            0 and 1 (propagated from :func:`calculate_marginal_var`).
 
     Examples:
         >>> import pandas as pd
