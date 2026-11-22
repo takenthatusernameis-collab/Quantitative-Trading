@@ -575,44 +575,55 @@ class MonteCarloSimulator:
                 ``risk_free_rate`` is not finite.
 
         """
+        # Validate all parameters before assignment (fail fast, consistent with
+        # RiskManager and RegimeDetector patterns).
+        if (
+            not isinstance(n_simulations, (int, float))
+            or not math.isfinite(n_simulations)
+            or n_simulations < 1
+        ):
+            raise ValueError(
+                f"invalid n_simulations: the value must be at least 1 and finite "
+                f"(got {n_simulations})"
+            )
+        if (
+            not isinstance(confidence_level, (int, float))
+            or not math.isfinite(confidence_level)
+            or not (0.0 < confidence_level < 1.0)
+        ):
+            raise ValueError(
+                f"invalid confidence_level: the value must be in the range (0, 1) "
+                f"(got {confidence_level})"
+            )
+        if (
+            not isinstance(periods_per_year, (int, float))
+            or not math.isfinite(periods_per_year)
+            or periods_per_year < 1
+        ):
+            raise ValueError(
+                f"invalid periods_per_year: the value must be at least 1 and finite "
+                f"(got {periods_per_year})"
+            )
+        if not isinstance(risk_free_rate, (int, float)) or not math.isfinite(risk_free_rate):
+            raise ValueError(
+                f"invalid risk_free_rate: the value must be finite " f"(got {risk_free_rate})"
+            )
+        if n_jobs == -1:
+            n_jobs = os.cpu_count() or 1
+        n_jobs = max(n_jobs, 1)
+        if not isinstance(n_jobs, (int, float)) or not math.isfinite(n_jobs) or n_jobs < 1:
+            raise ValueError(
+                f"invalid n_jobs: the value must be at least 1 and finite " f"(got {n_jobs})"
+            )
+
+        # All validation passed; now assign.
         self.n_simulations = n_simulations
         self.confidence_level = confidence_level
         self.random_state = random_state
         self.periods_per_year = periods_per_year
         self.risk_free_rate = risk_free_rate
-        if n_jobs == -1:
-            n_jobs = os.cpu_count() or 1
-        n_jobs = max(n_jobs, 1)
-        if not math.isfinite(n_jobs) or n_jobs < 1:
-            raise ValueError(
-                f"invalid n_jobs: the value must be at least 1 and finite " f"(got {n_jobs})"
-            )
         self.n_jobs = n_jobs
         self._rng = np.random.default_rng(random_state)
-
-        # Validate the simulator configuration. Invalid values do not raise here
-        # today, so a library user would silently get a degenerate or misleading
-        # run (for example n_simulations=0 divides by zero in
-        # probability_of_profit) instead of a clear error.
-        if self.n_simulations < 1:
-            raise ValueError(
-                f"invalid n_simulations: the value must be at least 1 "
-                f"(got {self.n_simulations})"
-            )
-        if not (0.0 < self.confidence_level < 1.0):
-            raise ValueError(
-                f"invalid confidence_level: the value must be in the range (0, 1) "
-                f"(got {self.confidence_level})"
-            )
-        if self.periods_per_year < 1:
-            raise ValueError(
-                f"invalid periods_per_year: the value must be at least 1 "
-                f"(got {self.periods_per_year})"
-            )
-        if not math.isfinite(self.risk_free_rate):
-            raise ValueError(
-                f"invalid risk_free_rate: the value must be finite " f"(got {self.risk_free_rate})"
-            )
 
     def run(
         self,

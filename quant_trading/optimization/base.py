@@ -906,6 +906,51 @@ class BaseOptimizer(ABC):
             verbose: Whether to print progress.
 
         """
+        # Validate all parameters before assignment (fail fast, consistent with
+        # RiskManager and RegimeDetector patterns).
+        if (
+            not isinstance(initial_capital, (int, float))
+            or not math.isfinite(initial_capital)
+            or initial_capital <= 0
+        ):
+            raise ValueError(
+                f"invalid initial_capital: the value must be positive and finite "
+                f"(got {initial_capital})"
+            )
+        if (
+            not isinstance(periods_per_year, (int, float))
+            or not math.isfinite(periods_per_year)
+            or periods_per_year < 1
+        ):
+            raise ValueError(
+                f"invalid periods_per_year: the value must be at least 1 and finite "
+                f"(got {periods_per_year})"
+            )
+        if (
+            not isinstance(commission, (int, float))
+            or not math.isfinite(commission)
+            or not (0.0 <= commission <= 1.0)
+        ):
+            raise ValueError(
+                f"invalid commission: the value must be in the range [0, 1] " f"(got {commission})"
+            )
+        if (
+            not isinstance(slippage, (int, float))
+            or not math.isfinite(slippage)
+            or not (0.0 <= slippage <= 1.0)
+        ):
+            raise ValueError(
+                f"invalid slippage: the value must be in the range [0, 1] " f"(got {slippage})"
+            )
+        if n_jobs == -1:
+            n_jobs = os.cpu_count() or 1
+        n_jobs = max(n_jobs, 1)
+        if not isinstance(n_jobs, (int, float)) or not math.isfinite(n_jobs) or n_jobs < 1:
+            raise ValueError(
+                f"invalid n_jobs: the value must be at least 1 and finite " f"(got {n_jobs})"
+            )
+
+        # All validation passed; now assign.
         self.objective = objective
         self.strategy_cls = strategy_cls
         self.param_grid = param_grid
@@ -918,39 +963,9 @@ class BaseOptimizer(ABC):
         self.interval = interval
         self.data_manager = data_manager
         self.config = config
-        if n_jobs == -1:
-            n_jobs = os.cpu_count() or 1
-        n_jobs = max(n_jobs, 1)
         self.n_jobs = n_jobs
         self.periods_per_year = periods_per_year
         self.verbose = verbose
-
-        # Validate library-level inputs. Invalid values are silently accepted
-        # today, so they propagate to GridSearch, RandomSearch, and
-        # BayesianOptimizer instead of surfacing a clear error at construction.
-        if not math.isfinite(self.initial_capital) or self.initial_capital <= 0:
-            raise ValueError(
-                f"invalid initial_capital: the value must be positive and finite "
-                f"(got {self.initial_capital})"
-            )
-        if not math.isfinite(self.periods_per_year) or self.periods_per_year < 1:
-            raise ValueError(
-                f"invalid periods_per_year: the value must be at least 1 and finite "
-                f"(got {self.periods_per_year})"
-            )
-        if not (0.0 <= self.commission <= 1.0):
-            raise ValueError(
-                f"invalid commission: the value must be in the range [0, 1] "
-                f"(got {self.commission})"
-            )
-        if not (0.0 <= self.slippage <= 1.0):
-            raise ValueError(
-                f"invalid slippage: the value must be in the range [0, 1] " f"(got {self.slippage})"
-            )
-        if not math.isfinite(self.n_jobs) or self.n_jobs < 1:
-            raise ValueError(
-                f"invalid n_jobs: the value must be at least 1 and finite " f"(got {self.n_jobs})"
-            )
 
     @abstractmethod
     def run(self) -> OptimizationResult:

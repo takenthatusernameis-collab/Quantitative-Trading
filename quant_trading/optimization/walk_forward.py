@@ -510,6 +510,73 @@ class WalkForwardOptimizer:
                 ``risk_free_rate`` is not finite.
 
         """
+        # Validate all parameters before assignment (fail fast, consistent with
+        # RiskManager and RegimeDetector patterns).
+        if not isinstance(n_windows, (int, float)) or not math.isfinite(n_windows) or n_windows < 1:
+            raise ValueError(
+                f"invalid n_windows: the value must be at least 1 " f"(got {n_windows})"
+            )
+        if (
+            not isinstance(train_size, (int, float))
+            or not math.isfinite(train_size)
+            or not (0.0 < train_size <= 1.0)
+        ):
+            raise ValueError(
+                f"invalid train_size: the value must be in the range (0, 1] " f"(got {train_size})"
+            )
+        if step_size is None:
+            step_size_val = 1.0
+        else:
+            step_size_val = step_size
+        if (
+            not isinstance(step_size_val, (int, float))
+            or not math.isfinite(step_size_val)
+            or not (0.0 < step_size_val <= 1.0)
+        ):
+            raise ValueError(
+                f"invalid step_size: the value must be in the range (0, 1] "
+                f"(got {step_size_val})"
+            )
+        if (
+            not isinstance(initial_capital, (int, float))
+            or not math.isfinite(initial_capital)
+            or initial_capital <= 0
+        ):
+            raise ValueError(
+                f"invalid initial_capital: the value must be positive and finite "
+                f"(got {initial_capital})"
+            )
+        if (
+            not isinstance(periods_per_year, (int, float))
+            or not math.isfinite(periods_per_year)
+            or periods_per_year < 1
+        ):
+            raise ValueError(
+                f"invalid periods_per_year: the value must be at least 1 and finite "
+                f"(got {periods_per_year})"
+            )
+        if (
+            not isinstance(commission, (int, float))
+            or not math.isfinite(commission)
+            or not (0.0 <= commission <= 1.0)
+        ):
+            raise ValueError(
+                f"invalid commission: the value must be in the range [0, 1] " f"(got {commission})"
+            )
+        if (
+            not isinstance(slippage, (int, float))
+            or not math.isfinite(slippage)
+            or not (0.0 <= slippage <= 1.0)
+        ):
+            raise ValueError(
+                f"invalid slippage: the value must be in the range [0, 1] " f"(got {slippage})"
+            )
+        if not isinstance(risk_free_rate, (int, float)) or not math.isfinite(risk_free_rate):
+            raise ValueError(
+                f"invalid risk_free_rate: the value must be finite " f"(got {risk_free_rate})"
+            )
+
+        # All validation passed; now assign.
         self.strategy_cls = strategy_cls
         self.param_grid = param_grid
         self.objective = objective
@@ -537,47 +604,6 @@ class WalkForwardOptimizer:
             self.step_size = 1.0
         else:
             self.step_size = step_size
-
-        # Validate the walk-forward geometry. Invalid values do not raise here
-        # today, so a library user (unlike the CLI, which validates them) would
-        # silently get a degenerate or misleading run instead of a clear error.
-        if self.n_windows < 1:
-            raise ValueError(
-                f"invalid n_windows: the value must be at least 1 " f"(got {self.n_windows})"
-            )
-        if not (0.0 < self.train_size <= 1.0):
-            raise ValueError(
-                f"invalid train_size: the value must be in the range (0, 1] "
-                f"(got {self.train_size})"
-            )
-        if not (0.0 < self.step_size <= 1.0):
-            raise ValueError(
-                f"invalid step_size: the value must be in the range (0, 1] "
-                f"(got {self.step_size})"
-            )
-        if not math.isfinite(self.initial_capital) or self.initial_capital <= 0:
-            raise ValueError(
-                f"invalid initial_capital: the value must be positive and finite "
-                f"(got {self.initial_capital})"
-            )
-        if not math.isfinite(self.periods_per_year) or self.periods_per_year < 1:
-            raise ValueError(
-                f"invalid periods_per_year: the value must be at least 1 and finite "
-                f"(got {self.periods_per_year})"
-            )
-        if not (0.0 <= self.commission <= 1.0):
-            raise ValueError(
-                f"invalid commission: the value must be in the range [0, 1] "
-                f"(got {self.commission})"
-            )
-        if not (0.0 <= self.slippage <= 1.0):
-            raise ValueError(
-                f"invalid slippage: the value must be in the range [0, 1] " f"(got {self.slippage})"
-            )
-        if not math.isfinite(self.risk_free_rate):
-            raise ValueError(
-                f"invalid risk_free_rate: the value must be finite " f"(got {self.risk_free_rate})"
-            )
 
     def _create_optimizer(self) -> BaseOptimizer:
         """Create the backend optimizer instance for the current window.
