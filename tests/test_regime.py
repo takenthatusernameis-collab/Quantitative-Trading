@@ -731,3 +731,57 @@ def test_segment_without_labeled_bars_reports_zero_return() -> None:
     assert segment.regime == Regime.BEAR_LOW_VOL
     assert segment.return_pct == 0.0
     assert segment.volatility == 0.0
+
+
+class TestRegimeDetectorInitValidation:
+    """Construction-time validation for RegimeDetector."""
+
+    @pytest.mark.parametrize(
+        "window",
+        [0, -1, -5, 1.5, "20", True, None, float("nan"), float("inf")],
+    )
+    def test_rejects_invalid_window(self, window):
+        with pytest.raises(ValueError, match="invalid window"):
+            RegimeDetector(window=window)
+
+    @pytest.mark.parametrize("window", [1, 2, 20])
+    def test_accepts_valid_window(self, window):
+        detector = RegimeDetector(window=window)
+        assert detector.window == window
+
+    @pytest.mark.parametrize("periods_per_year", [0, -1, float("nan"), float("inf"), "252", True])
+    def test_rejects_invalid_periods_per_year(self, periods_per_year):
+        with pytest.raises(ValueError, match="invalid periods_per_year"):
+            RegimeDetector(periods_per_year=periods_per_year)
+
+    @pytest.mark.parametrize("periods_per_year", [1, 12, 252])
+    def test_accepts_valid_periods_per_year(self, periods_per_year):
+        detector = RegimeDetector(periods_per_year=periods_per_year)
+        assert detector.periods_per_year == periods_per_year
+
+    @pytest.mark.parametrize("vol_threshold", [float("nan"), float("inf"), float("-inf")])
+    def test_rejects_non_finite_vol_threshold(self, vol_threshold):
+        with pytest.raises(ValueError, match="invalid vol_threshold"):
+            RegimeDetector(vol_threshold=vol_threshold)
+
+    @pytest.mark.parametrize("vol_threshold", [0.0, -0.01, 10.0])
+    def test_accepts_vol_threshold(self, vol_threshold):
+        detector = RegimeDetector(vol_threshold=vol_threshold)
+        assert detector.vol_threshold == vol_threshold
+
+    @pytest.mark.parametrize("return_threshold", [float("nan"), float("inf"), float("-inf")])
+    def test_rejects_non_finite_return_threshold(self, return_threshold):
+        with pytest.raises(ValueError, match="invalid return_threshold"):
+            RegimeDetector(return_threshold=return_threshold)
+
+    @pytest.mark.parametrize("return_threshold", [0.0, -0.01, 10.0])
+    def test_accepts_return_threshold(self, return_threshold):
+        detector = RegimeDetector(return_threshold=return_threshold)
+        assert detector.return_threshold == return_threshold
+
+    def test_defaults_still_construct(self):
+        detector = RegimeDetector()
+        assert detector.window == 20
+        assert detector.periods_per_year == 252
+        assert detector.vol_threshold == 0.0
+        assert detector.return_threshold == 0.0

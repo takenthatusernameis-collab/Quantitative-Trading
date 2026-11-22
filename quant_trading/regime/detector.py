@@ -407,17 +407,55 @@ class RegimeDetector:
 
         Args:
             window: Number of trailing returns used for the rolling
-                statistics (default 20).
+                statistics (default 20). Must be an integer of at least 1.
             vol_threshold: Annualized volatility threshold separating low
                 and high volatility. A non-positive value triggers automatic
-                derivation from the mean rolling volatility.
+                derivation from the mean rolling volatility. Must be finite.
             return_threshold: Annualized return threshold separating
                 sideways from trending markets. A non-positive value triggers
-                automatic derivation from the mean rolling return.
+                automatic derivation from the mean rolling return. Must be
+                finite.
             periods_per_year: Trading periods per year used to annualize
-                volatility and return (default 252 for daily data).
+                volatility and return (default 252 for daily data). Must be
+                finite and at least 1.
+
+        Raises:
+            ValueError: If ``window`` is not an integer of at least 1, if
+                ``periods_per_year`` is not finite and at least 1, or if
+                ``vol_threshold``/``return_threshold`` is not finite.
 
         """
+        if isinstance(window, bool) or not isinstance(window, int) or window < 1:
+            raise ValueError(
+                f"invalid window: the value must be an integer of at least 1 " f"(got {window})"
+            )
+        if (
+            isinstance(periods_per_year, bool)
+            or not isinstance(periods_per_year, (int, float))
+            or not math.isfinite(periods_per_year)
+            or periods_per_year < 1
+        ):
+            raise ValueError(
+                f"invalid periods_per_year: the value must be at least 1 and "
+                f"finite (got {periods_per_year})"
+            )
+        if (
+            isinstance(vol_threshold, bool)
+            or not isinstance(vol_threshold, (int, float))
+            or not math.isfinite(vol_threshold)
+        ):
+            raise ValueError(
+                f"invalid vol_threshold: the value must be finite " f"(got {vol_threshold})"
+            )
+        if (
+            isinstance(return_threshold, bool)
+            or not isinstance(return_threshold, (int, float))
+            or not math.isfinite(return_threshold)
+        ):
+            raise ValueError(
+                f"invalid return_threshold: the value must be finite " f"(got {return_threshold})"
+            )
+
         self.window = window
         self.vol_threshold = vol_threshold
         self.return_threshold = return_threshold
