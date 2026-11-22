@@ -874,6 +874,48 @@ None.
 
 None assigned from the current campaign. The hardening/validation chains are
 complete and the suite is green; future work requires a new defect report or
-feature request (e.g. a previously unreported numeric edge case). A bounded
-maintenance task for a future session: re-run the full suite in CI on any
-change to confirm no regressions.
+feature request (e.g. a previously unreported numeric edge case).
+
+---
+
+## Session 2026-11-22 (this session)
+
+Verified the committed sensitivity-config hardening in commit a8797f9
+(`quant_trading/optimization/sensitivity.py` + `tests/test_sensitivity.py`), which
+was not yet reflected in the handoff. The change adds `__post_init__` construction
+validation (dpi >= 1 finite, non-empty colormap string, two-element positive
+integer figure_size) plus a `_finite` helper and `from_dict` sanitization, mirroring
+the framework's existing sanitize-to-default pattern.
+
+### What changed
+
+Nothing new in code. Commit a8797f9 is already committed with a clean working tree.
+This session only verified it.
+
+### What was verified
+
+- `pytest tests/test_sensitivity.py`: **31 passed, 11 skipped** (+ new
+  `test_sensitivity_config_rejects_invalid_dpi`, `test_sensitivity_config_accepts_valid_dpi`,
+  `test_sensitivity_config_rejects_invalid_colormap`, `test_sensitivity_config_accepts_valid_colormap`
+  cases).
+- `pytest --doctest-modules quant_trading/optimization/sensitivity.py`: **5 passed**.
+- `ruff check`, `black --check`, `mypy` on both changed files: **clean**.
+- `pytest tests/test_repository_integrity.py tests/test_sensitivity.py
+  tests/test_optimization.py tests/test_serialization_roundtrip.py
+  tests/test_backtest_engine.py`: **496 passed, 52 skipped**.
+
+### What remains unresolved
+
+- Nothing for this task.
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- **Re-run the full `pytest` suite (locally `python -m pytest -q` with the default
+  addopts `-m "not slow and not network"`, ~8-9 min; or in CI) to confirm no
+  regressions across all ~4600 active tests after the sensitivity hardening change.**
+  Focused tests and the repository-integrity guards are green; only the complete
+  run remains to certify the change.
