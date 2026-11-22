@@ -1,8 +1,59 @@
 """Formatting helpers for the trading system."""
 
+import math
+from typing import Any
+
+
+def _finite(value: Any, default: float = 0.0) -> float:
+    """Convert a value to a finite float, falling back to ``default``.
+
+    Non-numeric, non-finite (NaN/inf), and unconvertible values are replaced
+    with ``default`` so a corrupted value cannot crash or poison the formatters
+    with ``nan``/``inf`` output.
+
+    Args:
+        value: The value to sanitize.
+        default: The fallback value when ``value`` is not a finite number.
+
+    Returns:
+        A finite float.
+
+    Examples:
+        >>> _finite(1.5)
+        1.5
+        >>> _finite(float("nan"))
+        0.0
+        >>> _finite(float("inf"))
+        0.0
+        >>> _finite("not a number")
+        0.0
+        >>> _finite(None)
+        0.0
+        >>> _finite(True)
+        0.0
+        >>> _finite(False)
+        0.0
+        >>> _finite("3.14")
+        3.14
+    """
+    # Explicitly reject bool since bool is a subclass of int but we don't want
+    # True/False to be treated as 1.0/0.0
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)) and math.isfinite(value):
+        return float(value)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
+
 
 def format_currency(value: float, currency: str = "$", decimals: int = 2) -> str:
     """Format a number as a currency string.
+
+    Non-finite (NaN/inf) or non-numeric ``value`` inputs are sanitized to
+    ``0.0`` before formatting.
 
     Args:
         value: Numeric value to format.
@@ -12,12 +63,18 @@ def format_currency(value: float, currency: str = "$", decimals: int = 2) -> str
     Returns:
         Formatted currency string.
 
-    >>> format_currency(1234.5)
-    '$1,234.50'
-    >>> format_currency(-1000, decimals=0)
-    '-$1,000'
+    Examples:
+        >>> format_currency(1234.5)
+        '$1,234.50'
+        >>> format_currency(-1000, decimals=0)
+        '-$1,000'
+        >>> format_currency(float("nan"))
+        '$0.00'
+        >>> format_currency(float("inf"))
+        '$0.00'
 
     """
+    value = _finite(value)
     sign = "-" if value < 0 else ""
     formatted = f"{abs(value):,.{decimals}f}"
     return f"{sign}{currency}{formatted}"
@@ -26,6 +83,9 @@ def format_currency(value: float, currency: str = "$", decimals: int = 2) -> str
 def format_percent(value: float, decimals: int = 2) -> str:
     """Format a ratio (e.g. 0.05) as a percentage string.
 
+    Non-finite (NaN/inf) or non-numeric ``value`` inputs are sanitized to
+    ``0.0`` before formatting.
+
     Args:
         value: Ratio value to format.
         decimals: Number of decimal places.
@@ -33,17 +93,26 @@ def format_percent(value: float, decimals: int = 2) -> str:
     Returns:
         Formatted percentage string.
 
-    >>> format_percent(0.05)
-    '5.00%'
-    >>> format_percent(1.5, decimals=1)
-    '150.0%'
+    Examples:
+        >>> format_percent(0.05)
+        '5.00%'
+        >>> format_percent(1.5, decimals=1)
+        '150.0%'
+        >>> format_percent(float("nan"))
+        '0.00%'
+        >>> format_percent(float("-inf"))
+        '0.00%'
 
     """
+    value = _finite(value)
     return f"{value * 100:.{decimals}f}%"
 
 
 def format_number(value: float, decimals: int = 0) -> str:
     """Format a number with thousands separators.
+
+    Non-finite (NaN/inf) or non-numeric ``value`` inputs are sanitized to
+    ``0.0`` before formatting.
 
     Args:
         value: Numeric value to format.
@@ -52,12 +121,18 @@ def format_number(value: float, decimals: int = 0) -> str:
     Returns:
         Formatted number string.
 
-    >>> format_number(1234567)
-    '1,234,567'
-    >>> format_number(1234.5678, decimals=2)
-    '1,234.57'
+    Examples:
+        >>> format_number(1234567)
+        '1,234,567'
+        >>> format_number(1234.5678, decimals=2)
+        '1,234.57'
+        >>> format_number(float("inf"))
+        '0'
+        >>> format_number(float("nan"))
+        '0'
 
     """
+    value = _finite(value)
     return f"{value:,.{decimals}f}"
 
 
@@ -66,6 +141,9 @@ def format_basis_points(bps: float, decimals: int = 1) -> str:
 
     One basis point equals 0.01%, so 100 basis points = 1.00%.
 
+    Non-finite (NaN/inf) or non-numeric ``bps`` inputs are sanitized to ``0.0``
+    before formatting.
+
     Args:
         bps: Value in basis points.
         decimals: Number of decimal places for the percentage.
@@ -73,19 +151,28 @@ def format_basis_points(bps: float, decimals: int = 1) -> str:
     Returns:
         Formatted percentage string representing basis points.
 
-    >>> format_basis_points(100)
-    '1.0%'
-    >>> format_basis_points(25, decimals=2)
-    '0.25%'
-    >>> format_basis_points(150)
-    '1.5%'
+    Examples:
+        >>> format_basis_points(100)
+        '1.0%'
+        >>> format_basis_points(25, decimals=2)
+        '0.25%'
+        >>> format_basis_points(150)
+        '1.5%'
+        >>> format_basis_points(float("nan"))
+        '0.0%'
+        >>> format_basis_points(float("inf"))
+        '0.0%'
 
     """
+    bps = _finite(bps)
     return f"{bps / 10000 * 100:.{decimals}f}%"
 
 
 def format_shares(quantity: float, decimals: int = 0) -> str:
     """Format a share quantity with appropriate decimal places.
+
+    Non-finite (NaN/inf) or non-numeric ``quantity`` inputs are sanitized to
+    ``0.0`` before formatting.
 
     Args:
         quantity: Number of shares/units.
@@ -97,18 +184,24 @@ def format_shares(quantity: float, decimals: int = 0) -> str:
     Returns:
         Formatted share quantity string.
 
-    >>> format_shares(100)
-    '100'
-    >>> format_shares(10.5)
-    '10.5'
-    >>> format_shares(100, decimals=2)
-    '100.00'
-    >>> format_shares(1234567.5)
-    '1,234,567.5'
-    >>> format_shares(10000000.5)
-    '10,000,000.5'
+    Examples:
+        >>> format_shares(100)
+        '100'
+        >>> format_shares(10.5)
+        '10.5'
+        >>> format_shares(100, decimals=2)
+        '100.00'
+        >>> format_shares(1234567.5)
+        '1,234,567.5'
+        >>> format_shares(10000000.5)
+        '10,000,000.5'
+        >>> format_shares(float("nan"))
+        '0'
+        >>> format_shares(float("inf"))
+        '0'
 
     """
+    quantity = _finite(quantity)
     # Check if it's a whole number
     if abs(quantity - round(quantity)) < 1e-9:
         if decimals == 0:
@@ -129,24 +222,33 @@ def format_shares(quantity: float, decimals: int = 0) -> str:
 def format_duration_days(days: float) -> str:
     """Format a duration in days as a human-readable string.
 
+    Non-finite (NaN/inf) or non-numeric ``days`` inputs are sanitized to
+    ``0.0`` before formatting.
+
     Args:
         days: Number of days.
 
     Returns:
         Formatted duration string.
 
-    >>> format_duration_days(1)
-    '1 day'
-    >>> format_duration_days(7)
-    '1 week'
-    >>> format_duration_days(30)
-    '1 month'
-    >>> format_duration_days(365)
-    '1 year'
-    >>> format_duration_days(3)
-    '3 days'
+    Examples:
+        >>> format_duration_days(1)
+        '1 day'
+        >>> format_duration_days(7)
+        '1 week'
+        >>> format_duration_days(30)
+        '1 month'
+        >>> format_duration_days(365)
+        '1 year'
+        >>> format_duration_days(3)
+        '3 days'
+        >>> format_duration_days(float("nan"))
+        '0 days'
+        >>> format_duration_days(float("inf"))
+        '0 days'
 
     """
+    days = _finite(days)
     if days < 0:
         return f"-{format_duration_days(abs(days))}"
     if days == 0:

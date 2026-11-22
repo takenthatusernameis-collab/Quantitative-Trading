@@ -576,3 +576,75 @@ full suite was 4591 passed / 1 failed (the black guard).
   against non-finite (nan/inf) inputs, which currently raise
   (`round(nan)` / formatting), mirroring the sanitize-then-default pattern used
   elsewhere in the framework; add regression tests.
+
+---
+
+## Session 2026-11-22 (this session)
+
+Hardened the six user-surfaced format helpers in
+`quant_trading/utils/formatting.py` against non-finite (NaN/inf) and
+non-numeric inputs, mirroring the framework's `_finite` sanitize-to-default
+pattern (`quant_trading/risk/limits.py`). Before this change `format_shares(nan)`
+raised `ValueError`, `format_shares(inf)` raised `OverflowError`,
+`format_duration_days(nan|inf)` raised `ValueError`/`OverflowError`, and
+`format_currency`/`format_percent`/`format_number`/`format_basis_points`
+silently emitted `nan`/`inf` strings.
+
+### What changed
+
+**quant_trading/utils/formatting.py**
+- Added a module-local `_finite(value, default=0.0)` helper (identical semantics
+  to the risk-module helper: rejects bool, non-numeric, NaN/±inf and
+  unconvertible values; accepts finite int/float and numeric strings) with
+  doctests.
+- `format_currency`, `format_percent`, `format_number`, `format_basis_points`,
+  `format_shares`, `format_duration_days` now coerce their numeric input through
+  `_finite` before formatting, so bad values render as the 0.0 default
+  (`$0.00`, `0.00%`, `0`, `0.0%`, `0`, `0 days`) instead of crashing or leaking
+  `nan`/`inf`.
+- Docstring notes + doctests added for each formatter.
+
+**tests/test_utils.py**
+- Per-formatter `test_format_*_sanitizes_non_finite` (parametrized nan/inf/-inf).
+- `test_format_helpers_sanitize_non_numeric` (str / None -> default).
+- `test_format_helpers_reject_bool` (True/False -> default).
+- Added `import pytest`, `from collections.abc import Callable`, and a
+  `_SANITIZED_FORMATTERS` table.
+
+### Root cause / evidence (reproduced before the fix)
+- `format_shares(float("nan"))` -> `ValueError: cannot convert float NaN to integer`.
+- `format_shares(float("inf"))` -> `OverflowError: cannot convert float infinity to integer`.
+- `format_duration_days(float("nan"))` -> `ValueError`; `(float("inf"))` -> `OverflowError`.
+- `format_currency(float("nan"))` -> `'$nan'`; `format_percent(inf)` -> `'inf%'`;
+  `format_number(nan)` -> `'nan'`; `format_basis_points(inf)` -> `'inf%'`.
+
+### Verified
+- `pytest tests/test_utils.py --doctest-modules quant_trading/utils/formatting.py`:
+  **49 passed**.
+- `pytest tests/test_utils.py --doctest-modules quant_trading/utils/formatting.py
+  tests/test_repository_integrity.py`: **100 passed** (repo-wide
+  black/ruff/mypy/docstring guards green).
+- `ruff check`, `black --check`, `mypy` on both changed files: clean.
+- Full `python -m pytest -q` (default addopts `-m "not slow and not network"`):
+  **4613 passed, 151 deselected** in 532.81s (~8m53s) (was 4592; +21 = 20 new
+  test cases + 1 new `_finite` doctest item). No regressions.
+
+### What remains unresolved
+
+- Nothing for this task.
+
+### Approaches that failed
+
+- None. (Two self-fixed nits before final verify: ruff wanted `Callable` from
+  `collections.abc` rather than `typing`; black wanted a trailing newline.)
+
+### Next task
+
+- None strictly required; the hardening chain is complete and the suite is green.
+  Bounded candidate for a future session (unverified): `_format_metric` in
+  `quant_trading/backtest/report.py` renders NaN/±inf as `"N/A"` (see
+  `tests/test_backtest_report.py:1301`), whereas the utils formatters now render
+  the sanitized default (`"0"`/`"$0.00"`). If a single missing-value policy is
+  desired, decide whether the utils helpers should also emit `"N/A"` instead of
+  `0.0`; that would change the behavior added here and is intentionally NOT
+  done in this session.

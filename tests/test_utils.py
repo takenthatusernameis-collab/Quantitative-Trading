@@ -1,8 +1,11 @@
 """Tests for utility helpers."""
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from quant_trading.utils import (
     clear_loggers,
@@ -101,6 +104,63 @@ def test_format_shares_whole_with_decimals_and_negative() -> None:
 def test_format_duration_days_fractional_and_negative_fractional() -> None:
     assert format_duration_days(2.5) == "2.5 days"
     assert format_duration_days(-2.5) == "-2.5 days"
+
+
+# (formatter, expected output when the value is sanitized to 0.0)
+_SANITIZED_FORMATTERS: list[tuple[Callable[..., str], str]] = [
+    (format_currency, "$0.00"),
+    (format_percent, "0.00%"),
+    (format_number, "0"),
+    (format_basis_points, "0.0%"),
+    (format_shares, "0"),
+    (format_duration_days, "0 days"),
+]
+
+_NON_FINITE_VALUES = [float("nan"), float("inf"), float("-inf")]
+
+
+@pytest.mark.parametrize("value", _NON_FINITE_VALUES)
+def test_format_currency_sanitizes_non_finite(value: float) -> None:
+    assert format_currency(value) == "$0.00"
+
+
+@pytest.mark.parametrize("value", _NON_FINITE_VALUES)
+def test_format_percent_sanitizes_non_finite(value: float) -> None:
+    assert format_percent(value) == "0.00%"
+
+
+@pytest.mark.parametrize("value", _NON_FINITE_VALUES)
+def test_format_number_sanitizes_non_finite(value: float) -> None:
+    assert format_number(value) == "0"
+
+
+@pytest.mark.parametrize("value", _NON_FINITE_VALUES)
+def test_format_basis_points_sanitizes_non_finite(value: float) -> None:
+    assert format_basis_points(value) == "0.0%"
+
+
+@pytest.mark.parametrize("value", _NON_FINITE_VALUES)
+def test_format_shares_sanitizes_non_finite(value: float) -> None:
+    assert format_shares(value) == "0"
+
+
+@pytest.mark.parametrize("value", _NON_FINITE_VALUES)
+def test_format_duration_days_sanitizes_non_finite(value: float) -> None:
+    assert format_duration_days(value) == "0 days"
+
+
+def test_format_helpers_sanitize_non_numeric() -> None:
+    """Non-numeric / None inputs sanitize to the default instead of raising."""
+    for func, expected in _SANITIZED_FORMATTERS:
+        assert func("not a number") == expected
+        assert func(None) == expected
+
+
+def test_format_helpers_reject_bool() -> None:
+    """bool inputs are rejected (not treated as 1.0/0.0), mirroring ``_finite``."""
+    for func, expected in _SANITIZED_FORMATTERS:
+        assert func(True) == expected
+        assert func(False) == expected
 
 
 def test_setup_logger_console_only(tmp_path: Path) -> None:
