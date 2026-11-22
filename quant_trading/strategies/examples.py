@@ -4634,7 +4634,11 @@ class RateOfChangeStrategy(Strategy):
 
     def _calculate(self, df: pd.DataFrame) -> pd.Series:
         close = df["close"]
-        return (close - close.shift(self.period)) / close.shift(self.period) * 100.0
+        prev = close.shift(self.period)
+        roc = (close - prev) / prev * 100.0
+        roc = roc.replace([np.inf, -np.inf], np.nan)
+        from typing import cast
+        return cast(pd.Series, roc)
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         signals: list[Signal] = []
