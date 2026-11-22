@@ -672,11 +672,17 @@ def _build_metrics_table(result: BacktestResult, colors: dict[str, str]) -> str:
         ("Total Trades", _format_metric(getattr(metrics, "num_trades", None), "{:.0f}")),
         ("Avg Win", _format_metric(getattr(metrics, "avg_win", None), "${:,.2f}")),
         ("Avg Loss", _format_metric(getattr(metrics, "avg_loss", None), "${:,.2f}")),
-        ("Best Trade", _format_metric(getattr(metrics, "best_trade", None), "${:,.2f}")),
-        ("Worst Trade", _format_metric(getattr(metrics, "worst_trade", None), "${:,.2f}")),
+        ("Best Trade", _format_metric(getattr(metrics, "largest_win", None), "${:,.2f}")),
+        ("Worst Trade", _format_metric(getattr(metrics, "largest_loss", None), "${:,.2f}")),
         (
-            "Avg Trade Duration",
-            _format_metric(getattr(metrics, "avg_trade_duration", None), "{:.1f} bars"),
+            "Avg Holding Period",
+            # ``BacktestMetrics`` carries no duration field; the average holding
+            # period lives on the optional ``TradeAnalysis`` (``result.trade_analysis``),
+            # which ``getattr`` resolves to ``None`` (rendered as "N/A") when the
+            # run did not compute trade analysis.
+            _format_metric(
+                getattr(result.trade_analysis, "avg_holding_period", None), "{:.1f} days"
+            ),
         ),
         ("Total Costs", f"${result.total_costs:,.2f}"),
     ]
@@ -1654,15 +1660,20 @@ def _build_comparison_table(
         ("Avg Loss", lambda r: _format_metric(getattr(r.metrics, "avg_loss", None), "${:,.2f}")),
         (
             "Best Trade",
-            lambda r: _format_metric(getattr(r.metrics, "best_trade", None), "${:,.2f}"),
+            lambda r: _format_metric(getattr(r.metrics, "largest_win", None), "${:,.2f}"),
         ),
         (
             "Worst Trade",
-            lambda r: _format_metric(getattr(r.metrics, "worst_trade", None), "${:,.2f}"),
+            lambda r: _format_metric(getattr(r.metrics, "largest_loss", None), "${:,.2f}"),
         ),
         (
-            "Avg Trade Duration",
-            lambda r: _format_metric(getattr(r.metrics, "avg_trade_duration", None), "{:.1f} bars"),
+            "Avg Holding Period",
+            # ``BacktestMetrics`` has no duration field; read it from the
+            # optional ``TradeAnalysis`` (``getattr`` yields ``None`` -> "N/A"
+            # when the run did not compute trade analysis).
+            lambda r: _format_metric(
+                getattr(r.trade_analysis, "avg_holding_period", None), "{:.1f} days"
+            ),
         ),
         ("Total Costs", lambda r: f"${r.total_costs:,.2f}"),
     ]
