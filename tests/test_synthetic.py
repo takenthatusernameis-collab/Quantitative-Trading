@@ -136,13 +136,20 @@ def test_create_synthetic_data_accepts_valid_days() -> None:
 
 
 def test_create_synthetic_data_rejects_invalid_seed() -> None:
-    """Negative and non-integer seeds raise a clear ValueError."""
-    for seed in (-1, -5, 1.5, "42", True):
+    """Negative, non-integer, and out-of-range seeds raise a clear ValueError."""
+    for seed in (-1, -5, 1.5, "42", True, 2**32, 2**32 + 5, 10**10):
         try:
             create_synthetic_data(["AAPL"], days=5, seed=cast(int, seed))
         except ValueError:
             continue
         raise AssertionError(f"seed={seed!r} did not raise ValueError")
+
+
+def test_create_synthetic_data_accepts_valid_seed_boundary() -> None:
+    """Zero and the largest valid seed (2**32 - 1) construct without error."""
+    for seed in (0, 2**32 - 1):
+        data = create_synthetic_data(["AAPL"], days=5, seed=seed)
+        assert len(data["AAPL"]) == 5
 
 
 def test_create_synthetic_provider_rejects_invalid_days() -> None:

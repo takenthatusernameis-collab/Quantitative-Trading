@@ -56,7 +56,11 @@ def _validate_synthetic_days(days: int) -> None:
 
 
 def _validate_synthetic_seed(seed: int) -> None:
-    """Reject a negative or non-integer random seed.
+    """Reject a non-integer or out-of-range random seed.
+
+    The seed is passed straight through to ``numpy.random.seed``, which only
+    accepts values in ``[0, 2**32 - 1]``; anything larger crashes late inside
+    numpy instead of failing fast with a clear error.
 
     Args:
         seed: Random seed to validate.
@@ -65,17 +69,26 @@ def _validate_synthetic_seed(seed: int) -> None:
         None.
 
     Raises:
-        ValueError: When ``seed`` is not an integer or is negative.
+        ValueError: When ``seed`` is not an integer, is negative, or is above
+            ``2**32 - 1``.
 
     Examples:
         >>> _validate_synthetic_seed(42)
         >>> _validate_synthetic_seed(0)
         >>> _validate_synthetic_seed(None)
+        >>> _validate_synthetic_seed(2**32 - 1)
+        >>> _validate_synthetic_seed(2**32)
+        Traceback (most recent call last):
+          ...
+        ValueError: invalid seed: the value must be an integer between 0 and 4294967295 (got 4294967296)
     """
+    MAX_SEED = 2**32 - 1
     if seed is None:
         return
-    if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
-        raise ValueError(f"invalid seed: the value must be a non-negative integer (got {seed})")
+    if isinstance(seed, bool) or not isinstance(seed, int) or not (0 <= seed <= MAX_SEED):
+        raise ValueError(
+            f"invalid seed: the value must be an integer between 0 and {MAX_SEED} (got {seed})"
+        )
 
 
 def create_synthetic_data(
