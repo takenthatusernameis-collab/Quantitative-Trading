@@ -530,12 +530,12 @@ class RiskManager:
             None.
 
         """
-        self.initial_capital = initial_capital
-        self.risk_free_rate = risk_free_rate
         if not math.isfinite(risk_free_rate):
             raise ValueError(
                 f"invalid risk_free_rate: the value must be finite " f"(got {risk_free_rate})"
             )
+        self.initial_capital = initial_capital
+        self.risk_free_rate = risk_free_rate
 
         # Validate the risk manager configuration before the limit objects are
         # built from these values, so invalid input raises here with a clear

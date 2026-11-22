@@ -950,3 +950,22 @@ full `pytest` suite. No regressions.
 - None assigned. The sensitivity-config hardening is certified and all tracked
   hardening/validation chains are complete and green. Future work requires a
   new defect report or feature request.
+
+---
+
+## Session 2026-11-22 (this session)
+
+Reordered `RiskManager.__init__` validation so `risk_free_rate` finiteness is
+checked before assignment to `self.risk_free_rate` (consistency with
+`MonteCarloSimulator` and `WalkForwardOptimizer`, which already validated
+before assignment).
+
+### Verified
+
+- pytest tests/test_risk_manager.py: 263 passed
+- mypy quant_trading/risk/manager.py: clean
+
+### Next task
+
+None assigned. Candidate: audit remaining `__init__` validators that assign
+before checking (if any) for consistency; or extend doctest coverage.
