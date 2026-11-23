@@ -4838,10 +4838,14 @@ class VolumeRateOfChangeStrategy(Strategy):
         """Validate strategy parameters.
 
         Raises:
-            ValueError: If ``period`` is non-positive.
+            ValueError: If ``period`` is not a positive finite number.
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda value: value > 0,
+            "the value must be positive",
+        )
 
     def _calculate_vroc(self, df: pd.DataFrame) -> pd.Series:
         """Calculate the Volume Rate of Change series.
