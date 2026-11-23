@@ -1458,3 +1458,16 @@ None.
 ### Next task
 
 None assigned. Future work requires a new defect report or feature request (e.g. the `strategies/examples.py` `__post_init__` migration, or a previously unreported numeric edge case).
+
+---
+
+## Session 2026-11-23 (this session)
+
+Migrated the remaining raw `period <= 0` validator in `RSIStrategy.validate_parameters` (`quant_trading/strategies/examples.py`) to `_validate_init_param`, so booleans, non-numeric values, non-finite values, zero, and negative periods now fail fast with `ValueError: invalid period: the value must be positive (got ...)`. Updated the dependent assertion in `tests/test_strategy_rsi.py`.
+
+### Verified
+- `pytest tests/test_strategy_rsi.py`: 7 passed.
+- `ruff check`, `black --check` on both changed files: clean.
+
+### Next task
+- Continue migrating the remaining raw `raise ValueError("... must be ...")` validators in `quant_trading/strategies/examples.py` (e.g. `fast_period`/`slow_period` at lines 160-164, `period` sites) to `_validate_init_param`, one strategy at a time, updating dependent test match strings.

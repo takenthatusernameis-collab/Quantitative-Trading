@@ -530,8 +530,12 @@ class RSIStrategy(Strategy):
                 ``(0, 100)``, or ``oversold`` is not less than ``overbought``.
 
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         _validate_init_param(
             self.oversold,
             "oversold",
