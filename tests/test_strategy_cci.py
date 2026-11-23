@@ -12,7 +12,7 @@ def _valid_cci() -> CCIStrategy:
 def test_validate_period_must_be_positive() -> None:
     s = _valid_cci()
     s.period = 0
-    with pytest.raises(ValueError, match="period must be positive"):
+    with pytest.raises(ValueError, match="invalid period: the value must be positive"):
         s.validate_parameters()
 
 

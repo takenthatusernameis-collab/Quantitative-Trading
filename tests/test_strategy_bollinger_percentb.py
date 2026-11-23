@@ -13,7 +13,7 @@ def _valid_pb() -> BollingerPercentBStrategy:
 def test_validate_period_must_be_positive() -> None:
     s = _valid_pb()
     s.period = 0
-    with pytest.raises(ValueError, match="period must be positive"):
+    with pytest.raises(ValueError, match="invalid period: the value must be positive"):
         s.validate_parameters()
 
 

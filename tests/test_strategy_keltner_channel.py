@@ -12,14 +12,14 @@ def _valid_kc() -> KeltnerChannelStrategy:
 def test_validate_ema_period_must_be_positive() -> None:
     s = _valid_kc()
     s.ema_period = 0
-    with pytest.raises(ValueError, match="ema_period must be positive"):
+    with pytest.raises(ValueError, match="invalid ema_period: the value must be positive"):
         s.validate_parameters()
 
 
 def test_validate_atr_period_must_be_positive() -> None:
     s = _valid_kc()
     s.atr_period = 0
-    with pytest.raises(ValueError, match="atr_period must be positive"):
+    with pytest.raises(ValueError, match="invalid atr_period: the value must be positive"):
         s.validate_parameters()
 
 

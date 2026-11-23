@@ -158,9 +158,9 @@ class TestAroonStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             AroonStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             AroonStrategy(period=-5)
 
     def test_generate_signals_insufficient_data(self) -> None:

@@ -972,9 +972,9 @@ class TestBollingerBandsStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid inputs."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             BollingerBandsStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             BollingerBandsStrategy(period=-20)
         with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
             BollingerBandsStrategy(std_dev=0)
@@ -1698,11 +1698,11 @@ class TestSuperTrendStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             SuperTrendStrategy(period=0)
         with pytest.raises(ValueError, match="invalid multiplier: the value must be positive"):
             SuperTrendStrategy(multiplier=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             SuperTrendStrategy(period=-1)
         with pytest.raises(ValueError, match="invalid multiplier: the value must be positive"):
             SuperTrendStrategy(multiplier=-1)
@@ -1919,15 +1919,15 @@ class TestKeltnerChannelStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation."""
-        with pytest.raises(ValueError, match="ema_period must be positive"):
+        with pytest.raises(ValueError, match="invalid ema_period: the value must be positive"):
             KeltnerChannelStrategy(ema_period=0)
-        with pytest.raises(ValueError, match="atr_period must be positive"):
+        with pytest.raises(ValueError, match="invalid atr_period: the value must be positive"):
             KeltnerChannelStrategy(atr_period=0)
         with pytest.raises(ValueError, match="invalid multiplier: the value must be positive"):
             KeltnerChannelStrategy(multiplier=0)
-        with pytest.raises(ValueError, match="ema_period must be positive"):
+        with pytest.raises(ValueError, match="invalid ema_period: the value must be positive"):
             KeltnerChannelStrategy(ema_period=-1)
-        with pytest.raises(ValueError, match="atr_period must be positive"):
+        with pytest.raises(ValueError, match="invalid atr_period: the value must be positive"):
             KeltnerChannelStrategy(atr_period=-1)
         with pytest.raises(ValueError, match="invalid multiplier: the value must be positive"):
             KeltnerChannelStrategy(multiplier=-1)
@@ -3246,9 +3246,9 @@ class TestMomentumStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises on invalid period or threshold."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             MomentumStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             MomentumStrategy(period=-1)
         with pytest.raises(ValueError, match="invalid threshold: the value must be non-negative"):
             MomentumStrategy(threshold=-0.01)
@@ -4776,7 +4776,7 @@ class TestBollingerPercentBStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid parameters."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             BollingerPercentBStrategy(period=0, std_dev=2.0)
         with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
             BollingerPercentBStrategy(period=20, std_dev=0.0)
@@ -5949,7 +5949,7 @@ class TestCCIStrategy:
         assert strategy.threshold == 100.0
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             CCIStrategy(period=0)
         with pytest.raises(ValueError, match="invalid threshold: the value must be positive"):
             CCIStrategy(threshold=0)
@@ -6043,7 +6043,7 @@ class TestAroonStrategy:
         assert strategy.period == 25
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             AroonStrategy(period=0)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -6549,7 +6549,7 @@ class TestChoppinessIndexStrategy:
         assert strategy.period == 14
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             ChoppinessIndexStrategy(period=0)
 
         with pytest.raises(ValueError, match="low_threshold must be less than high_threshold"):

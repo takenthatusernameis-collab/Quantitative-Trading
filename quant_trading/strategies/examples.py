@@ -792,8 +792,12 @@ class BollingerBandsStrategy(Strategy):
             ValueError: If ``period`` or ``std_dev`` is non-positive.
 
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         _validate_init_param(
             self.std_dev,
             "std_dev",
@@ -993,8 +997,12 @@ class BollingerPercentBStrategy(Strategy):
                 ``[0, 1]``.
 
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         _validate_init_param(
             self.std_dev,
             "std_dev",
@@ -1152,8 +1160,12 @@ class SuperTrendStrategy(Strategy):
             ValueError: If ``period`` or ``multiplier`` is non-positive.
 
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         _validate_init_param(
             self.multiplier,
             "multiplier",
@@ -1931,8 +1943,12 @@ class AroonStrategy(Strategy):
             ValueError: If any parameter is invalid.
 
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_aroon(self, high: pd.Series, low: pd.Series) -> tuple[pd.Series, pd.Series]:
         """Calculate Aroon Up and Aroon Down indicators.
@@ -2129,10 +2145,18 @@ class KeltnerChannelStrategy(Strategy):
             ValueError: If any parameter is invalid.
 
         """
-        if self.ema_period <= 0:
-            raise ValueError("ema_period must be positive")
-        if self.atr_period <= 0:
-            raise ValueError("atr_period must be positive")
+        _validate_init_param(
+            self.ema_period,
+            "ema_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.atr_period,
+            "atr_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         _validate_init_param(
             self.multiplier,
             "multiplier",
@@ -3293,8 +3317,12 @@ class MomentumStrategy(Strategy):
             ValueError: If period is non-positive or threshold is negative.
 
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         _validate_init_param(
             self.threshold,
             "threshold",
@@ -3830,8 +3858,12 @@ class CCIStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         _validate_init_param(
             self.threshold,
             "threshold",
@@ -7808,8 +7840,12 @@ class ChoppinessIndexStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         _validate_init_param(
             self.low_threshold,
             "low_threshold",
