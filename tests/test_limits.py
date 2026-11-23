@@ -825,6 +825,65 @@ class TestPortfolioLimitValidation:
         assert getattr(limit, field) == value
 
 
+class TestPositionLimitBoolAndNonNumericRejection:
+    """Tests that PositionLimit rejects bool and non-numeric constructor values."""
+
+    @pytest.mark.parametrize(
+        "field",
+        ["max_size", "max_value", "stop_loss_pct", "take_profit_pct"],
+    )
+    @pytest.mark.parametrize("value", [True, False, "0.1", None])
+    def test_rejects_bool_and_non_numeric_values(self, field: str, value: object) -> None:
+        with pytest.raises(ValueError, match=f"invalid {field}:"):
+            PositionLimit(**{field: value})  # type: ignore[arg-type]
+
+    def test_accepts_integer_and_float_values(self) -> None:
+        # Finite int/float inputs remain accepted; bool is not coerced to 1/0.
+        limit = PositionLimit(max_size=1, max_value=10000, stop_loss_pct=0, take_profit_pct=1)
+        assert limit.max_size == 1
+        assert limit.max_value == 10000
+        assert limit.stop_loss_pct == 0
+        assert limit.take_profit_pct == 1
+
+
+class TestPortfolioLimitBoolAndNonNumericRejection:
+    """Tests that PortfolioLimit rejects bool and non-numeric constructor values."""
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "max_positions",
+            "max_position_size",
+            "max_portfolio_risk",
+            "max_drawdown",
+            "max_leverage",
+            "stop_loss_pct",
+        ],
+    )
+    @pytest.mark.parametrize("value", [True, False, "20", None])
+    def test_rejects_bool_and_non_numeric_values(self, field: str, value: object) -> None:
+        with pytest.raises(ValueError, match=f"invalid {field}:"):
+            PortfolioLimit(**{field: value})  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize("value", [True, False, "5", None])
+    def test_rejects_bool_and_non_numeric_max_positions(self, value: object) -> None:
+        with pytest.raises(ValueError, match="invalid max_positions:"):
+            PortfolioLimit(max_positions=value)  # type: ignore[arg-type]
+
+    def test_accepts_integer_and_float_values(self) -> None:
+        # Finite int/float inputs remain accepted; bool is not coerced.
+        limit = PortfolioLimit(
+            max_positions=5,
+            max_position_size=0.5,
+            max_portfolio_risk=0.02,
+            max_drawdown=0.20,
+            max_leverage=1.0,
+            stop_loss_pct=0.05,
+        )
+        assert limit.max_positions == 5
+        assert limit.max_position_size == 0.5
+
+
 class TestPositionLimitSerialization:
     """Tests for PositionLimit.to_dict/from_dict branches."""
 

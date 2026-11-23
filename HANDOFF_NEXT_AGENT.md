@@ -1171,3 +1171,72 @@ and non-numeric strings raised an opaque `TypeError` instead of a clear
 - None assigned from the current campaign. The remaining `__post_init__`
   validators are a repo-wide refactor requiring a defect report; no bounded
   single defect remains in `settings.py`.
+
+---
+
+## Session 2026-11-23 (this session)
+
+Migrated the last remaining raw-`math.isfinite` `__post_init__` validators in
+`quant_trading/risk/limits.py` (`PositionLimit` and `PortfolioLimit`) to the
+established `_validate_init_param` pattern, closing the same defect class fixed
+for `DataConfig`, `RiskConfig`, `PortfolioConfig`, `RiskManager`,
+`ReportConfig`, `SensitivityConfig`, and `RegimeDetector` in earlier sessions:
+booleans were silently coerced (`True` -> `1`) and non-numeric strings raised an
+opaque `TypeError` instead of a clear `ValueError`.
+
+### What changed
+
+**quant_trading/risk/limits.py**
+- Added `_validate_init_param(value, name, predicate, message)` helper
+  (mirrors `quant_trading/config/settings.py:84`): rejects booleans,
+  non-numeric values, and non-finite numbers, then applies a range predicate,
+  raising `ValueError: invalid <name>: <message> (got <value>)`. Includes
+  doctests (valid call, `True` rejection, non-numeric string rejection).
+- `PositionLimit.__post_init__`: `max_size`, `max_value`, `stop_loss_pct`,
+  `take_profit_pct` now validated via `_validate_init_param` (finite only),
+  replacing raw `math.isfinite(self.x)` checks.
+- `PortfolioLimit.__post_init__`: `max_positions` validated finite and `>= 0`;
+  `max_position_size`, `max_portfolio_risk`, `max_drawdown`, `max_leverage`,
+  `stop_loss_pct` validated finite. Valid-input behavior unchanged; only invalid
+  input now fails fast with a clear `ValueError`.
+
+**tests/test_limits.py**
+- `TestPositionLimitBoolAndNonNumericRejection`: parametrized over
+  `max_size`/`max_value`/`stop_loss_pct`/`take_profit_pct` x
+  `True`/`False`/`"0.1"`/`None` -> `ValueError`; plus int/float still accepted.
+- `TestPortfolioLimitBoolAndNonNumericRejection`: parametrized over all six
+  fields x `True`/`False`/`"20"`/`None` -> `ValueError`; plus int/float still
+  accepted.
+
+### What was verified
+
+- `pytest tests/test_limits.py`: **253 passed** (was 198; + new parametrized
+  bool/non-numeric cases).
+- `pytest --doctest-modules quant_trading/risk/limits.py`: **12 passed**
+  (+ new `_validate_init_param` doctests).
+- Broader regression subset (`test_risk_manager, test_portfolio,
+  test_backtest_engine, test_config`): **719 passed** (no regressions in limit
+  consumers).
+- `ruff check`, `black --check`, `mypy quant_trading/risk/limits.py` and
+  `tests/test_limits.py`: **clean**.
+- `git status --short`: only `quant_trading/risk/limits.py` and
+  `tests/test_limits.py` modified.
+
+### What remains unresolved
+
+- The broader `__post_init__` raw-`math.isfinite` refactor remains in
+  `strategies/examples.py` (~20 strategy parameter validators). Left as a
+  repo-wide broader refactor requiring a defect report; fixing only a subset
+  would be inconsistent with prior guidance. All other modules
+  (`settings.py`, `risk/manager.py`, `backtest/report.py`,
+  `optimization/sensitivity.py`, `regime/detector.py`) are fully migrated.
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- None assigned. All tracked hardening/validation chains are complete and the
+  focused suites are green. Future work requires a new defect report or feature
+  request (e.g. the `strategies/examples.py` `__post_init__` migration).
