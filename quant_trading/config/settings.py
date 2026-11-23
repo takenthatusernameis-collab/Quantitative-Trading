@@ -81,6 +81,43 @@ def _finite(value: Any, default: float = 0.0) -> float:
     return result if math.isfinite(result) else default
 
 
+def _validate_init_param(value: Any, name: str, predicate: Any, message: str) -> None:
+    """Validate a numeric config parameter at construction time.
+
+    Rejects booleans, non-numeric values, and non-finite numbers, then applies
+    ``predicate``. Bool is rejected even though it is a subclass of int, so
+    ``True``/``False`` are never silently coerced to ``1``/``0``.
+
+    Args:
+        value: The raw parameter value.
+        name: Parameter name, used in the error message.
+        predicate: Callable accepting a number and returning ``True`` when valid.
+        message: Requirement fragment included in the error message.
+
+    Raises:
+        ValueError: When ``value`` is a boolean, non-numeric, non-finite, or
+            fails ``predicate``.
+
+    Examples:
+        >>> _validate_init_param(365, "synthetic_days", lambda v: v >= 1, "the value must be at least 1 and finite")
+        >>> _validate_init_param(True, "synthetic_days", lambda v: v >= 1, "the value must be at least 1 and finite")
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid synthetic_days: the value must be at least 1 and finite (got True)
+        >>> _validate_init_param("365", "synthetic_days", lambda v: v >= 1, "the value must be at least 1 and finite")
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid synthetic_days: the value must be at least 1 and finite (got 365)
+    """
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or not predicate(value)
+    ):
+        raise ValueError(f"invalid {name}: {message} (got {value})")
+
+
 @dataclass
 class DataConfig:
     """Configuration for market data retrieval and caching.
@@ -121,7 +158,9 @@ class DataConfig:
 
         Invalid values are rejected when a config is built (directly, from a
         dictionary, or from YAML) instead of silently propagating to the data
-        layer.
+        layer. Booleans and non-numeric values are rejected with a clear
+        ``ValueError`` instead of being silently coerced (``True`` -> ``1``)
+        or raising an opaque ``TypeError``.
         """
         if not self.provider:
             raise ValueError(
@@ -138,20 +177,19 @@ class DataConfig:
                 f"invalid default_period: the value must be a non-empty "
                 f"string (got {self.default_period!r})"
             )
-        if not math.isfinite(self.synthetic_days) or self.synthetic_days < 1:
-            raise ValueError(
-                f"invalid synthetic_days: the value must be at least 1 and finite "
-                f"(got {self.synthetic_days})"
-            )
-        if (
-            not math.isfinite(self.synthetic_seed)
-            or self.synthetic_seed < 0
-            or self.synthetic_seed > 2**32 - 1
-        ):
-            raise ValueError(
-                f"invalid synthetic_seed: the value must be between 0 and "
-                f"{2**32 - 1} (got {self.synthetic_seed})"
-            )
+        max_seed = 2**32 - 1
+        _validate_init_param(
+            self.synthetic_days,
+            "synthetic_days",
+            lambda v: v >= 1,
+            "the value must be at least 1 and finite",
+        )
+        _validate_init_param(
+            self.synthetic_seed,
+            "synthetic_seed",
+            lambda v: 0 <= v <= max_seed,
+            f"the value must be between 0 and {max_seed} and finite",
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the data configuration to a plain, JSON-safe dictionary.

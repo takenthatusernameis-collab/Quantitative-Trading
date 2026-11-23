@@ -1045,3 +1045,36 @@ Re-ran the full `pytest` suite to certify the current tree. No code changes.
 
 ### Next task
 - None assigned. All tracked hardening/validation chains complete and suite green. Future work requires a new defect report or feature request.
+
+---
+
+## Session 2026-11-23 (this session)
+
+Closed the bool/non-numeric validation gap in `DataConfig.__post_init__` (`quant_trading/config/settings.py`), the same defect class fixed in `RiskManager` earlier: `synthetic_days=True` was silently coerced to `1` and `synthetic_days="abc"` raised an opaque `TypeError` instead of a clear `ValueError`.
+
+### What changed
+
+**quant_trading/config/settings.py**
+- Added `_validate_init_param(value, name, predicate, message)` helper (mirrors `risk/manager.py:116`): rejects booleans, non-numeric values, and non-finite numbers, then applies a range predicate, raising `ValueError: invalid <name>: <message> (got <value>)`. Includes doctests.
+- `DataConfig.__post_init__` now validates `synthetic_days` (>= 1, finite) and `synthetic_seed` (in [0, 2^32-1], finite) via `_validate_init_param` instead of raw `math.isfinite`/`comparisons`. Valid-input behavior unchanged (int/float finite in-range still accepted; float seeds still accepted); only invalid input now fails fast with a clear `ValueError`.
+
+**tests/test_config.py**
+- `test_rejects_bool_and_non_numeric_synthetic_days` (`True`/`False`/`"365"`/`None`).
+- `test_rejects_bool_and_non_numeric_synthetic_seed` (`True`/`False`/`"42"`/`None`).
+
+### What was verified
+- Live repro: bool/str/None now raise clear `ValueError` for both fields; valid (`365`/`42`) and boundary (`1`/`0`) values still accepted; `DataConfig.from_dict({"synthetic_days": "x"})` raises `ValueError`, not `TypeError`.
+- `pytest tests/test_config.py`: **152 passed**.
+- `pytest --doctest-modules quant_trading/config/settings.py`: **19 passed**.
+- `pytest tests/test_repository_integrity.py`: **51 passed** (repo-wide ruff/black/mypy/docstring guards green).
+- Broad regression subset (`test_config, test_data_providers, test_backtest_engine, test_portfolio, test_optimization, test_monte_carlo, test_serialization_roundtrip`): **752 passed, 41 skipped**.
+- `ruff check`, `black --check`, `mypy` on both changed files: **clean**.
+
+### What remains unresolved
+- Nothing for this task. Other constructors across the repo still use raw `math.isfinite(self.x)` (accepting bool, raising `TypeError` on non-numeric strings); hardening those is a broader refactor, not a bounded single defect, and is left for a future session with a defect report.
+
+### Approaches that failed
+- None.
+
+### Next task
+- None assigned. All tracked hardening/validation chains complete and suite green. Future work requires a new defect report or feature request.

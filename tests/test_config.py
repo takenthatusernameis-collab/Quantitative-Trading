@@ -272,6 +272,16 @@ class TestDataConfig:
         with pytest.raises(ValueError, match="invalid synthetic_seed"):
             DataConfig(synthetic_seed=synthetic_seed)
 
+    @pytest.mark.parametrize("synthetic_days", [True, False, "365", None])
+    def test_rejects_bool_and_non_numeric_synthetic_days(self, synthetic_days: int) -> None:
+        with pytest.raises(ValueError, match="invalid synthetic_days"):
+            DataConfig(synthetic_days=synthetic_days)
+
+    @pytest.mark.parametrize("synthetic_seed", [True, False, "42", None])
+    def test_rejects_bool_and_non_numeric_synthetic_seed(self, synthetic_seed: int) -> None:
+        with pytest.raises(ValueError, match="invalid synthetic_seed"):
+            DataConfig(synthetic_seed=synthetic_seed)
+
     @pytest.mark.parametrize("synthetic_seed", [0, 42, 2**32 - 1])
     def test_accepts_valid_synthetic_seed(self, synthetic_seed: int) -> None:
         config = DataConfig(synthetic_seed=synthetic_seed)
