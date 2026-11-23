@@ -365,7 +365,7 @@ class TestStrategySetParameter:
 
         strategy = DonchianChannelStrategy(name="Test")
         assert strategy.parameters["exit_period"] is None
-        with pytest.raises(ValueError, match="exit_period must be positive"):
+        with pytest.raises(ValueError, match="invalid exit_period: the value must be positive"):
             strategy.set_parameter("exit_period", -5)
         assert strategy.parameters["exit_period"] is None
         assert strategy.exit_period == 20

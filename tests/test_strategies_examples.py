@@ -1,7 +1,7 @@
 """Tests for example trading strategies."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -1516,21 +1516,25 @@ class TestMACDStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
-        with pytest.raises(ValueError, match="fast_period must be positive"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             MACDStrategy(fast_period=0)
-        with pytest.raises(ValueError, match="fast_period must be positive"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             MACDStrategy(fast_period=-12)
-        with pytest.raises(ValueError, match="slow_period must be positive"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             MACDStrategy(slow_period=0)
-        with pytest.raises(ValueError, match="slow_period must be positive"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             MACDStrategy(slow_period=-26)
-        with pytest.raises(ValueError, match="signal_period must be positive"):
+        with pytest.raises(ValueError, match="invalid signal_period: the value must be positive"):
             MACDStrategy(signal_period=0)
-        with pytest.raises(ValueError, match="signal_period must be positive"):
+        with pytest.raises(ValueError, match="invalid signal_period: the value must be positive"):
             MACDStrategy(signal_period=-9)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        with pytest.raises(
+            ValueError, match="invalid fast_period: the value must be less than slow_period"
+        ):
             MACDStrategy(fast_period=26, slow_period=12)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        with pytest.raises(
+            ValueError, match="invalid fast_period: the value must be less than slow_period"
+        ):
             MACDStrategy(fast_period=12, slow_period=12)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -3078,28 +3082,32 @@ class TestEMACrossoverStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
-        with pytest.raises(ValueError, match="fast_period must be a positive integer"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             EMACrossover(fast_period=0)
-        with pytest.raises(ValueError, match="fast_period must be a positive integer"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             EMACrossover(fast_period=-5)
-        with pytest.raises(ValueError, match="slow_period must be a positive integer"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             EMACrossover(slow_period=0)
-        with pytest.raises(ValueError, match="slow_period must be a positive integer"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             EMACrossover(slow_period=-5)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        with pytest.raises(
+            ValueError, match="invalid fast_period: the value must be less than slow_period"
+        ):
             EMACrossover(fast_period=30, slow_period=10)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        with pytest.raises(
+            ValueError, match="invalid fast_period: the value must be less than slow_period"
+        ):
             EMACrossover(fast_period=10, slow_period=10)
 
     def test_validate_parameters_type_errors(self) -> None:
         """Test parameter validation raises for invalid types."""
-        with pytest.raises(ValueError, match="fast_period must be a positive integer"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             EMACrossover(fast_period=None)  # type: ignore
-        with pytest.raises(ValueError, match="fast_period must be a positive integer"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             EMACrossover(fast_period=5.5)  # type: ignore
-        with pytest.raises(ValueError, match="slow_period must be a positive integer"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             EMACrossover(slow_period=None)  # type: ignore
-        with pytest.raises(ValueError, match="slow_period must be a positive integer"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             EMACrossover(slow_period=26.5)  # type: ignore
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -4449,11 +4457,13 @@ class TestVolumeOscillatorStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
-        with pytest.raises(ValueError, match="fast_period must be positive"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             VolumeOscillatorStrategy(fast_period=0, slow_period=13)
-        with pytest.raises(ValueError, match="slow_period must be positive"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             VolumeOscillatorStrategy(fast_period=5, slow_period=0)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        with pytest.raises(
+            ValueError, match="invalid fast_period: the value must be less than slow_period"
+        ):
             VolumeOscillatorStrategy(fast_period=13, slow_period=13)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -4564,11 +4574,13 @@ class TestVolumePriceTrendStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
-        with pytest.raises(ValueError, match="fast_period must be positive"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             VolumePriceTrendStrategy(fast_period=0, slow_period=13)
-        with pytest.raises(ValueError, match="slow_period must be positive"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             VolumePriceTrendStrategy(fast_period=5, slow_period=0)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        with pytest.raises(
+            ValueError, match="invalid fast_period: the value must be less than slow_period"
+        ):
             VolumePriceTrendStrategy(fast_period=13, slow_period=13)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -4697,11 +4709,13 @@ class TestVolumeWeightedMovingAverageCrossover:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
-        with pytest.raises(ValueError, match="fast_period must be a positive integer"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             VolumeWeightedMovingAverageCrossover(fast_period=0, slow_period=10)
-        with pytest.raises(ValueError, match="slow_period must be a positive integer"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             VolumeWeightedMovingAverageCrossover(fast_period=5, slow_period=0)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        with pytest.raises(
+            ValueError, match="invalid fast_period: the value must be less than slow_period"
+        ):
             VolumeWeightedMovingAverageCrossover(fast_period=10, slow_period=10)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -4960,11 +4974,13 @@ class TestKlingerOscillatorStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
-        with pytest.raises(ValueError, match="fast_period must be positive"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             KlingerOscillatorStrategy(fast_period=0, slow_period=200)
-        with pytest.raises(ValueError, match="slow_period must be positive"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             KlingerOscillatorStrategy(fast_period=55, slow_period=0)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        with pytest.raises(
+            ValueError, match="invalid fast_period: the value must be less than slow_period"
+        ):
             KlingerOscillatorStrategy(fast_period=200, slow_period=200)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -5082,9 +5098,9 @@ class TestHullMovingAverageStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
-        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be at least 2"):
             HullMovingAverageStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be at least 2"):
+        with pytest.raises(ValueError, match="invalid period: the value must be at least 2"):
             HullMovingAverageStrategy(period=1)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -6198,13 +6214,13 @@ class TestStochRSIStrategy:
         assert strategy.rsi_period == 14
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="rsi_period must be positive"):
+        with pytest.raises(ValueError, match="invalid rsi_period: the value must be positive"):
             StochRSIStrategy(rsi_period=0)
-        with pytest.raises(ValueError, match="stoch_period must be positive"):
+        with pytest.raises(ValueError, match="invalid stoch_period: the value must be positive"):
             StochRSIStrategy(stoch_period=0)
-        with pytest.raises(ValueError, match="k_period must be positive"):
+        with pytest.raises(ValueError, match="invalid k_period: the value must be positive"):
             StochRSIStrategy(k_period=0)
-        with pytest.raises(ValueError, match="d_period must be positive"):
+        with pytest.raises(ValueError, match="invalid d_period: the value must be positive"):
             StochRSIStrategy(d_period=0)
         with pytest.raises(
             ValueError, match="invalid oversold: the value must be between 0 and 100"
@@ -6238,7 +6254,9 @@ class TestStochRSIStrategy:
             ValueError, match="invalid overbought: the value must be between 0 and 100"
         ):
             StochRSIStrategy(overbought=100)
-        with pytest.raises(ValueError, match="oversold must be less than overbought"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be less than overbought"
+        ):
             StochRSIStrategy(oversold=50, overbought=40)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -6436,21 +6454,25 @@ class TestPercentagePriceOscillatorStrategy:
         fast slower than slow), so every branch is covered here even though
         the constructor invokes validate_parameters directly.
         """
-        with pytest.raises(ValueError, match="fast_period must be positive"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             PercentagePriceOscillatorStrategy(fast_period=0)
-        with pytest.raises(ValueError, match="fast_period must be positive"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             PercentagePriceOscillatorStrategy(fast_period=-12)
-        with pytest.raises(ValueError, match="slow_period must be positive"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             PercentagePriceOscillatorStrategy(slow_period=0)
-        with pytest.raises(ValueError, match="slow_period must be positive"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             PercentagePriceOscillatorStrategy(slow_period=-26)
-        with pytest.raises(ValueError, match="signal_period must be positive"):
+        with pytest.raises(ValueError, match="invalid signal_period: the value must be positive"):
             PercentagePriceOscillatorStrategy(signal_period=0)
-        with pytest.raises(ValueError, match="signal_period must be positive"):
+        with pytest.raises(ValueError, match="invalid signal_period: the value must be positive"):
             PercentagePriceOscillatorStrategy(signal_period=-9)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        with pytest.raises(
+            ValueError, match="invalid fast_period: the value must be less than slow_period"
+        ):
             PercentagePriceOscillatorStrategy(fast_period=26, slow_period=12)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        with pytest.raises(
+            ValueError, match="invalid fast_period: the value must be less than slow_period"
+        ):
             PercentagePriceOscillatorStrategy(fast_period=12, slow_period=12)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -6708,7 +6730,7 @@ class TestAccumulationDistributionStrategy:
         assert strategy.signal_period == 21
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="signal_period must be positive"):
+        with pytest.raises(ValueError, match="invalid signal_period: the value must be positive"):
             AccumulationDistributionStrategy(signal_period=0)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -6905,11 +6927,13 @@ class TestAwesomeOscillatorStrategy:
         assert strategy.long_period == 34
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="short_period must be positive"):
+        with pytest.raises(ValueError, match="invalid short_period: the value must be positive"):
             AwesomeOscillatorStrategy(short_period=0)
-        with pytest.raises(ValueError, match="long_period must be positive"):
+        with pytest.raises(ValueError, match="invalid long_period: the value must be positive"):
             AwesomeOscillatorStrategy(long_period=0)
-        with pytest.raises(ValueError, match="short_period must be less than long_period"):
+        with pytest.raises(
+            ValueError, match="invalid short_period: the value must be less than long_period"
+        ):
             AwesomeOscillatorStrategy(short_period=10, long_period=5)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -7001,11 +7025,13 @@ class TestChaikinOscillatorStrategy:
         assert strategy.slow_period == 10
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="fast_period must be positive"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             ChaikinOscillatorStrategy(fast_period=0)
-        with pytest.raises(ValueError, match="slow_period must be positive"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             ChaikinOscillatorStrategy(slow_period=0)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        with pytest.raises(
+            ValueError, match="invalid fast_period: the value must be less than slow_period"
+        ):
             ChaikinOscillatorStrategy(fast_period=10, slow_period=5)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -7504,28 +7530,50 @@ class TestPercentageVolumeOscillatorStrategy:
         )
         assert strategy.name == "Test_PVO"
 
-    def test_validate_parameters(self) -> None:
-        """validate_parameters rejects every invalid period combination.
-
-        PVO shares the same validation contract as MACD/PPO (positive
-        periods, fast slower than slow), so every branch is covered here even
-        though the constructor invokes validate_parameters directly.
+    def test_validate_parameters_rejects_invalid_period(self) -> None:
+        """validate_parameters rejects bool, non-numeric, non-finite, zero, and
+        negative periods, mirroring the framework-wide validation contract.
         """
-        with pytest.raises(ValueError, match="fast_period must be positive"):
-            PercentageVolumeOscillatorStrategy(fast_period=0)
-        with pytest.raises(ValueError, match="fast_period must be positive"):
-            PercentageVolumeOscillatorStrategy(fast_period=-12)
-        with pytest.raises(ValueError, match="slow_period must be positive"):
-            PercentageVolumeOscillatorStrategy(slow_period=0)
-        with pytest.raises(ValueError, match="slow_period must be positive"):
-            PercentageVolumeOscillatorStrategy(slow_period=-26)
-        with pytest.raises(ValueError, match="signal_period must be positive"):
-            PercentageVolumeOscillatorStrategy(signal_period=0)
-        with pytest.raises(ValueError, match="signal_period must be positive"):
-            PercentageVolumeOscillatorStrategy(signal_period=-9)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        for period_name, bad_values in (
+            (
+                "fast_period",
+                (0, -1, True, False, "12", None, float("nan"), float("inf"), float("-inf")),
+            ),
+            (
+                "slow_period",
+                (0, -1, True, False, "26", None, float("nan"), float("inf"), float("-inf")),
+            ),
+            (
+                "signal_period",
+                (0, -1, True, False, "9", None, float("nan"), float("inf"), float("-inf")),
+            ),
+        ):
+            for bad in bad_values:
+                kwargs = cast(dict[str, Any], {period_name: bad})
+                with pytest.raises(
+                    ValueError,
+                    match=f"invalid {period_name}: the value must be positive",
+                ):
+                    PercentageVolumeOscillatorStrategy(**kwargs)
+
+    def test_validate_parameters_accepts_positive_period(self) -> None:
+        strategy = PercentageVolumeOscillatorStrategy(
+            fast_period=12, slow_period=26, signal_period=9, name="Test_PVO"
+        )
+        assert strategy.fast_period == 12
+        assert strategy.slow_period == 26
+        assert strategy.signal_period == 9
+
+    def test_validate_parameters_rejects_fast_not_less_than_slow(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match="invalid fast_period: the value must be less than slow_period",
+        ):
             PercentageVolumeOscillatorStrategy(fast_period=26, slow_period=12)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        with pytest.raises(
+            ValueError,
+            match="invalid fast_period: the value must be less than slow_period",
+        ):
             PercentageVolumeOscillatorStrategy(fast_period=12, slow_period=12)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -7955,9 +8003,9 @@ class TestKSTStrategy:
         assert strategy.parameters == {"signal_period": 9}
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="signal_period must be positive"):
+        with pytest.raises(ValueError, match="invalid signal_period: the value must be positive"):
             KSTStrategy(signal_period=0)
-        with pytest.raises(ValueError, match="signal_period must be positive"):
+        with pytest.raises(ValueError, match="invalid signal_period: the value must be positive"):
             KSTStrategy(signal_period=-5)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -8855,11 +8903,11 @@ class TestTrueStrengthIndexStrategy:
         }
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="long_period must be positive"):
+        with pytest.raises(ValueError, match="invalid long_period: the value must be positive"):
             TrueStrengthIndexStrategy(long_period=0)
-        with pytest.raises(ValueError, match="short_period must be positive"):
+        with pytest.raises(ValueError, match="invalid short_period: the value must be positive"):
             TrueStrengthIndexStrategy(short_period=-1)
-        with pytest.raises(ValueError, match="signal_period must be positive"):
+        with pytest.raises(ValueError, match="invalid signal_period: the value must be positive"):
             TrueStrengthIndexStrategy(signal_period=0)
 
     def test_generate_signals_insufficient_data(self) -> None:

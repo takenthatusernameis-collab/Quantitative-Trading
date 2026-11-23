@@ -1534,3 +1534,37 @@ The cross-parameter check (`fast_period >= slow_period`) now raises
   `EMACrossover` lines 2105-2107, `VolumeWeightedMovingAverageCrossover` lines
   1390-1396), updating dependent test match strings and rerunning the focused
   strategy + repository-integrity tests, then the full suite.
+
+---
+
+## Session 2026-11-23 (this session)
+
+Continued the strategy-validator migration in `quant_trading/strategies/examples.py` to the established `_validate_init_param` helper (framework-wide `invalid <name>: <message> (got <value>)` convention), completing the last raw single-parameter validators and their dependent test match strings.
+
+### What changed
+
+**quant_trading/strategies/examples.py**
+- `PercentageVolumeOscillatorStrategy.validate_parameters` (was raw `if x <= 0: raise ValueError("<name> must be positive")`): migrated to `_validate_init_param` for `fast_period`/`slow_period`/`signal_period`; cross-parameter check now `invalid fast_period: the value must be less than slow_period`.
+- `AccumulationDistributionStrategy.validate_parameters` (was raw `if self.signal_period <= 0: raise ValueError("signal_period must be positive")`): migrated to `_validate_init_param` for `signal_period`.
+
+**tests/test_strategies_examples.py**
+- `TestPercentageVolumeOscillatorStrategy.test_validate_parameters`: replaced with `test_validate_parameters_rejects_invalid_period` (parametrized bool/non-numeric/non-finite/zero/negative), `test_validate_parameters_accepts_positive_period`, `test_validate_parameters_rejects_fast_not_less_than_slow`, all using `invalid <name>: ...` match strings.
+- Updated stale match strings for already-migrated strategies (`TestMACDStrategy`, `TestEMACrossoverStrategy`, `TestVolumeOscillatorStrategy`, `TestVolumePriceTrendStrategy`, `TestVolumeWeightedMovingAverageCrossover`, `TestKlingerOscillatorStrategy`, `TestHullMovingAverageStrategy`, `TestStochRSIStrategy`, `TestPercentagePriceOscillatorStrategy`, `TestAwesomeOscillatorStrategy`, `TestChaikinOscillatorStrategy`, `TestKSTStrategy`, `TestTrueStrengthIndexStrategy`) from `<name> must be ...` to `invalid <name>: ...`.
+
+**tests/test_strategy_average_true_range.py** / **tests/test_strategy_base.py**
+- Updated stale match strings (`period`, `exit_period`) for strategies whose production was already migrated.
+
+### What was verified
+- `pytest tests/test_strategies_examples.py`: **663 passed**, 1 pre-existing failure (`TestEMACrossoverStrategy::test_validate_parameters_type_errors`: `fast_period=5.5`/`26.5` do not raise under `_validate_init_param`, which accepts finite floats — pre-existing on clean tree, not caused by this change).
+- `pytest tests/test_strategy_average_true_range.py tests/test_strategy_base.py`: **68 passed**.
+- `pytest tests/test_strategies_examples.py tests/test_strategy_registry_coverage.py tests/test_repository_integrity.py --doctest-modules quant_trading/strategies/examples.py`: **786 passed**, 1 pre-existing failure (same EMACrossover case).
+- `ruff check`, `black --check`, `mypy` on both changed files: **clean**.
+- Full `python -m pytest -q` (default addopts `-m "not slow and not network"`): **4925 passed, 151 deselected, 9 failed** — all 9 failures are **pre-existing on the clean tree** (verified via `git stash`): 8 bayesian/CLI environmental (`skopt`/`BayesianOptimizer` `KeyError: 'fast_period'` / `-inf != -inf` / `NoneType.__format__`) + the EMACrossover `5.5` design case. Zero regressions introduced by this change.
+
+### What remains unresolved
+- `TestEMACrossoverStrategy::test_validate_parameters_type_errors`: `fast_period=5.5`/`slow_period=26.5` expected to raise but `_validate_init_param` accepts finite floats. Requires a design decision on whether strategies should reject non-integer floats; out of scope here.
+- 8 bayesian-optimization / CLI format-string failures (`test_optimization.py`, `test_optional_extras_readme_commands.py`, `test_readme_cli_commands.py`, `quant_trading/optimization/bayesian.py` doctest): pre-existing/environmental, unrelated to this change.
+- All single-parameter raw validators in `examples.py` are now migrated; remaining `raise ValueError` sites are cross-parameter checks (RSI, StochRSI, Parabolic SAR, Choppiness) that intentionally keep `raise ValueError` but could be normalized to the `invalid <name>: ...` message convention.
+
+### Next task
+- Normalize the remaining cross-parameter `raise ValueError("<name> must be ...")` messages in `quant_trading/strategies/examples.py` (e.g. RSI line ~568 `oversold must be less than overbought`, StochRSI, Parabolic SAR `step must be less than or equal to max_step`, Choppiness `low_threshold must be less than high_threshold`) to the `invalid <name>: ...` convention and update the dependent test match strings, then rerun focused strategy tests and the full suite. (Or address the pre-existing bayesian/EMACrossover failures if prioritized.)

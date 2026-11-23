@@ -7044,14 +7044,34 @@ class PercentageVolumeOscillatorStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        if self.fast_period <= 0:
-            raise ValueError("fast_period must be positive")
-        if self.slow_period <= 0:
-            raise ValueError("slow_period must be positive")
-        if self.signal_period <= 0:
-            raise ValueError("signal_period must be positive")
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``fast_period``, ``slow_period``, or ``signal_period``
+                is non-positive, or if ``fast_period`` is not less than
+                ``slow_period``.
+
+        """
+        _validate_init_param(
+            self.fast_period,
+            "fast_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.slow_period,
+            "slow_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.signal_period,
+            "signal_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         if self.fast_period >= self.slow_period:
-            raise ValueError("fast_period must be less than slow_period")
+            raise ValueError("invalid fast_period: the value must be less than slow_period")
 
     def _ema(self, series: pd.Series, period: int) -> pd.Series:
         return series.ewm(span=period, adjust=False).mean()
@@ -7490,8 +7510,12 @@ class AccumulationDistributionStrategy(Strategy):
             ValueError: If ``signal_period`` is non-positive.
 
         """
-        if self.signal_period <= 0:
-            raise ValueError("signal_period must be positive")
+        _validate_init_param(
+            self.signal_period,
+            "signal_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_adl(self, df: pd.DataFrame) -> pd.Series:
         """Calculate the Accumulation/Distribution Line series."""
