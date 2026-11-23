@@ -1270,9 +1270,10 @@ def create_strategy(args: argparse.Namespace):
 
         try:
             return Strategy.from_config(strategy_config)
-        except (TypeError, AttributeError) as e:
+        except (TypeError, AttributeError, ValueError) as e:
             # A malformed file reaches the strategy constructor as a bad
-            # argument, which is a user error and not a defect in the library.
+            # argument or invalid parameter value, which is a user error and
+            # not a defect in the library.
             raise ValueError(f"invalid strategy config '{strategy_config_path}': {e}") from e
 
     # Map strategy keys to lists of (cli_arg, param_name) tuples for built-in strategies

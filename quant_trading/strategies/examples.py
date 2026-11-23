@@ -156,12 +156,20 @@ class MovingAverageCrossover(Strategy):
                 or if ``fast_period`` is not less than ``slow_period``.
 
         """
-        if self.fast_period <= 0:
-            raise ValueError("fast_period must be positive")
-        if self.slow_period <= 0:
-            raise ValueError("slow_period must be positive")
+        _validate_init_param(
+            self.fast_period,
+            "fast_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.slow_period,
+            "slow_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         if self.fast_period >= self.slow_period:
-            raise ValueError("fast_period must be less than slow_period")
+            raise ValueError("invalid fast_period: the value must be less than slow_period")
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         """Generate buy/sell signals from fast/slow MA crossovers.

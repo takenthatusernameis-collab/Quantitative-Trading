@@ -471,17 +471,21 @@ class TestMovingAverageCrossover:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
-        with pytest.raises(ValueError, match="fast_period must be positive"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             MovingAverageCrossover(fast_period=0)
-        with pytest.raises(ValueError, match="fast_period must be positive"):
+        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             MovingAverageCrossover(fast_period=-5)
-        with pytest.raises(ValueError, match="slow_period must be positive"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             MovingAverageCrossover(slow_period=0)
-        with pytest.raises(ValueError, match="slow_period must be positive"):
+        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             MovingAverageCrossover(slow_period=-5)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        with pytest.raises(
+            ValueError, match="invalid fast_period: the value must be less than slow_period"
+        ):
             MovingAverageCrossover(fast_period=30, slow_period=10)
-        with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        with pytest.raises(
+            ValueError, match="invalid fast_period: the value must be less than slow_period"
+        ):
             MovingAverageCrossover(fast_period=10, slow_period=10)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -756,9 +760,9 @@ class TestRSIStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid bounds."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             RSIStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             RSIStrategy(period=-14)
         with pytest.raises(
             ValueError, match="invalid oversold: the value must be between 0 and 100"

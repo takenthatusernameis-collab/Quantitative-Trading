@@ -40,7 +40,7 @@ def test_validate_slow_period_must_be_positive() -> None:
     # directly after mutating the attribute to cover that defensive branch.
     s = MovingAverageCrossover(fast_period=3, slow_period=5)
     s.slow_period = 0
-    with pytest.raises(ValueError, match="slow_period must be positive"):
+    with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
         s.validate_parameters()
 
 

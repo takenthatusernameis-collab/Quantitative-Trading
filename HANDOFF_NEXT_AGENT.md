@@ -1471,3 +1471,66 @@ Migrated the remaining raw `period <= 0` validator in `RSIStrategy.validate_para
 
 ### Next task
 - Continue migrating the remaining raw `raise ValueError("... must be ...")` validators in `quant_trading/strategies/examples.py` (e.g. `fast_period`/`slow_period` at lines 160-164, `period` sites) to `_validate_init_param`, one strategy at a time, updating dependent test match strings.
+
+---
+
+## Session 2026-11-23 (this session)
+
+Completed the assigned follow-up: migrated `MovingAverageCrossover.validate_parameters`
+(`quant_trading/strategies/examples.py:151-164`) from raw `raise ValueError("... must be ...")`
+comparisons to the established `_validate_init_param` helper, so booleans,
+non-numeric values, non-finite values, zero, and negative periods now fail fast
+with `ValueError: invalid <name>: <message> (got <value>)` instead of being
+silently accepted (bool) or raising an opaque `TypeError` (non-numeric string).
+The cross-parameter check (`fast_period >= slow_period`) now raises
+`invalid fast_period: the value must be less than slow_period`.
+
+### What changed
+
+**quant_trading/strategies/examples.py**
+- `MovingAverageCrossover.validate_parameters`: `fast_period` and `slow_period`
+  validated via `_validate_init_param(..., "the value must be positive")`;
+  cross-parameter check uses the `invalid <name>: ...` message convention.
+
+**tests/test_strategies_examples.py**
+- `TestMovingAverageCrossover.test_validate_parameters`: match strings updated
+  to `invalid fast_period: ...` / `invalid slow_period: ...`.
+- `TestRSIStrategy.test_validate_parameters`: stale `period must be positive`
+  match updated to `invalid period: ...` (RSIStrategy was migrated in the prior
+  session but this duplicate test class was not).
+
+**examples/cli.py**
+- `load_strategy_config` (cli.py:1271): `except (TypeError, AttributeError)`
+  extended to `except (TypeError, AttributeError, ValueError)` so a bad
+  parameter value in a strategy config (e.g. `period: abc`, now a `ValueError`
+  from the hardened validator) is still reported pre-run as `invalid strategy
+  config` with exit 1 and no traceback, preserving the CLI error-reporting
+  contract.
+
+### What was verified
+
+- `pytest tests/test_strategy_ma.py tests/test_strategies_examples.py::TestMovingAverageCrossover`: **30 passed**.
+- `pytest tests/test_strategies_examples.py tests/test_strategy_ma.py tests/test_strategy_rsi.py tests/test_strategy_registry_coverage.py tests/test_repository_integrity.py`: **710 passed**.
+- `pytest tests/test_cli.py tests/test_strategy_ma.py`: **359 passed, 9 skipped**.
+- `ruff check`, `black --check`, `mypy quant_trading/strategies/examples.py`: **clean**.
+- Full `python -m pytest -q` (default addopts `-m "not slow and not network"`): **4785 passed, 117 skipped, 151 deselected, 0 failed** in ~3min. No regressions; working tree clean apart from this change.
+
+### What remains unresolved
+
+- The remaining raw validators in `quant_trading/strategies/examples.py` (~80
+  `raise ValueError("... must be ...")` sites across MACD, EMACrossover,
+  VolumeWeightedMovingAverageCrossover, and many others) are a repo-wide
+  migration; continue one strategy at a time per the next task below.
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- Continue migrating the remaining raw validators in
+  `quant_trading/strategies/examples.py` to `_validate_init_param`, one
+  strategy at a time (next candidates: `MACDStrategy` lines 370-383,
+  `EMACrossover` lines 2105-2107, `VolumeWeightedMovingAverageCrossover` lines
+  1390-1396), updating dependent test match strings and rerunning the focused
+  strategy + repository-integrity tests, then the full suite.
