@@ -26,6 +26,7 @@ from examples.cli import (
     create_config,
     create_strategy,
     init_config,
+    list_objectives,
     list_providers,
     list_strategies,
     main,
@@ -111,6 +112,11 @@ class TestParseArgs:
         with patch("sys.argv", ["cli.py", "--list-providers"]):
             args = parse_args()
         assert args.list_providers is True
+
+    def test_list_objectives_flag(self) -> None:
+        with patch("sys.argv", ["cli.py", "--list-objectives"]):
+            args = parse_args()
+        assert args.list_objectives is True
 
     def test_init_config_flag(self) -> None:
         with patch("sys.argv", ["cli.py", "--init-config", "config.yaml"]):
@@ -947,6 +953,23 @@ class TestListProviders:
         assert "YFinanceProvider" in captured.out
         assert "AlphaVantageProvider" in captured.out
         assert "SyntheticDataProvider" in captured.out
+
+    """Tests for list_objectives function."""
+
+    def test_list_objectives_output(self, capsys: CaptureFixture[Any]) -> None:
+        result = list_objectives()
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Available optimization objectives:" in captured.out
+        assert "sharpe:" in captured.out
+        assert "sortino:" in captured.out
+        assert "return:" in captured.out
+        assert "calmar:" in captured.out
+        assert "drawdown:" in captured.out
+        assert "profit_factor:" in captured.out
+        assert "win_rate:" in captured.out
+        assert "maximize_sharpe" in captured.out
+        assert "maximize_sortino" in captured.out
 
 
 class TestValidateConfig:
@@ -3057,6 +3080,15 @@ class TestMain:
             result = main()
         assert result == 0
         mock_list_providers.assert_called_once()
+
+    @patch("examples.cli.list_objectives")
+    def test_main_list_objectives(self, mock_list_objectives: MagicMock) -> None:
+        mock_list_objectives.return_value = 0
+        args = ["--list-objectives"]
+        with patch("sys.argv", ["cli.py"] + args):
+            result = main()
+        assert result == 0
+        mock_list_objectives.assert_called_once()
 
     @patch("examples.cli.init_config")
     def test_main_init_config(self, mock_init_config: MagicMock) -> None:

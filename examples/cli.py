@@ -319,6 +319,11 @@ def _create_parser() -> argparse.ArgumentParser:
         help="List available data providers and exit",
     )
     parser.add_argument(
+        "--list-objectives",
+        action="store_true",
+        help="List available optimization objectives and exit",
+    )
+    parser.add_argument(
         "--init-config",
         type=str,
         metavar="PATH",
@@ -1537,6 +1542,15 @@ def list_providers() -> int:
     return 0
 
 
+def list_objectives() -> int:
+    """Print available optimization objectives and exit."""
+    print("Available optimization objectives:")
+    for key, func in OBJECTIVES.items():
+        doc = (func.__doc__ or "").strip().split("\n")[0]
+        print(f"  {key}: {func.__name__} - {doc}")
+    return 0
+
+
 def init_config(path: str) -> int:
     """Generate a default config YAML file at the given path."""
     config = Config()
@@ -2507,6 +2521,8 @@ def _run_cli() -> int:
         return list_strategies()
     if args.list_providers:
         return list_providers()
+    if args.list_objectives:
+        return list_objectives()
     if args.init_config:
         return init_config(args.init_config)
     if getattr(args, "validate_config", None):
