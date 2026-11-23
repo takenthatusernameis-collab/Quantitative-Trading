@@ -565,7 +565,7 @@ class RSIStrategy(Strategy):
             "the value must be between 0 and 100",
         )
         if self.oversold >= self.overbought:
-            raise ValueError("oversold must be less than overbought")
+            raise ValueError("invalid oversold: the value must be less than overbought")
 
     def _calculate_rsi(self, close: pd.Series) -> pd.Series:
         """Calculate the Relative Strength Index for a price series.
@@ -1010,7 +1010,7 @@ class BollingerPercentBStrategy(Strategy):
             "the value must be positive",
         )
         if not (0.0 <= self.oversold < self.overbought <= 1.0):
-            raise ValueError("oversold must be in [0, 1) and below overbought in (0, 1]")
+            raise ValueError("invalid oversold: the value must be in [0, 1) and below overbought in (0, 1]")
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         """Generate buy/sell signals from %B threshold crossovers.
@@ -2948,7 +2948,7 @@ class ParabolicSARStrategy(Strategy):
             "the value must be positive",
         )
         if self.step > self.max_step:
-            raise ValueError("step must be less than or equal to max_step")
+            raise ValueError("invalid step: the value must be less than or equal to max_step")
 
     def _calculate_sar(self, high: pd.Series, low: pd.Series) -> tuple[pd.Series, pd.Series]:
         """Calculate Parabolic SAR and trend.
