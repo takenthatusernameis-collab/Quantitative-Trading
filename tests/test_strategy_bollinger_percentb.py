@@ -45,7 +45,8 @@ def test_validate_oversold_must_be_in_range_and_below_overbought() -> None:
     s = _valid_pb()
     s.oversold = -0.1
     with pytest.raises(
-        ValueError, match="oversold must be in \\[0, 1\\) and below overbought in \\(0, 1\\]"
+        ValueError,
+        match="invalid oversold: the value must be in \\[0, 1\\) and below overbought in \\(0, 1\\]",
     ):
         s.validate_parameters()
 
@@ -54,7 +55,8 @@ def test_validate_overbought_must_be_in_range_and_above_oversold() -> None:
     s = _valid_pb()
     s.overbought = 1.5
     with pytest.raises(
-        ValueError, match="oversold must be in \\[0, 1\\) and below overbought in \\(0, 1\\]"
+        ValueError,
+        match="invalid oversold: the value must be in \\[0, 1\\) and below overbought in \\(0, 1\\]",
     ):
         s.validate_parameters()
 
@@ -64,7 +66,8 @@ def test_validate_oversold_must_be_less_than_overbought() -> None:
     s.oversold = 0.8
     s.overbought = 0.2
     with pytest.raises(
-        ValueError, match="oversold must be in \\[0, 1\\) and below overbought in \\(0, 1\\]"
+        ValueError,
+        match="invalid oversold: the value must be in \\[0, 1\\) and below overbought in \\(0, 1\\]",
     ):
         s.validate_parameters()
 

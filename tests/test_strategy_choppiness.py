@@ -68,7 +68,9 @@ def test_validate_low_threshold_must_be_less_than_high() -> None:
     s = _valid_chop()
     s.low_threshold = 70
     s.high_threshold = 61.8
-    with pytest.raises(ValueError, match="low_threshold must be less than high_threshold"):
+    with pytest.raises(
+        ValueError, match="invalid low_threshold: the value must be less than high_threshold"
+    ):
         s.validate_parameters()
 
 
@@ -97,7 +99,9 @@ def test_constructor_calls_validate() -> None:
     with pytest.raises(ValueError, match="invalid high_threshold: the value must be at most 100"):
         ChoppinessIndexStrategy(period=14, low_threshold=38.2, high_threshold=101)
 
-    with pytest.raises(ValueError, match="low_threshold must be less than high_threshold"):
+    with pytest.raises(
+        ValueError, match="invalid low_threshold: the value must be less than high_threshold"
+    ):
         ChoppinessIndexStrategy(period=14, low_threshold=70, high_threshold=61.8)
 
     # Valid construction should succeed

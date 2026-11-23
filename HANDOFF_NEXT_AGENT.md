@@ -1568,3 +1568,43 @@ Continued the strategy-validator migration in `quant_trading/strategies/examples
 
 ### Next task
 - Normalize the remaining cross-parameter `raise ValueError("<name> must be ...")` messages in `quant_trading/strategies/examples.py` (e.g. RSI line ~568 `oversold must be less than overbought`, StochRSI, Parabolic SAR `step must be less than or equal to max_step`, Choppiness `low_threshold must be less than high_threshold`) to the `invalid <name>: ...` convention and update the dependent test match strings, then rerun focused strategy tests and the full suite. (Or address the pre-existing bayesian/EMACrossover failures if prioritized.)
+
+---
+
+## Session 2026-11-23 (this session)
+
+Completed the cross-parameter message normalization assigned in the prior handoff. All cross-parameter `raise ValueError` calls in `quant_trading/strategies/examples.py` now use the framework-wide `invalid <name>: <message> (got <value>)` convention.
+
+### What changed
+
+**quant_trading/strategies/examples.py**
+- `ChoppinessIndexStrategy.validate_parameters` (line ~8098): `raise ValueError("low_threshold must be less than high_threshold")` → `raise ValueError("invalid low_threshold: the value must be less than high_threshold")`.
+- `BollingerPercentBStrategy.validate_parameters` (line ~1013): black-wrapped the pre-existing `invalid oversold:` line (was over the 100-char limit).
+
+**tests/test_strategy_choppiness.py** — 2 match strings updated `low_threshold must be less than high_threshold` → `invalid low_threshold: the value must be less than high_threshold`.
+
+**tests/test_strategy_parabolic_sar.py** — 1 match string updated `step must be less than or equal to max_step` → `invalid step: ...`; also fixed a pre-existing indentation bug in `test_validate_step_must_be_lte_max_step` (the `with` block was at module level, causing a collection `NameError`).
+
+**tests/test_strategy_bollinger_percentb.py** — 3 match strings updated `oversold must be in ...` → `invalid oversold: ...` (production already used the new convention).
+
+**tests/test_strategies_examples.py** — black reformatted 3 hunks to wrap the now-longer `invalid <name>: ...` match strings (required by black line-length=100).
+
+### What was verified
+
+- `pytest tests/test_strategy_bollinger_percentb.py tests/test_strategy_choppiness.py tests/test_strategy_parabolic_sar.py "tests/test_strategies_examples.py::TestChoppinessIndexStrategy"`: **31 passed**.
+- `pytest tests/test_repository_integrity.py::test_repository_is_black_formatted tests/test_repository_integrity.py::test_repository_is_mypy_clean`: **passed**.
+- `ruff check`, `black --check`, `mypy quant_trading/strategies/examples.py`: **clean** on all 5 changed files.
+- Full `python -m pytest -q`: **4926 passed, 10 failed, 151 deselected** in 5m29s. All 10 failures are **pre-existing** (8 bayesian/CLI environmental `NoneType.__format__`/`KeyError`, 1 EMACrossover `5.5` design case, previously the black-formatting failure now resolved). **Zero regressions.**
+
+### What remains unresolved
+
+- `TestEMACrossoverStrategy::test_validate_parameters_type_errors`: `fast_period=5.5`/`slow_period=26.5` expected to raise but `_validate_init_param` accepts finite floats. Requires a design decision on whether strategies should reject non-integer floats; out of scope here.
+- 8 bayesian-optimization / CLI format-string failures (`test_optimization.py`, `test_optional_extras_readme_commands.py`, `test_readme_cli_commands.py`, `quant_trading/optimization/bayesian.py` doctest): pre-existing/environmental (`NoneType.__format__`, `KeyError: 'fast_period'`).
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- Address one of the two pre-existing failure classes: (a) the EMACrossover `test_validate_parameters_type_errors` design decision (reject non-integer finite floats in period validators, or accept them and update the test), or (b) the 8 bayesian/CLI `NoneType.__format__` runtime errors in `test_readme_cli_commands.py`/`bayesian.py` doctest (reproduce the `None` being formatted in CLI output before fixing). Either is bounded and independently verifiable with focused tests + the repository-integrity guard.

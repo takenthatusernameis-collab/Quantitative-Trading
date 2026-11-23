@@ -804,9 +804,13 @@ class TestRSIStrategy:
             ValueError, match="invalid overbought: the value must be between 0 and 100"
         ):
             RSIStrategy(overbought=100)
-        with pytest.raises(ValueError, match="invalid oversold: the value must be less than overbought"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be less than overbought"
+        ):
             RSIStrategy(oversold=50, overbought=50)
-        with pytest.raises(ValueError, match="invalid oversold: the value must be less than overbought"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be less than overbought"
+        ):
             RSIStrategy(oversold=70, overbought=30)
 
     def test_generate_signals_overbought_rejection(self) -> None:
@@ -2707,7 +2711,9 @@ class TestParabolicSARStrategy:
             ParabolicSARStrategy(max_step=0)
         with pytest.raises(ValueError, match="invalid max_step: the value must be positive"):
             ParabolicSARStrategy(max_step=-0.01)
-        with pytest.raises(ValueError, match="invalid step: the value must be less than or equal to max_step"):
+        with pytest.raises(
+            ValueError, match="invalid step: the value must be less than or equal to max_step"
+        ):
             ParabolicSARStrategy(step=0.30, max_step=0.20)
         with pytest.raises(ValueError, match="invalid step: the value must be positive"):
             ParabolicSARStrategy(step=float("nan"))
@@ -6638,7 +6644,9 @@ class TestChoppinessIndexStrategy:
         with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             ChoppinessIndexStrategy(period=0)
 
-        with pytest.raises(ValueError, match="invalid low_threshold: the value must be less than high_threshold"):
+        with pytest.raises(
+            ValueError, match="invalid low_threshold: the value must be less than high_threshold"
+        ):
             ChoppinessIndexStrategy(period=14, low_threshold=60.0, high_threshold=50.0)
 
         with pytest.raises(

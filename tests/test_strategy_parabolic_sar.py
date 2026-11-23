@@ -61,8 +61,10 @@ def test_validate_step_must_be_lte_max_step() -> None:
     s = _valid_sar()
     s.step = 0.3
     s.max_step = 0.2
-with pytest.raises(ValueError, match="invalid step: the value must be less than or equal to max_step"):
-    s.validate_parameters()
+    with pytest.raises(
+        ValueError, match="invalid step: the value must be less than or equal to max_step"
+    ):
+        s.validate_parameters()
 
 
 def test_constructor_calls_validate() -> None:
@@ -85,7 +87,9 @@ def test_constructor_calls_validate() -> None:
     with pytest.raises(ValueError, match="invalid max_step: the value must be positive"):
         ParabolicSARStrategy(step=0.02, max_step=-0.1)
 
-    with pytest.raises(ValueError, match="step must be less than or equal to max_step"):
+    with pytest.raises(
+        ValueError, match="invalid step: the value must be less than or equal to max_step"
+    ):
         ParabolicSARStrategy(step=0.3, max_step=0.2)
 
     # Valid construction should succeed

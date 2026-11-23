@@ -1010,7 +1010,9 @@ class BollingerPercentBStrategy(Strategy):
             "the value must be positive",
         )
         if not (0.0 <= self.oversold < self.overbought <= 1.0):
-            raise ValueError("invalid oversold: the value must be in [0, 1) and below overbought in (0, 1]")
+            raise ValueError(
+                "invalid oversold: the value must be in [0, 1) and below overbought in (0, 1]"
+            )
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         """Generate buy/sell signals from %B threshold crossovers.
@@ -8093,7 +8095,7 @@ class ChoppinessIndexStrategy(Strategy):
             "the value must be at most 100",
         )
         if self.low_threshold >= self.high_threshold:
-            raise ValueError("low_threshold must be less than high_threshold")
+            raise ValueError("invalid low_threshold: the value must be less than high_threshold")
 
     def _calculate_choppiness_index(self, df: pd.DataFrame) -> pd.Series:
         """Calculate Choppiness Index."""
