@@ -59,6 +59,14 @@ try:
 except (ImportError, AttributeError):
     __version__ = "0.1.0"
 
+
+def _fmt(val: float | None, fmt: str) -> str:
+    """Format a value with a format specifier, handling None as N/A."""
+    if val is None:
+        return "N/A".rjust(len(fmt) + 2)
+    return f"{val:{fmt}}"
+
+
 # Built-in strategy keys for argparse choices (preserves existing behavior)
 BUILTIN_STRATEGY_KEYS = [
     "ma",
@@ -2089,7 +2097,7 @@ def run_optimization(
     for i, r in enumerate(result.get_top_n(10)):
         params_str = str(r["params"])[:48]
         print(
-            f"{i+1:<5} {params_str:<50} {r['score']:>10.4f} {r['total_return_pct']:>10.2f} {r['sharpe_ratio']:>8.4f} {r['max_drawdown_pct']:>10.2f}"
+            f"{i+1:<5} {params_str:<50} {_fmt(r['score'], '>10.4f')} {_fmt(r['total_return_pct'], '>10.2f')} {_fmt(r['sharpe_ratio'], '>8.4f')} {_fmt(r['max_drawdown_pct'], '>10.2f')}"
         )
 
     if args.output:
@@ -2220,10 +2228,11 @@ def run_walk_forward(
             f"{'Window':<7} {'Train Return%':>14} {'Train Sharpe':>13} {'Test Return%':>13} {'Test Sharpe':>12} {'Test MaxDD%':>13}"
         )
         print(f"{'-' * 75}")
+
         for _, row in df.iterrows():
             print(
-                f"{int(row['window']):<7} {row['train_return_pct']:>14.2f} {row['train_sharpe']:>13.4f} "
-                f"{row['test_return_pct']:>13.2f} {row['test_sharpe']:>12.4f} {row['test_max_dd']:>13.2f}"
+                f"{int(row['window']):<7} {_fmt(row['train_return_pct'], '>14.2f')} {_fmt(row['train_sharpe'], '>13.4f')} "
+                f"{_fmt(row['test_return_pct'], '>13.2f')} {_fmt(row['test_sharpe'], '>12.4f')} {_fmt(row['test_max_dd'], '>13.2f')}"
             )
 
     summary = result.summary()
