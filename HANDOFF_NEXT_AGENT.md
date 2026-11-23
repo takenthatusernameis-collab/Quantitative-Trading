@@ -1307,3 +1307,67 @@ full suite is green.
 
 - None assigned. All tracked hardening/validation chains are complete and the
   suite is green. Future work requires a new defect report or feature request.
+
+---
+
+## Session 2026-11-23 (this session)
+
+Closed a concrete parameter-validation gap in `RateOfChangeStrategy`
+(`quant_trading/strategies/examples.py`). The strategy accepted `period=True`
+and non-finite periods (`NaN`/`inf`), while strings and `None` failed with an
+opaque `TypeError` from the raw `self.period <= 0` comparison.
+
+### What changed
+
+- `RateOfChangeStrategy.validate_parameters` now uses the established
+  `_validate_init_param` helper with a positive-value predicate. Booleans,
+  non-numeric values, non-finite values, zero, and negative periods now fail
+  fast with `ValueError: invalid period: the value must be positive (got ...)`.
+  Valid-input behavior is unchanged.
+- `tests/test_strategies_examples.py`: replaced the single zero-period check
+  with parametrized rejection cases for zero, negative, bool, string, `None`,
+  `NaN`, and both infinities, plus a positive-period acceptance check.
+
+### What was verified
+
+- Live reproduction before the change: `RateOfChangeStrategy(period=True)` and
+  `period=nan`/`inf` were accepted; `"12"` and `None` raised `TypeError`.
+- `pytest tests/test_strategies_examples.py::TestRateOfChangeStrategy -q`:
+  **18 passed**.
+- `pytest --doctest-modules quant_trading/strategies/examples.py -q`:
+  **59 passed**.
+- `pytest tests/test_strategies_examples.py
+  tests/test_strategy_registry_coverage.py tests/test_repository_integrity.py -q`:
+  **685 passed**.
+- `ruff check`, `black --check`, and `mypy` on both changed files: **clean**.
+- Full `python -m pytest -q` (default addopts `-m "not slow and not network"`):
+  **4776 passed, 117 skipped, 151 deselected, 0 failed** in 176.97s.
+- `git diff --check`: clean.
+
+### What remains unresolved
+
+- The earlier zero-price ROC concern is already resolved in the current tree:
+  `_calculate` replaces positive/negative infinity with `NaN`, and
+  `generate_signals` skips a zero current price. A live zero-price probe
+  returned only `NaN` ROC values and no signal, so no additional production
+  change was made there.
+- The same raw-period validation defect remains in adjacent
+  `VolumeRateOfChangeStrategy` (`examples.py:4837-4844`) and other strategy
+  classes; this session intentionally kept the production change scoped to the
+  reproduced ROC defect.
+
+### Approaches that failed
+
+- None. The prior handoff's suggested `format_shares` scientific-notation and
+  ROC zero-price candidates were inspected and found already fixed; they were
+  not repeated.
+
+### Next task
+
+- Apply the same `_validate_init_param` migration to
+  `VolumeRateOfChangeStrategy.validate_parameters` (`examples.py:4837`) and
+  update `tests/test_strategies_examples.py::TestVolumeRateOfChangeStrategy`
+  with bool/non-numeric/non-finite rejection and positive-period acceptance
+  cases. This is a small, independently verifiable follow-up; preserve the
+  current error-message convention and rerun the focused strategy and
+  repository-integrity tests.

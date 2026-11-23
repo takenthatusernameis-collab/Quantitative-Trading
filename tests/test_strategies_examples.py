@@ -7199,9 +7199,17 @@ class TestRateOfChangeStrategy:
         assert strategy.name == "Test_ROC"
         assert strategy.period == 12
 
-    def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="period must be positive"):
-            RateOfChangeStrategy(period=0)
+    @pytest.mark.parametrize(
+        "period",
+        [0, -1, True, False, "12", None, float("nan"), float("inf"), float("-inf")],
+    )
+    def test_validate_parameters_rejects_invalid_period(self, period: Any) -> None:
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
+            RateOfChangeStrategy(period=period)
+
+    def test_validate_parameters_accepts_positive_period(self) -> None:
+        strategy = RateOfChangeStrategy(period=1)
+        assert strategy.period == 1
 
     def test_generate_signals_insufficient_data(self) -> None:
         strategy = RateOfChangeStrategy(period=12)

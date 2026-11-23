@@ -4726,8 +4726,12 @@ class RateOfChangeStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda value: value > 0,
+            "the value must be positive",
+        )
 
     def _calculate(self, df: pd.DataFrame) -> pd.Series:
         close = df["close"]
