@@ -1371,3 +1371,60 @@ opaque `TypeError` from the raw `self.period <= 0` comparison.
   cases. This is a small, independently verifiable follow-up; preserve the
   current error-message convention and rerun the focused strategy and
   repository-integrity tests.
+
+---
+
+## Session 2026-11-23 (this session)
+
+Completed the assigned follow-up: the `VolumeRateOfChangeStrategy`
+`validate_parameters` production migration to `_validate_init_param`
+(`quant_trading/strategies/examples.py:4837-4848`) was already in place, so the
+remaining work was the dependent test assertions, which still used the old
+`<name> must be positive` match format.
+
+### What changed
+
+**tests/test_strategies_examples.py**
+- Replaced `TestVolumeRateOfChangeStrategy.test_validate_parameters` (two
+  `match="period must be positive"` cases for 0 and -5) with:
+  - `test_validate_parameters_rejects_invalid_period`: parametrized over
+    `0, -1, True, False, "12", None, float("nan"), float("inf"), float("-inf")`,
+    asserting `ValueError` matching
+    `invalid period: the value must be positive`.
+  - `test_validate_parameters_accepts_positive_period`: `period=1` accepted.
+- No production-code change; the `_validate_init_param` call at
+  `examples.py:4843` already rejects booleans, non-numeric, non-finite, and
+  non-positive values with the framework-wide message convention.
+
+### What was verified
+
+- `pytest tests/test_strategies_examples.py::TestVolumeRateOfChangeStrategy
+  --doctest-modules quant_trading/strategies/examples.py`: **77 passed**
+  (18 VROC tests + 59 examples doctests).
+- `pytest tests/test_strategies_examples.py
+  tests/test_strategy_registry_coverage.py tests/test_repository_integrity.py`:
+  **694 passed**.
+- `python -m ruff check`, `python -m black --check`, `python -m mypy` on
+  `tests/test_strategies_examples.py`: **clean**.
+- Full `python -m pytest -q` (default addopts `-m "not slow and not network"`):
+  **4785 passed, 117 skipped, 151 deselected, 0 failed** in 173.00s. No
+  regressions; working tree clean.
+
+### What remains unresolved
+
+Nothing for this task. The deserialization-hardening chain, CLI error-reporting
+audit, config/construction-time validation, synthetic-data validation,
+risk-metric validation, strategy-validation message-format fix, and VROC
+validation are all complete and verified.
+
+### Approaches that failed
+
+None.
+
+### Next task
+
+None assigned. All tracked hardening/validation chains are complete and the
+suite is green; future work requires a new defect report or feature request.
+(The remaining raw-`raise ValueError(...)` strategy validators in
+`quant_trading/strategies/examples.py` are a repo-wide broader refactor left
+per prior guidance; fixing only a subset would be inconsistent.)

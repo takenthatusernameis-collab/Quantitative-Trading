@@ -4140,12 +4140,17 @@ class TestVolumeRateOfChangeStrategy:
         assert strategy.period == 14
         assert strategy.parameters["period"] == 14
 
-    def test_validate_parameters(self) -> None:
-        """Test parameter validation raises for invalid periods."""
-        with pytest.raises(ValueError, match="period must be positive"):
-            VolumeRateOfChangeStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
-            VolumeRateOfChangeStrategy(period=-5)
+    @pytest.mark.parametrize(
+        "period",
+        [0, -1, True, False, "12", None, float("nan"), float("inf"), float("-inf")],
+    )
+    def test_validate_parameters_rejects_invalid_period(self, period: Any) -> None:
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
+            VolumeRateOfChangeStrategy(period=period)
+
+    def test_validate_parameters_accepts_positive_period(self) -> None:
+        strategy = VolumeRateOfChangeStrategy(period=1)
+        assert strategy.period == 1
 
     def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than period + 2."""
