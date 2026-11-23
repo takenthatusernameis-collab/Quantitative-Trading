@@ -33,13 +33,13 @@ class TestStochRSIStrategy:
         assert strategy.parameters["rsi_period"] == 10
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="rsi_period must be positive"):
+        with pytest.raises(ValueError, match="invalid rsi_period: the value must be positive"):
             StochRSIStrategy(rsi_period=0)
-        with pytest.raises(ValueError, match="stoch_period must be positive"):
+        with pytest.raises(ValueError, match="invalid stoch_period: the value must be positive"):
             StochRSIStrategy(stoch_period=0)
-        with pytest.raises(ValueError, match="k_period must be positive"):
+        with pytest.raises(ValueError, match="invalid k_period: the value must be positive"):
             StochRSIStrategy(k_period=0)
-        with pytest.raises(ValueError, match="d_period must be positive"):
+        with pytest.raises(ValueError, match="invalid d_period: the value must be positive"):
             StochRSIStrategy(d_period=0)
         with pytest.raises(
             ValueError, match="invalid oversold: the value must be between 0 and 100"
@@ -49,7 +49,7 @@ class TestStochRSIStrategy:
             ValueError, match="invalid overbought: the value must be between 0 and 100"
         ):
             StochRSIStrategy(overbought=100)
-        with pytest.raises(ValueError, match="oversold must be less than overbought"):
+        with pytest.raises(ValueError, match="invalid oversold: the value must be less than overbought"):
             StochRSIStrategy(oversold=50, overbought=40)
 
     def test_generate_signals_insufficient_data(self) -> None:

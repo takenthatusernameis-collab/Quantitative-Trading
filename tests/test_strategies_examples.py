@@ -2157,16 +2157,16 @@ class TestStochasticOscillatorStrategy:
 
     def test_validate_parameters_invalid_k_period(self) -> None:
         """Test parameter validation with invalid k_period."""
-        with pytest.raises(ValueError, match="k_period must be positive"):
+        with pytest.raises(ValueError, match="invalid k_period: the value must be positive"):
             StochasticOscillatorStrategy(k_period=0)
-        with pytest.raises(ValueError, match="k_period must be positive"):
+        with pytest.raises(ValueError, match="invalid k_period: the value must be positive"):
             StochasticOscillatorStrategy(k_period=-1)
 
     def test_validate_parameters_invalid_d_period(self) -> None:
         """Test parameter validation with invalid d_period."""
-        with pytest.raises(ValueError, match="d_period must be positive"):
+        with pytest.raises(ValueError, match="invalid d_period: the value must be positive"):
             StochasticOscillatorStrategy(d_period=0)
-        with pytest.raises(ValueError, match="d_period must be positive"):
+        with pytest.raises(ValueError, match="invalid d_period: the value must be positive"):
             StochasticOscillatorStrategy(d_period=-1)
 
     def test_validate_parameters_invalid_oversold(self) -> None:
@@ -2201,9 +2201,9 @@ class TestStochasticOscillatorStrategy:
 
     def test_validate_parameters_oversold_ge_overbought(self) -> None:
         """Test parameter validation when oversold >= overbought."""
-        with pytest.raises(ValueError, match="oversold must be less than overbought"):
+        with pytest.raises(ValueError, match="invalid oversold: the value must be less than overbought"):
             StochasticOscillatorStrategy(oversold=50, overbought=50)
-        with pytest.raises(ValueError, match="oversold must be less than overbought"):
+        with pytest.raises(ValueError, match="invalid oversold: the value must be less than overbought"):
             StochasticOscillatorStrategy(oversold=80, overbought=20)
 
     def create_stochastic_oversold_data(self, symbol: str) -> pd.DataFrame:
@@ -2554,11 +2554,11 @@ class TestIchimokuCloudStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises on non-positive periods."""
-        with pytest.raises(ValueError, match="tenkan_period must be positive"):
+        with pytest.raises(ValueError, match="invalid tenkan_period: the value must be positive"):
             IchimokuCloudStrategy(tenkan_period=0)
-        with pytest.raises(ValueError, match="kijun_period must be positive"):
+        with pytest.raises(ValueError, match="invalid kijun_period: the value must be positive"):
             IchimokuCloudStrategy(tenkan_period=9, kijun_period=0)
-        with pytest.raises(ValueError, match="senkou_b_period must be positive"):
+        with pytest.raises(ValueError, match="invalid senkou_b_period: the value must be positive"):
             IchimokuCloudStrategy(tenkan_period=9, kijun_period=26, senkou_b_period=0)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -3565,9 +3565,9 @@ class TestWilliamsRStrategy:
             ValueError, match="invalid oversold: the value must be between -100 and 0"
         ):
             WilliamsRStrategy(oversold=-100.0)
-        with pytest.raises(ValueError, match="oversold must be below overbought"):
+        with pytest.raises(ValueError, match="invalid oversold: the value must be below overbought"):
             WilliamsRStrategy(overbought=-50.0, oversold=-20.0)
-        with pytest.raises(ValueError, match="oversold must be below overbought"):
+        with pytest.raises(ValueError, match="invalid oversold: the value must be below overbought"):
             WilliamsRStrategy(overbought=-20.0, oversold=-20.0)
 
     def test_generate_signals_oversold_buy(self) -> None:
