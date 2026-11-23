@@ -1428,3 +1428,33 @@ suite is green; future work requires a new defect report or feature request.
 (The remaining raw-`raise ValueError(...)` strategy validators in
 `quant_trading/strategies/examples.py` are a repo-wide broader refactor left
 per prior guidance; fixing only a subset would be inconsistent.)
+
+---
+
+## Session 2026-11-23 (this session)
+
+No prior agent assignment pending; the previous session declared all tracked hardening/validation chains complete with a clean working tree.
+
+### What changed
+
+Nothing. No code change was required: every `from_dict` deserializer, every config `__post_init__`, every risk/backtest/monte-carlo/optimization constructor, and every public metric function is already hardened with fail-fast validation or sanitize-to-default (`_finite`/`_validate_init_param`). A sweep for remaining unguarded construction-time validators found none that accept untrusted input.
+
+### What was verified
+
+- `import quant_trading`: OK (core-only import invariant holds without the optional `matplotlib`/`skopt` extras).
+- `python -m pytest tests/test_repository_integrity.py tests/test_config.py tests/test_limits.py tests/test_strategies_examples.py -q`: **1114 passed** in ~11s (repo-wide ruff/black/mypy/docstring guards + config/limits/strategies hardening).
+- `git status --short`: clean (working tree clean at HEAD).
+- Spot-checked constructors/deserializers: `Signal.from_dict` (strategies/base.py:178), `ReportConfig.dpi` (backtest/report.py:105), `RegimeDetector.__init__` (regime/detector.py:428), `RiskConfig`/`PortfolioConfig` (config/settings.py) — all reject bool/non-numeric/non-finite with a clear `ValueError`.
+- `quant_trading/` contains no `TODO`/`FIXME`/`HACK` markers.
+
+### What remains unresolved
+
+No bounded defect remains in the validation-hardening domain; all tracked chains (deserialization hardening, CLI error-reporting audit, config/construction-time validation, synthetic-data validation, risk-metric validation, strategy-validation message-format, ROC/VROC validation, formatting hardening) are complete and verified. The only remaining item is the repo-wide `strategies/examples.py` `__post_init__` migration (~20 inline validators), intentionally deferred as a broader refactor because fixing only a subset would be inconsistent.
+
+### Approaches that failed
+
+None.
+
+### Next task
+
+None assigned. Future work requires a new defect report or feature request (e.g. the `strategies/examples.py` `__post_init__` migration, or a previously unreported numeric edge case).
