@@ -170,7 +170,7 @@ def test_setup_logger_console_only(tmp_path: Path) -> None:
         assert logger.level == logging.WARNING
         assert len(logger.handlers) == 1
     finally:
-        logging.getLogger(name).handlers.clear()
+        clear_loggers(name)
 
 
 def test_setup_logger_with_file(tmp_path: Path) -> None:
@@ -184,7 +184,7 @@ def test_setup_logger_with_file(tmp_path: Path) -> None:
         with open(log_file) as f:
             assert "hello world" in f.read()
     finally:
-        logging.getLogger(name).handlers.clear()
+        clear_loggers(name)
 
 
 def test_setup_logger_idempotent(tmp_path: Path) -> None:
@@ -197,13 +197,13 @@ def test_setup_logger_idempotent(tmp_path: Path) -> None:
         assert logger2 is logger
         assert len(logger.handlers) == handler_count
     finally:
-        logging.getLogger(name).handlers.clear()
+        clear_loggers(name)
 
 
 def test_get_logger_creates_or_returns_existing() -> None:
     """get_logger exercises both the no-handler and existing-handler arms (logging.py:44)."""
     name = "_test_utils_get_logger_both"
-    logging.getLogger(name).handlers.clear()
+    clear_loggers(name)
     fresh = get_logger(name)  # no handlers -> setup_logger invoked
     try:
         assert fresh.name == name
@@ -211,7 +211,7 @@ def test_get_logger_creates_or_returns_existing() -> None:
         again = get_logger(name)  # handlers present -> returns existing logger
         assert again is fresh
     finally:
-        logging.getLogger(name).handlers.clear()
+        clear_loggers(name)
 
 
 def test_format_shares_fractional_and_edge_cases() -> None:
@@ -257,7 +257,7 @@ def test_clear_loggers_named_and_root() -> None:
         clear_loggers()
         assert len(root.handlers) == 0
     finally:
-        root.handlers.clear()
+        clear_loggers()
 
 
 def test_clear_loggers_swallow_handler_close_error() -> None:
@@ -276,7 +276,7 @@ def test_clear_loggers_swallow_handler_close_error() -> None:
                 clear_loggers(name)
             assert len(logging.getLogger(name).handlers) == 0
         finally:
-            logging.getLogger(name).handlers.clear()
+            clear_loggers(name)
 
 
 if __name__ == "__main__":
