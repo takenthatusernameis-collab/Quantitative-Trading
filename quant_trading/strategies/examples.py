@@ -4146,8 +4146,12 @@ class OBVStrategy(Strategy):
             ValueError: If ``signal_period`` is non-positive.
 
         """
-        if self.signal_period <= 0:
-            raise ValueError("signal_period must be positive")
+        _validate_init_param(
+            self.signal_period,
+            "signal_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_obv(self, close: pd.Series, volume: pd.Series) -> pd.Series:
         """Calculate the On-Balance Volume series.
@@ -4316,8 +4320,12 @@ class ChaikinMoneyFlowStrategy(Strategy):
             ValueError: If ``period`` is non-positive.
 
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_cmf(self, df: pd.DataFrame) -> pd.Series:
         """Calculate the Chaikin Money Flow series.
@@ -4463,8 +4471,12 @@ class ForceIndexStrategy(Strategy):
         Raises:
             ValueError: If ``period`` is non-positive.
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_force_index(self, df: pd.DataFrame) -> pd.Series:
         """Calculate the smoothed Force Index series.
@@ -4606,8 +4618,12 @@ class MoneyFlowIndexStrategy(Strategy):
         Raises:
             ValueError: If ``period`` is non-positive.
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_mfi(self, df: pd.DataFrame) -> pd.Series:
         """Calculate the Money Flow Index series.
@@ -5084,12 +5100,16 @@ class ChandeMomentumOscillatorStrategy(Strategy):
 
     def validate_parameters(self) -> None:
         """Validate strategy parameters.
-
         Raises:
-            ValueError: If ``period`` is non-positive.
+                    ValueError: If ``period`` is non-positive.
+
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_cmo(self, df: pd.DataFrame) -> pd.Series:
         """Calculate the Chande Momentum Oscillator series.
@@ -5243,12 +5263,20 @@ class VolumeOscillatorStrategy(Strategy):
                 or if ``fast_period`` is not less than ``slow_period``.
 
         """
-        if self.fast_period <= 0:
-            raise ValueError("fast_period must be positive")
-        if self.slow_period <= 0:
-            raise ValueError("slow_period must be positive")
+        _validate_init_param(
+            self.fast_period,
+            "fast_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.slow_period,
+            "slow_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         if self.fast_period >= self.slow_period:
-            raise ValueError("fast_period must be less than slow_period")
+            raise ValueError("invalid fast_period: the value must be less than slow_period")
 
     def _calculate_vol(self, df: pd.DataFrame) -> pd.Series:
         """Calculate the Volume Oscillator series.
@@ -5404,12 +5432,20 @@ class VolumePriceTrendStrategy(Strategy):
                 or if ``fast_period`` is not less than ``slow_period``.
 
         """
-        if self.fast_period <= 0:
-            raise ValueError("fast_period must be positive")
-        if self.slow_period <= 0:
-            raise ValueError("slow_period must be positive")
+        _validate_init_param(
+            self.fast_period,
+            "fast_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.slow_period,
+            "slow_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         if self.fast_period >= self.slow_period:
-            raise ValueError("fast_period must be less than slow_period")
+            raise ValueError("invalid fast_period: the value must be less than slow_period")
 
     def _calculate_vpt(self, df: pd.DataFrame) -> pd.Series:
         """Calculate the Volume Price Trend series.
@@ -5613,12 +5649,20 @@ class KlingerOscillatorStrategy(Strategy):
                 or if ``fast_period`` is not less than ``slow_period``.
 
         """
-        if self.fast_period <= 0:
-            raise ValueError("fast_period must be positive")
-        if self.slow_period <= 0:
-            raise ValueError("slow_period must be positive")
+        _validate_init_param(
+            self.fast_period,
+            "fast_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.slow_period,
+            "slow_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         if self.fast_period >= self.slow_period:
-            raise ValueError("fast_period must be less than slow_period")
+            raise ValueError("invalid fast_period: the value must be less than slow_period")
 
     def _calculate_klinger(self, df: pd.DataFrame) -> tuple[pd.Series, pd.Series, pd.Series]:
         """Calculate the Volume Force, KO, and signal line series.
@@ -5816,10 +5860,12 @@ class HullMovingAverageStrategy(Strategy):
             ValueError: If ``period`` is less than 2.
 
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
-        if self.period < 2:
-            raise ValueError("period must be at least 2")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v >= 2,
+            "the value must be at least 2",
+        )
 
     def _wma(self, series: pd.Series, period: int) -> pd.Series:
         """Calculate a Weighted Moving Average.
@@ -5981,12 +6027,27 @@ class ChaikinOscillatorStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        if self.fast_period <= 0:
-            raise ValueError("fast_period must be positive")
-        if self.slow_period <= 0:
-            raise ValueError("slow_period must be positive")
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``fast_period`` or ``slow_period`` is non-positive,
+                or if ``fast_period`` is not less than ``slow_period``.
+
+        """
+        _validate_init_param(
+            self.fast_period,
+            "fast_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.slow_period,
+            "slow_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         if self.fast_period >= self.slow_period:
-            raise ValueError("fast_period must be less than slow_period")
+            raise ValueError("invalid fast_period: the value must be less than slow_period")
 
     def _calculate_adl(self, df: pd.DataFrame) -> pd.Series:
         high = df["high"]
@@ -6112,8 +6173,12 @@ class EaseOfMovementStrategy(Strategy):
             ValueError: If ``period`` is non-positive.
 
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_eom(self, df: pd.DataFrame) -> pd.Series:
         """Calculate the Ease of Movement series.
@@ -6239,12 +6304,27 @@ class AwesomeOscillatorStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        if self.short_period <= 0:
-            raise ValueError("short_period must be positive")
-        if self.long_period <= 0:
-            raise ValueError("long_period must be positive")
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``short_period`` or ``long_period`` is non-positive,
+                or if ``short_period`` is not less than ``long_period``.
+
+        """
+        _validate_init_param(
+            self.short_period,
+            "short_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.long_period,
+            "long_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         if self.short_period >= self.long_period:
-            raise ValueError("short_period must be less than long_period")
+            raise ValueError("invalid short_period: the value must be less than long_period")
 
     def _calculate_ao(self, df: pd.DataFrame) -> pd.Series:
         median_price = (df["high"] + df["low"]) / 2.0
@@ -6356,8 +6436,12 @@ class VortexStrategy(Strategy):
             ValueError: If ``period`` is non-positive.
 
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_vortex(self, df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
         """Calculate the Vortex Up (VIP+) and Vortex Down (VIP-) lines.
@@ -6507,8 +6591,18 @@ class TrixStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+
+        """
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_trix(self, df: pd.DataFrame) -> pd.Series:
         close = df["close"]
@@ -6605,10 +6699,35 @@ class UltimateOscillatorStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        if self.short_period <= 0 or self.medium_period <= 0 or self.long_period <= 0:
-            raise ValueError("periods must be positive")
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If any period is non-positive or ``fast_period`` is
+                not less than ``slow_period``.
+
+        """
+        _validate_init_param(
+            self.short_period,
+            "short_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.medium_period,
+            "medium_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.long_period,
+            "long_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         if not (self.short_period < self.medium_period < self.long_period):
-            raise ValueError("periods must be in increasing order: short < medium < long")
+            raise ValueError(
+                "invalid periods: the value must be in increasing order: " "short < medium < long"
+            )
 
     def _calculate_ultimate(self, df: pd.DataFrame) -> pd.Series:
         high = df["high"]
@@ -6729,14 +6848,33 @@ class PercentagePriceOscillatorStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        if self.fast_period <= 0:
-            raise ValueError("fast_period must be positive")
-        if self.slow_period <= 0:
-            raise ValueError("slow_period must be positive")
-        if self.signal_period <= 0:
-            raise ValueError("signal_period must be positive")
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If any period is non-positive or ``fast_period`` is
+                not less than ``slow_period``.
+
+        """
+        _validate_init_param(
+            self.fast_period,
+            "fast_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.slow_period,
+            "slow_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.signal_period,
+            "signal_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         if self.fast_period >= self.slow_period:
-            raise ValueError("fast_period must be less than slow_period")
+            raise ValueError("invalid fast_period: the value must be less than slow_period")
 
     def _ema(self, close: pd.Series, period: int) -> pd.Series:
         return close.ewm(span=period, adjust=False).mean()
@@ -7191,10 +7329,18 @@ class StochasticMomentumIndexStrategy(Strategy):
             ValueError: If ``k_period`` or ``signal_period`` is non-positive.
 
         """
-        if self.k_period <= 0:
-            raise ValueError("k_period must be positive")
-        if self.signal_period <= 0:
-            raise ValueError("signal_period must be positive")
+        _validate_init_param(
+            self.k_period,
+            "k_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.signal_period,
+            "signal_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_smi(self, df: pd.DataFrame) -> pd.Series:
         """Calculate the Stochastic Momentum Index series.
@@ -7474,8 +7620,18 @@ class NegativeVolumeIndexStrategy(Strategy):
         self.validate_parameters()
 
     def validate_parameters(self) -> None:
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        """Validate strategy parameters.
+
+        Raises:
+            ValueError: If ``period`` is non-positive.
+
+        """
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_nvi(self, df: pd.DataFrame) -> pd.Series:
         close = df["close"]
@@ -8073,8 +8229,12 @@ class MovingAverageEnvelopeStrategy(Strategy):
                 positive and finite.
 
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         _validate_init_param(
             self.percentage,
             "percentage",
@@ -8209,8 +8369,12 @@ class FisherTransformStrategy(Strategy):
             ValueError: If ``period`` is not positive.
 
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_fisher_transform(self, df: pd.DataFrame) -> pd.Series:
         """Calculate the Fisher Transform of the median price.
@@ -8377,8 +8541,12 @@ class KSTStrategy(Strategy):
             ValueError: If ``signal_period`` is not positive.
 
         """
-        if self.signal_period <= 0:
-            raise ValueError("signal_period must be positive")
+        _validate_init_param(
+            self.signal_period,
+            "signal_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_kst(self, df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
         """Calculate the KST line and its signal line.
@@ -8548,14 +8716,24 @@ class TrueStrengthIndexStrategy(Strategy):
             ValueError: If any period is not positive.
 
         """
-        periods = (
-            ("long_period", self.long_period),
-            ("short_period", self.short_period),
-            ("signal_period", self.signal_period),
+        _validate_init_param(
+            self.long_period,
+            "long_period",
+            lambda v: v > 0,
+            "the value must be positive",
         )
-        for label, value in periods:
-            if value <= 0:
-                raise ValueError(f"{label} must be positive")
+        _validate_init_param(
+            self.short_period,
+            "short_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.signal_period,
+            "signal_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _double_smooth(self, series: pd.Series) -> pd.Series:
         """Apply the fast-then-slow exponential smoothing used by the TSI.
@@ -8741,8 +8919,12 @@ class RelativeVigorIndexStrategy(Strategy):
             ValueError: If ``period`` is not positive.
 
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def _calculate_rvi(self, df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
         """Calculate the RVI line and its signal line.

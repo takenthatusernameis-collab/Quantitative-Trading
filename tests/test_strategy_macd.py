@@ -34,5 +34,7 @@ def test_validate_fast_period_must_be_less_than_slow_period() -> None:
     s = _valid_macd()
     s.fast_period = 30
     s.slow_period = 26
-    with pytest.raises(ValueError, match="invalid fast_period: the value must be less than slow_period"):
+    with pytest.raises(
+        ValueError, match="invalid fast_period: the value must be less than slow_period"
+    ):
         s.validate_parameters()

@@ -2201,9 +2201,13 @@ class TestStochasticOscillatorStrategy:
 
     def test_validate_parameters_oversold_ge_overbought(self) -> None:
         """Test parameter validation when oversold >= overbought."""
-        with pytest.raises(ValueError, match="invalid oversold: the value must be less than overbought"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be less than overbought"
+        ):
             StochasticOscillatorStrategy(oversold=50, overbought=50)
-        with pytest.raises(ValueError, match="invalid oversold: the value must be less than overbought"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be less than overbought"
+        ):
             StochasticOscillatorStrategy(oversold=80, overbought=20)
 
     def create_stochastic_oversold_data(self, symbol: str) -> pd.DataFrame:
@@ -3565,9 +3569,13 @@ class TestWilliamsRStrategy:
             ValueError, match="invalid oversold: the value must be between -100 and 0"
         ):
             WilliamsRStrategy(oversold=-100.0)
-        with pytest.raises(ValueError, match="invalid oversold: the value must be below overbought"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be below overbought"
+        ):
             WilliamsRStrategy(overbought=-50.0, oversold=-20.0)
-        with pytest.raises(ValueError, match="invalid oversold: the value must be below overbought"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be below overbought"
+        ):
             WilliamsRStrategy(overbought=-20.0, oversold=-20.0)
 
     def test_generate_signals_oversold_buy(self) -> None:
@@ -3671,10 +3679,24 @@ class TestOBVStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
-        with pytest.raises(ValueError, match="signal_period must be positive"):
+        with pytest.raises(ValueError, match="invalid signal_period: the value must be positive"):
             OBVStrategy(signal_period=0)
-        with pytest.raises(ValueError, match="signal_period must be positive"):
+        with pytest.raises(ValueError, match="invalid signal_period: the value must be positive"):
             OBVStrategy(signal_period=-5)
+
+    @pytest.mark.parametrize(
+        "bad",
+        [True, False, "20", None, float("nan"), float("inf"), float("-inf")],
+    )
+    def test_validate_parameters_rejects_bool_non_numeric_non_finite(self, bad: Any) -> None:
+        """Booleans, non-numeric, non-finite and non-positive values are rejected."""
+        with pytest.raises(ValueError, match="invalid signal_period: the value must be positive"):
+            OBVStrategy(signal_period=bad)
+
+    def test_validate_parameters_accepts_positive_period(self) -> None:
+        """A positive integer signal_period is accepted."""
+        strategy = OBVStrategy(signal_period=20)
+        assert strategy.signal_period == 20
 
     def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than signal_period + 1."""
@@ -3853,6 +3875,20 @@ class TestChaikinMoneyFlowStrategy:
         with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             ChaikinMoneyFlowStrategy(period=-5)
 
+    @pytest.mark.parametrize(
+        "bad",
+        [True, False, "20", None, float("nan"), float("inf"), float("-inf")],
+    )
+    def test_validate_parameters_rejects_bool_non_numeric_non_finite(self, bad: Any) -> None:
+        """Booleans, non-numeric, non-finite and non-positive values are rejected."""
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
+            ChaikinMoneyFlowStrategy(period=bad)
+
+    def test_validate_parameters_accepts_positive_period(self) -> None:
+        """A positive integer period is accepted."""
+        strategy = ChaikinMoneyFlowStrategy(period=20)
+        assert strategy.period == 20
+
     def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than period + 1."""
         strategy = ChaikinMoneyFlowStrategy(period=5)
@@ -3959,6 +3995,20 @@ class TestForceIndexStrategy:
         with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             ForceIndexStrategy(period=-5)
 
+    @pytest.mark.parametrize(
+        "bad",
+        [True, False, "13", None, float("nan"), float("inf"), float("-inf")],
+    )
+    def test_validate_parameters_rejects_bool_non_numeric_non_finite(self, bad: Any) -> None:
+        """Booleans, non-numeric, non-finite and non-positive values are rejected."""
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
+            ForceIndexStrategy(period=bad)
+
+    def test_validate_parameters_accepts_positive_period(self) -> None:
+        """A positive integer period is accepted."""
+        strategy = ForceIndexStrategy(period=13)
+        assert strategy.period == 13
+
     def test_insufficient_data(self) -> None:
         strategy = ForceIndexStrategy(period=13)
         dates = pd.date_range("2023-01-01", periods=14)
@@ -4022,6 +4072,20 @@ class TestMoneyFlowIndexStrategy:
             MoneyFlowIndexStrategy(period=0)
         with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             MoneyFlowIndexStrategy(period=-5)
+
+    @pytest.mark.parametrize(
+        "bad",
+        [True, False, "14", None, float("nan"), float("inf"), float("-inf")],
+    )
+    def test_validate_parameters_rejects_bool_non_numeric_non_finite(self, bad: Any) -> None:
+        """Booleans, non-numeric, non-finite and non-positive values are rejected."""
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
+            MoneyFlowIndexStrategy(period=bad)
+
+    def test_validate_parameters_accepts_positive_period(self) -> None:
+        """A positive integer period is accepted."""
+        strategy = MoneyFlowIndexStrategy(period=14)
+        assert strategy.period == 14
 
     def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with fewer bars than period + 1."""

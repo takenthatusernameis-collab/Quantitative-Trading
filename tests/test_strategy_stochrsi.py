@@ -49,7 +49,9 @@ class TestStochRSIStrategy:
             ValueError, match="invalid overbought: the value must be between 0 and 100"
         ):
             StochRSIStrategy(overbought=100)
-        with pytest.raises(ValueError, match="invalid oversold: the value must be less than overbought"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be less than overbought"
+        ):
             StochRSIStrategy(oversold=50, overbought=40)
 
     def test_generate_signals_insufficient_data(self) -> None:
