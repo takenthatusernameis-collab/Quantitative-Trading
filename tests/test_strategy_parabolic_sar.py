@@ -12,48 +12,48 @@ def _valid_sar() -> ParabolicSARStrategy:
 def test_validate_step_must_be_positive() -> None:
     s = _valid_sar()
     s.step = 0
-    with pytest.raises(ValueError, match="step must be positive"):
+    with pytest.raises(ValueError, match="invalid step: the value must be positive"):
         s.validate_parameters()
 
 
 def test_validate_max_step_must_be_positive() -> None:
     s = _valid_sar()
     s.max_step = 0
-    with pytest.raises(ValueError, match="max_step must be positive"):
+    with pytest.raises(ValueError, match="invalid max_step: the value must be positive"):
         s.validate_parameters()
 
 
 def test_validate_step_non_finite_rejected() -> None:
     s = _valid_sar()
     s.step = float("nan")
-    with pytest.raises(ValueError, match="step must be positive"):
+    with pytest.raises(ValueError, match="invalid step: the value must be positive"):
         s.validate_parameters()
 
     s = _valid_sar()
     s.step = float("inf")
-    with pytest.raises(ValueError, match="step must be positive"):
+    with pytest.raises(ValueError, match="invalid step: the value must be positive"):
         s.validate_parameters()
 
     s = _valid_sar()
     s.step = float("-inf")
-    with pytest.raises(ValueError, match="step must be positive"):
+    with pytest.raises(ValueError, match="invalid step: the value must be positive"):
         s.validate_parameters()
 
 
 def test_validate_max_step_non_finite_rejected() -> None:
     s = _valid_sar()
     s.max_step = float("nan")
-    with pytest.raises(ValueError, match="max_step must be positive"):
+    with pytest.raises(ValueError, match="invalid max_step: the value must be positive"):
         s.validate_parameters()
 
     s = _valid_sar()
     s.max_step = float("inf")
-    with pytest.raises(ValueError, match="max_step must be positive"):
+    with pytest.raises(ValueError, match="invalid max_step: the value must be positive"):
         s.validate_parameters()
 
     s = _valid_sar()
     s.max_step = float("-inf")
-    with pytest.raises(ValueError, match="max_step must be positive"):
+    with pytest.raises(ValueError, match="invalid max_step: the value must be positive"):
         s.validate_parameters()
 
 
@@ -67,22 +67,22 @@ def test_validate_step_must_be_lte_max_step() -> None:
 
 def test_constructor_calls_validate() -> None:
     # nan values should be rejected at construction time
-    with pytest.raises(ValueError, match="step must be positive"):
+    with pytest.raises(ValueError, match="invalid step: the value must be positive"):
         ParabolicSARStrategy(step=float("nan"), max_step=0.2)
 
-    with pytest.raises(ValueError, match="step must be positive"):
+    with pytest.raises(ValueError, match="invalid step: the value must be positive"):
         ParabolicSARStrategy(step=float("inf"), max_step=0.2)
 
-    with pytest.raises(ValueError, match="step must be positive"):
+    with pytest.raises(ValueError, match="invalid step: the value must be positive"):
         ParabolicSARStrategy(step=-0.01, max_step=0.2)
 
-    with pytest.raises(ValueError, match="max_step must be positive"):
+    with pytest.raises(ValueError, match="invalid max_step: the value must be positive"):
         ParabolicSARStrategy(step=0.02, max_step=float("nan"))
 
-    with pytest.raises(ValueError, match="max_step must be positive"):
+    with pytest.raises(ValueError, match="invalid max_step: the value must be positive"):
         ParabolicSARStrategy(step=0.02, max_step=float("inf"))
 
-    with pytest.raises(ValueError, match="max_step must be positive"):
+    with pytest.raises(ValueError, match="invalid max_step: the value must be positive"):
         ParabolicSARStrategy(step=0.02, max_step=-0.1)
 
     with pytest.raises(ValueError, match="step must be less than or equal to max_step"):

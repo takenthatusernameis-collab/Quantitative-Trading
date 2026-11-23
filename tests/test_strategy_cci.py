@@ -19,36 +19,36 @@ def test_validate_period_must_be_positive() -> None:
 def test_validate_threshold_must_be_positive() -> None:
     s = _valid_cci()
     s.threshold = 0
-    with pytest.raises(ValueError, match="threshold must be positive"):
+    with pytest.raises(ValueError, match="invalid threshold: the value must be positive"):
         s.validate_parameters()
 
 
 def test_validate_threshold_non_finite_rejected() -> None:
     s = _valid_cci()
     s.threshold = float("nan")
-    with pytest.raises(ValueError, match="threshold must be positive"):
+    with pytest.raises(ValueError, match="invalid threshold: the value must be positive"):
         s.validate_parameters()
 
     s = _valid_cci()
     s.threshold = float("inf")
-    with pytest.raises(ValueError, match="threshold must be positive"):
+    with pytest.raises(ValueError, match="invalid threshold: the value must be positive"):
         s.validate_parameters()
 
     s = _valid_cci()
     s.threshold = float("-inf")
-    with pytest.raises(ValueError, match="threshold must be positive"):
+    with pytest.raises(ValueError, match="invalid threshold: the value must be positive"):
         s.validate_parameters()
 
 
 def test_constructor_calls_validate() -> None:
     # nan values should be rejected at construction time
-    with pytest.raises(ValueError, match="threshold must be positive"):
+    with pytest.raises(ValueError, match="invalid threshold: the value must be positive"):
         CCIStrategy(period=20, threshold=float("nan"))
 
-    with pytest.raises(ValueError, match="threshold must be positive"):
+    with pytest.raises(ValueError, match="invalid threshold: the value must be positive"):
         CCIStrategy(period=20, threshold=float("inf"))
 
-    with pytest.raises(ValueError, match="threshold must be positive"):
+    with pytest.raises(ValueError, match="invalid threshold: the value must be positive"):
         CCIStrategy(period=20, threshold=-1.0)
 
     # Valid construction should succeed

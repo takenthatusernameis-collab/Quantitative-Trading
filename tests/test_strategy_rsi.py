@@ -32,14 +32,14 @@ def test_validate_period_must_be_positive() -> None:
 def test_validate_oversold_must_be_between_0_and_100() -> None:
     s = _valid_rsi()
     s.oversold = 0
-    with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
+    with pytest.raises(ValueError, match="invalid oversold: the value must be between 0 and 100"):
         s.validate_parameters()
 
 
 def test_validate_overbought_must_be_between_0_and_100() -> None:
     s = _valid_rsi()
     s.overbought = 100
-    with pytest.raises(ValueError, match="overbought must be between 0 and 100"):
+    with pytest.raises(ValueError, match="invalid overbought: the value must be between 0 and 100"):
         s.validate_parameters()
 
 

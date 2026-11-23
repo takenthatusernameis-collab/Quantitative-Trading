@@ -760,25 +760,45 @@ class TestRSIStrategy:
             RSIStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             RSIStrategy(period=-14)
-        with pytest.raises(ValueError, match="oversold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             RSIStrategy(oversold=float("nan"))
-        with pytest.raises(ValueError, match="oversold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             RSIStrategy(oversold=float("inf"))
-        with pytest.raises(ValueError, match="oversold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             RSIStrategy(oversold=float("-inf"))
-        with pytest.raises(ValueError, match="overbought must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             RSIStrategy(overbought=float("nan"))
-        with pytest.raises(ValueError, match="overbought must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             RSIStrategy(overbought=float("inf"))
-        with pytest.raises(ValueError, match="overbought must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             RSIStrategy(overbought=float("-inf"))
-        with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             RSIStrategy(oversold=0)
-        with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             RSIStrategy(oversold=100)
-        with pytest.raises(ValueError, match="overbought must be between 0 and 100"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             RSIStrategy(overbought=0)
-        with pytest.raises(ValueError, match="overbought must be between 0 and 100"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             RSIStrategy(overbought=100)
         with pytest.raises(ValueError, match="oversold must be less than overbought"):
             RSIStrategy(oversold=50, overbought=50)
@@ -952,13 +972,13 @@ class TestBollingerBandsStrategy:
             BollingerBandsStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             BollingerBandsStrategy(period=-20)
-        with pytest.raises(ValueError, match="std_dev must be positive"):
+        with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
             BollingerBandsStrategy(std_dev=0)
-        with pytest.raises(ValueError, match="std_dev must be positive"):
+        with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
             BollingerBandsStrategy(std_dev=-2.0)
-        with pytest.raises(ValueError, match="std_dev must be positive"):
+        with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
             BollingerBandsStrategy(std_dev=float("nan"))
-        with pytest.raises(ValueError, match="std_dev must be positive"):
+        with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
             BollingerBandsStrategy(std_dev=float("inf"))
 
     def test_generate_signals_lower_band_touch(self) -> None:
@@ -1676,15 +1696,15 @@ class TestSuperTrendStrategy:
         """Test parameter validation."""
         with pytest.raises(ValueError, match="period must be positive"):
             SuperTrendStrategy(period=0)
-        with pytest.raises(ValueError, match="multiplier must be positive"):
+        with pytest.raises(ValueError, match="invalid multiplier: the value must be positive"):
             SuperTrendStrategy(multiplier=0)
         with pytest.raises(ValueError, match="period must be positive"):
             SuperTrendStrategy(period=-1)
-        with pytest.raises(ValueError, match="multiplier must be positive"):
+        with pytest.raises(ValueError, match="invalid multiplier: the value must be positive"):
             SuperTrendStrategy(multiplier=-1)
-        with pytest.raises(ValueError, match="multiplier must be positive"):
+        with pytest.raises(ValueError, match="invalid multiplier: the value must be positive"):
             SuperTrendStrategy(multiplier=float("nan"))
-        with pytest.raises(ValueError, match="multiplier must be positive"):
+        with pytest.raises(ValueError, match="invalid multiplier: the value must be positive"):
             SuperTrendStrategy(multiplier=float("inf"))
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -1899,17 +1919,17 @@ class TestKeltnerChannelStrategy:
             KeltnerChannelStrategy(ema_period=0)
         with pytest.raises(ValueError, match="atr_period must be positive"):
             KeltnerChannelStrategy(atr_period=0)
-        with pytest.raises(ValueError, match="multiplier must be positive"):
+        with pytest.raises(ValueError, match="invalid multiplier: the value must be positive"):
             KeltnerChannelStrategy(multiplier=0)
         with pytest.raises(ValueError, match="ema_period must be positive"):
             KeltnerChannelStrategy(ema_period=-1)
         with pytest.raises(ValueError, match="atr_period must be positive"):
             KeltnerChannelStrategy(atr_period=-1)
-        with pytest.raises(ValueError, match="multiplier must be positive"):
+        with pytest.raises(ValueError, match="invalid multiplier: the value must be positive"):
             KeltnerChannelStrategy(multiplier=-1)
-        with pytest.raises(ValueError, match="multiplier must be positive"):
+        with pytest.raises(ValueError, match="invalid multiplier: the value must be positive"):
             KeltnerChannelStrategy(multiplier=float("nan"))
-        with pytest.raises(ValueError, match="multiplier must be positive"):
+        with pytest.raises(ValueError, match="invalid multiplier: the value must be positive"):
             KeltnerChannelStrategy(multiplier=float("inf"))
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -2103,20 +2123,32 @@ class TestStochasticOscillatorStrategy:
 
     def test_validate_parameters_finite_oversold(self) -> None:
         """Test parameter validation rejects non-finite oversold."""
-        with pytest.raises(ValueError, match="oversold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             StochasticOscillatorStrategy(oversold=float("nan"))
-        with pytest.raises(ValueError, match="oversold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             StochasticOscillatorStrategy(oversold=float("inf"))
-        with pytest.raises(ValueError, match="oversold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             StochasticOscillatorStrategy(oversold=float("-inf"))
 
     def test_validate_parameters_finite_overbought(self) -> None:
         """Test parameter validation rejects non-finite overbought."""
-        with pytest.raises(ValueError, match="overbought must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             StochasticOscillatorStrategy(overbought=float("nan"))
-        with pytest.raises(ValueError, match="overbought must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             StochasticOscillatorStrategy(overbought=float("inf"))
-        with pytest.raises(ValueError, match="overbought must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             StochasticOscillatorStrategy(overbought=float("-inf"))
 
     def test_validate_parameters_invalid_k_period(self) -> None:
@@ -2135,20 +2167,32 @@ class TestStochasticOscillatorStrategy:
 
     def test_validate_parameters_invalid_oversold(self) -> None:
         """Test parameter validation with invalid oversold."""
-        with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             StochasticOscillatorStrategy(oversold=0)
-        with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             StochasticOscillatorStrategy(oversold=100)
-        with pytest.raises(ValueError, match="oversold must be between 0 and 100"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             StochasticOscillatorStrategy(oversold=-10)
 
     def test_validate_parameters_invalid_overbought(self) -> None:
         """Test parameter validation with invalid overbought."""
-        with pytest.raises(ValueError, match="overbought must be between 0 and 100"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             StochasticOscillatorStrategy(overbought=0)
-        with pytest.raises(ValueError, match="overbought must be between 0 and 100"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             StochasticOscillatorStrategy(overbought=100)
-        with pytest.raises(ValueError, match="overbought must be between 0 and 100"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             StochasticOscillatorStrategy(overbought=110)
 
     def test_validate_parameters_oversold_ge_overbought(self) -> None:
@@ -2643,23 +2687,23 @@ class TestParabolicSARStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation (lines 1578, 1580, 1582)."""
-        with pytest.raises(ValueError, match="step must be positive"):
+        with pytest.raises(ValueError, match="invalid step: the value must be positive"):
             ParabolicSARStrategy(step=0)
-        with pytest.raises(ValueError, match="step must be positive"):
+        with pytest.raises(ValueError, match="invalid step: the value must be positive"):
             ParabolicSARStrategy(step=-0.01)
-        with pytest.raises(ValueError, match="max_step must be positive"):
+        with pytest.raises(ValueError, match="invalid max_step: the value must be positive"):
             ParabolicSARStrategy(max_step=0)
-        with pytest.raises(ValueError, match="max_step must be positive"):
+        with pytest.raises(ValueError, match="invalid max_step: the value must be positive"):
             ParabolicSARStrategy(max_step=-0.01)
         with pytest.raises(ValueError, match="step must be less than or equal to max_step"):
             ParabolicSARStrategy(step=0.30, max_step=0.20)
-        with pytest.raises(ValueError, match="step must be positive"):
+        with pytest.raises(ValueError, match="invalid step: the value must be positive"):
             ParabolicSARStrategy(step=float("nan"))
-        with pytest.raises(ValueError, match="step must be positive"):
+        with pytest.raises(ValueError, match="invalid step: the value must be positive"):
             ParabolicSARStrategy(step=float("inf"))
-        with pytest.raises(ValueError, match="max_step must be positive"):
+        with pytest.raises(ValueError, match="invalid max_step: the value must be positive"):
             ParabolicSARStrategy(max_step=float("nan"))
-        with pytest.raises(ValueError, match="max_step must be positive"):
+        with pytest.raises(ValueError, match="invalid max_step: the value must be positive"):
             ParabolicSARStrategy(max_step=float("-inf"))
 
     def test_calculate_sar_insufficient_data(self) -> None:
@@ -3202,11 +3246,11 @@ class TestMomentumStrategy:
             MomentumStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             MomentumStrategy(period=-1)
-        with pytest.raises(ValueError, match="threshold must be non-negative"):
+        with pytest.raises(ValueError, match="invalid threshold: the value must be non-negative"):
             MomentumStrategy(threshold=-0.01)
-        with pytest.raises(ValueError, match="threshold must be non-negative"):
+        with pytest.raises(ValueError, match="invalid threshold: the value must be non-negative"):
             MomentumStrategy(threshold=float("nan"))
-        with pytest.raises(ValueError, match="threshold must be non-negative"):
+        with pytest.raises(ValueError, match="invalid threshold: the value must be non-negative"):
             MomentumStrategy(threshold=float("inf"))
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -3331,17 +3375,29 @@ class TestADXStrategy:
             ADXStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             ADXStrategy(period=-14)
-        with pytest.raises(ValueError, match="threshold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid threshold: the value must be between 0 and 100"
+        ):
             ADXStrategy(threshold=float("nan"))
-        with pytest.raises(ValueError, match="threshold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid threshold: the value must be between 0 and 100"
+        ):
             ADXStrategy(threshold=float("inf"))
-        with pytest.raises(ValueError, match="threshold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid threshold: the value must be between 0 and 100"
+        ):
             ADXStrategy(threshold=float("-inf"))
-        with pytest.raises(ValueError, match="threshold must be between 0 and 100"):
+        with pytest.raises(
+            ValueError, match="invalid threshold: the value must be between 0 and 100"
+        ):
             ADXStrategy(threshold=0)
-        with pytest.raises(ValueError, match="threshold must be between 0 and 100"):
+        with pytest.raises(
+            ValueError, match="invalid threshold: the value must be between 0 and 100"
+        ):
             ADXStrategy(threshold=100)
-        with pytest.raises(ValueError, match="threshold must be between 0 and 100"):
+        with pytest.raises(
+            ValueError, match="invalid threshold: the value must be between 0 and 100"
+        ):
             ADXStrategy(threshold=-10)
 
     def test_generate_signals_bullish_trend(self) -> None:
@@ -3461,27 +3517,49 @@ class TestWilliamsRStrategy:
             WilliamsRStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             WilliamsRStrategy(period=-14)
-        with pytest.raises(ValueError, match="overbought must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between -100 and 0"
+        ):
             WilliamsRStrategy(overbought=float("nan"))
-        with pytest.raises(ValueError, match="overbought must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between -100 and 0"
+        ):
             WilliamsRStrategy(overbought=float("inf"))
-        with pytest.raises(ValueError, match="overbought must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between -100 and 0"
+        ):
             WilliamsRStrategy(overbought=float("-inf"))
-        with pytest.raises(ValueError, match="oversold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between -100 and 0"
+        ):
             WilliamsRStrategy(oversold=float("nan"))
-        with pytest.raises(ValueError, match="oversold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between -100 and 0"
+        ):
             WilliamsRStrategy(oversold=float("inf"))
-        with pytest.raises(ValueError, match="oversold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between -100 and 0"
+        ):
             WilliamsRStrategy(oversold=float("-inf"))
-        with pytest.raises(ValueError, match="overbought must be between -100 and 0"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between -100 and 0"
+        ):
             WilliamsRStrategy(overbought=0.0)
-        with pytest.raises(ValueError, match="overbought must be between -100 and 0"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between -100 and 0"
+        ):
             WilliamsRStrategy(overbought=-100.0)
-        with pytest.raises(ValueError, match="overbought must be between -100 and 0"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between -100 and 0"
+        ):
             WilliamsRStrategy(overbought=-150.0)
-        with pytest.raises(ValueError, match="oversold must be between -100 and 0"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between -100 and 0"
+        ):
             WilliamsRStrategy(oversold=0.0)
-        with pytest.raises(ValueError, match="oversold must be between -100 and 0"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between -100 and 0"
+        ):
             WilliamsRStrategy(oversold=-100.0)
         with pytest.raises(ValueError, match="oversold must be below overbought"):
             WilliamsRStrategy(overbought=-50.0, oversold=-20.0)
@@ -4691,11 +4769,11 @@ class TestBollingerPercentBStrategy:
         """Test parameter validation raises for invalid parameters."""
         with pytest.raises(ValueError, match="period must be positive"):
             BollingerPercentBStrategy(period=0, std_dev=2.0)
-        with pytest.raises(ValueError, match="std_dev must be positive"):
+        with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
             BollingerPercentBStrategy(period=20, std_dev=0.0)
-        with pytest.raises(ValueError, match="std_dev must be positive"):
+        with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
             BollingerPercentBStrategy(period=20, std_dev=float("nan"))
-        with pytest.raises(ValueError, match="std_dev must be positive"):
+        with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
             BollingerPercentBStrategy(period=20, std_dev=float("inf"))
         with pytest.raises(ValueError, match="oversold"):
             BollingerPercentBStrategy(period=20, std_dev=2.0, oversold=0.8, overbought=0.2)
@@ -5764,11 +5842,11 @@ class TestAverageTrueRangeStrategy:
         """Test parameter validation raises for invalid values."""
         with pytest.raises(ValueError, match="period must be positive"):
             AverageTrueRangeStrategy(period=0, atr_multiplier=1.0)
-        with pytest.raises(ValueError, match="atr_multiplier must be positive"):
+        with pytest.raises(ValueError, match="invalid atr_multiplier: the value must be positive"):
             AverageTrueRangeStrategy(period=2, atr_multiplier=0.0)
-        with pytest.raises(ValueError, match="atr_multiplier must be positive"):
+        with pytest.raises(ValueError, match="invalid atr_multiplier: the value must be positive"):
             AverageTrueRangeStrategy(period=2, atr_multiplier=float("nan"))
-        with pytest.raises(ValueError, match="atr_multiplier must be positive"):
+        with pytest.raises(ValueError, match="invalid atr_multiplier: the value must be positive"):
             AverageTrueRangeStrategy(period=2, atr_multiplier=float("inf"))
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -5864,11 +5942,11 @@ class TestCCIStrategy:
     def test_validate_parameters(self) -> None:
         with pytest.raises(ValueError, match="period must be positive"):
             CCIStrategy(period=0)
-        with pytest.raises(ValueError, match="threshold must be positive"):
+        with pytest.raises(ValueError, match="invalid threshold: the value must be positive"):
             CCIStrategy(threshold=0)
-        with pytest.raises(ValueError, match="threshold must be positive"):
+        with pytest.raises(ValueError, match="invalid threshold: the value must be positive"):
             CCIStrategy(threshold=float("nan"))
-        with pytest.raises(ValueError, match="threshold must be positive"):
+        with pytest.raises(ValueError, match="invalid threshold: the value must be positive"):
             CCIStrategy(threshold=float("inf"))
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -6055,21 +6133,37 @@ class TestStochRSIStrategy:
             StochRSIStrategy(k_period=0)
         with pytest.raises(ValueError, match="d_period must be positive"):
             StochRSIStrategy(d_period=0)
-        with pytest.raises(ValueError, match="oversold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             StochRSIStrategy(oversold=float("nan"))
-        with pytest.raises(ValueError, match="oversold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             StochRSIStrategy(oversold=float("inf"))
-        with pytest.raises(ValueError, match="oversold must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             StochRSIStrategy(oversold=float("-inf"))
-        with pytest.raises(ValueError, match="overbought must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             StochRSIStrategy(overbought=float("nan"))
-        with pytest.raises(ValueError, match="overbought must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             StochRSIStrategy(overbought=float("inf"))
-        with pytest.raises(ValueError, match="overbought must be finite"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             StochRSIStrategy(overbought=float("-inf"))
-        with pytest.raises(ValueError, match="oversold must be between"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             StochRSIStrategy(oversold=0)
-        with pytest.raises(ValueError, match="overbought must be between"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             StochRSIStrategy(overbought=100)
         with pytest.raises(ValueError, match="oversold must be less than overbought"):
             StochRSIStrategy(oversold=50, overbought=40)
@@ -6452,10 +6546,14 @@ class TestChoppinessIndexStrategy:
         with pytest.raises(ValueError, match="low_threshold must be less than high_threshold"):
             ChoppinessIndexStrategy(period=14, low_threshold=60.0, high_threshold=50.0)
 
-        with pytest.raises(ValueError, match="low_threshold must be non-negative"):
+        with pytest.raises(
+            ValueError, match="invalid low_threshold: the value must be non-negative"
+        ):
             ChoppinessIndexStrategy(period=14, low_threshold=-1.0, high_threshold=50.0)
 
-        with pytest.raises(ValueError, match="high_threshold must be at most 100"):
+        with pytest.raises(
+            ValueError, match="invalid high_threshold: the value must be at most 100"
+        ):
             ChoppinessIndexStrategy(period=14, low_threshold=50.0, high_threshold=101.0)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -7576,11 +7674,11 @@ class TestMovingAverageEnvelopeStrategy:
             MovingAverageEnvelopeStrategy(period=0)
         with pytest.raises(ValueError, match="period must be positive"):
             MovingAverageEnvelopeStrategy(period=-5)
-        with pytest.raises(ValueError, match="percentage must be positive"):
+        with pytest.raises(ValueError, match="invalid percentage: the value must be positive"):
             MovingAverageEnvelopeStrategy(percentage=0)
-        with pytest.raises(ValueError, match="percentage must be positive"):
+        with pytest.raises(ValueError, match="invalid percentage: the value must be positive"):
             MovingAverageEnvelopeStrategy(percentage=-1.0)
-        with pytest.raises(ValueError, match="percentage must be positive"):
+        with pytest.raises(ValueError, match="invalid percentage: the value must be positive"):
             MovingAverageEnvelopeStrategy(percentage=float("inf"))
 
     def test_generate_signals_insufficient_data(self) -> None:

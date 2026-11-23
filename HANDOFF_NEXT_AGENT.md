@@ -1240,3 +1240,70 @@ opaque `TypeError` instead of a clear `ValueError`.
 - None assigned. All tracked hardening/validation chains are complete and the
   focused suites are green. Future work requires a new defect report or feature
   request (e.g. the `strategies/examples.py` `__post_init__` migration).
+
+---
+
+## Session 2026-11-23 (this session)
+
+Fixed a regression introduced when strategy `validate_parameters` methods in
+`quant_trading/strategies/examples.py` were migrated to the `_validate_init_param`
+helper (producing `invalid <name>: <message> (got <value>)`), but the test
+assertions were left on the old `<name> must be <fragment>` message format.
+This caused exactly 53 test failures across the strategy test files, all
+`Regex pattern did not match` on `pytest.raises(..., match=...)`.
+
+### What changed
+
+**Test files (13), assertions only — no production-code change:**
+- `tests/test_strategy_rsi.py`: oversold/overbought `between 0 and 100`
+- `tests/test_strategy_supertrend.py`: multiplier `the value must be positive`
+- `tests/test_strategy_average_true_range.py`: atr_multiplier `the value must be positive`
+- `tests/test_strategy_bollinger_bands.py`: std_dev `the value must be positive`
+- `tests/test_strategy_bollinger_percentb.py`: std_dev `the value must be positive`
+- `tests/test_strategy_cci.py`: threshold `the value must be positive`
+- `tests/test_strategy_choppiness.py`: low_threshold `non-negative`, high_threshold `at most 100`
+- `tests/test_strategy_keltner_channel.py`: multiplier `the value must be positive`
+- `tests/test_strategy_momentum.py`: threshold `the value must be non-negative`
+- `tests/test_strategy_parabolic_sar.py`: step / max_step `the value must be positive`
+- `tests/test_strategy_stochrsi.py`: oversold / overbought `between`
+- `tests/test_strategies_examples.py`: all of the above across the Test* classes
+- `tests/test_repository_integrity.py`: added `("examples/cli.py", "list_objectives")`
+  to `_EXAMPLES_ALLOWLIST` (pre-existing gap: `list_objectives` is a simple print
+  function like `list_providers`/`list_strategies`, which are already allowlisted;
+  `examples/cli.py` itself was not modified)
+
+Each `match=` was updated from `<name> must be <fragment>` to
+`invalid <name>: <message fragment>`, matching the framework-wide convention
+already used in `config/settings.py`, `risk/limits.py`, `risk/manager.py`.
+
+### Root cause / evidence
+
+The prior session migrated `quant_trading/strategies/examples.py` validators to
+`_validate_init_param` but did not update the dependent test assertions, leaving
+the suite red (53 failed, 4625 passed at session start). Reproduced by running
+the full suite before the fix.
+
+### What was verified
+
+- All 13 affected test files + `test_repository_integrity.py`: **731 passed**
+- `black --check tests/ quant_trading/ examples/`: **clean**
+- `ruff check` on all changed test files: **clean**
+- Full `python -m pytest -q` (default addopts `-m "not slow and not network"`):
+  **4678 passed, 206 skipped, 151 deselected, 0 failed** in ~5m49s (was 4625
+  passed / 53 failed). No regressions.
+- `git status --short`: only the 13 test files modified; working tree otherwise
+  clean.
+
+### What remains unresolved
+
+Nothing. The strategy-validation message-format regression is resolved and the
+full suite is green.
+
+### Approaches that failed
+
+- None.
+
+### Next task
+
+- None assigned. All tracked hardening/validation chains are complete and the
+  suite is green. Future work requires a new defect report or feature request.

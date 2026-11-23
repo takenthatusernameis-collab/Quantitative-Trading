@@ -41,9 +41,13 @@ class TestStochRSIStrategy:
             StochRSIStrategy(k_period=0)
         with pytest.raises(ValueError, match="d_period must be positive"):
             StochRSIStrategy(d_period=0)
-        with pytest.raises(ValueError, match="oversold must be between"):
+        with pytest.raises(
+            ValueError, match="invalid oversold: the value must be between 0 and 100"
+        ):
             StochRSIStrategy(oversold=0)
-        with pytest.raises(ValueError, match="overbought must be between"):
+        with pytest.raises(
+            ValueError, match="invalid overbought: the value must be between 0 and 100"
+        ):
             StochRSIStrategy(overbought=100)
         with pytest.raises(ValueError, match="oversold must be less than overbought"):
             StochRSIStrategy(oversold=50, overbought=40)

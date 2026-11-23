@@ -1803,6 +1803,7 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("examples/cli.py", "create_param_grid"),
         ("examples/cli.py", "create_strategy"),
         ("examples/cli.py", "init_config"),
+        ("examples/cli.py", "list_objectives"),
         ("examples/cli.py", "list_providers"),
         ("examples/cli.py", "list_strategies"),
         ("examples/cli.py", "main"),

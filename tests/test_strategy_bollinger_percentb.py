@@ -20,24 +20,24 @@ def test_validate_period_must_be_positive() -> None:
 def test_validate_std_dev_must_be_positive() -> None:
     s = _valid_pb()
     s.std_dev = 0
-    with pytest.raises(ValueError, match="std_dev must be positive"):
+    with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
         s.validate_parameters()
 
 
 def test_validate_std_dev_non_finite_rejected() -> None:
     s = _valid_pb()
     s.std_dev = float("nan")
-    with pytest.raises(ValueError, match="std_dev must be positive"):
+    with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
         s.validate_parameters()
 
     s = _valid_pb()
     s.std_dev = float("inf")
-    with pytest.raises(ValueError, match="std_dev must be positive"):
+    with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
         s.validate_parameters()
 
     s = _valid_pb()
     s.std_dev = float("-inf")
-    with pytest.raises(ValueError, match="std_dev must be positive"):
+    with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
         s.validate_parameters()
 
 
@@ -71,13 +71,13 @@ def test_validate_oversold_must_be_less_than_overbought() -> None:
 
 def test_constructor_calls_validate() -> None:
     # nan values should be rejected at construction time
-    with pytest.raises(ValueError, match="std_dev must be positive"):
+    with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
         BollingerPercentBStrategy(period=20, std_dev=float("nan"), oversold=0.2, overbought=0.8)
 
-    with pytest.raises(ValueError, match="std_dev must be positive"):
+    with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
         BollingerPercentBStrategy(period=20, std_dev=float("inf"), oversold=0.2, overbought=0.8)
 
-    with pytest.raises(ValueError, match="std_dev must be positive"):
+    with pytest.raises(ValueError, match="invalid std_dev: the value must be positive"):
         BollingerPercentBStrategy(period=20, std_dev=-1.0, oversold=0.2, overbought=0.8)
 
     # Valid construction should succeed
