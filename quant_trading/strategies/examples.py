@@ -379,16 +379,24 @@ class VolumeWeightedMovingAverageCrossover(Strategy):
         """Validate strategy parameters.
 
         Raises:
-            ValueError: If ``fast_period`` or ``slow_period`` is not a positive
-                integer, or if ``fast_period`` is not less than ``slow_period``.
+            ValueError: If ``fast_period`` or ``slow_period`` is non-positive,
+                or if ``fast_period`` is not less than ``slow_period``.
 
         """
-        if not isinstance(self.fast_period, int) or self.fast_period <= 0:
-            raise ValueError("fast_period must be a positive integer")
-        if not isinstance(self.slow_period, int) or self.slow_period <= 0:
-            raise ValueError("slow_period must be a positive integer")
+        _validate_init_param(
+            self.fast_period,
+            "fast_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.slow_period,
+            "slow_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         if self.fast_period >= self.slow_period:
-            raise ValueError("fast_period must be less than slow_period")
+            raise ValueError("invalid fast_period: the value must be less than slow_period")
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         """Generate buy/sell signals from fast/slow VWMA crossovers.
@@ -1394,14 +1402,26 @@ class MACDStrategy(Strategy):
                 is non-positive, or if ``fast_period`` is not less than ``slow_period``.
 
         """
-        if self.fast_period <= 0:
-            raise ValueError("fast_period must be positive")
-        if self.slow_period <= 0:
-            raise ValueError("slow_period must be positive")
-        if self.signal_period <= 0:
-            raise ValueError("signal_period must be positive")
+        _validate_init_param(
+            self.fast_period,
+            "fast_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.slow_period,
+            "slow_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.signal_period,
+            "signal_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         if self.fast_period >= self.slow_period:
-            raise ValueError("fast_period must be less than slow_period")
+            raise ValueError("invalid fast_period: the value must be less than slow_period")
 
     def _ema(self, close: pd.Series, period: int) -> pd.Series:
         """Calculate an Exponential Moving Average.
@@ -3119,12 +3139,20 @@ class EMACrossover(Strategy):
     def validate_parameters(self) -> None:
         """Validate strategy parameters."""
 
-        if not isinstance(self.fast_period, int) or self.fast_period < 1:
-            raise ValueError("fast_period must be a positive integer")
-        if not isinstance(self.slow_period, int) or self.slow_period < 1:
-            raise ValueError("slow_period must be a positive integer")
+        _validate_init_param(
+            self.fast_period,
+            "fast_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.slow_period,
+            "slow_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
         if self.fast_period >= self.slow_period:
-            raise ValueError("fast_period must be less than slow_period")
+            raise ValueError("invalid fast_period: the value must be less than slow_period")
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         """Generate buy/sell signals based on EMA crossover.
