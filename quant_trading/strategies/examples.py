@@ -1667,10 +1667,18 @@ class DonchianChannelStrategy(Strategy):
             ValueError: If ``period`` or ``exit_period`` is non-positive.
 
         """
-        if self.period <= 0:
-            raise ValueError("period must be positive")
-        if self.exit_period <= 0:
-            raise ValueError("exit_period must be positive")
+        _validate_init_param(
+            self.period,
+            "period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
+        _validate_init_param(
+            self.exit_period,
+            "exit_period",
+            lambda v: v > 0,
+            "the value must be positive",
+        )
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         """Generate breakout and exit signals from Donchian Channel levels.

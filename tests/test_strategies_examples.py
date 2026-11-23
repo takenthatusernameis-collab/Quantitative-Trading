@@ -246,13 +246,13 @@ class TestDonchianChannelStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             DonchianChannelStrategy(period=0)
-        with pytest.raises(ValueError, match="exit_period must be positive"):
+        with pytest.raises(ValueError, match="invalid exit_period: the value must be positive"):
             DonchianChannelStrategy(period=20, exit_period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             DonchianChannelStrategy(period=-1)
-        with pytest.raises(ValueError, match="exit_period must be positive"):
+        with pytest.raises(ValueError, match="invalid exit_period: the value must be positive"):
             DonchianChannelStrategy(period=20, exit_period=-1)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -3375,9 +3375,9 @@ class TestADXStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid bounds."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             ADXStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             ADXStrategy(period=-14)
         with pytest.raises(
             ValueError, match="invalid threshold: the value must be between 0 and 100"
@@ -3517,9 +3517,9 @@ class TestWilliamsRStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid bounds."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             WilliamsRStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             WilliamsRStrategy(period=-14)
         with pytest.raises(
             ValueError, match="invalid overbought: the value must be between -100 and 0"
@@ -3848,9 +3848,9 @@ class TestChaikinMoneyFlowStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             ChaikinMoneyFlowStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             ChaikinMoneyFlowStrategy(period=-5)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -3954,9 +3954,9 @@ class TestForceIndexStrategy:
         assert strategy.name == "FI_Custom"
 
     def test_validate_parameters_invalid_period(self) -> None:
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             ForceIndexStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             ForceIndexStrategy(period=-5)
 
     def test_insufficient_data(self) -> None:
@@ -4018,9 +4018,9 @@ class TestMoneyFlowIndexStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             MoneyFlowIndexStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             MoneyFlowIndexStrategy(period=-5)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -4263,9 +4263,9 @@ class TestChandeMomentumOscillatorStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             ChandeMomentumOscillatorStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             ChandeMomentumOscillatorStrategy(period=-5)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -5018,7 +5018,7 @@ class TestHullMovingAverageStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid periods."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             HullMovingAverageStrategy(period=0)
         with pytest.raises(ValueError, match="period must be at least 2"):
             HullMovingAverageStrategy(period=1)
@@ -5142,7 +5142,7 @@ class TestEaseOfMovementStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for a non-positive period."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             EaseOfMovementStrategy(period=0)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -5277,7 +5277,7 @@ class TestVortexStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for non-positive periods."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             VortexStrategy(period=0)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -5643,7 +5643,7 @@ class TestNegativeVolumeIndexStrategy:
         assert strategy.parameters["period"] == 255
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             NegativeVolumeIndexStrategy(period=0)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -5747,7 +5747,7 @@ class TestPositiveVolumeIndexStrategy:
         assert strategy.parameters["period"] == 255
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             PositiveVolumeIndexStrategy(period=0)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -5849,7 +5849,7 @@ class TestAverageTrueRangeStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid values."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             AverageTrueRangeStrategy(period=0, atr_multiplier=1.0)
         with pytest.raises(ValueError, match="invalid atr_multiplier: the value must be positive"):
             AverageTrueRangeStrategy(period=2, atr_multiplier=0.0)
@@ -7022,7 +7022,7 @@ class TestDetrendedPriceOscillatorStrategy:
         assert strategy.period == 20
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             DetrendedPriceOscillatorStrategy(period=0)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -7101,7 +7101,7 @@ class TestElderRayStrategy:
         assert strategy.period == 13
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             ElderRayStrategy(period=0)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -7348,7 +7348,7 @@ class TestTrixStrategy:
         assert strategy.period == 14
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             TrixStrategy(period=0)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -7687,9 +7687,9 @@ class TestMovingAverageEnvelopeStrategy:
 
     def test_validate_parameters(self) -> None:
         """Test parameter validation raises for invalid period/percentage."""
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             MovingAverageEnvelopeStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             MovingAverageEnvelopeStrategy(period=-5)
         with pytest.raises(ValueError, match="invalid percentage: the value must be positive"):
             MovingAverageEnvelopeStrategy(percentage=0)
@@ -7794,9 +7794,9 @@ class TestFisherTransformStrategy:
         assert strategy.parameters == {"period": 14}
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             FisherTransformStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             FisherTransformStrategy(period=-3)
 
     def test_generate_signals_insufficient_data(self) -> None:
@@ -8958,9 +8958,9 @@ class TestRelativeVigorIndexStrategy:
         assert strategy.parameters == {"period": 14}
 
     def test_validate_parameters(self) -> None:
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             RelativeVigorIndexStrategy(period=0)
-        with pytest.raises(ValueError, match="period must be positive"):
+        with pytest.raises(ValueError, match="invalid period: the value must be positive"):
             RelativeVigorIndexStrategy(period=-1)
 
     def test_generate_signals_insufficient_data(self) -> None:
