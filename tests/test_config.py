@@ -185,6 +185,11 @@ class TestRiskConfig:
         with pytest.raises(ValueError, match="invalid max_leverage"):
             RiskConfig(max_leverage=max_leverage)
 
+    @pytest.mark.parametrize("max_leverage", [True, False, "1.0", None])
+    def test_rejects_bool_and_non_numeric_max_leverage(self, max_leverage: Any) -> None:
+        with pytest.raises(ValueError, match="invalid max_leverage"):
+            RiskConfig(max_leverage=max_leverage)
+
     @pytest.mark.parametrize("trailing_stop_pct", [-0.1, 1.5])
     def test_rejects_invalid_trailing_stop_pct(self, trailing_stop_pct: float) -> None:
         with pytest.raises(ValueError, match="invalid trailing_stop_pct"):
@@ -238,6 +243,11 @@ class TestPortfolioConfig:
 
     @pytest.mark.parametrize("max_positions", [0, -1, float("nan"), float("inf"), float("-inf")])
     def test_rejects_invalid_max_positions(self, max_positions: int) -> None:
+        with pytest.raises(ValueError, match="invalid max_positions"):
+            PortfolioConfig(max_positions=max_positions)
+
+    @pytest.mark.parametrize("max_positions", [True, False, "20", None])
+    def test_rejects_bool_and_non_numeric_max_positions(self, max_positions: int) -> None:
         with pytest.raises(ValueError, match="invalid max_positions"):
             PortfolioConfig(max_positions=max_positions)
 

@@ -555,10 +555,12 @@ class RiskConfig:
                 f"invalid take_profit_pct: the value must be in the range [0, 1] "
                 f"(got {self.take_profit_pct})"
             )
-        if not math.isfinite(self.max_leverage) or self.max_leverage < 1e-9:
-            raise ValueError(
-                f"invalid max_leverage: the value must be positive " f"(got {self.max_leverage})"
-            )
+        _validate_init_param(
+            self.max_leverage,
+            "max_leverage",
+            lambda v: v >= 1e-9,
+            "the value must be positive and finite",
+        )
         if not (0.0 <= self.trailing_stop_pct <= 1.0):
             raise ValueError(
                 f"invalid trailing_stop_pct: the value must be in the range [0, 1] "
@@ -662,11 +664,12 @@ class PortfolioConfig:
         dictionary, or from YAML) instead of silently propagating to the
         portfolio rebalancer.
         """
-        if not math.isfinite(self.max_positions) or self.max_positions < 1:
-            raise ValueError(
-                f"invalid max_positions: the value must be at least 1 "
-                f"(got {self.max_positions})"
-            )
+        _validate_init_param(
+            self.max_positions,
+            "max_positions",
+            lambda v: v >= 1,
+            "the value must be at least 1 and finite",
+        )
         if not (0.0 <= self.min_position_size <= 1.0):
             raise ValueError(
                 f"invalid min_position_size: the value must be in the range [0, 1] "
