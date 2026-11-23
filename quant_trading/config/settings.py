@@ -394,29 +394,36 @@ class BacktestConfig:
         dictionary, or from YAML) instead of silently propagating to the
         backtest engine or optimizer.
         """
-        if not math.isfinite(self.initial_capital) or self.initial_capital <= 0:
-            raise ValueError(
-                f"invalid initial_capital: the value must be positive and finite "
-                f"(got {self.initial_capital})"
-            )
-        if not math.isfinite(self.periods_per_year) or self.periods_per_year < 1:
-            raise ValueError(
-                f"invalid periods_per_year: the value must be at least 1 and finite "
-                f"(got {self.periods_per_year})"
-            )
-        if not (0.0 <= self.commission <= 1.0):
-            raise ValueError(
-                f"invalid commission: the value must be in the range [0, 1] "
-                f"(got {self.commission})"
-            )
-        if not (0.0 <= self.slippage <= 1.0):
-            raise ValueError(
-                f"invalid slippage: the value must be in the range [0, 1] " f"(got {self.slippage})"
-            )
-        if not math.isfinite(self.risk_free_rate):
-            raise ValueError(
-                f"invalid risk_free_rate: the value must be finite " f"(got {self.risk_free_rate})"
-            )
+        _validate_init_param(
+            self.initial_capital,
+            "initial_capital",
+            lambda v: v > 0,
+            "the value must be positive and finite",
+        )
+        _validate_init_param(
+            self.periods_per_year,
+            "periods_per_year",
+            lambda v: v >= 1,
+            "the value must be at least 1 and finite",
+        )
+        _validate_init_param(
+            self.commission,
+            "commission",
+            lambda v: 0.0 <= v <= 1.0,
+            "the value must be in the range [0, 1] and finite",
+        )
+        _validate_init_param(
+            self.slippage,
+            "slippage",
+            lambda v: 0.0 <= v <= 1.0,
+            "the value must be in the range [0, 1] and finite",
+        )
+        _validate_init_param(
+            self.risk_free_rate,
+            "risk_free_rate",
+            lambda v: True,
+            "the value must be finite",
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the backtest configuration to a plain, JSON-safe dictionary.

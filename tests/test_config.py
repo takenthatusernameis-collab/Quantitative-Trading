@@ -107,6 +107,37 @@ class TestBacktestConfig:
         with pytest.raises(ValueError, match="invalid slippage"):
             Config.from_yaml(str(path))
 
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("initial_capital", True),
+            ("initial_capital", False),
+            ("initial_capital", "100000"),
+            ("initial_capital", None),
+            ("periods_per_year", True),
+            ("periods_per_year", False),
+            ("periods_per_year", "252"),
+            ("periods_per_year", None),
+            ("commission", True),
+            ("commission", False),
+            ("commission", "0.001"),
+            ("commission", None),
+            ("slippage", True),
+            ("slippage", False),
+            ("slippage", "0.0005"),
+            ("slippage", None),
+            ("risk_free_rate", True),
+            ("risk_free_rate", False),
+            ("risk_free_rate", "0.02"),
+            ("risk_free_rate", None),
+        ],
+    )
+    def test_rejects_bool_and_non_numeric_backtest_params(self, field: str, value: Any) -> None:
+        """Booleans and non-numeric values raise a clear ValueError instead of
+        being silently coerced (True -> 1) or raising an opaque TypeError."""
+        with pytest.raises(ValueError, match=f"invalid {field}:"):
+            BacktestConfig(**{field: value})
+
 
 class TestRiskConfig:
     """Tests for RiskConfig."""
