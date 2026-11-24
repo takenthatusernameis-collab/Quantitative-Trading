@@ -1530,6 +1530,10 @@ def list_strategies() -> int:
     stays in one-to-one correspondence with the registry (one entry per
     strategy, aliases as annotations) rather than repeating each alias as a
     separate row.
+
+    Examples:
+        $ quant-trading --list-strategies
+        $ python examples/cli.py --list-strategies
     """
     registry = get_registry()
     strategies = factory_list_strategies()
@@ -1555,7 +1559,12 @@ def list_strategies() -> int:
 
 
 def list_providers() -> int:
-    """Print available data providers and exit."""
+    """Print available data providers and exit.
+
+    Examples:
+        $ quant-trading --list-providers
+        $ python examples/cli.py --list-providers
+    """
     print("Available data providers:")
     for key, (cls_name, description) in PROVIDERS.items():
         print(f"  {key}: {cls_name} - {description}")
@@ -1563,7 +1572,12 @@ def list_providers() -> int:
 
 
 def list_objectives() -> int:
-    """Print available optimization objectives and exit."""
+    """Print available optimization objectives and exit.
+
+    Examples:
+        $ quant-trading --list-objectives
+        $ python examples/cli.py --list-objectives
+    """
     print("Available optimization objectives:")
     for key, func in OBJECTIVES.items():
         doc = (func.__doc__ or "").strip().split("\n")[0]
