@@ -1,3 +1,71 @@
+## Session 2026-11-24 (this session — tenth entry)
+
+No prior agent assignment was pending; the previous (ninth) entry closed the
+`calculate_sortino_ratio` constant-series correctness bug with a green suite
+(5047 passed) and explicitly instructed: "Future work requires a new defect
+report or feature request from the user — do not invent speculative changes."
+Per the standing instruction to make progress when no assignment exists, this
+session (a) made a good-faith, read-only search for a *genuine* correctness
+defect of the same class (formula / copy-paste / off-by-one / incremental-vs-
+recompute), and (b) independently re-verified the full suite on this fresh
+runner. No source changes were made — none were warranted.
+
+### What changed
+
+Nothing in project source. Working tree clean (`git status`: nothing to commit;
+`git diff --stat`: empty). Only this durable handoff entry was added.
+
+### What was verified
+
+- **Full suite**: `python -m pytest -q` (default addopts `--doctest-modules
+  -m "not slow and not network"`): **5047 passed, 151 deselected, 0 failed**
+  in 520.05s. Exactly matches the ninth entry's count — no regressions, no
+  environment-specific failures. The repository-integrity guards
+  (`tests/test_repository_integrity.py`: ruff/black/mypy/docstring) are part of
+  this run and are green.
+- Environment on this runner: Python 3.14.4, pytest 9.2.0, numpy 2.5.5,
+  pandas 3.1.1; deps already installed under
+  `/home/runner/work/_temp/kilo-home/.local` (prefix commands with
+  `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`).
+- **Defect search (read-only)**: reviewed `quant_trading/risk/metrics.py`
+  (all ratio/drawdown/VaR/ES/Omega/Ulcer/ERC/risk-budget functions),
+  `quant_trading/backtest/metrics.py`, `quant_trading/backtest/trade_analysis.py`,
+  `quant_trading/monte_carlo/simulator.py` (bootstrap/parametric workers,
+  probability/CI/expected-shortfall), and the formula-bearing strategies in
+  `quant_trading/strategies/examples.py`. No high-confidence correctness defect
+  found. The previously-fixed Sortino guard is the only zero-return path for
+  multi-observation constant series; the other `std == 0` / downside-deviation
+  guards are internally consistent with their docstrings and tests.
+
+### What remains unresolved
+
+- Nothing. Zero known failures under the default marker filter; no genuine
+  bounded defect surfaced. The `slow`/`network`-marked tests (151 deselected)
+  require network access or are smoke/subprocess tests and are intentionally
+  excluded by the project's default `addopts`.
+
+### Approaches that failed
+
+- An `explore` sub-agent was asked (read-only) to hunt for genuine correctness
+  defects with concrete reproductions; it returned an **empty** result (no
+  findings). This is the second unproductive `explore` run (the eighth entry
+  noted an `explore` agent that edited files when asked to be read-only). Lesson
+  reinforced: do not rely on the `explore` sub-agent for defect discovery on
+  this repo — verify any sub-agent output against HEAD and prefer direct,
+  targeted reading. No files were modified by the sub-agent (working tree
+  confirmed clean afterwards).
+
+### Next task
+
+- **None assigned.** All tracked validation/hardening chains plus the Sortino
+  correctness fix are complete, and the full suite is green (5047 passed) on a
+  fresh Python 3.14 runner. Future work requires a **new defect report or
+  feature request from the user — do not invent speculative changes.** On a
+  fresh runner the first step is `pip install -e ".[dev,bayesian,reporting]"`
+  before running any tests (already satisfied on this runner).
+
+---
+
 ## Session 2026-11-24 (this session — ninth entry)
 
 No prior agent assignment was pending; the previous (eighth) entry closed the
