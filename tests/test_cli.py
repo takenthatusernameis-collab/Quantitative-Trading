@@ -300,6 +300,52 @@ class TestParseArgs:
             args = parse_args()
         assert args.mc_confidence == 1.0
 
+    def test_mc_jobs_zero_is_rejected(self) -> None:
+        """A ``--mc-jobs`` below 1 is a usage error naming the flag.
+
+        ``--mc-jobs`` is passed straight to ``MonteCarloSimulator(n_jobs=...)``,
+        which clamps non-positive values to 1 instead of raising. A zero job
+        count would otherwise run the whole backtest and only then silently
+        fall back to a single worker, so the check belongs in the CLI.
+        """
+        with (
+            patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-jobs", "0"]),
+            pytest.raises(ValueError, match="invalid --mc-jobs"),
+        ):
+            parse_args()
+
+    def test_mc_jobs_negative_is_rejected(self) -> None:
+        """A negative ``--mc-jobs`` is rejected the same way as zero."""
+        with (
+            patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-jobs", "-5"]),
+            pytest.raises(ValueError, match="invalid --mc-jobs"),
+        ):
+            parse_args()
+
+    def test_mc_jobs_one_is_accepted(self) -> None:
+        """The minimum accepted ``--mc-jobs`` is 1."""
+        with patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-jobs", "1"]):
+            args = parse_args()
+        assert args.mc_jobs == 1
+
+    def test_mc_jobs_all_cpus_is_accepted(self) -> None:
+        """``--mc-jobs -1`` is accepted and means "use all CPU cores"."""
+        with patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-jobs", "-1"]):
+            args = parse_args()
+        assert args.mc_jobs == -1
+
+    def test_mc_jobs_positive_is_accepted(self) -> None:
+        """A positive ``--mc-jobs`` count is accepted."""
+        with patch("sys.argv", ["cli.py", "--monte-carlo", "--mc-jobs", "4"]):
+            args = parse_args()
+        assert args.mc_jobs == 4
+
+    def test_mc_jobs_default_is_accepted(self) -> None:
+        """The default ``--mc-jobs`` of 1 is accepted."""
+        with patch("sys.argv", ["cli.py", "--monte-carlo"]):
+            args = parse_args()
+        assert args.mc_jobs == 1
+
     def test_wf_train_size_above_one_is_rejected(self) -> None:
         """A ``--wf-train-size`` above 1 is a usage error naming the flag.
 

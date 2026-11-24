@@ -1703,7 +1703,7 @@ quant-trading --offline --monte-carlo --symbols AAPL --days 120
 Override the simulation parameters:
 
 ```bash
-quant-trading --offline --monte-carlo --mc-simulations 500 --mc-method parametric --mc-confidence 0.99 --mc-seed 7
+quant-trading --offline --monte-carlo --mc-simulations 500 --mc-method parametric --mc-confidence 0.99 --mc-seed 7 --mc-jobs 4
 ```
 
 The `--mc-seed` argument is checked before the run starts and must be a
@@ -1712,6 +1712,15 @@ non-negative integer (omit it for a nondeterministic run):
 ```
 $ quant-trading --offline --monte-carlo --mc-seed -1 --symbols AAPL
 Error: invalid --mc-seed: the value must be at least 0 (got -1)
+```
+
+The `--mc-jobs` argument controls the number of parallel worker processes
+(default 1). It is checked before the run starts and must be at least 1, or
+`-1` to use all CPU cores:
+
+```
+$ quant-trading --offline --monte-carlo --mc-jobs 0 --symbols AAPL
+Error: invalid --mc-jobs: the value must be at least 1, or -1 for all CPU cores (got 0)
 ```
 
 The simulated Sharpe and Sortino are computed with the risk-free rate of the

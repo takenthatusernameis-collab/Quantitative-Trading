@@ -1133,6 +1133,11 @@ def parse_args() -> argparse.Namespace:
             f"invalid --mc-confidence: the value must be in the range (0, 1] "
             f"(got {args.mc_confidence})"
         )
+    if args.mc_jobs < 1 and args.mc_jobs != -1:
+        raise ValueError(
+            f"invalid --mc-jobs: the value must be at least 1, or -1 for all "
+            f"CPU cores (got {args.mc_jobs})"
+        )
     if not (0.0 < args.wf_train_size <= 1.0):
         raise ValueError(
             f"invalid --wf-train-size: the value must be in the range (0, 1] "
