@@ -1,3 +1,84 @@
+## Session 2026-11-24 (this session)
+
+Fixed the bayesian empty-result defect handed off as the next bounded task.
+The 3 failing bayesian tests (`test_bayesian_optimizer`,
+`test_bayesian_optimizer_different_objectives`,
+`TestBayesianOptimizerCollapsedBounds::test_collapsed_integer_bounds`) and the
+`bayesian.py` doctest all shared one **real root cause**, not an empty-result
+contract problem.
+
+### Root cause (reproduced)
+
+`BayesianOptimizer.run`'s `objective_func` passed skopt's parameter dict
+straight to `_evaluate_params`. skopt supplies hyperparameter values as numpy
+scalars (`np.int64`), and `MovingAverageCrossover`/other strategies validate
+with `_validate_init_param` -> `isinstance(value, (int, float))`. A numpy
+integer is **not** a Python `int` subclass, so `isinstance(np.int64(13), int)`
+is `False`. Every single backtest therefore failed validation with
+`invalid fast_period: the value must be positive (got 13)`, `_evaluate_params`
+returned `(params, -inf, None)`, `score > best_score` (`-inf > -inf`) never
+fired, and `run()` returned `best_params={}, best_score=-inf` even though
+`all_results` was fully populated. `_convert_to_native` was only applied to the
+*output* `params_eval`, never to the *input* params reaching the strategy.
+
+Evidence (verbose run before fix): 8× `Error evaluating {...}: invalid
+fast_period: the value must be positive (got 13)` and `best_score -inf`,
+`best_params {}`.
+
+### What changed
+
+**quant_trading/optimization/bayesian.py** (`run` -> `objective_func`)
+- Wrap the incoming skopt param dict in `_convert_to_native(...)` before
+  `_evaluate_params`, so numpy scalars become native Python `int`/`float` and
+  pass strategy `isinstance(value, (int, float))` validation. One-line change
+  plus an explanatory comment. No behavior change for native-typed inputs
+  (`_convert_to_native` is idempotent on them).
+
+### What was verified
+
+- `pytest tests/test_optimization.py -k bayesian`: **39 passed** (was 36 passed
+  / 3 failed).
+- `pytest --doctest-modules quant_trading/optimization/bayesian.py
+  tests/test_optimization.py`: **270 passed** (bayesian doctest now green).
+- `pytest tests/test_optimization.py tests/test_walk_forward.py
+  tests/test_serialization_roundtrip.py`: **345 passed**.
+- `pytest tests/test_optimization.py -k "random_search or grid_search or
+  parallel"`: **64 passed** (unaffected paths).
+- `pytest tests/test_repository_integrity.py`: **51 passed** (repo-wide
+  ruff/black/mypy/docstring guards green).
+- `ruff check`, `black --check`, `mypy quant_trading/optimization/bayesian.py`:
+  clean.
+
+### What remains unresolved
+
+- Nothing for this task.
+- Note on the original "empty-result contract" framing: it was a misdiagnosis.
+  When evaluations genuinely all fail (e.g. `RaisingStrategy`), returning
+  `best_params={}, best_score=-inf` is the intended, GridSearch-consistent
+  contract and is asserted by existing tests; no fail-fast change was needed.
+  The defect was purely the numpy-type rejection, now fixed at the source.
+
+### Approaches that failed
+
+- None. Single targeted fix; the only iteration was confirming the root cause
+  was numpy-type rejection (via a verbose run) rather than the empty-result
+  contract hypothesized in the prior handoff.
+
+### Next task
+
+- **Re-run the full `pytest` suite (`python -m pytest -q`, default addopts
+  `-m "not slow and not network"`, ~8-9 min) to certify no regressions across
+  the whole suite after this fix.** Focused bayesian tests, the optimization /
+  walk-forward / serialization subset, and the repository-integrity guards are
+  all green; only the complete run remains.
+- Remaining pre-existing failure unrelated to this fix (design decision, out of
+  scope): `tests/test_strategies_examples.py::TestEMACrossoverStrategy::
+  test_validate_parameters_type_errors` — `fast_period=5.5` not rejected;
+  needs a decision on whether strategy period validators should reject
+  non-integer finite floats.
+
+---
+
 ## Session 2026-11-23 (this session)
 
 Closed the only non-pre-existing failure in the suite: `examples/cli.py:63 _fmt`

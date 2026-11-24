@@ -434,7 +434,11 @@ class BayesianOptimizer(BaseOptimizer):
         @cast(Any, self._use_named_args)
         def objective_func(**params: Any) -> float:
             nonlocal best_score, best_params, best_result
-            params_cast = {k: v for k, v in params.items()}
+            # skopt supplies parameter values as numpy scalars (e.g. np.int64).
+            # Convert to native Python types before evaluation so strategy
+            # constructors that validate ``isinstance(value, (int, float))`` do
+            # not reject them (numpy integers are not Python ``int`` subclasses).
+            params_cast = _convert_to_native({k: v for k, v in params.items()})
             params_eval, score, result = self._evaluate_params(params_cast)
 
             # Convert numpy types to native Python types for JSON serialization
