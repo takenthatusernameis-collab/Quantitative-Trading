@@ -1,3 +1,87 @@
+## Session 2026-11-24 (this session — fifth entry)
+
+No prior agent assignment was pending; the previous session declared all tracked
+validation chains complete with a clean working tree and a green full suite
+(5026 passed). This session inspected the repository for a bounded, high-value
+defect of the same bool/non-numeric constructor-validation class fixed across
+the framework in prior sessions and found one missed spot: `Rebalancer.__init__`
+(and `set_target_allocation` via the same loop) accepted booleans for
+`target_allocation` weights.
+
+### Root cause (reproduced)
+
+`quant_trading/portfolio/rebalancer.py` validated `target_allocation` weights
+with `not isinstance(weight, (int, float)) or not isfinite(weight)`. Since
+`bool` is a subclass of `int`, `weight=True`/`weight=False` passed silently and
+were stored as `1.0`/`0.0`, corrupting the allocation without error. Non-numeric
+strings were already rejected. The defect is reachable from the public
+`Rebalancer` constructor and `set_target_allocation`.
+
+Evidence (live probe before fix):
+```
+Rebalancer(portfolio, target_allocation={'AAPL': True})  -> {'AAPL': True}  (accepted, stored as 1.0)
+Rebalancer(portfolio, target_allocation={'AAPL': False}) -> {'AAPL': False} (accepted, stored as 0.0)
+```
+
+### What changed
+
+**quant_trading/portfolio/rebalancer.py**
+- `Rebalancer.__init__` weight-validation loop (line ~515): added an explicit
+  `isinstance(weight, bool)` rejection before the isinstance/isfinite checks,
+  matching the `_validate_init_param` convention used by `BaseOptimizer`,
+  `RiskManager`, `RiskConfig`, `MonteCarloSimulator`, etc. Booleans and
+  non-numeric values now raise
+  `ValueError: invalid target_allocation: weight for <symbol> must be a finite number (got <value>)` at construction time.
+- `set_target_allocation` (line ~1401): same guard added to its validation loop
+  (the two loops shared the identical unguarded expression).
+- Updated the `__init__` docstring `Raises:` section to document boolean and
+  non-numeric rejection.
+
+**tests/test_rebalancer.py**
+- `test_rebalancer_invalid_target_allocation_weight`: extended with `True`,
+  `False`, and `"0.5"` cases asserting `ValueError` with the `invalid
+  target_allocation` message (the `"0.5"` case uses `cast("dict[str, float],
+  ...)" to satisfy mypy for the `dict[str, float]` parameter).
+- Added `from typing import cast`.
+
+### What was verified
+
+- Reproduced before fix: `weight=True`/`False` accepted and stored as `1.0`/
+  `0.0`; after fix all raise `ValueError`. Valid int/float weights still
+  accepted.
+- `pytest tests/test_rebalancer.py tests/test_portfolio_rebalancer.py
+  tests/test_rebalancer_execution.py tests/test_rebalancer_risk_integration.py
+  tests/test_rebalancer_risk_parity.py tests/test_rebalancer_extra_coverage.py
+  tests/test_rebalancer_sizing_invariants.py`: **246 passed**.
+- `ruff check`, `black --check`, `mypy` on both changed files: **clean**.
+- Full `python -m pytest -q` (default addopts `-m "not slow and not network"`):
+  **5026 passed, 151 deselected, 0 failed** in 242.54s. No regressions;
+  working tree clean apart from this change.
+
+### What remains unresolved
+
+- Nothing for this task. The constructor-validation chain for
+  `target_allocation` weights now rejects booleans/non-numeric/non-finite
+  values, consistent with the rest of the framework, and the full suite is
+  green.
+
+### Approaches that failed
+
+- None. Single targeted fix; no formatting/mypy iterations needed beyond the
+  pre-existing `cast(...)` convention for the non-numeric test argument.
+
+### Next task
+
+- None assigned. All tracked validation chains (bool/non-numeric/non-finite
+  constructor guards across `BaseOptimizer`, `RiskManager`, `RiskConfig`,
+  `PortfolioConfig`, `PositionLimit`, `PortfolioLimit`, `DataConfig`,
+  `MonteCarloSimulator`, `Rebalancer`, report/sensitivity `dpi` configs, and
+  all `_finite` helpers) are complete, and the full suite is green
+  (5026 passed). Future work requires a new defect report or feature request
+  from the user — do not invent speculative changes.
+
+---
+
 ## Session 2026-11-24 (this session — fourth entry)
 
 No prior agent assignment was pending; the previous session declared all

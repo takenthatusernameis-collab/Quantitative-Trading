@@ -1,6 +1,7 @@
 """Tests for the portfolio rebalancer."""
 
 from datetime import datetime
+from typing import cast
 
 import pytest
 
@@ -314,6 +315,15 @@ class TestRebalancer:
             Rebalancer(self.portfolio, target_allocation={"AAPL": float("inf")})
         with pytest.raises(ValueError, match="invalid target_allocation"):
             Rebalancer(self.portfolio, target_allocation={"AAPL": float("-inf")})
+        with pytest.raises(ValueError, match="invalid target_allocation"):
+            Rebalancer(self.portfolio, target_allocation={"AAPL": True})
+        with pytest.raises(ValueError, match="invalid target_allocation"):
+            Rebalancer(self.portfolio, target_allocation={"AAPL": False})
+        with pytest.raises(ValueError, match="invalid target_allocation"):
+            Rebalancer(
+                self.portfolio,
+                target_allocation=cast("dict[str, float]", {"AAPL": "0.5"}),
+            )
 
     def test_rebalancer_invalid_rebalance_threshold(self) -> None:
         """Invalid rebalance_threshold raises ValueError."""

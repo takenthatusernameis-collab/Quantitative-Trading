@@ -497,7 +497,7 @@ class Rebalancer:
         Raises:
             ValueError: If ``frequency`` is not recognized, ``rebalance_threshold``
                 is not in ``[0, 1]``, or ``target_allocation`` contains
-                non-finite values.
+                non-numeric, boolean, or non-finite values.
 
         """
         self.portfolio = portfolio
@@ -512,7 +512,11 @@ class Rebalancer:
         target = target_allocation or {}
         if target:
             for symbol, weight in target.items():
-                if not isinstance(weight, (int, float)) or not isfinite(weight):
+                if (
+                    isinstance(weight, bool)
+                    or not isinstance(weight, (int, float))
+                    or not isfinite(weight)
+                ):
                     raise ValueError(
                         f"invalid target_allocation: weight for {symbol!r} must be a finite number (got {weight!r})"
                     )
@@ -1400,7 +1404,11 @@ class Rebalancer:
         """
         total = sum(allocation.values())
         for symbol, weight in allocation.items():
-            if not isinstance(weight, (int, float)) or not isfinite(weight):
+            if (
+                isinstance(weight, bool)
+                or not isinstance(weight, (int, float))
+                or not isfinite(weight)
+            ):
                 raise ValueError(
                     f"invalid target_allocation: weight for {symbol!r} must be a finite number (got {weight!r})"
                 )
