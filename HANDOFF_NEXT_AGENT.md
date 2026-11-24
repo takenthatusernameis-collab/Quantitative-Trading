@@ -1,3 +1,68 @@
+## Session 2026-11-24 (this session — eleventh entry)
+
+No prior agent assignment was pending; the previous (tenth) entry closed with a
+green suite (5047 passed) and the standing instruction: "Future work requires a
+new defect report or feature request from the user — do not invent speculative
+changes." The ninth/tenth entries also recorded that the read-only defect-hunt
+approach had become unproductive (two empty `explore` runs). Per the reliability
+rule to change approach after repeated failure, this session did **not** repeat
+the speculative defect hunt. Instead it (a) independently re-verified the full
+suite on this fresh runner, and (b) took a materially different, evidence-based
+angle: repository-hygiene and documented-incomplete-work audit.
+
+### What changed
+
+Nothing in project source. Working tree clean (`git status`: nothing to commit).
+Only this durable handoff entry was added.
+
+### What was verified
+
+- **Full suite**: `python -m pytest -q` (default addopts `--doctest-modules
+  -m "not slow and not network"`): **5047 passed, 151 deselected, 0 failed** in
+  531.49s. Exactly matches the tenth entry's count — no regressions on this
+  fresh Python 3.14.4 / pytest 9.2.0 / numpy 2.5.5 / pandas 3.1.1 runner (deps
+  already installed under `/home/runner/work/_temp/kilo-home/.local`; prefix
+  commands with `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`).
+- **Repo-hygiene audit (new angle, read-only)**:
+  - Generated example artifacts exist on disk at `examples/output/sensitivity_report.html`
+    but are **correctly gitignored** (`.gitignore:59 examples/output/`) and
+    **untracked** (`git ls-files examples/output/` empty). No generated HTML/PNG
+    or `data/cache/` is tracked. No hygiene defect.
+  - `TODO/FIXME/XXX/HACK/NotImplemented` scan of `quant_trading/` and `examples/`:
+    no genuine incomplete-work markers in source (only a base64 PNG blob inside the
+    gitignored HTML report matched the broad regex).
+  - `skip`/`xfail` scan of `tests/`: all markers are legitimate optional-dependency
+    guards (`pytest.importorskip` for black/ruff/mypy; `skipif(not MATPLOTLIB_AVAILABLE)`;
+    `skipif(not _HAS_YFINANCE)`; `skipif(... skopt ...)`) or documented
+    line-coverage notes — no disabled/known-failing tests.
+
+### What remains unresolved
+
+- Nothing. Zero known failures under the default marker filter; no hygiene or
+  incomplete-work defect surfaced. The `slow`/`network`-marked tests (151
+  deselected) require network access or are smoke/subprocess tests and are
+  intentionally excluded by the project's default `addopts`.
+
+### Approaches that failed
+
+- The prior sessions' repeated read-only "hunt for a speculative correctness
+  defect" loop (ninth/tenth entries: two empty `explore` results) was **not
+  repeated** this session — it had reached the point of diminishing returns and
+  the standing instruction forbids inventing speculative changes. Replaced with
+  the hygiene/incomplete-work audit above, which is bounded and evidence-based.
+
+### Next task
+
+- **None assigned.** All tracked validation/hardening chains plus the Sortino
+  correctness fix are complete, the working tree is clean, and the full suite is
+  green (5047 passed) on a fresh Python 3.14 runner. Future work requires a
+  **new defect report or feature request from the user — do not invent
+  speculative changes.** On a fresh runner the first step is
+  `pip install -e ".[dev,bayesian,reporting]"` before running any tests (already
+  satisfied on this runner).
+
+---
+
 ## Session 2026-11-24 (this session — tenth entry)
 
 No prior agent assignment was pending; the previous (ninth) entry closed the
