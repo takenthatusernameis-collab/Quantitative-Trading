@@ -22,7 +22,7 @@ Examples:
 import math
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, cast
+from typing import Any
 
 from .base import (
     BaseOptimizer,
@@ -444,8 +444,7 @@ class BayesianOptimizer(BaseOptimizer):
                 f"{self.n_calls - self.n_initial_points} guided)"
             )
 
-        @cast(Any, self._use_named_args)
-        def objective_func(**params: Any) -> float:
+        def _objective_func(**params: Any) -> float:
             nonlocal best_score, best_params, best_result
             # skopt supplies parameter values as numpy scalars (e.g. np.int64).
             # Convert to native Python types before evaluation so strategy
@@ -483,6 +482,9 @@ class BayesianOptimizer(BaseOptimizer):
             if not math.isfinite(score):
                 return 1e10
             return -score
+
+        # skopt's use_named_args decorator is not typed; apply it after definition
+        objective_func = self._use_named_args(_objective_func)
 
         try:
             gp_minimize(

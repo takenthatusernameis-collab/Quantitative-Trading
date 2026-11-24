@@ -5727,7 +5727,7 @@ class KlingerOscillatorStrategy(Strategy):
         # Signal line = EMA(KO, 13) - standard signal period
         signal_line = self._ema(ko, 13)
 
-        return cast(pd.Series, volume_force), cast(pd.Series, ko), cast(pd.Series, signal_line)
+        return volume_force, ko, signal_line
 
     def _ema(self, series: pd.Series, period: int) -> pd.Series:
         """Calculate an Exponential Moving Average.
@@ -8607,7 +8607,7 @@ class KSTStrategy(Strategy):
         }
         kst = roc[10] + 2.0 * roc[15] + 3.0 * roc[20] + 4.0 * roc[30]
         signal_line = kst.rolling(window=self.signal_period).mean()
-        return cast(pd.Series, kst), cast(pd.Series, signal_line)
+        return kst, signal_line
 
     def generate_signals(self, data: dict[str, pd.DataFrame]) -> list[Signal]:
         """Generate buy/sell signals from KST crossovers.
@@ -8784,7 +8784,7 @@ class TrueStrengthIndexStrategy(Strategy):
 
         """
         fast = series.ewm(span=self.short_period, adjust=False).mean()
-        return cast(pd.Series, fast.ewm(span=self.long_period, adjust=False).mean())
+        return fast.ewm(span=self.long_period, adjust=False).mean()
 
     def _calculate_tsi(self, df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
         """Calculate the TSI line and its signal line.

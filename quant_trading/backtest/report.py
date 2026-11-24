@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import io
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -1726,7 +1727,8 @@ def _build_comparison_table(
     colors: dict[str, str],
 ) -> str:
     """Build HTML comparison table for multiple strategies."""
-    rows = [
+
+    rows: list[tuple[str, Callable[[BacktestResult], str]]] = [
         ("Initial Capital", lambda r: f"${r.initial_capital:,.2f}"),
         ("Final Value", lambda r: f"${r.final_value:,.2f}"),
         ("Total Return", lambda r: f"{r.total_return_pct:.2f}%"),
@@ -1825,7 +1827,7 @@ def _build_comparison_risk_attribution(
     html = ['<section class="section">', "<h2>Risk Attribution Comparison</h2>"]
 
     # Summary metrics table
-    summary_rows = [
+    summary_rows: list[tuple[str, Callable[[dict[str, Any]], str]]] = [
         ("Confidence", lambda d: _format_metric(d.get("confidence"), "{:.2%}")),
         ("Positions Value", lambda d: _format_metric(d.get("positions_value"), "${:,.2f}")),
         ("Portfolio Value", lambda d: _format_metric(d.get("portfolio_value"), "${:,.2f}")),
