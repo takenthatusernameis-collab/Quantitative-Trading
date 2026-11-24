@@ -300,7 +300,8 @@ class BayesianOptimizer(BaseOptimizer):
 
         # Validate BayesianOptimizer-specific parameters before assignment.
         if (
-            not isinstance(n_initial_points, (int, float))
+            isinstance(n_initial_points, bool)
+            or not isinstance(n_initial_points, (int, float))
             or not math.isfinite(n_initial_points)
             or n_initial_points < 0
         ):
@@ -308,7 +309,12 @@ class BayesianOptimizer(BaseOptimizer):
                 f"invalid n_initial_points: the value must be non-negative and finite "
                 f"(got {n_initial_points})"
             )
-        if not isinstance(n_calls, (int, float)) or not math.isfinite(n_calls) or n_calls < 1:
+        if (
+            isinstance(n_calls, bool)
+            or not isinstance(n_calls, (int, float))
+            or not math.isfinite(n_calls)
+            or n_calls < 1
+        ):
             raise ValueError(
                 f"invalid n_calls: the value must be at least 1 and finite " f"(got {n_calls})"
             )
@@ -322,12 +328,19 @@ class BayesianOptimizer(BaseOptimizer):
                 f"(got {acq_optimizer!r})"
             )
         if random_state is not None and (
-            not isinstance(random_state, (int, float)) or not math.isfinite(random_state)
+            isinstance(random_state, bool)
+            or not isinstance(random_state, (int, float))
+            or not math.isfinite(random_state)
         ):
             raise ValueError(
                 f"invalid random_state: the value must be finite or None " f"(got {random_state})"
             )
-        if not isinstance(noise, (int, float)) or not math.isfinite(noise) or noise < 0:
+        if (
+            isinstance(noise, bool)
+            or not isinstance(noise, (int, float))
+            or not math.isfinite(noise)
+            or noise < 0
+        ):
             raise ValueError(
                 f"invalid noise: the value must be non-negative and finite " f"(got {noise})"
             )

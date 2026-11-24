@@ -4603,6 +4603,18 @@ class TestBaseOptimizerInitValidation:
         with pytest.raises(ValueError, match="invalid n_jobs"):
             _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), n_jobs=cast(int, n_jobs))
 
+    @pytest.mark.parametrize("initial_capital", [True, False, "100000", None])
+    def test_rejects_bool_and_non_numeric_initial_capital(self, initial_capital: Any) -> None:
+        with pytest.raises(ValueError, match="invalid initial_capital"):
+            _ConcreteBaseOptimizer(
+                **_base_optimizer_minimal_kwargs(), initial_capital=initial_capital
+            )
+
+    @pytest.mark.parametrize("n_jobs", [True, False, "4", None])
+    def test_rejects_bool_and_non_numeric_n_jobs(self, n_jobs: Any) -> None:
+        with pytest.raises(ValueError, match="invalid n_jobs"):
+            _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), n_jobs=n_jobs)
+
     @pytest.mark.parametrize("n_jobs", [1, 2, 4])
     def test_accepts_valid_n_jobs(self, n_jobs: int) -> None:
         optimizer = _ConcreteBaseOptimizer(**_base_optimizer_minimal_kwargs(), n_jobs=n_jobs)
@@ -4738,6 +4750,17 @@ class TestSubclassOptimizerInitValidation:
         with pytest.raises(ValueError, match="invalid n_jobs"):
             cls(**kwargs, n_jobs=cast(int, n_jobs))
 
+    @pytest.mark.parametrize("n_jobs", [True, False, "4", None])
+    def test_rejects_bool_and_non_numeric_n_jobs(
+        self,
+        kwargs_factory: Callable[[], tuple[dict[str, Any], type[BaseOptimizer]]],
+        n_jobs: Any,
+    ) -> None:
+        kwargs, cls = kwargs_factory()
+        kwargs.pop("n_jobs", None)
+        with pytest.raises(ValueError, match="invalid n_jobs"):
+            cls(**kwargs, n_jobs=n_jobs)
+
     @pytest.mark.parametrize("n_jobs", [0, -1, -2, -5])
     def test_clamps_non_positive_n_jobs_to_one(
         self,
@@ -4760,6 +4783,42 @@ class TestSubclassOptimizerInitValidation:
         assert optimizer.periods_per_year == 1
         assert optimizer.commission == 0.0
         assert optimizer.slippage == 1.0
+
+
+class TestRandomSearchInitValidation:
+    """Tests for RandomSearch's own ``n_iter`` and ``random_state`` validation."""
+
+    @pytest.mark.parametrize("n_iter", [True, False, 0, -5, "10", None, float("nan")])
+    def test_rejects_invalid_n_iter(self, n_iter: Any) -> None:
+        kwargs, cls = _random_search_minimal_kwargs()
+        cls = cast(type[RandomSearch], cls)
+        kwargs.pop("n_iter", None)
+        with pytest.raises(ValueError, match="invalid n_iter"):
+            cls(**kwargs, n_iter=n_iter)
+
+    @pytest.mark.parametrize("n_iter", [1, 10])
+    def test_accepts_valid_n_iter(self, n_iter: int) -> None:
+        kwargs, cls = _random_search_minimal_kwargs()
+        cls = cast(type[RandomSearch], cls)
+        kwargs.pop("n_iter", None)
+        optimizer = cls(**kwargs, n_iter=n_iter)
+        assert optimizer.n_iter == n_iter
+
+    @pytest.mark.parametrize("random_state", [True, False, "42", float("nan"), float("inf")])
+    def test_rejects_invalid_random_state(self, random_state: Any) -> None:
+        kwargs, cls = _random_search_minimal_kwargs()
+        cls = cast(type[RandomSearch], cls)
+        kwargs.pop("random_state", None)
+        with pytest.raises(ValueError, match="invalid random_state"):
+            cls(**kwargs, random_state=random_state)
+
+    @pytest.mark.parametrize("random_state", [None, 0, 42])
+    def test_accepts_valid_random_state(self, random_state: Any) -> None:
+        kwargs, cls = _random_search_minimal_kwargs()
+        cls = cast(type[RandomSearch], cls)
+        kwargs.pop("random_state", None)
+        optimizer = cls(**kwargs, random_state=random_state)
+        assert optimizer.random_state == random_state
 
 
 class TestBayesianOptimizerInitValidation:
@@ -4798,6 +4857,37 @@ class TestBayesianOptimizerInitValidation:
         assert optimizer.periods_per_year == 1
         assert optimizer.commission == 0.0
         assert optimizer.slippage == 1.0
+
+    @pytest.mark.parametrize("n_initial_points", [True, False, "10", None])
+    def test_rejects_bool_and_non_numeric_n_initial_points(self, n_initial_points: Any) -> None:
+        kwargs, cls = _bayesian_optimizer_minimal_kwargs()
+        cls = cast(type[BayesianOptimizer], cls)
+        kwargs.pop("n_initial_points", None)
+        with pytest.raises(ValueError, match="invalid n_initial_points"):
+            cls(**kwargs, n_initial_points=n_initial_points)
+
+    @pytest.mark.parametrize("n_calls", [True, False, "50", None])
+    def test_rejects_bool_and_non_numeric_n_calls(self, n_calls: Any) -> None:
+        kwargs, cls = _bayesian_optimizer_minimal_kwargs()
+        cls = cast(type[BayesianOptimizer], cls)
+        kwargs.pop("n_calls", None)
+        with pytest.raises(ValueError, match="invalid n_calls"):
+            cls(**kwargs, n_calls=n_calls)
+
+    @pytest.mark.parametrize("random_state", [True, False, "42", float("nan")])
+    def test_rejects_bool_and_non_numeric_random_state(self, random_state: Any) -> None:
+        kwargs, cls = _bayesian_optimizer_minimal_kwargs()
+        cls = cast(type[BayesianOptimizer], cls)
+        kwargs.pop("random_state", None)
+        with pytest.raises(ValueError, match="invalid random_state"):
+            cls(**kwargs, random_state=random_state)
+
+    @pytest.mark.parametrize("noise", [True, False, "1e-6"])
+    def test_rejects_bool_and_non_numeric_noise(self, noise: Any) -> None:
+        kwargs, cls = _bayesian_optimizer_minimal_kwargs()
+        cls = cast(type[BayesianOptimizer], cls)
+        with pytest.raises(ValueError, match="invalid noise"):
+            cls(**kwargs, noise=noise)
 
 
 class TestObjectiveFunctionNaNHandling:

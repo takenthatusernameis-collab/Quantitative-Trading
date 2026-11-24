@@ -1,5 +1,75 @@
 ## Session 2026-11-24 (this session)
 
+Closed a construction-time validation gap in the optimization framework: `BaseOptimizer.__init__`
+(`quant_trading/optimization/base.py`) accepted booleans for `initial_capital`/`compression`/`slippage`/
+`periods_per_year`/`n_jobs` (bool is a subclass of int, so `isinstance(x, (int, float))` passed) and
+called `n_jobs = max(n_jobs, 1)` *before* the type/finite check, so `n_jobs=True` was silently coerced
+and `n_jobs="abc"` raised an opaque `TypeError`. Same defect class previously fixed for `DataConfig`,
+`RiskManager`, `RiskConfig`, `PortfolioConfig`, `PositionLimit`, `PortfolioLimit`.
+
+### What changed
+
+**quant_trading/optimization/base.py** (`BaseOptimizer.__init__`)
+- Added explicit `isinstance(x, bool)` rejection to `initial_capital`, `commission`, `slippage`,
+  `periods_per_year`, `n_jobs` checks (fail fast with `ValueError: invalid <name>: ...`).
+- Reordered `n_jobs` handling: validate type/finite/bool first, then resolve `-1` → `os.cpu_count()`,
+  then `max(n_jobs, 1)` clamping. Non-positive `n_jobs` (0/-2/-5) still clamp to 1 (preserves the
+  existing `test_clamps_non_positive_n_jobs_to_one` design decision); only non-finite/non-numeric/bool
+  now raise.
+
+**quant_trading/optimization/bayesian.py** (`BayesianOptimizer.__init__`)
+- Added `isinstance(x, bool)` rejection to `n_initial_points`, `n_calls`, `random_state`, `noise`.
+
+**quant_trading/optimization/walk_forward.py** (`WalkForwardOptimizer.__init__`)
+- Added `isinstance(x, bool)` rejection to `n_windows`, `train_size`, `step_size`,
+  `initial_capital`, `periods_per_year`, `commission`, `slippage`, `risk_free_rate` (this class
+  re-implements validation inline rather than delegating to BaseOptimizer).
+
+**quant_trading/optimization/random_search.py** (`RandomSearch.__init__`)
+- Added previously-missing validation for `n_iter` (>= 1 finite, not bool) and `random_state`
+  (finite or None, not bool); uses `np.isfinite` (numpy already imported).
+
+**tests/test_optimization.py** (+ ~42 cases)
+- `TestBaseOptimizerInitValidation`: bool/non-numeric `initial_capital`, `n_jobs`.
+- `TestSubclassOptimizerInitValidation`: bool/non-numeric `n_jobs` (GridSearch/RandomSearch).
+- `TestBayesianOptimizerInitValidation`: bool/non-numeric `n_initial_points`, `n_calls`, `random_state`,
+  `noise`.
+- New `TestRandomSearchInitValidation`: `n_iter`/`random_state` rejection + acceptance.
+
+**tests/test_walk_forward.py** (+ 12 cases)
+- `TestWalkForwardInitValidation`: bool/non-numeric `n_windows`, `train_size`, `risk_free_rate`.
+
+### What was verified
+
+- Reproduction before fix: `initial_capital=True`, `n_jobs=True`, `n_jobs="abc"` accepted / opaque
+  `TypeError`; after fix all raise clear `ValueError`.
+- `pytest tests/test_optimization.py tests/test_walk_forward.py`: **364 passed** (was 304; +60 new).
+- `pytest tests/test_repository_integrity.py`: **51 passed** (ruff/black/mypy/docstring guards green).
+- `ruff check`, `black --check`, `mypy` on all 6 changed files: **clean**.
+- Full `python -m pytest -q` (default addopts `-m "not slow and not network"`):
+  **4997 passed, 151 deselected, 0 failed** in 337.85s (was 4937; +60 = new regression tests).
+  No regressions; working tree clean apart from this change.
+
+### What remains unresolved
+
+- Nothing for this task. All tracked hardening/validation chains remain complete and the suite is
+  green; future work requires a new defect report or feature request.
+
+### Approaches that failed
+
+- None. Single targeted fix; clamping of non-positive `n_jobs` to 1 was deliberately preserved because
+  `test_clamps_non_positive_n_jobs_to_one` explicitly asserts that behavior (a pre-existing design
+  decision, not part of the bool/TypeError defect).
+
+### Next task
+
+- None assigned. The optimization-constructor validation chain is now consistent with the rest of the
+  framework; future work requires a new defect report or feature request.
+
+---
+
+## Session 2026-11-24 (this session)
+
 Fixed the bayesian empty-result defect handed off as the next bounded task.
 The 3 failing bayesian tests (`test_bayesian_optimizer`,
 `test_bayesian_optimizer_different_objectives`,

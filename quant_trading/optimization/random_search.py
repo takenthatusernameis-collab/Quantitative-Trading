@@ -223,6 +223,23 @@ class RandomSearch(BaseOptimizer):
             periods_per_year=periods_per_year,
             verbose=verbose,
         )
+        if (
+            isinstance(n_iter, bool)
+            or not isinstance(n_iter, (int, float))
+            or not np.isfinite(n_iter)
+            or n_iter < 1
+        ):
+            raise ValueError(
+                f"invalid n_iter: the value must be at least 1 and finite " f"(got {n_iter})"
+            )
+        if random_state is not None and (
+            isinstance(random_state, bool)
+            or not isinstance(random_state, (int, float))
+            or not np.isfinite(random_state)
+        ):
+            raise ValueError(
+                f"invalid random_state: the value must be finite or None " f"(got {random_state})"
+            )
         self.n_iter = n_iter
         self.random_state = random_state
         self._rng = np.random.default_rng(random_state)

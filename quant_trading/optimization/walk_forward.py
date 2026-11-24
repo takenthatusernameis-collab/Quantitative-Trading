@@ -512,12 +512,18 @@ class WalkForwardOptimizer:
         """
         # Validate all parameters before assignment (fail fast, consistent with
         # RiskManager and RegimeDetector patterns).
-        if not isinstance(n_windows, (int, float)) or not math.isfinite(n_windows) or n_windows < 1:
+        if (
+            isinstance(n_windows, bool)
+            or not isinstance(n_windows, (int, float))
+            or not math.isfinite(n_windows)
+            or n_windows < 1
+        ):
             raise ValueError(
                 f"invalid n_windows: the value must be at least 1 " f"(got {n_windows})"
             )
         if (
-            not isinstance(train_size, (int, float))
+            isinstance(train_size, bool)
+            or not isinstance(train_size, (int, float))
             or not math.isfinite(train_size)
             or not (0.0 < train_size <= 1.0)
         ):
@@ -529,7 +535,8 @@ class WalkForwardOptimizer:
         else:
             step_size_val = step_size
         if (
-            not isinstance(step_size_val, (int, float))
+            isinstance(step_size_val, bool)
+            or not isinstance(step_size_val, (int, float))
             or not math.isfinite(step_size_val)
             or not (0.0 < step_size_val <= 1.0)
         ):
@@ -538,7 +545,8 @@ class WalkForwardOptimizer:
                 f"(got {step_size_val})"
             )
         if (
-            not isinstance(initial_capital, (int, float))
+            isinstance(initial_capital, bool)
+            or not isinstance(initial_capital, (int, float))
             or not math.isfinite(initial_capital)
             or initial_capital <= 0
         ):
@@ -547,7 +555,8 @@ class WalkForwardOptimizer:
                 f"(got {initial_capital})"
             )
         if (
-            not isinstance(periods_per_year, (int, float))
+            isinstance(periods_per_year, bool)
+            or not isinstance(periods_per_year, (int, float))
             or not math.isfinite(periods_per_year)
             or periods_per_year < 1
         ):
@@ -556,7 +565,8 @@ class WalkForwardOptimizer:
                 f"(got {periods_per_year})"
             )
         if (
-            not isinstance(commission, (int, float))
+            isinstance(commission, bool)
+            or not isinstance(commission, (int, float))
             or not math.isfinite(commission)
             or not (0.0 <= commission <= 1.0)
         ):
@@ -564,14 +574,19 @@ class WalkForwardOptimizer:
                 f"invalid commission: the value must be in the range [0, 1] " f"(got {commission})"
             )
         if (
-            not isinstance(slippage, (int, float))
+            isinstance(slippage, bool)
+            or not isinstance(slippage, (int, float))
             or not math.isfinite(slippage)
             or not (0.0 <= slippage <= 1.0)
         ):
             raise ValueError(
                 f"invalid slippage: the value must be in the range [0, 1] " f"(got {slippage})"
             )
-        if not isinstance(risk_free_rate, (int, float)) or not math.isfinite(risk_free_rate):
+        if (
+            isinstance(risk_free_rate, bool)
+            or not isinstance(risk_free_rate, (int, float))
+            or not math.isfinite(risk_free_rate)
+        ):
             raise ValueError(
                 f"invalid risk_free_rate: the value must be finite " f"(got {risk_free_rate})"
             )

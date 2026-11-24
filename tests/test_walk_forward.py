@@ -91,6 +91,21 @@ class TestWalkForwardInitValidation:
         with pytest.raises(ValueError, match="invalid risk_free_rate"):
             WalkForwardOptimizer(**_minimal_kwargs(), risk_free_rate=risk_free_rate)
 
+    @pytest.mark.parametrize("n_windows", [True, False, "5", None])
+    def test_rejects_bool_and_non_numeric_n_windows(self, n_windows: Any) -> None:
+        with pytest.raises(ValueError, match="invalid n_windows"):
+            WalkForwardOptimizer(**_minimal_kwargs(), n_windows=n_windows)
+
+    @pytest.mark.parametrize("train_size", [True, False, "0.5", None])
+    def test_rejects_bool_and_non_numeric_train_size(self, train_size: Any) -> None:
+        with pytest.raises(ValueError, match="invalid train_size"):
+            WalkForwardOptimizer(**_minimal_kwargs(), train_size=train_size)
+
+    @pytest.mark.parametrize("risk_free_rate", [True, False, "0.02", None])
+    def test_rejects_bool_and_non_numeric_risk_free_rate(self, risk_free_rate: Any) -> None:
+        with pytest.raises(ValueError, match="invalid risk_free_rate"):
+            WalkForwardOptimizer(**_minimal_kwargs(), risk_free_rate=risk_free_rate)
+
     @pytest.mark.parametrize("risk_free_rate", [0.0, 0.02, 0.10, -0.01])
     def test_accepts_finite_risk_free_rate(self, risk_free_rate: float) -> None:
         optimizer = WalkForwardOptimizer(**_minimal_kwargs(), risk_free_rate=risk_free_rate)

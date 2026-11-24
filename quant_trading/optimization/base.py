@@ -909,7 +909,8 @@ class BaseOptimizer(ABC):
         # Validate all parameters before assignment (fail fast, consistent with
         # RiskManager and RegimeDetector patterns).
         if (
-            not isinstance(initial_capital, (int, float))
+            isinstance(initial_capital, bool)
+            or not isinstance(initial_capital, (int, float))
             or not math.isfinite(initial_capital)
             or initial_capital <= 0
         ):
@@ -918,7 +919,8 @@ class BaseOptimizer(ABC):
                 f"(got {initial_capital})"
             )
         if (
-            not isinstance(periods_per_year, (int, float))
+            isinstance(periods_per_year, bool)
+            or not isinstance(periods_per_year, (int, float))
             or not math.isfinite(periods_per_year)
             or periods_per_year < 1
         ):
@@ -927,7 +929,8 @@ class BaseOptimizer(ABC):
                 f"(got {periods_per_year})"
             )
         if (
-            not isinstance(commission, (int, float))
+            isinstance(commission, bool)
+            or not isinstance(commission, (int, float))
             or not math.isfinite(commission)
             or not (0.0 <= commission <= 1.0)
         ):
@@ -935,20 +938,23 @@ class BaseOptimizer(ABC):
                 f"invalid commission: the value must be in the range [0, 1] " f"(got {commission})"
             )
         if (
-            not isinstance(slippage, (int, float))
+            isinstance(slippage, bool)
+            or not isinstance(slippage, (int, float))
             or not math.isfinite(slippage)
             or not (0.0 <= slippage <= 1.0)
         ):
             raise ValueError(
                 f"invalid slippage: the value must be in the range [0, 1] " f"(got {slippage})"
             )
+        if (
+            isinstance(n_jobs, bool)
+            or not isinstance(n_jobs, (int, float))
+            or not math.isfinite(n_jobs)
+        ):
+            raise ValueError(f"invalid n_jobs: the value must be a finite number (got {n_jobs})")
         if n_jobs == -1:
             n_jobs = os.cpu_count() or 1
         n_jobs = max(n_jobs, 1)
-        if not isinstance(n_jobs, (int, float)) or not math.isfinite(n_jobs) or n_jobs < 1:
-            raise ValueError(
-                f"invalid n_jobs: the value must be at least 1 and finite " f"(got {n_jobs})"
-            )
 
         # All validation passed; now assign.
         self.objective = objective
