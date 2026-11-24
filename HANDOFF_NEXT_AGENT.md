@@ -1,3 +1,90 @@
+## Session 2026-11-24 (this session — ninth entry)
+
+No prior agent assignment was pending; the previous (eighth) entry closed the
+`MonteCarloSimulator.random_state` validation gap with a green suite (5047
+passed). Per the standing instruction to make progress when no assignment
+exists, this session inspected the repo for a bounded, high-value defect of a
+class *not* already covered by the bool/non-numeric constructor-validation
+chains and found one genuine correctness bug in `calculate_sortino_ratio`.
+
+### Root cause (reproduced)
+
+`quant_trading/risk/metrics.py:calculate_sortino_ratio` guarded its denominator
+with `if not np.isfinite(std) or std == 0: return 0.0`. The Sortino denominator
+is **downside deviation**, not standard deviation, so the `std == 0` clause was a
+copy-paste from `calculate_sharpe_ratio` (where `std` *is* the denominator and
+the guard is correct). For a constant return series that sits below the MAR
+(e.g. a flat `[0.0]*10` series with the default `risk_free_rate=0.02`, so
+`MAR = 0.02/252 > 0`), `std == 0` but downside deviation is non-zero, so the
+function wrongly returned `0.0` instead of the mathematically correct
+`-1.0` raw (`-15.87` annualized). This directly contradicts the function's own
+docstring: "a strategy that only loses money keeps a negative ratio instead of
+collapsing to zero" and "Returns ... 0.0 if insufficient data or zero downside
+deviation (no return below the minimum acceptable return)."
+
+Evidence (HEAD, before fix):
+```
+calculate_sortino_ratio(pd.Series([0.0]*10))     -> 0.0   (BUG; should be -15.87)
+calculate_sortino_ratio(pd.Series([-0.01]*5))    -> 0.0   (BUG; should be -15.87)
+calculate_sortino_ratio(pd.Series([0.0]))        -> 0.0   (correct: NaN std)
+```
+
+### What changed
+
+**quant_trading/risk/metrics.py** (`calculate_sortino_ratio`)
+- Replaced `if not np.isfinite(std) or std == 0:` with `if not np.isfinite(std):`.
+  The non-finite-`std` (single-observation) case still returns `0.0`; the
+  existing downside-deviation guard (`downside_deviation == 0` -> `0.0`, i.e. no
+  return below the MAR) is now the sole zero-return path for multi-observation
+  series. Updated the explanatory comment to match.
+
+**tests/test_risk_metrics.py** (`TestCalculateSortinoRatio`)
+- `test_constant_returns_zero_not_degenerate` -> `test_constant_returns_negative_sortino`:
+  `pd.Series([0.0]*10)` now asserts `pytest.approx(-15.87, abs=0.01)`.
+- `test_constant_negative_returns_zero` -> `test_constant_negative_returns_negative_sortino`:
+  `pd.Series([-0.01]*5)` now asserts `pytest.approx(-15.87, abs=0.01)`.
+- `test_single_or_nan_std_returns_zero_not_degenerate` unchanged (NaN std still 0.0).
+
+### What was verified
+
+- Reproduced before fix (flat/-0.01 constant series returned 0.0); after fix both
+  return `-15.87` annualized; single-observation still `0.0`.
+- `pytest tests/test_risk_metrics.py`: **277 passed**.
+- Affected set (`test_risk_metrics, test_backtest_metrics, test_trade_analysis,
+  test_backtest_engine, test_monte_carlo, test_repository_integrity` +
+  `--doctest-modules quant_trading/risk/metrics.py`): **722 passed**. Confirmed
+  the other `sortino_ratio == 0.0` assertions (backtest/trade-analysis) are
+  default-value / empty-equity / missing-date passthrough cases, not constant
+  below-MAR series, so unaffected.
+- `ruff check`, `black --check`, `mypy` on both changed files: **clean**.
+- Full `python -m pytest -q` (default addopts `--doctest-modules -m "not slow
+  and not network"`): **5047 passed, 151 deselected, 0 failed** in 537.75s. Same
+  count as baseline (two tests renamed, none added/removed); no regressions.
+
+### What remains unresolved
+
+- Nothing for this task. The Sortino constant-series correctness bug is fixed and
+  the full suite is green.
+
+### Approaches that failed
+
+- An `explore` sub-agent was asked to *find* defects read-only but instead edited
+  three files. Two of its edits were reviewed and rejected/reverted: the
+  `random_search.py` docstring re-indentation was **cosmetic only** (the HEAD
+  doctest already passed 6/6, so it was not a real defect) and was reverted with
+  `git checkout`. Its Sortino edit was correct and retained (with a test rename
+  for coherence). Lesson: verify sub-agent edits against HEAD before accepting.
+
+### Next task
+
+- **None assigned.** All tracked validation/hardening chains plus this Sortino
+  correctness fix are complete and the full suite is green (5047 passed). Future
+  work requires a **new defect report or feature request from the user — do not
+  invent speculative changes.** On a fresh runner the first step is
+  `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
+
+---
+
 ## Session 2026-11-24 (this session — eighth entry)
 
 No prior agent assignment was pending; the previous (seventh) entry confirmed all

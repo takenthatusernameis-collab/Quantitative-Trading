@@ -529,14 +529,15 @@ def calculate_sortino_ratio(
     returns = _drop_non_finite(returns)
     if len(returns) == 0:
         return 0.0
-    # A constant or undefined-variance return series has no downside to
-    # measure: with every observation on the same side of the MAR (or with
-    # fewer than two observations, so std is NaN), the downside deviation is
-    # non-zero and the ratio collapses to a degenerate annualized value.
-    # Guard the same way calculate_sharpe_ratio does, so a flat/single-
-    # observation portfolio reports 0.0 instead of a spurious ratio.
+    # An undefined-variance series (fewer than two observations, so std is
+    # NaN) has no measurable downside deviation and must not produce a
+    # degenerate ratio. Constant multi-observation series are handled by the
+    # downside-deviation guard below: when every return is below the MAR the
+    # downside deviation is non-zero and the (negative) Sortino is meaningful;
+    # when no return is below the MAR the downside deviation is zero and we
+    # return 0.0 there.
     std = returns.std()
-    if not np.isfinite(std) or std == 0:
+    if not np.isfinite(std):
         return 0.0
     mar = risk_free_rate / periods_per_year
     excess = float(returns.mean()) - mar
