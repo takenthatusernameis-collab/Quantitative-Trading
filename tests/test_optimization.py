@@ -833,6 +833,22 @@ def test_bayesian_optimizer_config_from_dict_sanitizes_non_finite_noise() -> Non
     assert config.noise == 0.001
 
 
+def test_convert_to_native_list_tuple_and_ndarray() -> None:
+    """_convert_to_native converts ndarray and list/tuple inputs to native types.
+
+    Covers the ndarray ``.tolist()`` branch and the list/tuple comprehension
+    branch of :func:`_convert_to_native`.
+    """
+    import numpy as np
+
+    from quant_trading.optimization.bayesian import _convert_to_native
+
+    assert _convert_to_native(np.array([1, 2])) == [1, 2]
+    assert _convert_to_native([np.int64(1), np.float64(2.0)]) == [1, 2.0]
+    assert _convert_to_native((np.int64(1), np.float64(2.0))) == [1, 2.0]
+    assert _convert_to_native({"a": [np.int64(1)]}) == {"a": [1]}
+
+
 @skip_if_no_skopt
 def test_bayesian_optimizer_categorical() -> None:
     """Test BayesianOptimizer with categorical parameters."""
@@ -2480,6 +2496,47 @@ def test_bayesian_optimizer_verbose(capsys: pytest.CaptureFixture[Any]) -> None:
     out = capsys.readouterr().out
     assert "BayesianOptimizer:" in out
     assert "BayesianOptimizer complete" in out
+
+
+@skip_if_no_skopt
+def test_bayesian_optimizer_non_finite_score_not_best() -> None:
+    """A non-finite objective score is penalized (line 483) and never becomes best.
+
+    The contract is that an all-non-finite evaluation set leaves
+    ``best_params == {}`` and ``best_score == -inf`` (GridSearch-consistent),
+    with ``all_results`` still populated.
+    """
+    symbols = ["AAPL"]
+    mock_data = {"AAPL": create_test_data("AAPL", days=60)}
+    provider = MockDataProvider(mock_data)
+    data_manager = DataManager([provider])
+
+    param_grid = ParameterGrid()
+    param_grid.add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
+    param_grid.add(ParameterSpace("slow_period", values=[20, 30], param_type=int))
+
+    def non_finite_objective(result: Any) -> float:
+        return float("nan")
+
+    optimizer = BayesianOptimizer(
+        strategy_cls=MovingAverageCrossover,
+        param_grid=param_grid,
+        objective=non_finite_objective,
+        symbols=symbols,
+        start=datetime(2026, 1, 15) - timedelta(days=50),
+        end=datetime(2026, 1, 15),
+        initial_capital=100000.0,
+        data_manager=data_manager,
+        n_initial_points=1,
+        n_calls=2,
+        random_state=42,
+        verbose=False,
+    )
+    result = optimizer.run()
+    assert result.best_params == {}
+    assert result.best_score == float("-inf")
+    assert len(result.all_results) == optimizer.n_calls
+    assert all(r["score"] == float("-inf") for r in result.all_results)  # every score penalized
 
 
 @skip_if_no_skopt
@@ -4888,6 +4945,38 @@ class TestBayesianOptimizerInitValidation:
         cls = cast(type[BayesianOptimizer], cls)
         with pytest.raises(ValueError, match="invalid noise"):
             cls(**kwargs, noise=noise)
+
+    @pytest.mark.parametrize("acq_func", ["", 123, None, [], {}])
+    def test_rejects_invalid_acq_func(self, acq_func: Any) -> None:
+        kwargs, cls = _bayesian_optimizer_minimal_kwargs()
+        cls = cast(type[BayesianOptimizer], cls)
+        with pytest.raises(ValueError, match="invalid acq_func"):
+            cls(**kwargs, acq_func=acq_func)
+
+    @pytest.mark.parametrize("acq_optimizer", ["", 123, None, [], {}])
+    def test_rejects_invalid_acq_optimizer(self, acq_optimizer: Any) -> None:
+        kwargs, cls = _bayesian_optimizer_minimal_kwargs()
+        cls = cast(type[BayesianOptimizer], cls)
+        with pytest.raises(ValueError, match="invalid acq_optimizer"):
+            cls(**kwargs, acq_optimizer=acq_optimizer)
+
+    @pytest.mark.parametrize(
+        "acq_func,acq_optimizer",
+        [
+            ("EI", "auto"),
+            ("PI", "sampling"),
+            ("LCB", "lbfgs"),
+            ("gp_hedge", "auto"),
+        ],
+    )
+    def test_accepts_valid_acq_func_and_acq_optimizer(
+        self, acq_func: str, acq_optimizer: str
+    ) -> None:
+        kwargs, cls = _bayesian_optimizer_minimal_kwargs()
+        cls = cast(type[BayesianOptimizer], cls)
+        optimizer = cls(**kwargs, acq_func=acq_func, acq_optimizer=acq_optimizer)
+        assert optimizer.acq_func == acq_func
+        assert optimizer.acq_optimizer == acq_optimizer
 
 
 class TestObjectiveFunctionNaNHandling:

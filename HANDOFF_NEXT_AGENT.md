@@ -1,4 +1,36 @@
-## Session 2026-11-24 (this session — twelfth entry)
+## Session 2026-11-24 (this session — thirteenth entry)
+
+No prior agent assignment was pending; the previous (twelfth) entry closed with "no task assigned; do not invent speculative changes." Per the operating principle to make bounded, evidence-based progress when no assignment exists, this session took the next-highest-value coverage target the handoff itself identified: `quant_trading/optimization/bayesian.py` (97%; missing lines 322, 326, 483 plus doctest branches 65/69). Closed the gap with tests only — no source/behavior change.
+
+### What changed
+
+**tests/test_optimization.py** only. Added:
+- `TestBayesianOptimizerInitValidation.test_rejects_invalid_acq_func` (5 cases: `""`, `123`, `None`, `[]`, `{}`) -> covers line 322.
+- `TestBayesianOptimizerInitValidation.test_rejects_invalid_acq_optimizer` (5 cases) -> covers line 326.
+- `TestBayesianOptimizerInitValidation.test_accepts_valid_acq_func_and_acq_optimizer` (4 cases) -> acceptance guard.
+- `test_bayesian_optimizer_non_finite_score_not_best` -> all-NaN objective leaves `best_params == {}`, `best_score == -inf`, exercising the `return 1e10` penalty at line 483.
+- `test_convert_to_native_list_tuple_and_ndarray` -> covers `_convert_to_native` ndarray (65) and list/tuple (69) branches.
+
+### What was verified
+
+- **Coverage**: `quant_trading/optimization/bayesian.py` now **100%** (0 missing statements, 0 partial branches; was 97% missing 322/326/483, plus 65/69 only reachable via doctests). Measured via the coverage API driver script because the `coverage run` CLI is broken in this env (`a1_coverage.pth` auto-starts coverage at interpreter init and collides with numpy 2.5.5: `ImportError: cannot load module more than once per process`).
+- **Focused suites**: `tests/test_optimization.py -k "bayesian or Bayesian"` -> 71 passed; `tests/test_optimization.py tests/test_repository_integrity.py --doctest-modules quant_trading/optimization/bayesian.py` -> 385 passed.
+- **Guards on changed file**: `ruff check`, `black --check`, `mypy tests/test_optimization.py` all clean.
+- **Full suite**: `python -m pytest -q` (default addopts `--doctest-modules -m "not slow and not network"`): **5083 passed, 151 deselected, 0 failed** in 541.68s — exactly the prior 5067 + 16 new tests, no regressions, Python 3.14.4 / pytest 9.2.0 / numpy 2.5.5 / pandas 3.1.1 (deps under `/home/runner/work/_temp/kilo-home/.local`; prefix commands with `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`).
+
+### What remains unresolved
+
+- Nothing for this task. `bayesian.py` is at 100%; the other sub-100% modules were left untouched (not outliers). The `slow`/`network` tests (151 deselected) are intentionally excluded by default `addopts`.
+
+### Approaches that failed
+
+- `coverage run` / `pytest --cov` CLI: unusable in this environment due to the `a1_coverage.pth` + numpy double-load conflict (worked around with the coverage-API driver script, since deleted; it lived outside the repo).
+
+### Next task
+
+- **None assigned.** Working tree contains only the test addition + this entry; full suite green (5083 passed). Future work requires a **new defect report or feature request from the user — do not invent speculative changes.** If further coverage hardening is desired, the next bounded targets are `quant_trading/risk/manager.py` (98%) and `examples/cli.py` (99%), but only pursue on explicit request. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"`.
+
+---
 
 The previous (eleventh) entry and the latest code commit (`ceacdc6`, the
 `calculate_alpha` `risk_free_rate` validation fix) both closed with "no task
