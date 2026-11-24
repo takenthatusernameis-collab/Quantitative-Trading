@@ -358,6 +358,66 @@ def test_monte_carlo_rejects_invalid_risk_free_rate(risk_free_rate: float) -> No
         MonteCarloSimulator(n_simulations=10, risk_free_rate=risk_free_rate, random_state=7)
 
 
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("n_simulations", True),
+        ("n_simulations", False),
+        ("n_simulations", "abc"),
+        ("confidence_level", True),
+        ("confidence_level", "abc"),
+        ("periods_per_year", True),
+        ("periods_per_year", "abc"),
+        ("risk_free_rate", True),
+        ("risk_free_rate", "abc"),
+        ("n_jobs", True),
+        ("n_jobs", "abc"),
+    ],
+)
+def test_monte_carlo_rejects_bool_and_non_numeric(field: str, value: object) -> None:
+    """Booleans and non-numeric values are rejected for every numeric field.
+
+    ``bool`` is a subclass of ``int`` so ``isinstance(True, (int, float))`` is
+    ``True``; without an explicit ``isinstance(x, bool)`` guard every such
+    value was silently accepted at construction time (the same defect class
+    already fixed for ``BaseOptimizer`` and the config/data validation
+    chains). The failed construction must not mutate the simulator.
+    """
+    with pytest.raises(ValueError, match=f"invalid {field}"):
+        if field == "n_simulations":
+            MonteCarloSimulator(n_simulations=cast(int, value), random_state=7)
+        elif field == "n_jobs":
+            MonteCarloSimulator(n_simulations=10, n_jobs=cast(int, value), random_state=7)
+        elif field == "confidence_level":
+            MonteCarloSimulator(
+                n_simulations=10, confidence_level=cast(float, value), random_state=7
+            )
+        elif field == "periods_per_year":
+            MonteCarloSimulator(n_simulations=10, periods_per_year=cast(int, value), random_state=7)
+        else:  # risk_free_rate
+            MonteCarloSimulator(n_simulations=10, risk_free_rate=cast(float, value), random_state=7)
+
+
+def test_monte_carlo_rejects_non_finite_n_simulations() -> None:
+    """A non-finite ``n_simulations`` is rejected at construction time."""
+    with pytest.raises(ValueError, match="invalid n_simulations"):
+        MonteCarloSimulator(n_simulations=cast(int, float("nan")), random_state=7)
+
+
+def test_monte_carlo_rejects_non_finite_risk_free_rate() -> None:
+    """A non-finite ``risk_free_rate`` is rejected at construction time."""
+    with pytest.raises(ValueError, match="invalid risk_free_rate"):
+        MonteCarloSimulator(
+            n_simulations=10, risk_free_rate=cast(float, float("nan")), random_state=7
+        )
+
+
+def test_monte_carlo_rejects_non_finite_n_jobs() -> None:
+    """A non-finite ``n_jobs`` is rejected at construction time."""
+    with pytest.raises(ValueError, match="invalid n_jobs"):
+        MonteCarloSimulator(n_simulations=10, n_jobs=cast(int, float("nan")), random_state=7)
+
+
 def test_monte_carlo_accepts_finite_risk_free_rate() -> None:
     simulator = MonteCarloSimulator(n_simulations=10, risk_free_rate=0.05, random_state=7)
     assert simulator.risk_free_rate == 0.05

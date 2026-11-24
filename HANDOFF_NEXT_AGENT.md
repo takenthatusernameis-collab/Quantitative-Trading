@@ -1,3 +1,96 @@
+## Session 2026-11-24 (this session — fourth entry)
+
+No prior agent assignment was pending; the previous session declared all
+tracked validation chains complete with a clean working tree and a green full
+suite (5012 passed). This session inspected the repository for a bounded,
+high-value defect and found one in `MonteCarloSimulator.__init__`.
+
+### Root cause (reproduced)
+
+`MonteCarloSimulator.__init__` (`quant_trading/monte_carlo/simulator.py`) accepted
+booleans for `n_simulations`, `confidence_level`, `periods_per_year`,
+`risk_free_rate`, and `n_jobs` via `isinstance(x, (int, float))`, the same
+defect class already fixed for `BaseOptimizer`, `RiskManager`, `RiskConfig`,
+`PortfolioConfig`, `PositionLimit`, `PortfolioLimit`, and `DataConfig`.
+`bool` is a subclass of `int`, so `isinstance(True, (int, float))` is `True`;
+`n_simulations=True` was silently accepted and stored as `True` (later
+`range(True)` iterates as `range(1)`, masking the corruption), `n_jobs="abc"`
+raised an opaque `TypeError` instead of a clear `ValueError`, and non-finite
+values were only partially guarded. The defect is reachable from the public
+`run_monte_carlo` convenience function and the CLI `--monte-carlo` path.
+
+Evidence (live probe before fix):
+```
+MonteCarloSimulator(n_simulations=True)   -> n_sim=True, ppf=252, rfr=0.02, n_jobs=1   (accepted)
+MonteCarloSimulator(periods_per_year=True) -> n_sim=1000, ppf=True, rfr=0.02, n_jobs=1  (accepted)
+MonteCarloSimulator(risk_free_rate=True)   -> n_sim=1000, ppf=252, rfr=True, n_jobs=1   (accepted)
+MonteCarloSimulator(n_jobs=True)           -> n_sim=1000, ppf=252, rfr=0.02, n_jobs=True (accepted)
+MonteCarloSimulator(n_jobs="abc")          -> TypeError: '>' not supported between instances of 'int' and 'str'
+```
+
+### What changed
+
+**quant_trading/monte_carlo/simulator.py** (`MonteCarloSimulator.__init__`)
+- Added an explicit `isinstance(x, bool)` rejection to every numeric field:
+  `n_simulations`, `confidence_level`, `periods_per_year`, `risk_free_rate`,
+  `n_jobs`. Booleans, non-numeric values, and non-finite numbers now raise a
+  clear `ValueError: invalid <name>: ... (got <value>)` at construction time,
+  matching the `BaseOptimizer.__init__` convention exactly.
+- Reordered `n_jobs` handling: validate type/finite/bool first, then resolve
+  `-1` → `os.cpu_count()`, then `max(n_jobs, 1)` clamping. Non-positive
+  `n_jobs` (0/-2/-5) still clamp to 1 (preserves the existing
+  `test_monte_carlo_clamps_non_positive_n_jobs_to_one` design decision); only
+  non-finite/non-numeric/bool now raise.
+- Updated the `Raises:` docstring section to document the bool/non-numeric
+  rejection.
+
+**tests/test_monte_carlo.py** (+14 cases)
+- `test_monte_carlo_rejects_bool_and_non_numeric`: parametrized over all five
+  fields × {True, False, "abc"} (11 cases), asserting `ValueError` with the
+  `invalid <field>` message.
+- `test_monte_carlo_rejects_non_finite_n_simulations`,
+  `test_monte_carlo_rejects_non_finite_risk_free_rate`,
+  `test_monte_carlo_rejects_non_finite_n_jobs`: explicit non-finite rejection
+  cases (the `n_jobs` one was previously missing — only `nan`/`inf` were
+  covered, and only via the convenience function).
+
+### What was verified
+- Reproduced before fix: `n_simulations=True`, `periods_per_year=True`,
+  `risk_free_rate=True`, `n_jobs=True` accepted; after fix all raise
+  `ValueError`. `n_jobs="abc"` now raises a clear `ValueError` instead of an
+  opaque `TypeError`.
+- `pytest tests/test_monte_carlo.py`: **82 passed** (was 68; +14 new cases).
+- `pytest tests/test_monte_carlo.py tests/test_repository_integrity.py`:
+  **133 passed** (ruff/black/mypy/docstring guards green).
+- `ruff check`, `black --check`, `mypy` on both changed files: **clean**.
+- Full `python -m pytest -q` (default addopts `-m "not slow and not network"`):
+  **5026 passed, 151 deselected, 0 failed** in 243.86s (was 5012; +14 new
+  tests). No regressions; working tree clean apart from this change.
+
+### What remains unresolved
+- Nothing for this task. The Monte Carlo constructor validation chain is now
+  consistent with the rest of the framework, and the full suite is green.
+
+### Approaches that failed
+- Black formatting iterations: the first edit produced a black line-length
+  violation on the multi-line `n_jobs` `ValueError` (the `isinstance(n_jobs,
+  bool) or ...` guard exceeded 100 chars on one line). Self-fixed by running
+  `black`, which wrapped the condition across three lines.
+- mypy on the new parametrized test: the first version built a
+  `dict[str, object]` and splatted it into `MonteCarloSimulator(**kwargs)`,
+  which mypy flagged as incompatible with the typed parameters. Rewrote the
+  test to call the constructor directly per-field with explicit `cast(...)`
+  annotations; also had to `cast` the pre-existing `float("nan")` arguments in
+  the three non-finite tests (`n_simulations`/`n_jobs` expect `int`,
+  `risk_free_rate` expects `float`).
+
+### Next task
+- None assigned. All tracked validation chains remain complete and the full
+  suite is green (5026 passed). Future work requires a new defect report or
+  feature request.
+
+---
+
 ## Session 2026-11-24 (this session — third entry)
 
 Fixed a construction-time validation inconsistency in `RiskConfig.__post_init__`

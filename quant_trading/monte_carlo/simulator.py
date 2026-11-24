@@ -572,13 +572,19 @@ class MonteCarloSimulator:
         Raises:
             ValueError: If ``n_simulations`` is below 1, ``confidence_level`` is
                 outside ``(0, 1)``, ``periods_per_year`` is below 1, or
-                ``risk_free_rate`` is not finite.
+                ``risk_free_rate`` is not finite. Booleans and non-numeric
+                values are also rejected for every parameter (bool is a
+                subclass of int but is not accepted here).
 
         """
         # Validate all parameters before assignment (fail fast, consistent with
-        # RiskManager and RegimeDetector patterns).
+        # RiskManager and RegimeDetector patterns). Booleans are explicitly
+        # rejected because bool is a subclass of int and would otherwise pass
+        # isinstance(x, (int, float)); the same convention used by
+        # BaseOptimizer.__init__ and the config/data validation chains.
         if (
-            not isinstance(n_simulations, (int, float))
+            isinstance(n_simulations, bool)
+            or not isinstance(n_simulations, (int, float))
             or not math.isfinite(n_simulations)
             or n_simulations < 1
         ):
@@ -587,7 +593,8 @@ class MonteCarloSimulator:
                 f"(got {n_simulations})"
             )
         if (
-            not isinstance(confidence_level, (int, float))
+            isinstance(confidence_level, bool)
+            or not isinstance(confidence_level, (int, float))
             or not math.isfinite(confidence_level)
             or not (0.0 < confidence_level < 1.0)
         ):
@@ -596,7 +603,8 @@ class MonteCarloSimulator:
                 f"(got {confidence_level})"
             )
         if (
-            not isinstance(periods_per_year, (int, float))
+            isinstance(periods_per_year, bool)
+            or not isinstance(periods_per_year, (int, float))
             or not math.isfinite(periods_per_year)
             or periods_per_year < 1
         ):
@@ -604,17 +612,23 @@ class MonteCarloSimulator:
                 f"invalid periods_per_year: the value must be at least 1 and finite "
                 f"(got {periods_per_year})"
             )
-        if not isinstance(risk_free_rate, (int, float)) or not math.isfinite(risk_free_rate):
+        if (
+            isinstance(risk_free_rate, bool)
+            or not isinstance(risk_free_rate, (int, float))
+            or not math.isfinite(risk_free_rate)
+        ):
             raise ValueError(
                 f"invalid risk_free_rate: the value must be finite " f"(got {risk_free_rate})"
             )
+        if (
+            isinstance(n_jobs, bool)
+            or not isinstance(n_jobs, (int, float))
+            or not math.isfinite(n_jobs)
+        ):
+            raise ValueError(f"invalid n_jobs: the value must be a finite number (got {n_jobs})")
         if n_jobs == -1:
             n_jobs = os.cpu_count() or 1
         n_jobs = max(n_jobs, 1)
-        if not isinstance(n_jobs, (int, float)) or not math.isfinite(n_jobs) or n_jobs < 1:
-            raise ValueError(
-                f"invalid n_jobs: the value must be at least 1 and finite " f"(got {n_jobs})"
-            )
 
         # All validation passed; now assign.
         self.n_simulations = n_simulations
