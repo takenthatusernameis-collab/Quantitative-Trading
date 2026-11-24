@@ -1,3 +1,75 @@
+## Session 2026-11-23 (this session)
+
+Closed the only non-pre-existing failure in the suite: `examples/cli.py:63 _fmt`
+(the helper added in commit `17df90e`) had no `Args:` section and an empty
+`Examples:` section, failing three repository-integrity guards.
+
+### What changed
+
+**examples/cli.py**
+- `_fmt` docstring now has an `Args:` section (`val`, `fmt`) and two runnable
+  doctests covering the numeric path (`_fmt(3.14159, ">7.2f")` -> `'   3.14'`)
+  and the `None`/`N/A` path (`_fmt(None, ">7.2f")` -> `'    N/A'`).
+- No behavior change to the helper itself.
+
+### What was verified
+
+- `pytest tests/test_repository_integrity.py`: **51 passed** (all three
+  docstring guards green: `test_documented_args_cover_signature_params`,
+  `test_documented_functions_have_args_section`,
+  `test_documented_examples_are_valid`).
+- `pytest --doctest-modules examples/cli.py`: **2 passed**.
+- `ruff check`, `black --check`, `mypy examples/cli.py`: **clean**.
+- Full `python -m pytest -q` (default addopts `-m "not slow and not network"`):
+  **4931 passed, 5 failed, 151 deselected** in 324.60s. Before this change the
+  suite was 4928 passed / 8 failed; the 3 `_fmt` integrity failures are gone.
+- All 5 remaining failures are **pre-existing on the clean tree**, confirmed via
+  `git stash` (they fail identically at HEAD `17df90e` without this change):
+  - `tests/test_optimization.py::test_bayesian_optimizer` — `best_params={}`,
+    `best_score=-inf` (skopt run produced no accepted point).
+  - `tests/test_optimization.py::test_bayesian_optimizer_different_objectives`
+    — `assert -inf != -inf` (same root cause).
+  - `tests/test_optimization.py::TestBayesianOptimizerCollapsedBounds::test_collapsed_integer_bounds`
+    — `KeyError: 'fast_period'` (same root cause).
+  - `tests/test_strategies_examples.py::TestEMACrossoverStrategy::test_validate_parameters_type_errors`
+    — `fast_period=5.5` not rejected (design decision: should strategies
+      reject non-integer floats?).
+  - `quant_trading/optimization/bayesian.py::BayesianOptimizer` doctest — same
+    `best_params={}` root cause.
+
+### What remains unresolved
+
+- The bayesian `best_params={}` / `best_score=-inf` class (4 of the 5 failures,
+  including the bayesian.py doctest). `BayesianOptimizer.run` wraps
+  `gp_minimize` in `try/except (ValueError, RuntimeError, KeyError)` and silently
+  swallows the error, then returns an `OptimizationResult` with empty
+  `best_params` and `-inf` `best_score` — the doctest and tests expect a real
+  best point. This is a real defect worth a bounded fix: either fail fast with
+  a clear error when no point was accepted, or make the doctest tolerant of the
+  empty result. Reproduce deterministically first (the run is seeded with
+  `random_state=42`).
+- The EMACrossover `5.5` design case (1 of 5) — needs a decision on whether
+  strategy period validators should reject non-integer finite floats.
+
+### Approaches that failed
+
+- None. The `_fmt` fix was a straightforward docstring addition; the only
+  iteration was correcting the expected doctest string for the `N/A` path
+  (`'    N/A'`, not `'   N/A  '`).
+
+### Next task
+
+- **Fix the bayesian empty-result contract** (`quant_trading/optimization/bayesian.py:470-500`):
+  when `gp_minimize` raises or produces no accepted point, `run()` should
+  either raise a clear `ValueError` (fail fast) or the doctest/tests should
+  assert the empty-result contract. Reproduce deterministically with
+  `random_state=42`, then apply the smallest verifiable change and rerun
+  `tests/test_optimization.py` + the bayesian doctest + the focused
+  `test_repository_integrity.py` guards. This is the one remaining
+  non-pre-existing, non-design-decision defect in the tree.
+
+---
+
 ## Status
 
 Hardened three `from_dict` deserializers in `quant_trading/risk/limits.py` with the `_finite` helper pattern used in `quant_trading/risk/metrics.py` and `quant_trading/risk/manager.py`:
