@@ -3109,12 +3109,21 @@ class TestEMACrossoverStrategy:
         """Test parameter validation raises for invalid types."""
         with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
             EMACrossover(fast_period=None)  # type: ignore
-        with pytest.raises(ValueError, match="invalid fast_period: the value must be positive"):
-            EMACrossover(fast_period=5.5)  # type: ignore
         with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
             EMACrossover(slow_period=None)  # type: ignore
-        with pytest.raises(ValueError, match="invalid slow_period: the value must be positive"):
-            EMACrossover(slow_period=26.5)  # type: ignore
+
+    def test_validate_parameters_accepts_finite_float_periods(self) -> None:
+        """Finite float periods are accepted, matching the framework convention.
+
+        ``_validate_init_param`` rejects booleans, non-numeric values, and
+        non-finite numbers, but accepts finite floats (the same convention used
+        by ``DataConfig`` float seeds and ``RiskManager`` finite-negative rates).
+        pandas ``ewm`` accepts float spans, so a finite float period is a valid
+        lookback window.
+        """
+        s = EMACrossover(fast_period=5.5, slow_period=26.5)  # type: ignore
+        assert s.fast_period == 5.5
+        assert s.slow_period == 26.5
 
     def test_generate_signals_insufficient_data(self) -> None:
         """Test generate_signals with insufficient data."""

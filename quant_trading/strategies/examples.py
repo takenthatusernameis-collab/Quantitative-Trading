@@ -3144,8 +3144,13 @@ class EMACrossover(Strategy):
         - Sell when fast EMA crosses below slow EMA
 
     Parameters:
-        fast_period (int): Lookback window for the fast EMA (default: 12)
-        slow_period (int): Lookback window for the slow EMA (default: 26)
+        fast_period (int | float): Lookback window for the fast EMA (default: 12).
+            Must be a finite positive number; finite floats are accepted (pandas
+            ``ewm`` accepts float spans) but booleans and non-finite values are
+            rejected.
+        slow_period (int | float): Lookback window for the slow EMA (default: 26).
+            Must be a finite positive number; finite floats are accepted but
+            booleans and non-finite values are rejected.
 
     Examples:
         >>> from quant_trading.strategies.examples import EMACrossover
