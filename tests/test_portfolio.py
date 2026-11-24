@@ -776,3 +776,92 @@ class TestPortfolioSerialization:
         assert restored.cash == 0.0
         assert restored.initial_capital == 0.0
         assert restored.total_value == 0.0
+
+
+class TestHoldingNonFiniteSanitization:
+    """Direct construction sanitizes non-finite numeric fields to 0.0.
+
+    ``Holding.from_dict`` sanitizes before construction, so these tests exercise
+    the ``__post_init__`` guards that protect a directly constructed holding from
+    NaN/inf propagation.
+    """
+
+    def test_non_finite_quantity_is_zeroed(self) -> None:
+        """A NaN quantity is replaced with 0.0 and yields no market value."""
+        holding = Holding(symbol="AAPL", quantity=float("nan"), avg_cost=100.0, current_price=150.0)
+        assert holding.quantity == 0.0
+        assert holding.market_value == 0.0
+
+    def test_non_finite_avg_cost_is_zeroed(self) -> None:
+        """A non-finite average cost is replaced with 0.0; market value is unaffected."""
+        holding = Holding(symbol="AAPL", quantity=10, avg_cost=float("inf"), current_price=150.0)
+        assert holding.avg_cost == 0.0
+        assert holding.market_value == pytest.approx(1500.0)
+
+    def test_non_finite_current_price_is_zeroed(self) -> None:
+        """A non-finite current price is replaced with 0.0 and zeroes market value."""
+        holding = Holding(symbol="AAPL", quantity=10, avg_cost=100.0, current_price=float("nan"))
+        assert holding.current_price == 0.0
+        assert holding.market_value == 0.0
+
+    def test_pnl_and_pct_zero_when_price_becomes_non_finite(self) -> None:
+        """PnL and PnL% report 0.0 if the price is mutated to a non-finite value."""
+        holding = Holding(symbol="AAPL", quantity=10, avg_cost=100.0, current_price=150.0)
+        holding.current_price = float("inf")
+        assert holding.unrealized_pnl == 0.0
+        assert holding.unrealized_pnl_pct == 0.0
+
+
+class TestPortfolioNonFiniteSanitization:
+    """Construction and operations keep every portfolio numeric field finite."""
+
+    def test_non_finite_cash_is_zeroed(self) -> None:
+        """A NaN cash balance is replaced with 0.0 at construction."""
+        portfolio = Portfolio(cash=float("nan"))
+        assert portfolio.cash == 0.0
+        assert portfolio.total_value == 0.0
+
+    def test_non_finite_initial_capital_is_sanitized(self) -> None:
+        """A non-finite initial capital is sanitized, then inferred from cash."""
+        portfolio = Portfolio(cash=1000.0, initial_capital=float("inf"))
+        assert portfolio.initial_capital == 1000.0
+        assert portfolio.total_value == 1000.0
+
+    def test_non_finite_total_value_falls_back_to_cash(self) -> None:
+        """A non-finite total value falls back to the (finite) cash balance."""
+        portfolio = Portfolio(cash=1000.0, total_value=float("inf"))
+        assert portfolio.total_value == 1000.0
+
+    def test_get_position_pct_zero_when_value_non_finite(self) -> None:
+        """get_position_pct returns 0.0 when the position value is non-finite."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.add_holding("AAPL", 100, 100.0)
+        portfolio.holdings["AAPL"].market_value = float("nan")
+        assert portfolio.get_position_pct("AAPL") == 0.0
+
+    def test_add_holding_zero_quantity_falls_back_when_cash_non_finite(self) -> None:
+        """A no-op trade still recomputes a finite total value from non-finite cash."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.cash = float("inf")
+        portfolio.add_holding("AAPL", 0, 100.0)
+        assert portfolio.total_value == 0.0
+
+    def test_add_holding_overflow_keeps_total_value_finite(self) -> None:
+        """An overflowing buy leaves total_value finite (0.0) rather than inf."""
+        portfolio = Portfolio(cash=1e308, initial_capital=1e308)
+        portfolio.add_holding("AAPL", 1e308, 1e308)
+        assert portfolio.total_value == 0.0
+
+    def test_remove_holding_overflow_keeps_total_value_finite(self) -> None:
+        """An overflowing sale leaves total_value finite (0.0) rather than inf."""
+        portfolio = Portfolio(cash=0.0, initial_capital=0.0)
+        portfolio.add_holding("AAPL", 100, 100.0)
+        portfolio.remove_holding("AAPL", 1e308, 1e308)
+        assert portfolio.total_value == 0.0
+
+    def test_update_prices_falls_back_when_cash_non_finite(self) -> None:
+        """update_prices recomputes a finite total value from non-finite cash."""
+        portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+        portfolio.cash = float("inf")
+        portfolio.update_prices({})
+        assert portfolio.total_value == 0.0
