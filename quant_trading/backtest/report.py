@@ -1992,7 +1992,22 @@ def _build_comparison_summary_cards(
     results: list[tuple[str, BacktestResult]],
     colors: dict[str, str],
 ) -> str:
-    """Build summary cards for each strategy."""
+    """Build summary cards for each strategy.
+
+    Every metric is run through :func:`_finite` (via :func:`_format_metric`)
+    before formatting, so a NaN/inf metric — which can occur when a strategy
+    produces no trades, a flat equity curve, or zero volatility — renders as
+    ``0.00`` rather than leaking ``nan``/``inf`` into the HTML. This matches
+    the sanitize-to-default policy of :func:`_build_metrics_table`.
+
+    Args:
+        results: List of (strategy name, BacktestResult) tuples.
+        colors: Theme color mapping.
+
+    Returns:
+        HTML string with one summary card per result.
+
+    """
     html = ['<div class="summary-cards">']
     for name, result in results:
         metrics = result.metrics
@@ -2000,13 +2015,13 @@ def _build_comparison_summary_cards(
         <div class="summary-card" style="background:{colors["table_row_even"]}; border:1px solid {colors["grid"]}; border-radius:8px; padding:15px; margin:10px 0;">
             <h3 style="margin:0 0 10px 0; color:{colors["fg"]};">{name}</h3>
             <div style="display:flex; flex-wrap:wrap; gap:20px;">
-                <div><strong>Return:</strong> {result.total_return_pct:.2f}%</div>
-                <div><strong>Sharpe:</strong> {getattr(metrics, "sharpe_ratio", 0):.2f}</div>
-                <div><strong>Max DD:</strong> {getattr(metrics, "max_drawdown_pct", 0):.2f}%</div>
-                <div><strong>Ulcer:</strong> {getattr(metrics, "ulcer_index", 0):.4f}</div>
-                <div><strong>Win Rate:</strong> {getattr(metrics, "win_rate", 0):.1%}</div>
-                <div><strong>Trades:</strong> {getattr(metrics, "num_trades", 0)}</div>
-                <div><strong>Costs:</strong> ${result.total_costs:,.2f}</div>
+                <div><strong>Return:</strong> {_format_metric(result.total_return_pct, "{:.2f}%")}</div>
+                <div><strong>Sharpe:</strong> {_format_metric(getattr(metrics, "sharpe_ratio", None))}</div>
+                <div><strong>Max DD:</strong> {_format_metric(getattr(metrics, "max_drawdown_pct", None), "{:.2f}%")}</div>
+                <div><strong>Ulcer:</strong> {_format_metric(getattr(metrics, "ulcer_index", None), "{:.4f}")}</div>
+                <div><strong>Win Rate:</strong> {_format_metric(getattr(metrics, "win_rate", None), "{:.1%}")}</div>
+                <div><strong>Trades:</strong> {_format_metric(getattr(metrics, "num_trades", None), "{:.0f}")}</div>
+                <div><strong>Costs:</strong> {_format_metric(result.total_costs, "${:,.2f}")}</div>
             </div>
         </div>
         """)

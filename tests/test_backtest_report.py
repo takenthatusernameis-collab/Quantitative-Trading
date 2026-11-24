@@ -2,6 +2,7 @@
 
 import base64
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from quant_trading.backtest.report import (
     MATPLOTLIB_AVAILABLE,
     ReportConfig,
     _drawdown_series,
+    _get_theme_colors,
     generate_comparison_report,
     generate_html_report,
     generate_report_from_dict,
@@ -1447,6 +1449,52 @@ def test_generate_comparison_report_with_risk_attribution() -> None:
     assert "MSFT" in html
     assert "Component VaR" in html
     assert "Volatility Contribution" in html
+
+
+def test_comparison_summary_cards_sanitize_non_finite_metrics() -> None:
+    """Summary cards must not leak nan/inf from non-finite metrics (report.py).
+
+    A strategy that produces no trades, a flat equity curve, or zero
+    volatility can carry NaN/inf metrics. The summary cards format them
+    directly, so they used to render ``nan``/``inf`` into the HTML. They now
+    run every metric through ``_format_metric`` (which sanitizes via
+    ``_finite``), matching the single-strategy metrics table.
+
+    """
+    from quant_trading.backtest.report import _build_comparison_summary_cards
+
+    metrics = BacktestMetrics(
+        sharpe_ratio=float("nan"),
+        max_drawdown_pct=float("inf"),
+        ulcer_index=float("-inf"),
+        win_rate=float("nan"),
+        num_trades=0,
+    )
+    start = datetime(2024, 1, 1)
+    end = datetime(2024, 1, 10)
+    result = BacktestResult(
+        equity_curve=pd.Series([100000.0, 100000.0], index=pd.date_range(start, periods=2)),
+        trades=pd.DataFrame(),
+        positions={},
+        metrics=metrics,
+        start_date=start,
+        end_date=end,
+        initial_capital=100000.0,
+        final_value=100000.0,
+        total_return=0.0,
+        total_return_pct=0.0,
+    )
+    colors = _get_theme_colors("light")
+    html = _build_comparison_summary_cards([("FlatStrategy", result)], colors)
+
+    assert "nan" not in html.lower()
+    assert "inf" not in html.lower()
+    # Sanitized values render as their zero default.
+    assert "Sharpe:</strong> 0.00" in html
+    assert "Max DD:</strong> 0.00%" in html
+    assert "Ulcer:</strong> 0.0000" in html
+    assert "Win Rate:</strong> 0.0%" in html
+    assert "Costs:</strong> $0.00" in html
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
