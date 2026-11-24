@@ -61,7 +61,18 @@ except (ImportError, AttributeError):
 
 
 def _fmt(val: float | None, fmt: str) -> str:
-    """Format a value with a format specifier, handling None as N/A."""
+    """Format a value with a format specifier, handling None as N/A.
+
+    Args:
+        val: Value to format, or ``None`` to render as ``N/A``.
+        fmt: Format specifier applied to ``val`` (e.g. ``">10.2f"``).
+
+    Examples:
+        >>> _fmt(3.14159, ">7.2f")
+        '   3.14'
+        >>> _fmt(None, ">7.2f")
+        '    N/A'
+    """
     if val is None:
         return "N/A".rjust(len(fmt) + 2)
     return f"{val:{fmt}}"
