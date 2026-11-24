@@ -1,3 +1,88 @@
+## Session 2026-11-24 (this session — eighth entry)
+
+No prior agent assignment was pending; the previous (seventh) entry confirmed all
+tracked validation chains complete with a clean tree and a green suite
+(5027 passed). This session inspected the repository for a bounded, high-value
+defect of the same bool/non-numeric constructor-validation class fixed across
+the framework in prior sessions and found one missed spot:
+`MonteCarloSimulator.__init__` accepted `random_state` without validation.
+
+### Root cause (reproduced)
+
+`quant_trading/monte_carlo/simulator.py` assigned `self.random_state = random_state`
+(line 636) with no validation, while every other constructor parameter
+(`n_simulations`, `confidence_level`, `periods_per_year`, `risk_free_rate`,
+`n_jobs`) was guarded with an explicit `isinstance(x, bool)` rejection. The
+docstring claimed "Booleans and non-numeric values are also rejected for every
+parameter" — but `random_state` was the exception. `random_state=True` was
+silently accepted (bool is a subclass of int, stored as `True`), and
+`random_state="abc"`/`nan`/`-inf`/`-5` raised opaque `TypeError`s from numpy's
+`SeedSequence` instead of a clear `ValueError`.
+
+Evidence (live probe before fix):
+```
+MonteCarloSimulator(random_state=True)   -> accepted, stored as True  (BUG)
+MonteCarloSimulator(random_state="abc")  -> TypeError from numpy (opaque)
+MonteCarloSimulator(random_state=nan)    -> TypeError from numpy (opaque)
+MonteCarloSimulator(random_state=-5)     -> TypeError from numpy (opaque)
+MonteCarloSimulator(random_state=None)   -> accepted (correct)
+MonteCarloSimulator(random_state=42)     -> accepted (correct)
+```
+
+### What changed
+
+**quant_trading/monte_carlo/simulator.py** (`MonteCarloSimulator.__init__`)
+- Added an explicit `random_state` validation guard before the assignments:
+  rejects `bool`, non-`int` values (including floats and strings), and negative
+  seeds with `ValueError: invalid random_state: the value must be a non-negative
+  integer or None (got <value>)`. `None` (entropy-based seeding) and non-negative
+  ints are accepted and pass straight through to `np.random.default_rng`.
+- Updated the `__init__` docstring `Raises:` section to document `random_state`
+  validation.
+
+**tests/test_monte_carlo.py**
+- `test_monte_carlo_rejects_invalid_random_state`: parametrized over
+  `True`, `False`, `"abc"`, `7.0`, `float("nan")`, `float("inf")`,
+  `float("-inf")`, `-1`, `-5`, asserting `ValueError` matching
+  `invalid random_state`.
+- `test_monte_carlo_accepts_valid_random_state`: parametrized over `None`,
+  `0`, `1`, `42`, `100`, asserting acceptance and correct storage.
+
+### What was verified
+
+- Reproduced before fix: `random_state=True` silently accepted; `"abc"`/`nan`/`-inf`/`-5`
+  raised opaque numpy `TypeError`; after fix all raise clear `ValueError`.
+  `None` and non-negative ints still accepted.
+- `pytest tests/test_monte_carlo.py`: **96 passed**.
+- `pytest tests/test_repository_integrity.py --doctest-modules
+  quant_trading/monte_carlo/simulator.py`: **60 passed** (docstring Examples
+  guard green).
+- `ruff check`, `black --check`, `mypy` on both changed files: **clean**.
+- Full `python -m pytest -q` (default addopts `--doctest-modules
+  -m "not slow and not network"`): **5047 passed, 151 deselected, 0 failed**
+  in 243.03s (was 5033; +14 new regression tests). No regressions; working tree
+  clean apart from this change.
+
+### What remains unresolved
+
+- Nothing for this task. The `random_state` constructor-validation gap is now
+  closed, consistent with the rest of the framework, and the full suite is green.
+
+### Approaches that failed
+
+- None. Single targeted fix; no formatting/mypy iterations beyond black's
+  single-line wrap of the multi-condition guard.
+
+### Next task
+
+- None assigned. All tracked validation/hardening chains are complete and the
+  full suite is green (5047 passed). Future work requires a **new defect report
+  or feature request from the user — do not invent speculative changes.** On a
+  fresh runner the first step is `pip install -e ".[dev,bayesian,reporting]"`
+  before running any tests.
+
+---
+
 ## Session 2026-11-24 (this session — seventh entry)
 
 No prior agent assignment was pending; the previous (sixth) entry confirmed all

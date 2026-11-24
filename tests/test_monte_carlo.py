@@ -418,6 +418,28 @@ def test_monte_carlo_rejects_non_finite_n_jobs() -> None:
         MonteCarloSimulator(n_simulations=10, n_jobs=cast(int, float("nan")), random_state=7)
 
 
+@pytest.mark.parametrize(
+    "random_state",
+    [True, False, "abc", 7.0, float("nan"), float("inf"), float("-inf"), -1, -5],
+)
+def test_monte_carlo_rejects_invalid_random_state(random_state: object) -> None:
+    """``random_state`` must be a non-negative finite number or ``None``.
+
+    Booleans, non-numeric values, non-finite numbers, and negative seeds are
+    rejected with a clear ``ValueError`` at construction time instead of being
+    silently accepted (bool) or raising an opaque error from numpy.
+    """
+    with pytest.raises(ValueError, match="invalid random_state"):
+        MonteCarloSimulator(n_simulations=10, random_state=cast(int, random_state))
+
+
+@pytest.mark.parametrize("random_state", [None, 0, 1, 42, 100])
+def test_monte_carlo_accepts_valid_random_state(random_state: int | None) -> None:
+    """``random_state`` of ``None`` or a non-negative int is accepted."""
+    simulator = MonteCarloSimulator(n_simulations=10, random_state=random_state)
+    assert simulator.random_state == random_state
+
+
 def test_monte_carlo_accepts_finite_risk_free_rate() -> None:
     simulator = MonteCarloSimulator(n_simulations=10, risk_free_rate=0.05, random_state=7)
     assert simulator.risk_free_rate == 0.05

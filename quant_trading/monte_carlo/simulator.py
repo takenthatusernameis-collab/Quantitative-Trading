@@ -574,7 +574,9 @@ class MonteCarloSimulator:
                 outside ``(0, 1)``, ``periods_per_year`` is below 1, or
                 ``risk_free_rate`` is not finite. Booleans and non-numeric
                 values are also rejected for every parameter (bool is a
-                subclass of int but is not accepted here).
+                subclass of int but is not accepted here). ``random_state``
+                must be a non-negative integer or ``None``; booleans,
+                non-integer values, and negative seeds raise ``ValueError``.
 
         """
         # Validate all parameters before assignment (fail fast, consistent with
@@ -629,6 +631,14 @@ class MonteCarloSimulator:
         if n_jobs == -1:
             n_jobs = os.cpu_count() or 1
         n_jobs = max(n_jobs, 1)
+
+        if random_state is not None and (
+            isinstance(random_state, bool) or not isinstance(random_state, int) or random_state < 0
+        ):
+            raise ValueError(
+                f"invalid random_state: the value must be a non-negative integer "
+                f"or None (got {random_state})"
+            )
 
         # All validation passed; now assign.
         self.n_simulations = n_simulations
