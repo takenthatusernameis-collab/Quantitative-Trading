@@ -86,3 +86,46 @@ def test_set_target_allocation_rejects_non_finite_weight() -> None:
         rebalancer.set_target_allocation({"AAPL": float("inf")})
     with pytest.raises(ValueError, match="invalid target_allocation"):
         rebalancer.set_target_allocation({"AAPL": float("-inf")})
+
+
+def test_rebalance_plan_sanitizes_non_finite_fee_rate() -> None:
+    """_RebalancePlan.__post_init__ sanitizes non-finite fee_rate to 0.0 (rebalancer.py:369-370)."""
+    from quant_trading.portfolio.rebalancer import _RebalancePlan
+
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        plan = _RebalancePlan(cash=1000.0, fee_rate=bad)
+        assert plan.fee_rate == 0.0
+    assert _RebalancePlan(cash=1000.0, fee_rate=0.001).fee_rate == 0.001
+
+
+def test_risk_adjust_execution_buy_rejects_non_finite_inputs() -> None:
+    """_risk_adjust_execution_buy returns 0.0 for non-finite quantity/price/total_value (rebalancer.py:823-829)."""
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    rebalancer = Rebalancer(portfolio)
+
+    assert rebalancer._risk_adjust_execution_buy("AAPL", float("nan"), 100.0) == 0.0
+    assert rebalancer._risk_adjust_execution_buy("AAPL", 10.0, float("inf")) == 0.0
+    assert rebalancer._risk_adjust_execution_buy("AAPL", float("-inf"), 100.0) == 0.0
+    assert rebalancer._risk_adjust_execution_buy("AAPL", 10.0, float("nan")) == 0.0
+
+    portfolio.total_value = float("nan")
+    assert rebalancer._risk_adjust_execution_buy("AAPL", 10.0, 100.0) == 0.0
+    portfolio.total_value = float("inf")
+    assert rebalancer._risk_adjust_execution_buy("AAPL", 10.0, 100.0) == 0.0
+
+
+def test_risk_adjust_buy_rejects_non_finite_inputs() -> None:
+    """_risk_adjust_buy returns 0.0 for non-finite quantity/price/total_value (rebalancer.py:1170-1175)."""
+    from quant_trading.portfolio.rebalancer import _RebalancePlan
+
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    rm = RiskManager(initial_capital=100000.0, max_position_size=0.01)
+    rebalancer = Rebalancer(portfolio, risk_manager=rm)
+    plan = _RebalancePlan(cash=50000.0, fee_rate=0.0, positions={})
+
+    assert rebalancer._risk_adjust_buy(plan, "AAPL", float("nan"), 100.0, 100000.0) == 0.0
+    assert rebalancer._risk_adjust_buy(plan, "AAPL", 10.0, float("inf"), 100000.0) == 0.0
+    assert rebalancer._risk_adjust_buy(plan, "AAPL", float("-inf"), 100.0, 100000.0) == 0.0
+    assert rebalancer._risk_adjust_buy(plan, "AAPL", 10.0, float("nan"), 100000.0) == 0.0
+    assert rebalancer._risk_adjust_buy(plan, "AAPL", 10.0, 100.0, float("inf")) == 0.0
+    assert rebalancer._risk_adjust_buy(plan, "AAPL", 10.0, 100.0, float("-inf")) == 0.0

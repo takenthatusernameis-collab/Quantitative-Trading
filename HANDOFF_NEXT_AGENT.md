@@ -1,4 +1,70 @@
-## Session 2026-11-24 (this session — thirteenth entry)
+## Session 2026-11-24 (this session — fourteenth entry)
+
+No prior agent assignment was pending; the previous (thirteenth) entry closed
+with "no task assigned; do not invent speculative changes," and the full suite
+was green (5129 passed). Per the reliability rules to make bounded,
+evidence-based progress when no assignment exists, this session took the
+next-highest-value coverage target identified by the coverage audit:
+`quant_trading/portfolio/rebalancer.py` (97%; missing lines 370, 824, 826,
+829, 1171, 1173, 1175). Closed the gap with tests only — no source/behavior
+change.
+
+### What changed
+
+**tests/test_rebalancer_extra_coverage.py** only. Added:
+- `test_rebalance_plan_sanitizes_non_finite_fee_rate` -> covers `_RebalancePlan.__post_init__` `fee_rate` branch at line 370 (nan/inf/-inf -> 0.0; finite preserved).
+- `test_risk_adjust_execution_buy_rejects_non_finite_inputs` -> covers `_risk_adjust_execution_buy` quantity (824), price (826), and `portfolio.total_value` (829) non-finite guards returning 0.0.
+- `test_risk_adjust_buy_rejects_non_finite_inputs` -> covers `_risk_adjust_buy` quantity (1171), price (1173), and `total_value` param (1175) non-finite guards returning 0.0.
+
+### What was verified
+
+- **Coverage**: `quant_trading/portfolio/rebalancer.py` now **100%** (0 missing
+  statements, 0 partial branches; was 97% missing 370/824/826/829/1171/1173/1175).
+  Full-suite TOTAL 99% (19 single defensive-line misses across many modules,
+  none outliers). Measured via the coverage-API driver script (lives outside
+  the repo at /home/runner/work/_temp/kilo-tmp/kilo/covdriver.py) because the
+  `coverage run` CLI is broken in this env (`a1_coverage.pth` auto-starts
+  coverage at interpreter init and collides with numpy 2.5.5:
+  `ImportError: cannot load module more than once per process`).
+- **Focused suites**: `tests/test_rebalancer_extra_coverage.py
+  tests/test_rebalancer.py` -> **55 passed**.
+- **Guards on changed file**: `ruff check`, `black --check`,
+  `mypy tests/test_rebalancer_extra_coverage.py` all clean.
+- **Full suite**: `python -m pytest -q` (default addopts `--doctest-modules
+  -m "not slow and not network"`): **5132 passed, 151 deselected, 0 failed**
+  in 524.21s — exactly the prior 5129 + 3 new tests, no regressions, Python
+  3.14.4 / pytest 9.2.0 / numpy 2.5.5 / pandas 3.1.1 (deps under
+  `/home/runner/work/_temp/kilo-home/.local`; prefix commands with
+  `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`).
+
+### What remains unresolved
+
+- Nothing for this task. `rebalancer.py` is at 100%; the other sub-100%
+  modules are single defensive branches at 98-99% (e.g.
+  `strategies/base.py:45`, `risk/limits.py:108/117`, `risk/metrics.py:431/666/1072`,
+  `backtest/engine.py:308-309/653-654`, `examples/cli.py:77/2721`) and were left
+  untouched — they are not outliers. The `slow`/`network` tests (151 deselected)
+  are intentionally excluded by the project's default `addopts`.
+
+### Approaches that failed
+
+- `coverage run` / `pytest --cov` CLI: unusable in this environment due to the
+  `a1_coverage.pth` + numpy double-load conflict (worked around with the
+  coverage-API driver script, outside the repo).
+
+### Next task
+
+- **None assigned.** Working tree contains only the test addition + this entry;
+  full suite green (5132 passed). Future work requires a **new defect report or
+  feature request from the user — do not invent speculative changes.** If
+  further coverage hardening is desired, the next bounded targets are
+  `quant_trading/risk/limits.py` (98%), `quant_trading/risk/metrics.py` (99%),
+  `quant_trading/backtest/engine.py` (99%), `examples/cli.py` (99%), etc., but
+  only pursue on explicit request. On a fresh runner, first
+  `pip install -e ".[dev,bayesian,reporting]"`.
+
+---
+
 
 No prior agent assignment was pending; the previous (twelfth) entry closed with "no task assigned; do not invent speculative changes." Per the operating principle to make bounded, evidence-based progress when no assignment exists, this session took the next-highest-value coverage target the handoff itself identified: `quant_trading/optimization/bayesian.py` (97%; missing lines 322, 326, 483 plus doctest branches 65/69). Closed the gap with tests only — no source/behavior change.
 
