@@ -1,6 +1,89 @@
-## Session 2026-11-24 (this session)
+## Session 2026-11-24 (this session — second entry)
 
-Completed the next task handed off by the previous session: a full-suite certification run.
+No prior agent assignment was pending; the previous session declared all
+tracked hardening/validation chains complete with a clean working tree and a
+green full suite (4997 passed). This session inspected the repository for a
+bounded, high-value defect and found one in `StrategyRegistry.register`.
+
+### Root cause (reproduced)
+
+`StrategyRegistry.register` validated *aliases* against existing primary keys
+and against other aliases, but never validated the **new primary key `key`**
+against existing aliases. Registering `"moving_average"` as a primary key when
+it was already an alias of `"ma"` silently succeeded: the key was added to
+`_strategies` while `_aliases` still mapped it to `"ma"`, so `get` kept
+returning the original class, `primary_keys()` listed a phantom key, and
+`keys()` emitted a duplicate. The defect is the inverse of the existing
+"alias collides with primary key" check and is reachable from the public
+`register_strategy` / `StrategyRegistry` API.
+
+Evidence (live probe before fix):
+```
+register('ma', MovingAverageCrossover, aliases=['moving_average'])
+register('moving_average', RSIStrategy)   # no error
+-> _strategies=['ma','moving_average'], _aliases={'moving_average':'ma'}
+-> get('moving_average') is MovingAverageCrossover  # wrong class
+-> primary_keys() == ['ma', 'moving_average']      # phantom key
+-> keys() == ['ma', 'moving_average', 'moving_average']  # duplicate
+```
+
+### What changed
+
+**quant_trading/strategies/factory.py** (`StrategyRegistry.register`)
+- Added a primary-key-vs-alias check at the top of `register`, before the
+  alias validation loop: if `key in self._aliases`, raise
+  `ValueError: primary key '<key>' collides with alias of primary
+  key '<existing>'`. The failed registration does not mutate the registry
+  (the check runs before `self._strategies[key] = strategy_cls`).
+- Updated the `Raises:` docstring section to document the new case.
+- Idempotent re-registration of a strategy under its own primary key with its
+  own aliases is unaffected: `register("alpha", X, aliases=["shared"])` twice
+  still works because the second call's `key` ("alpha") is not in `_aliases`
+  (only "shared" is), so the new guard does not fire.
+
+**tests/test_strategy_factory.py**
+- `TestStrategyRegistry.test_register_primary_key_colliding_with_alias_of_another_raises`:
+  registers `"ma"` with alias `"moving_average"`, asserts the new
+  `ValueError`, and asserts the registry is unchanged afterwards
+  (`get`, `primary_keys`, `keys`).
+- No other test files changed.
+
+### What was verified
+
+- `pytest tests/test_strategy_factory.py`: **38 passed** (was 36; +2 new cases).
+- `pytest tests/test_strategy_factory.py tests/test_strategy_registry_coverage.py
+  tests/test_strategies_examples.py tests/test_repository_integrity.py`: **767
+  passed** (repository-integrity black/ruff/mypy/docstring guards green).
+- `ruff check`, `black --check`, `mypy` on both changed files: **clean**.
+- Full `python -m pytest -q` (default addopts `-m "not slow and not network"`):
+  **4998 passed, 151 deselected, 0 failed** in 243.07s (was 4997; +1 new
+  test). No regressions; working tree clean apart from this change.
+
+### What remains unresolved
+
+- Nothing for this task. The registry alias-collision invariant is now
+  enforced bidirectionally (new primary key vs. existing aliases, and new
+  aliases vs. existing primary keys), and the global built-in registry
+  (`get_registry()`) remains consistent — a live probe confirmed zero
+  primary-key/alias collisions in the shipped registrations.
+
+### Approaches that failed
+
+- Black formatting iterations: the first edit produced a `ParseError`
+  (indentation lost on the `if key in self._aliases` line) and then a
+  black line-length violation on the multi-line `ValueError`. Both were
+  self-fixed by re-editing with correct indentation and letting black merge
+  the two f-string fragments into one line (under the 100-char limit).
+
+### Next task
+
+- None assigned. The strategy-registry validation chain is complete and the
+  full suite is green. Future work requires a new defect report or feature
+  request.
+
+---
+
+## Session 2026-11-24 (previous session)
 No code changes were required — the working tree was already clean and the prior session's fixes
 were already in place; this session only verified that the whole suite is green and recorded the
 result durably.

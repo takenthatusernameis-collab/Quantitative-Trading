@@ -165,6 +165,28 @@ class TestStrategyRegistry:
         assert registry.get("alpha") is OtherStrategy
         assert registry.get("shared") is OtherStrategy
 
+    def test_register_primary_key_colliding_with_alias_of_another_raises(self) -> None:
+        """A new primary key must not be an alias of another strategy.
+
+        Registering ``"moving_average"`` as a primary key when it is already
+        an alias of ``"ma"`` used to silently succeed: the key was added to
+        ``_strategies`` while ``_aliases`` still mapped it to ``"ma"``, so
+        ``get`` returned the original class, ``primary_keys`` listed a
+        phantom key, and ``keys()`` emitted a duplicate.
+        """
+        registry = StrategyRegistry()
+        registry.register("ma", DummyStrategy, aliases=["moving_average"])
+        with pytest.raises(
+            ValueError,
+            match=r"primary key 'moving_average' collides with alias of primary key 'ma'",
+        ):
+            registry.register("moving_average", OtherStrategy)
+        # The failed registration must not mutate the registry.
+        assert registry.get("moving_average") is DummyStrategy
+        assert registry.get("ma") is DummyStrategy
+        assert registry.primary_keys() == ["ma"]
+        assert registry.keys() == ["ma", "moving_average"]
+
 
 class TestGlobalRegistry:
     """Tests for the module-level global registry functions."""
