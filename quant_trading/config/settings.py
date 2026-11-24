@@ -530,47 +530,54 @@ class RiskConfig:
         dictionary, or from YAML) instead of silently producing misleading
         risk decisions.
         """
-        if not (0.0 < self.max_position_size <= 1.0):
-            raise ValueError(
-                f"invalid max_position_size: the value must be in the range (0, 1] "
-                f"(got {self.max_position_size})"
-            )
-        if not (0.0 < self.max_portfolio_risk <= 1.0):
-            raise ValueError(
-                f"invalid max_portfolio_risk: the value must be in the range (0, 1] "
-                f"(got {self.max_portfolio_risk})"
-            )
-        if not (0.0 <= self.max_drawdown <= 1.0):
-            raise ValueError(
-                f"invalid max_drawdown: the value must be in the range [0, 1] "
-                f"(got {self.max_drawdown})"
-            )
-        if not (0.0 <= self.stop_loss_pct <= 1.0):
-            raise ValueError(
-                f"invalid stop_loss_pct: the value must be in the range [0, 1] "
-                f"(got {self.stop_loss_pct})"
-            )
-        if not (0.0 <= self.take_profit_pct <= 1.0):
-            raise ValueError(
-                f"invalid take_profit_pct: the value must be in the range [0, 1] "
-                f"(got {self.take_profit_pct})"
-            )
+        _validate_init_param(
+            self.max_position_size,
+            "max_position_size",
+            lambda v: 0.0 < v <= 1.0,
+            "the value must be in the range (0, 1] and finite",
+        )
+        _validate_init_param(
+            self.max_portfolio_risk,
+            "max_portfolio_risk",
+            lambda v: 0.0 < v <= 1.0,
+            "the value must be in the range (0, 1] and finite",
+        )
+        _validate_init_param(
+            self.max_drawdown,
+            "max_drawdown",
+            lambda v: 0.0 <= v <= 1.0,
+            "the value must be in the range [0, 1] and finite",
+        )
+        _validate_init_param(
+            self.stop_loss_pct,
+            "stop_loss_pct",
+            lambda v: 0.0 <= v <= 1.0,
+            "the value must be in the range [0, 1] and finite",
+        )
+        _validate_init_param(
+            self.take_profit_pct,
+            "take_profit_pct",
+            lambda v: 0.0 <= v <= 1.0,
+            "the value must be in the range [0, 1] and finite",
+        )
         _validate_init_param(
             self.max_leverage,
             "max_leverage",
             lambda v: v >= 1e-9,
             "the value must be positive and finite",
         )
-        if not (0.0 <= self.trailing_stop_pct <= 1.0):
-            raise ValueError(
-                f"invalid trailing_stop_pct: the value must be in the range [0, 1] "
-                f"(got {self.trailing_stop_pct})"
-            )
-        if not (0.0 <= self.trailing_stop_activation_pct <= 1.0):
-            raise ValueError(
-                f"invalid trailing_stop_activation_pct: the value must be in the range [0, 1] "
-                f"(got {self.trailing_stop_activation_pct})"
-            )
+        _validate_init_param(
+            self.trailing_stop_pct,
+            "trailing_stop_pct",
+            lambda v: 0.0 <= v <= 1.0,
+            "the value must be in the range [0, 1] and finite",
+        )
+        _validate_init_param(
+            self.trailing_stop_activation_pct,
+            "trailing_stop_activation_pct",
+            lambda v: 0.0 <= v <= 1.0,
+            "the value must be in the range [0, 1] and finite",
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the risk configuration to a plain, JSON-safe dictionary.

@@ -1,3 +1,52 @@
+## Session 2026-11-24 (this session — third entry)
+
+Fixed a construction-time validation inconsistency in `RiskConfig.__post_init__`
+(`quant_trading/config/settings.py`): it accepted booleans (e.g.
+`max_position_size=True`) and non-numeric values for seven numeric fields via
+direct comparisons, while `RiskManager.__init__` and `BacktestConfig` reject
+them via `_validate_init_param`. Switched all numeric fields to
+`_validate_init_param`, so bools, non-numeric, and non-finite values now raise
+a clear `ValueError` at config-construction time, consistent with the rest of
+the framework.
+
+**quant_trading/config/settings.py** (`RiskConfig.__post_init__`)
+- Replaced direct-comparison checks for `max_position_size`,
+  `max_portfolio_risk`, `max_drawdown`, `stop_loss_pct`, `take_profit_pct`,
+  `trailing_stop_pct`, and `trailing_stop_activation_pct` with
+  `_validate_init_param` calls (the `max_leverage` field already used it).
+  Rejects booleans, non-numeric values, and non-finite numbers with a clear
+  `ValueError`; boundary valid values unchanged.
+
+**tests/test_config.py**
+- `TestRiskConfig.test_rejects_bool_risk_values`: parametrized bool rejection
+  for the seven fields.
+- `TestRiskConfig.test_rejects_non_numeric_and_non_finite_risk_values`:
+  parametrized rejection of non-numeric / non-finite values.
+
+### What was verified
+- Reproduced before fix: `RiskConfig(max_position_size=True)` accepted; after
+  fix all bool/non-numeric/non-finite values raise `ValueError`.
+- `pytest tests/test_config.py`: **194 passed** (was 180; +14 new cases).
+- `pytest tests/test_repository_integrity.py`: **51 passed** (ruff/black/mypy/
+  docstring guards green).
+- `ruff check`, `black --check`, `mypy` on both changed files: **clean**.
+- Full `python -m pytest -q` (default addopts `-m "not slow and not network"`):
+  **5012 passed, 151 deselected, 0 failed** in 243.02s (was 4998; +14 new
+  tests). No regressions; working tree clean apart from this change.
+
+### What remains unresolved
+- Nothing for this task.
+
+### Approaches that failed
+- None.
+
+### Next task
+- None assigned. All tracked validation chains remain complete and the full suite
+  is green (5012 passed). Future work requires a new defect report or feature
+  request.
+
+---
+
 ## Session 2026-11-24 (this session — second entry)
 
 No prior agent assignment was pending; the previous session declared all

@@ -190,6 +190,38 @@ class TestRiskConfig:
         with pytest.raises(ValueError, match="invalid max_leverage"):
             RiskConfig(max_leverage=max_leverage)
 
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("max_position_size", True),
+            ("max_portfolio_risk", False),
+            ("max_drawdown", True),
+            ("stop_loss_pct", False),
+            ("take_profit_pct", True),
+            ("trailing_stop_pct", False),
+            ("trailing_stop_activation_pct", True),
+        ],
+    )
+    def test_rejects_bool_risk_values(self, field: str, value: Any) -> None:
+        with pytest.raises(ValueError, match=f"invalid {field}"):
+            RiskConfig(**{field: value})
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("max_position_size", "0.1"),
+            ("max_portfolio_risk", None),
+            ("max_drawdown", []),
+            ("stop_loss_pct", {}),
+            ("take_profit_pct", float("nan")),
+            ("trailing_stop_pct", float("inf")),
+            ("trailing_stop_activation_pct", "-1"),
+        ],
+    )
+    def test_rejects_non_numeric_and_non_finite_risk_values(self, field: str, value: Any) -> None:
+        with pytest.raises(ValueError, match=f"invalid {field}"):
+            RiskConfig(**{field: value})
+
     @pytest.mark.parametrize("trailing_stop_pct", [-0.1, 1.5])
     def test_rejects_invalid_trailing_stop_pct(self, trailing_stop_pct: float) -> None:
         with pytest.raises(ValueError, match="invalid trailing_stop_pct"):
