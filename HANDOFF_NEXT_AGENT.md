@@ -1,5 +1,78 @@
 ## Session 2026-11-24 (this session)
 
+Completed the next task handed off by the previous session: a full-suite certification run.
+No code changes were required — the working tree was already clean and the prior session's fixes
+were already in place; this session only verified that the whole suite is green and recorded the
+result durably.
+
+### Environment note (was not previously recorded)
+
+This CI/runner environment started with **no Python dependencies installed** (`pytest` and `skopt`
+were both missing; `python -m pytest` failed with `No module named pytest`). Dependencies had to be
+installed before any test could run:
+
+```
+pip install -e ".[dev,bayesian,reporting]"
+```
+
+This installs pytest 9.2.0, numpy 2.5.5, pandas 3.1.1, scikit-optimize 0.10.2, ruff, black, mypy,
+etc. into `/home/runner/work/_temp/kilo-home/.local` (not on PATH by default; prefix commands with
+`export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`). Future sessions on a fresh runner
+must do the same install step first.
+
+### What was verified
+
+- `python -m pytest tests/test_optimization.py tests/test_walk_forward.py -q`:
+  **364 passed** (matches the prior session's count exactly — its +60 regression tests are intact).
+- `python -m pytest tests/test_repository_integrity.py --doctest-modules
+  quant_trading/optimization/bayesian.py -q`: **57 passed** (51 integrity guards + 6 bayesian
+  doctests; the previously-failing bayesian doctest is green, confirming the numpy-scalar fix holds).
+- `python -m pytest tests/test_strategies_examples.py -k "EMACrossover and validate_parameters"`:
+  **3 passed** — the handoff's "remaining pre-existing failure"
+  (`TestEMACrossoverStrategy::test_validate_parameters_type_errors`, `fast_period=5.5` not rejected)
+  is **no longer a failure**. That test now only asserts `None` is rejected, and a sibling
+  `test_validate_parameters_accepts_finite_float_periods` explicitly documents that finite float
+  periods are accepted by design (matching `_validate_init_param`'s convention and pandas `ewm`
+  accepting float spans). The prior handoff's note on this point was stale.
+- **Full suite**: `python -m pytest -q` (default addopts `-m "not slow and not network"`):
+  **4997 passed, 151 deselected, 0 failed** in 246.81s. Exactly matches the previous session's
+  count (4997), certifying no regressions across the entire suite after the optimization-constructor
+  validation hardening and the bayesian numpy-scalar fix.
+
+### What changed
+
+- Nothing in the project source. Working tree remains clean (`git status`: nothing to commit;
+  `git diff --stat`: empty). The only durable artifact is this handoff entry.
+- The full-suite log was captured to `/home/runner/work/_temp/kilo-tmp/kilo/full_suite.log`
+  (outside the repo; not committed).
+
+### What remains unresolved
+
+- Nothing outstanding from the prior handoff. All tracked validation/hardening chains are complete
+  and the full suite is green. There is no failing test to chase.
+- The framework now has **zero known failures** under the default marker filter. The `slow` and
+  `network`-marked tests (151 deselected) were not run this session; they require network access
+  (yfinance/alphavantage) or are smoke/subprocess tests and are intentionally excluded by the
+  project's default `addopts`. If a future task requires validating those, run
+  `python -m pytest -m "slow or network"` and expect network-dependent flakiness.
+
+### Approaches that failed
+
+- None this session. Single deterministic verification pass; the only setup hurdle (missing
+  dependencies) was resolved with one `pip install -e .[dev,bayesian,reporting]` and did not recur.
+
+### Next task
+
+- **No bounded defect remains.** The optimization-constructor validation chain is consistent with
+  the rest of the framework, the bayesian numpy-scalar defect is fixed at the source, and the full
+  suite (4997 tests) is green. Future work requires a **new defect report or feature request** from
+  the user — do not invent speculative changes. If a new task is assigned, the first step on a
+  fresh runner is `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
+
+---
+
+## Session 2026-11-24 (previous session)
+
 Closed a construction-time validation gap in the optimization framework: `BaseOptimizer.__init__`
 (`quant_trading/optimization/base.py`) accepted booleans for `initial_capital`/`compression`/`slippage`/
 `periods_per_year`/`n_jobs` (bool is a subclass of int, so `isinstance(x, (int, float))` passed) and
