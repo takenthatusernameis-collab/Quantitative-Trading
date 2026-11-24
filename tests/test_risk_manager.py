@@ -303,6 +303,51 @@ class TestPortfolioRiskSerialization:
         restored = PortfolioRisk.from_dict(data)
         assert restored == PortfolioRisk(100000.0, 50000.0, 50000.0)
 
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            (float("nan"), 0.0),
+            (float("inf"), 0.0),
+            (float("-inf"), 0.0),
+            ("100000.5", 100000.5),
+            ("0.0", 0.0),
+            ("abc", 0.0),
+            (None, 0.0),
+            ([1, 2, 3], 0.0),
+            ({"a": 1}, 0.0),
+            (True, 1.0),
+            (False, 0.0),
+        ],
+    )
+    def test_from_dict_sanitizes_non_finite_and_non_numeric_total_market_value(
+        self, value: object, expected: float
+    ) -> None:
+        restored = PortfolioRisk.from_dict({"total_market_value": value})
+        assert restored.total_market_value == expected
+
+    @pytest.mark.parametrize(
+        "field,value,expected",
+        [
+            ("cash", float("nan"), 0.0),
+            ("cash", float("inf"), 0.0),
+            ("cash", "50000.25", 50000.25),
+            ("cash", "abc", 0.0),
+            ("positions_value", float("-inf"), 0.0),
+            ("positions_value", "25000.0", 25000.0),
+            ("leverage", float("nan"), 0.0),
+            ("leverage", "1.5", 1.5),
+            ("current_drawdown", float("inf"), 0.0),
+            ("current_drawdown", "-0.1", -0.1),
+            ("peak_value", float("-inf"), 0.0),
+            ("peak_value", "110000.0", 110000.0),
+        ],
+    )
+    def test_from_dict_sanitizes_all_numeric_fields(
+        self, field: str, value: object, expected: float
+    ) -> None:
+        restored = PortfolioRisk.from_dict({field: value})
+        assert getattr(restored, field) == expected
+
 
 class TestUpdatePortfolioValue:
     """Tests for update_portfolio_value."""
@@ -2076,6 +2121,70 @@ class TestRiskAttributionMethods:
         assert math.isnan(float(frame.loc["MSFT", "marginal_var"]))  # type: ignore[arg-type]
         assert math.isnan(float(frame.loc["MSFT", "component_var"]))  # type: ignore[arg-type]
         assert math.isnan(float(frame.loc["MSFT", "volatility_contribution"]))  # type: ignore[arg-type]
+
+
+class TestRiskAttributionSerialization:
+    """Tests for RiskAttribution.to_dict/from_dict serialization edge cases."""
+
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            (float("nan"), 0.0),
+            (float("inf"), 0.0),
+            (float("-inf"), 0.0),
+            ("0.02", 0.02),
+            ("0.0", 0.0),
+            ("abc", 0.0),
+            (None, 0.0),
+            ([1, 2, 3], 0.0),
+            ({"a": 1}, 0.0),
+            (True, 1.0),
+            (False, 0.0),
+        ],
+    )
+    def test_from_dict_sanitizes_non_finite_and_non_numeric_portfolio_var(
+        self, value: object, expected: float
+    ) -> None:
+        restored = RiskAttribution.from_dict({"portfolio_var": value})
+        assert restored.portfolio_var == expected
+
+    @pytest.mark.parametrize(
+        "field,value,expected",
+        [
+            ("confidence", float("nan"), 0.95),
+            ("confidence", float("inf"), 0.95),
+            ("confidence", "0.99", 0.99),
+            ("confidence", "abc", 0.95),
+            ("positions_value", float("-inf"), 0.0),
+            ("positions_value", "50000.0", 50000.0),
+            ("portfolio_value", float("nan"), 0.0),
+            ("portfolio_value", "100000.5", 100000.5),
+            ("portfolio_volatility", float("inf"), 0.0),
+            ("portfolio_volatility", "0.15", 0.15),
+        ],
+    )
+    def test_from_dict_sanitizes_all_numeric_fields(
+        self, field: str, value: object, expected: float
+    ) -> None:
+        restored = RiskAttribution.from_dict({field: value})
+        assert getattr(restored, field) == expected
+
+    def test_from_dict_defaults_missing_keys(self) -> None:
+        restored = RiskAttribution.from_dict({})
+        assert restored.confidence == 0.95
+        assert restored.positions_value == 0.0
+        assert restored.portfolio_value == 0.0
+        assert restored.portfolio_var == 0.0
+        assert restored.portfolio_volatility == 0.0
+        assert restored.weights.empty
+        assert restored.marginal_var.empty
+        assert restored.component_var.empty
+        assert restored.volatility_contributions.empty
+
+    def test_from_dict_ignores_extra_keys(self) -> None:
+        data = {"portfolio_var": 0.02, "unknown": 123}
+        restored = RiskAttribution.from_dict(data)
+        assert restored.portfolio_var == 0.02
 
 
 class TestRiskManagerReturnsRecording:
