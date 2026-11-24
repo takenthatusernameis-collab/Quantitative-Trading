@@ -692,10 +692,11 @@ def calculate_alpha(
 
     Raises:
         ValueError: If ``periods_per_year`` is not a finite number of at
-            least 1.
+            least 1, or if ``risk_free_rate`` is not finite.
 
     """
     _validate_periods_per_year(periods_per_year)
+    risk_free_rate = _validate_risk_free_rate(risk_free_rate)
     beta = calculate_beta(returns, market_returns)
     if beta == 0:
         return 0.0

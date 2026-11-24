@@ -2665,3 +2665,76 @@ suite, then closed the last non-pre-existing failure in the tree.
 ### Next task
 
 - None assigned. All tracked work is complete and verified.
+
+---
+
+## Session 2026-11-24 (this session)
+
+Inspected the repository after the prior agent declared all tracked
+hardening/validation chains complete with a clean working tree and a green
+suite. No prior agent assignment was pending. A read-only sweep for metrics
+that accept `risk_free_rate` but never validate it found one genuine defect:
+`calculate_alpha` validated `periods_per_year` but not `risk_free_rate`, so
+`float("nan")`/`float("inf")` silently produced `nan` and `True` was silently
+coerced to `1.0`, while `"0.02"` raised an opaque `TypeError`. This is the same
+defect class already fixed for `calculate_sharpe_ratio`,
+`calculate_sortino_ratio`, `calculate_treynor_ratio`, `calculate_var`,
+`calculate_cvar`, `calculate_marginal_var`, and `calculate_component_var`.
+
+### Root cause (reproduced)
+
+`quant_trading/risk/metrics.py:calculate_alpha` called
+`_validate_periods_per_year(periods_per_year)` but never called
+`_validate_risk_free_rate(risk_free_rate)`, even though its own `Raises:`
+docstring already claimed to reject non-finite rates. Live probe before the
+fix: `risk_free_rate=float("nan")` -> `nan`; `risk_free_rate=True` -> silently
+coerced to `1.0` (wrong alpha); `risk_free_rate="0.02"` -> `TypeError`.
+
+### What changed
+
+**quant_trading/risk/metrics.py** (`calculate_alpha`)
+- Added `risk_free_rate = _validate_risk_free_rate(risk_free_rate)` after the
+  existing `_validate_periods_per_year` call, so booleans, non-numeric values,
+  and NaN/±inf now raise
+  `ValueError: invalid risk_free_rate: the value must be finite (got ...)`
+  before any computation. Valid-input behavior is unchanged (negative finite
+  rates still accepted, matching `BacktestConfig`). The `Raises:` docstring
+  was already accurate; it now matches the implementation.
+
+**tests/test_risk_metrics.py** (`TestCalculateAlpha`)
+- `test_invalid_risk_free_rate_raises`: parametrized over `float("nan")`,
+  `float("inf")`, `float("-inf")`, `True`, `"0.02"`, asserting `ValueError`
+  matching `invalid risk_free_rate`.
+- `test_accepts_finite_risk_free_rate`: parametrized over `0.0`, `0.02`,
+  `-0.01`, asserting the finite result matches the hand-computed formula.
+
+### What was verified
+
+- Reproduced before fix (nan/inf -> nan, True -> coerced to 1.0, "0.02" ->
+  TypeError); after fix all invalid inputs raise a clear `ValueError` and finite
+  rates still compute correctly.
+- `pytest tests/test_risk_metrics.py --doctest-modules
+  quant_trading/risk/metrics.py tests/test_repository_integrity.py`: **364
+  passed** (285 risk metrics + 28 metrics doctests + 51 integrity guards).
+- `ruff check`, `black --check` (applied via `black` to the test file),
+  `mypy` on both changed files: **clean**.
+- Working tree contains only `quant_trading/risk/metrics.py` and
+  `tests/test_risk_metrics.py` modified; no unrelated changes.
+
+### What remains unresolved
+
+- Nothing for this task. The `risk_free_rate` validation chain for the public
+  ratio metrics is now complete
+  (`calculate_sharpe_ratio`, `calculate_sortino_ratio`, `calculate_alpha`,
+  `calculate_treynor_ratio`).
+
+### Approaches that failed
+
+- None. Single targeted fix; no formatting/mypy iterations beyond applying
+  black to the new test cases.
+
+### Next task
+
+- None assigned. All tracked hardening/validation chains are complete and the
+  focused suites are green; future work requires a new defect report or
+  feature request.

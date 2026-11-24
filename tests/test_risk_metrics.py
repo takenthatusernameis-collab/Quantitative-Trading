@@ -626,6 +626,19 @@ class TestCalculateAlpha:
         with pytest.raises(ValueError, match="invalid periods_per_year"):
             calculate_alpha(RETURNS, MARKET_RETURNS, periods_per_year=bad)  # type: ignore[arg-type]
 
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf"), True, "0.02"])
+    def test_invalid_risk_free_rate_raises(self, bad: Any) -> None:
+        with pytest.raises(ValueError, match="invalid risk_free_rate"):
+            calculate_alpha(RETURNS, MARKET_RETURNS, risk_free_rate=bad)
+
+    @pytest.mark.parametrize("rate", [0.0, 0.02, -0.01])
+    def test_accepts_finite_risk_free_rate(self, rate: float) -> None:
+        beta = calculate_beta(RETURNS, MARKET_RETURNS)
+        expected = RETURNS.mean() * 252 - (rate + beta * (MARKET_RETURNS.mean() * 252 - rate))
+        result = calculate_alpha(RETURNS, MARKET_RETURNS, risk_free_rate=rate)
+        assert result == pytest.approx(expected)
+        assert result == calculate_alpha(RETURNS, MARKET_RETURNS, risk_free_rate=float(rate))
+
 
 class TestCalculateCalmarRatio:
     """Tests for calculate_calmar_ratio."""
