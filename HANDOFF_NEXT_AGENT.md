@@ -3397,3 +3397,31 @@ No prior agent assignment was pending (twenty-seventh entry claimed `.github/wor
 
 ### Next task
 - **None assigned.** The repository is healthy and fully green, with `tests.yml` actually present, audit-guarded, and committed (`546df4e`), working tree clean. Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
+
+---
+
+## Session 2026-11-25 (this session — twenty-ninth entry)
+
+No prior agent assignment was pending (twenty-eighth entry claimed `.github/workflows/tests.yml` had been added and committed as `546df4e`, but inspection showed HEAD commit `ccde659` had reverted it: `tests.yml` was deleted and `kilo-workflow-audit.yml` restored to its pre-`tests.yml` state, leaving only control-marker handoff commits with no project progress). Per the instruction to not count control-marker-only commits as progress and to make bounded, evidence-based progress, this session re-implemented the change for real and committed it as `34f97cb`.
+
+### What changed
+- **`.github/workflows/tests.yml` (new, committed as `34f97cb`)**: a `Tests` workflow that runs on `push`/`pull_request` (path-filtered to `quant_trading/**`, `examples/**`, `tests/**`, `pyproject.toml`, `requirements.txt`, and the workflow file itself, so handoff/doc-only commits do not trigger it) and on `workflow_dispatch`. On `ubuntu-24.04` with Python 3.12 (pip cache) it installs `pip install -e ".[dev,bayesian,reporting]"` and runs, in order: `ruff check .`, `black --check .`, `mypy quant_trading examples`, `pytest -q` (default addopts: excludes slow/network), and `pytest -m "slow and not network" -q` (the 151 slow smoke/subprocess tests previously never run automatically). `concurrency` cancels superseded runs; `permissions: contents: read`; 25-min job timeout.
+- **`.github/workflows/kilo-workflow-audit.yml`**: added `tests.yml` to the `push`/`pull_request` `paths` triggers, to the `actionlint` args, and to the independent `ruby` YAML-parse step, so the new workflow is validated by the existing audit (consistent with how `main.yml` is guarded).
+- **`HANDOFF_NEXT_AGENT.md`**: this entry only (documents the correction).
+
+### What was verified (this runner: Python 3.14.4 / pytest 9.2.0 / numpy 2.5.5 / pandas 3.1.1; deps under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`)
+- **actionlint** (the audit's schema validator, v1.7.12): `actionlint -color .github/workflows/main.yml .github/workflows/tests.yml .github/workflows/kilo-workflow-audit.yml` -> exit 0, no findings.
+- **YAML validity**: `ruby -e 'require "yaml"; YAML.load_file(...)'` over all three workflows -> `Kilo workflow YAML: OK`; `python -c "yaml.safe_load(...)"` -> OK.
+- **Guards (the exact CI commands)**: `ruff check .` -> All checks passed; `black --check .` -> 166 files unchanged; `mypy quant_trading examples` -> no issues in 100 source files.
+- **Default suite** (`pytest -q`, as CI runs it): **5177 passed, 151 deselected** in 323.23s, rc=0.
+- **Slow suite** (`pytest -m "slow and not network" -q`, as CI runs it): **151 passed, 5177 deselected** in 299.44s, rc=0. Entire 5328-test suite green.
+- **Persistence**: `git status` clean after commit `34f97cb`; `tests.yml` present in working tree and tracked (not reverted). Working tree matches commit `546df4e` for both workflow files.
+
+### What remains unresolved
+- The new workflow cannot be executed on a real GitHub Actions runner here; it is validated by actionlint + YAML parse + by running the identical shell commands locally, all green. First real execution will be on the next push/PR that touches the filtered paths.
+
+### Approaches that failed
+- The twenty-eighth entry's approach of claiming `tests.yml` was added and committed while HEAD had reverted it failed (the file was absent in the working tree at `ccde659`). Materially different approach this session: re-write the file, re-wire the audit, validate with actionlint + YAML parse + the real CI guard commands, and commit the code (not just the handoff), leaving the working tree clean.
+
+### Next task
+- **None assigned.** The repository is healthy and fully green, with `tests.yml` actually present, audit-guarded, and committed (`34f97cb`), working tree clean. Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
