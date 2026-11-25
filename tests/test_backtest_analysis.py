@@ -12,7 +12,7 @@ from quant_trading.backtest import (
 )
 from quant_trading.backtest.engine import BacktestResult
 from quant_trading.backtest.metrics import calculate_backtest_metrics
-from quant_trading.regime import Regime
+from quant_trading.regime import Regime, RegimeResult
 
 
 def _make_result(equity: pd.Series | None = None) -> BacktestResult:
@@ -298,6 +298,18 @@ def test_backtest_regime_analysis_records_periods_per_year() -> None:
     assert analysis.to_dict()["periods_per_year"] == 52
 
 
+_BASE_DICT = {
+    "window": 20,
+    "vol_threshold": 0.0,
+    "return_threshold": 0.0,
+    "periods_per_year": 252,
+    "current_regime": "unknown",
+    "total_volatility": 0.0,
+    "total_return_pct": 0.0,
+    "segments": [],
+}
+
+
 class TestBacktestRegimeAnalysisFromDict:
     """Tests for BacktestRegimeAnalysis.from_dict deserialization."""
 
@@ -376,6 +388,69 @@ class TestBacktestRegimeAnalysisFromDict:
         assert reconstructed.n_segments == 0
         assert reconstructed.segments == []
         assert reconstructed.current_regime.value == "unknown"
+
+    @pytest.mark.parametrize(
+        "field, value",
+        [
+            ("window", True),
+            ("window", False),
+            ("window", float("nan")),
+            ("window", float("inf")),
+            ("window", "20"),
+            ("window", 0),
+            ("window", -1),
+            ("window", None),
+            ("vol_threshold", True),
+            ("vol_threshold", float("nan")),
+            ("vol_threshold", "0.15"),
+            ("vol_threshold", None),
+            ("return_threshold", True),
+            ("return_threshold", float("nan")),
+            ("return_threshold", "0.05"),
+            ("return_threshold", None),
+            ("periods_per_year", True),
+            ("periods_per_year", float("nan")),
+            ("periods_per_year", 0),
+            ("periods_per_year", -1),
+            ("periods_per_year", "252"),
+            ("periods_per_year", None),
+        ],
+    )
+    def test_from_dict_rejects_invalid_analysis_params(self, field: str, value: object) -> None:
+        """from_dict must reject non-finite / non-numeric / bool / out-of-range values."""
+        data = {**_BASE_DICT, field: value}
+        with pytest.raises(ValueError, match=f"invalid {field}"):
+            BacktestRegimeAnalysis.from_dict(data)
+
+    @pytest.mark.parametrize(
+        "field, value",
+        [
+            ("window", 20),
+            ("window", 1),
+            ("vol_threshold", 0.0),
+            ("vol_threshold", 0.15),
+            ("vol_threshold", -0.5),
+            ("return_threshold", 0.0),
+            ("return_threshold", 0.05),
+            ("periods_per_year", 252),
+            ("periods_per_year", 52),
+            ("periods_per_year", 1),
+        ],
+    )
+    def test_from_dict_accepts_valid_analysis_params(self, field: str, value: object) -> None:
+        """from_dict must preserve finite, in-range values verbatim."""
+        data = {**_BASE_DICT, field: value}
+        reconstructed = BacktestRegimeAnalysis.from_dict(data)
+        assert getattr(reconstructed, field) == value
+
+    def test_constructor_rejects_invalid_window(self) -> None:
+        """Direct construction must validate the same way as from_dict."""
+        with pytest.raises(ValueError, match="invalid window"):
+            BacktestRegimeAnalysis(
+                result=RegimeResult(),
+                equity_curve=pd.Series(dtype=float),
+                window=True,
+            )
 
 
 if __name__ == "__main__":

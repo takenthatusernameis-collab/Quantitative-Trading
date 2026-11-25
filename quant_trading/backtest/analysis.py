@@ -37,12 +37,13 @@ Examples:
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Any
 
 import pandas as pd
 
 from quant_trading.backtest.engine import BacktestResult
+from quant_trading.config.settings import _validate_init_param
 from quant_trading.regime import (
     Regime,
     RegimeDetector,
@@ -150,6 +151,39 @@ class BacktestRegimeAnalysis:
     vol_threshold: float = 0.0
     return_threshold: float = 0.0
     periods_per_year: int = 252
+
+    def __post_init__(self) -> None:
+        """Reject out-of-range regime-analysis inputs at construction time.
+
+        Invalid values are rejected when the analysis is built (directly or
+        from a dictionary) instead of silently propagating to the regime
+        detector. Booleans and non-numeric values are rejected with a clear
+        ``ValueError`` instead of being silently coerced (``True`` -> ``1``).
+        """
+        _validate_init_param(
+            self.window,
+            "window",
+            lambda v: v >= 1,
+            "the value must be at least 1 and finite",
+        )
+        _validate_init_param(
+            self.vol_threshold,
+            "vol_threshold",
+            lambda v: True,
+            "the value must be finite",
+        )
+        _validate_init_param(
+            self.return_threshold,
+            "return_threshold",
+            lambda v: True,
+            "the value must be finite",
+        )
+        _validate_init_param(
+            self.periods_per_year,
+            "periods_per_year",
+            lambda v: v >= 1,
+            "the value must be at least 1 and finite",
+        )
 
     @property
     def n_segments(self) -> int:
@@ -342,13 +376,12 @@ class BacktestRegimeAnalysis:
             total_return_pct=_finite(data.get("total_return_pct", 0.0)),
         )
 
+        known = {f.name for f in fields(cls)} - {"result", "equity_curve"}
+        init_kwargs = {name: value for name, value in data.items() if name in known}
         return cls(
             result=result,
             equity_curve=pd.Series(dtype=float),  # Placeholder, not serialized
-            window=int(_finite(data.get("window", 20))),
-            vol_threshold=_finite(data.get("vol_threshold", 0.0)),
-            return_threshold=_finite(data.get("return_threshold", 0.0)),
-            periods_per_year=int(_finite(data.get("periods_per_year", 252))),
+            **init_kwargs,
         )
 
     def to_dataframe(self) -> pd.DataFrame:
