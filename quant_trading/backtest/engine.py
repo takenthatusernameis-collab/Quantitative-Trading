@@ -1597,6 +1597,7 @@ def run_backtest(
     initial_capital: float | None = None,
     commission: float | None = None,
     slippage: float | None = None,
+    risk_free_rate: float | None = None,
     interval: str | None = None,
     data_manager: DataManager | None = None,
     config: Config | DataConfig | None = None,
@@ -1624,8 +1625,11 @@ def run_backtest(
                 to 100000.0 when nothing is configured.
             commission: Commission rate. Defaults to the configured value, or to
                 0.001 when nothing is configured.
-            slippage: Slippage rate. Defaults to the configured value, or to 0.0005
-                when nothing is configured.
+            slippage: Slippage rate. Defaults to the configured value, or to
+                0.0005 when nothing is configured.
+            risk_free_rate: Risk-free rate used for risk-adjusted metrics.
+                Defaults to the configured value, or to 0.02 when nothing is
+                configured.
             interval: Data interval (default: "1d").
             data_manager: Optional DataManager for offline/testing. If not provided
                 and no config is given, a shared default DataManager with
@@ -1695,6 +1699,7 @@ def run_backtest(
         initial_capital=initial_capital,
         commission=commission,
         slippage=slippage,
+        risk_free_rate=risk_free_rate,
         periods_per_year=periods_per_year,
     )
 

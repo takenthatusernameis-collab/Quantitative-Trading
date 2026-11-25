@@ -1811,6 +1811,7 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("examples/cli.py", "validate_config"),
         ("examples/run_analysis.py", "main"),
         ("examples/run_optimization.py", "main"),
+        ("quant_trading/backtest/analysis.py", "__post_init__"),
         ("quant_trading/backtest/analysis.py", "analyze_regimes"),
         ("quant_trading/backtest/analysis.py", "current_regime"),
         ("quant_trading/backtest/analysis.py", "from_dict"),
