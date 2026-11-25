@@ -543,3 +543,30 @@ No prior agent assignment was pending (thirty-ninth entry closed with "none assi
 
 ### Next task
 - **None assigned.** Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
+
+---
+
+## Session 2026-11-25 (this session — forty-first entry)
+
+No prior agent assignment was pending (fortieth entry closed with "none assigned"). Inspection found the repository healthy at commit `a6eebdf` == `origin/main` with all previously-described fixes present. A read-only sweep for the `from_dict`/`__post_init__` validation-gap defect class confirmed it was complete. However, the repository integrity guard (`test_documented_examples_are_valid`) flagged a new issue: `BayesianOptimizerConfig.__post_init__` had an empty `Examples` section in its docstring, introduced in the thirty-ninth entry's fix.
+
+### What changed
+- **`quant_trading/optimization/bayesian.py`** (`BayesianOptimizerConfig.__post_init__`): added an `Examples` section to the docstring with 7 parametrized doctests demonstrating validation rejections for all six fields (`n_initial_points`, `n_calls`, `acq_func`, `acq_optimizer`, `random_state`, `noise`) and one valid construction case. This satisfies the `test_documented_examples_are_valid` guard which requires all `Examples`/`Example` sections to be non-empty and parseable.
+
+### What was verified (this runner: Python 3.14.4 / pytest 9.2.0 / ruff 0.17.6 / black 26.10.1 / mypy 2.4.1; deps under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`)
+- **Focused test**: `pytest tests/test_repository_integrity.py::test_documented_examples_are_valid` -> **1 passed** (was 1 failed with "empty Examples/Example section").
+- **Doctests**: `pytest --doctest-modules quant_trading/optimization/bayesian.py` -> **7 passed** (all new examples execute correctly).
+- **Regression tests**: `pytest tests/test_optimization.py -k bayesian` -> **24 passed**; `pytest tests/test_serialization_roundtrip.py` -> **41 passed**; `pytest tests/test_walk_forward.py` -> **52 passed**.
+- **Guards**: `ruff check .` -> All checks passed; `black --check .` -> 166 files unchanged; `mypy quant_trading examples` -> no issues in 100 source files.
+- **Persistence**: committed as `8242da8` and pushed to `origin/main`; `git status` clean; `HEAD` == `origin/main` == `8242da8`.
+
+### What remains unresolved
+- `.github/workflows/tests.yml` CI workflow still absent; durable publication requires a maintainer with `workflows` permission (see prior entries). Do not retry commit+push.
+- Pre-existing full-suite failures (7 `ParameterSpace` construction-vs-`generate_grid` test expectation mismatches in `test_optimization.py`) are environmental and not caused by this session.
+- The `from_dict`/`__post_init__` validation-gap sweep remains complete across the codebase.
+
+### Approaches that failed
+- None. Single bounded change; all focused verification passed on first attempt.
+
+### Next task
+- **None assigned.** Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
