@@ -13,7 +13,7 @@ Examples:
 """
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime
 from typing import Any
 
@@ -218,9 +218,10 @@ class PositionLimit:
     def from_dict(cls, data: dict[str, Any]) -> "PositionLimit":
         """Deserialize a :class:`PositionLimit` from a dictionary.
 
-        Missing keys fall back to the class defaults. Non-finite and
-        non-numeric values are sanitized to ``0.0`` so a corrupted dictionary
-        cannot poison a reconstructed limit with NaN/inf.
+        Missing keys fall back to the class defaults. Raw values are passed
+        to the constructor, so :meth:`__post_init__` validation (rejecting
+        booleans, non-numeric, and non-finite values) applies identically for
+        direct and dictionary construction.
 
         Args:
             data: Dictionary previously produced by :meth:`to_dict`.
@@ -228,24 +229,20 @@ class PositionLimit:
         Returns:
             A reconstructed :class:`PositionLimit`.
 
+        Raises:
+            ValueError: If any field is a boolean, non-numeric, or non-finite
+                value.
+
         Examples:
             >>> from quant_trading.risk.limits import PositionLimit
             >>> restored = PositionLimit.from_dict({"max_size": 0.2, "max_value": 100000.0})
             >>> restored.max_size, restored.max_value
             (0.2, 100000.0)
-            >>> sanitized = PositionLimit.from_dict({"max_size": float("nan"), "max_value": float("inf"), "stop_loss_pct": "not a number"})
-            >>> sanitized.max_size, sanitized.max_value, sanitized.stop_loss_pct
-            (0.1, 50000.0, 0.05)
-            >>> sanitized.take_profit_pct
-            0.15
 
         """
-        return cls(
-            max_size=_finite(data.get("max_size"), 0.1),
-            max_value=_finite(data.get("max_value"), 50000.0),
-            stop_loss_pct=_finite(data.get("stop_loss_pct"), 0.05),
-            take_profit_pct=_finite(data.get("take_profit_pct"), 0.15),
-        )
+        known = {f.name for f in fields(cls)}
+        init_kwargs = {name: value for name, value in data.items() if name in known}
+        return cls(**init_kwargs)
 
     def check(self, position: Position, portfolio_value: float) -> list[str]:
         """Check if position violates limits.
@@ -410,9 +407,12 @@ class PortfolioLimit:
     def from_dict(cls, data: dict[str, Any]) -> "PortfolioLimit":
         """Deserialize a :class:`PortfolioLimit` from a dictionary.
 
-        Missing keys fall back to the class defaults. Non-finite and
-        non-numeric values are sanitized to ``0.0`` so a corrupted dictionary
-        cannot poison a reconstructed limit with NaN/inf.
+        Missing keys fall back to the class defaults. Raw values are passed
+        to the constructor, so :meth:`__post_init__` validation (rejecting
+        booleans, non-numeric, and non-finite values) applies identically for
+        direct and dictionary construction. Zero and negative values remain
+        allowed where the constructor permits them (e.g. ``max_drawdown=0.0``
+        disables the check).
 
         Args:
             data: Dictionary previously produced by :meth:`to_dict`.
@@ -420,26 +420,20 @@ class PortfolioLimit:
         Returns:
             A reconstructed :class:`PortfolioLimit`.
 
+        Raises:
+            ValueError: If any field is a boolean, non-numeric, or non-finite
+                value, or if ``max_positions`` is negative.
+
         Examples:
             >>> from quant_trading.risk.limits import PortfolioLimit
             >>> restored = PortfolioLimit.from_dict({"max_positions": 10, "max_drawdown": 0.15})
             >>> restored.max_positions, restored.max_drawdown
             (10, 0.15)
-            >>> sanitized = PortfolioLimit.from_dict({"max_position_size": float("nan"), "max_portfolio_risk": float("inf"), "max_drawdown": "not a number"})
-            >>> sanitized.max_position_size, sanitized.max_portfolio_risk, sanitized.max_drawdown
-            (0.1, 0.02, 0.2)
-            >>> sanitized.max_positions, sanitized.max_leverage, sanitized.stop_loss_pct
-            (20, 1.0, 0.05)
 
         """
-        return cls(
-            max_positions=int(_finite(data.get("max_positions"), 20)),
-            max_position_size=_finite(data.get("max_position_size"), 0.1),
-            max_portfolio_risk=_finite(data.get("max_portfolio_risk"), 0.02),
-            max_drawdown=_finite(data.get("max_drawdown"), 0.20),
-            max_leverage=_finite(data.get("max_leverage"), 1.0),
-            stop_loss_pct=_finite(data.get("stop_loss_pct"), 0.05),
-        )
+        known = {f.name for f in fields(cls)}
+        init_kwargs = {name: value for name, value in data.items() if name in known}
+        return cls(**init_kwargs)
 
     def position_risk(self, position: Position) -> float:
         """Compute the risk committed by a single position.

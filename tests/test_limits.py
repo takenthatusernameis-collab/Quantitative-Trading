@@ -1020,77 +1020,39 @@ class TestPortfolioLimitSerialization:
         assert restored.stop_loss_pct == original.stop_loss_pct
 
 
-class TestPositionLimitSerializationHardening:
-    """Regression tests for PositionLimit.from_dict non-finite/non-numeric handling."""
+class TestPositionLimitFromDictValidation:
+    """Tests that PositionLimit.from_dict rejects invalid values like direct construction."""
+
+    @pytest.mark.parametrize(
+        "field",
+        ["max_size", "max_value", "stop_loss_pct", "take_profit_pct"],
+    )
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_from_dict_rejects_non_finite_values(self, field: str, value: float) -> None:
+        with pytest.raises(ValueError, match=f"invalid {field}:"):
+            PositionLimit.from_dict({field: value})
+
+    @pytest.mark.parametrize(
+        "field",
+        ["max_size", "max_value", "stop_loss_pct", "take_profit_pct"],
+    )
+    @pytest.mark.parametrize("value", [True, False, "0.1", None, [], {}])
+    def test_from_dict_rejects_non_numeric_values(self, field: str, value: object) -> None:
+        with pytest.raises(ValueError, match=f"invalid {field}:"):
+            PositionLimit.from_dict({field: value})
 
     @pytest.mark.parametrize(
         "field,value",
         [
-            ("max_size", float("nan")),
-            ("max_size", float("inf")),
-            ("max_size", float("-inf")),
-            ("max_value", float("nan")),
-            ("max_value", float("inf")),
-            ("max_value", float("-inf")),
-            ("stop_loss_pct", float("nan")),
-            ("stop_loss_pct", float("inf")),
-            ("stop_loss_pct", float("-inf")),
-            ("take_profit_pct", float("nan")),
-            ("take_profit_pct", float("inf")),
-            ("take_profit_pct", float("-inf")),
+            ("max_size", 0.25),
+            ("max_value", 75000.0),
+            ("stop_loss_pct", 0.12),
+            ("take_profit_pct", 0.30),
         ],
     )
-    def test_from_dict_sanitizes_non_finite_values(self, field: str, value: float) -> None:
-        data = {field: value}
-        limit = PositionLimit.from_dict(data)
-        # The field should fall back to its default
-        expected_default = {
-            "max_size": 0.1,
-            "max_value": 50000.0,
-            "stop_loss_pct": 0.05,
-            "take_profit_pct": 0.15,
-        }[field]
-        assert getattr(limit, field) == expected_default
-
-    @pytest.mark.parametrize(
-        "field,value",
-        [
-            ("max_size", "not a number"),
-            ("max_value", "not a number"),
-            ("stop_loss_pct", "not a number"),
-            ("take_profit_pct", "not a number"),
-            ("max_size", None),
-            ("max_value", None),
-            ("stop_loss_pct", None),
-            ("take_profit_pct", None),
-            ("max_size", []),
-            ("max_value", {}),
-        ],
-    )
-    def test_from_dict_sanitizes_non_numeric_values(self, field: str, value: object) -> None:
-        data = {field: value}
-        limit = PositionLimit.from_dict(data)
-        expected_default = {
-            "max_size": 0.1,
-            "max_value": 50000.0,
-            "stop_loss_pct": 0.05,
-            "take_profit_pct": 0.15,
-        }[field]
-        assert getattr(limit, field) == expected_default
-
-    def test_from_dict_accepts_numeric_strings(self) -> None:
-        limit = PositionLimit.from_dict(
-            {
-                "max_size": "0.25",
-                "max_value": "75000.0",
-                "stop_loss_pct": "0.12",
-                "take_profit_pct": "0.30",
-            }
-        )
-        assert limit.max_size == 0.25
-        assert limit.max_value == 75000.0
-        assert limit.stop_loss_pct == 0.12
-        assert limit.take_profit_pct == 0.30
+    def test_from_dict_accepts_valid_values(self, field: str, value: float) -> None:
+        limit = PositionLimit.from_dict({field: value})
+        assert getattr(limit, field) == value
 
     def test_from_dict_missing_fields_use_defaults(self) -> None:
         limit = PositionLimit.from_dict({})
@@ -1100,101 +1062,60 @@ class TestPositionLimitSerializationHardening:
         assert limit.take_profit_pct == 0.15
 
 
-class TestPortfolioLimitSerializationHardening:
-    """Regression tests for PortfolioLimit.from_dict non-finite/non-numeric handling."""
+class TestPortfolioLimitFromDictValidation:
+    """Tests that PortfolioLimit.from_dict rejects invalid values like direct construction."""
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "max_position_size",
+            "max_portfolio_risk",
+            "max_drawdown",
+            "max_leverage",
+            "stop_loss_pct",
+        ],
+    )
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_from_dict_rejects_non_finite_values(self, field: str, value: float) -> None:
+        with pytest.raises(ValueError, match=f"invalid {field}:"):
+            PortfolioLimit.from_dict({field: value})
+
+    @pytest.mark.parametrize(
+        "max_positions", [float("nan"), float("inf"), float("-inf"), -1, True, "10", None]
+    )
+    def test_from_dict_rejects_invalid_max_positions(self, max_positions: object) -> None:
+        with pytest.raises(ValueError, match="invalid max_positions:"):
+            PortfolioLimit.from_dict({"max_positions": max_positions})
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "max_position_size",
+            "max_portfolio_risk",
+            "max_drawdown",
+            "max_leverage",
+            "stop_loss_pct",
+        ],
+    )
+    @pytest.mark.parametrize("value", [True, False, "0.1", None, [], {}])
+    def test_from_dict_rejects_non_numeric_values(self, field: str, value: object) -> None:
+        with pytest.raises(ValueError, match=f"invalid {field}:"):
+            PortfolioLimit.from_dict({field: value})
 
     @pytest.mark.parametrize(
         "field,value",
         [
-            ("max_position_size", float("nan")),
-            ("max_position_size", float("inf")),
-            ("max_position_size", float("-inf")),
-            ("max_portfolio_risk", float("nan")),
-            ("max_portfolio_risk", float("inf")),
-            ("max_portfolio_risk", float("-inf")),
-            ("max_drawdown", float("nan")),
-            ("max_drawdown", float("inf")),
-            ("max_drawdown", float("-inf")),
-            ("max_leverage", float("nan")),
-            ("max_leverage", float("inf")),
-            ("max_leverage", float("-inf")),
-            ("stop_loss_pct", float("nan")),
-            ("stop_loss_pct", float("inf")),
-            ("stop_loss_pct", float("-inf")),
+            ("max_positions", 5),
+            ("max_position_size", 0.18),
+            ("max_portfolio_risk", 0.04),
+            ("max_drawdown", 0.25),
+            ("max_leverage", 2.5),
+            ("stop_loss_pct", 0.08),
         ],
     )
-    def test_from_dict_sanitizes_non_finite_values(self, field: str, value: float) -> None:
-        data = {field: value}
-        limit = PortfolioLimit.from_dict(data)
-        expected_default = {
-            "max_position_size": 0.1,
-            "max_portfolio_risk": 0.02,
-            "max_drawdown": 0.20,
-            "max_leverage": 1.0,
-            "stop_loss_pct": 0.05,
-        }[field]
-        assert getattr(limit, field) == expected_default
-
-    def test_from_dict_sanitizes_non_finite_max_positions(self) -> None:
-        limit = PortfolioLimit.from_dict({"max_positions": float("nan")})
-        assert limit.max_positions == 20
-        limit = PortfolioLimit.from_dict({"max_positions": float("inf")})
-        assert limit.max_positions == 20
-        limit = PortfolioLimit.from_dict({"max_positions": float("-inf")})
-        assert limit.max_positions == 20
-
-    @pytest.mark.parametrize(
-        "field,value",
-        [
-            ("max_position_size", "not a number"),
-            ("max_portfolio_risk", "not a number"),
-            ("max_drawdown", "not a number"),
-            ("max_leverage", "not a number"),
-            ("stop_loss_pct", "not a number"),
-            ("max_position_size", None),
-            ("max_portfolio_risk", None),
-            ("max_drawdown", None),
-            ("max_leverage", None),
-            ("stop_loss_pct", None),
-            ("max_position_size", []),
-            ("max_portfolio_risk", {}),
-        ],
-    )
-    def test_from_dict_sanitizes_non_numeric_values(self, field: str, value: object) -> None:
-        data = {field: value}
-        limit = PortfolioLimit.from_dict(data)
-        expected_default = {
-            "max_position_size": 0.1,
-            "max_portfolio_risk": 0.02,
-            "max_drawdown": 0.20,
-            "max_leverage": 1.0,
-            "stop_loss_pct": 0.05,
-        }[field]
-        assert getattr(limit, field) == expected_default
-
-    def test_from_dict_sanitizes_non_numeric_max_positions(self) -> None:
-        limit = PortfolioLimit.from_dict({"max_positions": "not a number"})
-        assert limit.max_positions == 20
-        limit = PortfolioLimit.from_dict({"max_positions": None})
-        assert limit.max_positions == 20
-
-    def test_from_dict_accepts_numeric_strings(self) -> None:
-        limit = PortfolioLimit.from_dict(
-            {
-                "max_positions": "15",
-                "max_position_size": "0.18",
-                "max_portfolio_risk": "0.04",
-                "max_drawdown": "0.25",
-                "max_leverage": "2.5",
-                "stop_loss_pct": "0.08",
-            }
-        )
-        assert limit.max_positions == 15
-        assert limit.max_position_size == 0.18
-        assert limit.max_portfolio_risk == 0.04
-        assert limit.max_drawdown == 0.25
-        assert limit.max_leverage == 2.5
-        assert limit.stop_loss_pct == 0.08
+    def test_from_dict_accepts_valid_values(self, field: str, value: float) -> None:
+        limit = PortfolioLimit.from_dict({field: value})
+        assert getattr(limit, field) == value
 
     def test_from_dict_missing_fields_use_defaults(self) -> None:
         limit = PortfolioLimit.from_dict({})
