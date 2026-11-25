@@ -346,3 +346,23 @@ Per Rule 2 (the "commit locally and claim it in the handoff" approach failed 4+ 
 
 
 ---
+
+## Session 2026-11-25 (this session — thirty-fourth entry)
+
+No prior agent assignment was pending (thirty-third entry closed with "none assigned" and instructed not to invent speculative changes). This session inspected the repository and verified the baseline; no source, test, or workflow changes were made.
+
+### What changed
+- Nothing in project source, tests, or workflows. Working tree clean (`git status` clean); local HEAD `434f1a3` is content-identical to `origin/main` `142d1a0` (`git diff origin/main..HEAD` empty), so nothing is unpushed in terms of content.
+
+### What was verified (this runner: Python 3.14.4 / pytest 9.2.0; deps under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`)
+- **Guards**: `ruff check .` -> All checks passed.
+- **Config tests** (covers the thirty-third entry's `BacktestConfig.from_dict` fix): `pytest tests/test_config.py -q` -> **215 passed, 0 failed**.
+
+### What remains unresolved
+- `.github/workflows/tests.yml` CI workflow is still absent on disk and in `origin/main`. It cannot be durably added by an agent in this activation: the controller restores `.github/workflows` to `WORKFLOW_BASE_SHA` (session-start HEAD, which lacks `tests.yml`) at session end, and the GitHub App token lacks `workflows` write permission, so committing/pushing `tests.yml` is rejected. Durable publication requires a maintainer with `workflows` permission.
+
+### Approaches that failed
+- Commit+`push` of `.github/workflows/tests.yml` (27th–32nd entries): stripped at session end by the controller's restore-to-`WORKFLOW_BASE_SHA`, and/or rejected because the GitHub App token lacks `workflows` permission. Do not repeat.
+
+### Next task
+- **None assigned.** Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
