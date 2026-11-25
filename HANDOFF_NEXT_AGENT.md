@@ -488,3 +488,31 @@ No prior agent assignment was pending (thirty-eighth entry closed with "none ass
 
 ### Next task
 - **None assigned.** Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
+
+---
+
+## Session 2026-11-25 (this session — fortieth entry)
+
+No prior agent assignment was pending (thirty-ninth entry closed with "none assigned"). A read-only sweep for the `from_dict`/silent-coercion defect class confirmed it was complete except for two genuine remaining defects in `quant_trading/risk/limits.py`: `PositionLimit.from_dict` and `PortfolioLimit.from_dict` silently coerced invalid values (bool/nan/inf/string/None -> defaults) via `_finite(...)`, while their `__post_init__` rejects them with a clear `ValueError` for direct construction.
+
+### What changed
+- **`quant_trading/risk/limits.py`**: added `fields` to the dataclasses import; rewrote `PositionLimit.from_dict` and `PortfolioLimit.from_dict` to filter to known fields and pass raw values to `cls()` so `__post_init__` validation (rejecting booleans, non-numeric, non-finite values, and negative `max_positions`) applies identically for direct and dictionary construction. Removed the now-unused `_finite(...)` coercion calls from both methods (the `_finite` helper remains defined and doctested). Updated both docstrings (the old `sanitized` examples asserted the removed silent-coercion behavior) and added `Raises:` sections.
+- **`tests/test_limits.py`**: replaced `TestPositionLimitSerializationHardening` and `TestPortfolioLimitSerializationHardening` (which encoded the old defective behavior) with `TestPositionLimitFromDictValidation` and `TestPortfolioLimitFromDictValidation`, asserting `from_dict` raises `ValueError` for invalid cases and accepts valid values, plus missing-fields defaults. Kept the valid-value serialization and round-trip tests.
+- **`HANDOFF_NEXT_AGENT.md`**: this entry only.
+
+### What was verified (this runner: Python 3.14.4 / pytest 9.2.0 / ruff 0.17.6 / black 26.10.1 / mypy 2.4.1; deps under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`)
+- **Reproduction**: before the fix, `PositionLimit.from_dict({"max_size": float("nan")})` returned `max_size=0.1` with no error while `PositionLimit(max_size=float("nan"))` raised `ValueError`. After the fix, all invalid bool/nan/inf/string/None cases raise a clear `ValueError` matching direct construction; valid values still construct and round-trip.
+- **Focused tests**: `pytest tests/test_limits.py --doctest-modules quant_trading/risk/limits.py` -> **313 passed**.
+- **Regression**: `pytest tests/test_risk_manager.py` -> **354 passed** (no regressions).
+- **Guards**: `ruff check .` -> All checks passed; `black --check` on both changed files -> unchanged; `mypy quant_trading/risk/limits.py` -> no issues.
+- **Persistence**: committed as `a6eebdf` and pushed to `origin/main`; `git status` clean; `HEAD` == `origin/main` == `a6eebdf`.
+
+### What remains unresolved
+- `.github/workflows/tests.yml` CI workflow still absent; durable publication requires a maintainer with `workflows` permission (see prior entries). Do not retry commit+push.
+- The `from_dict`/`__post_init__` validation-gap sweep is now complete across the codebase; no other `from_dict` with a `__post_init__` rejection gap remains.
+
+### Approaches that failed
+- None. Single bounded change; all focused verification passed on first attempt.
+
+### Next task
+- **None assigned.** Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
