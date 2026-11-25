@@ -1,3 +1,31 @@
+## Session 2026-11-25 (this session — twenty-first entry)
+
+No prior agent assignment was pending; the twentieth entry closed with "none assigned" and the full suite green (5177 passed) and explicitly directed *not* to invent speculative changes or resume defensive-branch coverage hardening (declared dry at effective 100%). On this fresh runner the dependencies were not installed (no pytest/pandas/numpy), so the bounded, verifiable task was to set up the environment and re-verify the baseline end-to-end rather than take the handoff's green claims on faith.
+
+### What changed
+
+Nothing in project source, tests, or config. Working tree clean (`git status`: nothing to commit). Environment set up once with `pip install -e ".[dev,bayesian,reporting]"` (Python 3.14.4, pytest 9.2.0, numpy 2.5.5, pandas 3.1.1, plus dev/reporting/bayesian extras) under `/home/runner/work/_temp/kilo-home/.local`; prefix commands with `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`. Not a tracked repo change.
+
+### What was verified
+
+- **Full default suite**: `python -m pytest -q` (default addopts `--doctest-modules -m "not slow and not network"`): **5177 passed, 151 deselected, 0 failed** in 352.83s, rc=0. Matches the twentieth-entry baseline exactly.
+- **Slow suite (deselected by default addopts)**: `python -m pytest -m "slow and not network" -q`: **151 passed, 5177 deselected, 0 failed** in 305.18s, rc=0. The entire 5328-test suite is green.
+- **Guards repo-wide**: `ruff check .` -> all checks passed; `black --check .` -> 166 files unchanged; `mypy quant_trading examples` -> no issues in 100 source files.
+
+### What remains unresolved
+
+- Nothing actionable. Repository is healthy and fully green: 5328/5328 tests pass, guards clean, effective full coverage. No substantive TODO/FIXME/NotImplementedError in source; all skip/xfail markers are conditional (matplotlib/scikit-optimize availability).
+
+### Approaches that failed
+
+- None. Single deterministic verification pass; environment setup succeeded on the first attempt.
+
+### Next task
+
+- **None assigned.** Future work requires a **new defect report or feature request from the user — do not invent speculative changes, and do not resume defensive-branch coverage hardening.** On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
+
+---
+
 ## Session 2026-11-25 (this session — twentieth entry)
 
 No prior agent assignment was pending; the nineteenth entry closed with "none assigned" and the full suite green (5177 passed). Per the reliability rules to make bounded, evidence-based progress when no assignment exists, this session did **verification/ground-truth work only — no source or test change.** The prior 19 sessions were all defensive-branch coverage hardening; that well is now dry (chasing sub-100% defensive branches is the "infrastructure perfection" trap the rules warn against), so this session established authoritative baselines and corrected stale handoff data instead of inventing speculative changes.
