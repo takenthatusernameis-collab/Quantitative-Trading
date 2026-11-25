@@ -174,21 +174,41 @@ def test_report_config_accepts_valid_theme(good_theme: str) -> None:
     assert ReportConfig(theme=good_theme).theme == good_theme
 
 
-def test_report_config_from_dict_sanitizes_invalid_dpi() -> None:
-    """from_dict must collapse non-finite / unconvertible dpi to the default."""
-    assert ReportConfig.from_dict({"dpi": float("nan")}).dpi == 150
-    assert ReportConfig.from_dict({"dpi": float("inf")}).dpi == 150
-    assert ReportConfig.from_dict({"dpi": "high"}).dpi == 150
-    assert ReportConfig.from_dict({"dpi": None}).dpi == 150
-    assert ReportConfig.from_dict({"dpi": True}).dpi == 150
-    assert ReportConfig.from_dict({"dpi": 200}).dpi == 200
+@pytest.mark.parametrize(
+    "bad_dpi", [float("nan"), float("inf"), float("-inf"), True, "high", None, 0, -1]
+)
+def test_report_config_from_dict_rejects_invalid_dpi(bad_dpi: Any) -> None:
+    """from_dict must reject invalid dpi, matching direct construction."""
+    with pytest.raises(ValueError, match="invalid dpi"):
+        ReportConfig.from_dict({"dpi": bad_dpi})
 
 
-def test_report_config_from_dict_sanitizes_invalid_theme() -> None:
-    """from_dict must collapse invalid themes to the default 'light'."""
-    assert ReportConfig.from_dict({"theme": "neon"}).theme == "light"
-    assert ReportConfig.from_dict({"theme": None}).theme == "light"
-    assert ReportConfig.from_dict({"theme": "dark"}).theme == "dark"
+@pytest.mark.parametrize("good_dpi", [1, 72, 150, 300, 1200, 200.0])
+def test_report_config_from_dict_accepts_valid_dpi(good_dpi: Any) -> None:
+    """from_dict must accept finite dpi values of at least 1."""
+    assert ReportConfig.from_dict({"dpi": good_dpi}).dpi == int(good_dpi)
+
+
+@pytest.mark.parametrize("bad_theme", ["neon", "", None, 123, True, "LIGHT"])
+def test_report_config_from_dict_rejects_invalid_theme(bad_theme: Any) -> None:
+    """from_dict must reject invalid themes, matching direct construction."""
+    with pytest.raises(ValueError, match="invalid theme"):
+        ReportConfig.from_dict({"theme": bad_theme})
+
+
+@pytest.mark.parametrize("good_theme", ["light", "dark"])
+def test_report_config_from_dict_accepts_valid_theme(good_theme: str) -> None:
+    """from_dict must accept the 'light' and 'dark' themes."""
+    assert ReportConfig.from_dict({"theme": good_theme}).theme == good_theme
+
+
+def test_report_config_from_dict_round_trip() -> None:
+    """from_dict must round-trip a full to_dict() payload."""
+    config = ReportConfig(title="Custom Report", theme="dark", dpi=300)
+    restored = ReportConfig.from_dict(config.to_dict())
+    assert restored.title == config.title
+    assert restored.theme == config.theme
+    assert restored.dpi == config.dpi
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")

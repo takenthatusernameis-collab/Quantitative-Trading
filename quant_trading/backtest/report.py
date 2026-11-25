@@ -11,7 +11,7 @@ import base64
 import io
 import math
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
@@ -157,6 +157,12 @@ class ReportConfig:
         produced by :meth:`to_dict` (for example after a JSON round-trip) can
         be reconstructed without carrying every field. Extra keys are ignored.
 
+        Invalid values are rejected by :meth:`__post_init__` (booleans,
+        non-numeric and non-finite dpi, dpi below 1, and themes other than
+        ``"light"``/``"dark"``), so dictionary construction is consistent with
+        direct construction instead of silently collapsing bad input to the
+        defaults.
+
         Args:
             data: Dictionary whose keys match report configuration attribute
                 names.
@@ -164,34 +170,19 @@ class ReportConfig:
         Returns:
             A reconstructed :class:`ReportConfig`.
 
+        Raises:
+            ValueError: If any value fails :meth:`__post_init__` validation.
+
         Examples:
             >>> from quant_trading.backtest.report import ReportConfig
             >>> ReportConfig.from_dict({"dpi": 200, "theme": "dark"}).dpi
             200
             >>> ReportConfig.from_dict({"dpi": 200, "theme": "dark"}).theme
             'dark'
-            >>> ReportConfig.from_dict({"dpi": float("nan")}).dpi
-            150
-            >>> ReportConfig.from_dict({"dpi": "high"}).dpi
-            150
-            >>> ReportConfig.from_dict({"theme": "neon"}).theme
-            'light'
-            >>> ReportConfig.from_dict({"theme": None}).theme
-            'light'
         """
-        dpi = int(_finite(data.get("dpi", 150), default=150.0))
-        theme = str(data.get("theme", "light"))
-        if theme not in ("light", "dark"):
-            theme = "light"
-        return cls(
-            title=str(data.get("title", "Backtest Report")),
-            include_charts=bool(data.get("include_charts", True)),
-            include_trade_details=bool(data.get("include_trade_details", True)),
-            include_monthly_heatmap=bool(data.get("include_monthly_heatmap", True)),
-            include_rolling_metrics=bool(data.get("include_rolling_metrics", True)),
-            theme=theme,
-            dpi=dpi,
-        )
+        known = {f.name for f in fields(cls)}
+        init_kwargs = {name: value for name, value in data.items() if name in known}
+        return cls(**init_kwargs)
 
 
 def _check_matplotlib() -> None:
