@@ -1,4 +1,84 @@
-## Session 2026-11-24 (this session — fourteenth entry)
+## Session 2026-11-25 (this session — fifteenth entry)
+
+A prior agent left an **undocumented, uncommitted-message** change: commit
+`30a2242` (empty message) added a `--sensitivity` parameter-sensitivity feature
+to `examples/cli.py` (`_run_sensitivity_analysis` + four argparse flags:
+`--sensitivity`, `--sensitivity-output`, `--sensitivity-dpi`,
+`--sensitivity-fig-size`) and a dispatch in `run_optimization`, but shipped it
+with **no tests** and did **not** update this handoff. Per the reliability rules
+(preserve durable progress; encode critical invariants as executable checks),
+this session verified the feature end-to-end and closed the test gap with
+**tests only — no source/behavior change.**
+
+### What changed
+
+**tests/test_cli.py** only (294 lines added). Added:
+- `TestSensitivityArgsParsing` (2 tests): defaults (`sensitivity=False`,
+  `output=None`, `dpi=150`, `fig_size="10,6"`) and full flag parsing.
+- `TestRunSensitivityAnalysis` (8 tests) covering every branch of
+  `_run_sensitivity_analysis`:
+  - empty `all_results` -> rc 1 ("No optimization results available").
+  - results lacking `params` -> empty DataFrame -> rc 1 ("No valid data").
+  - text-summary path (no `--sensitivity-output`) -> rc 0, prints summary table.
+  - invalid `--sensitivity-fig-size` -> falls back to 10,6 -> rc 0.
+  - HTML output path -> rc 0, file written, "Sensitivity report saved to".
+  - `generate_sensitivity_report_html` raising `ImportError` -> rc 1
+    ("Install matplotlib").
+  - `generate_sensitivity_report_html` raising `OSError` -> rc 1
+    ("Error writing sensitivity report").
+  - `run_optimization` with `sensitivity=True` dispatches into the analysis
+    (rc 0, "Sensitivity Analysis" printed) — end-to-end wiring check.
+
+### What was verified
+
+- **Coverage of the new code**: via the coverage-API driver (the `coverage run`
+  CLI is broken in this env — `a1_coverage.pth` + numpy double-load conflict),
+  the new statements in `examples/cli.py` lines 2053-2152 plus the dispatch at
+  2311-2312 are **100% covered** (0 missing) by the new tests alone.
+- **Focused**: `pytest tests/test_cli.py -k Sensitivity` -> **10 passed**.
+- **Full CLI file**: `pytest tests/test_cli.py` -> **375 passed, 3 deselected**
+  (365 prior + 10 new).
+- **Guards on changed file**: `ruff check`, `black --check`, `mypy
+  tests/test_cli.py` all clean (fixed 3 SIM117 nested-`with` violations by
+  combining context managers; black reformatted).
+- **Full suite**: `python -m pytest -q` (default addopts `--doctest-modules
+  -m "not slow and not network"`): **5142 passed, 151 deselected, 0 failed** in
+  260.38s — exactly the prior 5132 + 10 new, no regressions (Python 3.14.4 /
+  pytest 9.2.0 / numpy 2.5.5 / pandas 3.1.1; deps under
+  `/home/runner/work/_temp/kilo-home/.local`; prefix commands with
+  `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`).
+- Behavior of each branch was reproduced with a direct probe before writing
+  assertions (empty/noparam/text/html/ImportError/OSError all confirmed).
+
+### What remains unresolved
+
+- Nothing for this task. The `--sensitivity` feature is now fully tested. The
+  `slow`/`network` tests (151 deselected) are intentionally excluded by default
+  `addopts`. Other sub-100% modules remain single defensive branches (not
+  outliers) and were left untouched.
+
+### Approaches that failed
+
+- `coverage run` / `pytest --cov` CLI: unusable in this environment
+  (`a1_coverage.pth` + numpy double-load); worked around with the coverage-API
+  driver script (lives outside the repo at
+  `/home/runner/work/_temp/kilo-tmp/kilo/`).
+
+### Next task
+
+- **None assigned.** Working tree contains only the test addition + this entry;
+  full suite green (5142 passed). Future work requires a **new defect report or
+  feature request from the user — do not invent speculative changes.** If further
+  coverage hardening is desired, the next bounded targets the prior entries
+  identified are `quant_trading/risk/limits.py` (98%),
+  `quant_trading/risk/metrics.py` (99%),
+  `quant_trading/backtest/engine.py` (99%), `examples/cli.py` (99%), but only
+  pursue on explicit request. On a fresh runner, first
+  `pip install -e ".[dev,bayesian,reporting]"`.
+
+---
+
+## Session 2026-11-24 (previous session — fourteenth entry)
 
 No prior agent assignment was pending; the previous (thirteenth) entry closed
 with "no task assigned; do not invent speculative changes," and the full suite

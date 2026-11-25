@@ -9801,6 +9801,300 @@ class TestRunCombinedOutputSaveFailure:
         mock_save_json_output.assert_called_once()
 
 
+class TestSensitivityArgsParsing:
+    """Tests for the --sensitivity CLI flags added to the parser."""
+
+    def test_sensitivity_defaults(self) -> None:
+        from examples.cli import parse_args
+
+        with patch("sys.argv", ["cli.py", "--strategy", "ma"]):
+            args = parse_args()
+        assert args.sensitivity is False
+        assert args.sensitivity_output is None
+        assert args.sensitivity_dpi == 150
+        assert args.sensitivity_fig_size == "10,6"
+
+    def test_sensitivity_flags_parsed(self) -> None:
+        from examples.cli import parse_args
+
+        with patch(
+            "sys.argv",
+            [
+                "cli.py",
+                "--strategy",
+                "ma",
+                "--sensitivity",
+                "--sensitivity-output",
+                "out.html",
+                "--sensitivity-dpi",
+                "200",
+                "--sensitivity-fig-size",
+                "12,8",
+            ],
+        ):
+            args = parse_args()
+        assert args.sensitivity is True
+        assert args.sensitivity_output == "out.html"
+        assert args.sensitivity_dpi == 200
+        assert args.sensitivity_fig_size == "12,8"
+
+
+class TestRunSensitivityAnalysis:
+    """Tests for examples.cli._run_sensitivity_analysis."""
+
+    def _args(
+        self,
+        output: str | None = None,
+        fig_size: str = "10,6",
+        dpi: int = 150,
+    ) -> Namespace:
+        return Namespace(
+            sensitivity_output=output,
+            sensitivity_fig_size=fig_size,
+            sensitivity_dpi=dpi,
+        )
+
+    def test_no_results_returns_one(self) -> None:
+        import io
+        from contextlib import redirect_stdout
+
+        from examples.cli import _run_sensitivity_analysis
+        from quant_trading.optimization.base import OptimizationResult
+
+        result = OptimizationResult(best_params={}, best_score=0.0, all_results=[])
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = _run_sensitivity_analysis(self._args(), result, Config(), object)
+        assert rc == 1
+        assert "No optimization results available" in buf.getvalue()
+
+    def test_empty_dataframe_returns_one(self) -> None:
+        import io
+        from contextlib import redirect_stdout
+
+        from examples.cli import _run_sensitivity_analysis
+        from quant_trading.optimization.base import OptimizationResult
+
+        # Results without a 'params' key produce an empty DataFrame.
+        result = OptimizationResult(best_params={}, best_score=0.0, all_results=[{"score": 1.0}])
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = _run_sensitivity_analysis(self._args(), result, Config(), object)
+        assert rc == 1
+        assert "No valid data for sensitivity analysis" in buf.getvalue()
+
+    def test_text_summary_path_returns_zero(self) -> None:
+        import io
+        from contextlib import redirect_stdout
+
+        from examples.cli import _run_sensitivity_analysis
+        from quant_trading.optimization.base import OptimizationResult
+
+        result = OptimizationResult(
+            best_params={},
+            best_score=0.0,
+            all_results=[
+                {"params": {"fast": 5}, "score": 1.0},
+                {"params": {"fast": 10}, "score": 2.0},
+                {"params": {"fast": 15}, "score": 1.5},
+            ],
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = _run_sensitivity_analysis(self._args(), result, Config(), object)
+        out = buf.getvalue()
+        assert rc == 0
+        assert "Sensitivity Analysis" in out
+        assert "Sensitivity Summary:" in out
+        assert "fast" in out
+
+    def test_invalid_fig_size_falls_back_to_default(self) -> None:
+        import io
+        from contextlib import redirect_stdout
+
+        from examples.cli import _run_sensitivity_analysis
+        from quant_trading.optimization.base import OptimizationResult
+
+        result = OptimizationResult(
+            best_params={},
+            best_score=0.0,
+            all_results=[
+                {"params": {"fast": 5}, "score": 1.0},
+                {"params": {"fast": 10}, "score": 2.0},
+            ],
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = _run_sensitivity_analysis(
+                self._args(fig_size="not-a-size"), result, Config(), object
+            )
+        assert rc == 0
+        assert "Sensitivity Summary:" in buf.getvalue()
+
+    def test_html_output_writes_file(self, tmp_path: Path) -> None:
+        import io
+        from contextlib import redirect_stdout
+
+        from examples.cli import _run_sensitivity_analysis
+        from quant_trading.optimization.base import OptimizationResult
+
+        result = OptimizationResult(
+            best_params={},
+            best_score=0.0,
+            all_results=[
+                {"params": {"fast": 5}, "score": 1.0},
+                {"params": {"fast": 10}, "score": 2.0},
+            ],
+        )
+        outp = tmp_path / "report.html"
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = _run_sensitivity_analysis(self._args(output=str(outp)), result, Config(), object)
+        assert rc == 0
+        assert outp.exists()
+        assert "Sensitivity report saved to" in buf.getvalue()
+
+    def test_html_import_error_returns_one(self) -> None:
+        import io
+        from contextlib import redirect_stdout
+
+        from examples.cli import _run_sensitivity_analysis
+        from quant_trading.optimization.base import OptimizationResult
+
+        result = OptimizationResult(
+            best_params={},
+            best_score=0.0,
+            all_results=[
+                {"params": {"fast": 5}, "score": 1.0},
+                {"params": {"fast": 10}, "score": 2.0},
+            ],
+        )
+        buf = io.StringIO()
+        with (
+            patch(
+                "examples.cli.generate_sensitivity_report_html",
+                side_effect=ImportError("no matplotlib"),
+            ),
+            redirect_stdout(buf),
+        ):
+            rc = _run_sensitivity_analysis(self._args(output="out.html"), result, Config(), object)
+        assert rc == 1
+        assert "Install matplotlib" in buf.getvalue()
+
+    def test_html_os_error_returns_one(self) -> None:
+        import io
+        from contextlib import redirect_stdout
+
+        from examples.cli import _run_sensitivity_analysis
+        from quant_trading.optimization.base import OptimizationResult
+
+        result = OptimizationResult(
+            best_params={},
+            best_score=0.0,
+            all_results=[
+                {"params": {"fast": 5}, "score": 1.0},
+                {"params": {"fast": 10}, "score": 2.0},
+            ],
+        )
+        buf = io.StringIO()
+        with (
+            patch(
+                "examples.cli.generate_sensitivity_report_html",
+                side_effect=OSError("disk full"),
+            ),
+            redirect_stdout(buf),
+        ):
+            rc = _run_sensitivity_analysis(self._args(output="out.html"), result, Config(), object)
+        assert rc == 1
+        assert "Error writing sensitivity report" in buf.getvalue()
+
+    def test_run_optimization_dispatches_to_sensitivity(self) -> None:
+        from examples.cli import OPTIMIZERS, run_optimization
+
+        mock_result = MagicMock()
+        mock_result.best_params = {"fast_period": 10}
+        mock_result.best_score = 1.0
+        mock_result.best_result = None
+        mock_result.all_results = [
+            {"params": {"fast_period": 10}, "score": 1.0},
+        ]
+        mock_result.get_top_n.return_value = []
+        mock_optimizer_instance = MagicMock()
+        mock_optimizer_instance.run.return_value = mock_result
+        mock_random_search = MagicMock(return_value=mock_optimizer_instance)
+
+        args = Namespace(
+            strategy="ma",
+            optimizer="random",
+            objective="sharpe",
+            symbols=["AAPL"],
+            interval="1d",
+            ma_fast_range="5,15,5",
+            ma_slow_range="20,30,10",
+            rsi_period_range="10,20,2",
+            rsi_oversold_range="20,35,5",
+            rsi_overbought_range="65,80,5",
+            bb_period_range="10,30,5",
+            bb_std_range="1.5,3.0,0.5",
+            macd_fast_range="8,16,2",
+            macd_slow_range="20,30,2",
+            macd_signal_range="7,12,1",
+            st_period_range="7,20,1",
+            st_multiplier_range="2.0,4.0,0.5",
+            dc_period_range="10,40,5",
+            dc_exit_period_range="5,20,5",
+            aroon_period_range="10,50,5",
+            kc_ema_period_range="10,30,5",
+            kc_atr_period_range="5,20,2",
+            kc_multiplier_range="1.0,3.0,0.5",
+            stoch_k_period_range="10,20,2",
+            stoch_d_period_range="2,5,1",
+            stoch_oversold_range="10,30,5",
+            stoch_overbought_range="70,90,5",
+            ichimoku_tenkan_period_range="5,15,2",
+            ichimoku_kijun_period_range="10,30,5",
+            ichimoku_senkou_b_period_range="20,60,10",
+            sar_step_range="0.01,0.05,0.01",
+            sar_max_step_range="0.10,0.20,0.05",
+            atr_period_range="10,30,5",
+            atr_multiplier_range="1.0,3.0,0.5",
+            n_iter=10,
+            n_jobs=1,
+            bayesian_n_initial=10,
+            bayesian_acq_func="EI",
+            bayesian_acq_optimizer="auto",
+            bayesian_noise=1e-6,
+            output=None,
+            output_format=None,
+            output_strategy_config=None,
+            sensitivity=True,
+            sensitivity_output=None,
+            sensitivity_dpi=150,
+            sensitivity_fig_size="10,6",
+        )
+
+        config = Config()
+        config.data.provider = "synthetic"
+        config.data.offline = True
+        config.data.synthetic_days = 60
+        config.data.synthetic_seed = 42
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=60)
+
+        import io
+        from contextlib import redirect_stdout
+
+        buf = io.StringIO()
+        with (
+            patch.dict(OPTIMIZERS, {"random": mock_random_search}),
+            redirect_stdout(buf),
+        ):
+            rc = run_optimization(args, config, start_date, end_date)
+        assert rc == 0
+        assert "Sensitivity Analysis" in buf.getvalue()
+
+
 if __name__ == "__main__":
     import pytest
 
