@@ -264,6 +264,23 @@ class TestBacktestMetricsNanHandling:
         assert np.isfinite(metrics.calmar_ratio)
         assert metrics.max_drawdown == pytest.approx(0.0)
 
+    def test_calculate_metrics_zero_equity_curve_returns_defaults(self) -> None:
+        """An equity curve with zero values yields no returns (division by zero).
+
+        The returns series is empty after dropna, so the metrics remain at
+        their default zero values (total_return is still computed from the
+        first/last equity values).
+        """
+        equity_curve = pd.Series([0.0, 0.0, 0.0])
+        metrics = calculate_backtest_metrics(equity_curve)
+        assert metrics.total_return == 0.0
+        assert metrics.annual_return == 0.0
+        assert metrics.volatility == 0.0
+        assert metrics.max_drawdown == 0.0
+        assert metrics.sharpe_ratio == 0.0
+        assert metrics.sortino_ratio == 0.0
+        assert metrics.calmar_ratio == 0.0
+
 
 class TestBacktestMetricsPeriodsPerYear:
     """Test the ``periods_per_year`` annualization parameter."""
@@ -718,6 +735,52 @@ class TestBacktestMetricsFromDictNonFiniteSanitization:
         for name, val in metrics.to_dict().items():
             if isinstance(val, (int, float, np.integer, np.floating)):
                 assert np.isfinite(val), f"{name} is not finite: {val!r}"
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("total_return", True),
+            ("total_return", False),
+            ("sharpe_ratio", True),
+            ("sharpe_ratio", False),
+            ("max_drawdown", True),
+            ("win_rate", True),
+            ("num_trades", True),
+            ("num_trades", False),
+            ("volatility", True),
+            ("num_winning_trades", True),
+        ],
+    )
+    def test_bool_fields_are_sanitized_to_defaults(self, field, value):
+        """Bool values are explicitly rejected by _finite (bool is subclass of int)."""
+        data = {"sharpe_ratio": 1.5, "num_trades": 3}
+        data[field] = value
+        metrics = BacktestMetrics.from_dict(data)
+        expected = 0 if field in ("num_trades", "num_winning_trades", "num_losing_trades") else 0.0
+        assert getattr(metrics, field) == expected
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("total_return", []),
+            ("total_return", {}),
+            ("sharpe_ratio", []),
+            ("sharpe_ratio", {}),
+            ("max_drawdown", object()),
+            ("win_rate", set()),
+            ("num_trades", []),
+            ("num_trades", {}),
+            ("volatility", lambda x: x),
+            ("num_winning_trades", complex(1, 2)),
+        ],
+    )
+    def test_unconvertible_fields_are_sanitized_to_defaults(self, field, value):
+        """Values that raise TypeError/ValueError on float() are sanitized."""
+        data = {"sharpe_ratio": 1.5, "num_trades": 3}
+        data[field] = value
+        metrics = BacktestMetrics.from_dict(data)
+        expected = 0 if field in ("num_trades", "num_winning_trades", "num_losing_trades") else 0.0
+        assert getattr(metrics, field) == expected
 
 
 class TestBacktestMetricsTreynorAlignedSample:

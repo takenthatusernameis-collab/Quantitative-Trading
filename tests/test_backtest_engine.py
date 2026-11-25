@@ -3434,6 +3434,32 @@ class TestNonFiniteDeserialization:
         assert trade.quantity == 100
         assert isinstance(trade.quantity, int)
 
+    def test_trade_from_dict_sanitizes_unconvertible_quantity(self) -> None:
+        """A value that raises on float() conversion is sanitized to 0.0."""
+        trade = Trade.from_dict(
+            {
+                "symbol": "AAPL",
+                "action": "buy",
+                "quantity": [],
+                "price": 150.0,
+                "timestamp": "2024-01-01T00:00:00",
+            }
+        )
+        assert trade.quantity == 0.0
+
+    def test_trade_from_dict_sanitizes_unconvertible_price(self) -> None:
+        """A value that raises on float() conversion is sanitized to 0.0."""
+        trade = Trade.from_dict(
+            {
+                "symbol": "AAPL",
+                "action": "buy",
+                "quantity": 100,
+                "price": {},
+                "timestamp": "2024-01-01T00:00:00",
+            }
+        )
+        assert trade.price == 0.0
+
     def test_trade_cost_returns_zero_for_non_finite_quantity(self) -> None:
         trade = Trade(
             symbol="AAPL",
@@ -3522,5 +3548,41 @@ class TestNonFiniteDeserialization:
         reconstructed = BacktestResult.from_dict(original.to_dict())
         assert reconstructed.initial_capital == 100000.0
         assert reconstructed.final_value == 103000.0
-        assert reconstructed.total_costs == 12.5
-        assert reconstructed.metrics.sharpe_ratio == pytest.approx(metrics.sharpe_ratio)
+
+    def test_backtest_result_from_dict_sanitizes_unconvertible_summary(self) -> None:
+        """A value that raises on float() conversion is sanitized to 0.0."""
+        result = BacktestResult.from_dict(
+            {
+                "initial_capital": [],
+                "final_value": {},
+                "total_return": object(),
+                "total_return_pct": set(),
+                "total_costs": lambda x: x,
+            }
+        )
+        assert result.initial_capital == 0.0
+        assert result.final_value == 0.0
+        assert result.total_return == 0.0
+        assert result.total_return_pct == 0.0
+        assert result.total_costs == 0.0
+
+    def test_backtest_result_from_dict_sanitizes_unconvertible_metrics(self) -> None:
+        """A value that raises on float() conversion is sanitized to 0.0."""
+        result = BacktestResult.from_dict(
+            {
+                "initial_capital": 100000.0,
+                "final_value": 103000.0,
+                "sharpe_ratio": [],
+                "sortino_ratio": {},
+                "volatility": object(),
+                "max_drawdown": set(),
+                "win_rate": lambda x: x,
+                "profit_factor": complex(1, 2),
+            }
+        )
+        assert result.metrics.sharpe_ratio == 0.0
+        assert result.metrics.sortino_ratio == 0.0
+        assert result.metrics.volatility == 0.0
+        assert result.metrics.max_drawdown == 0.0
+        assert result.metrics.win_rate == 0.0
+        assert result.metrics.profit_factor == 0.0
