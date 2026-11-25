@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - ".github/workflows/main.yml"
-      - ".github/workflows/tests.yml"
       - ".github/workflows/kilo-workflow-audit.yml"
       - ".github/scripts/kilo-controller.sh"
       - ".github/scripts/kilo-progress.sh"
@@ -12,7 +11,6 @@ on:
   pull_request:
     paths:
       - ".github/workflows/main.yml"
-      - ".github/workflows/tests.yml"
       - ".github/workflows/kilo-workflow-audit.yml"
       - ".github/scripts/kilo-controller.sh"
       - ".github/scripts/kilo-progress.sh"
@@ -32,12 +30,12 @@ jobs:
       - name: Validate Kilo workflow syntax and schema
         uses: rhysd/actionlint@v1.7.7
         with:
-          args: -color .github/workflows/main.yml .github/workflows/tests.yml .github/workflows/kilo-workflow-audit.yml
+          args: -color .github/workflows/main.yml .github/workflows/kilo-workflow-audit.yml
 
       - name: Independent YAML parse
         shell: bash
         run: |
-          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/main.yml"); YAML.load_file(".github/workflows/tests.yml"); YAML.load_file(".github/workflows/kilo-workflow-audit.yml"); puts "Kilo workflow YAML: OK"'
+          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/main.yml"); YAML.load_file(".github/workflows/kilo-workflow-audit.yml"); puts "Kilo workflow YAML: OK"'
 
       - name: Validate extracted Kilo controller Bash syntax
         shell: bash
