@@ -133,7 +133,9 @@ class ParameterSpace:
             if value is None:
                 continue
             if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise ValueError(f"invalid {attr}: must be a finite number (got {value})")  # noqa: TRY004
+                raise ValueError(
+                    f"invalid {attr}: must be a finite number (got {value})"
+                )  # noqa: TRY004
             if not math.isfinite(value):
                 raise ValueError(f"invalid {attr}: must be a finite number (got {value})")
         if self.step is not None and self.step <= 0:
