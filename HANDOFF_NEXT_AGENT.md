@@ -1,3 +1,32 @@
+## Session 2026-11-25 (this session — twentieth entry)
+
+No prior agent assignment was pending; the nineteenth entry closed with "none assigned" and the full suite green (5177 passed). Per the reliability rules to make bounded, evidence-based progress when no assignment exists, this session did **verification/ground-truth work only — no source or test change.** The prior 19 sessions were all defensive-branch coverage hardening; that well is now dry (chasing sub-100% defensive branches is the "infrastructure perfection" trap the rules warn against), so this session established authoritative baselines and corrected stale handoff data instead of inventing speculative changes.
+
+### What changed
+
+**HANDOFF_NEXT_AGENT.md** only (this entry). No source, test, or config change.
+
+### What was verified (all new evidence — no prior session established these)
+
+- **Full default suite**: `python -m pytest -q` (default addopts `--doctest-modules -m "not slow and not network"`): **5177 passed, 151 deselected, 0 failed** in 247.83s, rc=0. Confirms the nineteenth-entry baseline exactly (Python 3.14.4 / pytest 9.2.0 / numpy 2.5.5 / pandas 3.1.1; deps under `/home/runner/work/_temp/kilo-home/.local`; prefix commands with `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`).
+- **Slow suite (NEVER verified by any prior session — always deselected)**: `python -m pytest -m "slow and not network" -q`: **151 passed, 5177 deselected, 0 failed** in 236.42s, rc=0. The 151 deselected tests are **all `slow`** (smoke/subprocess, e.g. `tests/test_readme_cli_commands.py`, `tests/test_run_optimization_smoke.py`); there are **zero `network`-marked tests** (`-m "network"` collects 0). So the **entire 5328-test suite is green** (5177 + 151).
+- **Guards repo-wide (prior sessions only checked changed files)**: `ruff check .` -> all checks passed; `black --check .` -> 166 files unchanged; `mypy quant_trading examples` -> no issues in 100 source files.
+- **Coverage spot-check correcting stale handoff figures**: the nineteenth-and-earlier entries list `quant_trading/backtest/analysis.py` at 67% and `trade_analysis.py` at 72% "full-suite." Those figures are **stale/incorrect**. Measured in isolation with the coverage-API driver (`/home/runner/work/_temp/kilo-tmp/kilo/covdriver.py`, needed because the `coverage run` CLI is broken in this env): `analysis.py` -> **100%** (with `tests/test_backtest_analysis.py` + module doctests), `trade_analysis.py` -> **100%** (with `tests/test_trade_analysis.py` + doctests), `backtest/engine.py` -> **100%**, `backtest/metrics.py` -> **100%**. The low isolated numbers for `risk/metrics.py`, `risk/manager.py`, `risk/limits.py` are an artifact of running one test file alone; they are covered by sibling test files in the full suite (as prior entries note). A coverage-instrumented *full* suite run exceeds the 600s tool timeout (>10 min) and emits spurious `FF` under instrumentation, so it was not used as ground truth.
+
+### What remains unresolved
+
+- Nothing actionable. The repository is in a healthy, fully-green state: 5328/5328 tests pass, guards clean repo-wide, effective full coverage. No substantive TODO/FIXME/`NotImplementedError` in source; all 71 `skip`/`xfail` markers are conditional (`matplotlib`/`scikit-optimize` availability) and resolve when those optional deps are installed.
+
+### Approaches that failed
+
+- Coverage-instrumented full-suite run (`covdriver.py` over all tests) exceeded the 600s command timeout at ~34% and produced spurious `FF` failures under `coverage` instrumentation (a known `a1_coverage.pth` + numpy double-load artifact in this env). Abandoned in favor of the uninstrumented full suite + isolated per-module coverage, which is fast and authoritative. This is a recurring deterministic env limitation, not a transient error — do not retry the instrumented full-suite run.
+
+### Next task
+
+- **None assigned.** Working tree contains only this handoff entry; full suite green (5177 default + 151 slow = 5328, all passing). Future work requires a **new defect report or feature request from the user — do not invent speculative changes, and do not resume defensive-branch coverage hardening (the modules are at effective 100%; the "67%/72%" figures were stale).** If the user wants the `slow` tests gated into CI, that is a concrete, bounded task (add a CI step running `pytest -m "slow and not network"`), but only on explicit request. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"`.
+
+---
+
 ## Session 2026-11-25 (this session — nineteenth entry)
 
 No prior agent assignment was pending; the eighteenth entry closed with "none assigned" and the full suite green. Per the reliability rules to make bounded, evidence-based progress when no assignment exists, this session took the next bounded coverage target flagged by prior handoffs: `quant_trading/backtest/report.py` (99%; missing lines 1855-1856 — the `except (TypeError, ValueError, KeyError)` fallback in `_build_comparison_risk_attribution`). Closed the gap with tests only — no source/behavior change.
