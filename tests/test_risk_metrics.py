@@ -1,12 +1,14 @@
 """Tests for risk metrics calculation utilities."""
 
 import math
-from typing import Any
+from typing import Any, cast
+from unittest import mock
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from quant_trading.risk import metrics
 from quant_trading.risk.metrics import (
     RiskMetrics,
     _align_series,
@@ -17,6 +19,7 @@ from quant_trading.risk.metrics import (
     calculate_calmar_ratio,
     calculate_cvar,
     calculate_information_ratio,
+    calculate_marginal_var,
     calculate_max_drawdown,
     calculate_omega_ratio,
     calculate_returns,
@@ -1524,6 +1527,36 @@ class TestNonFiniteInputHandling:
         market = pd.Series([0.01, np.inf, 0.02, np.nan, 0.03])
         metrics = calculate_all_metrics(equity, market_returns=market)
         assert all(np.isfinite(value) for value in metrics.to_dict().values())
+
+
+class TestDefensiveEmptyTailBranches:
+    """Defensive early-return branches that finite data cannot reach."""
+
+    def test_max_drawdown_returns_zero_when_all_points_undefined(self) -> None:
+        real_dropna = pd.Series.dropna
+        calls = {"n": 0}
+
+        def flaky_dropna(self: pd.Series, *args: Any, **kwargs: Any) -> pd.Series:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return cast(pd.Series, real_dropna(self, *args, **kwargs))
+            return cast(pd.Series, self.iloc[0:0])
+
+        with mock.patch.object(pd.Series, "dropna", flaky_dropna):
+            assert calculate_max_drawdown(pd.Series([100.0, 110.0, 105.0])) == 0.0
+
+    def test_beta_returns_zero_when_market_variance_non_finite(self) -> None:
+        with mock.patch.object(pd.Series, "var", return_value=np.nan):
+            returns = pd.Series([0.01, 0.02, 0.03])
+            market = pd.Series([0.01, 0.02, 0.04])
+            assert calculate_beta(returns, market) == 0.0
+
+    def test_marginal_var_returns_zeros_when_tail_empty(self) -> None:
+        returns = pd.DataFrame({"A": [0.01, 0.02, 0.03], "B": [0.02, 0.03, 0.04]})
+        weights = np.array([0.5, 0.5])
+        with mock.patch.object(metrics.np, "percentile", return_value=np.nan):
+            result = calculate_marginal_var(returns, weights)
+        assert result.to_dict() == {"A": 0.0, "B": 0.0}
 
 
 if __name__ == "__main__":

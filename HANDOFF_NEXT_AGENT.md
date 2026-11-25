@@ -1,3 +1,37 @@
+## Session 2026-11-25 (this session — eighteenth entry)
+
+No prior agent assignment was pending; the seventeenth entry closed with "none assigned" and the full suite green (5148 passed). Per the reliability rules to make bounded, evidence-based progress when no assignment exists, this session took the next-highest-value coverage target identified by the coverage audit: `quant_trading/risk/metrics.py` (99%; missing lines 431, 666, 1072). Closed the gap with tests only — no source/behavior change.
+
+### What changed
+
+**tests/test_risk_metrics.py** only. Added `TestDefensiveEmptyTailBranches` (3 tests) covering three defensive early-return branches that finite data cannot reach:
+- `test_max_drawdown_returns_zero_when_all_points_undefined` -> covers line 431 (`calculate_max_drawdown` empty-drawdown `return 0.0`). The positive running-max point always yields a finite 0 drawdown, so the branch is unreachable with real data; mocked `pd.Series.dropna` to return empty on the second (drawdown) call.
+- `test_beta_returns_zero_when_market_variance_non_finite` -> covers line 666 (`calculate_beta` non-finite/zero `var` `return 0.0`). The `np.isinf` guard at line 653 returns first for inf inputs and `_align_series` drops NaN, so `var` is always finite for finite inputs; mocked `pd.Series.var` to return NaN.
+- `test_marginal_var_returns_zeros_when_tail_empty` -> covers line 1072 (`calculate_marginal_var` empty-tail `return zeros`). The minimum return is always ≤ the VaR percentile, so the tail is never empty with finite data; mocked `metrics.np.percentile` to return NaN.
+
+Also added imports: `cast`, `from unittest import mock`, `from quant_trading.risk import metrics`, and `calculate_marginal_var`.
+
+### What was verified
+
+- **Coverage**: `quant_trading/risk/metrics.py` lines 431, 666, 1072 now covered (no longer in the missing list); was 99% missing 431/666/1072. Measured via the coverage-API driver script (lives outside the repo at `/home/runner/work/_temp/kilo-tmp/kilo/covdriver.py`) because the `coverage run` CLI is broken in this env (`a1_coverage.pth` + numpy double-load conflict). Remaining sub-100% lines in the file (1002, 1057, 1061, 1074-1077, 1118-1121, 1160-1180, 1223-1265, 1308-1354) are covered by other test files in the full suite.
+- **Focused suite**: `pytest tests/test_risk_metrics.py` -> **288 passed** (was 285; +3 new).
+- **Guards on changed file**: `ruff check`, `black --check`, `mypy tests/test_risk_metrics.py` all clean (fixed 2 `no-any-return` by casting the mocked `dropna`/`var` returns to `pd.Series`).
+- **Full suite**: `python -m pytest -q` (default addopts `--doctest-modules -m "not slow and not network"`): **5151 passed, 151 deselected, 0 failed** in 259.41s — exactly the prior 5148 + 3 new tests, no regressions (Python 3.14.4 / pytest 9.2.0 / numpy 2.5.5 / pandas 3.1.1; deps under `/home/runner/work/_temp/kilo-home/.local`; prefix commands with `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`).
+
+### What remains unresolved
+
+- Nothing for this task. `risk/metrics.py` defensive branches at 431/666/1072 are now covered; the other sub-100% modules remain single defensive branches at 98-99% (`backtest/engine.py`, `backtest/metrics.py`, etc.) and are not outliers. The `slow`/`network` tests (151 deselected) are intentionally excluded by default `addopts`.
+
+### Approaches that failed
+
+- Initial test inputs using `np.inf` in the data did not reach lines 431/666 (the `np.isinf` guard at 653 and the finite 0-drawdown at the positive running-max point return 0.0 via other lines). Switched to targeted `mock.patch.object` on `pd.Series.dropna`/`pd.Series.var`/`metrics.np.percentile` — a materially different approach that provably reaches each branch.
+
+### Next task
+
+- **None assigned.** Working tree contains only the test addition + this entry; full suite green (5151 passed). Future work requires a **new defect report or feature request from the user — do not invent speculative changes.** If further coverage hardening is desired, the next bounded targets are `quant_trading/backtest/engine.py` (99%), `quant_trading/backtest/metrics.py`, but only pursue on explicit request. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"`.
+
+---
+
 ## Session 2026-11-25 (this session — seventeenth entry)
 
 No prior agent assignment was pending; the sixteenth entry closed with "none assigned" and the full suite green (5145 passed). Per the reliability rules to make bounded, evidence-based progress when no assignment exists, this session took the next-highest-value coverage target identified by the coverage audit: `examples/cli.py` (99%; missing lines 83, 2856 — the `_fmt` None-branch and the `_run_cli` JSON-output save-failure `return 1`). Closed the gap with tests only — no source/behavior change.
