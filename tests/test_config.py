@@ -1,6 +1,5 @@
 """Tests for configuration management."""
 
-import math
 import os
 import tempfile
 from pathlib import Path
@@ -88,18 +87,43 @@ class TestBacktestConfig:
         with pytest.raises(ValueError, match="invalid commission"):
             BacktestConfig.from_dict({"commission": 1.5})
 
-    def test_from_dict_sanitizes_non_finite_risk_free_rate(self) -> None:
-        """Non-finite risk_free_rate is sanitized to the default, not rejected.
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("risk_free_rate", float("nan")),
+            ("risk_free_rate", float("inf")),
+            ("risk_free_rate", float("-inf")),
+            ("risk_free_rate", True),
+            ("risk_free_rate", "0.02"),
+            ("risk_free_rate", None),
+            ("initial_capital", True),
+            ("initial_capital", float("nan")),
+            ("initial_capital", "abc"),
+            ("initial_capital", None),
+            ("commission", True),
+            ("commission", float("nan")),
+            ("commission", "0.5"),
+            ("commission", None),
+            ("slippage", True),
+            ("slippage", float("nan")),
+            ("slippage", "-0.01"),
+            ("slippage", None),
+            ("periods_per_year", True),
+            ("periods_per_year", float("nan")),
+            ("periods_per_year", "252"),
+            ("periods_per_year", None),
+        ],
+    )
+    def test_from_dict_rejects_invalid_backtest_params(self, field: str, value: Any) -> None:
+        """from_dict rejects invalid values via ``__post_init__`` instead of
+        silently coercing them through ``_finite`` to a default (which let
+        booleans, non-numeric and non-finite values slip past validation).
 
-        from_dict runs numeric fields through ``_finite`` so NaN/inf collapse to
-        the field default (0.02) before ``__post_init__`` range validation runs.
-        Direct construction still rejects non-finite values (see
-        test_rejects_non_finite_risk_free_rate).
+        Direct construction and dictionary construction now behave identically,
+        matching the ``__post_init__`` docstring promise.
         """
-        for value in (float("nan"), float("inf"), float("-inf")):
-            config = BacktestConfig.from_dict({"risk_free_rate": value})
-            assert config.risk_free_rate == 0.0
-            assert math.isfinite(config.risk_free_rate)
+        with pytest.raises(ValueError, match=f"invalid {field}:"):
+            BacktestConfig.from_dict({field: value})
 
     def test_from_yaml_rejects_invalid_values(self, tmp_path: Path) -> None:
         path = tmp_path / "config.yaml"

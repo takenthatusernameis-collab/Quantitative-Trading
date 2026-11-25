@@ -469,20 +469,14 @@ class BacktestConfig:
             >>> from quant_trading.config.settings import BacktestConfig
             >>> restored = BacktestConfig.from_dict({"initial_capital": 50000})
             >>> restored.initial_capital
-            50000.0
+            50000
             >>> restored.periods_per_year
             252
 
         """
-        return cls(
-            initial_capital=_finite(data.get("initial_capital", 100000.0)),
-            commission=_finite(data.get("commission", 0.001)),
-            slippage=_finite(data.get("slippage", 0.0005)),
-            risk_free_rate=_finite(data.get("risk_free_rate", 0.02)),
-            periods_per_year=int(_finite(data.get("periods_per_year", 252))),
-            halt_on_portfolio_violation=bool(data.get("halt_on_portfolio_violation", False)),
-            enable_stop_exits=bool(data.get("enable_stop_exits", False)),
-        )
+        known = {f.name for f in fields(cls)}
+        init_kwargs = {name: value for name, value in data.items() if name in known}
+        return cls(**init_kwargs)
 
 
 @dataclass
