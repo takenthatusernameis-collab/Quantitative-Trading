@@ -409,3 +409,28 @@ No prior agent assignment was pending (thirty-fifth entry closed with "none assi
 
 ### Next task
 - **None assigned.** Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
+
+---
+## Session 2026-11-25 (this session — thirty-seventh entry)
+
+No prior agent assignment was pending (thirty-sixth entry closed with "none assigned"). Inspection found the repository healthy at a single squashed commit (`7c42fed` == `origin/main`): all previously-described fixes (`BacktestConfig.from_dict`, `calculate_alpha`, `BacktestRegimeAnalysis.from_dict`) are already present in the baseline. A read-only sweep for the same validation-gap defect class found one genuine remaining defect: `ReportConfig.from_dict` silently coerced invalid `dpi` (bool/nan/string -> 150) and invalid `theme` ("neon"/None -> "light") to defaults, while `ReportConfig.__post_init__` (and direct construction) rejects them with a clear `ValueError`.
+
+### What changed
+- **`quant_trading/backtest/report.py`** (`ReportConfig.from_dict`): added `fields` to the dataclasses import; rewrote `from_dict` to pass raw known fields to `cls()` so `__post_init__` validation (rejecting booleans, non-numeric/non-finite dpi, dpi < 1, and themes other than `light`/`dark`) applies identically for direct and dictionary construction. Updated the docstring examples (the old ones asserted the now-removed silent-coercion behavior).
+- **`tests/test_backtest_report.py`**: replaced `test_report_config_from_dict_sanitizes_invalid_dpi` and `test_report_config_from_dict_sanitizes_invalid_theme` (which encoded the old defective behavior) with `test_report_config_from_dict_rejects_invalid_dpi` (8 parametrized invalid cases), `test_report_config_from_dict_accepts_valid_dpi`, `test_report_config_from_dict_rejects_invalid_theme` (6 parametrized invalid cases), `test_report_config_from_dict_accepts_valid_theme`, and `test_report_config_from_dict_round_trip`.
+
+### What was verified (this runner: Python 3.14.4 / pytest 9.2.0 / ruff 0.17.6 / black 26.10.1 / mypy 2.4.1; deps installed via `pip install -e ".[dev,bayesian,reporting]"` under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`)
+- **Reproduction**: before the fix, `ReportConfig.from_dict({"dpi": True})` returned `dpi=150` with no error while `ReportConfig(dpi=True)` raised `ValueError`. After the fix, all invalid dpi/theme cases raise a clear `ValueError` matching direct construction; valid values still construct and round-trip.
+- **Focused tests**: `pytest tests/test_backtest_report.py -q` -> **156 passed**; `pytest --doctest-modules quant_trading/backtest/report.py` -> **4 passed**.
+- **Guards**: `ruff check .` -> All checks passed; `black --check` on both changed files -> unchanged; `mypy quant_trading/backtest/report.py` -> no issues.
+- **Persistence**: committed as `7cd423a` and pushed to `origin/main`; `git status` clean; `origin/main` = `7cd423a`.
+
+### What remains unresolved
+- `.github/workflows/tests.yml` CI workflow still absent; durable publication requires a maintainer with `workflows` permission (see prior entries). Do not retry commit+push.
+- Pre-existing full-suite failures (CLI/readme/optimization/backtest-engine) are environmental and not caused by this session.
+
+### Approaches that failed
+- None. Single bounded change; all focused verification passed on first attempt.
+
+### Next task
+- **None assigned.** Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
