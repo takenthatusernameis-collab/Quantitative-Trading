@@ -461,3 +461,30 @@ No prior agent assignment was pending (thirty-sixth entry closed with "none assi
 
 ### Next task
 - **None assigned.** Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
+
+---
+## Session 2026-11-25 (this session — thirty-ninth entry)
+
+No prior agent assignment was pending (thirty-eighth entry closed with "none assigned"). Inspection found the repository healthy at commit `7cd423a` == `origin/main`. A read-only sweep for the same validation-gap defect class (`from_dict` silently coercing invalid values that `__post_init__`/direct construction rejects) found one genuine remaining defect: `BayesianOptimizerConfig.from_dict` silently coerced invalid `noise` (bool/nan/inf/string/None -> 1e-6) and invalid `n_initial_points`/`n_calls` (bool -> int, non-numeric -> opaque error), while its own docstring and test `test_bayesian_optimizer_config_from_dict_sanitizes_non_finite_noise` encoded the defective behavior. Note: `BayesianOptimizerConfig` had no `__post_init__` at all (validation lived in `BayesianOptimizer.__init__`), so direct config construction was equally permissive — the fix adds `__post_init__` and delegates `from_dict` to it.
+
+### What changed
+- **`quant_trading/optimization/bayesian.py`** (`BayesianOptimizerConfig`): added `__post_init__` validation rejecting booleans, non-numeric, non-finite, and out-of-range values for all six fields (`n_initial_points` >= 0, `n_calls` >= 1, non-empty `acq_func`/`acq_optimizer`, `random_state` None-or-finite, `noise` >= 0), mirroring `BayesianOptimizer.__init__` messages; rewrote `from_dict` to filter to known fields and pass raw values to `cls()` so `__post_init__` validation applies identically for direct and dictionary construction; removed the now-unused `_finite` import; updated the class docstring examples (the old ones asserted `noise=float("nan")`/`"not a number"` -> `1e-06`) and added a `Raises:` section to `from_dict`.
+- **`tests/test_optimization.py`**: replaced `test_bayesian_optimizer_config_from_dict_sanitizes_non_finite_noise` (which encoded the old defective behavior) with `test_bayesian_optimizer_config_from_dict_rejects_invalid_noise`, `test_bayesian_optimizer_config_from_dict_accepts_valid_noise`, and `test_bayesian_optimizer_config_from_dict_rejects_invalid_fields` (22 parametrized invalid cases across all fields, asserting `ValueError`).
+
+### What was verified (this runner: Python 3.14.4 / pytest 9.2.0 / ruff 0.17.6 / black 26.10.1 / mypy 2.4.1; deps installed via `pip install -e ".[dev,bayesian,reporting]"` under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`)
+- **Reproduction**: before the fix, `BayesianOptimizerConfig.from_dict({"noise": float("nan")})` returned `noise=1e-6` with no error; after the fix all invalid noise/n_initial_points/n_calls/acq_func/acq_optimizer/random_state cases raise a clear `ValueError`; valid values still construct and round-trip.
+- **Focused tests**: the 3 new tests -> **24 passed**; `pytest --doctest-modules quant_trading/optimization/bayesian.py` -> **6 passed**.
+- **Regression tests**: `tests/test_serialization_roundtrip.py` + `TestBayesianOptimizerConfigSerialization` -> **49 passed**.
+- **Guards**: `ruff check .` -> All checks passed; `black --check` on both changed files -> unchanged; `mypy quant_trading/optimization/bayesian.py` -> no issues.
+- **Persistence**: committed as `b977309` and pushed to `origin/main`; `git status` clean; `HEAD` == `origin/main` == `b977309`.
+
+### What remains unresolved
+- `.github/workflows/tests.yml` CI workflow still absent; durable publication requires a maintainer with `workflows` permission (see prior entries). Do not retry commit+push.
+- Pre-existing full-suite failures (CLI/readme/optimization/backtest-engine) are environmental and not caused by this session.
+- `ParameterSpace.from_dict` was considered but is not the same defect class: its `__post_init__` only checks that `values` or `min_val` is set, so direct construction is equally permissive of raw `min_val`/`max_val`/`step`. No other `from_dict` with a `__post_init__` rejection gap was found.
+
+### Approaches that failed
+- None. Single bounded change; all focused verification passed on first attempt.
+
+### Next task
+- **None assigned.** Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
