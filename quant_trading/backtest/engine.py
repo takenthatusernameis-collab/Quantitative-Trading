@@ -1511,6 +1511,7 @@ def _resolve_backtest_config(
     initial_capital: float | None,
     commission: float | None,
     slippage: float | None,
+    risk_free_rate: float | None,
     periods_per_year: int | None,
 ) -> BacktestConfig:
     """Resolve the backtest settings a run is driven by.
@@ -1523,12 +1524,17 @@ def _resolve_backtest_config(
     layer, so the defaults of the backtest settings are used for it.
 
     The configuration is never modified: the resolved settings are a copy.
+    Every overridden value runs through :class:`BacktestConfig` construction,
+    so :meth:`__post_init__` validation (rejecting booleans, non-numeric, and
+    non-finite values) applies to overrides just as it does to direct
+    construction.
 
     Args:
         config: The configuration of the run, or ``None``.
         initial_capital: Explicit starting capital, or ``None``.
         commission: Explicit commission rate, or ``None``.
         slippage: Explicit slippage rate, or ``None``.
+        risk_free_rate: Explicit risk-free rate, or ``None``.
         periods_per_year: Explicit number of periods per year, or ``None``.
 
     Returns:
@@ -1543,6 +1549,8 @@ def _resolve_backtest_config(
         overrides["commission"] = commission
     if slippage is not None:
         overrides["slippage"] = slippage
+    if risk_free_rate is not None:
+        overrides["risk_free_rate"] = risk_free_rate
     if periods_per_year is not None:
         overrides["periods_per_year"] = periods_per_year
     return replace(base, **overrides)
