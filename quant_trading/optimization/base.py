@@ -118,14 +118,30 @@ class ParameterSpace:
     param_type: type = float  # Type to cast values to (int, float, bool)
 
     def __post_init__(self) -> None:
-        """Validate that at least one of ``values`` or ``min_val`` is set.
+        """Validate construction inputs.
 
         Raises:
-            ValueError: If both ``values`` and ``min_val`` are None.
+            ValueError: If both ``values`` and ``min_val`` are None, or if any
+                of ``min_val``/``max_val``/``step`` is a boolean, non-numeric,
+                or non-finite value (or ``step`` is not positive).
 
         """
         if self.values is None and self.min_val is None:
             raise ValueError("Either values or min_val must be provided")
+        for attr in ("min_val", "max_val", "step"):
+            value = getattr(self, attr)
+            if value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"invalid {attr}: must be a finite number (got {value})")  # noqa: TRY004
+            if not math.isfinite(value):
+                raise ValueError(f"invalid {attr}: must be a finite number (got {value})")
+        if self.step is not None and self.step <= 0:
+            raise ValueError(f"invalid step: must be greater than 0 (got {self.step})")
+        if self.min_val is not None and self.max_val is not None and self.min_val > self.max_val:
+            raise ValueError(
+                f"minimum ({self.min_val}) is greater than the maximum ({self.max_val})"
+            )
 
     def generate_grid(self) -> list[Any]:
         """Generate all values for grid search.
@@ -217,9 +233,8 @@ class ParameterSpace:
     def from_dict(cls, data: dict[str, Any]) -> ParameterSpace:
         """Deserialize a :class:`ParameterSpace` from a dictionary.
 
-        Missing keys fall back to safe defaults. ``param_type`` is accepted by
-        name (``"float"``/``"int"``/``"bool"``). Non-finite numeric values
-        (NaN/inf) are sanitized to safe defaults.
+        Non-finite numeric values (NaN/inf) are passed through to the
+        constructor, which rejects them via ``__post_init__``.
 
         Args:
             data: Dictionary previously produced by :meth:`to_dict`.
@@ -239,9 +254,9 @@ class ParameterSpace:
         return cls(
             name=str(data.get("name", "")),
             values=list(data["values"]) if data.get("values") is not None else None,
-            min_val=_finite(data.get("min_val")) if data.get("min_val") is not None else None,
-            max_val=_finite(data.get("max_val")) if data.get("max_val") is not None else None,
-            step=_finite(data.get("step")) if data.get("step") is not None else None,
+            min_val=data.get("min_val"),
+            max_val=data.get("max_val"),
+            step=data.get("step"),
             distribution=data.get("distribution"),
             param_type=_PARAM_TYPE_BY_NAME.get(data.get("param_type", "float"), float),
         )
