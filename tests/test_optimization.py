@@ -815,22 +815,62 @@ def test_bayesian_optimizer() -> None:
 
 
 @skip_if_no_skopt
-def test_bayesian_optimizer_config_from_dict_sanitizes_non_finite_noise() -> None:
-    """Non-finite and non-numeric noise is sanitized to the default."""
-    config = BayesianOptimizerConfig.from_dict({"noise": float("nan")})
-    assert config.noise == 1e-6
-    config = BayesianOptimizerConfig.from_dict({"noise": float("inf")})
-    assert config.noise == 1e-6
-    config = BayesianOptimizerConfig.from_dict({"noise": -float("inf")})
-    assert config.noise == 1e-6
-    config = BayesianOptimizerConfig.from_dict({"noise": "not a number"})
-    assert config.noise == 1e-6
-    config = BayesianOptimizerConfig.from_dict({"noise": None})
-    assert config.noise == 1e-6
-    config = BayesianOptimizerConfig.from_dict({"noise": True})
-    assert config.noise == 1e-6
-    config = BayesianOptimizerConfig.from_dict({"noise": 0.001})
-    assert config.noise == 0.001
+def test_bayesian_optimizer_config_from_dict_rejects_invalid_noise() -> None:
+    """Invalid noise values are rejected by from_dict (no silent coercion)."""
+    for noise in [
+        float("nan"),
+        float("inf"),
+        -float("inf"),
+        "not a number",
+        None,
+        True,
+        False,
+        -0.001,
+    ]:
+        with pytest.raises(ValueError, match="invalid noise"):
+            BayesianOptimizerConfig.from_dict({"noise": noise})
+
+
+@skip_if_no_skopt
+def test_bayesian_optimizer_config_from_dict_accepts_valid_noise() -> None:
+    """Valid noise values round-trip through from_dict unchanged."""
+    for noise in [0.0, 1e-6, 0.001, 0.5, 1.0]:
+        config = BayesianOptimizerConfig.from_dict({"noise": noise})
+        assert config.noise == noise
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("n_initial_points", True),
+        ("n_initial_points", -1),
+        ("n_initial_points", "10"),
+        ("n_initial_points", float("nan")),
+        ("n_calls", True),
+        ("n_calls", 0),
+        ("n_calls", -1),
+        ("n_calls", "50"),
+        ("acq_func", ""),
+        ("acq_func", 123),
+        ("acq_func", None),
+        ("acq_optimizer", ""),
+        ("acq_optimizer", 123),
+        ("acq_optimizer", None),
+        ("random_state", True),
+        ("random_state", "42"),
+        ("random_state", float("nan")),
+        ("noise", True),
+        ("noise", "not a number"),
+        ("noise", None),
+        ("noise", -0.001),
+        ("noise", float("inf")),
+    ],
+)
+@skip_if_no_skopt
+def test_bayesian_optimizer_config_from_dict_rejects_invalid_fields(field: str, value: Any) -> None:
+    """from_dict rejects invalid values for every field with a clear ValueError."""
+    with pytest.raises(ValueError, match=f"invalid {field}"):
+        BayesianOptimizerConfig.from_dict({field: value})
 
 
 def test_convert_to_native_list_tuple_and_ndarray() -> None:

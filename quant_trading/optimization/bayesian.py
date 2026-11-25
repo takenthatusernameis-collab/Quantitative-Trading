@@ -20,7 +20,7 @@ Examples:
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime
 from typing import Any
 
@@ -29,7 +29,6 @@ from .base import (
     ObjectiveFunction,
     OptimizationResult,
     ParameterGrid,
-    _finite,
 )
 
 
@@ -92,12 +91,9 @@ class BayesianOptimizerConfig:
         20
         >>> cfg.acq_func
         'EI'
-        >>> restored = BayesianOptimizerConfig.from_dict({"noise": float("nan")})
+        >>> restored = BayesianOptimizerConfig.from_dict({"noise": 1e-4})
         >>> restored.noise
-        1e-06
-        >>> restored = BayesianOptimizerConfig.from_dict({"noise": "not a number"})
-        >>> restored.noise
-        1e-06
+        0.0001
 
     """
 
@@ -107,6 +103,66 @@ class BayesianOptimizerConfig:
     acq_optimizer: str = "auto"
     random_state: int | None = None
     noise: float = 1e-6
+
+    def __post_init__(self) -> None:
+        """Validate configuration values at construction time.
+
+        Rejects booleans, non-numeric, non-finite, and out-of-range values so
+        that a config built directly, from a dictionary, or from YAML is
+        rejected with a clear ``ValueError`` instead of silently coercing
+        invalid input to defaults.
+
+        Raises:
+            ValueError: If any field fails validation.
+
+        """
+        if (
+            isinstance(self.n_initial_points, bool)
+            or not isinstance(self.n_initial_points, (int, float))
+            or not math.isfinite(self.n_initial_points)
+            or self.n_initial_points < 0
+        ):
+            raise ValueError(
+                f"invalid n_initial_points: the value must be non-negative and finite "
+                f"(got {self.n_initial_points})"
+            )
+        if (
+            isinstance(self.n_calls, bool)
+            or not isinstance(self.n_calls, (int, float))
+            or not math.isfinite(self.n_calls)
+            or self.n_calls < 1
+        ):
+            raise ValueError(
+                f"invalid n_calls: the value must be at least 1 and finite " f"(got {self.n_calls})"
+            )
+        if not isinstance(self.acq_func, str) or not self.acq_func:
+            raise ValueError(
+                f"invalid acq_func: the value must be a non-empty string "
+                f"(got {self.acq_func!r})"
+            )
+        if not isinstance(self.acq_optimizer, str) or not self.acq_optimizer:
+            raise ValueError(
+                f"invalid acq_optimizer: the value must be a non-empty string "
+                f"(got {self.acq_optimizer!r})"
+            )
+        if self.random_state is not None and (
+            isinstance(self.random_state, bool)
+            or not isinstance(self.random_state, (int, float))
+            or not math.isfinite(self.random_state)
+        ):
+            raise ValueError(
+                f"invalid random_state: the value must be finite or None "
+                f"(got {self.random_state})"
+            )
+        if (
+            isinstance(self.noise, bool)
+            or not isinstance(self.noise, (int, float))
+            or not math.isfinite(self.noise)
+            or self.noise < 0
+        ):
+            raise ValueError(
+                f"invalid noise: the value must be non-negative and finite " f"(got {self.noise})"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the optimizer config to a plain, JSON-safe dictionary.
@@ -144,6 +200,9 @@ class BayesianOptimizerConfig:
         Returns:
             A reconstructed :class:`BayesianOptimizerConfig`.
 
+        Raises:
+            ValueError: If any value fails :meth:`__post_init__` validation.
+
         Examples:
             >>> from quant_trading.optimization.bayesian import BayesianOptimizerConfig
             >>> restored = BayesianOptimizerConfig.from_dict(
@@ -155,14 +214,9 @@ class BayesianOptimizerConfig:
             'EI'
 
         """
-        return cls(
-            n_initial_points=int(data.get("n_initial_points", 10)),
-            n_calls=int(data.get("n_calls", 50)),
-            acq_func=str(data.get("acq_func", "EI")),
-            acq_optimizer=str(data.get("acq_optimizer", "auto")),
-            random_state=data.get("random_state"),
-            noise=_finite(data.get("noise", 1e-6), 1e-6),
-        )
+        known = {f.name for f in fields(cls)}
+        init_kwargs = {name: value for name, value in data.items() if name in known}
+        return cls(**init_kwargs)
 
 
 class BayesianOptimizer(BaseOptimizer):
