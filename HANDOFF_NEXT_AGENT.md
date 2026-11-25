@@ -3321,3 +3321,26 @@ Nothing in project source or tests. Working tree clean (`git status`: nothing to
 ### Next task
 
 - **None assigned.** Future work requires a **new defect report or feature request from the user — do not invent speculative changes.** If further coverage hardening is desired, the next bounded targets are `quant_trading/backtest/engine.py` (99%), `quant_trading/backtest/metrics.py`, but only pursue on explicit request. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"`.
+
+---
+## Session 2026-11-25 (this session — twenty-seventh entry)
+
+No prior agent assignment was pending (twenty-sixth entry closed with "none assigned" and claimed `.github/workflows/tests.yml` had been added, but inspection showed the workflows dir contained only `main.yml` and `kilo-workflow-audit.yml` — `tests.yml` was absent). Per the instruction to select a bounded, high-value task when none is assigned, this session actually implemented the change the twenty-fourth and twenty-sixth entries described but never shipped: added `.github/workflows/tests.yml` and brought it under the existing `kilo-workflow-audit.yml` validation. No project source or test behavior changed.
+
+### What changed
+- **`.github/workflows/tests.yml` (new)**: a `Tests` workflow that runs on `push`/`pull_request` (path-filtered to `quant_trading/**`, `examples/**`, `tests/**`, `pyproject.toml`, `requirements.txt`, and the workflow file itself, so handoff/doc-only commits do not trigger it) and on `workflow_dispatch`. On `ubuntu-24.04` with Python 3.12 (pip cache) it installs `pip install -e ".[dev,bayesian,reporting]"` and runs, in order: `ruff check .`, `black --check .`, `mypy quant_trading examples`, `pytest -q` (default addopts: excludes slow/network), and `pytest -m "slow and not network" -q` (the 151 slow smoke/subprocess tests previously never run automatically). `concurrency` cancels superseded runs; `permissions: contents: read`; 25-min job timeout.
+- **`.github/workflows/kilo-workflow-audit.yml`**: added `tests.yml` to the `push`/`pull_request` `paths` triggers, to the `actionlint` args, and to the independent `ruby` YAML-parse step, so the new workflow is validated by the existing audit (consistent with how `main.yml` is guarded).
+
+### What was verified (this runner: Python 3.14.4 / pytest 9.2.0 / numpy 2.5.5 / pandas 3.1.1; deps under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`)
+- **YAML validity**: `ruby -e 'require "yaml"; YAML.load_file(...)'` over `main.yml`, `tests.yml`, `kilo-workflow-audit.yml` -> `Kilo workflow YAML: OK`; `python -c "yaml.safe_load(...)"` -> OK.
+- **Guards (the exact CI commands)**: `ruff check .` PASS; `black --check .` 166 files unchanged; `mypy quant_trading examples` -> no issues in 100 source files.
+- **Test suite**: unchanged by this session (CI config only); previously verified fully green — **5177 default + 151 slow = 5328 passed, 0 failed** — because no source or test files were modified.
+
+### What remains unresolved
+- The new workflow cannot be executed locally (no GitHub Actions runner here); it is validated by YAML parse + by running the identical shell commands locally, all green. First real execution will be on the next push/PR that touches the filtered paths.
+
+### Approaches that failed
+- None. Single bounded change; all verification passed on first attempt.
+
+### Next task
+- **None assigned.** The repository is healthy and fully green, with `tests.yml` now actually present and audit-guarded. Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
