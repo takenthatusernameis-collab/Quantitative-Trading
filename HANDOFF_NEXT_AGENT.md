@@ -27,6 +27,31 @@ Per Rule 2 (the "add tests.yml and commit locally" approach failed 4+ times, alw
 
 ---
 
+## Session 2026-11-25 (this session — thirty-third entry)
+
+No prior agent assignment was pending (thirty-second entry closed with "none assigned"). The `.github/workflows/tests.yml` CI workflow could not be made durable this session: the controller strips `.github/workflows` at session end, restoring it to `WORKFLOW_BASE_SHA` (HEAD at session start = `9ff6da3`, which lacks `tests.yml`) and then pushes the stripped state, overwriting any agent push; per Rules 2 & 3 I did not repeat the failed commit+`push tests.yml` approach (4+ prior sessions). Instead I selected a bounded, verifiable source-code defect outside `.github/workflows` (non-workflow changes are durable: the controller preserves them and pushes them to `origin/main`).
+
+### What changed
+- **`quant_trading/config/settings.py`** (`BacktestConfig.from_dict`): replaced the per-field `_finite(...)` coercion with raw values (filtered to known fields) passed to `cls()`, so `__post_init__` validation (rejecting booleans, non-numeric, and non-finite values with a clear `ValueError`) applies identically for direct and dictionary construction. `from_dict` previously silently coerced `risk_free_rate=True`/`nan`/`"0.02"`, `commission=True`/`"0.5"`, `slippage=None`, etc. to defaults with no error, violating the `__post_init__` docstring promise that values are "rejected when a config is built ... from a dictionary." Same defect class as the previously fixed `calculate_alpha`.
+- **`tests/test_config.py`**: replaced `test_from_dict_sanitizes_non_finite_risk_free_rate` (which encoded the old defective behavior) with `test_from_dict_rejects_invalid_backtest_params`, parametrized over 22 invalid (field, value) cases across all backtest fields, asserting `from_dict` raises `ValueError`.
+- **`HANDOFF_NEXT_AGENT.md`**: this entry only.
+
+### What was verified (this runner: Python 3.14.4 / pytest 9.2.0; deps under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`)
+- **Reproduction**: before the fix, `BacktestConfig.from_dict({"risk_free_rate": True})` returned `0.0` with no error while `BacktestConfig(risk_free_rate=True)` raised `ValueError`. After the fix, all 22 invalid cases raise a clear `ValueError`; valid values still construct correctly.
+- **Focused tests**: `pytest tests/test_config.py --doctest-modules quant_trading/config/settings.py` -> **234 passed**.
+- **Guards**: `ruff check .` -> All checks passed; `black --check` -> 2 files unchanged; `mypy quant_trading/config` -> no issues.
+- **Full default suite**: `pytest -q` -> **5198 passed, 151 deselected, 0 failed** in 331.61s (no regressions; +21 tests are the new parametrized cases).
+- **Persistence**: committed as `142d1a0` and pushed to `origin/main`; `git status` clean; `origin/main` = `142d1a0`.
+
+### What remains unresolved
+- `.github/workflows/tests.yml` CI workflow (run the 151 slow tests automatically) is still absent from `origin/main` and cannot be durably added by an agent in this activation because the controller restores `.github/workflows` to `WORKFLOW_BASE_SHA` (session-start HEAD, which lacks `tests.yml`) at session end and pushes the stripped state. Durable publication requires a maintainer with `workflows` permission to merge `tests.yml` + the `kilo-workflow-audit.yml` wiring.
+
+### Approaches that failed
+- Commit+`push` of `.github/workflows/tests.yml` (27th–32nd entries): each was stripped at session end by the controller's restore-to-`WORKFLOW_BASE_SHA`, and/or rejected because the GitHub App token lacks `workflows` permission. Do not repeat.
+
+### Next task
+- **None assigned.** Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
+
 ## Session 2026-11-25 (this session — thirtieth entry)
 
 No prior agent assignment was pending. The twenty-seventh entry claimed to have implemented the test CI workflow, but commits `03f827e` and `a8a948f` (twenty-eighth and twenty-ninth entries) subsequently **deleted** `.github/workflows/tests.yml` and removed its references from `kilo-workflow-audit.yml`. The repository was left without the Tests workflow, meaning the 151 `slow` smoke/subprocess tests remained unrun by any CI automation. Per the instruction to make bounded, high-value progress when no assignment exists, this session **re-implemented** the test CI workflow for real and committed it.
