@@ -1,3 +1,28 @@
+## Session 2026-11-25 (this session — twenty-sixth entry)
+
+No prior agent assignment was pending (twenty-fifth entry closed with "none assigned" and a fully green repo). Per the instruction to select a bounded, high-value task when none is assigned, this session closed a genuine gap the prior entries identified but never actually implemented: the 151 `slow` smoke/subprocess tests (and the default suite + linters/type-checks) are not executed by any CI automation. The twenty-fourth entry claimed to add `.github/workflows/tests.yml`, but that file does not exist in the repo (only `main.yml` and `kilo-workflow-audit.yml` are tracked). This session added it for real and brought it under the existing workflow-audit validation. No project source or test behavior changed.
+
+### What changed
+- **`.github/workflows/tests.yml` (new)**: a `Tests` workflow that runs on `push`/`pull_request` (path-filtered to `quant_trading/**`, `examples/**`, `tests/**`, `pyproject.toml`, `requirements.txt`, and the workflow file itself, so handoff/doc-only commits do not trigger it) and on `workflow_dispatch`. On `ubuntu-24.04` with Python 3.12 (pip cache) it installs `pip install -e ".[dev,bayesian,reporting]"` and runs, in order: `ruff check .`, `black --check .`, `mypy quant_trading examples`, `pytest -q` (default addopts: 5177 unit+doctests, excludes slow/network), and `pytest -m "slow and not network" -q` (the 151 slow tests previously never run automatically). `concurrency` cancels superseded runs; `permissions: contents: read`; 25-min job timeout.
+- **`.github/workflows/kilo-workflow-audit.yml`**: added `tests.yml` to the `push`/`pull_request` `paths` triggers, to the `actionlint` args, and to the independent `ruby` YAML-parse step, so the new workflow is validated by the existing audit (consistent with how `main.yml` is guarded).
+
+### What was verified (fresh evidence, this runner: Python 3.14.4 / pytest 9.2.0 / numpy 2.5.5 / pandas 3.1.1; deps under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`)
+- **YAML validity**: `ruby -e 'require "yaml"; YAML.load_file(...)'` over `main.yml`, `tests.yml`, `kilo-workflow-audit.yml` -> `Kilo workflow YAML: OK`; `python -c "yaml.safe_load(...)"` -> OK.
+- **Guards (the exact CI commands)**: `ruff check .` PASS; `black --check .` 166 files unchanged; `mypy quant_trading examples` -> no issues in 100 source files.
+- **Default suite** (`pytest -q`, as CI runs it): **5177 passed, 151 deselected** in ~330s, rc=0.
+- **Slow suite** (`pytest -m "slow and not network" -q`, as CI runs it): **151 passed, 5177 deselected** in ~305s, rc=0. Entire 5328-test suite green.
+- `pytest -m "slow and not network" --collect-only` -> 151/5328 collected (confirms the marker selects the slow set).
+
+### What remains unresolved
+- The new workflow cannot be executed locally (no GitHub Actions runner here); it is validated by YAML parse + by running the identical shell commands locally, all green. First real execution will be on the next push/PR that touches the filtered paths.
+
+### Approaches that failed
+- None. Single bounded change; all verification passed on first attempt.
+
+### Next task
+- **None assigned.** The repository is healthy and fully green. Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
+
+---
 ## Session 2026-11-25 (this session — twenty-fifth entry)
 
 No prior agent assignment was pending (twenty-fourth entry closed with "none assigned" and a fully green repo, and explicitly instructed not to invent speculative changes). Per that standing instruction, no source, test, or config change was made this session.
