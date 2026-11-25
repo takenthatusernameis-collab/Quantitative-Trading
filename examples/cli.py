@@ -15,6 +15,7 @@ import re
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -42,6 +43,11 @@ from quant_trading.optimization import (
     maximize_total_return,
     maximize_win_rate,
     minimize_max_drawdown,
+)
+from quant_trading.optimization.sensitivity import (
+    SensitivityConfig,
+    generate_sensitivity_report_html,
+    prepare_sensitivity_data,
 )
 from quant_trading.strategies import (
     create_strategy as factory_create_strategy,
@@ -719,6 +725,29 @@ def _create_parser() -> argparse.ArgumentParser:
         type=float,
         default=1e-6,
         help="Observation noise added to the GP kernel (default: 1e-6)",
+    )
+    parser.add_argument(
+        "--sensitivity",
+        action="store_true",
+        help="Generate parameter sensitivity analysis report (requires --optimize with grid or random search)",
+    )
+    parser.add_argument(
+        "--sensitivity-output",
+        type=str,
+        metavar="PATH",
+        help="Write sensitivity HTML report to PATH (requires --sensitivity)",
+    )
+    parser.add_argument(
+        "--sensitivity-dpi",
+        type=int,
+        default=150,
+        help="DPI for sensitivity charts (default: 150)",
+    )
+    parser.add_argument(
+        "--sensitivity-fig-size",
+        type=str,
+        default="10,6",
+        help="Figure size for sensitivity charts as 'width,height' in inches (default: 10,6)",
     )
     parser.add_argument(
         "--combined",
@@ -2021,6 +2050,108 @@ def create_param_grid(args: argparse.Namespace) -> "ParameterGrid":
     return grid
 
 
+def _run_sensitivity_analysis(
+    args: argparse.Namespace,
+    result: Any,
+    config: Config,
+    strategy_cls: type,
+) -> int:
+    """Run parameter sensitivity analysis on optimization results.
+
+    Args:
+        args: Parsed CLI arguments containing sensitivity options.
+        result: Optimization result containing all_results.
+        config: Backtest configuration.
+        strategy_cls: Strategy class that was optimized.
+
+    Returns:
+        Exit code: 0 on success, 1 on failure.
+
+    Examples:
+        This function is called internally by ``run_optimization`` when the
+        ``--sensitivity`` flag is provided. It is not intended for direct use.
+        >>> from argparse import Namespace
+        >>> # Example usage is internal to the CLI
+        >>> # _run_sensitivity_analysis(args, result, config, strategy_cls)
+    """
+    if not result.all_results:
+        print("No optimization results available for sensitivity analysis.")
+        return 1
+
+    # Parse figure size
+    try:
+        fig_width, fig_height = map(int, args.sensitivity_fig_size.split(","))
+    except (ValueError, AttributeError):
+        fig_width, fig_height = 10, 6
+
+    sensitivity_config = SensitivityConfig(
+        dpi=args.sensitivity_dpi,
+        figure_size=(fig_width, fig_height),
+        include_charts=True,
+    )
+
+    # Prepare sensitivity data from all optimization results
+    df = prepare_sensitivity_data(result.all_results)
+    if df.empty:
+        print("No valid data for sensitivity analysis.")
+        return 1
+
+    # Determine parameter names from the DataFrame (exclude 'score')
+    param_names = [c for c in df.columns if c != "score"]
+
+    print(f"\n{'=' * 60}")
+    print("Sensitivity Analysis")
+    print(f"{'=' * 60}")
+    print(f"Parameters analyzed: {param_names}")
+    print(f"Data points: {len(df)}")
+
+    # Generate HTML report if output path provided
+    if args.sensitivity_output:
+        try:
+            html = generate_sensitivity_report_html(
+                result.all_results,
+                param_names=param_names,
+                score_key="score",
+                config=sensitivity_config,
+                output_path=args.sensitivity_output,
+            )
+            print(f"Sensitivity report saved to {args.sensitivity_output} ({len(html)} chars)")
+        except ImportError as e:
+            print(f"Error generating sensitivity report: {e}")
+            print("Install matplotlib with: pip install quant-trading[reporting]")
+            return 1
+        except OSError as e:
+            print(f"Error writing sensitivity report: {e}")
+            return 1
+    else:
+        # Print text summary
+        import pandas as pd
+
+        summary_rows = []
+        for param in param_names:
+            grouped = df.groupby(param)["score"].agg(["mean", "std", "min", "max"]).reset_index()
+            summary_rows.append(
+                {
+                    "parameter": param,
+                    "mean_score": grouped["mean"].mean(),
+                    "score_std": grouped["mean"].std(),
+                    "sensitivity_range": grouped["mean"].max() - grouped["mean"].min(),
+                    "n_values": len(grouped),
+                }
+            )
+        summary_df = pd.DataFrame(summary_rows)
+        print("\nSensitivity Summary:")
+        print(f"{'Parameter':<20} {'Mean':>12} {'Std':>12} {'Range':>12} {'N':>6}")
+        print("-" * 65)
+        for row in summary_df.itertuples(index=False):
+            print(
+                f"{row.parameter:<20} {row.mean_score:>12.4f} {row.score_std:>12.4f} "
+                f"{row.sensitivity_range:>12.4f} {row.n_values:>6}"
+            )
+
+    return 0
+
+
 def run_optimization(
     args: argparse.Namespace, config: Config, start_date: datetime, end_date: datetime
 ) -> int:
@@ -2175,6 +2306,10 @@ def run_optimization(
     # Persist the winning strategy configuration when requested
     if args.output_strategy_config:
         _save_strategy_config(args.output_strategy_config, strategy_cls, result.best_params)
+
+    # Run sensitivity analysis if requested
+    if getattr(args, "sensitivity", False):
+        return _run_sensitivity_analysis(args, result, config, strategy_cls)
 
     return 0
 
