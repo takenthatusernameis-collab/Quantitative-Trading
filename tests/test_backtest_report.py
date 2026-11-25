@@ -5,6 +5,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 import numpy as np
 import pandas as pd
@@ -15,6 +16,7 @@ from quant_trading.backtest.metrics import BacktestMetrics
 from quant_trading.backtest.report import (
     MATPLOTLIB_AVAILABLE,
     ReportConfig,
+    _build_comparison_risk_attribution,
     _drawdown_series,
     _get_theme_colors,
     generate_comparison_report,
@@ -2848,3 +2850,24 @@ def test_rolling_chart_helpers_render_insufficient_data_placeholder(helper_name:
     assert isinstance(encoded, str)
     assert encoded
     assert base64.b64decode(encoded).startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_risk_attribution_comparison_format_error_sanitizes_to_n_a() -> None:
+    """Cover report.py:1855-1856: metric_fn raising -> "N/A" fallback.
+
+    _format_metric sanitizes internally and never raises on its own, so the
+    defensive except branch is only reachable by mocking _format_metric to
+    raise (same technique used to cover risk/metrics.py defensive branches).
+    """
+    import quant_trading.backtest.report as report_module
+
+    result = _create_sample_result()
+    result.risk_attribution = RiskAttribution(confidence=0.85)
+    results = [("Strategy A", result)]
+    colors = _get_theme_colors("light")
+
+    with mock.patch.object(report_module, "_format_metric", side_effect=TypeError("unformattable")):
+        html = _build_comparison_risk_attribution(results, colors)
+
+    assert "Risk Attribution Comparison" in html
+    assert "N/A" in html
