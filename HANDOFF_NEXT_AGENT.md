@@ -3099,3 +3099,31 @@ coerced to `1.0` (wrong alpha); `risk_free_rate="0.02"` -> `TypeError`.
 - None assigned. All tracked hardening/validation chains are complete and the
   focused suites are green; future work requires a new defect report or
   feature request.
+
+---
+
+## Session 2026-11-25 (this session — nineteenth entry)
+
+No prior agent assignment was pending; the eighteenth entry closed with "none assigned" and the full suite green (5151 passed), and explicitly instructed **not to invent speculative changes** ("only pursue on explicit request"). Per that standing instruction, this session made **no source or test changes**. It only re-verified the baseline.
+
+### What changed
+
+Nothing in project source or tests. Working tree clean (`git status`: nothing to commit; `git diff --stat`: empty). Only this durable handoff entry was added.
+
+### What was verified
+
+- **Focused suite**: `pytest tests/test_risk_metrics.py` -> **288 passed** (matches the eighteenth entry's count; +3 new tests from session 18).
+- **Repo state**: `git status` clean; one local commit (`d5d0307`, session 18's test commit) ahead of `origin/main`, not yet pushed. No uncommitted changes.
+- Baseline matches the eighteenth entry exactly: full suite green (5151 passed, 151 deselected, 0 failed) under default addopts `--doctest-modules -m "not slow and not network"` (Python 3.14.4 / pytest 9.2.0 / numpy 2.5.5 / pandas 3.1.1; deps under `/home/runner/work/_temp/kilo-home/.local`; prefix commands with `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`).
+
+### What remains unresolved
+
+- Nothing for this task. No defect or feature request is pending. The `slow`/`network`-marked tests (151 deselected) are intentionally excluded by default `addopts`.
+
+### Approaches that failed
+
+- None. No changes attempted, consistent with the standing instruction not to invent speculative changes.
+
+### Next task
+
+- **None assigned.** Future work requires a **new defect report or feature request from the user — do not invent speculative changes.** If further coverage hardening is desired, the next bounded targets are `quant_trading/backtest/engine.py` (99%), `quant_trading/backtest/metrics.py`, but only pursue on explicit request. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"`.
