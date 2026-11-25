@@ -168,11 +168,21 @@ class SensitivityConfig:
 
         Missing keys fall back to the class defaults. Extra keys are ignored.
 
+        Invalid values are rejected by :meth:`__post_init__` (booleans,
+        non-numeric and non-finite dpi, dpi below 1, empty or non-string
+        colormap, and figure sizes that are not two-element sequences of
+        positive finite integers), so dictionary construction is consistent with
+        direct construction instead of silently collapsing bad input to the
+        defaults.
+
         Args:
             data: Dictionary previously produced by :meth:`to_dict`.
 
         Returns:
             A reconstructed :class:`SensitivityConfig`.
+
+        Raises:
+            ValueError: If any value fails :meth:`__post_init__` validation.
 
         Examples:
             >>> from quant_trading.optimization.sensitivity import SensitivityConfig
@@ -181,27 +191,10 @@ class SensitivityConfig:
             (200, (12, 8))
             >>> restored.colormap
             'RdYlGn'
-            >>> SensitivityConfig.from_dict({"dpi": float("nan")}).dpi
-            150
-            >>> SensitivityConfig.from_dict({"dpi": "high"}).dpi
-            150
-            >>> SensitivityConfig.from_dict({"figure_size": [float("nan"), float("inf")]}).figure_size
-            (10, 6)
-
         """
-        figure_size = data.get("figure_size", (10, 6))
-        if isinstance(figure_size, list):
-            figure_size = tuple(figure_size)
-        if not isinstance(figure_size, (list, tuple)) or len(figure_size) != 2:
-            figure_size = (10, 6)
-        width = _finite(figure_size[0], default=10.0)
-        height = _finite(figure_size[1], default=6.0)
-        return cls(
-            include_charts=bool(data.get("include_charts", True)),
-            dpi=int(_finite(data.get("dpi", 150), default=150.0)),
-            colormap=str(data.get("colormap", "RdYlGn")),
-            figure_size=(int(width), int(height)),
-        )
+        known = {"include_charts", "dpi", "colormap", "figure_size"}
+        init_kwargs = {name: value for name, value in data.items() if name in known}
+        return cls(**init_kwargs)
 
 
 def _check_matplotlib() -> None:

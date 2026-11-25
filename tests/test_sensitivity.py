@@ -449,29 +449,62 @@ class TestSensitivityConfig:
             config = SensitivityConfig(figure_size=good)
             assert config.figure_size == tuple(good)
 
-    def test_sensitivity_config_from_dict_sanitizes_non_finite_dpi(self):
-        """Non-finite or non-numeric dpi from a dict sanitizes to the default."""
-        for bad in (float("nan"), float("inf"), float("-inf"), "high", None):
-            assert SensitivityConfig.from_dict({"dpi": bad}).dpi == 150
+    def test_sensitivity_config_from_dict_rejects_invalid_dpi(self):
+        """from_dict rejects non-finite, non-numeric, boolean, and out-of-range dpi."""
+        for bad in (
+            float("nan"),
+            float("inf"),
+            float("-inf"),
+            True,
+            False,
+            "high",
+            None,
+            0,
+            -1,
+        ):
+            with pytest.raises(ValueError, match="invalid dpi"):
+                SensitivityConfig.from_dict({"dpi": bad})
 
-    def test_sensitivity_config_from_dict_sanitizes_non_finite_figure_size(self):
-        """Non-finite or non-numeric figure_size elements sanitize to defaults."""
-        for bad_value in (float("nan"), float("inf"), "ten", None):
-            assert SensitivityConfig.from_dict({"figure_size": [bad_value, 6]}).figure_size == (
-                10,
-                6,
-            )
-            assert SensitivityConfig.from_dict({"figure_size": [10, bad_value]}).figure_size == (
-                10,
-                6,
-            )
+    def test_sensitivity_config_from_dict_accepts_valid_dpi(self):
+        """from_dict accepts finite dpi values of at least 1."""
+        for good in (1, 150, 300):
+            config = SensitivityConfig.from_dict({"dpi": good})
+            assert config.dpi == good
 
-    def test_sensitivity_config_from_dict_rejects_out_of_range(self):
-        """Out-of-range-but-finite values from a dict still raise a clear error."""
-        with pytest.raises(ValueError, match="invalid dpi"):
-            SensitivityConfig.from_dict({"dpi": 0})
-        with pytest.raises(ValueError, match="invalid figure_size"):
-            SensitivityConfig.from_dict({"figure_size": [0, 6]})
+    def test_sensitivity_config_from_dict_rejects_invalid_figure_size(self):
+        """from_dict rejects figure sizes that are not two positive ints."""
+        for bad in (
+            [0, 6],
+            [10, 0],
+            [-1, 5],
+            [5],
+            [1, 2, 3],
+            True,
+            "10x6",
+            [float("nan"), 6],
+            [10, float("inf")],
+            [True, 6],
+            [10, False],
+        ):
+            with pytest.raises(ValueError, match="invalid figure_size"):
+                SensitivityConfig.from_dict({"figure_size": bad})
+
+    def test_sensitivity_config_from_dict_accepts_valid_figure_size(self):
+        """from_dict accepts two-element sequences of positive ints."""
+        for good in ([10, 6], [12, 8], [1, 1]):
+            config = SensitivityConfig.from_dict({"figure_size": good})
+            assert config.figure_size == tuple(good)
+
+    def test_sensitivity_config_from_dict_rejects_invalid_colormap(self):
+        """from_dict rejects empty or non-string colormaps."""
+        for bad in ("", 123, None, ["viridis"]):
+            with pytest.raises(ValueError, match="invalid colormap"):
+                SensitivityConfig.from_dict({"colormap": bad})
+
+    def test_sensitivity_config_from_dict_accepts_valid_colormap(self):
+        """from_dict accepts non-empty string colormaps."""
+        config = SensitivityConfig.from_dict({"colormap": "viridis"})
+        assert config.colormap == "viridis"
 
 
 class TestMatplotlibUnavailable:
