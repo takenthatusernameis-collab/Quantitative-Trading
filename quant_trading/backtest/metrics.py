@@ -27,6 +27,8 @@ import pandas as pd
 
 from quant_trading.backtest.trade_log import split_trade_log
 from quant_trading.risk.metrics import (
+    _validate_periods_per_year,
+    _validate_risk_free_rate,
     calculate_calmar_ratio,
     calculate_cvar,
     calculate_information_ratio,
@@ -368,6 +370,9 @@ def calculate_backtest_metrics(
         9.58
 
     """
+    risk_free_rate = _validate_risk_free_rate(risk_free_rate)
+    _validate_periods_per_year(periods_per_year)
+
     metrics = BacktestMetrics()
     if unrealized_pnl is not None:
         metrics.unrealized_pnl = float(unrealized_pnl)
