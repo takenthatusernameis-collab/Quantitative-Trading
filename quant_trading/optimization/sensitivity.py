@@ -468,7 +468,8 @@ def create_parameter_interaction_heatmap(
                         # Interaction strength = std of row means - mean of row stds
                         # (captures how much the effect of one param depends on the other)
                         row_means = pivot.mean(axis=1)
-                        interaction_matrix[i, j] = row_means.std()
+                        row_stds = pivot.std(axis=1)
+                        interaction_matrix[i, j] = row_means.std() - row_stds.mean()
                 except (ValueError, KeyError, IndexError):
                     interaction_matrix[i, j] = np.nan
 
