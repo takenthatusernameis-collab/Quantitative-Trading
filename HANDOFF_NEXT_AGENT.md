@@ -1,3 +1,27 @@
+## Session 2026-11-25 (this session — twenty-fifth entry)
+
+No prior agent assignment was pending (twenty-fourth entry closed with "none assigned" and a fully green repo, and explicitly instructed not to invent speculative changes). Per that standing instruction, no source, test, or config change was made this session.
+
+### What changed
+Nothing in project source, tests, or config. Working tree clean (`git status`: nothing to commit). Only this handoff entry was added.
+
+### What was verified
+- `git status --short` -> clean (nothing changed since the twenty-fourth entry's fresh verification).
+- `ruff check .` -> All checks passed.
+- `black --check .` -> 166 files unchanged.
+- Baseline (twenty-fourth entry, fresh evidence on this runner): full suite 5328/5328 green (5177 default + 151 slow = 5328, all passing); `pytest -m "slow and not network"` collects 151 tests; guards clean repo-wide; effective full coverage. The new `.github/workflows/tests.yml` runs the slow suite on push/PR/`workflow_dispatch` and is validated by `kilo-workflow-audit.yml`.
+
+### What remains unresolved
+Nothing actionable. Repository healthy and fully green.
+
+### Approaches that failed
+None. No work attempted this session (no assignment; speculative changes explicitly barred).
+
+### Next task
+**None assigned.** Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests (deps under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`).
+
+---
+
 ## Session 2026-11-25 (this session — twenty-fourth entry)
 
 No prior agent assignment was pending (twenty-third entry closed with "none assigned" and a fully green repo). The standing handoff had flagged exactly one concrete, bounded, non-speculative task: the 151 `slow` smoke/subprocess tests are never executed by any automation. Per the operating instruction to select a bounded, high-value task when none is assigned, this session closed that gap by adding a conventional test CI workflow and bringing it under the existing workflow-audit validation. No project source or test behavior changed.
