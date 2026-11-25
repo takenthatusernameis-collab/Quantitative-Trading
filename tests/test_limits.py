@@ -1,12 +1,16 @@
 """Tests for risk limits."""
 
+from datetime import datetime
+
 import pytest
 
 from quant_trading.risk.limits import (
     CheckResult,
     PortfolioLimit,
     PositionLimit,
+    _coerce_datetime,
     _finite,
+    _iso,
     gross_exposure,
 )
 from quant_trading.strategies.base import Position
@@ -1214,3 +1218,18 @@ class TestCheckResultSerializationHardening:
         assert res.passed is True
         res = CheckResult.from_dict({"violations": "not a list"})  # list() of str iterates chars
         assert isinstance(res.violations, list)
+
+
+class TestLimitDatetimeHelpers:
+    """Coverage for the None/datetime branches of the datetime helpers."""
+
+    def test_iso_returns_none_for_none_input(self) -> None:
+        assert _iso(None) is None
+
+    def test_iso_returns_isoformat_for_datetime_input(self) -> None:
+        value = datetime(2024, 1, 2, 3, 4, 5)
+        assert _iso(value) == "2024-01-02T03:04:05"
+
+    def test_coerce_datetime_returns_datetime_unchanged(self) -> None:
+        value = datetime(2024, 6, 15, 12, 0, 0)
+        assert _coerce_datetime(value) is value
