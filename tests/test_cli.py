@@ -10095,6 +10095,98 @@ class TestRunSensitivityAnalysis:
         assert "Sensitivity Analysis" in buf.getvalue()
 
 
+class TestFmtFormatting:
+    """Tests for the ``_fmt`` helper (examples/cli.py:_fmt)."""
+
+    def test_fmt_returns_n_a_for_none_input(self) -> None:
+        from examples.cli import _fmt
+
+        assert _fmt(None, ">7.2f") == "    N/A"
+
+    def test_fmt_returns_formatted_value_for_non_none_input(self) -> None:
+        from examples.cli import _fmt
+
+        assert _fmt(3.14159, ">7.2f") == "   3.14"
+
+
+class TestRunCliOutputSaveFailure:
+    """Tests for the JSON output save-failure branch in ``_run_cli`` (line 2856)."""
+
+    def test_run_cli_returns_one_when_json_save_fails(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock, patch
+
+        from examples.cli import _run_cli
+        from quant_trading.config.settings import Config
+
+        output_path = tmp_path / "out.json"
+
+        args_namespace = Namespace(
+            list_strategies=False,
+            list_providers=False,
+            list_objectives=False,
+            init_config=None,
+            validate_config=None,
+            end=None,
+            start=None,
+            days=30,
+            combined=False,
+            optimize=False,
+            walk_forward=False,
+            output_strategy_config=None,
+            output=str(output_path),
+            output_format=None,
+            regime=False,
+            monte_carlo=False,
+            trade_analysis=False,
+            symbols=["AAPL"],
+        )
+
+        config = Config()
+        config.data.provider = "synthetic"
+        config.data.offline = True
+        config.data.default_interval = "1d"
+        config.backtest.initial_capital = 100000.0
+        config.backtest.commission = 0.001
+        config.backtest.slippage = 0.0005
+        config.backtest.periods_per_year = 252
+        config.backtest.risk_free_rate = 0.02
+
+        mock_result = MagicMock()
+        mock_result.initial_capital = 100000.0
+        mock_result.final_value = 110000.0
+        mock_result.total_return = 10000.0
+        mock_result.total_return_pct = 10.0
+        mock_result.total_costs = 0.0
+        mock_metrics = MagicMock()
+        mock_metrics.total_pnl = 10000.0
+        mock_metrics.unrealized_pnl = 0.0
+        mock_metrics.num_trades = 10
+        mock_metrics.win_rate = 0.6
+        mock_metrics.sharpe_ratio = 1.5
+        mock_metrics.max_drawdown_pct = 5.0
+        mock_metrics.profit_factor = 2.0
+        mock_metrics.sortino_ratio = 1.2
+        mock_metrics.volatility = 0.15
+        mock_metrics.var_95 = 0.05
+        mock_metrics.calmar_ratio = 2.0
+        mock_metrics.ulcer_index = 3.0
+        mock_result.metrics = mock_metrics
+
+        mock_strategy = MagicMock()
+        mock_strategy.name = "MA_Crossover_10_30"
+
+        with (
+            patch("examples.cli.parse_args", return_value=args_namespace),
+            patch("examples.cli.create_config", return_value=config),
+            patch("examples.cli.create_strategy", return_value=mock_strategy),
+            patch("examples.cli.run_backtest", return_value=mock_result),
+            patch("examples.cli._save_json_output", return_value=False),
+        ):
+            rc = _run_cli()
+
+        assert rc == 1
+
+
 if __name__ == "__main__":
     import pytest
 

@@ -1,3 +1,34 @@
+## Session 2026-11-25 (this session — seventeenth entry)
+
+No prior agent assignment was pending; the sixteenth entry closed with "none assigned" and the full suite green (5145 passed). Per the reliability rules to make bounded, evidence-based progress when no assignment exists, this session took the next-highest-value coverage target identified by the coverage audit: `examples/cli.py` (99%; missing lines 83, 2856 — the `_fmt` None-branch and the `_run_cli` JSON-output save-failure `return 1`). Closed the gap with tests only — no source/behavior change.
+
+### What changed
+
+**tests/test_cli.py** only. Added:
+- `TestFmtFormatting` (2 tests): `_fmt(None, ">7.2f")` -> `"    N/A"` covers line 83; `_fmt(3.14159, ">7.2f")` covers the format path.
+- `TestRunCliOutputSaveFailure` (1 test): `_run_cli` single backtest mode with `_save_json_output` mocked to return False and `args.output` set -> asserts rc == 1, covering line 2856.
+
+### What was verified
+
+- **Coverage**: `examples/cli.py` now **100%** (0 missing statements, 0 partial branches; was 99% missing 83, 2856). Measured via the coverage-API driver script (lives outside the repo at `/home/runner/work/_temp/kilo-tmp/kilo/covdriver.py`) because the `coverage run` CLI is broken in this env (`a1_coverage.pth` + numpy double-load conflict).
+- **Focused suite**: `pytest tests/test_cli.py -k "Fmt or RunCliOutputSaveFailure"` -> **3 passed**.
+- **Guards on changed file**: `ruff check`, `black --check`, `mypy tests/test_cli.py` all clean.
+- **Full suite**: `python -m pytest -q` (default addopts `--doctest-modules -m "not slow and not network"`): **5148 passed, 151 deselected, 0 failed** in 262.78s — exactly the prior 5145 + 3 new tests, no regressions (Python 3.14.4 / pytest 9.2.0 / numpy 2.5.5 / pandas 3.1.1; deps under `/home/runner/work/_temp/kilo-home/.local`; prefix commands with `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`).
+
+### What remains unresolved
+
+- Nothing for this task. `examples/cli.py` is at 100%; the other sub-100% modules remain single defensive branches at 98-99% (`risk/metrics.py`, `backtest/engine.py`, `risk/manager.py`, etc.) and are not outliers. The `slow`/`network` tests (151 deselected) are intentionally excluded by default `addopts`.
+
+### Approaches that failed
+
+- None. Single targeted coverage hardening; no source/behavior change required.
+
+### Next task
+
+- **None assigned.** Working tree contains only the test addition + this entry; full suite green (5148 passed). Future work requires a **new defect report or feature request from the user — do not invent speculative changes.** If further coverage hardening is desired, the next bounded targets are `quant_trading/risk/metrics.py` (99%), `quant_trading/backtest/engine.py` (99%), but only pursue on explicit request. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"`.
+
+---
+
 ## Session 2026-11-25 (this session — sixteenth entry)
 
 No prior agent assignment was pending; the fifteenth entry closed with "no task assigned; do not invent speculative changes" and the full suite green (5142 passed). Per the reliability rules to make bounded, evidence-based progress when no assignment exists, this session took the next-highest-value coverage target identified by the coverage audit: `quant_trading/risk/limits.py` (98%; missing lines 108, 117 — the `_iso` None-branch and `_coerce_datetime` datetime-branch). Closed the gap with tests only — no source/behavior change.
