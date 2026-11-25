@@ -244,16 +244,9 @@ class DataConfig:
             365
 
         """
-        return cls(
-            provider=str(data.get("provider", "yfinance")),
-            cache_dir=str(data.get("cache_dir", "./data/cache")),
-            default_interval=str(data.get("default_interval", "1d")),
-            default_period=str(data.get("default_period", "1y")),
-            offline=bool(data.get("offline", False)),
-            synthetic_days=int(_finite(data.get("synthetic_days", 365))),
-            synthetic_seed=int(_finite(data.get("synthetic_seed", 42))),
-            alphavantage_api_key=data.get("alphavantage_api_key"),
-        )
+        known = {f.name for f in fields(cls)}
+        init_kwargs = {name: value for name, value in data.items() if name in known}
+        return cls(**init_kwargs)
 
 
 def _filter_fields(dataclass_type: Any, values: dict[str, Any]) -> dict[str, Any]:
@@ -624,16 +617,9 @@ class RiskConfig:
             0.1
 
         """
-        return cls(
-            max_position_size=_finite(data.get("max_position_size", 0.1)),
-            max_portfolio_risk=_finite(data.get("max_portfolio_risk", 0.02)),
-            stop_loss_pct=_finite(data.get("stop_loss_pct", 0.05)),
-            take_profit_pct=_finite(data.get("take_profit_pct", 0.15)),
-            max_drawdown=_finite(data.get("max_drawdown", 0.20)),
-            max_leverage=_finite(data.get("max_leverage", 1.0)),
-            trailing_stop_pct=_finite(data.get("trailing_stop_pct", 0.0)),
-            trailing_stop_activation_pct=_finite(data.get("trailing_stop_activation_pct", 0.0)),
-        )
+        known = {f.name for f in fields(cls)}
+        init_kwargs = {name: value for name, value in data.items() if name in known}
+        return cls(**init_kwargs)
 
 
 @dataclass
@@ -721,11 +707,9 @@ class PortfolioConfig:
             'monthly'
 
         """
-        return cls(
-            rebalance_frequency=str(data.get("rebalance_frequency", "monthly")),
-            max_positions=int(_finite(data.get("max_positions", 20))),
-            min_position_size=_finite(data.get("min_position_size", 0.01)),
-        )
+        known = {f.name for f in fields(cls)}
+        init_kwargs = {name: value for name, value in data.items() if name in known}
+        return cls(**init_kwargs)
 
 
 @dataclass
