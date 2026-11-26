@@ -52,17 +52,10 @@ already installed under `/home/runner/work/_temp/kilo-home/.local`,
   passed on first attempt.
 
 ### Next task
-- **Clear `quant_trading/backtest/trade_log.py` from the allowlist** (smallest remaining
-  single-function target: 1 entry, `split_trade_log`). Add a runnable `Examples:` section to
-  `split_trade_log` (def at `quant_trading/backtest/trade_log.py:73`; signature
-  `split_trade_log(trades: pd.DataFrame) -> TradeLog`). It is a pure, deterministic function:
-  good examples are (a) an empty/`pnl`-less frame -> empty `round_trips`
-  (`split_trade_log(pd.DataFrame()).round_trips.empty` -> `True`), and (b) a tiny long round
-  trip built with `pd.DataFrame({"pnl": [0.0, 5.0]})` showing `entries`/`round_trips` shapes.
-  Capture exact reprs from the live runtime rather than hand-writing them. Then remove the
-  `("quant_trading/backtest/trade_log.py", "split_trade_log")` line from `_EXAMPLES_ALLOWLIST`
-  and rerun `pytest --doctest-modules quant_trading/backtest/trade_log.py`,
-  `pytest tests/test_repository_integrity.py tests/test_trade_log.py`. Constraints: every `>>>`
-  line must be a single parseable statement; do not add new allowlist entries; do not touch
-  `.github/workflows`. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"`
-  before running any tests. Prefer capturing exact runtime output over hand-writing expected values.
+- **Clear `quant_trading/backtest/metrics.py` from the allowlist** (2 entries: `from_dict`,
+  `to_dict`). Inspect their signatures and add runnable `Examples:` sections, capturing exact
+  reprs from the live runtime. Then remove the two
+  `("quant_trading/backtest/metrics.py", ...)` lines from `_EXAMPLES_ALLOWLIST` and rerun
+  `pytest --doctest-modules quant_trading/backtest/metrics.py`,
+  `pytest tests/test_repository_integrity.py`. Constraints: every `>>>` line must be a single
+  parseable statement; do not add new allowlist entries; do not touch `.github/workflows`.
