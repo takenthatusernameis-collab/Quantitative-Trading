@@ -1820,7 +1820,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/backtest/analysis.py", "summary"),
         ("quant_trading/backtest/analysis.py", "to_dataframe"),
         ("quant_trading/backtest/analysis.py", "to_dict"),
-        ("quant_trading/backtest/engine.py", "__init__"),
         ("quant_trading/backtest/engine.py", "_benchmark_returns"),
         ("quant_trading/backtest/engine.py", "_cover_short"),
         ("quant_trading/backtest/engine.py", "_open_long"),

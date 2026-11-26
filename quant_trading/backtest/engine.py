@@ -932,6 +932,12 @@ class BacktestEngine:
             data_manager: DataManager providing market data.
             risk_manager: Risk manager instance. Defaults to a new RiskManager.
 
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestEngine
+            >>> engine = BacktestEngine()
+            >>> engine.portfolio.cash
+            100000.0
+
         """
         if config is None:
             config = BacktestConfig()
