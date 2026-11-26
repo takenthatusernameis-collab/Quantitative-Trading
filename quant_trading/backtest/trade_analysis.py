@@ -320,7 +320,7 @@ def _calculate_holding_periods(trades: pd.DataFrame) -> list[float]:
             >>> _calculate_holding_periods(trades)
             [1.0]
 
-        """
+    """
     if trades.empty or "pnl" not in trades.columns or "action" not in trades.columns:
         return []
 
@@ -400,7 +400,7 @@ def _calculate_consecutive_streaks(trades: pd.DataFrame) -> tuple[int, int, int,
             >>> _calculate_consecutive_streaks(trades)
             (2, 1, 1, 'loss')
 
-        """
+    """
     if trades.empty or "pnl" not in trades.columns:
         return 0, 0, 0, ""
 
@@ -455,7 +455,7 @@ def _calculate_monthly_returns(equity_curve: pd.Series) -> dict[str, float]:
             >>> round(_calculate_monthly_returns(equity)["2024-02-29"], 4)
             0.029
 
-        """
+    """
     if len(equity_curve) < 2:
         return {}
     if not isinstance(equity_curve.index, pd.DatetimeIndex):
@@ -489,7 +489,7 @@ def _calculate_weekly_returns(equity_curve: pd.Series) -> dict[str, float]:
             >>> round(_calculate_weekly_returns(equity)["2024-01-14"], 4)
             0.007
 
-        """
+    """
     if len(equity_curve) < 2:
         return {}
     if not isinstance(equity_curve.index, pd.DatetimeIndex):
@@ -531,7 +531,7 @@ def _calculate_symbol_stats(
             >>> _calculate_symbol_stats(trades[trades["pnl"] != 0], trades)["AAPL"]["win_rate"]
             1.0
 
-        """
+    """
     if entries.empty or "pnl" not in entries.columns or "symbol" not in entries.columns:
         return {}
 
@@ -583,7 +583,7 @@ def _equity_at_trade_times(equity_curve: pd.Series, timestamps: pd.Series) -> pd
             >>> float(_equity_at_trade_times(equity, timestamps)[0])
             100400.0
 
-        """
+    """
     resolved: pd.Series = pd.Series(np.nan, index=timestamps.index, dtype=float)
 
     if equity_curve is None or len(equity_curve) == 0:
@@ -624,7 +624,7 @@ def _calculate_trade_returns(pnl_trades: pd.DataFrame, equity_curve: pd.Series) 
             >>> float(_calculate_trade_returns(pnl_trades, equity)[0])
             0.000945273631840796
 
-        """
+    """
     returns: pd.Series = pd.Series(np.nan, index=pnl_trades.index, dtype=float)
 
     if pnl_trades.empty or "timestamp" not in pnl_trades.columns:
@@ -812,19 +812,9 @@ def print_trade_analysis(analysis: TradeAnalysis) -> None:
         >>> from quant_trading.backtest.metrics import BacktestMetrics
         >>> dates = pd.date_range("2024-01-01", periods=10)
         >>> equity = pd.Series(100000 + np.arange(10) * 100, index=dates)
-        >>> trades = pd.DataFrame([
-        ...     {"symbol": "AAPL", "action": "buy", "quantity": 10, "price": 150.0,
-        ...      "timestamp": datetime(2024, 1, 5), "commission": 0.0, "slippage": 0.0,
-        ...      "cost": 1500.0, "pnl": 0.0},
-        ...     {"symbol": "AAPL", "action": "sell", "quantity": 10, "price": 160.0,
-        ...      "timestamp": datetime(2024, 1, 6), "commission": 0.0, "slippage": 0.0,
-        ...      "cost": 1600.0, "pnl": 95.0},
-        ... ])
+        >>> trades = pd.DataFrame([{"symbol":"AAPL","action":"buy","quantity":10,"price":150.0,"timestamp":datetime(2024,1,5),"commission":0.0,"slippage":0.0,"cost":1500.0,"pnl":0.0},{"symbol":"AAPL","action":"sell","quantity":10,"price":160.0,"timestamp":datetime(2024,1,6),"commission":0.0,"slippage":0.0,"cost":1600.0,"pnl":95.0}])
         >>> metrics = BacktestMetrics()
-        >>> result = BacktestResult(equity_curve=equity, trades=trades, positions={},
-        ...                         metrics=metrics, start_date=datetime(2024, 1, 1),
-        ...                         end_date=datetime(2024, 1, 10), initial_capital=100000.0,
-        ...                         final_value=100095.0, total_return=95.0, total_return_pct=0.095)
+        >>> result = BacktestResult(equity_curve=equity, trades=trades, positions={}, metrics=metrics, start_date=datetime(2024,1,1), end_date=datetime(2024,1,10), initial_capital=100000.0, final_value=100095.0, total_return=95.0, total_return_pct=0.095)
         >>> analysis = analyze_trades(result)
         >>> print_trade_analysis(analysis)  # doctest: +SKIP
 
