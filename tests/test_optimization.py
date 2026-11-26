@@ -1138,22 +1138,67 @@ def test_optimization_result_to_dataframe_empty() -> None:
     assert df.empty
 
 
-def test_optimization_result_from_dict_sanitizes_non_finite_best_score() -> None:
-    """Non-finite and non-numeric best_score is sanitized to 0.0."""
-    result = OptimizationResult.from_dict({"best_score": float("nan")})
-    assert result.best_score == 0.0
+def test_optimization_result_from_dict_rejects_invalid_best_score() -> None:
+    """Invalid best_score values (bool, NaN, non-numeric) raise ValueError.
+    Infinite values (inf, -inf) are accepted as sentinels.
+    """
+    import pytest
+
+    invalid_cases = [
+        float("nan"),
+        "not a number",
+        None,
+        True,
+        False,
+    ]
+    for invalid_value in invalid_cases:
+        with pytest.raises(ValueError, match="invalid best_score"):
+            OptimizationResult.from_dict({"best_score": invalid_value})
+
+    # inf and -inf are valid sentinels
     result = OptimizationResult.from_dict({"best_score": float("inf")})
-    assert result.best_score == 0.0
-    result = OptimizationResult.from_dict({"best_score": -float("inf")})
-    assert result.best_score == 0.0
-    result = OptimizationResult.from_dict({"best_score": "not a number"})
-    assert result.best_score == 0.0
-    result = OptimizationResult.from_dict({"best_score": None})
-    assert result.best_score == 0.0
-    result = OptimizationResult.from_dict({"best_score": True})
+    assert result.best_score == float("inf")
+    result = OptimizationResult.from_dict({"best_score": float("-inf")})
+    assert result.best_score == float("-inf")
+
+
+def test_optimization_result_from_dict_accepts_valid_best_score() -> None:
+    """Valid finite best_score values are accepted."""
+    result = OptimizationResult.from_dict({"best_score": 0.0})
     assert result.best_score == 0.0
     result = OptimizationResult.from_dict({"best_score": 1.5})
     assert result.best_score == 1.5
+    result = OptimizationResult.from_dict({"best_score": -0.5})
+    assert result.best_score == -0.5
+    result = OptimizationResult.from_dict({"best_score": 100})
+    assert result.best_score == 100.0
+    # inf/-inf as sentinels
+    result = OptimizationResult.from_dict({"best_score": float("inf")})
+    assert result.best_score == float("inf")
+    result = OptimizationResult.from_dict({"best_score": float("-inf")})
+    assert result.best_score == float("-inf")
+
+
+def test_optimization_result_constructor_rejects_invalid_best_score() -> None:
+    """Direct construction with invalid best_score raises ValueError."""
+    import pytest
+
+    invalid_cases = [
+        float("nan"),
+        "not a number",
+        None,
+        True,
+        False,
+    ]
+    for invalid_value in invalid_cases:
+        with pytest.raises(ValueError, match="invalid best_score"):
+            OptimizationResult(best_params={}, best_score=invalid_value)
+
+    # inf and -inf are valid sentinels
+    result = OptimizationResult(best_params={}, best_score=float("inf"))
+    assert result.best_score == float("inf")
+    result = OptimizationResult(best_params={}, best_score=float("-inf"))
+    assert result.best_score == float("-inf")
 
 
 def test_base_optimizer_evaluate_params_error() -> None:

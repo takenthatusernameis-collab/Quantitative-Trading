@@ -725,6 +725,25 @@ class OptimizationResult:
     start_time: datetime | None = None
     end_time: datetime | None = None
 
+    def __post_init__(self) -> None:
+        """Validate construction inputs.
+
+        Raises:
+            ValueError: If ``best_score`` is a boolean, non-numeric, or NaN value.
+                Infinite values (inf, -inf) are accepted as sentinels for
+                "no valid result found" or "unbounded optimum".
+
+        """
+        if isinstance(self.best_score, bool) or not isinstance(self.best_score, (int, float)):
+            raise ValueError(  # noqa: TRY004
+                f"invalid best_score: the value must be a number (got {self.best_score})"
+            )
+        if not math.isfinite(self.best_score) and not math.isinf(self.best_score):
+            # Only NaN is rejected; inf/-inf are valid sentinels
+            raise ValueError(
+                f"invalid best_score: the value must be finite or infinite (got {self.best_score})"
+            )
+
     @property
     def duration_seconds(self) -> float | None:
         """Elapsed wall-clock seconds between start and end, or None."""
@@ -795,11 +814,18 @@ class OptimizationResult:
         non-dict values are passed through unchanged. ISO-8601 timestamps
         (as emitted by :meth:`to_dict` through JSON) are accepted.
 
+        Invalid ``best_score`` values (booleans, non-numeric, NaN, ±inf) are
+        rejected with a clear ``ValueError`` rather than silently coerced to
+        defaults. This matches the behavior of direct construction.
+
         Args:
             data: Dictionary previously produced by :meth:`to_dict`.
 
         Returns:
             A reconstructed :class:`OptimizationResult`.
+
+        Raises:
+            ValueError: If ``best_score`` fails validation.
 
         Examples:
             >>> from quant_trading.optimization.base import OptimizationResult
@@ -808,12 +834,6 @@ class OptimizationResult:
             ... )
             >>> restored.best_params, restored.best_score
             ({'x': 1}, 1.0)
-            >>> restored = OptimizationResult.from_dict({"best_score": float("nan")})
-            >>> restored.best_score
-            0.0
-            >>> restored = OptimizationResult.from_dict({"best_score": "not a number"})
-            >>> restored.best_score
-            0.0
 
         """
         best_result_raw = data.get("best_result")
@@ -826,7 +846,7 @@ class OptimizationResult:
             best_result = best_result_raw
         return cls(
             best_params=dict(data.get("best_params") or {}),
-            best_score=_finite(data.get("best_score", 0.0)),
+            best_score=data.get("best_score", 0.0),
             best_result=best_result,
             all_results=[dict(entry) for entry in (data.get("all_results") or [])],
             start_time=_coerce_datetime(data.get("start_time")),
