@@ -268,17 +268,43 @@ class FetchResult:
         """Return True if all requested symbols were fetched successfully.
 
         True only when both :attr:`errors` and :attr:`missing` are empty.
+
+        Examples:
+            >>> from quant_trading.data.providers import FetchResult
+            >>> FetchResult().is_success
+            True
+            >>> FetchResult(missing=["MSFT"]).is_success
+            False
+
         """
         return not self.errors and not self.missing
 
     @property
     def has_errors(self) -> bool:
-        """Return True if any hard errors occurred."""
+        """Return True if any hard errors occurred.
+
+        Examples:
+            >>> from quant_trading.data.providers import FetchResult
+            >>> FetchResult().has_errors
+            False
+            >>> FetchResult(errors={"AAPL": RuntimeError("boom")}).has_errors
+            True
+
+        """
         return bool(self.errors)
 
     @property
     def has_missing(self) -> bool:
-        """Return True if any symbols returned no data."""
+        """Return True if any symbols returned no data.
+
+        Examples:
+            >>> from quant_trading.data.providers import FetchResult
+            >>> FetchResult().has_missing
+            False
+            >>> FetchResult(missing=["MSFT"]).has_missing
+            True
+
+        """
         return bool(self.missing)
 
     def to_dict(self) -> dict[str, Any]:
@@ -404,6 +430,12 @@ class DataProvider(ABC):
             A :class:`FetchResult` containing successful data, hard errors,
             and symbols that returned no data.
 
+        Examples:
+            >>> from quant_trading.data.synthetic import create_synthetic_provider
+            >>> provider = create_synthetic_provider({"AAPL": 100.0})
+            >>> provider.fetch(["AAPL"]).is_success
+            True
+
         """
         ...  # pragma: no cover
 
@@ -417,6 +449,12 @@ class DataProvider(ABC):
         Returns:
             A :class:`FetchResult` containing successful data, hard errors,
             and symbols that returned no data.
+
+        Examples:
+            >>> from quant_trading.data.synthetic import create_synthetic_provider
+            >>> provider = create_synthetic_provider({"AAPL": 100.0})
+            >>> provider.fetch_latest(["AAPL"]).is_success
+            True
 
         """
         ...  # pragma: no cover
@@ -505,6 +543,11 @@ class DataProvider(ABC):
             A short, human-readable identifier for this provider (e.g.
             ``"yfinance"`` or ``"synthetic"``).
 
+        Examples:
+            >>> from quant_trading.data.synthetic import create_synthetic_provider
+            >>> create_synthetic_provider({"AAPL": 100.0}).name
+            'synthetic'
+
         """
         ...  # pragma: no cover
 
@@ -558,6 +601,14 @@ class DataManager:
         Returns:
             None.
 
+        Examples:
+            >>> from quant_trading.data.providers import DataManager
+            >>> from quant_trading.data.synthetic import create_synthetic_provider
+            >>> manager = DataManager()
+            >>> manager.add_provider(create_synthetic_provider({"AAPL": 100.0}))
+            >>> [p.name for p in manager.providers]
+            ['synthetic']
+
         """
         self.providers.append(provider)
 
@@ -570,6 +621,16 @@ class DataManager:
         Returns:
             The matching provider, or ``None`` when no provider with that
             name is registered.
+
+        Examples:
+            >>> from quant_trading.data.providers import DataManager
+            >>> from quant_trading.data.synthetic import create_synthetic_provider
+            >>> manager = DataManager()
+            >>> manager.add_provider(create_synthetic_provider({"AAPL": 100.0}))
+            >>> manager.get_provider("synthetic").name
+            'synthetic'
+            >>> manager.get_provider("missing") is None
+            True
 
         """
         for provider in self.providers:
@@ -610,6 +671,17 @@ class DataManager:
             ValueError: If no provider matches ``provider_name`` and no
                 providers are registered.
 
+        Examples:
+            >>> from quant_trading.data.providers import DataManager
+            >>> from quant_trading.data.synthetic import create_synthetic_provider
+            >>> manager = DataManager()
+            >>> manager.add_provider(create_synthetic_provider({"AAPL": 100.0}))
+            >>> result = manager.fetch(["AAPL"])
+            >>> result.is_success
+            True
+            >>> "AAPL" in result.data
+            True
+
         """
         provider = None
         if provider_name:
@@ -638,6 +710,17 @@ class DataManager:
 
         Returns:
             None.
+
+        Examples:
+            >>> from quant_trading.data.providers import DataManager
+            >>> from quant_trading.data.synthetic import create_synthetic_provider
+            >>> manager = DataManager()
+            >>> manager.add_provider(create_synthetic_provider({"AAPL": 100.0}))
+            >>> manager.fetch(["AAPL"]).is_success
+            True
+            >>> manager.clear_cache()
+            >>> manager._cache
+            {}
 
         """
         self._cache.clear()
@@ -820,6 +903,14 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
                 Returns:
                     :class:`FetchResult` containing fetched market data.
 
+                Examples:
+                    >>> from quant_trading.config.settings import DataConfig
+                    >>> from quant_trading.data.providers import create_data_manager_from_config
+                    >>> manager = create_data_manager_from_config(DataConfig(provider="synthetic"))
+                    >>> result = manager.fetch(["AAPL"])
+                    >>> result.is_success
+                    True
+
                 """
                 self._ensure_initialized(symbols)
                 return super().fetch(symbols, start, end, interval)
@@ -832,6 +923,14 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
 
                 Returns:
                     :class:`FetchResult` containing the latest market data.
+
+                Examples:
+                    >>> from quant_trading.config.settings import DataConfig
+                    >>> from quant_trading.data.providers import create_data_manager_from_config
+                    >>> manager = create_data_manager_from_config(DataConfig(provider="synthetic"))
+                    >>> result = manager.providers[0].fetch_latest(["AAPL"])
+                    >>> result.is_success
+                    True
 
                 """
                 self._ensure_initialized(symbols)
