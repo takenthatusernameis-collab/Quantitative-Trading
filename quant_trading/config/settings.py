@@ -161,6 +161,24 @@ class DataConfig:
         layer. Booleans and non-numeric values are rejected with a clear
         ``ValueError`` instead of being silently coerced (``True`` -> ``1``)
         or raising an opaque ``TypeError``.
+
+        Examples:
+            >>> from quant_trading.config.settings import DataConfig
+            >>> data = DataConfig(provider="synthetic", synthetic_days=30, synthetic_seed=7)
+            >>> data.provider, data.synthetic_days, data.synthetic_seed
+            ('synthetic', 30, 7)
+            >>> DataConfig(provider="")
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid provider: the value must be a non-empty string (got '')
+            >>> DataConfig(synthetic_days=True)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid synthetic_days: the value must be at least 1 and finite (got True)
+            >>> DataConfig(default_interval="")
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid default_interval: the value must be a non-empty string (got '')
         """
         if not self.provider:
             raise ValueError(
@@ -386,6 +404,24 @@ class BacktestConfig:
         so invalid values are rejected when a config is built (directly, from a
         dictionary, or from YAML) instead of silently propagating to the
         backtest engine or optimizer.
+
+        Examples:
+            >>> from quant_trading.config.settings import BacktestConfig
+            >>> cfg = BacktestConfig(initial_capital=50000.0, commission=0.002)
+            >>> cfg.initial_capital, cfg.commission
+            (50000.0, 0.002)
+            >>> BacktestConfig(initial_capital=0.0)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid initial_capital: the value must be positive and finite (got 0.0)
+            >>> BacktestConfig(periods_per_year=True)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid periods_per_year: the value must be at least 1 and finite (got True)
+            >>> BacktestConfig(risk_free_rate=float("nan"))
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid risk_free_rate: the value must be finite (got nan)
         """
         _validate_init_param(
             self.initial_capital,
@@ -516,6 +552,24 @@ class RiskConfig:
         values are rejected when a config is built (directly, from a
         dictionary, or from YAML) instead of silently producing misleading
         risk decisions.
+
+        Examples:
+            >>> from quant_trading.config.settings import RiskConfig
+            >>> cfg = RiskConfig(max_position_size=0.15, max_drawdown=0.10)
+            >>> cfg.max_position_size, cfg.max_drawdown
+            (0.15, 0.1)
+            >>> RiskConfig(max_leverage=0.0)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid max_leverage: the value must be positive and finite (got 0.0)
+            >>> RiskConfig(max_position_size=0.0)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid max_position_size: the value must be in the range (0, 1] and finite (got 0.0)
+            >>> RiskConfig(max_drawdown=1.5)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid max_drawdown: the value must be in the range [0, 1] and finite (got 1.5)
         """
         _validate_init_param(
             self.max_position_size,
@@ -650,6 +704,24 @@ class PortfolioConfig:
         values are rejected when a config is built (directly, from a
         dictionary, or from YAML) instead of silently propagating to the
         portfolio rebalancer.
+
+        Examples:
+            >>> from quant_trading.config.settings import PortfolioConfig
+            >>> cfg = PortfolioConfig(rebalance_frequency="weekly", max_positions=10)
+            >>> cfg.rebalance_frequency, cfg.max_positions
+            ('weekly', 10)
+            >>> PortfolioConfig(max_positions=0)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid max_positions: the value must be at least 1 and finite (got 0)
+            >>> PortfolioConfig(max_positions=True)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid max_positions: the value must be at least 1 and finite (got True)
+            >>> PortfolioConfig(min_position_size=1.5)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid min_position_size: the value must be in the range [0, 1] (got 1.5)
         """
         _validate_init_param(
             self.max_positions,
