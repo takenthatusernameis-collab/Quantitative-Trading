@@ -673,3 +673,30 @@ No prior agent assignment was pending (forty-fourth entry closed with "none assi
 
 ### Next task
 - **None assigned.** The repository is fully green with the test regression fixed. Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
+
+---
+
+## Session 2026-11-26 (this session — forty-sixth entry)
+
+No prior agent assignment was pending (forty-fifth entry closed with "none assigned"). Inspection found the repository at commit `296123d` == `origin/main`, working tree clean. HEAD commit `296123d` (created just before this session) fixed the `from_dict`/`__post_init__` validation-gap defect class for `OptimizationResult` but was **not documented** in `HANDOFF_NEXT_AGENT.md`. This session recorded that change in the handoff and re-verified the baseline is green.
+
+### What changed
+- **`quant_trading/optimization/base.py`** (`OptimizationResult`, commit `296123d`): added `__post_init__` validation rejecting boolean, non-numeric, and NaN `best_score` while accepting ±inf as sentinels; rewrote `from_dict` to pass raw `best_score` to `cls()` (removing the `_finite(...)` coercion that silently mapped nan/inf/string/None/True to `0.0`) so `__post_init__` validation applies identically for direct and dictionary construction. Updated docstring examples (removed the now-invalid silent-coercion assertions).
+- **`tests/test_optimization.py`** (commit `296123d`): replaced `test_optimization_result_from_dict_sanitizes_non_finite_best_score` with `test_optimization_result_from_dict_rejects_invalid_best_score`, `test_optimization_result_from_dict_accepts_valid_best_score`, and `test_optimization_result_constructor_rejects_invalid_best_score`.
+- **`HANDOFF_NEXT_AGENT.md`**: this entry only (documents commit `296123d`).
+
+### What was verified (this runner: Python 3.14.4 / pytest 9.2.0 / ruff 0.17.6 / black 26.10.1 / mypy 2.4.1; deps under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`)
+- **Reproduction**: before the fix, `OptimizationResult.from_dict({"best_score": float("nan")})` returned `best_score=0.0` with no error while direct construction rejected it; after the fix all invalid bool/nan/string/None cases raise a clear `ValueError` matching direct construction; valid finite values and ±inf sentinels still construct and round-trip.
+- **Focused tests**: `pytest tests/test_optimization.py -k "OptimizationResult or optimization_result" -q` -> **19 passed**; full `tests/test_optimization.py` -> **353 passed, 0 failed** in 17.47s (no pre-existing ParameterSpace failures remain in this baseline).
+- **Guards**: `ruff check .` -> All checks passed; `black --check` on both changed files -> unchanged; `mypy quant_trading/optimization/base.py` -> no issues.
+- **Persistence**: commit `296123d` pushed to `origin/main`; `git status` clean; `HEAD` == `origin/main` == `296123d`.
+
+### What remains unresolved
+- `.github/workflows/tests.yml` CI workflow still absent; durable publication requires a maintainer with `workflows` permission (see prior entries). Do not retry commit+push.
+- The `from_dict`/`__post_init__` validation-gap sweep remains complete across the codebase.
+
+### Approaches that failed
+- None. Single bounded change; all verification passed on first attempt.
+
+### Next task
+- **None assigned.** The repository is fully green with all tracked validation-gap defects fixed, committed, and pushed. Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
