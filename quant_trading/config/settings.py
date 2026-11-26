@@ -903,6 +903,15 @@ class Config:
                 document is not a mapping.
             yaml.YAMLError: If the YAML cannot be parsed.
 
+        Examples:
+            >>> import tempfile, os
+            >>> from quant_trading.config.settings import Config
+            >>> path = os.path.join(tempfile.mkdtemp(), "config.yaml")
+            >>> Config().to_yaml(path)
+            >>> loaded = Config.from_yaml(path)
+            >>> loaded.logging_level == "INFO"
+            True
+
         """
         try:
             with open(path) as f:
@@ -946,6 +955,14 @@ class Config:
         Returns:
             None.
 
+        Examples:
+            >>> import tempfile, os
+            >>> from quant_trading.config.settings import Config
+            >>> path = os.path.join(tempfile.mkdtemp(), "config.yaml")
+            >>> Config().to_yaml(path)
+            >>> os.path.exists(path)
+            True
+
         """
         dirname = os.path.dirname(path)
         if dirname:
@@ -988,6 +1005,13 @@ class Config:
 
         Returns:
             None.
+
+        Examples:
+            >>> from quant_trading.config.settings import Config
+            >>> config = Config()
+            >>> config.update(logging_level="DEBUG")
+            >>> config.logging_level == "DEBUG"
+            True
 
         """
         for key, value in kwargs.items():
