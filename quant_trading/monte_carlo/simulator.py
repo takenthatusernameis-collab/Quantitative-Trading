@@ -357,6 +357,15 @@ class MonteCarloResult:
         Raises:
             ValueError: If no simulations are available.
 
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.monte_carlo.simulator import MonteCarloResult
+            >>> from quant_trading.backtest.metrics import BacktestMetrics
+            >>> sims = [BacktestMetrics(total_return_pct=r) for r in (-5.0, 2.0, 10.0)]
+            >>> mc = MonteCarloResult(simulations=sims, original_metrics=BacktestMetrics(), n_simulations=3, confidence_level=0.95, start_time=datetime(2024, 1, 1), end_time=datetime(2024, 1, 2))
+            >>> mc.get_percentile("total_return_pct", 50.0)
+            2.0
+
         """
         self._ensure_simulations()
         values = [getattr(s, metric) for s in self.simulations]
@@ -377,6 +386,16 @@ class MonteCarloResult:
         Raises:
             ValueError: If no simulations are available.
 
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.monte_carlo.simulator import MonteCarloResult
+            >>> from quant_trading.backtest.metrics import BacktestMetrics
+            >>> sims = [BacktestMetrics(total_return_pct=r) for r in (-5.0, 2.0, 10.0)]
+            >>> mc = MonteCarloResult(simulations=sims, original_metrics=BacktestMetrics(), n_simulations=3, confidence_level=0.95, start_time=datetime(2024, 1, 1), end_time=datetime(2024, 1, 2))
+            >>> lower, upper = mc.get_confidence_interval("total_return_pct")
+            >>> lower <= upper
+            True
+
         """
         self._ensure_simulations()
         alpha = (1 - self.confidence_level) / 2
@@ -393,6 +412,15 @@ class MonteCarloResult:
 
         Raises:
             ValueError: If no simulations are available.
+
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.monte_carlo.simulator import MonteCarloResult
+            >>> from quant_trading.backtest.metrics import BacktestMetrics
+            >>> sims = [BacktestMetrics(total_return_pct=r) for r in (-5.0, 2.0, 10.0)]
+            >>> mc = MonteCarloResult(simulations=sims, original_metrics=BacktestMetrics(), n_simulations=3, confidence_level=0.95, start_time=datetime(2024, 1, 1), end_time=datetime(2024, 1, 2))
+            >>> 0.0 <= mc.probability_of_profit() <= 1.0
+            True
 
         """
         self._ensure_simulations()
@@ -411,6 +439,15 @@ class MonteCarloResult:
 
         Raises:
             ValueError: If no simulations are available.
+
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.monte_carlo.simulator import MonteCarloResult
+            >>> from quant_trading.backtest.metrics import BacktestMetrics
+            >>> sims = [BacktestMetrics(total_return_pct=r) for r in (-5.0, 2.0, 10.0)]
+            >>> mc = MonteCarloResult(simulations=sims, original_metrics=BacktestMetrics(), n_simulations=3, confidence_level=0.95, start_time=datetime(2024, 1, 1), end_time=datetime(2024, 1, 2))
+            >>> 0.0 <= mc.probability_of_beat_benchmark(0.0) <= 1.0
+            True
 
         """
         self._ensure_simulations()
@@ -434,6 +471,15 @@ class MonteCarloResult:
         Raises:
             ValueError: If no simulations are available.
 
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.monte_carlo.simulator import MonteCarloResult
+            >>> from quant_trading.backtest.metrics import BacktestMetrics
+            >>> sims = [BacktestMetrics(total_return_pct=r) for r in (-5.0, 2.0, 10.0)]
+            >>> mc = MonteCarloResult(simulations=sims, original_metrics=BacktestMetrics(), n_simulations=3, confidence_level=0.95, start_time=datetime(2024, 1, 1), end_time=datetime(2024, 1, 2))
+            >>> isinstance(mc.expected_shortfall("total_return_pct"), float)
+            True
+
         """
         self._ensure_simulations()
         values = [getattr(s, metric) for s in self.simulations]
@@ -447,6 +493,15 @@ class MonteCarloResult:
         Returns:
             DataFrame with one row per simulation, or an empty DataFrame
             when no simulations were run.
+
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.monte_carlo.simulator import MonteCarloResult
+            >>> from quant_trading.backtest.metrics import BacktestMetrics
+            >>> sims = [BacktestMetrics(total_return_pct=r) for r in (-5.0, 2.0, 10.0)]
+            >>> mc = MonteCarloResult(simulations=sims, original_metrics=BacktestMetrics(), n_simulations=3, confidence_level=0.95, start_time=datetime(2024, 1, 1), end_time=datetime(2024, 1, 2))
+            >>> len(mc.to_dataframe())
+            3
 
         """
         if not self.simulations:
@@ -463,6 +518,15 @@ class MonteCarloResult:
             Dictionary containing simulation metrics, original metrics, run
             metadata, and ISO-formatted timestamps. Simulation and original
             metrics are serialized via :meth:`BacktestMetrics.to_dict`.
+
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.monte_carlo.simulator import MonteCarloResult
+            >>> from quant_trading.backtest.metrics import BacktestMetrics
+            >>> sims = [BacktestMetrics(total_return_pct=r) for r in (-5.0, 2.0, 10.0)]
+            >>> mc = MonteCarloResult(simulations=sims, original_metrics=BacktestMetrics(), n_simulations=3, confidence_level=0.95, start_time=datetime(2024, 1, 1), end_time=datetime(2024, 1, 2))
+            >>> mc.to_dict()["n_simulations"]
+            3
 
         """
         return {
@@ -493,6 +557,15 @@ class MonteCarloResult:
             ValueError: If ``n_simulations`` or ``confidence_level`` are invalid
                 (bool, non-numeric, NaN, out of range), matching direct construction.
 
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.monte_carlo.simulator import MonteCarloResult
+            >>> from quant_trading.backtest.metrics import BacktestMetrics
+            >>> sims = [BacktestMetrics(total_return_pct=r) for r in (-5.0, 2.0, 10.0)]
+            >>> mc = MonteCarloResult(simulations=sims, original_metrics=BacktestMetrics(), n_simulations=3, confidence_level=0.95, start_time=datetime(2024, 1, 1), end_time=datetime(2024, 1, 2))
+            >>> MonteCarloResult.from_dict(mc.to_dict()).n_simulations
+            3
+
         """
         simulations = [BacktestMetrics.from_dict(s) for s in data.get("simulations", []) or []]
         original = data.get("original_metrics") or {}
@@ -517,6 +590,15 @@ class MonteCarloResult:
             Dictionary with ``n_simulations``, ``confidence_level``,
             ``probability_of_profit``, and mean/std/median/confidence-interval
             entries for each tracked metric. Empty when no simulations ran.
+
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.monte_carlo.simulator import MonteCarloResult
+            >>> from quant_trading.backtest.metrics import BacktestMetrics
+            >>> sims = [BacktestMetrics(total_return_pct=r) for r in (-5.0, 2.0, 10.0)]
+            >>> mc = MonteCarloResult(simulations=sims, original_metrics=BacktestMetrics(), n_simulations=3, confidence_level=0.95, start_time=datetime(2024, 1, 1), end_time=datetime(2024, 1, 2))
+            >>> mc.summary()["n_simulations"]
+            3
 
         """
         if not self.simulations:

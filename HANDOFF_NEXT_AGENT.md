@@ -1,57 +1,52 @@
-## Session 2026-11-26 (allowlist cleanup - data/providers.py)
+## Session 2026-11-26 (allowlist cleanup - monte_carlo/simulator.py)
 
 ### What changed
-- Cleared all 9 public `quant_trading/data/providers.py` entries from `_EXAMPLES_ALLOWLIST`
-  by adding valid, runnable single-line `Examples:` doctests and removing the 12 allowlist
-  lines (fetch x3, fetch_latest x2 had duplicate entries):
-  - `FetchResult.is_success`, `FetchResult.has_errors`, `FetchResult.has_missing` (properties)
-  - `DataProvider.name`, `DataProvider.fetch`, `DataProvider.fetch_latest` (abstract methods)
-  - `DataManager.add_provider`, `DataManager.get_provider`, `DataManager.fetch`, `DataManager.clear_cache`
-  - `LazySyntheticProvider.fetch`, `LazySyntheticProvider.fetch_latest` (nested class in
-    `create_data_manager_from_config`)
-- Removed the 12 cleared lines from `tests/test_repository_integrity.py`.
+- Added valid, runnable SINGLE-LINE `Examples:` doctests to the 9 public
+  `MonteCarloResult` methods that lacked them, and removed their 9 allowlist lines:
+  - `get_percentile`, `get_confidence_interval`, `probability_of_profit`,
+    `probability_of_beat_benchmark`, `expected_shortfall`, `to_dataframe`,
+    `to_dict`, `from_dict` (classmethod), `summary`.
+  - Each doctest constructs a `MonteCarloResult` directly from 3 `BacktestMetrics`
+    sims (`total_return_pct` = -5/2/10) — no heavy backtest run needed.
+- Allowlist shrank by 9 entries. Remaining simulator.py entries (10 lines):
+  `__init__`, `_ensure_simulations`, `_extract_returns`, `_run_bootstrap`,
+  `_run_bootstrap_parallel`, `_run_parametric`, `_run_parametric_parallel`
+  (private/out-of-scope) PLUS `duration_seconds`, `run`, `run_monte_carlo`
+  (kept — see failed approach below).
 
 ### What was verified (evidence)
-- `pytest tests/test_repository_integrity.py --doctest-modules quant_trading/data/providers.py`
-  -> 73 passed, 1 skipped (skip = mypy not installed). Includes allowlist-exists guard + new doctests.
-- `python -m ruff check quant_trading/data/providers.py tests/test_repository_integrity.py` -> clean.
-- Full default suite `pytest -q` -> 5321 passed, 171 skipped, 151 deselected (no regressions).
-- Allowlist shrank by 12 entries. Remaining providers.py entries (9 lines, 6 unique names) are
-  exactly the out-of-scope ones: `__init__` (x2), `_coerce_datetime`, `_ensure_initialized`,
-  `_iso`, `fetch_many`, `to_dict`.
+- `pytest tests/test_repository_integrity.py --doctest-modules quant_trading/monte_carlo/simulator.py`
+  -> 69 passed, 1 skipped (skip = mypy not installed).
+- `python -m ruff check quant_trading/monte_carlo/simulator.py tests/test_repository_integrity.py`
+  -> All checks passed.
+- Full default suite `pytest -q` -> 5332 passed, 171 skipped, 151 deselected (was 5321; +11
+  new doctest assertions, no regressions).
 
 ### IMPORTANT: failed approach (do not repeat)
-- First attempt used a multi-line class-definition doctest for the abstract methods:
-  `>>> class MyProvider(DataProvider):` with `...` continuation lines. This FAILED
-  `test_documented_examples_are_valid` because `_validate_doctest_lines` compiles each `>>>`
-  line in ISOLATION (`compile(code, "<doctest>", "exec")`); a bare `class X:` line does not
-  compile ("expected an indented block after class definition on line 1"). The `...` lines are
-  not validated, so multi-line `>>>` statements (class/def/open-bracket-at-EOL) are unusable in
-  FUNCTION docstrings. (Class docstrings are NOT checked by this guard, which is why the existing
-  `DataProvider` class docstring with a multi-line example passes.)
-- Fix that worked: rewrite abstract-method doctests to single-line statements against the concrete
-  `create_synthetic_provider({"AAPL": 100.0})` (`.name` -> 'synthetic', `.fetch([...]).is_success`
-  -> True, `.fetch_latest([...]).is_success` -> True). This is the same root cause the prior
-  handoff flagged for engine.py `fee`/`run_backtest`.
+- First attempt ALSO removed `duration_seconds`, `run`, `run_monte_carlo` from the allowlist
+  (they already had Examples). This FAILED `test_documented_examples_are_valid`: those three
+  docstrings contain MULTI-LINE `>>>` statements (a `BacktestResult(` call with `...`
+  continuation lines). `_validate_doctest_lines` compiles each `>>>` line in ISOLATION, so the
+  bare `BacktestResult(` line fails with "'(' was never closed". They were only passing before
+  because the allowlist exempted them.
+- Fix: restored those 3 allowlist entries. RULE: only remove an allowlist entry once its
+  docstring uses exclusively single-line `>>>` statements. Existing multi-line `>>>` doctests
+  (open bracket / class / def at end of a `>>>` line) MUST stay allowlisted.
 
 ### Notes for next session
-- `pytest --doctest-modules` does NOT collect doctests from classes defined inside a function
-  (e.g. `LazySyntheticProvider`), so those 2 doctests are AST-validated only, not executed. They
-  are still correct (verified manually). 10 of the 12 new doctests execute and pass.
-- `to_dict` allowlist entry is redundant (all `to_dict` defs already have Examples) but harmless;
-  `DataManager.fetch_many` still lacks Examples, so its entry is still required.
+- Pattern that works for dataclass result methods: build the result directly from a list of
+  `BacktestMetrics(...)` instead of running a real backtest/monte-carlo. Fast + deterministic.
+- Do NOT retry engine.py `__init__`/`fee`/`run_backtest`/private helpers, and do NOT use
+  multi-line `>>>` statements in any function docstring you are de-allowlisting.
 
 ### Next task
-Pick one bounded module from the prior candidate list and clear its public allowlist entries by
-adding valid SINGLE-LINE doctests (no multi-line `>>>` class/def/open-bracket lines) + removing the
-allowlist lines. Good candidates (unique names, simple to doctest):
-- `quant_trading/backtest/report.py`: `generate_comparison_report`, `generate_html_report`,
-  `generate_report_from_dict`, `to_dict` (needs matplotlib + a BacktestResult; heavier).
-- `quant_trading/monte_carlo/simulator.py`: `get_percentile`, `probability_of_profit`,
-  `expected_shortfall`, `get_confidence_interval`, `summary`, `to_dataframe`, `from_dict`, `to_dict`
-  (methods on a result dataclass; construct a small result directly).
+Pick one more bounded module and clear its PUBLIC single-line-doctestable allowlist entries.
+Good candidate (per prior handoff, still untouched):
 - `quant_trading/risk/limits.py`: `add_violation`, `gross_exposure`, `leverage`, `ok`,
-  `portfolio_risk`, `portfolio_risk_pct`, `position_risk` (note `check` has 2 defs).
-Verify with `pytest tests/test_repository_integrity.py --doctest-modules <module>` and `ruff check`.
-Do NOT retry engine.py `__init__`/`fee`/`run_backtest`/private helpers, and do NOT use multi-line
-`>>>` statements in function docstrings.
+  `portfolio_risk`, `portfolio_risk_pct`, `position_risk` (note `check` has 2 defs; `_coerce_datetime`
+  /`_iso` are private — keep). Construct a small RiskManager/result directly.
+- `quant_trading/backtest/report.py`: heavier (needs matplotlib + BacktestResult); the public
+  `generate_*`/`to_dict`/`from_dict` are lower priority than risk/limits.py.
+Verify with `pytest tests/test_repository_integrity.py --doctest-modules <module>` and `ruff check`,
+then run full `pytest -q`. Remember: only de-allowlist functions whose Examples use single-line
+`>>>` statements only.
