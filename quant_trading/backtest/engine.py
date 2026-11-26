@@ -440,66 +440,152 @@ class BacktestResult:
         Returns:
             The unrealized PnL of the open positions.
 
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({"unrealized_pnl": 250.0})
+            >>> result.unrealized_pnl
+            250.0
+
         """
         return float(getattr(self.metrics, "unrealized_pnl", 0.0) or 0.0)
 
     @property
     def num_trades(self) -> int:
-        """Number of completed round trips."""
+        """Number of completed round trips.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({"num_trades": 4})
+            >>> result.num_trades
+            4
+
+        """
 
         return int(getattr(self.metrics, "num_trades", 0) or 0)
 
     @property
     def trade_count(self) -> int:
-        """Alias for :attr:`num_trades`."""
+        """Alias for :attr:`num_trades`.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({"num_trades": 4})
+            >>> result.trade_count
+            4
+
+        """
 
         return self.num_trades
 
     @property
     def win_rate(self) -> float:
-        """Win rate as a fraction (0.0-1.0)."""
+        """Win rate as a fraction (0.0-1.0).
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({"win_rate": 0.75})
+            >>> result.win_rate
+            0.75
+
+        """
 
         return float(getattr(self.metrics, "win_rate", 0.0) or 0.0)
 
     @property
     def sharpe_ratio(self) -> float:
-        """Annualized Sharpe ratio."""
+        """Annualized Sharpe ratio.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({"sharpe_ratio": 1.5})
+            >>> result.sharpe_ratio
+            1.5
+
+        """
 
         return float(getattr(self.metrics, "sharpe_ratio", 0.0) or 0.0)
 
     @property
     def sortino_ratio(self) -> float:
-        """Annualized Sortino ratio."""
+        """Annualized Sortino ratio.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({"sortino_ratio": 2.0})
+            >>> result.sortino_ratio
+            2.0
+
+        """
 
         return float(getattr(self.metrics, "sortino_ratio", 0.0) or 0.0)
 
     @property
     def calmar_ratio(self) -> float:
-        """Calmar ratio."""
+        """Calmar ratio.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({"calmar_ratio": 0.8})
+            >>> result.calmar_ratio
+            0.8
+
+        """
 
         return float(getattr(self.metrics, "calmar_ratio", 0.0) or 0.0)
 
     @property
     def profit_factor(self) -> float:
-        """Profit factor."""
+        """Profit factor.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({"profit_factor": 1.3})
+            >>> result.profit_factor
+            1.3
+
+        """
 
         return float(getattr(self.metrics, "profit_factor", 0.0) or 0.0)
 
     @property
     def max_drawdown_pct(self) -> float:
-        """Maximum drawdown as a percentage."""
+        """Maximum drawdown as a percentage.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({"max_drawdown_pct": -12.5})
+            >>> result.max_drawdown_pct
+            -12.5
+
+        """
 
         return float(getattr(self.metrics, "max_drawdown_pct", 0.0) or 0.0)
 
     @property
     def max_drawdown(self) -> float:
-        """Maximum drawdown as a decimal."""
+        """Maximum drawdown as a decimal.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({"max_drawdown": -0.125})
+            >>> result.max_drawdown
+            -0.125
+
+        """
 
         return float(getattr(self.metrics, "max_drawdown", 0.0) or 0.0)
 
     @property
     def total_pnl(self) -> float:
-        """Total realized PnL."""
+        """Total realized PnL.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({"total_pnl": 5000.0})
+            >>> result.total_pnl
+            5000.0
+
+        """
 
         metrics = self.metrics
         if metrics is None:
