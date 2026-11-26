@@ -282,6 +282,15 @@ class BacktestMetrics:
             Dictionary containing all metric values with keys matching
             the attribute names of this dataclass.
 
+        Examples:
+            >>> from quant_trading.backtest.metrics import BacktestMetrics
+            >>> metrics = BacktestMetrics(total_return=1000.0, sharpe_ratio=1.5, num_trades=3)
+            >>> as_dict = metrics.to_dict()
+            >>> as_dict["total_return"], as_dict["sharpe_ratio"], as_dict["num_trades"]
+            (1000.0, 1.5, 3)
+            >>> as_dict["win_rate"]
+            0.0
+
         """
         return {
             "total_return": self.total_return,
@@ -340,10 +349,7 @@ class BacktestMetrics:
 
         Examples:
             >>> from quant_trading.backtest.metrics import BacktestMetrics
-            >>> restored = BacktestMetrics.from_dict({
-            ...     "sharpe_ratio": 1.5,
-            ...     "num_trades": 7,
-            ... })
+            >>> restored = BacktestMetrics.from_dict({"sharpe_ratio": 1.5, "num_trades": 7})
             >>> restored.sharpe_ratio, restored.num_trades
             (1.5, 7)
 

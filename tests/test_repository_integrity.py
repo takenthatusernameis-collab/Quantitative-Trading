@@ -1857,8 +1857,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/backtest/engine.py", "trade_count"),
         ("quant_trading/backtest/engine.py", "unrealized_pnl"),
         ("quant_trading/backtest/engine.py", "win_rate"),
-        ("quant_trading/backtest/metrics.py", "from_dict"),
-        ("quant_trading/backtest/metrics.py", "to_dict"),
         ("quant_trading/backtest/report.py", "_build_comparison_risk_attribution"),
         ("quant_trading/backtest/report.py", "_build_comparison_summary_cards"),
         ("quant_trading/backtest/report.py", "_build_comparison_table"),
