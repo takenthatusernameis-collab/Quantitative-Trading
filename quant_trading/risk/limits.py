@@ -180,6 +180,24 @@ class PositionLimit:
 
         Booleans and non-numeric values are rejected with a clear ``ValueError``
         instead of being silently coerced or raising an opaque ``TypeError``.
+
+        Examples:
+            >>> from quant_trading.risk.limits import PositionLimit
+            >>> pl = PositionLimit(max_size=0.1, max_value=50000.0)
+            >>> pl.max_size, pl.max_value
+            (0.1, 50000.0)
+            >>> PositionLimit(max_size=True)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid max_size: the value must be finite (got True)
+            >>> PositionLimit(max_size=0.1, max_value="50000")
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid max_value: the value must be finite (got 50000)
+            >>> PositionLimit(stop_loss_pct=float("nan"))
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid stop_loss_pct: the value must be finite (got nan)
         """
         _validate_init_param(self.max_size, "max_size", lambda v: True, "the value must be finite")
         _validate_init_param(

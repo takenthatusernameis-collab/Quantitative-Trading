@@ -2176,7 +2176,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/regime/detector.py", "to_dict"),
         ("quant_trading/regime/detector.py", "to_dict"),
         ("quant_trading/risk/limits.py", "__post_init__"),
-        ("quant_trading/risk/limits.py", "__post_init__"),
         ("quant_trading/risk/limits.py", "_coerce_datetime"),
         ("quant_trading/risk/limits.py", "_iso"),
         ("quant_trading/risk/limits.py", "add_violation"),
