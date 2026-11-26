@@ -498,6 +498,16 @@ class PortfolioLimit:
         Returns:
             Dollar amount at risk for the position (0.0 for flat positions).
 
+        Examples:
+            >>> from quant_trading.risk.limits import PortfolioLimit
+            >>> from quant_trading.strategies.base import Position
+            >>> pl = PortfolioLimit(stop_loss_pct=0.05)
+            >>> pos = Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0)
+            >>> pl.position_risk(pos)
+            750.0
+            >>> pl.position_risk(Position(symbol="AAPL"))
+            0.0
+
         """
         quantity = position.quantity
         if quantity == 0:
@@ -518,6 +528,14 @@ class PortfolioLimit:
         Returns:
             Sum of the risk of every open position, in dollars.
 
+        Examples:
+            >>> from quant_trading.risk.limits import PortfolioLimit
+            >>> from quant_trading.strategies.base import Position
+            >>> pl = PortfolioLimit(stop_loss_pct=0.05)
+            >>> positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0)}
+            >>> pl.portfolio_risk(positions)
+            750.0
+
         """
         return sum(self.position_risk(pos) for pos in positions.values())
 
@@ -531,6 +549,14 @@ class PortfolioLimit:
         Returns:
             Open risk as a fraction of the portfolio value (0.0 when the
             portfolio value is not positive).
+
+        Examples:
+            >>> from quant_trading.risk.limits import PortfolioLimit
+            >>> from quant_trading.strategies.base import Position
+            >>> pl = PortfolioLimit(stop_loss_pct=0.05)
+            >>> positions = {"AAPL": Position(symbol="AAPL", quantity=100, avg_price=150.0, current_price=150.0)}
+            >>> pl.portfolio_risk_pct(positions, portfolio_value=100000.0)
+            0.0075
 
         """
         if not math.isfinite(portfolio_value) or portfolio_value <= 0:
@@ -550,6 +576,14 @@ class PortfolioLimit:
         Returns:
             Gross exposure as a multiple of the portfolio value (0.0 when the
             portfolio value is not positive).
+
+        Examples:
+            >>> from quant_trading.risk.limits import PortfolioLimit
+            >>> from quant_trading.strategies.base import Position
+            >>> pl = PortfolioLimit()
+            >>> positions = {"AAPL": Position(symbol="AAPL", quantity=400, avg_price=150.0, current_price=150.0)}
+            >>> pl.leverage(positions, portfolio_value=100000.0)
+            0.6
 
         """
         if not math.isfinite(portfolio_value) or portfolio_value <= 0:
@@ -572,6 +606,14 @@ class PortfolioLimit:
 
         Returns:
             List of violation messages (empty if none).
+
+        Examples:
+            >>> from quant_trading.risk.limits import PortfolioLimit
+            >>> from quant_trading.strategies.base import Position
+            >>> pl = PortfolioLimit(max_positions=20, max_drawdown=0.20)
+            >>> positions = {"AAPL": Position(symbol="AAPL", quantity=10, avg_price=150.0, current_price=150.0)}
+            >>> pl.check(positions, portfolio_value=100000.0, peak_value=100000.0)
+            []
 
         """
         violations: list[str] = []
@@ -692,6 +734,13 @@ class CheckResult:
         Returns:
             True if passed, False otherwise.
 
+        Examples:
+            >>> from quant_trading.risk.limits import CheckResult
+            >>> CheckResult(passed=True).ok
+            True
+            >>> CheckResult(passed=False).ok
+            False
+
         """
         return self.passed
 
@@ -700,6 +749,13 @@ class CheckResult:
 
         Args:
             message: Description of the violation.
+
+        Examples:
+            >>> from quant_trading.risk.limits import CheckResult
+            >>> res = CheckResult(passed=True)
+            >>> res.add_violation("Position too large")
+            >>> res.passed, res.violations
+            (False, ['Position too large'])
 
         """
         self.violations.append(message)

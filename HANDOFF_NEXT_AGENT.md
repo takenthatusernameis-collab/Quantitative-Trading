@@ -1,52 +1,62 @@
-## Session 2026-11-26 (allowlist cleanup - monte_carlo/simulator.py)
+## Session 2026-11-26 (allowlist cleanup - risk/limits.py)
 
 ### What changed
-- Added valid, runnable SINGLE-LINE `Examples:` doctests to the 9 public
-  `MonteCarloResult` methods that lacked them, and removed their 9 allowlist lines:
-  - `get_percentile`, `get_confidence_interval`, `probability_of_profit`,
-    `probability_of_beat_benchmark`, `expected_shortfall`, `to_dataframe`,
-    `to_dict`, `from_dict` (classmethod), `summary`.
-  - Each doctest constructs a `MonteCarloResult` directly from 3 `BacktestMetrics`
-    sims (`total_return_pct` = -5/2/10) — no heavy backtest run needed.
-- Allowlist shrank by 9 entries. Remaining simulator.py entries (10 lines):
-  `__init__`, `_ensure_simulations`, `_extract_returns`, `_run_bootstrap`,
-  `_run_bootstrap_parallel`, `_run_parametric`, `_run_parametric_parallel`
-  (private/out-of-scope) PLUS `duration_seconds`, `run`, `run_monte_carlo`
-  (kept — see failed approach below).
+- Added valid, runnable SINGLE-LINE `Examples:` doctests to the 7 public
+  `quant_trading/risk/limits.py` callables that lacked them, and removed their
+  allowlist entries:
+  - `PortfolioLimit.position_risk`, `portfolio_risk`, `portfolio_risk_pct`,
+    `leverage`, `check` (the 2nd `check` def), and `CheckResult.ok`,
+    `CheckResult.add_violation`.
+  - `gross_exposure` and `PositionLimit.check` (the 1st `check` def) already had
+    valid single-line examples, so removing the shared `check` allowlist entry
+    required BOTH `check` defs to be valid (they now are).
+  - Each new doctest builds `Position(...)` / `PortfolioLimit(...)` /
+    `CheckResult(...)` directly - no backtest/heavy run. Fast + deterministic.
+- Allowlist shrank by 9 lines (8 distinct `(rel, name)` entries; `check` was
+  listed twice). Remaining limits.py entries (2 lines, both private/out-of-scope):
+  `_coerce_datetime`, `_iso` (kept). Their `_UNDOCUMENTED_PARAM_ALLOWLIST`
+  entries (`value` param) are separate and untouched.
 
 ### What was verified (evidence)
-- `pytest tests/test_repository_integrity.py --doctest-modules quant_trading/monte_carlo/simulator.py`
-  -> 69 passed, 1 skipped (skip = mypy not installed).
-- `python -m ruff check quant_trading/monte_carlo/simulator.py tests/test_repository_integrity.py`
+- `pytest tests/test_repository_integrity.py --doctest-modules quant_trading/risk/limits.py`
+  -> 73 passed, 1 skipped (was 66; +7 new doctest assertions).
+- `python -m ruff check quant_trading/risk/limits.py tests/test_repository_integrity.py`
   -> All checks passed.
-- Full default suite `pytest -q` -> 5332 passed, 171 skipped, 151 deselected (was 5321; +11
-  new doctest assertions, no regressions).
+- `python -m black --check` on both files -> 2 files unchanged.
+- Guard tests `pytest tests/test_repository_integrity.py -k "examples or allowlist"`
+  -> 3 passed.
+- Full default suite `pytest -q` -> 5339 passed, 171 skipped, 151 deselected
+  (was 5332; +7 new doctests, no regressions).
 
-### IMPORTANT: failed approach (do not repeat)
-- First attempt ALSO removed `duration_seconds`, `run`, `run_monte_carlo` from the allowlist
-  (they already had Examples). This FAILED `test_documented_examples_are_valid`: those three
-  docstrings contain MULTI-LINE `>>>` statements (a `BacktestResult(` call with `...`
-  continuation lines). `_validate_doctest_lines` compiles each `>>>` line in ISOLATION, so the
-  bare `BacktestResult(` line fails with "'(' was never closed". They were only passing before
-  because the allowlist exempted them.
-- Fix: restored those 3 allowlist entries. RULE: only remove an allowlist entry once its
-  docstring uses exclusively single-line `>>>` statements. Existing multi-line `>>>` doctests
-  (open bracket / class / def at end of a `>>>` line) MUST stay allowlisted.
+### IMPORTANT: failed approach this session (do not repeat)
+- First `leverage` doctest used a single 400-share position but expected `1.2`.
+  Actual gross exposure = 400*150 = 60000 / 100000 = 0.6. `1.2` only arises with
+  TWO positions. Fix: expected `0.6` for the single-position example.
+- RULE (unchanged from prior handoff): `_validate_doctest_lines` compiles each
+  `>>>` line in ISOLATION. A line ending in an open bracket/brace
+  (`>>> positions = {`, `>>> BacktestResult(`) fails with "was never closed".
+  Keep every `>>>` statement on ONE line; do NOT use `...` continuation for the
+  FIRST line of a statement. (`...` continuation lines that do NOT start with
+  `>>>` are ignored by the structural check, but the opening `>>>` line must be
+  self-contained.)
 
 ### Notes for next session
-- Pattern that works for dataclass result methods: build the result directly from a list of
-  `BacktestMetrics(...)` instead of running a real backtest/monte-carlo. Fast + deterministic.
-- Do NOT retry engine.py `__init__`/`fee`/`run_backtest`/private helpers, and do NOT use
-  multi-line `>>>` statements in any function docstring you are de-allowlisting.
+- Pattern that works: build result objects directly from `Position(...)` /
+  dataclass constructors; keep each `>>>` statement single-line and verify the
+  EXACT repr output by running the snippet in `python -c` BEFORE editing.
+- Ruff uses default rules (no E501), so long single-line `>>>` dict literals are
+  fine; black does not reformat docstring content.
+- Do NOT retry engine.py `__init__`/`fee`/`run_backtest`/private helpers, and do
+  NOT use multi-line `>>>` openers in any function docstring you de-allowlist.
 
 ### Next task
-Pick one more bounded module and clear its PUBLIC single-line-doctestable allowlist entries.
-Good candidate (per prior handoff, still untouched):
-- `quant_trading/risk/limits.py`: `add_violation`, `gross_exposure`, `leverage`, `ok`,
-  `portfolio_risk`, `portfolio_risk_pct`, `position_risk` (note `check` has 2 defs; `_coerce_datetime`
-  /`_iso` are private — keep). Construct a small RiskManager/result directly.
-- `quant_trading/backtest/report.py`: heavier (needs matplotlib + BacktestResult); the public
-  `generate_*`/`to_dict`/`from_dict` are lower priority than risk/limits.py.
-Verify with `pytest tests/test_repository_integrity.py --doctest-modules <module>` and `ruff check`,
-then run full `pytest -q`. Remember: only de-allowlist functions whose Examples use single-line
-`>>>` statements only.
+Pick one more bounded module and clear its PUBLIC single-line-doctestable
+allowlist entries. Good candidate (per prior handoff, still untouched):
+- `quant_trading/backtest/report.py`: heavier (needs matplotlib + BacktestResult);
+  the public `generate_*`/`to_dict`/`from_dict` are lower priority.
+- Alternatively scan `_EXAMPLES_ALLOWLIST` (tests/test_repository_integrity.py
+  ~line 1787) for the next module whose public functions have NO Examples yet and
+  add single-line doctests, then delete those allowlist lines.
+Verify with `pytest tests/test_repository_integrity.py --doctest-modules <module>`
+and `ruff check`, then full `pytest -q`. Only de-allowlist functions whose
+Examples use single-line `>>>` statements only, and confirm exact output first.
