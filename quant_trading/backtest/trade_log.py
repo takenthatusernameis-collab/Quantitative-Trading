@@ -100,6 +100,21 @@ def split_trade_log(trades: pd.DataFrame) -> TradeLog:
         The split trade log. The round trips are empty when the log is empty
         or carries no ``pnl`` column.
 
+    Examples:
+        >>> import pandas as pd
+        >>> from quant_trading.backtest.trade_log import split_trade_log
+        >>> empty_log = split_trade_log(pd.DataFrame())
+        >>> empty_log.round_trips.empty
+        True
+        >>> trades = pd.DataFrame({"pnl": [0.0, 5.0]})
+        >>> log = split_trade_log(trades)
+        >>> len(log.entries)
+        2
+        >>> len(log.round_trips)
+        1
+        >>> float(log.round_trips["pnl"].iloc[0])
+        5.0
+
     """
     if trades.empty or "pnl" not in trades.columns:
         return TradeLog(entries=trades.copy(), round_trips=trades.iloc[0:0].copy())
