@@ -205,6 +205,13 @@ class TradeAnalysis:
         Returns:
             Dictionary of all computed trade statistics.
 
+        Examples:
+            >>> ta = TradeAnalysis(total_trades=3, win_rate=0.75, total_pnl=1250.5)
+            >>> ta.to_dict()["win_rate"]
+            0.75
+            >>> ta.to_dict()["total_trades"]
+            3
+
         """
         return {
             "total_trades": self.total_trades,
@@ -252,6 +259,13 @@ class TradeAnalysis:
         Returns:
             TradeAnalysis object populated from the dictionary.
 
+        Examples:
+            >>> ta = TradeAnalysis.from_dict({"total_trades": 4, "win_rate": 0.5})
+            >>> ta.total_trades
+            4
+            >>> ta.win_rate
+            0.5
+
         """
         return cls(
             total_trades=int(_finite(data.get("total_trades", 0))),
@@ -296,12 +310,17 @@ def _calculate_holding_periods(trades: pd.DataFrame) -> list[float]:
         trades: Trade DataFrame with at least ``symbol``, ``timestamp``,
             ``action``, and ``quantity`` columns.
 
-    Returns:
-        List of holding periods in days (as floats). Empty when there are
-        no completed round trips, and empty when the trades carry no
-        ``action`` column (there are then no entries and exits to pair).
+        Returns:
+            List of holding periods in days (as floats). Empty when there are
+            no completed round trips, and empty when the trades carry no
+            ``action`` column (there are then no entries and exits to pair).
 
-    """
+        Examples:
+            >>> trades = pd.DataFrame([{"symbol":"AAPL","action":"buy","quantity":10,"timestamp":datetime(2024,1,5),"pnl":0.0},{"symbol":"AAPL","action":"sell","quantity":10,"timestamp":datetime(2024,1,6),"pnl":95.0}])
+            >>> _calculate_holding_periods(trades)
+            [1.0]
+
+        """
     if trades.empty or "pnl" not in trades.columns or "action" not in trades.columns:
         return []
 
@@ -371,12 +390,17 @@ def _calculate_consecutive_streaks(trades: pd.DataFrame) -> tuple[int, int, int,
         trades: Trade DataFrame with a ``pnl`` column and, optionally, a
             ``timestamp`` column used to order the trades.
 
-    Returns:
-        Tuple of ``(max_wins, max_losses, current_streak, current_streak_type)``.
-        ``current_streak_type`` is ``"win"`` or ``"loss"`` (empty string when
-        the streak is zero).
+        Returns:
+            Tuple of ``(max_wins, max_losses, current_streak, current_streak_type)``.
+            ``current_streak_type`` is ``"win"`` or ``"loss"`` (empty string when
+            the streak is zero).
 
-    """
+        Examples:
+            >>> trades = pd.DataFrame({"pnl": [10.0, 20.0, -5.0]})
+            >>> _calculate_consecutive_streaks(trades)
+            (2, 1, 1, 'loss')
+
+        """
     if trades.empty or "pnl" not in trades.columns:
         return 0, 0, 0, ""
 
@@ -421,12 +445,17 @@ def _calculate_monthly_returns(equity_curve: pd.Series) -> dict[str, float]:
     Args:
         equity_curve: Time-indexed portfolio equity values.
 
-    Returns:
-        Mapping of month-end date string to monthly return percentage. Empty
-        when fewer than two month-end values are available or when the equity
-        curve is not indexed by time.
+        Returns:
+            Mapping of month-end date string to monthly return percentage. Empty
+            when fewer than two month-end values are available or when the equity
+            curve is not indexed by time.
 
-    """
+        Examples:
+            >>> equity = pd.Series(100000.0 + np.arange(60), index=pd.date_range("2024-01-01", periods=60, freq="D"))
+            >>> round(_calculate_monthly_returns(equity)["2024-02-29"], 4)
+            0.029
+
+        """
     if len(equity_curve) < 2:
         return {}
     if not isinstance(equity_curve.index, pd.DatetimeIndex):
@@ -450,12 +479,17 @@ def _calculate_weekly_returns(equity_curve: pd.Series) -> dict[str, float]:
     Args:
         equity_curve: Time-indexed portfolio equity values.
 
-    Returns:
-        Mapping of week-end date string to weekly return percentage. Empty
-        when fewer than two week-end values are available or when the equity
-        curve is not indexed by time.
+        Returns:
+            Mapping of week-end date string to weekly return percentage. Empty
+            when fewer than two week-end values are available or when the equity
+            curve is not indexed by time.
 
-    """
+        Examples:
+            >>> equity = pd.Series(100000.0 + np.arange(60), index=pd.date_range("2024-01-01", periods=60, freq="D"))
+            >>> round(_calculate_weekly_returns(equity)["2024-01-14"], 4)
+            0.007
+
+        """
     if len(equity_curve) < 2:
         return {}
     if not isinstance(equity_curve.index, pd.DatetimeIndex):
@@ -485,14 +519,19 @@ def _calculate_symbol_stats(
         entries: The whole trade log. It needs at least a ``symbol`` and a
             ``pnl`` column.
 
-    Returns:
-        Mapping of symbol to a dict with ``total_trades``,
-        ``winning_trades``, ``losing_trades``, ``win_rate``, ``total_pnl``,
-        ``avg_pnl``, ``avg_win``, ``avg_loss``, ``largest_win``, and
-        ``largest_loss``. The loss figures are signed, like the top level
-        figures of the same name. Empty when the log carries no trades.
+        Returns:
+            Mapping of symbol to a dict with ``total_trades``,
+            ``winning_trades``, ``losing_trades``, ``win_rate``, ``total_pnl``,
+            ``avg_pnl``, ``avg_win``, ``avg_loss``, ``largest_win``, and
+            ``largest_loss``. The loss figures are signed, like the top level
+            figures of the same name. Empty when the log carries no trades.
 
-    """
+        Examples:
+            >>> trades = pd.DataFrame([{"symbol":"AAPL","action":"buy","quantity":10,"timestamp":datetime(2024,1,5),"pnl":0.0},{"symbol":"AAPL","action":"sell","quantity":10,"timestamp":datetime(2024,1,6),"pnl":95.0}])
+            >>> _calculate_symbol_stats(trades[trades["pnl"] != 0], trades)["AAPL"]["win_rate"]
+            1.0
+
+        """
     if entries.empty or "pnl" not in entries.columns or "symbol" not in entries.columns:
         return {}
 
@@ -533,12 +572,18 @@ def _equity_at_trade_times(equity_curve: pd.Series, timestamps: pd.Series) -> pd
         equity_curve: Time-indexed portfolio equity values.
         timestamps: Trade timestamps to look up.
 
-    Returns:
-        Series of equity values aligned with ``timestamps``. Entries are NaN
-        when the equity curve is empty, is not indexed by time, or does not
-        cover the timestamp.
+        Returns:
+            Series of equity values aligned with ``timestamps``. Entries are NaN
+            when the equity curve is empty, is not indexed by time, or does not
+            cover the timestamp.
 
-    """
+        Examples:
+            >>> equity = pd.Series(100000 + np.arange(10) * 100, index=pd.date_range("2024-01-01", periods=10))
+            >>> timestamps = pd.Series([datetime(2024, 1, 5), datetime(2024, 1, 6)])
+            >>> float(_equity_at_trade_times(equity, timestamps)[0])
+            100400.0
+
+        """
     resolved: pd.Series = pd.Series(np.nan, index=timestamps.index, dtype=float)
 
     if equity_curve is None or len(equity_curve) == 0:
@@ -569,11 +614,17 @@ def _calculate_trade_returns(pnl_trades: pd.DataFrame, equity_curve: pd.Series) 
         pnl_trades: Trades with a ``pnl`` column and a ``timestamp`` column.
         equity_curve: Time-indexed portfolio equity values.
 
-    Returns:
-        Series of per-trade returns aligned with ``pnl_trades``. Entries are
-        NaN when the equity at the trade time is unknown or not positive.
+        Returns:
+            Series of per-trade returns aligned with ``pnl_trades``. Entries are
+            NaN when the equity at the trade time is unknown or not positive.
 
-    """
+        Examples:
+            >>> equity = pd.Series(100000 + np.arange(10) * 100, index=pd.date_range("2024-01-01", periods=10))
+            >>> pnl_trades = pd.DataFrame({"pnl": [95.0], "timestamp": [datetime(2024, 1, 6)]})
+            >>> float(_calculate_trade_returns(pnl_trades, equity)[0])
+            0.000945273631840796
+
+        """
     returns: pd.Series = pd.Series(np.nan, index=pnl_trades.index, dtype=float)
 
     if pnl_trades.empty or "timestamp" not in pnl_trades.columns:
@@ -627,32 +678,16 @@ def analyze_trades(
         TradeAnalysis with detailed statistics.
 
     Examples:
-        >>> import numpy as np
-        >>> import pandas as pd
-        >>> from datetime import datetime
-        >>> from quant_trading.backtest import analyze_trades
-        >>> from quant_trading.backtest.engine import BacktestResult
         >>> from quant_trading.backtest.metrics import BacktestMetrics
-        >>> dates = pd.date_range("2024-01-01", periods=10)
-        >>> equity = pd.Series(100000 + np.arange(10) * 100, index=dates)
-        >>> trades = pd.DataFrame([
-        ...     {"symbol": "AAPL", "action": "buy", "quantity": 10, "price": 150.0,
-        ...      "timestamp": datetime(2024, 1, 5), "commission": 0.0, "slippage": 0.0,
-        ...      "cost": 1500.0, "pnl": 0.0},
-        ...     {"symbol": "AAPL", "action": "sell", "quantity": 10, "price": 160.0,
-        ...      "timestamp": datetime(2024, 1, 6), "commission": 0.0, "slippage": 0.0,
-        ...      "cost": 1600.0, "pnl": 95.0},
-        ... ])
-        >>> metrics = BacktestMetrics()
-        >>> result = BacktestResult(equity_curve=equity, trades=trades, positions={},
-        ...                         metrics=metrics, start_date=datetime(2024, 1, 1),
-        ...                         end_date=datetime(2024, 1, 10), initial_capital=100000.0,
-        ...                         final_value=100095.0, total_return=95.0, total_return_pct=0.095)
-        >>> analysis = analyze_trades(result, risk_free_rate=0.02)
-        >>> analysis.total_trades > 0
-        True
-        >>> print(f"Expectancy: ${analysis.expectancy:,.2f}")
-        Expectancy: $95.00
+        >>> equity = pd.Series(100000 + np.arange(10) * 100, index=pd.date_range("2024-01-01", periods=10))
+        >>> trades = pd.DataFrame([{"symbol":"AAPL","action":"buy","quantity":10,"timestamp":datetime(2024,1,5),"pnl":0.0},{"symbol":"AAPL","action":"sell","quantity":10,"timestamp":datetime(2024,1,6),"pnl":95.0}])
+        >>> metrics = BacktestMetrics(total_return=95.0, total_return_pct=0.095, num_trades=1, num_winning_trades=1, num_losing_trades=0)
+        >>> result = BacktestResult(equity_curve=equity, trades=trades, positions={}, metrics=metrics, start_date=datetime(2024, 1, 1), end_date=datetime(2024, 1, 10), initial_capital=100000.0, final_value=100095.0, total_return=95.0, total_return_pct=0.095)
+        >>> analysis = analyze_trades(result)
+        >>> analysis.total_trades
+        1
+        >>> analysis.expectancy
+        95.0
 
     """
     trades = result.trades.copy()
