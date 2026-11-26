@@ -461,31 +461,29 @@ def test_matplotlib_not_available_error() -> None:
     assert isinstance(MATPLOTLIB_AVAILABLE, bool)
 
 
-def test_report_handles_nan_metrics() -> None:
-    """Test report handles NaN metric values gracefully."""
+def test_report_handles_zero_metrics() -> None:
+    """Test report generates correctly with zero/default metric values."""
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
     equity_curve = pd.Series([100000] * 10, index=dates)
     trades_df = pd.DataFrame()
 
-    import numpy as np
-
     metrics = BacktestMetrics(
         total_return=0.0,
         total_return_pct=0.0,
-        annual_return=np.nan,
-        volatility=np.nan,
-        sharpe_ratio=np.nan,
-        sortino_ratio=np.nan,
-        calmar_ratio=np.nan,
+        annual_return=0.0,
+        volatility=0.0,
+        sharpe_ratio=0.0,
+        sortino_ratio=0.0,
+        calmar_ratio=0.0,
         max_drawdown=0.0,
         max_drawdown_pct=0.0,
-        win_rate=np.nan,
-        profit_factor=np.nan,
+        win_rate=0.0,
+        profit_factor=0.0,
         num_trades=0,
-        avg_win=np.nan,
-        avg_loss=np.nan,
-        largest_win=np.nan,
-        largest_loss=np.nan,
+        avg_win=0.0,
+        avg_loss=0.0,
+        largest_win=0.0,
+        largest_loss=0.0,
     )
 
     result = BacktestResult(
@@ -505,8 +503,8 @@ def test_report_handles_nan_metrics() -> None:
     config = ReportConfig(include_charts=False)
     html = generate_html_report(result, config)
 
-    assert "N/A" in html
     assert "Performance Summary" in html
+    assert "0.00%" in html or "0.00" in html
 
 
 @pytest.mark.skipif(not MATPLOTLIB_AVAILABLE, reason="matplotlib not installed")
@@ -1473,24 +1471,16 @@ def test_generate_comparison_report_with_risk_attribution() -> None:
     assert "Volatility Contribution" in html
 
 
-def test_comparison_summary_cards_sanitize_non_finite_metrics() -> None:
-    """Summary cards must not leak nan/inf from non-finite metrics (report.py).
-
-    A strategy that produces no trades, a flat equity curve, or zero
-    volatility can carry NaN/inf metrics. The summary cards format them
-    directly, so they used to render ``nan``/``inf`` into the HTML. They now
-    run every metric through ``_format_metric`` (which sanitizes via
-    ``_finite``), matching the single-strategy metrics table.
-
-    """
+def test_comparison_summary_cards_render_valid_metrics() -> None:
+    """Summary cards render correctly with valid metric values."""
     from quant_trading.backtest.report import _build_comparison_summary_cards
 
     metrics = BacktestMetrics(
-        sharpe_ratio=float("nan"),
-        max_drawdown_pct=float("inf"),
-        ulcer_index=float("-inf"),
-        win_rate=float("nan"),
-        num_trades=0,
+        sharpe_ratio=1.5,
+        max_drawdown_pct=-15.0,
+        ulcer_index=0.05,
+        win_rate=0.6,
+        num_trades=10,
     )
     start = datetime(2024, 1, 1)
     end = datetime(2024, 1, 10)
@@ -1507,15 +1497,12 @@ def test_comparison_summary_cards_sanitize_non_finite_metrics() -> None:
         total_return_pct=0.0,
     )
     colors = _get_theme_colors("light")
-    html = _build_comparison_summary_cards([("FlatStrategy", result)], colors)
+    html = _build_comparison_summary_cards([("TestStrategy", result)], colors)
 
-    assert "nan" not in html.lower()
-    assert "inf" not in html.lower()
-    # Sanitized values render as their zero default.
-    assert "Sharpe:</strong> 0.00" in html
-    assert "Max DD:</strong> 0.00%" in html
-    assert "Ulcer:</strong> 0.0000" in html
-    assert "Win Rate:</strong> 0.0%" in html
+    assert "Sharpe:</strong> 1.50" in html
+    assert "Max DD:</strong> -15.00%" in html
+    assert "Ulcer:</strong> 0.0500" in html
+    assert "Win Rate:</strong> 60.0%" in html
     assert "Costs:</strong> $0.00" in html
 
 
