@@ -2340,14 +2340,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/strategies/factory.py", "register_strategy"),
         ("quant_trading/strategies/factory.py", "strategy_keys"),
         ("quant_trading/strategies/factory.py", "unregister"),
-        ("quant_trading/utils/formatting.py", "format_basis_points"),
-        ("quant_trading/utils/formatting.py", "format_currency"),
-        ("quant_trading/utils/formatting.py", "format_duration_days"),
-        ("quant_trading/utils/formatting.py", "format_number"),
-        ("quant_trading/utils/formatting.py", "format_percent"),
-        ("quant_trading/utils/formatting.py", "format_shares"),
-        ("quant_trading/utils/logging.py", "get_logger"),
-        ("quant_trading/utils/logging.py", "setup_logger"),
     }
 )
 
