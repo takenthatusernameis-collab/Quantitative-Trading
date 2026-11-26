@@ -131,6 +131,27 @@ class ParameterSpace:
             ``values`` can be constructed with an invalid ``step`` (which is
             ignored when ``values`` is present).
 
+        Examples:
+            >>> from quant_trading.optimization.base import ParameterSpace
+            >>> space = ParameterSpace(name="x", values=[1, 2, 3])
+            >>> space.generate_grid()
+            [1.0, 2.0, 3.0]
+            >>> space = ParameterSpace(name="y", min_val=0.0, max_val=1.0, step=0.5)
+            >>> space.generate_grid()
+            [0.0, 0.5, 1.0]
+            >>> ParameterSpace(name="z")
+            Traceback (most recent call last):
+                ...
+            ValueError: Either values or min_val must be provided
+            >>> ParameterSpace(name="x", min_val=True)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid min_val: must be a finite number (got True)
+            >>> ParameterSpace(name="x", min_val=float("nan"))
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid min_val: must be a finite number (got nan)
+
         """
         if self.values is None and self.min_val is None:
             raise ValueError("Either values or min_val must be provided")
@@ -732,6 +753,27 @@ class OptimizationResult:
             ValueError: If ``best_score`` is a boolean, non-numeric, or NaN value.
                 Infinite values (inf, -inf) are accepted as sentinels for
                 "no valid result found" or "unbounded optimum".
+
+        Examples:
+            >>> from quant_trading.optimization.base import OptimizationResult
+            >>> r = OptimizationResult(best_params={"x": 1}, best_score=1.0)
+            >>> r.best_params, r.best_score
+            ({'x': 1}, 1.0)
+            >>> r = OptimizationResult(best_params={}, best_score=float("-inf"))
+            >>> r.best_score
+            -inf
+            >>> OptimizationResult(best_params={}, best_score=True)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid best_score: the value must be a number (got True)
+            >>> OptimizationResult(best_params={}, best_score=float("nan"))
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid best_score: the value must be finite or infinite (got nan)
+            >>> OptimizationResult(best_params={}, best_score="not a number")
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid best_score: the value must be a number (got not a number)
 
         """
         if isinstance(self.best_score, bool) or not isinstance(self.best_score, (int, float)):

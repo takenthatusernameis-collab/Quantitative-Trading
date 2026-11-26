@@ -93,6 +93,25 @@ class Holding:
         here rather than left to the caller. A zero-quantity holding has no
         market value and keeps the ``0.0`` default. Non-finite inputs are
         sanitized to 0.0 to prevent NaN/inf propagation.
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Holding
+            >>> h = Holding(symbol="AAPL", quantity=100, avg_cost=100.0, current_price=150.0)
+            >>> h.market_value
+            15000.0
+            >>> h = Holding(symbol="AAPL", quantity=-50, avg_cost=100.0, current_price=150.0)
+            >>> h.market_value
+            -7500.0
+            >>> h = Holding(symbol="AAPL", quantity=0, avg_cost=100.0, current_price=150.0)
+            >>> h.market_value
+            0.0
+            >>> h = Holding(symbol="AAPL", quantity=float("nan"), current_price=150.0)
+            >>> h.quantity, h.market_value
+            (0.0, 0.0)
+            >>> h = Holding(symbol="AAPL", quantity=100, current_price=float("inf"))
+            >>> h.current_price, h.market_value
+            (0.0, 0.0)
+
         """
         if not isfinite(self.quantity):
             self.quantity = 0.0
@@ -258,7 +277,23 @@ class Portfolio:
     last_rebalance: datetime | None = None
 
     def __post_init__(self) -> None:
-        """Derive initial capital and total value when not explicitly provided."""
+        """Derive initial capital and total value when not explicitly provided.
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> p = Portfolio(cash=100000.0)
+            >>> p.initial_capital
+            100000.0
+            >>> p.total_value
+            100000.0
+            >>> p = Portfolio(cash=50000.0, initial_capital=100000.0)
+            >>> p.initial_capital, p.total_value
+            (100000.0, 50000.0)
+            >>> p = Portfolio(cash=float("nan"), initial_capital=float("inf"))
+            >>> p.cash, p.initial_capital, p.total_value
+            (0.0, 0.0, 0.0)
+
+        """
         if not isfinite(self.cash):
             self.cash = 0.0
         if not isfinite(self.initial_capital):
