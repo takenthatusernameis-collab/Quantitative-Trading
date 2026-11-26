@@ -197,6 +197,78 @@ class BacktestMetrics:
     # callers that build a metrics object positionally.
     unrealized_pnl: float = 0.0
 
+    def __post_init__(self) -> None:
+        """Validate construction inputs.
+
+        Raises:
+            ValueError: If any field has an invalid type or value.
+        """
+        # Integer fields: must be non-negative ints, not bool
+        for field_name in ("num_trades", "num_winning_trades", "num_losing_trades"):
+            value = getattr(self, field_name)
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(
+                    f"invalid {field_name}: the value must be an integer (got {value!r})"
+                )
+            if value < 0:
+                raise ValueError(
+                    f"invalid {field_name}: the value must be non-negative (got {value})"
+                )
+
+        # Float fields: must be finite numbers, not bool
+        float_fields = (
+            "total_return",
+            "total_pnl",
+            "total_return_pct",
+            "annual_return",
+            "annual_return_pct",
+            "volatility",
+            "max_drawdown",
+            "max_drawdown_pct",
+            "sharpe_ratio",
+            "sortino_ratio",
+            "calmar_ratio",
+            "win_rate",
+            "profit_factor",
+            "avg_win",
+            "avg_loss",
+            "largest_win",
+            "largest_loss",
+            "var_95",
+            "var_99",
+            "cvar_95",
+            "cvar_99",
+            "beta",
+            "alpha",
+            "treynor_ratio",
+            "information_ratio",
+            "omega_ratio",
+            "ulcer_index",
+            "unrealized_pnl",
+        )
+        for field_name in float_fields:
+            value = getattr(self, field_name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(
+                    f"invalid {field_name}: the value must be a number (got {value!r})"
+                )
+            if not math.isfinite(value):
+                raise ValueError(
+                    f"invalid {field_name}: the value must be finite (got {value})"
+                )
+
+        # win_rate must be in [0, 1]
+        if not (0.0 <= self.win_rate <= 1.0):
+            raise ValueError(
+                f"invalid win_rate: the value must be in [0, 1] (got {self.win_rate})"
+            )
+
+        # profit_factor must be >= 0
+        if self.profit_factor < 0:
+            raise ValueError(
+                f"invalid profit_factor: the value must be non-negative (got {self.profit_factor})"
+            )
+
     def to_dict(self) -> dict[str, Any]:
         """Convert metrics to a dictionary.
 
@@ -247,16 +319,18 @@ class BacktestMetrics:
         produced by :meth:`to_dict` (for example after a JSON round-trip) can
         be reconstructed without carrying every field. Extra keys are ignored.
 
-        Non-finite (NaN/inf), non-numeric, and missing numeric fields are
-        sanitized to their defaults (``0.0`` for ratios and values, ``0`` for
-        trade counts) so a corrupted dictionary cannot poison a reconstructed
-        metrics object with NaN/inf.
+        Invalid values (booleans, non-numeric, NaN, infinite, out of range)
+        are rejected with a clear ``ValueError`` rather than silently coerced
+        to defaults. This matches the behavior of direct construction.
 
         Args:
             data: Dictionary whose keys match metric attribute names.
 
         Returns:
             BacktestMetrics object populated from the dictionary.
+
+        Raises:
+            ValueError: If any value fails validation.
 
         Examples:
             >>> from quant_trading.backtest.metrics import BacktestMetrics
@@ -266,50 +340,41 @@ class BacktestMetrics:
             ... })
             >>> restored.sharpe_ratio, restored.num_trades
             (1.5, 7)
-            >>> sanitized = BacktestMetrics.from_dict({
-            ...     "sharpe_ratio": float("nan"),
-            ...     "max_drawdown": float("inf"),
-            ...     "num_trades": "not a number",
-            ...     "win_rate": None,
-            ... })
-            >>> sanitized.sharpe_ratio, sanitized.max_drawdown
-            (0.0, 0.0)
-            >>> sanitized.num_trades, sanitized.win_rate
-            (0, 0.0)
 
         """
+        # Pass raw values to constructor; __post_init__ validates them
         return cls(
-            total_return=_finite(data.get("total_return", 0.0), 0.0),
-            total_pnl=_finite(data.get("total_pnl", 0.0), 0.0),
-            total_return_pct=_finite(data.get("total_return_pct", 0.0), 0.0),
-            annual_return=_finite(data.get("annual_return", 0.0), 0.0),
-            annual_return_pct=_finite(data.get("annual_return_pct", 0.0), 0.0),
-            volatility=_finite(data.get("volatility", 0.0), 0.0),
-            max_drawdown=_finite(data.get("max_drawdown", 0.0), 0.0),
-            max_drawdown_pct=_finite(data.get("max_drawdown_pct", 0.0), 0.0),
-            sharpe_ratio=_finite(data.get("sharpe_ratio", 0.0), 0.0),
-            sortino_ratio=_finite(data.get("sortino_ratio", 0.0), 0.0),
-            calmar_ratio=_finite(data.get("calmar_ratio", 0.0), 0.0),
-            win_rate=_finite(data.get("win_rate", 0.0), 0.0),
-            profit_factor=_finite(data.get("profit_factor", 0.0), 0.0),
-            num_trades=int(_finite(data.get("num_trades", 0), 0)),
-            num_winning_trades=int(_finite(data.get("num_winning_trades", 0), 0)),
-            num_losing_trades=int(_finite(data.get("num_losing_trades", 0), 0)),
-            avg_win=_finite(data.get("avg_win", 0.0), 0.0),
-            avg_loss=_finite(data.get("avg_loss", 0.0), 0.0),
-            largest_win=_finite(data.get("largest_win", 0.0), 0.0),
-            largest_loss=_finite(data.get("largest_loss", 0.0), 0.0),
-            var_95=_finite(data.get("var_95", 0.0), 0.0),
-            var_99=_finite(data.get("var_99", 0.0), 0.0),
-            cvar_95=_finite(data.get("cvar_95", 0.0), 0.0),
-            cvar_99=_finite(data.get("cvar_99", 0.0), 0.0),
-            beta=_finite(data.get("beta", 0.0), 0.0),
-            alpha=_finite(data.get("alpha", 0.0), 0.0),
-            treynor_ratio=_finite(data.get("treynor_ratio", 0.0), 0.0),
-            information_ratio=_finite(data.get("information_ratio", 0.0), 0.0),
-            omega_ratio=_finite(data.get("omega_ratio", 0.0), 0.0),
-            ulcer_index=_finite(data.get("ulcer_index", 0.0), 0.0),
-            unrealized_pnl=_finite(data.get("unrealized_pnl", 0.0), 0.0),
+            total_return=data.get("total_return", 0.0),
+            total_pnl=data.get("total_pnl", 0.0),
+            total_return_pct=data.get("total_return_pct", 0.0),
+            annual_return=data.get("annual_return", 0.0),
+            annual_return_pct=data.get("annual_return_pct", 0.0),
+            volatility=data.get("volatility", 0.0),
+            max_drawdown=data.get("max_drawdown", 0.0),
+            max_drawdown_pct=data.get("max_drawdown_pct", 0.0),
+            sharpe_ratio=data.get("sharpe_ratio", 0.0),
+            sortino_ratio=data.get("sortino_ratio", 0.0),
+            calmar_ratio=data.get("calmar_ratio", 0.0),
+            win_rate=data.get("win_rate", 0.0),
+            profit_factor=data.get("profit_factor", 0.0),
+            num_trades=data.get("num_trades", 0),
+            num_winning_trades=data.get("num_winning_trades", 0),
+            num_losing_trades=data.get("num_losing_trades", 0),
+            avg_win=data.get("avg_win", 0.0),
+            avg_loss=data.get("avg_loss", 0.0),
+            largest_win=data.get("largest_win", 0.0),
+            largest_loss=data.get("largest_loss", 0.0),
+            var_95=data.get("var_95", 0.0),
+            var_99=data.get("var_99", 0.0),
+            cvar_95=data.get("cvar_95", 0.0),
+            cvar_99=data.get("cvar_99", 0.0),
+            beta=data.get("beta", 0.0),
+            alpha=data.get("alpha", 0.0),
+            treynor_ratio=data.get("treynor_ratio", 0.0),
+            information_ratio=data.get("information_ratio", 0.0),
+            omega_ratio=data.get("omega_ratio", 0.0),
+            ulcer_index=data.get("ulcer_index", 0.0),
+            unrealized_pnl=data.get("unrealized_pnl", 0.0),
         )
 
 

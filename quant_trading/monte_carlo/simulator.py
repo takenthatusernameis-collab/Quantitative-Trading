@@ -270,6 +270,30 @@ class MonteCarloResult:
     start_time: datetime
     end_time: datetime
 
+    def __post_init__(self) -> None:
+        """Validate construction inputs.
+
+        Raises:
+            ValueError: If ``n_simulations`` is not a non-negative integer,
+                or if ``confidence_level`` is not in (0, 1).
+        """
+        if isinstance(self.n_simulations, bool) or not isinstance(self.n_simulations, int):
+            raise ValueError(
+                f"invalid n_simulations: the value must be an integer (got {self.n_simulations!r})"
+            )
+        if self.n_simulations < 0:
+            raise ValueError(
+                f"invalid n_simulations: the value must be non-negative (got {self.n_simulations})"
+            )
+        if isinstance(self.confidence_level, bool) or not isinstance(self.confidence_level, (int, float)):
+            raise ValueError(
+                f"invalid confidence_level: the value must be a number (got {self.confidence_level!r})"
+            )
+        if not (0 < self.confidence_level < 1):
+            raise ValueError(
+                f"invalid confidence_level: the value must be in (0, 1) (got {self.confidence_level})"
+            )
+
     def _ensure_simulations(self) -> None:
         """Raise if no simulation results are available for statistics.
 
@@ -451,6 +475,10 @@ class MonteCarloResult:
         Returns:
             MonteCarloResult populated from the dictionary.
 
+        Raises:
+            ValueError: If ``n_simulations`` or ``confidence_level`` are invalid
+                (bool, non-numeric, NaN, out of range), matching direct construction.
+
         """
         simulations = [BacktestMetrics.from_dict(s) for s in data.get("simulations", []) or []]
         original = data.get("original_metrics") or {}
@@ -462,8 +490,8 @@ class MonteCarloResult:
         return cls(
             simulations=simulations,
             original_metrics=BacktestMetrics.from_dict(original),
-            n_simulations=int(_finite(data.get("n_simulations", len(simulations)))),
-            confidence_level=_finite(data.get("confidence_level", 0.95)),
+            n_simulations=data.get("n_simulations", len(simulations)),
+            confidence_level=data.get("confidence_level", 0.95),
             start_time=start,
             end_time=end,
         )

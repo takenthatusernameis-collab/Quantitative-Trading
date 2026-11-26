@@ -588,6 +588,50 @@ class TestMonteCarloResultSerialization:
         assert reconstructed.n_simulations == 0
 
 
+class TestMonteCarloResultFromDictValidation:
+    """Tests for MonteCarloResult.from_dict input validation."""
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("n_simulations", True),
+            ("n_simulations", False),
+            ("n_simulations", "abc"),
+            ("n_simulations", float("nan")),
+            ("confidence_level", True),
+            ("confidence_level", False),
+            ("confidence_level", "abc"),
+            ("confidence_level", float("nan")),
+            ("confidence_level", 0.0),
+            ("confidence_level", 1.0),
+            ("confidence_level", 1.5),
+            ("confidence_level", -0.5),
+        ],
+    )
+    def test_from_dict_rejects_invalid_inputs(self, field: str, value: object) -> None:
+        """Invalid inputs for numeric fields raise ValueError."""
+        with pytest.raises(ValueError, match=f"invalid {field}"):
+            MonteCarloResult.from_dict({field: value})
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("n_simulations", 0),
+            ("n_simulations", 10),
+            ("confidence_level", 0.5),
+            ("confidence_level", 0.95),
+            ("confidence_level", 0.99),
+        ],
+    )
+    def test_from_dict_accepts_valid_inputs(self, field: str, value: object) -> None:
+        """Valid inputs for numeric fields are accepted."""
+        mc = MonteCarloResult.from_dict({field: value})
+        if field == "n_simulations":
+            assert mc.n_simulations == value
+        else:
+            assert mc.confidence_level == value
+
+
 class TestMonteCarloParallelExecution:
     """Tests for parallel Monte Carlo execution."""
 
