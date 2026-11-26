@@ -135,6 +135,12 @@ def gross_exposure(position: Position) -> float:
     Returns:
         Absolute market value of the position.
 
+    Examples:
+        >>> from quant_trading.risk.limits import gross_exposure
+        >>> from quant_trading.strategies.base import Position
+        >>> gross_exposure(Position(symbol="AAPL", quantity=10, avg_price=150.0, current_price=150.0))
+        1500.0
+
     """
     return abs(position.market_value)
 
@@ -271,6 +277,12 @@ class PositionLimit:
 
         Returns:
             List of violation messages (empty if none).
+
+        Examples:
+            >>> from quant_trading.risk.limits import PositionLimit
+            >>> from quant_trading.strategies.base import Position
+            >>> PositionLimit(max_size=0.1, max_value=10000.0).check(Position(symbol="AAPL", quantity=0, avg_price=150.0, current_price=150.0), 50000.0)
+            []
 
         """
         violations: list[str] = []
