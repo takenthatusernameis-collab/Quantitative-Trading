@@ -278,15 +278,17 @@ class MonteCarloResult:
                 or if ``confidence_level`` is not in (0, 1).
         """
         if isinstance(self.n_simulations, bool) or not isinstance(self.n_simulations, int):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004
                 f"invalid n_simulations: the value must be an integer (got {self.n_simulations!r})"
             )
         if self.n_simulations < 0:
             raise ValueError(
                 f"invalid n_simulations: the value must be non-negative (got {self.n_simulations})"
             )
-        if isinstance(self.confidence_level, bool) or not isinstance(self.confidence_level, (int, float)):
-            raise ValueError(
+        if isinstance(self.confidence_level, bool) or not isinstance(
+            self.confidence_level, (int, float)
+        ):
+            raise ValueError(  # noqa: TRY004
                 f"invalid confidence_level: the value must be a number (got {self.confidence_level!r})"
             )
         if not (0 < self.confidence_level < 1):

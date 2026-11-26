@@ -207,7 +207,7 @@ class BacktestMetrics:
         for field_name in ("num_trades", "num_winning_trades", "num_losing_trades"):
             value = getattr(self, field_name)
             if isinstance(value, bool) or not isinstance(value, int):
-                raise ValueError(
+                raise ValueError(  # noqa: TRY004
                     f"invalid {field_name}: the value must be an integer (got {value!r})"
                 )
             if value < 0:
@@ -249,19 +249,15 @@ class BacktestMetrics:
         for field_name in float_fields:
             value = getattr(self, field_name)
             if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise ValueError(
+                raise ValueError(  # noqa: TRY004
                     f"invalid {field_name}: the value must be a number (got {value!r})"
                 )
             if not math.isfinite(value):
-                raise ValueError(
-                    f"invalid {field_name}: the value must be finite (got {value})"
-                )
+                raise ValueError(f"invalid {field_name}: the value must be finite (got {value})")
 
         # win_rate must be in [0, 1]
         if not (0.0 <= self.win_rate <= 1.0):
-            raise ValueError(
-                f"invalid win_rate: the value must be in [0, 1] (got {self.win_rate})"
-            )
+            raise ValueError(f"invalid win_rate: the value must be in [0, 1] (got {self.win_rate})")
 
         # profit_factor must be >= 0
         if self.profit_factor < 0:
