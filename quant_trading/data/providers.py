@@ -109,7 +109,18 @@ class MarketData:
     metadata: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
-        """Initialize metadata to an empty dict when not provided."""
+        """Initialize metadata to an empty dict when not provided.
+
+        Examples:
+            >>> import pandas as pd
+            >>> from quant_trading.data.providers import MarketData
+            >>> md = MarketData(symbol="AAPL", data=pd.DataFrame({"close": [1.0]}), source="synthetic", fetched_at=pd.Timestamp("2024-01-01"))
+            >>> md.metadata
+            {}
+            >>> md2 = MarketData(symbol="AAPL", data=pd.DataFrame({"close": [1.0]}), source="synthetic", fetched_at=pd.Timestamp("2024-01-01"), metadata={"key": "value"})
+            >>> md2.metadata
+            {'key': 'value'}
+        """
         if self.metadata is None:
             self.metadata = {}
 

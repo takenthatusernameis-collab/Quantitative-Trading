@@ -1914,7 +1914,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/config/settings.py", "update"),
         ("quant_trading/data/providers.py", "__init__"),
         ("quant_trading/data/providers.py", "__init__"),
-        ("quant_trading/data/providers.py", "__post_init__"),
         ("quant_trading/data/providers.py", "_coerce_datetime"),
         ("quant_trading/data/providers.py", "_ensure_initialized"),
         ("quant_trading/data/providers.py", "_iso"),
