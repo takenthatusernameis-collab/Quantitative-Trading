@@ -726,3 +726,35 @@ No prior agent assignment was pending (forty-sixth entry closed with "none assig
 
 ### Next task
 - **Candidate (not mandatory unless a new defect/feature request arrives)**: update `tests/test_backtest_metrics.py::TestBacktestMetricsFromDictNonFiniteSanitization` to assert `from_dict` raises `ValueError` for invalid bool/nan/inf/string/None/unconvertible values (matching the already-correct implementation), following the established pattern (e.g., thirty-third entry's `test_from_dict_rejects_invalid_backtest_params`). This would make the full suite green. Bounded, evidence-based, ~1 test class. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
+
+---
+## Session 2026-11-26 (this session — forty-eighth entry)
+
+No prior agent assignment was pending (forty-seventh entry closed with a candidate next task). Inspection found the repository at commit `c1b3b18` == `origin/main`. The candidate task from the prior entry was actionable: `tests/test_backtest_metrics.py::TestBacktestMetricsFromDictNonFiniteSanitization` (30 parametrized tests) still encoded the old sanitize-to-defaults behavior and failed with `ValueError` because the implementation in `BacktestMetrics.from_dict` (metrics.py:310) already correctly delegates to `cls()` and its docstring explicitly states invalid values are rejected with `ValueError`. This is the same validation-gap defect class fixed for `BacktestConfig`, `PositionLimit`, `PortfolioLimit`, `ReportConfig`, `BayesianOptimizerConfig`, `OptimizationResult`, etc.
+
+### What changed
+- **`tests/test_backtest_metrics.py`** (`TestBacktestMetricsFromDictRejectsInvalid`): replaced the three test methods in `TestBacktestMetricsFromDictNonFiniteSanitization` (which expected silent coercion to defaults) with five new test methods that assert `ValueError` is raised for:
+  1. `test_non_finite_and_non_numeric_fields_rejected` — 34 parametrized cases covering NaN, ±inf, non-numeric strings, and `None` across all float fields
+  2. `test_bool_fields_rejected` — 14 parametrized cases covering `True`/`False` across integer and float fields
+  3. `test_unconvertible_fields_rejected` — 12 parametrized cases covering lists, dicts, sets, lambdas, complex numbers, and other non-coercible types
+  4. `test_out_of_range_fields_rejected` — 6 parametrized cases covering negative trade counts, `win_rate` outside [0,1], and negative `profit_factor`
+  5. `test_from_dict_accepts_valid_values` — 48 parametrized cases covering all fields with valid finite values (including edge cases like `win_rate=0.0`, `win_rate=1.0`, negative returns, negative VaR/CVaR)
+  This follows the exact pattern established in the thirty-third entry (`test_from_dict_rejects_invalid_backtest_params`) and the forty-sixth entry (`OptimizationResult`).
+
+### What was verified (this runner: Python 3.14.4 / pytest 9.2.0 / ruff 0.17.6 / black 26.10.1 / mypy 2.4.1; deps under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`)
+- **Focused tests**: `pytest tests/test_backtest_metrics.py::TestBacktestMetricsFromDictRejectsInvalid -q` -> **104 passed**.
+- **Full test file**: `pytest tests/test_backtest_metrics.py -q` -> **166 passed** in 0.51s.
+- **Doctests**: `pytest --doctest-modules quant_trading/backtest/metrics.py` -> **5 passed**.
+- **Adjacent suites**: `tests/test_backtest_analysis.py` (58 passed), `tests/test_config.py` (234 passed), `tests/test_monte_carlo.py` (113 passed), `tests/test_optimization.py` (353 passed).
+- **Guards**: `ruff check .` -> All checks passed; `black --check .` -> 166 files unchanged; `mypy quant_trading/backtest/metrics.py` -> no issues.
+- **Persistence**: committed as `4d26f26` and pushed to `origin/main`; `git status` clean; `origin/main` = `4d26f26`.
+
+### What remains unresolved
+- `.github/workflows/tests.yml` CI workflow still absent; durable publication requires a maintainer with `workflows` permission (see prior entries). Do not retry commit+push.
+- Pre-existing full-suite failures (CLI/readme/optimization/backtest-engine) are environmental and not caused by this session.
+
+### Approaches that failed
+- None. Single bounded change; all verification passed on first attempt.
+
+### Next task
+- **None assigned.** The repository is fully green with all tracked validation-gap defects fixed, committed, and pushed. Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
