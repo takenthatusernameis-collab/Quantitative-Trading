@@ -108,6 +108,17 @@ class Signal:
         Returns:
             None.
 
+        Examples:
+            >>> from quant_trading.strategies.base import Signal
+            >>> signal = Signal(symbol="AAPL", action="buy")
+            >>> signal.timestamp is not None
+            True
+            >>> from datetime import datetime
+            >>> explicit = datetime(2024, 1, 1, 12, 0, 0)
+            >>> signal2 = Signal(symbol="AAPL", action="buy", timestamp=explicit)
+            >>> signal2.timestamp
+            datetime.datetime(2024, 1, 1, 12, 0)
+
         """
         if self.timestamp is None:
             self.timestamp = datetime.now()

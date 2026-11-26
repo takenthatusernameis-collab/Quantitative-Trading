@@ -2227,7 +2227,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/strategies/__init__.py", "get_strategy_factory"),
         ("quant_trading/strategies/base.py", "__init__"),
         ("quant_trading/strategies/base.py", "__init__"),
-        ("quant_trading/strategies/base.py", "__post_init__"),
         ("quant_trading/strategies/base.py", "add_strategy"),
         ("quant_trading/strategies/base.py", "from_config"),
         ("quant_trading/strategies/base.py", "generate_all_signals"),
