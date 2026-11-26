@@ -372,6 +372,24 @@ class PortfolioLimit:
         the check. Range enforcement happens at the RiskManager boundary.
         Booleans and non-numeric values are rejected with a clear ``ValueError``
         instead of being silently coerced or raising an opaque ``TypeError``.
+
+        Examples:
+            >>> from quant_trading.risk.limits import PortfolioLimit
+            >>> pl = PortfolioLimit(max_positions=20, max_drawdown=0.20)
+            >>> pl.max_positions, pl.max_drawdown
+            (20, 0.2)
+            >>> PortfolioLimit(max_positions=True)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid max_positions: the value must be at least 0 and finite (got True)
+            >>> PortfolioLimit(max_positions=-1)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid max_positions: the value must be at least 0 and finite (got -1)
+            >>> PortfolioLimit(max_drawdown=float("nan"))
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid max_drawdown: the value must be finite (got nan)
         """
         _validate_init_param(
             self.max_positions,
