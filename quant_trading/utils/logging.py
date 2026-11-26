@@ -25,11 +25,12 @@ def setup_logger(
     Returns:
         Configured logger instance.
 
-    >>> logger = setup_logger("quant_trading.doctest.logger")
-    >>> logger.name
-    'quant_trading.doctest.logger'
-    >>> setup_logger("quant_trading.doctest.logger") is logger
-    True
+    Examples:
+        >>> logger = setup_logger("quant_trading.doctest.logger")
+        >>> logger.name
+        'quant_trading.doctest.logger'
+        >>> setup_logger("quant_trading.doctest.logger") is logger
+        True
 
     """
     logger = logging.getLogger(name)
@@ -63,11 +64,12 @@ def get_logger(name: str = "quant_trading") -> logging.Logger:
     Returns:
         Logger instance.
 
-    >>> logger = get_logger("quant_trading.doctest.logger")
-    >>> logger.name
-    'quant_trading.doctest.logger'
-    >>> get_logger("quant_trading.doctest.logger") is logger
-    True
+    Examples:
+        >>> logger = get_logger("quant_trading.doctest.logger")
+        >>> logger.name
+        'quant_trading.doctest.logger'
+        >>> get_logger("quant_trading.doctest.logger") is logger
+        True
 
     """
     logger = logging.getLogger(name)
