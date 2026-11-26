@@ -357,7 +357,9 @@ class TestBacktestRegimeAnalysisFromDict:
         assert reconstructed.vol_threshold == 0.2
         assert reconstructed.return_threshold == 0.03
         assert reconstructed.periods_per_year == 52
-        assert reconstructed.current_regime.value == "bull_low_vol"
+        # current_regime is derived from segments (UNKNOWN when empty),
+        # not read from the dict, to avoid stale/inconsistent values
+        assert reconstructed.current_regime.value == "unknown"
         assert reconstructed.result.total_volatility == 0.18
         assert reconstructed.result.total_return_pct == 5.5
         assert reconstructed.n_segments == 0
