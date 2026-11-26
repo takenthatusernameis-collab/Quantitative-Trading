@@ -98,6 +98,12 @@ def get_default_data_manager() -> DataManager:
         The shared default :class:`~quant_trading.data.providers.DataManager`
         instance.
 
+    Examples:
+        >>> reset_default_data_manager()
+        >>> dm = get_default_data_manager()
+        >>> type(dm).__name__
+        'DataManager'
+
     """
     global _default_data_manager
     if _default_data_manager is None:
@@ -114,6 +120,10 @@ def reset_default_data_manager() -> None:
 
     Returns:
         None.
+
+    Examples:
+        >>> reset_default_data_manager() is None
+        True
 
     """
     global _default_data_manager
@@ -838,6 +848,23 @@ class BacktestEngine:
         Args:
             strategy: Strategy instance to register.
 
+        Examples:
+            >>> from datetime import datetime, timedelta
+            >>> from quant_trading.backtest.engine import BacktestEngine
+            >>> from quant_trading.config.settings import BacktestConfig
+            >>> from quant_trading.data.providers import DataManager
+            >>> from quant_trading.data.synthetic import create_synthetic_provider
+            >>> from quant_trading.strategies.examples import MovingAverageCrossover
+            >>> symbols = ["AAPL"]
+            >>> end = datetime(2023, 12, 31)
+            >>> start = end - timedelta(days=100)
+            >>> provider = create_synthetic_provider(symbols, days=100, seed=42)
+            >>> data_manager = DataManager([provider])
+            >>> engine = BacktestEngine(config=BacktestConfig(initial_capital=100000.0), data_manager=data_manager)
+            >>> engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=20))
+            >>> list(engine.strategies)
+            ['MA_Crossover']
+
         """
         self.strategies[strategy.name] = strategy
 
@@ -846,6 +873,24 @@ class BacktestEngine:
 
         Args:
             name: Name of the strategy to remove.
+
+        Examples:
+            >>> from datetime import datetime, timedelta
+            >>> from quant_trading.backtest.engine import BacktestEngine
+            >>> from quant_trading.config.settings import BacktestConfig
+            >>> from quant_trading.data.providers import DataManager
+            >>> from quant_trading.data.synthetic import create_synthetic_provider
+            >>> from quant_trading.strategies.examples import MovingAverageCrossover
+            >>> symbols = ["AAPL"]
+            >>> end = datetime(2023, 12, 31)
+            >>> start = end - timedelta(days=100)
+            >>> provider = create_synthetic_provider(symbols, days=100, seed=42)
+            >>> data_manager = DataManager([provider])
+            >>> engine = BacktestEngine(config=BacktestConfig(initial_capital=100000.0), data_manager=data_manager)
+            >>> engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=20))
+            >>> engine.remove_strategy("MA_Crossover")
+            >>> list(engine.strategies)
+            []
 
         """
         self.strategies.pop(name, None)
@@ -890,6 +935,26 @@ class BacktestEngine:
                 Raises:
                     ValueError: If no data_manager is configured or no data retrieved.
                     RuntimeError: If data fetch errors occur.
+
+                Examples:
+                    >>> from datetime import datetime, timedelta
+                    >>> from quant_trading.backtest.engine import BacktestEngine
+                    >>> from quant_trading.config.settings import BacktestConfig
+                    >>> from quant_trading.data.providers import DataManager
+                    >>> from quant_trading.data.synthetic import create_synthetic_provider
+                    >>> from quant_trading.strategies.examples import MovingAverageCrossover
+                    >>> symbols = ["AAPL"]
+                    >>> end = datetime(2023, 12, 31)
+                    >>> start = end - timedelta(days=100)
+                    >>> provider = create_synthetic_provider(symbols, days=100, seed=42)
+                    >>> data_manager = DataManager([provider])
+                    >>> engine = BacktestEngine(config=BacktestConfig(initial_capital=100000.0), data_manager=data_manager)
+                    >>> engine.add_strategy(MovingAverageCrossover(fast_period=5, slow_period=20))
+                    >>> result = engine.run(symbols, start, end)
+                    >>> result.initial_capital
+                    100000.0
+                    >>> result.num_trades
+                    0
 
         """
         if self.data_manager is None:
