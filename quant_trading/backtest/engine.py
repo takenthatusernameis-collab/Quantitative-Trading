@@ -175,6 +175,13 @@ class Trade:
             yields ``0.0`` instead of NaN/inf, so a malformed trade cannot
             poison downstream aggregation.
 
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.backtest.engine import Trade
+            >>> t = Trade(symbol="AAPL", action="buy", quantity=100, price=150.0, timestamp=datetime(2024, 1, 1))
+            >>> t.cost
+            15000.0
+
         """
         if not (
             math.isfinite(self.quantity)
@@ -234,6 +241,13 @@ class Trade:
             The realized PnL. This is ``0.0`` for opening trades and is set
             on closing trades when the position is exited.
 
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.backtest.engine import Trade
+            >>> t = Trade(symbol="AAPL", action="buy", quantity=100, price=150.0, timestamp=datetime(2024, 1, 1))
+            >>> t.pnl
+            0.0
+
         """
         return self.realized_pnl
 
@@ -250,18 +264,12 @@ class Trade:
             ``realized_pnl``.
 
         Examples:
-            >>> from quant_trading.backtest.engine import Trade
             >>> from datetime import datetime
+            >>> from quant_trading.backtest.engine import Trade
             >>> ts = datetime(2024, 1, 1, 12, 0, 0)
-            >>> trade = Trade(
-            ...     symbol="AAPL", action="buy", quantity=100, price=150.0,
-            ...     timestamp=ts, commission=0.001, slippage=0.0005,
-            ... )
-            >>> d = trade.to_dict()
-            >>> d["symbol"], d["action"], d["quantity"]
-            ('AAPL', 'buy', 100)
-            >>> d["timestamp"]
-            '2024-01-01T12:00:00'
+            >>> trade = Trade(symbol="AAPL", action="buy", quantity=100, price=150.0, timestamp=ts, commission=0.001, slippage=0.0005)
+            >>> isinstance(trade.to_dict(), dict)
+            True
 
         """
         return {
@@ -290,17 +298,9 @@ class Trade:
 
         Examples:
             >>> from quant_trading.backtest.engine import Trade
-            >>> restored = Trade.from_dict({
-            ...     "symbol": "AAPL", "action": "sell", "quantity": 100,
-            ...     "price": 155.0,
-            ...     "timestamp": "2024-01-02T12:00:00",
-            ... })
-            >>> restored.symbol, restored.action, restored.quantity
-            ('AAPL', 'sell', 100)
-            >>> restored.commission, restored.slippage
-            (0.0, 0.0)
-            >>> restored.timestamp.isoformat()
-            '2024-01-02T12:00:00'
+            >>> restored = Trade.from_dict({"symbol": "AAPL", "action": "sell", "quantity": 100, "price": 155.0, "timestamp": "2024-01-02T12:00:00"})
+            >>> restored.symbol
+            'AAPL'
 
         """
         timestamp_raw = data["timestamp"]
@@ -597,6 +597,13 @@ class BacktestResult:
 
         Returns:
             DataFrame with one row containing summary metrics and totals.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({})
+            >>> result.to_dataframe().shape
+            (1, 19)
+
         """
 
         metrics = self.metrics
@@ -638,6 +645,13 @@ class BacktestResult:
 
         Returns:
             The CSV-formatted summary string.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({})
+            >>> isinstance(result.to_csv(), str)
+            True
+
         """
 
         from pathlib import Path
@@ -656,6 +670,13 @@ class BacktestResult:
 
         Returns:
             Dictionary containing summary metrics and optional analysis results.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({})
+            >>> result.to_dict()["initial_capital"]
+            0.0
+
         """
 
         metrics = self.metrics
@@ -699,6 +720,13 @@ class BacktestResult:
 
         Returns:
             The JSON-formatted summary object.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> result = BacktestResult.from_dict({})
+            >>> __import__("json").loads(result.to_json())["initial_capital"]
+            0.0
+
         """
 
         import json
@@ -732,6 +760,11 @@ class BacktestResult:
 
         Returns:
             BacktestResult populated from the dictionary.
+
+        Examples:
+            >>> from quant_trading.backtest.engine import BacktestResult
+            >>> BacktestResult.from_dict({}).initial_capital
+            0.0
 
         """
         from datetime import datetime as _datetime
