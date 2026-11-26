@@ -294,6 +294,71 @@ def test_regime_result_from_dict_empty_segments() -> None:
     assert result.current_regime == Regime.UNKNOWN
 
 
+def test_regime_result_from_dict_recomputes_current_regime_when_stale() -> None:
+    """A stale serialized current_regime is ignored in favor of the segments."""
+    segments = [
+        RegimeSegment(
+            regime=Regime.BEAR_LOW_VOL,
+            start=pd.Timestamp("2024-01-01"),
+            end=pd.Timestamp("2024-01-10"),
+            start_index=0,
+            end_index=9,
+        ),
+        RegimeSegment(
+            regime=Regime.BULL_LOW_VOL,
+            start=pd.Timestamp("2024-01-11"),
+            end=pd.Timestamp("2024-01-20"),
+            start_index=10,
+            end_index=19,
+        ),
+    ]
+    result = RegimeResult.from_dict(
+        {
+            "segments": [s.to_dict() for s in segments],
+            "current_regime": Regime.UNKNOWN.value,
+        }
+    )
+    assert result.current_regime == Regime.BULL_LOW_VOL
+    assert result.current_regime == result.segments[-1].regime
+
+
+def test_regime_result_from_dict_ignores_current_regime_when_no_segments() -> None:
+    """current_regime is UNKNOWN when there are no segments, regardless of input."""
+    result = RegimeResult.from_dict(
+        {"segments": [], "current_regime": Regime.BULL_LOW_VOL.value}
+    )
+    assert result.current_regime == Regime.UNKNOWN
+
+
+@pytest.mark.parametrize(
+    "last_regime",
+    [Regime.BULL_LOW_VOL, Regime.BEAR_HIGH_VOL, Regime.SIDEWAYS_LOW_VOL],
+)
+def test_regime_result_current_regime_invariant(last_regime: Regime) -> None:
+    """current_regime always equals the last segment's regime after from_dict."""
+    segments = [
+        RegimeSegment(
+            regime=Regime.BEAR_LOW_VOL,
+            start=pd.Timestamp("2024-01-01"),
+            end=pd.Timestamp("2024-01-10"),
+            start_index=0,
+            end_index=9,
+        ),
+        RegimeSegment(
+            regime=last_regime,
+            start=pd.Timestamp("2024-01-11"),
+            end=pd.Timestamp("2024-01-20"),
+            start_index=10,
+            end_index=19,
+        ),
+    ]
+    result = RegimeResult.from_dict({"segments": [s.to_dict() for s in segments]})
+    assert result.current_regime == last_regime
+    assert result.current_regime == result.segments[-1].regime
+    assert result.n_segments == 2
+    assert result.regimes == [s.regime for s in segments]
+
+
 def test_detect_regimes_non_series_input_list() -> None:
     """detect() converts a non-Series (list) input to pd.Series (line 107)."""
     prices = [100.0, 101.0, 102.0, 103.0, 100.5, 101.0, 102.5, 103.0, 104.0, 105.0]

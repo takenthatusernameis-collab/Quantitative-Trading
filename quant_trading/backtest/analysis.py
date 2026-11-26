@@ -366,12 +366,16 @@ class BacktestRegimeAnalysis:
             )
             regimes.append(regime)
 
-        # Reconstruct RegimeResult
+        # Reconstruct RegimeResult. ``current_regime`` is derived from the
+        # segments (last segment's regime, or UNKNOWN when empty) rather than
+        # read from the dictionary, so a stale or missing serialized value
+        # cannot leave the analysis inconsistent with its segments.
+        current_regime = segments[-1].regime if segments else Regime.UNKNOWN
         result = RegimeResult(
             segments=segments,
             regimes=regimes,
             n_segments=len(segments),
-            current_regime=Regime(data.get("current_regime", "unknown")),
+            current_regime=current_regime,
             total_volatility=_finite(data.get("total_volatility", 0.0)),
             total_return_pct=_finite(data.get("total_return_pct", 0.0)),
         )

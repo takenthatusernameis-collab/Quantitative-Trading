@@ -277,7 +277,10 @@ class RegimeResult:
 
         Missing keys fall back to the dataclass defaults. Extra keys are
         ignored. Segments are rebuilt from their serialized form and the
-        ``regimes`` list and ``n_segments`` are computed from them.
+        ``regimes``, ``n_segments``, and ``current_regime`` are derived from
+        them, so a stale or missing serialized ``current_regime`` cannot leave
+        the result inconsistent with its segments (``current_regime`` is the
+        last segment's regime, or :attr:`Regime.UNKNOWN` when there are none).
         Non-finite numeric values (NaN/inf) are sanitized to safe defaults.
 
         Args:
@@ -289,12 +292,13 @@ class RegimeResult:
         """
         segments = [RegimeSegment.from_dict(seg_data) for seg_data in data.get("segments", [])]
         regimes = [seg.regime for seg in segments]
+        current_regime = segments[-1].regime if segments else Regime.UNKNOWN
 
         return cls(
             segments=segments,
             regimes=regimes,
             n_segments=len(segments),
-            current_regime=Regime(data.get("current_regime", Regime.UNKNOWN.value)),
+            current_regime=current_regime,
             total_volatility=_finite(data.get("total_volatility", 0.0)),
             total_return_pct=_finite(data.get("total_return_pct", 0.0)),
         )
