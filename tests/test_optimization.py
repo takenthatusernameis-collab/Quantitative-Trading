@@ -1192,7 +1192,7 @@ def test_optimization_result_constructor_rejects_invalid_best_score() -> None:
     ]
     for invalid_value in invalid_cases:
         with pytest.raises(ValueError, match="invalid best_score"):
-            OptimizationResult(best_params={}, best_score=invalid_value)
+            OptimizationResult(best_params={}, best_score=cast(float, invalid_value))
 
     # inf and -inf are valid sentinels
     result = OptimizationResult(best_params={}, best_score=float("inf"))
