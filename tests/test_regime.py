@@ -324,9 +324,7 @@ def test_regime_result_from_dict_recomputes_current_regime_when_stale() -> None:
 
 def test_regime_result_from_dict_ignores_current_regime_when_no_segments() -> None:
     """current_regime is UNKNOWN when there are no segments, regardless of input."""
-    result = RegimeResult.from_dict(
-        {"segments": [], "current_regime": Regime.BULL_LOW_VOL.value}
-    )
+    result = RegimeResult.from_dict({"segments": [], "current_regime": Regime.BULL_LOW_VOL.value})
     assert result.current_regime == Regime.UNKNOWN
 
 
