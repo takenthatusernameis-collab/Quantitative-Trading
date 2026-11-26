@@ -123,7 +123,13 @@ class ParameterSpace:
         Raises:
             ValueError: If both ``values`` and ``min_val`` are None, or if any
                 of ``min_val``/``max_val``/``step`` is a boolean, non-numeric,
-                or non-finite value (or ``step`` is not positive).
+                or non-finite value.
+
+        Note:
+            Validation of ``step > 0`` and ``min_val <= max_val`` is deferred
+            to :meth:`generate_grid`, so that a space defined with explicit
+            ``values`` can be constructed with an invalid ``step`` (which is
+            ignored when ``values`` is present).
 
         """
         if self.values is None and self.min_val is None:
@@ -138,12 +144,6 @@ class ParameterSpace:
                 )
             if not math.isfinite(value):
                 raise ValueError(f"invalid {attr}: must be a finite number (got {value})")
-        if self.step is not None and self.step <= 0:
-            raise ValueError(f"invalid step: must be greater than 0 (got {self.step})")
-        if self.min_val is not None and self.max_val is not None and self.min_val > self.max_val:
-            raise ValueError(
-                f"minimum ({self.min_val}) is greater than the maximum ({self.max_val})"
-            )
 
     def generate_grid(self) -> list[Any]:
         """Generate all values for grid search.
