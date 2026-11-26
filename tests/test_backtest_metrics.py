@@ -707,57 +707,82 @@ class TestBacktestMetricsFromDict:
         assert isinstance(reconstructed.num_trades, int)
 
 
-class TestBacktestMetricsFromDictNonFiniteSanitization:
-    """Non-finite and non-numeric values must be sanitized in ``from_dict``."""
+class TestBacktestMetricsFromDictRejectsInvalid:
+    """Invalid values passed to ``from_dict`` must raise ``ValueError``.
+
+    This matches the behavior of direct construction via ``__post_init__``.
+    """
 
     @pytest.mark.parametrize(
         "field,value",
         [
             ("total_return", float("nan")),
             ("total_return", float("inf")),
-            ("sharpe_ratio", float("-inf")),
+            ("total_return", float("-inf")),
+            ("total_pnl", float("nan")),
+            ("total_return_pct", float("inf")),
+            ("annual_return", float("-inf")),
+            ("annual_return_pct", float("nan")),
+            ("volatility", float("inf")),
+            ("max_drawdown", float("nan")),
+            ("max_drawdown_pct", float("-inf")),
+            ("sharpe_ratio", float("inf")),
+            ("sortino_ratio", float("-inf")),
+            ("calmar_ratio", float("nan")),
+            ("win_rate", float("inf")),
+            ("profit_factor", float("-inf")),
+            ("avg_win", float("nan")),
+            ("avg_loss", float("inf")),
+            ("largest_win", float("-inf")),
+            ("largest_loss", float("nan")),
+            ("var_95", float("inf")),
+            ("var_99", float("-inf")),
+            ("cvar_95", float("nan")),
+            ("cvar_99", float("inf")),
+            ("beta", float("-inf")),
+            ("alpha", float("nan")),
+            ("treynor_ratio", float("inf")),
+            ("information_ratio", float("-inf")),
+            ("omega_ratio", float("nan")),
+            ("ulcer_index", float("inf")),
+            ("unrealized_pnl", float("-inf")),
             ("max_drawdown", "not a number"),
             ("win_rate", None),
-            ("num_trades", float("nan")),
-            ("num_trades", "not a number"),
-            ("num_trades", None),
-            ("volatility", float("nan")),
-            ("num_winning_trades", None),
+            ("volatility", None),
+            ("sharpe_ratio", None),
         ],
     )
-    def test_non_finite_fields_are_sanitized_to_defaults(self, field, value):
+    def test_non_finite_and_non_numeric_fields_rejected(self, field, value):
         data = {"sharpe_ratio": 1.5, "num_trades": 3}
         data[field] = value
-        metrics = BacktestMetrics.from_dict(data)
-        expected = 0 if field in ("num_trades", "num_winning_trades", "num_losing_trades") else 0.0
-        assert getattr(metrics, field) == expected
-        # Every numeric field must be finite, so corruption cannot leak through.
-        for name, val in metrics.to_dict().items():
-            if isinstance(val, (int, float, np.integer, np.floating)):
-                assert np.isfinite(val), f"{name} is not finite: {val!r}"
+        with pytest.raises(ValueError, match=f"invalid {field}"):
+            BacktestMetrics.from_dict(data)
 
     @pytest.mark.parametrize(
         "field,value",
         [
             ("total_return", True),
             ("total_return", False),
+            ("total_pnl", True),
+            ("volatility", True),
+            ("max_drawdown", False),
             ("sharpe_ratio", True),
-            ("sharpe_ratio", False),
-            ("max_drawdown", True),
+            ("sortino_ratio", False),
             ("win_rate", True),
+            ("profit_factor", False),
             ("num_trades", True),
             ("num_trades", False),
-            ("volatility", True),
             ("num_winning_trades", True),
+            ("num_losing_trades", False),
+            ("avg_win", True),
+            ("beta", False),
         ],
     )
-    def test_bool_fields_are_sanitized_to_defaults(self, field, value):
-        """Bool values are explicitly rejected by _finite (bool is subclass of int)."""
+    def test_bool_fields_rejected(self, field, value):
         data = {"sharpe_ratio": 1.5, "num_trades": 3}
         data[field] = value
-        metrics = BacktestMetrics.from_dict(data)
-        expected = 0 if field in ("num_trades", "num_winning_trades", "num_losing_trades") else 0.0
-        assert getattr(metrics, field) == expected
+        with pytest.raises(ValueError, match=f"invalid {field}"):
+            BacktestMetrics.from_dict(data)
 
     @pytest.mark.parametrize(
         "field,value",
@@ -772,15 +797,86 @@ class TestBacktestMetricsFromDictNonFiniteSanitization:
             ("num_trades", {}),
             ("volatility", lambda x: x),
             ("num_winning_trades", complex(1, 2)),
+            ("avg_loss", "not a number"),
+            ("largest_win", ["a", "b"]),
         ],
     )
-    def test_unconvertible_fields_are_sanitized_to_defaults(self, field, value):
-        """Values that raise TypeError/ValueError on float() are sanitized."""
+    def test_unconvertible_fields_rejected(self, field, value):
+        """Values that are not numeric or raise on numeric conversion are rejected."""
+        data = {"sharpe_ratio": 1.5, "num_trades": 3}
+        data[field] = value
+        with pytest.raises(ValueError, match=f"invalid {field}"):
+            BacktestMetrics.from_dict(data)
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("num_trades", -1),
+            ("num_winning_trades", -5),
+            ("num_losing_trades", -3),
+            ("win_rate", -0.1),
+            ("win_rate", 1.1),
+            ("profit_factor", -0.5),
+        ],
+    )
+    def test_out_of_range_fields_rejected(self, field, value):
+        data = {"sharpe_ratio": 1.5, "num_trades": 3}
+        data[field] = value
+        with pytest.raises(ValueError, match=f"invalid {field}"):
+            BacktestMetrics.from_dict(data)
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("total_return", 0.0),
+            ("total_return", 100.5),
+            ("total_return", -50.25),
+            ("total_pnl", 1000.0),
+            ("total_return_pct", 10.5),
+            ("annual_return", 1200.0),
+            ("annual_return_pct", 12.0),
+            ("volatility", 0.15),
+            ("max_drawdown", 500.0),
+            ("max_drawdown_pct", 25.0),
+            ("sharpe_ratio", 1.5),
+            ("sortino_ratio", 2.0),
+            ("calmar_ratio", 3.0),
+            ("win_rate", 0.0),
+            ("win_rate", 0.5),
+            ("win_rate", 1.0),
+            ("profit_factor", 0.0),
+            ("profit_factor", 2.5),
+            ("avg_win", 100.0),
+            ("avg_loss", -50.0),
+            ("largest_win", 500.0),
+            ("largest_loss", -200.0),
+            ("var_95", -100.0),
+            ("var_99", -200.0),
+            ("cvar_95", -150.0),
+            ("cvar_99", -250.0),
+            ("beta", 1.2),
+            ("alpha", 0.05),
+            ("treynor_ratio", 1.8),
+            ("information_ratio", 0.9),
+            ("omega_ratio", 2.1),
+            ("ulcer_index", 0.1),
+            ("unrealized_pnl", 50.0),
+            ("num_trades", 0),
+            ("num_trades", 10),
+            ("num_winning_trades", 6),
+            ("num_losing_trades", 4),
+        ],
+    )
+    def test_from_dict_accepts_valid_values(self, field, value):
+        """Valid finite numeric values must be accepted and preserved."""
         data = {"sharpe_ratio": 1.5, "num_trades": 3}
         data[field] = value
         metrics = BacktestMetrics.from_dict(data)
-        expected = 0 if field in ("num_trades", "num_winning_trades", "num_losing_trades") else 0.0
-        assert getattr(metrics, field) == expected
+        assert getattr(metrics, field) == value
+        # All numeric fields must be finite
+        for name, val in metrics.to_dict().items():
+            if isinstance(val, (int, float, np.integer, np.floating)):
+                assert np.isfinite(val), f"{name} is not finite: {val!r}"
 
 
 class TestBacktestMetricsTreynorAlignedSample:
