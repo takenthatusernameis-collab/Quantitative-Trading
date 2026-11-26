@@ -159,6 +159,39 @@ class BacktestRegimeAnalysis:
         from a dictionary) instead of silently propagating to the regime
         detector. Booleans and non-numeric values are rejected with a clear
         ``ValueError`` instead of being silently coerced (``True`` -> ``1``).
+
+        Examples:
+            >>> from quant_trading.backtest.analysis import BacktestRegimeAnalysis
+            >>> from quant_trading.regime.detector import RegimeResult, Regime
+            >>> import pandas as pd
+            >>> eq = pd.Series([100000, 105000], index=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-31")])
+            >>> regime_res = RegimeResult()
+            >>> analysis = BacktestRegimeAnalysis(result=regime_res, equity_curve=eq)
+            >>> analysis.window
+            20
+            >>> analysis.periods_per_year
+            252
+            >>> analysis2 = BacktestRegimeAnalysis(result=regime_res, equity_curve=eq, window=10, periods_per_year=52)
+            >>> analysis2.window
+            10
+            >>> analysis2.periods_per_year
+            52
+            >>> BacktestRegimeAnalysis(result=regime_res, equity_curve=eq, window=True)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid window: the value must be at least 1 and finite (got True)
+            >>> BacktestRegimeAnalysis(result=regime_res, equity_curve=eq, window=0)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid window: the value must be at least 1 and finite (got 0)
+            >>> BacktestRegimeAnalysis(result=regime_res, equity_curve=eq, vol_threshold=float("nan"))
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid vol_threshold: the value must be finite (got nan)
+            >>> BacktestRegimeAnalysis(result=regime_res, equity_curve=eq, periods_per_year="252")
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid periods_per_year: the value must be at least 1 and finite (got 252)
         """
         _validate_init_param(
             self.window,
