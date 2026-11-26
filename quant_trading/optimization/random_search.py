@@ -203,6 +203,16 @@ class RandomSearch(BaseOptimizer):
                 return, volatility, Sharpe, Sortino and Calmar metrics.
             verbose: Whether to print progress.
 
+        Examples:
+            >>> from quant_trading.optimization.random_search import RandomSearch
+            >>> from quant_trading.optimization.base import ParameterGrid, ParameterSpace
+            >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
+            >>> optimizer = RandomSearch(n_iter=3, random_state=42, strategy_cls=object, param_grid=grid)
+            >>> optimizer.n_iter
+            3
+            >>> optimizer.random_state
+            42
+
         """
         assert strategy_cls is not None, "strategy_cls is required"
         assert param_grid is not None, "param_grid is required"

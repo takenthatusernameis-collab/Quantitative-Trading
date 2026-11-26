@@ -2084,7 +2084,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/optimization/bayesian.py", "run"),
         ("quant_trading/optimization/grid_search.py", "__init__"),
         ("quant_trading/optimization/grid_search.py", "n_combinations"),
-        ("quant_trading/optimization/random_search.py", "__init__"),
         ("quant_trading/optimization/sensitivity.py", "_check_matplotlib"),
         ("quant_trading/optimization/sensitivity.py", "_fig_to_base64"),
         ("quant_trading/optimization/sensitivity.py", "create_1d_sensitivity_plot"),
