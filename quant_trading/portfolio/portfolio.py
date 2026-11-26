@@ -620,6 +620,11 @@ class Portfolio:
         fields the same way. Missing optional keys fall back to the field
         defaults; extra keys are ignored.
 
+        ``total_value`` is not read from the dictionary: it is recomputed as
+        ``cash`` plus the market value of the restored holdings, so a missing
+        or stale serialized value cannot leave the reconstructed portfolio
+        inconsistent with its holdings.
+
         Args:
             data: Dictionary previously produced by :meth:`to_dict`.
 
@@ -666,13 +671,21 @@ class Portfolio:
                 data.get("initial_capital", data.get("cash", 0.0)), default=cash
             ),
         )
-        portfolio.total_value = _finite(data.get("total_value", portfolio.cash))
         portfolio.last_rebalance = last_rebalance
         portfolio.holdings = {}
         holdings_data = data.get("holdings", {}) or {}
         for sym, hdata in holdings_data.items():
             holding = Holding.from_dict(hdata)
             portfolio.holdings[sym] = holding
+        # ``total_value`` is always cash plus the market value of the holdings
+        # (the invariant maintained by ``__post_init__``, ``add_holding``,
+        # ``remove_holding``, ``update_prices`` and ``reset``). Recompute it
+        # after the holdings are restored so a missing or stale serialized
+        # ``total_value`` cannot leave the reconstructed portfolio inconsistent
+        # with its holdings.
+        portfolio.total_value = portfolio.cash + portfolio.get_holdings_value()
+        if not isfinite(portfolio.total_value):
+            portfolio.total_value = 0.0 if not isfinite(portfolio.cash) else portfolio.cash
         return portfolio
 
 

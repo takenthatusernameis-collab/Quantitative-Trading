@@ -777,6 +777,73 @@ class TestPortfolioSerialization:
         assert restored.initial_capital == 0.0
         assert restored.total_value == 0.0
 
+    def test_from_dict_recomputes_total_value_when_omitted(self) -> None:
+        """A missing total_value is recomputed from cash and restored holdings."""
+        restored = Portfolio.from_dict(
+            {
+                "cash": 0.0,
+                "holdings": {
+                    "AAPL": {
+                        "symbol": "AAPL",
+                        "quantity": 100,
+                        "avg_cost": 100.0,
+                        "current_price": 150.0,
+                    }
+                },
+            }
+        )
+        # total_value must include the 15000.0 market value of the holding,
+        # not just the (zero) cash balance.
+        assert restored.total_value == 15000.0
+        assert restored.total_value == restored.cash + restored.get_holdings_value()
+
+    def test_from_dict_reconciles_stale_total_value(self) -> None:
+        """A stale serialized total_value is reconciled with the restored holdings."""
+        restored = Portfolio.from_dict(
+            {
+                "cash": 0.0,
+                "total_value": 999.0,
+                "holdings": {
+                    "AAPL": {
+                        "symbol": "AAPL",
+                        "quantity": 100,
+                        "avg_cost": 100.0,
+                        "current_price": 150.0,
+                    }
+                },
+            }
+        )
+        assert restored.total_value == 15000.0
+        assert restored.total_value == restored.cash + restored.get_holdings_value()
+
+    @pytest.mark.parametrize(
+        ("cash", "quantity", "price"),
+        [
+            (0.0, 100, 150.0),
+            (50000.0, 100, 100.0),
+            (100000.0, -50, 200.0),
+            (0.0, 0, 150.0),
+        ],
+    )
+    def test_from_dict_total_value_invariant(
+        self, cash: float, quantity: float, price: float
+    ) -> None:
+        """from_dict always upholds total_value == cash + holdings market value."""
+        restored = Portfolio.from_dict(
+            {
+                "cash": cash,
+                "holdings": {
+                    "AAPL": {
+                        "symbol": "AAPL",
+                        "quantity": quantity,
+                        "avg_cost": 100.0,
+                        "current_price": price,
+                    }
+                },
+            }
+        )
+        assert restored.total_value == restored.cash + restored.get_holdings_value()
+
 
 class TestHoldingNonFiniteSanitization:
     """Direct construction sanitizes non-finite numeric fields to 0.0.
