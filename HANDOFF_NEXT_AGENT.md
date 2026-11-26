@@ -597,3 +597,25 @@ Nothing. Working tree clean, no uncommitted changes.
 
 ### Next task
 - **None assigned.** The repository is fully green with no remaining defects. Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
+
+---
+## Session 2026-11-26 (this session — forty-third entry)
+
+No prior agent assignment was pending (forty-second entry closed with "none assigned"). Inspection confirmed the repository is at a single commit `be11407` == `origin/main`, working tree clean. Unlike the handoff's described multi-commit history, this baseline is a single squashed commit, but it already contains all previously-described fixes: `BacktestConfig.from_dict`, `PositionLimit/PortfolioLimit.from_dict`, `ParameterSpace.from_dict`, `BacktestRegimeAnalysis.from_dict`, `ReportConfig.from_dict`, `BayesianOptimizerConfig` (with `__post_init__`), and `calculate_alpha` all pass raw values to constructors so `__post_init__` validation applies identically for direct and dictionary construction.
+
+### What changed
+- Nothing. No source, test, or workflow changes made (consistent with the standing instruction not to invent speculative changes when the tree is green).
+
+### What was verified (this runner: Python 3.14.4 / pytest 9.2.0 / ruff 0.17.6 / black 26.10.1 / mypy 2.4.1; deps installed via `pip install -e ".[dev,bayesian,reporting]"` under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`)
+- **Guards**: `ruff check .` -> All checks passed; `black --check .` -> 166 files unchanged; `mypy quant_trading examples` -> no issues in 100 source files.
+- **Full default suite**: `python -m pytest -q` -> **5324 passed, 151 deselected, 0 failed** in 361.04s.
+- **Persistence**: working tree clean, `HEAD` == `origin/main` == `be11407`. No uncommitted changes.
+
+### What remains unresolved
+- `.github/workflows/tests.yml` CI workflow still absent; durable publication requires a maintainer with `workflows` permission (see prior entries). The controller restores `.github/workflows` to session-start HEAD at session end and the GitHub App token lacks `workflows` write permission, so committing/pushing `tests.yml` is rejected. Do not retry commit+push.
+
+### Approaches that failed
+- None. No changes attempted; baseline already green.
+
+### Next task
+- **None assigned.** Future work requires a new defect report or feature request from the user — do not invent speculative changes.
