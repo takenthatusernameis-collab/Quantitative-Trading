@@ -276,6 +276,18 @@ class MonteCarloResult:
         Raises:
             ValueError: If ``n_simulations`` is not a non-negative integer,
                 or if ``confidence_level`` is not in (0, 1).
+
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.monte_carlo.simulator import MonteCarloResult
+            >>> from quant_trading.backtest.metrics import BacktestMetrics
+            >>> result = MonteCarloResult(simulations=[], original_metrics=BacktestMetrics(), n_simulations=0, confidence_level=0.95, start_time=datetime(2024, 1, 1), end_time=datetime(2024, 1, 2))
+            >>> result.confidence_level
+            0.95
+            >>> MonteCarloResult(simulations=[], original_metrics=BacktestMetrics(), n_simulations=0, confidence_level=1.5, start_time=datetime(2024, 1, 1), end_time=datetime(2024, 1, 2))
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid confidence_level: the value must be in (0, 1) (got 1.5)
         """
         if isinstance(self.n_simulations, bool) or not isinstance(self.n_simulations, int):
             raise ValueError(  # noqa: TRY004

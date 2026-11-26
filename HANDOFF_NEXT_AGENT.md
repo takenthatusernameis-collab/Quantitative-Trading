@@ -1,3 +1,36 @@
+## Session 2026-11-26 (this session — forty-second entry)
+
+No prior agent assignment was pending (forty-first entry closed with "none assigned"). The repository is a single squashed baseline commit `c599166` (== `origin/main`) that already contains every previously-described fix (`BacktestConfig.from_dict`, `calculate_alpha`, `BacktestRegimeAnalysis.from_dict`, `ReportConfig.from_dict`, `SensitivityConfig.from_dict`, `ParameterSpace.from_dict`, and the `base.py` TRY004 `# noqa` move). Per the instruction to select one bounded, high-value task when none is assigned, I ran the full default suite and found exactly **one** genuine, non-environmental failure (the baseline is otherwise fully green — the CLI/readme/optimization failures described in older entries are gone): `tests/test_repository_integrity.py::test_documented_examples_are_valid` failed because two `__post_init__` methods had **no** `Examples`/`Example` section and were **not** in `_EXAMPLES_ALLOWLIST`, so the guard reported them as "empty Examples/Example section":
+- `quant_trading/backtest/metrics.py:200` — `BacktestMetrics.__post_init__`
+- `quant_trading/monte_carlo/simulator.py:273` — `MonteCarloResult.__post_init__`
+
+### What changed
+- **`quant_trading/backtest/metrics.py`** (`BacktestMetrics.__post_init__`): added an `Examples:` section with a valid construction (`BacktestMetrics(num_trades=3, num_winning_trades=2, win_rate=0.5)` → `(3, 0.5)`) and a traceback-style rejection (`BacktestMetrics(num_trades=True)` → `ValueError: invalid num_trades: the value must be an integer (got True)`). Every `>>>` line is a single, independently-parseable statement (required: the guard `compile()`s each `>>>` line alone, so multi-line `>>>` with an open paren would be flagged as unparseable).
+- **`quant_trading/monte_carlo/simulator.py`** (`MonteCarloResult.__post_init__`): added an `Examples:` section with a valid construction (`confidence_level=0.95` → `0.95`) and a traceback-style rejection (`confidence_level=1.5` → `ValueError: invalid confidence_level: the value must be in (0, 1) (got 1.5)`), again using single-line `>>>` statements.
+- **`HANDOFF_NEXT_AGENT.md`**: this entry only.
+- No production logic changed — docstring-only additions. Chose real examples over adding the two names to `_EXAMPLES_ALLOWLIST` (allowlisting only silences the guard; the examples are runnable doctests that document the validation contract).
+
+### What was verified (this runner: Python 3.14.4 / pytest 9.2.0 / ruff 0.17.6 / black 26.10.1 / mypy 2.4.1; deps installed via `pip install -e ".[dev,bayesian,reporting]"` under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`)
+- **Reproduction**: before the fix the integrity guard listed the two `__post_init__` methods as empty-Examples offenders; after the fix `pytest tests/test_repository_integrity.py::test_documented_examples_are_valid` -> **1 passed**.
+- **Doctests (the new examples actually run under `--doctest-modules`)**: `pytest --doctest-modules quant_trading/backtest/metrics.py quant_trading/monte_carlo/simulator.py` -> **16 passed**.
+- **Affected modules**: `pytest tests/test_repository_integrity.py tests/test_monte_carlo.py tests/test_backtest_metrics.py` -> **330 passed**.
+- **Guards**: `ruff check .` -> All checks passed; `black --check` on both changed files -> unchanged; `mypy` on both changed files -> no issues.
+- **Full default suite** (`pytest -q`, as CI runs it): **5430 passed, 151 deselected, 0 failed** in 514.55s (was 5427 passed / 1 failed before the fix; +3 = the now-passing integrity test plus the two new doctest items).
+- **Slow suite** (`pytest -m "slow and not network" -q`, as CI runs it): **151 passed, 5430 deselected, 0 failed** in 484.06s. Entire 5581-test suite green.
+- **Persistence**: left uncommitted in the working tree per the no-commit-without-request rule (same as the forty-first entry). Non-workflow changes are durable: `.github/scripts/kilo-controller.sh` stages all non-`.github/workflows` changes (`stage_repository_changes`, lines 326-336), commits an empty-message checkpoint, and pushes to `origin/main` at session end. `git status` currently shows only the two source files + this handoff modified.
+
+### What remains unresolved
+- `.github/workflows/tests.yml` CI workflow is still absent; durable publication requires a maintainer with `workflows` permission (the App token cannot update workflows, and the controller restores `.github/workflows` to `WORKFLOW_BASE_SHA` at session end). Do not retry commit+push of workflows.
+- The baseline is now fully green (default + slow); no known non-environmental failures remain.
+
+### Approaches that failed
+- None. Single bounded, docstring-only change; all focused and full verification passed on first attempt.
+
+### Next task
+- **None assigned.** The repository is fully green (5430 default + 151 slow, 0 failed) and the one concrete defect (integrity guard failing on two empty-Examples `__post_init__` methods) is closed. Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
+
+---
+
 ## Session 2026-11-25 (this session — thirty-first entry)
 
 No prior agent assignment was pending. Inspection found `.github/workflows/tests.yml` absent on disk and in git HEAD (commit `5d677abe` deleted it). Root cause identified: `.github/scripts/kilo-controller.sh:307-313` deterministically runs `git restore --source=<session-start-SHA> --staged --worktree .github/workflows` and `git clean -fd -- .github/workflows` at the end of every session, stripping any agent-added workflow file. The controller treats workflows as "maintainer-managed" (an intentional safety control), so I did **not** weaken it.

@@ -202,6 +202,16 @@ class BacktestMetrics:
 
         Raises:
             ValueError: If any field has an invalid type or value.
+
+        Examples:
+            >>> from quant_trading.backtest.metrics import BacktestMetrics
+            >>> metrics = BacktestMetrics(num_trades=3, num_winning_trades=2, win_rate=0.5)
+            >>> metrics.num_trades, metrics.win_rate
+            (3, 0.5)
+            >>> BacktestMetrics(num_trades=True)
+            Traceback (most recent call last):
+                ...
+            ValueError: invalid num_trades: the value must be an integer (got True)
         """
         # Integer fields: must be non-negative ints, not bool
         for field_name in ("num_trades", "num_winning_trades", "num_losing_trades"):
