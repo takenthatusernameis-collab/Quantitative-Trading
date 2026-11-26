@@ -232,6 +232,10 @@ def get_available_strategies() -> dict[str, type[Strategy]]:
     Returns:
         Mapping of strategy key to strategy class.
 
+    Examples:
+        >>> isinstance(get_available_strategies(), dict)
+        True
+
     """
     return list_strategies()
 
@@ -242,6 +246,10 @@ def available_strategies() -> dict[str, type[Strategy]]:
     Returns:
         Mapping of strategy key to strategy class.
 
+    Examples:
+        >>> isinstance(get_available_strategies(), dict)
+        True
+
     """
     return list_strategies()
 
@@ -251,6 +259,11 @@ def get_strategy_factory() -> StrategyRegistry:
 
     Returns:
         The process-wide :class:`StrategyRegistry` instance.
+
+    Examples:
+        >>> from quant_trading.strategies.factory import StrategyRegistry
+        >>> isinstance(get_strategy_factory(), StrategyRegistry)
+        True
 
     """
     return get_registry()
