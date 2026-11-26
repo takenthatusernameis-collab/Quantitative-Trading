@@ -619,3 +619,31 @@ No prior agent assignment was pending (forty-second entry closed with "none assi
 
 ### Next task
 - **None assigned.** Future work requires a new defect report or feature request from the user — do not invent speculative changes.
+
+---
+## Session 2026-11-26 (this session — forty-fourth entry)
+
+No prior agent assignment was pending (forty-third entry closed with "none assigned" and a green tree at `be11407`). Per the standing instruction to select one bounded, high-value task when no assignment exists, a read-only defect sweep (delegated to an explore subagent) over modules not covered by prior handoffs found one genuine, bounded defect: `Portfolio.from_dict` set `total_value` from the dict (defaulting to `cash`) **before** restoring holdings and never recomputed it, violating the `total_value == cash + get_holdings_value()` invariant that `__post_init__`, `add_holding`, `remove_holding`, `update_prices`, and `reset` all maintain. A reconstructed portfolio with holdings therefore reported a `total_value` that excluded the holdings' market value (e.g. cash 0 + 100 AAPL @ 150 -> `total_value == 0.0` instead of `15000.0`), corrupting `summary()`, `get_allocation()`, `get_position_pct()`, and downstream rebalancer inputs.
+
+### What changed
+- **`quant_trading/portfolio/portfolio.py`** (`Portfolio.from_dict`): removed the premature `portfolio.total_value = _finite(data.get("total_value", portfolio.cash))` and, after the holdings loop, recompute `portfolio.total_value = portfolio.cash + portfolio.get_holdings_value()` (with the same finite guard used by the other mutators). `total_value` is no longer read from the dict, so a missing or stale serialized value cannot leave the portfolio inconsistent with its holdings. Docstring updated to state `total_value` is derived, not read.
+- **`tests/test_portfolio.py`** (`TestPortfolioSerialization`): added `test_from_dict_recomputes_total_value_when_omitted`, `test_from_dict_reconciles_stale_total_value`, and a 4-case parametrized `test_from_dict_total_value_invariant` asserting `total_value == cash + get_holdings_value()`.
+- **`HANDOFF_NEXT_AGENT.md`**: this entry only.
+
+### What was verified (this runner: Python 3.14.4 / pytest 9.2.0 / ruff 0.17.6 / black 26.10.1 / mypy 2.4.1; deps under `/home/runner/work/_temp/kilo-home/.local`, prefix `export PATH="/home/runner/work/_temp/kilo-home/.local/bin:$PATH"`)
+- **Reproduction**: before the fix, `Portfolio.from_dict({"cash": 0.0, "holdings": {"AAPL": {...100 @ 150...}}})` -> `total_value == 0.0` (and a stale `total_value: 999.0` was trusted verbatim); after the fix both -> `15000.0`, and a consistent round-trip is unchanged (`total_value` preserved).
+- **Focused tests**: `pytest tests/test_portfolio.py` -> **99 passed**; `pytest --doctest-modules quant_trading/portfolio/portfolio.py` -> **5 passed**.
+- **Regression**: `pytest tests/test_portfolio_invariants.py tests/test_rebalancer.py tests/test_rebalancer_execution.py tests/test_portfolio_rebalancer.py tests/test_risk_attribution.py` -> **359 passed**.
+- **Guards**: `ruff check .` -> All checks passed; `black --check` on both changed files -> unchanged; `mypy quant_trading/portfolio/portfolio.py` -> no issues.
+- **Full default suite**: `python -m pytest -q` -> **5330 passed, 151 deselected, 0 failed** in 349.32s (was 5324; +6 are the new tests).
+- **Persistence**: committed as `e817130` and pushed to `origin/main`; `git status` clean; `HEAD` == `origin/main` == `e817130`.
+
+### What remains unresolved
+- `.github/workflows/tests.yml` CI workflow still absent; durable publication requires a maintainer with `workflows` permission (see prior entries). Do not retry commit+push.
+- The `from_dict`/silent-coercion validation-gap sweep remains complete; this was a distinct reconstruction-consistency defect, now fixed.
+
+### Approaches that failed
+- None. Single bounded change; all focused verification passed on first attempt (one black reformat of the new parametrized test signature).
+
+### Next task
+- **None assigned.** The repository is fully green with the `Portfolio.from_dict` consistency defect fixed, committed, and pushed. Future work requires a new defect report or feature request from the user — do not invent speculative changes. On a fresh runner, first `pip install -e ".[dev,bayesian,reporting]"` before running any tests.
