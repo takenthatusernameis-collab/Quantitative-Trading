@@ -126,7 +126,15 @@ class Holding:
 
     @property
     def unrealized_pnl(self) -> float:
-        """Unrealized profit and loss for this holding."""
+        """Unrealized profit and loss for this holding.
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Holding
+            >>> holding = Holding(symbol="AAPL", quantity=100, avg_cost=100.0, current_price=150.0)
+            >>> holding.unrealized_pnl
+            5000.0
+
+        """
         if self.quantity == 0 or self.avg_cost == 0:
             return 0.0
         if not (
@@ -146,6 +154,13 @@ class Holding:
 
         The relation ``unrealized_pnl == abs(quantity) * abs(avg_cost) *
         unrealized_pnl_pct`` holds for every holding.
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Holding
+            >>> holding = Holding(symbol="AAPL", quantity=100, avg_cost=100.0, current_price=150.0)
+            >>> holding.unrealized_pnl_pct
+            0.5
+
         """
         if self.quantity == 0 or self.avg_cost == 0:
             return 0.0
@@ -161,6 +176,13 @@ class Holding:
         Args:
             price: New current price per unit.
 
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Holding
+            >>> holding = Holding(symbol="AAPL", quantity=100, avg_cost=100.0, current_price=100.0)
+            >>> holding.update_price(120.0)
+            >>> holding.current_price, holding.market_value
+            (120.0, 12000.0)
+
         """
         if isfinite(price) and isfinite(self.quantity):
             self.current_price = price
@@ -174,6 +196,13 @@ class Holding:
         Returns:
             Position mirroring this holding's symbol, quantity, prices, and PnL.
 
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Holding
+            >>> holding = Holding(symbol="AAPL", quantity=100, avg_cost=100.0, current_price=150.0)
+            >>> position = holding.to_position()
+            >>> position.symbol, position.quantity, position.avg_price
+            ('AAPL', 100, 100.0)
+
         """
         return Position(
             symbol=self.symbol,
@@ -184,7 +213,15 @@ class Holding:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize holding to a dictionary."""
+        """Serialize holding to a dictionary.
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Holding
+            >>> holding = Holding(symbol="AAPL", quantity=100, avg_cost=100.0, current_price=150.0)
+            >>> holding.to_dict()["market_value"]
+            15000.0
+
+        """
         return {
             "symbol": self.symbol,
             "quantity": self.quantity,
@@ -316,6 +353,13 @@ class Portfolio:
             Sum of market values across every holding in the portfolio.
             Non-finite market values are ignored.
 
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            >>> portfolio.add_holding("AAPL", 100, 100.0)
+            >>> portfolio.get_holdings_value()
+            10000.0
+
         """
         return sum(h.market_value for h in self.holdings.values() if isfinite(h.market_value))
 
@@ -327,6 +371,15 @@ class Portfolio:
 
         Returns:
             The Position for the symbol, or None when the symbol is not held.
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            >>> portfolio.add_holding("AAPL", 100, 100.0)
+            >>> portfolio.get_position("AAPL").quantity
+            100
+            >>> portfolio.get_position("MSFT") is None
+            True
 
         """
         holding = self.holdings.get(symbol)
@@ -341,6 +394,15 @@ class Portfolio:
         Returns:
             Market value of the holding, or 0.0 when the symbol is absent.
 
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            >>> portfolio.add_holding("AAPL", 100, 100.0)
+            >>> portfolio.get_position_value("AAPL")
+            10000.0
+            >>> portfolio.get_position_value("MSFT")
+            0.0
+
         """
         holding = self.holdings.get(symbol)
         return holding.market_value if holding else 0.0
@@ -354,6 +416,14 @@ class Portfolio:
         Returns:
             Position market value divided by total portfolio value, or 0.0
             when total value is non-positive.
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            >>> portfolio.add_holding("AAPL", 100, 100.0)
+            >>> portfolio.update_prices({"AAPL": 120.0})
+            >>> round(portfolio.get_position_pct("AAPL"), 4)
+            0.1176
 
         """
         if self.total_value <= 0 or not isfinite(self.total_value):
@@ -397,6 +467,15 @@ class Portfolio:
 
         Returns:
             None.
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            >>> portfolio.add_holding("AAPL", 100, 100.0)
+            >>> portfolio.holdings["AAPL"].quantity
+            100
+            >>> portfolio.cash
+            90000.0
 
         """
         holding = self.holdings.get(symbol)
@@ -487,6 +566,17 @@ class Portfolio:
             position, the (negative) cost of covering for a short position, or
             0.0 when the symbol is not held.
 
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            >>> portfolio.add_holding("AAPL", 100, 100.0)
+            >>> portfolio.remove_holding("AAPL", 50, 110.0)
+            5500.0
+            >>> portfolio.holdings["AAPL"].quantity
+            50
+            >>> portfolio.remove_holding("MSFT", 10, 10.0)
+            0.0
+
         """
         holding = self.holdings.get(symbol)
         if holding is None:
@@ -527,6 +617,14 @@ class Portfolio:
         Returns:
             None.
 
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            >>> portfolio.add_holding("AAPL", 100, 100.0)
+            >>> portfolio.update_prices({"AAPL": 150.0})
+            >>> portfolio.holdings["AAPL"].market_value
+            15000.0
+
         """
         for symbol, price in prices.items():
             if symbol in self.holdings:
@@ -540,6 +638,13 @@ class Portfolio:
 
         Returns:
             Symbol-keyed Position objects for every current holding.
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            >>> portfolio.add_holding("AAPL", 100, 100.0)
+            >>> sorted(portfolio.get_positions())
+            ['AAPL']
 
         """
         return {sym: h.to_position() for sym, h in self.holdings.items()}
@@ -558,6 +663,13 @@ class Portfolio:
             an empty dictionary when total value is non-positive or non-finite.
             Holdings with non-finite market values are excluded.
 
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            >>> portfolio.add_holding("AAPL", 100, 100.0)
+            >>> portfolio.get_allocation()
+            {'AAPL': 0.1}
+
         """
         if self.total_value <= 0 or not isfinite(self.total_value):
             return {}
@@ -574,11 +686,29 @@ class Portfolio:
         }
 
     def get_net_allocation(self) -> dict[str, float]:
-        """Get net allocation (signed weights; shorts are negative)."""
+        """Get net allocation (signed weights; shorts are negative).
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            >>> portfolio.add_holding("AAPL", -100, 100.0)
+            >>> portfolio.get_net_allocation()
+            {'AAPL': -0.1}
+
+        """
         return self.get_allocation(use_absolute=False)
 
     def get_gross_allocation(self) -> dict[str, float]:
-        """Get gross allocation (absolute weights; shorts contribute positively)."""
+        """Get gross allocation (absolute weights; shorts contribute positively).
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            >>> portfolio.add_holding("AAPL", -100, 100.0)
+            >>> portfolio.get_gross_allocation()
+            {'AAPL': 0.1}
+
+        """
         return self.get_allocation(use_absolute=True)
 
     def reset(self, capital: float) -> None:
@@ -590,6 +720,14 @@ class Portfolio:
 
         Returns:
             None.
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            >>> portfolio.add_holding("AAPL", 100, 100.0)
+            >>> portfolio.reset(200000.0)
+            >>> portfolio.cash, portfolio.total_value, len(portfolio.holdings)
+            (200000.0, 200000.0, 0)
 
         """
         if not isfinite(capital):
@@ -607,6 +745,13 @@ class Portfolio:
             Dictionary with total_value, cash, holdings_value, num_positions,
             allocation, pnl, and pnl_pct keys. All numeric values are finite;
             non-finite values are replaced with 0.0.
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+            >>> portfolio.add_holding("AAPL", 100, 100.0)
+            >>> portfolio.summary()["num_positions"]
+            1
 
         """
         total_value = self.total_value if isfinite(self.total_value) else 0.0
@@ -629,7 +774,15 @@ class Portfolio:
         }
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize portfolio to a dictionary."""
+        """Serialize portfolio to a dictionary.
+
+        Examples:
+            >>> from quant_trading.portfolio.portfolio import Portfolio
+            >>> portfolio = Portfolio(cash=50000.0, initial_capital=50000.0)
+            >>> portfolio.to_dict()["cash"]
+            50000.0
+
+        """
         last_rebalance_serialized: str | Any | None = None
         if self.last_rebalance is not None:
             if hasattr(self.last_rebalance, "isoformat"):
