@@ -1867,6 +1867,16 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Single-row DataFrame of quote data, or ``None`` when no quote is present.
 
+        Examples:
+            >>> provider = AlphaVantageProvider(cache_dir="", warn_on_demo=False)
+            >>> provider._parse_global_quote_response("AAPL", {}) is None
+            True
+            >>> df = provider._parse_global_quote_response("AAPL", {"Global Quote": {"05. price": "150.0"}})
+            >>> list(df.columns)
+            ['open', 'high', 'low', 'price', 'volume', 'latest_trading_day', 'previous_close', 'change', 'change_percent']
+            >>> df.shape
+            (1, 9)
+
         """
         quote = data.get("Global Quote")
         if not quote:
