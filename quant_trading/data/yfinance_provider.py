@@ -1125,6 +1125,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the MARKET_STATUS endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_market_status_params()
+            {'function': 'MARKET_STATUS', 'apikey': 'demo', 'datatype': 'json'}
+
         """
         return {
             "function": "MARKET_STATUS",
