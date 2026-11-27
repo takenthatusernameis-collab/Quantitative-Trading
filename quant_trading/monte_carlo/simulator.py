@@ -330,14 +330,7 @@ class MonteCarloResult:
             >>> from quant_trading.backtest.metrics import BacktestMetrics
             >>> from datetime import datetime
             >>> metrics = BacktestMetrics()
-            >>> mc = MonteCarloResult(
-            ...     simulations=[],
-            ...     original_metrics=metrics,
-            ...     n_simulations=0,
-            ...     confidence_level=0.95,
-            ...     start_time=datetime(2024, 1, 1),
-            ...     end_time=datetime(2024, 1, 2),
-            ... )
+            >>> mc = MonteCarloResult(simulations=[], original_metrics=metrics, n_simulations=0, confidence_level=0.95, start_time=datetime(2024, 1, 1), end_time=datetime(2024, 1, 2))
             >>> mc.duration_seconds
             86400.0
 

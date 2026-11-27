@@ -1982,7 +1982,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/monte_carlo/simulator.py", "_run_bootstrap_parallel"),
         ("quant_trading/monte_carlo/simulator.py", "_run_parametric"),
         ("quant_trading/monte_carlo/simulator.py", "_run_parametric_parallel"),
-        ("quant_trading/monte_carlo/simulator.py", "duration_seconds"),
         ("quant_trading/monte_carlo/simulator.py", "run"),
         ("quant_trading/monte_carlo/simulator.py", "run_monte_carlo"),
         ("quant_trading/optimization/base.py", "__init__"),
