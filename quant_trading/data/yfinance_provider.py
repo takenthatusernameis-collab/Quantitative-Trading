@@ -1260,6 +1260,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the FX_INTRADAY endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_fx_intraday_params("USD", "EUR", "fx_5m")
+            {'function': 'FX_INTRADAY', 'from_symbol': 'USD', 'to_symbol': 'EUR', 'interval': '5min', 'apikey': 'demo', 'datatype': 'json'}
+
         """
         av_interval = self.INTRADAY_INTERVALS.get(interval.replace("fx_", ""), interval)
         return {
