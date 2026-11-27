@@ -1854,7 +1854,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/backtest/report.py", "_finite_series"),
         ("quant_trading/backtest/report.py", "_fig_to_base64"),
         ("quant_trading/backtest/report.py", "_get_css"),
-        ("quant_trading/backtest/report.py", "_get_theme_colors"),
         ("quant_trading/backtest/report.py", "generate_comparison_report"),
         ("quant_trading/backtest/report.py", "generate_html_report"),
         ("quant_trading/backtest/report.py", "generate_report_from_dict"),

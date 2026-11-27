@@ -215,7 +215,12 @@ def _fig_to_base64(fig: Any, dpi: int = 150) -> str:
 
 
 def _get_theme_colors(theme: str) -> dict[str, str]:
-    """Get color palette for the specified theme."""
+    """Get color palette for the specified theme.
+
+    Examples:
+        >>> _get_theme_colors("dark")
+        {'bg': '#1e1e1e', 'fg': '#e0e0e0', 'grid': '#333333', 'positive': '#4caf50', 'negative': '#f44336', 'neutral': '#2196f3', 'accent': '#ff9800', 'table_header': '#2d2d2d', 'table_row_even': '#252525', 'table_row_odd': '#1e1e1e'}
+    """
     if theme == "dark":
         return {
             "bg": "#1e1e1e",
