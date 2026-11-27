@@ -1022,6 +1022,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the TIME_SERIES_WEEKLY endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_weekly_params("AAPL")
+            {'function': 'TIME_SERIES_WEEKLY', 'symbol': 'AAPL', 'apikey': 'demo', 'datatype': 'json'}
+
         """
         return {
             "function": "TIME_SERIES_WEEKLY",
@@ -1038,6 +1042,10 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the TIME_SERIES_WEEKLY_ADJUSTED endpoint.
+
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_weekly_adjusted_params("AAPL")
+            {'function': 'TIME_SERIES_WEEKLY_ADJUSTED', 'symbol': 'AAPL', 'apikey': 'demo', 'datatype': 'json'}
 
         """
         return {
@@ -1118,6 +1126,10 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the SYMBOL_SEARCH endpoint.
+
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_symbol_search_params("AAPL")
+            {'function': 'SYMBOL_SEARCH', 'keywords': 'AAPL', 'apikey': 'demo', 'datatype': 'json'}
 
         """
         return {
@@ -1449,6 +1461,10 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Dict of query parameters for the technical indicator endpoint.
+
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_technical_indicator_params("AAPL")
+            {'function': 'SMA', 'symbol': 'AAPL', 'interval': 'daily', 'time_period': '20', 'series_type': 'close', 'apikey': 'demo', 'datatype': 'json'}
 
         """
         params = {
