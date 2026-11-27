@@ -1362,6 +1362,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the DIGITAL_CURRENCY_INTRADAY endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_crypto_intraday_params("BTC")
+            {'function': 'DIGITAL_CURRENCY_INTRADAY', 'symbol': 'BTC', 'market': 'USD', 'interval': '5min', 'apikey': 'demo', 'datatype': 'json'}
+
         """
         return {
             "function": "DIGITAL_CURRENCY_INTRADAY",
