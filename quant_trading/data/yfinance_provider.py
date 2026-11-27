@@ -1150,6 +1150,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the GOLD_SILVER_SPOT endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_gold_spot_params("GOLD")
+            {'function': 'GOLD_SILVER_SPOT', 'symbol': 'GOLD', 'apikey': 'demo', 'datatype': 'json'}
+
         """
         return {
             "function": "GOLD_SILVER_SPOT",
