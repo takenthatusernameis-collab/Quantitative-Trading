@@ -2177,6 +2177,16 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Single-row DataFrame of exchange rate data, or ``None`` when no rate is present.
 
+        Examples:
+            >>> provider = AlphaVantageProvider(cache_dir="", warn_on_demo=False)
+            >>> provider._parse_currency_exchange_rate_response("USD", "EUR", {}) is None
+            True
+            >>> df = provider._parse_currency_exchange_rate_response("USD", "EUR", {"Realtime Currency Exchange Rate": {"5. Exchange Rate": "0.85"}})
+            >>> list(df.columns)
+            ['from_currency_code', 'from_currency_name', 'to_currency_code', 'to_currency_name', 'exchange_rate', 'last_refreshed', 'time_zone', 'bid_price', 'ask_price']
+            >>> df.shape
+            (1, 9)
+
         """
         rate = data.get("Realtime Currency Exchange Rate")
         if not rate:
