@@ -954,6 +954,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the Alpha Vantage API.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_daily_params("AAPL")
+            {'function': 'TIME_SERIES_DAILY_ADJUSTED', 'symbol': 'AAPL', 'apikey': 'demo', 'outputsize': 'full', 'datatype': 'json'}
+
         """
         return {
             "function": "TIME_SERIES_DAILY_ADJUSTED",

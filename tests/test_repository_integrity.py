@@ -1869,7 +1869,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/data/yfinance_provider.py", "_build_crypto_monthly_params"),
         ("quant_trading/data/yfinance_provider.py", "_build_crypto_weekly_params"),
         ("quant_trading/data/yfinance_provider.py", "_build_currency_exchange_rate_params"),
-        ("quant_trading/data/yfinance_provider.py", "_build_daily_params"),
         ("quant_trading/data/yfinance_provider.py", "_build_economic_indicator_params"),
         ("quant_trading/data/yfinance_provider.py", "_build_fx_daily_params"),
         ("quant_trading/data/yfinance_provider.py", "_build_fx_intraday_params"),

@@ -1,51 +1,56 @@
-## Session 2026-11-27 (allowlist cleanup - `fetch_many`, both providers)
+## Session 2026-11-27 (allowlist cleanup - `_build_daily_params`)
 
 ### What changed
-- Documented `YFinanceProvider.fetch_many` AND `AlphaVantageProvider.fetch_many`
-  in `quant_trading/data/yfinance_provider.py` with a deterministic single-line
-  doctest each: `isinstance(<provider>.fetch_many([{"symbols": ["AAPL"]}]), dict)` -> `True`.
-- Removed the two identical `("quant_trading/data/yfinance_provider.py", "fetch_many")`
-  lines from `_EXAMPLES_ALLOWLIST` in `tests/test_repository_integrity.py`.
-- No production behavior changed (docstrings + allowlist only).
+- Documented `AlphaVantageProvider._build_daily_params` in
+  `quant_trading/data/yfinance_provider.py` with a deterministic single-line
+  doctest:
+  `AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_daily_params("AAPL")`
+  -> `{'function': 'TIME_SERIES_DAILY_ADJUSTED', 'symbol': 'AAPL', 'apikey': 'demo', 'outputsize': 'full', 'datatype': 'json'}`.
+- Removed the `("quant_trading/data/yfinance_provider.py", "_build_daily_params")`
+  line from `_EXAMPLES_ALLOWLIST` in `tests/test_repository_integrity.py`.
+- No production behavior changed (docstring + allowlist only).
 
-### Why `isinstance(..., dict)` instead of a data-length assertion
-- `fetch_many` issues network downloads (yfinance `download` / Alpha Vantage
-  per-symbol or batch endpoints) whose result length depends on market
-  hours, data availability, and rate limits, so a `len(...)` assertion is
-  NON-deterministic.
-- Both providers catch request/connection errors and still return a `dict`
-  mapping request keys to `FetchResult`, so `isinstance(..., dict)` is always
-  `True` and deterministic regardless of network state.
-- `FetchResult` is a module-level import (line 13), resolving in the doctest
-  namespace without an explicit import (matches existing doctest style).
+### Why `_build_daily_params`
+- It is allowlisted but lacks an Examples section, so it is exempt from the
+  `test_documented_examples_are_valid` guard until documented.
+- It builds query parameters from `self._api_key` (defaults to `"demo"`), so
+  its result is deterministic and independent of market hours/network — safe for
+  a doctest.
+- `cache_dir=""` skips `os.makedirs`; `warn_on_demo=False` skips the demo-key
+  log warning, keeping construction deterministic.
+
+### Note on the previous handoff's `name` suggestion
+- `name` (both `YFinanceProvider.name` line 66 and `AlphaVantageProvider.name`
+  line 790) already has a deterministic doctest and is NOT in the allowlist, so
+  there is nothing to do for `name` in this tree. The prior handoff's `name`
+  recommendation was stale.
 
 ### What was actually verified (evidence)
 - `python -m pytest tests/test_repository_integrity.py --doctest-modules quant_trading/data/yfinance_provider.py`
-  -> 73 passed (was 71; +2 = the two new `fetch_many` doctests executed).
-- `python -m pytest tests/test_repository_integrity.py` -> 51 passed.
-- `python -m pytest tests/test_yfinance_provider.py tests/test_alphavantage_provider.py tests/test_data_providers.py tests/test_yfinance_fetch_many.py`
-  -> 454 passed.
+  -> 76 passed (the new `_build_daily_params` doctest executed; was 73 after the
+  `fetch_many` session).
+- `python -m pytest tests/test_repository_integrity.py` -> all passed
+  (including `test_examples_allowlist_names_exist` and
+  `test_documented_examples_are_valid`).
+- `python -m pytest tests/test_yfinance_provider.py
+  tests/test_alphavantage_provider.py tests/test_data_providers.py
+  tests/test_yfinance_fetch_many.py` -> 454 passed.
 - `python -m ruff check .` -> All checks passed.
 - `python -m black --check quant_trading/ tests/ examples/` -> 166 files unchanged.
-- `git diff --check` -> clean. `git diff --stat` -> 2 files, +8/-2 only.
-
-### Environment note (network)
-- AlphaVantage demo key returns no batch data; both providers' error handling
-  keeps the `isinstance` doctest green either way.
+- `git diff --check` -> clean. `git diff --stat` -> 2 files, +4/-1 only.
 
 ### What remains unresolved
-- `quant_trading/data/yfinance_provider.py` still has many `_EXAMPLES_ALLOWLIST` entries.
-- Next identical-pair candidates (both providers), in allowlist order:
-  - `name` (next duplicated pair, immediately after where `fetch_many` was)
-  - Many `_build_*` / `_parse_*` / `_fetch_*` method pairs (single-entry, not duplicated)
+- `quant_trading/data/yfinance_provider.py` still has many
+  `_EXAMPLES_ALLOWLIST` entries (80 remain after this session).
 
 ### Next task
-Inspect `_EXAMPLES_ALLOWLIST` for the next duplicated `(path, name)` pair in
-`quant_trading/data/yfinance_provider.py` (suggest `name` next), document both
-methods with a deterministic single-line doctest, then remove the two allowlist lines.
-Prefer a deterministic assertion (e.g. `isinstance(..., FetchResult)` or a structural
-check) over a data-length assertion whenever the method's result depends on market
-hours/network. Run the same focused integrity/module tests, Ruff, Black,
-`git diff --check`, and a broader pytest subset before selecting another def.
+Inspect `_EXAMPLES_ALLOWLIST` for the next deterministic allowlisted method in
+`quant_trading/data/yfinance_provider.py` (the `_build_*` param builders are good
+candidates; `_build_economic_indicator_params` is next in allowlist order),
+document it with a deterministic single-line doctest (prefer an `isinstance` or
+structural check over a data-length assertion when the result depends on
+market hours/network), remove its allowlist line, then run the same focused
+integrity/module tests, Ruff, Black, `git diff --check`, and a broader pytest
+subset before selecting another def.
 
 (End of file)
