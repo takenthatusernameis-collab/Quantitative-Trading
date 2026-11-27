@@ -1950,6 +1950,14 @@ class RiskManager:
         Returns:
             None.
 
+        Examples:
+            >>> from quant_trading.risk.manager import RiskManager
+            >>> rm = RiskManager()
+            >>> rm.disable()
+            >>> rm.enable()
+            >>> rm.risk_enabled
+            True
+
         """
         self.risk_enabled = True
 

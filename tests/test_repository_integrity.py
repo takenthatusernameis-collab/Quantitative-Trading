@@ -2092,7 +2092,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/risk/manager.py", "calculate_metrics"),
         ("quant_trading/risk/manager.py", "calculate_risk_attribution"),
         ("quant_trading/risk/manager.py", "disable"),
-        ("quant_trading/risk/manager.py", "enable"),
         ("quant_trading/risk/manager.py", "get_position_stop_loss"),
         ("quant_trading/risk/manager.py", "get_position_take_profit"),
         ("quant_trading/risk/manager.py", "reset"),
