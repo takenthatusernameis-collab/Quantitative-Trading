@@ -2358,6 +2358,16 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             DataFrame with columns ``sector``, ``period``, ``performance``, or ``None`` when no data is present.
 
+        Examples:
+            >>> provider = AlphaVantageProvider(cache_dir="", warn_on_demo=False)
+            >>> provider._parse_sector_performance_response({}) is None
+            True
+            >>> df = provider._parse_sector_performance_response({"Rank A: Real-Time Performance": {"Technology": "1.5"}})
+            >>> list(df.columns)
+            ['sector', 'period', 'performance']
+            >>> df.shape
+            (1, 3)
+
         """
         if not data:
             return None
