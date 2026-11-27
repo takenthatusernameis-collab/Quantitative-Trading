@@ -1183,6 +1183,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the commodity endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_commodity_params("WTI")
+            {'function': 'WTI', 'apikey': 'demo', 'datatype': 'json', 'interval': 'monthly'}
+
         """
         params: dict[str, str] = {
             "function": function,
