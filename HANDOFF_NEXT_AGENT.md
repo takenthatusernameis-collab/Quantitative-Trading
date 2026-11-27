@@ -1,37 +1,33 @@
-## Session 2026-11-27 (allowlist cleanup - `_build_crypto_monthly_params`)
+## Session 2026-11-27 (allowlist cleanup - `_build_crypto_weekly_params`)
 
 ### What changed
-- Documented `AlphaVantageProvider._build_crypto_monthly_params` in
-  `quant_trading/data/yfinance_provider.py` (def ~line 1333,
+- Documented `AlphaVantageProvider._build_crypto_weekly_params` in
+  `quant_trading/data/yfinance_provider.py` (def ~line 1314,
   `symbol: str, market: str = "USD"`) with a deterministic single-line doctest:
-  `AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_crypto_monthly_params("BTC")`
-  -> `{'function': 'DIGITAL_CURRENCY_MONTHLY', 'symbol': 'BTC', 'market': 'USD', 'apikey': 'demo', 'datatype': 'json'}`.
+  `AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_crypto_weekly_params("BTC")`
+  -> `{'function': 'DIGITAL_CURRENCY_WEEKLY', 'symbol': 'BTC', 'market': 'USD', 'apikey': 'demo', 'datatype': 'json'}`.
 - Removed the `("quant_trading/data/yfinance_provider.py",
-  "_build_crypto_monthly_params")` line from `_EXAMPLES_ALLOWLIST` in
+  "_build_crypto_weekly_params")` line from `_EXAMPLES_ALLOWLIST` in
   `tests/test_repository_integrity.py` (no blank line left behind).
 - No production behavior changed (docstring + allowlist only).
 - Diff before this handoff update: 2 files, +4/-1.
 
 ### What was actually verified (evidence)
+- Live `python -c` run confirmed output:
+  `{'function': 'DIGITAL_CURRENCY_WEEKLY', 'symbol': 'BTC', 'market': 'USD', 'apikey': 'demo', 'datatype': 'json'}`.
 - `python -m pytest tests/test_repository_integrity.py --doctest-modules quant_trading/data/yfinance_provider.py`
-  -> 82 passed (was 81; the new doctest executed).
+  -> 83 passed (was 82; the new doctest executed).
 - `python -m pytest tests/test_repository_integrity.py` -> 51 passed.
-- `python -m pytest tests/test_yfinance_provider.py
-  tests/test_alphavantage_provider.py tests/test_data_providers.py
-  tests/test_yfinance_fetch_many.py` -> 454 passed.
-- Bounded broader subset (`test_config, test_synthetic, test_utils,
-  test_serialization_roundtrip, test_strategy_base, test_strategy_factory,
-  test_core_only_imports, test_data_providers`) -> 452 passed.
+- `python -m pytest tests/test_yfinance_provider.py tests/test_alphavantage_provider.py tests/test_data_providers.py tests/test_yfinance_fetch_many.py` -> 454 passed.
 - `python -m ruff check .` -> All checks passed.
 - `python -m black --check quant_trading/ tests/ examples/` -> 166 files unchanged.
 - `git diff --check` -> clean.
-- The actual method output was checked with a live `python -c` run before editing.
 
 ### What remains unresolved
-- `quant_trading/data/yfinance_provider.py` still has 74 `_EXAMPLES_ALLOWLIST`
-  entries (was 75 at the start of this session; this session removed one). Total
-  allowlist across all files is 309 (AST count via
-  `tests.test_repository_integrity._EXAMPLES_ALLOWLIST`; was 310).
+- `quant_trading/data/yfinance_provider.py` still has 73 `_EXAMPLES_ALLOWLIST`
+  entries (was 74 at the start of this session; this session removed one). Total
+  allowlist across all files is 308 (AST count via
+  `tests.test_repository_integrity._EXAMPLES_ALLOWLIST`; was 309).
 - Note: counting allowlist lines with `grep` undercounts (multi-line entries);
   use the AST count above for an accurate number.
 
@@ -51,11 +47,7 @@
 ### Next task (one precise step)
 Inspect `_EXAMPLES_ALLOWLIST` for the next deterministic allowlisted method in
 `quant_trading/data/yfinance_provider.py`. The next in allowlist order is
-`_build_crypto_weekly_params` (def ~line 1314,
-`symbol: str, market: str = "USD"`). Its actual output was already verified with
-a live run:
-`AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_crypto_weekly_params("BTC")`
--> `{'function': 'DIGITAL_CURRENCY_WEEKLY', 'symbol': 'BTC', 'market': 'USD', 'apikey': 'demo', 'datatype': 'json'}`.
+`_build_currency_exchange_rate_params` (def `symbol: str, market: str = "USD"`).
 Re-verify with a live `python -c` run, then document it with a deterministic
 single-line doctest using `AlphaVantageProvider(cache_dir="", warn_on_demo=False)`
 and the default market. Remove its allowlist line together with its newline (no

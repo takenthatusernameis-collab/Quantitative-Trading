@@ -1321,6 +1321,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the DIGITAL_CURRENCY_WEEKLY endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_crypto_weekly_params("BTC")
+            {'function': 'DIGITAL_CURRENCY_WEEKLY', 'symbol': 'BTC', 'market': 'USD', 'apikey': 'demo', 'datatype': 'json'}
+
         """
         return {
             "function": "DIGITAL_CURRENCY_WEEKLY",
