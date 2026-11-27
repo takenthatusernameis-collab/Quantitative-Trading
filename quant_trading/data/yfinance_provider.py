@@ -998,6 +998,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the TIME_SERIES_INTRADAY endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_intraday_params("AAPL", "5m")
+            {'function': 'TIME_SERIES_INTRADAY', 'symbol': 'AAPL', 'interval': '5min', 'apikey': 'demo', 'outputsize': 'full', 'datatype': 'json'}
+
         """
         av_interval = self.INTRADAY_INTERVALS.get(interval, interval)
         return {
