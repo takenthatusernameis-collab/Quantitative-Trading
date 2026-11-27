@@ -245,6 +245,12 @@ class RiskMetrics:
             Dictionary containing all risk metric values with keys
             corresponding to attribute names.
 
+        Examples:
+            >>> from quant_trading.risk.metrics import RiskMetrics
+            >>> m = RiskMetrics(sharpe_ratio=1.2, max_drawdown=-0.05)
+            >>> m.to_dict()['sharpe_ratio']
+            1.2
+
         """
         return {
             "sharpe_ratio": self.sharpe_ratio,
@@ -281,17 +287,10 @@ class RiskMetrics:
             A reconstructed :class:`RiskMetrics` whose every metric is finite.
 
         Examples:
-            >>> from quant_trading.risk.metrics import RiskMetrics
-            >>> metrics = RiskMetrics.from_dict({
-            ...     "sharpe_ratio": float("nan"),
-            ...     "max_drawdown": float("inf"),
-            ...     "beta": -float("inf"),
-            ... })
-            >>> metrics.sharpe_ratio, metrics.max_drawdown, metrics.beta
-            (0.0, 0.0, 0.0)
-            >>> normal = RiskMetrics.from_dict({"sharpe_ratio": 1.25})
-            >>> normal.sharpe_ratio
-            1.25
+        >>> from quant_trading.risk.metrics import RiskMetrics; metrics = RiskMetrics.from_dict({'sharpe_ratio': float('nan'), 'max_drawdown': float('inf'), 'beta': -float('inf')}); metrics.sharpe_ratio, metrics.max_drawdown, metrics.beta
+        (0.0, 0.0, 0.0)
+        >>> normal = RiskMetrics.from_dict({'sharpe_ratio': 1.25}); normal.sharpe_ratio
+        1.25
         """
 
         def _finite(value: Any, default: float = 0.0) -> float:
@@ -694,6 +693,15 @@ def calculate_alpha(
         ValueError: If ``periods_per_year`` is not a finite number of at
             least 1, or if ``risk_free_rate`` is not finite.
 
+    Examples:
+        >>> import pandas as pd
+        >>> import numpy as np
+        >>> np.random.seed(42)
+        >>> returns = pd.Series(np.random.normal(0.001, 0.02, 100))
+        >>> market = pd.Series(np.random.normal(0.001, 0.02, 100))
+        >>> round(calculate_alpha(returns, market), 4)
+        -0.2466
+
     """
     _validate_periods_per_year(periods_per_year)
     risk_free_rate = _validate_risk_free_rate(risk_free_rate)
@@ -1034,17 +1042,10 @@ def calculate_marginal_var(
             0 and 1.
 
     Examples:
-        >>> import pandas as pd
-        >>> import numpy as np
-        >>> np.random.seed(42)
-        >>> returns = pd.DataFrame({
-        ...     "A": np.random.normal(0.001, 0.02, 100),
-        ...     "B": np.random.normal(0.001, 0.02, 100),
-        ... })
-        >>> weights = pd.Series([0.5, 0.5], index=["A", "B"])
-        >>> mvar = calculate_marginal_var(returns, weights, confidence=0.95)
-        >>> len(mvar) == 2
+        >>> import pandas as pd; import numpy as np; np.random.seed(42); returns = pd.DataFrame({'A': np.random.normal(0.001, 0.02, 100), 'B': np.random.normal(0.001, 0.02, 100)}); weights = pd.Series([0.5, 0.5], index=['A', 'B']); mvar = calculate_marginal_var(returns, weights, confidence=0.95); len(mvar) == 2
         True
+        >>> round(mvar['A'], 6)
+        -0.027277
         >>> calculate_marginal_var(returns, weights, confidence=1.5)
         Traceback (most recent call last):
             ...
@@ -1102,17 +1103,10 @@ def calculate_component_var(
             0 and 1 (propagated from :func:`calculate_marginal_var`).
 
     Examples:
-        >>> import pandas as pd
-        >>> import numpy as np
-        >>> np.random.seed(42)
-        >>> returns = pd.DataFrame({
-        ...     "A": np.random.normal(0.001, 0.02, 100),
-        ...     "B": np.random.normal(0.001, 0.02, 100),
-        ... })
-        >>> weights = pd.Series([0.5, 0.5], index=["A", "B"])
-        >>> cvar = calculate_component_var(returns, weights, confidence=0.95)
-        >>> len(cvar) == 2
+        >>> import pandas as pd; import numpy as np; np.random.seed(42); returns = pd.DataFrame({'A': np.random.normal(0.001, 0.02, 100), 'B': np.random.normal(0.001, 0.02, 100)}); weights = pd.Series([0.5, 0.5], index=['A', 'B']); cvar = calculate_component_var(returns, weights, confidence=0.95); len(cvar) == 2
         True
+        >>> round(cvar['A'], 6)
+        -0.013639
 
     """
     weights = _weights_array(weights, returns.columns)
@@ -1144,16 +1138,7 @@ def calculate_volatility_contributions(
         Series of volatility contributions indexed by asset name.
 
     Examples:
-        >>> import pandas as pd
-        >>> import numpy as np
-        >>> np.random.seed(42)
-        >>> returns = pd.DataFrame({
-        ...     "A": np.random.normal(0.001, 0.02, 100),
-        ...     "B": np.random.normal(0.001, 0.02, 100),
-        ... })
-        >>> weights = pd.Series([0.5, 0.5], index=["A", "B"])
-        >>> contrib = calculate_volatility_contributions(returns, weights, annualize=False)
-        >>> bool(round(contrib.sum(), 6) == round(calculate_volatility(pd.Series(returns.values @ weights.values), annualize=False), 6))
+        >>> import pandas as pd; import numpy as np; np.random.seed(42); returns = pd.DataFrame({'A': np.random.normal(0.001, 0.02, 100), 'B': np.random.normal(0.001, 0.02, 100)}); weights = pd.Series([0.5, 0.5], index=['A', 'B']); contrib = calculate_volatility_contributions(returns, weights, annualize=False); bool(round(contrib.sum(), 6) == round(calculate_volatility(pd.Series(returns.values @ weights.values), annualize=False), 6))
         True
 
     """
@@ -1206,15 +1191,7 @@ def calculate_equal_risk_contribution_weights(
         Series of ERC weights indexed by asset name, summing to 1.0.
 
     Examples:
-        >>> import pandas as pd
-        >>> import numpy as np
-        >>> np.random.seed(42)
-        >>> returns = pd.DataFrame({
-        ...     "A": np.random.normal(0.001, 0.02, 100),
-        ...     "B": np.random.normal(0.001, 0.02, 100),
-        ... })
-        >>> weights = calculate_equal_risk_contribution_weights(returns, annualize=False)
-        >>> bool(abs(weights.sum() - 1.0) < 1e-6)
+        >>> import pandas as pd; import numpy as np; np.random.seed(42); returns = pd.DataFrame({'A': np.random.normal(0.001, 0.02, 100), 'B': np.random.normal(0.001, 0.02, 100)}); weights = calculate_equal_risk_contribution_weights(returns, annualize=False); bool(abs(weights.sum() - 1.0) < 1e-6)
         True
         >>> len(weights) == 2
         True
@@ -1292,16 +1269,7 @@ def calculate_risk_budget_weights(
         Series of risk budget weights indexed by asset name, summing to 1.0.
 
     Examples:
-        >>> import pandas as pd
-        >>> import numpy as np
-        >>> np.random.seed(42)
-        >>> returns = pd.DataFrame({
-        ...     "A": np.random.normal(0.001, 0.02, 100),
-        ...     "B": np.random.normal(0.001, 0.02, 100),
-        ... })
-        >>> budget = pd.Series([0.7, 0.3], index=["A", "B"])
-        >>> weights = calculate_risk_budget_weights(returns, budget, annualize=False)
-        >>> bool(abs(weights.sum() - 1.0) < 1e-6)
+        >>> import pandas as pd; import numpy as np; np.random.seed(42); returns = pd.DataFrame({'A': np.random.normal(0.001, 0.02, 100), 'B': np.random.normal(0.001, 0.02, 100)}); budget = pd.Series([0.7, 0.3], index=['A', 'B']); weights = calculate_risk_budget_weights(returns, budget, annualize=False); bool(abs(weights.sum() - 1.0) < 1e-6)
         True
 
     """
