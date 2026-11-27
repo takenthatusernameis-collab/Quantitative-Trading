@@ -1,3 +1,15 @@
+## Session 2026-11-27 (allowlist cleanup - `_parse_fx_daily_response`)
+
+### What changed
+- `_parse_fx_daily_response` already documented in `quant_trading/data/yfinance_provider.py`; removed its allowlist entry in `tests/test_repository_integrity.py`.
+
+### What was actually verified
+- doctest module: 59 passed; integrity: 51 passed; ruff/black/mypy clean; git diff --check clean.
+
+### Next task
+Continue allowlist cleanup with `_parse_fx_intraday_response` (next deterministic `_parse_*`).
+
+---
 ## Session 2026-11-27 (allowlist cleanup - `_parse_crypto_response`)
 
 ### What changed
