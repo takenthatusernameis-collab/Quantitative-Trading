@@ -2009,6 +2009,16 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             DataFrame with market status information, or ``None`` when no markets are present.
 
+        Examples:
+            >>> provider = AlphaVantageProvider(cache_dir="", warn_on_demo=False)
+            >>> provider._parse_market_status_response({"markets": []}) is None
+            True
+            >>> df = provider._parse_market_status_response({"markets": [{"market_type": "Equity", "region": "US", "current_status": "open"}]})
+            >>> list(df.columns)
+            ['market_type', 'region', 'market', 'primary_exchanges', 'local_open', 'local_close', 'current_status', 'notes']
+            >>> df.shape
+            (1, 8)
+
         """
         markets = data.get("markets", [])
         if not markets:
