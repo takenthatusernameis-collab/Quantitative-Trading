@@ -485,6 +485,10 @@ class YFinanceProvider(DataProvider):
             ``"<name>_group_<sorted_symbols>_<start>_<end>_<interval>.pkl"``
             where missing dates are rendered as ``"none"``.
 
+        Examples:
+            >>> YFinanceProvider(cache_dir="/tmp/yt_cache", cache_ttl_hours=1)._group_cache_key(["MSFT", "AAPL"], None, None, "1d")
+            'yfinance_group_AAPL,MSFT_none_none_1d.pkl'
+
         """
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
