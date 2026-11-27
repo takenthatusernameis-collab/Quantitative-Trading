@@ -2041,8 +2041,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/optimization/walk_forward.py", "to_dataframe"),
         ("quant_trading/optimization/walk_forward.py", "to_dict"),
         ("quant_trading/optimization/walk_forward.py", "to_dict"),
-        ("quant_trading/portfolio/portfolio.py", "from_dict"),
-        ("quant_trading/portfolio/portfolio.py", "from_dict"),
         ("quant_trading/portfolio/rebalancer.py", "__init__"),
         ("quant_trading/portfolio/rebalancer.py", "_coerce_datetime"),
         ("quant_trading/portfolio/rebalancer.py", "_iso"),

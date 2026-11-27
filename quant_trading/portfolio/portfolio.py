@@ -246,21 +246,9 @@ class Holding:
             A reconstructed :class:`Holding` whose numeric fields are finite.
 
         Examples:
-            >>> from quant_trading.portfolio.portfolio import Holding
-            >>> holding = Holding.from_dict({
-            ...     "symbol": "AAPL",
-            ...     "quantity": float("nan"),
-            ...     "avg_cost": float("inf"),
-            ...     "current_price": -float("inf"),
-            ...     "market_value": float("nan"),
-            ... })
-            >>> holding.quantity, holding.avg_cost, holding.current_price, holding.market_value
+            >>> from quant_trading.portfolio.portfolio import Holding; holding = Holding.from_dict({"symbol": "AAPL", "quantity": float("nan"), "avg_cost": float("inf"), "current_price": -float("inf"), "market_value": float("nan")}); (holding.quantity, holding.avg_cost, holding.current_price, holding.market_value)
             (0.0, 0.0, 0.0, 0.0)
-            >>> normal = Holding.from_dict({
-            ...     "symbol": "AAPL", "quantity": 100, "avg_cost": 100.0,
-            ...     "current_price": 150.0, "market_value": 15000.0,
-            ... })
-            >>> normal.market_value
+            >>> normal = Holding.from_dict({"symbol": "AAPL", "quantity": 100, "avg_cost": 100.0, "current_price": 150.0, "market_value": 15000.0}); normal.market_value
             15000.0
         """
 
@@ -820,17 +808,9 @@ class Portfolio:
             A reconstructed :class:`Portfolio` whose numeric fields are finite.
 
         Examples:
-            >>> from quant_trading.portfolio.portfolio import Portfolio
-            >>> portfolio = Portfolio.from_dict({
-            ...     "cash": float("nan"),
-            ...     "initial_capital": float("inf"),
-            ...     "total_value": -float("inf"),
-            ...     "holdings": {},
-            ... })
-            >>> portfolio.cash, portfolio.initial_capital, portfolio.total_value
+            >>> from quant_trading.portfolio.portfolio import Portfolio; portfolio = Portfolio.from_dict({"cash": float("nan"), "initial_capital": float("inf"), "total_value": -float("inf"), "holdings": {}}); (portfolio.cash, portfolio.initial_capital, portfolio.total_value)
             (0.0, 0.0, 0.0)
-            >>> normal = Portfolio.from_dict({"cash": 50000.0, "initial_capital": 50000.0})
-            >>> normal.cash, normal.initial_capital
+            >>> normal = Portfolio.from_dict({"cash": 50000.0, "initial_capital": 50000.0}); (normal.cash, normal.initial_capital)
             (50000.0, 50000.0)
         """
         last_rebalance_raw = data.get("last_rebalance")
