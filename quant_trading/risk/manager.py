@@ -220,10 +220,7 @@ class RiskAttribution:
         Examples:
             >>> from quant_trading.risk.manager import RiskAttribution
             >>> import pandas as pd
-            >>> attribution = RiskAttribution(
-            ...     portfolio_var=0.03,
-            ...     component_var=pd.Series([0.03], index=["AAPL"]),
-            ... )
+            >>> attribution = RiskAttribution(portfolio_var=0.03, component_var=pd.Series([0.03], index=["AAPL"]))
             >>> attribution.to_dict()["component_var"]
             {'AAPL': 0.03}
 
@@ -297,9 +294,7 @@ class RiskAttribution:
         Examples:
             >>> from quant_trading.risk.manager import RiskAttribution
             >>> import pandas as pd
-            >>> attribution = RiskAttribution(
-            ...     weights=pd.Series([0.5], index=["AAPL"]),
-            ... )
+            >>> attribution = RiskAttribution(weights=pd.Series([0.5], index=["AAPL"]))
             >>> attribution.as_frame().columns.tolist()
             ['weight', 'marginal_var', 'component_var', 'volatility_contribution']
 
@@ -337,9 +332,7 @@ class RiskAttribution:
         Examples:
             >>> from quant_trading.risk.manager import RiskAttribution
             >>> import pandas as pd
-            >>> attribution = RiskAttribution(
-            ...     component_var=pd.Series([0.01, 0.02], index=["A", "B"]),
-            ... )
+            >>> attribution = RiskAttribution(component_var=pd.Series([0.01, 0.02], index=["A", "B"]))
             >>> round(attribution.total_component_var(), 4)
             0.03
 
@@ -360,9 +353,7 @@ class RiskAttribution:
         Examples:
             >>> from quant_trading.risk.manager import RiskAttribution
             >>> import pandas as pd
-            >>> attribution = RiskAttribution(
-            ...     volatility_contributions=pd.Series([0.1, 0.2], index=["A", "B"]),
-            ... )
+            >>> attribution = RiskAttribution(volatility_contributions=pd.Series([0.1, 0.2], index=["A", "B"]))
             >>> round(attribution.total_volatility_contribution(), 4)
             0.3
 
