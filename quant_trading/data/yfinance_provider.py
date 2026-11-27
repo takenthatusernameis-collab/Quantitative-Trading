@@ -155,6 +155,10 @@ class YFinanceProvider(DataProvider):
             The deserialized :class:`FetchResult`, or ``None`` when the file
             is unreadable or does not contain a valid result.
 
+        Examples:
+            >>> YFinanceProvider(cache_dir="/tmp/yt_cache", cache_ttl_hours=1)._load_cache("/nonexistent/cache.pkl") is None
+            True
+
         """
         try:
             with open(path, "rb") as f:
@@ -823,6 +827,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             The deserialized :class:`FetchResult`, or ``None`` when the file
             is unreadable or does not contain a valid result.
+
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="/tmp/av_cache", warn_on_demo=False)._load_cache("/nonexistent/cache.pkl") is None
+            True
 
         """
         try:
