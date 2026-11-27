@@ -1168,6 +1168,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the GOLD_SILVER_HISTORY endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_gold_history_params("GOLD")
+            {'function': 'GOLD_SILVER_HISTORY', 'symbol': 'GOLD', 'interval': 'daily', 'apikey': 'demo', 'datatype': 'json'}
+
         """
         return {
             "function": "GOLD_SILVER_HISTORY",
