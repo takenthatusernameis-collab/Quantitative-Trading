@@ -1,13 +1,13 @@
-## Session 2026-11-27 (allowlist cleanup - `_parse_sector_performance_response`)
+## Session 2026-11-27 (allowlist cleanup - `_parse_daily_response`)
 
 ### What changed
-- Documented `AlphaVantageProvider._parse_sector_performance_response`
-  in `quant_trading/data/yfinance_provider.py` (def at line ~2352) with a
+- Documented `AlphaVantageProvider._parse_daily_response`
+  in `quant_trading/data/yfinance_provider.py` (def at line ~1558) with a
   deterministic doctest projecting stable properties only: the `None` case,
   `list(df.columns)`, `df.shape`. Method is fully deterministic (no
   `datetime.now()`).
 - Removed the `("quant_trading/data/yfinance_provider.py",
-  "_parse_sector_performance_response")` line from `_EXAMPLES_ALLOWLIST` in
+  "_parse_daily_response")` line from `_EXAMPLES_ALLOWLIST` in
   `tests/test_repository_integrity.py` (no blank line left behind).
 - No production behavior changed (docstring + allowlist only).
 - Commit: left uncommitted for the controller checkpoint commit
@@ -15,29 +15,26 @@
 
 ### What was actually verified (evidence)
 - `python -m pytest --doctest-modules quant_trading/data/yfinance_provider.py`
-  -> 53 passed (was 52; +1 for the new doctest).
+  -> 57 passed (was 56; +1 for the new doctest).
 - `python -m pytest tests/test_repository_integrity.py` -> 51 passed.
-- `python -m pytest` (full suite, config excludes slow/network)
-  -> 5442 passed, 170 skipped, 151 deselected.
 - `python -m ruff check .` -> All checks passed.
 - `python -m black --check quant_trading/ tests/ examples/` -> 166 files unchanged.
 - `git diff --check` -> clean.
+- `python -m mypy quant_trading/ tests/ examples/` -> Success: no issues found.
 - `git diff --stat`: `quant_trading/data/yfinance_provider.py | 10 ++++++++++`,
   `tests/test_repository_integrity.py | 1 -`.
 - Doctest output was confirmed with a live `python -c` snippet BEFORE writing:
-  `None` case True, columns `['sector', 'period', 'performance']`, shape `(1, 3)`,
-  records `[{'sector': 'Technology', 'period': 'A: Real-Time', 'performance': 1.5}]`.
+  `None` case True, columns `['open', 'high', 'low', 'close', 'adjusted_close', 'volume', 'dividend_amount', 'split_coefficient']`, shape `(1, 8)`,
+  records `[{'open': 100.0, 'high': 110.0, 'low': 95.0, 'close': 105.0, 'adjusted_close': 104.0, 'volume': 1000, 'dividend_amount': 0.5, 'split_coefficient': 1.0}]`.
 
 ### What remains unresolved
 - `quant_trading/data/yfinance_provider.py` still has many allowlist entries:
   `_fetch_*`, `_get_yf`, most `_parse_*`, `get_*`, `search_symbols`.
 - Remaining `_parse_*` allowlist entries (as of this session):
-  `_parse_batch_response`, `_parse_crypto_response`, `_parse_daily_response`,
-  `_parse_download`, `_parse_fx_daily_response`, `_parse_fx_intraday_response`,
+  `_parse_batch_response`, `_parse_crypto_response`, `_parse_download`,
+  `_parse_fx_daily_response`, `_parse_fx_intraday_response`,
   `_parse_intraday_response`, `_parse_monthly_adjusted_response`,
-  `_parse_monthly_response`, `_parse_single_series_response`,
-  `_parse_technical_indicator_response`, `_parse_weekly_adjusted_response`,
-  `_parse_weekly_response`.
+  `_parse_single_series_response`, `_parse_technical_indicator_response`.
 - Determinism note for the next agent: `_parse_batch_response` (line ~1613),
   `_parse_global_quote_response` (line ~1858, already done), and
   `_parse_currency_exchange_rate_response` (line ~2177, already done) build a
@@ -60,17 +57,17 @@
   order / `shape` / index BEFORE writing them into the docstring.
 
 ### Next task
-Continue the allowlist cleanup with `_parse_weekly_response`
-(def at line ~1648). Signature:
-`(self, symbol: str, data: dict, start: datetime | None, end: datetime | None)`.
+Continue the allowlist cleanup with `_parse_crypto_response`
+(def at line ~2265). Signature:
+`(self, symbol: str, market: str, data: dict, start: datetime | None, end: datetime | None)`.
 It is FULLY deterministic (no `datetime.now()`) and its date index comes from
 the INPUT, so it is stable. The following snippet was VERIFIED working this
 session (output shown) - keep the call on ONE `>>>` line:
 
     >>> provider = AlphaVantageProvider(cache_dir="", warn_on_demo=False)
-    >>> provider._parse_weekly_response("AAPL", {}, None, None) is None
+    >>> provider._parse_crypto_response("BTC", "USD", {}, None, None) is None
     True
-    >>> df = provider._parse_weekly_response("AAPL", {"Weekly Time Series": {"2024-01-05": {"1. open": "100.0", "2. high": "110.0", "3. low": "95.0", "4. close": "105.0", "5. volume": "1000"}}}, None, None)
+    >>> df = provider._parse_crypto_response("BTC", "USD", {"Time Series (Digital Currency Daily)": {"2024-01-05": {"1a. open (USD)": "40000.0", "2a. high (USD)": "42000.0", "3a. low (USD)": "39000.0", "4a. close (USD)": "41000.0", "5. volume": "1000"}}}, None, None)
     >>> list(df.columns)
     ['open', 'high', 'low', 'close', 'volume']
     >>> df.shape
@@ -80,8 +77,7 @@ session (output shown) - keep the call on ONE `>>>` line:
 -> `['2024-01-05']`.)
 
 Then remove `("quant_trading/data/yfinance_provider.py",
-"_parse_weekly_response")` from `_EXAMPLES_ALLOWLIST` and re-run the
+"_parse_crypto_response")` from `_EXAMPLES_ALLOWLIST` and re-run the
 verification commands above (doctest module, integrity test, ruff, black,
-`git diff --check`, full `pytest`). Keep each `>>>` line independently
+`git diff --check`, mypy, full `pytest`). Keep each `>>>` line independently
 compilable and single-line where a call has multiple args.
-(End of file)
