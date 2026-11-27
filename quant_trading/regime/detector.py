@@ -358,10 +358,7 @@ class RegimeResult:
         Examples:
             >>> import pandas as pd
             >>> from quant_trading.regime.detector import detect_regimes
-            >>> prices = pd.Series(
-            ...     [100.0, 101.0, 102.0, 103.0, 104.0, 105.0],
-            ...     index=pd.date_range("2024-01-01", periods=6, freq="D"),
-            ... )
+            >>> prices = pd.Series([100.0, 101.0, 102.0, 103.0, 104.0, 105.0], index=pd.date_range("2024-01-01", periods=6, freq="D"))
             >>> result = detect_regimes(prices, window=2, vol_threshold=10.0, return_threshold=10.0)
             >>> df = result.to_dataframe()
             >>> len(df)
@@ -388,10 +385,7 @@ class RegimeResult:
         Examples:
             >>> import pandas as pd
             >>> from quant_trading.regime.detector import detect_regimes
-            >>> prices = pd.Series(
-            ...     [100.0, 101.0, 102.0, 103.0, 104.0, 105.0],
-            ...     index=pd.date_range("2024-01-01", periods=6, freq="D"),
-            ... )
+            >>> prices = pd.Series([100.0, 101.0, 102.0, 103.0, 104.0, 105.0], index=pd.date_range("2024-01-01", periods=6, freq="D"))
             >>> result = detect_regimes(prices, window=2, vol_threshold=10.0, return_threshold=10.0)
             >>> summary = result.summary()
             >>> summary["n_segments"]
@@ -528,10 +522,7 @@ class RegimeDetector:
         Examples:
             >>> import pandas as pd
             >>> from quant_trading.regime.detector import RegimeDetector
-            >>> prices = pd.Series(
-            ...     [100.0, 101.0, 102.0, 103.0, 104.0, 105.0],
-            ...     index=pd.date_range("2024-01-01", periods=6, freq="D"),
-            ... )
+            >>> prices = pd.Series([100.0, 101.0, 102.0, 103.0, 104.0, 105.0], index=pd.date_range("2024-01-01", periods=6, freq="D"))
             >>> result = RegimeDetector(window=2, vol_threshold=10.0, return_threshold=10.0).detect(prices)
             >>> result.n_segments
             1
@@ -794,10 +785,7 @@ def detect_regimes(
     Examples:
         >>> import pandas as pd
         >>> from quant_trading.regime.detector import detect_regimes
-        >>> prices = pd.Series(
-        ...     [100.0, 101.0, 102.0, 103.0, 104.0, 105.0],
-        ...     index=pd.date_range("2024-01-01", periods=6, freq="D"),
-        ... )
+        >>> prices = pd.Series([100.0, 101.0, 102.0, 103.0, 104.0, 105.0], index=pd.date_range("2024-01-01", periods=6, freq="D"))
         >>> result = detect_regimes(prices, window=2, vol_threshold=10.0, return_threshold=10.0)
         >>> result.n_segments
         1
