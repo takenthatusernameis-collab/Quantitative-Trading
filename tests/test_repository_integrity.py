@@ -2060,7 +2060,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/risk/limits.py", "_coerce_datetime"),
         ("quant_trading/risk/limits.py", "_iso"),
         ("quant_trading/risk/manager.py", "__init__"),
-        ("quant_trading/data/providers.py", "fetch_many"),
         ("quant_trading/risk/manager.py", "_check_exposure_increase"),
         ("quant_trading/risk/manager.py", "_clear_trailing_state"),
         ("quant_trading/risk/manager.py", "_mapping_to_series"),

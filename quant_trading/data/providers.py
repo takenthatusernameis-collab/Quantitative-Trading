@@ -770,6 +770,17 @@ class DataManager:
             ValueError: If no provider matches ``provider_name`` and no
                 providers are registered.
 
+        Examples:
+            >>> from quant_trading.config.settings import DataConfig
+            >>> from quant_trading.data.providers import create_data_manager_from_config
+            >>> manager = create_data_manager_from_config(DataConfig(provider="synthetic"))
+            >>> results = manager.fetch_many([{"symbols": ["AAPL", "MSFT"], "interval": "1d"}])
+            >>> results["AAPL,MSFT|none|none|1d"].is_success
+            True
+            >>> again = manager.fetch_many([{"symbols": ["AAPL", "MSFT"], "interval": "1d"}])
+            >>> again["AAPL,MSFT|none|none|1d"].is_success
+            True
+
         """
         provider = None
         if provider_name:
