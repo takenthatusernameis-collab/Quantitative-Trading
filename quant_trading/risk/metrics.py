@@ -1044,7 +1044,7 @@ def calculate_marginal_var(
     Examples:
         >>> import pandas as pd; import numpy as np; np.random.seed(42); returns = pd.DataFrame({'A': np.random.normal(0.001, 0.02, 100), 'B': np.random.normal(0.001, 0.02, 100)}); weights = pd.Series([0.5, 0.5], index=['A', 'B']); mvar = calculate_marginal_var(returns, weights, confidence=0.95); len(mvar) == 2
         True
-        >>> round(mvar['A'], 6)
+        >>> float(round(mvar['A'], 6))
         -0.027277
         >>> calculate_marginal_var(returns, weights, confidence=1.5)
         Traceback (most recent call last):
@@ -1105,7 +1105,7 @@ def calculate_component_var(
     Examples:
         >>> import pandas as pd; import numpy as np; np.random.seed(42); returns = pd.DataFrame({'A': np.random.normal(0.001, 0.02, 100), 'B': np.random.normal(0.001, 0.02, 100)}); weights = pd.Series([0.5, 0.5], index=['A', 'B']); cvar = calculate_component_var(returns, weights, confidence=0.95); len(cvar) == 2
         True
-        >>> round(cvar['A'], 6)
+        >>> float(round(cvar['A'], 6))
         -0.013639
 
     """
