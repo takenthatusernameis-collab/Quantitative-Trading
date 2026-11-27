@@ -1862,7 +1862,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/config/settings.py", "_check_field_types"),
         ("quant_trading/config/settings.py", "_to_dict"),
         ("quant_trading/config/settings.py", "_type_matches"),
-        ("quant_trading/data/yfinance_provider.py", "_build_sector_params"),
         ("quant_trading/data/yfinance_provider.py", "_build_symbol_search_params"),
         ("quant_trading/data/yfinance_provider.py", "_build_technical_indicator_params"),
         ("quant_trading/data/yfinance_provider.py", "_build_weekly_adjusted_params"),

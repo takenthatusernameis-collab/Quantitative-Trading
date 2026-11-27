@@ -1,19 +1,19 @@
-## Session 2026-11-27 (allowlist cleanup - `_build_monthly_params`)
+## Session 2026-11-27 (allowlist cleanup - `_build_sector_params`)
 
 ### What changed
-- Documented `AlphaVantageProvider._build_monthly_params`
+- Documented `AlphaVantageProvider._build_sector_params`
   in `quant_trading/data/yfinance_provider.py` (def `self`) with a
   deterministic doctest:
-  `AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_monthly_params("AAPL")`
-  -> `{'function': 'TIME_SERIES_MONTHLY', 'symbol': 'AAPL', 'apikey': 'demo', 'datatype': 'json'}`.
+  `AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_sector_params()`
+  -> `{'function': 'SECTOR', 'apikey': 'demo', 'datatype': 'json'}`.
 - Removed the `("quant_trading/data/yfinance_provider.py",
-  "_build_monthly_params")` line from `_EXAMPLES_ALLOWLIST` in
+  "_build_sector_params")` line from `_EXAMPLES_ALLOWLIST` in
   `tests/test_repository_integrity.py` (no blank line left behind).
 - No production behavior changed (docstring + allowlist only).
 
 ### What was actually verified (evidence)
 - `python -m pytest --doctest-modules quant_trading/data/yfinance_provider.py`
-  -> 42 passed.
+  -> 43 passed (was 42; +1 for the new doctest).
 - `python -m pytest tests/test_repository_integrity.py` -> 51 passed.
 - `python -m ruff check .` -> All checks passed.
 - `python -m black --check quant_trading/ tests/ examples/` -> 166 files unchanged.
@@ -27,8 +27,8 @@
 ### Next task
 Inspect `_EXAMPLES_ALLOWLIST` for the next deterministic allowlisted method in
 `quant_trading/data/yfinance_provider.py` (the next remaining `_build_*_params`
-entries are `_build_sector_params`, `_build_symbol_search_params`,
-`_build_technical_indicator_params`, `_build_weekly_adjusted_params`,
-`_build_weekly_params`) and repeat the process: add a deterministic doctest,
-remove the allowlist entry, and re-run the verification commands above.
+entries are `_build_symbol_search_params`, `_build_technical_indicator_params`,
+`_build_weekly_adjusted_params`, `_build_weekly_params`) and repeat the process:
+add a deterministic doctest, remove the allowlist entry, and re-run the
+verification commands above.
 (End of file)

@@ -1150,6 +1150,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the SECTOR_PERFORMANCE endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_sector_params()
+            {'function': 'SECTOR', 'apikey': 'demo', 'datatype': 'json'}
+
         """
         return {
             "function": "SECTOR",
