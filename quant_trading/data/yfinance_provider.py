@@ -2282,6 +2282,16 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             DataFrame indexed by date/timestamp with OHLCV columns, or ``None`` when no series is present.
 
+        Examples:
+            >>> provider = AlphaVantageProvider(cache_dir="", warn_on_demo=False)
+            >>> provider._parse_crypto_response("BTC", "USD", {}, None, None) is None
+            True
+            >>> df = provider._parse_crypto_response("BTC", "USD", {"Time Series (Digital Currency Daily)": {"2024-01-05": {"1a. open (USD)": "40000.0", "2a. high (USD)": "42000.0", "3a. low (USD)": "39000.0", "4a. close (USD)": "41000.0", "5. volume": "1000"}}}, None, None)
+            >>> list(df.columns)
+            ['open', 'high', 'low', 'close', 'volume']
+            >>> df.shape
+            (1, 5)
+
         """
         # Find the time series key
         time_series_key = None
