@@ -172,6 +172,15 @@ class RegimeSegment:
             ``start``, ``end``, ``start_index``, ``end_index``,
             ``volatility``, and ``return_pct``.
 
+        Examples:
+            >>> import pandas as pd
+            >>> from quant_trading.regime.detector import RegimeSegment, Regime
+            >>> seg = RegimeSegment(regime=Regime.BULL_LOW_VOL, start=pd.Timestamp("2024-01-01"), end=pd.Timestamp("2024-01-31"), start_index=0, end_index=20, volatility=0.1, return_pct=5.0)
+            >>> seg.to_dict()["regime"]
+            'bull_low_vol'
+            >>> seg.to_dict()["return_pct"]
+            5.0
+
         """
         return {
             "regime": self.regime.value,
@@ -197,6 +206,17 @@ class RegimeSegment:
 
         Returns:
             RegimeSegment object populated from the dictionary.
+
+        Examples:
+            >>> from quant_trading.regime.detector import RegimeSegment
+            >>> data = {"regime": "bull_low_vol", "start": "2024-01-01", "end": "2024-01-31", "start_index": 0, "end_index": 20, "volatility": 0.1, "return_pct": 5.0}
+            >>> seg = RegimeSegment.from_dict(data)
+            >>> seg.regime.value
+            'bull_low_vol'
+            >>> seg.return_pct
+            5.0
+            >>> RegimeSegment.from_dict({"regime": "bull_low_vol", "start_index": float("nan"), "volatility": float("inf")}).start_index
+            0
 
         """
         return cls(
@@ -261,6 +281,18 @@ class RegimeResult:
             ``current_regime``, ``total_volatility``, and
             ``total_return_pct``.
 
+        Examples:
+            >>> import pandas as pd
+            >>> from quant_trading.regime.detector import RegimeResult, RegimeSegment, Regime
+            >>> seg = RegimeSegment(regime=Regime.BULL_LOW_VOL, start=pd.Timestamp("2024-01-01"), end=pd.Timestamp("2024-01-31"), start_index=0, end_index=20, volatility=0.1, return_pct=5.0)
+            >>> result = RegimeResult(segments=[seg], regimes=[Regime.BULL_LOW_VOL], n_segments=1, current_regime=Regime.BULL_LOW_VOL, total_volatility=0.15, total_return_pct=10.0)
+            >>> result.to_dict()["n_segments"]
+            1
+            >>> result.to_dict()["current_regime"]
+            'bull_low_vol'
+            >>> len(result.to_dict()["segments"])
+            1
+
         """
         return {
             "segments": [s.to_dict() for s in self.segments],
@@ -288,6 +320,17 @@ class RegimeResult:
 
         Returns:
             RegimeResult object populated from the dictionary.
+
+        Examples:
+            >>> from quant_trading.regime.detector import RegimeResult
+            >>> data = {"segments": [{"regime": "bull_low_vol", "start": "2024-01-01", "end": "2024-01-31", "start_index": 0, "end_index": 20, "volatility": 0.1, "return_pct": 5.0}], "regimes": ["bull_low_vol"], "n_segments": 1, "current_regime": "bull_low_vol", "total_volatility": 0.15, "total_return_pct": 10.0}
+            >>> result = RegimeResult.from_dict(data)
+            >>> result.n_segments
+            1
+            >>> result.current_regime.value
+            'bull_low_vol'
+            >>> RegimeResult.from_dict({"segments": [], "total_volatility": float("nan"), "total_return_pct": float("inf")}).total_volatility
+            0.0
 
         """
         segments = [RegimeSegment.from_dict(seg_data) for seg_data in data.get("segments", [])]
