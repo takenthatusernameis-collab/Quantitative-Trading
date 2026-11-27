@@ -1902,6 +1902,14 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             List of symbol match dicts with keys: symbol, name, type, region, market, currency, match_score.
 
+        Examples:
+            >>> provider = AlphaVantageProvider(cache_dir="", warn_on_demo=False)
+            >>> item = {"1. symbol": "AAPL", "2. name": "Apple Inc"}
+            >>> item["3. type"] = "Equity"
+            >>> item["7. matchScore"] = "0.8571"
+            >>> provider._parse_symbol_search_response({"bestMatches": [item]})
+            [{'symbol': 'AAPL', 'name': 'Apple Inc', 'type': 'Equity', 'region': '', 'market': '', 'currency': '', 'match_score': '0.8571'}]
+
         """
         best_matches = data.get("bestMatches", [])
         results: list[dict[str, str]] = []
