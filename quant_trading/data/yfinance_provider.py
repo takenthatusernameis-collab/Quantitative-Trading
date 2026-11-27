@@ -546,6 +546,20 @@ class YFinanceProvider(DataProvider):
             A new :class:`FetchResult` containing only the requested symbols'
             data/errors, with any absent symbol recorded as missing.
 
+        Examples:
+            >>> import pandas as pd
+            >>> from quant_trading.data.providers import FetchResult, MarketData
+            >>> provider = YFinanceProvider(cache_dir="")
+            >>> md = MarketData("AAPL", pd.DataFrame({"close": [1.0]}), "t", pd.Timestamp(0))
+            >>> group = FetchResult(data={"AAPL": md}, errors={"MSFT": RuntimeError("boom")})
+            >>> sliced = provider._slice_group_result(group, ["AAPL", "MSFT", "GOOG"])
+            >>> list(sliced.data)
+            ['AAPL']
+            >>> list(sliced.errors)
+            ['MSFT']
+            >>> sliced.missing
+            ['GOOG']
+
         """
         sliced = FetchResult()
         for symbol in symbols:
