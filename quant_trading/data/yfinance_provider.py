@@ -135,6 +135,10 @@ class YFinanceProvider(DataProvider):
             ``True`` when the file exists and its modification time is newer
             than ``now - cache_ttl``.
 
+        Examples:
+            >>> YFinanceProvider(cache_dir="/tmp/yt_cache", cache_ttl_hours=1)._is_cache_valid("/nonexistent/cache.pkl")
+            False
+
         """
         if not os.path.exists(path):
             return False
@@ -799,6 +803,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             ``True`` when the file exists and its modification time is newer
             than ``now - cache_ttl``.
+
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="/tmp/av_cache", warn_on_demo=False)._is_cache_valid("/nonexistent/cache.pkl")
+            False
 
         """
         if not os.path.exists(path):
