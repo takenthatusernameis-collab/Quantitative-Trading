@@ -1,30 +1,28 @@
-## Session 2026-11-27 (allowlist cleanup - `_load_cache`, both providers)
+## Session 2026-11-27 (allowlist cleanup - `_save_cache`, both providers)
 
 ### What changed
-- Documented `YFinanceProvider._load_cache` AND `AlphaVantageProvider._load_cache`
+- Documented `YFinanceProvider._save_cache` AND `AlphaVantageProvider._save_cache`
   in `quant_trading/data/yfinance_provider.py` with a deterministic single-line doctest
-  (nonexistent path -> `is None` is `True`).
-- Removed the two identical `("quant_trading/data/yfinance_provider.py", "_load_cache")`
+  (unwritable/nonexistent directory path -> return value is None).
+- Removed the two identical `("quant_trading/data/yfinance_provider.py", "_save_cache")`
   lines from `_EXAMPLES_ALLOWLIST` in `tests/test_repository_integrity.py`.
 - No production behavior changed.
 
 ### What was actually verified
 - `python -m pytest tests/test_repository_integrity.py --doctest-modules quant_trading/data/yfinance_provider.py`
-  -> 58 passed, 1 skipped.
+  -> 60 passed, 1 skipped.
 - `python -m ruff check .` -> all checks passed.
 - `python -m black --check quant_trading/ tests/ examples/` -> 166 files unchanged.
 - `git diff --check` -> passed.
+- Full pytest suite -> 5308 passed, 260 skipped, 151 deselected.
 
 ### What remains unresolved
 - `quant_trading/data/yfinance_provider.py` still has many `_EXAMPLES_ALLOWLIST` entries.
-- The next identical-pair is `_save_cache` (two identical defs, one per provider; the
-  allowlist still has two identical `_save_cache` lines).
+- Next identical-pair candidate TBD; inspect allowlist for next duplicated def.
 
 ### Next task
-Document BOTH `_save_cache` methods (YFinanceProvider and AlphaVantageProvider) in
-`quant_trading/data/yfinance_provider.py` with a deterministic single-line doctest, then
-remove the two identical `("quant_trading/data/yfinance_provider.py", "_save_cache")`
-lines from `_EXAMPLES_ALLOWLIST`. Suggested deterministic offline example: writing to
-an unwritable/nonexistent directory path should not raise; verify return value (None).
-Run the same focused integrity/module tests, Ruff, Black, `git diff --check`, and the
-full pytest suite before selecting another def.
+Inspect `_EXAMPLES_ALLOWLIST` for the next duplicated `(path, name)` pair in
+`quant_trading/data/yfinance_provider.py`, document both methods with a deterministic
+single-line doctest, then remove the two allowlist lines. Run the same focused
+integrity/module tests, Ruff, Black, `git diff --check`, and the full pytest suite
+before selecting another def.

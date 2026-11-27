@@ -181,6 +181,10 @@ class YFinanceProvider(DataProvider):
         Returns:
             None.
 
+        Examples:
+            >>> YFinanceProvider(cache_dir="/tmp/yt_cache", cache_ttl_hours=1)._save_cache("/nonexistent/dir/cache.pkl", FetchResult()) is None
+            True
+
         """
         try:
             with open(path, "wb") as f:
@@ -853,6 +857,10 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             None.
+
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="/tmp/av_cache", warn_on_demo=False)._save_cache("/nonexistent/dir/cache.pkl", FetchResult()) is None
+            True
 
         """
         try:
