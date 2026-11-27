@@ -107,6 +107,10 @@ class YFinanceProvider(DataProvider):
             ``"<name>_<sorted_symbols>_<start>_<end>_<interval>.pkl"`` where
             missing dates are rendered as ``"none"``.
 
+        Examples:
+            >>> YFinanceProvider(cache_dir="/tmp/yt_cache", cache_ttl_hours=1)._cache_key(["B", "A"], None, None, "1d")
+            'yfinance_A,B_none_none_1d.pkl'
+
         """
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
@@ -121,6 +125,10 @@ class YFinanceProvider(DataProvider):
 
         Returns:
             Full filesystem path for the cache file.
+
+        Examples:
+            >>> YFinanceProvider(cache_dir="/tmp/yt_cache", cache_ttl_hours=1)._cache_path("k.pkl")
+            '/tmp/yt_cache/k.pkl'
 
         """
         return os.path.join(self._cache_dir, key)
@@ -784,6 +792,10 @@ class AlphaVantageProvider(DataProvider):
             ``"<name>_<sorted_symbols>_<start>_<end>_<interval>.pkl"`` where
             missing dates are rendered as ``"none"``.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="/tmp/av_cache", warn_on_demo=False)._cache_key(["B", "A"], None, None, "1d")
+            'alphavantage_A,B_none_none_1d.pkl'
+
         """
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
@@ -798,6 +810,10 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Full filesystem path for the cache file.
+
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="/tmp/av_cache", warn_on_demo=False)._cache_path("k.pkl")
+            '/tmp/av_cache/k.pkl'
 
         """
         return os.path.join(self._cache_dir, key)
