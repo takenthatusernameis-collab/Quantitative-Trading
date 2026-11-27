@@ -51,6 +51,10 @@ class YFinanceProvider(DataProvider):
         Returns:
             None.
 
+        Examples:
+            >>> YFinanceProvider(cache_dir="/tmp/yt_cache_init", cache_ttl_hours=1).name
+            'yfinance'
+
         """
         self._cache_dir = cache_dir
         self._cache_ttl = timedelta(hours=cache_ttl_hours)
@@ -746,6 +750,10 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             None.
+
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="/tmp/av_cache_init", warn_on_demo=False).name
+            'alphavantage'
 
         """
         self._api_key = api_key or "demo"
