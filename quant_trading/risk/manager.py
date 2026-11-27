@@ -1434,20 +1434,9 @@ class RiskManager:
             >>> from quant_trading.risk.manager import RiskManager
             >>> from quant_trading.strategies.base import Position
             >>> rm = RiskManager(initial_capital=100000.0)
-            >>> rm.update_portfolio_value(
-            ...     {
-            ...         "AAPL": Position("AAPL", 100, 150.0, 150.0),
-            ...         "MSFT": Position("MSFT", 100, 300.0, 300.0),
-            ...     },
-            ...     40000.0,
-            ... )
+            >>> rm.update_portfolio_value({"AAPL": Position("AAPL", 100, 150.0, 150.0), "MSFT": Position("MSFT", 100, 300.0, 300.0)}, 40000.0)
             >>> np.random.seed(42)
-            >>> data = pd.DataFrame(
-            ...     {
-            ...         "AAPL": np.random.normal(0.001, 0.02, 200),
-            ...         "MSFT": np.random.normal(0.001, 0.02, 200),
-            ...     }
-            ... )
+            >>> data = pd.DataFrame({"AAPL": np.random.normal(0.001, 0.02, 200), "MSFT": np.random.normal(0.001, 0.02, 200)})
             >>> attribution = rm.calculate_risk_attribution(data)
             >>> sorted(attribution.weights.index)
             ['AAPL', 'MSFT']
@@ -1543,20 +1532,9 @@ class RiskManager:
             >>> from quant_trading.risk.manager import RiskManager
             >>> from quant_trading.strategies.base import Position
             >>> rm = RiskManager(initial_capital=100000.0)
-            >>> rm.update_portfolio_value(
-            ...     {
-            ...         "AAPL": Position("AAPL", 100, 150.0, 150.0),
-            ...         "MSFT": Position("MSFT", 100, 300.0, 300.0),
-            ...     },
-            ...     40000.0,
-            ... )
+            >>> rm.update_portfolio_value({"AAPL": Position("AAPL", 100, 150.0, 150.0), "MSFT": Position("MSFT", 100, 300.0, 300.0)}, 40000.0)
             >>> np.random.seed(42)
-            >>> data = pd.DataFrame(
-            ...     {
-            ...         "AAPL": np.random.normal(0.001, 0.01, 200),
-            ...         "MSFT": np.random.normal(0.001, 0.03, 200),
-            ...     }
-            ... )
+            >>> data = pd.DataFrame({"AAPL": np.random.normal(0.001, 0.01, 200), "MSFT": np.random.normal(0.001, 0.03, 200)})
             >>> weights = rm.suggest_erc_weights(data, annualize=False)
             >>> bool(weights["AAPL"] > weights["MSFT"])
             True
@@ -1622,23 +1600,10 @@ class RiskManager:
             >>> from quant_trading.risk.manager import RiskManager
             >>> from quant_trading.strategies.base import Position
             >>> rm = RiskManager(initial_capital=100000.0)
-            >>> rm.update_portfolio_value(
-            ...     {
-            ...         "AAPL": Position("AAPL", 100, 150.0, 150.0),
-            ...         "MSFT": Position("MSFT", 100, 300.0, 300.0),
-            ...     },
-            ...     40000.0,
-            ... )
+            >>> rm.update_portfolio_value({"AAPL": Position("AAPL", 100, 150.0, 150.0), "MSFT": Position("MSFT", 100, 300.0, 300.0)}, 40000.0)
             >>> np.random.seed(42)
-            >>> data = pd.DataFrame(
-            ...     {
-            ...         "AAPL": np.random.normal(0.001, 0.01, 200),
-            ...         "MSFT": np.random.normal(0.001, 0.03, 200),
-            ...     }
-            ... )
-            >>> weights = rm.suggest_risk_budget_weights(
-            ...     {"AAPL": 0.5, "MSFT": 0.5}, data, annualize=False
-            ... )
+            >>> data = pd.DataFrame({"AAPL": np.random.normal(0.001, 0.01, 200), "MSFT": np.random.normal(0.001, 0.03, 200)})
+            >>> weights = rm.suggest_risk_budget_weights({"AAPL": 0.5, "MSFT": 0.5}, data, annualize=False)
             >>> bool(round(weights.sum(), 6) == 1.0)
             True
 
