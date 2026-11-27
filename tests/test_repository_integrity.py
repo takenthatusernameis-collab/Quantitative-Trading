@@ -1928,8 +1928,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/data/yfinance_provider.py", "_parse_weekly_adjusted_response"),
         ("quant_trading/data/yfinance_provider.py", "_parse_weekly_response"),
         ("quant_trading/data/yfinance_provider.py", "_slice_group_result"),
-        ("quant_trading/data/yfinance_provider.py", "fetch"),
-        ("quant_trading/data/yfinance_provider.py", "fetch"),
         ("quant_trading/data/yfinance_provider.py", "fetch_latest"),
         ("quant_trading/data/yfinance_provider.py", "fetch_latest"),
         ("quant_trading/data/yfinance_provider.py", "fetch_many"),

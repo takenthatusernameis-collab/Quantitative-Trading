@@ -228,6 +228,10 @@ class YFinanceProvider(DataProvider):
             A :class:`FetchResult` containing successful data, hard errors,
             and symbols that returned no data.
 
+        Examples:
+            >>> len(YFinanceProvider(cache_dir="/tmp/yt_fetch_doc", cache_ttl_hours=1).fetch(["AAPL"]).data)
+            1
+
         """
         # Try cache first
         if self._cache_dir:
@@ -3952,6 +3956,10 @@ class AlphaVantageProvider(DataProvider):
         For technical indicators (interval in TECHNICAL_INDICATORS), the optional
         keyword argument ``ti_interval`` specifies the time-series resolution
         (e.g., "daily", "5min", "weekly", "monthly"). Defaults to "daily".
+
+        Examples:
+            >>> len(AlphaVantageProvider(cache_dir="/tmp/av_fetch_doc", warn_on_demo=False).fetch(["AAPL"], interval="1d").data)
+            0
 
         """
         # Try cache first
