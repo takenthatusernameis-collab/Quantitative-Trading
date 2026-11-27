@@ -1086,6 +1086,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the GLOBAL_QUOTE endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_global_quote_params("AAPL")
+            {'function': 'GLOBAL_QUOTE', 'symbol': 'AAPL', 'apikey': 'demo', 'datatype': 'json'}
+
         """
         return {
             "function": "GLOBAL_QUOTE",
