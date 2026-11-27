@@ -1508,6 +1508,16 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             DataFrame indexed by timestamp with OHLCV columns, or ``None`` when no series is present.
 
+        Examples:
+            >>> provider = AlphaVantageProvider(cache_dir="", warn_on_demo=False)
+            >>> provider._parse_intraday_response("AAPL", {}, None, None) is None
+            True
+            >>> df = provider._parse_intraday_response("AAPL", {"Time Series (5min)": {"2024-01-05 10:00:00": {"1. open": "150.0", "2. high": "151.0", "3. low": "149.0", "4. close": "150.5", "5. volume": "1000"}}}, None, None)
+            >>> list(df.columns)
+            ['open', 'high', 'low', 'close', 'volume']
+            >>> df.shape
+            (1, 5)
+
         """
         # Find the time series key (e.g., "Time Series (5min)")
         time_series_key = None
