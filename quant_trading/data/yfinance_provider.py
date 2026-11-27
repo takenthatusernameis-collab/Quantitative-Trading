@@ -1784,6 +1784,16 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             DataFrame indexed by date with OHLCV columns, or ``None`` when no series is present.
 
+        Examples:
+            >>> provider = AlphaVantageProvider(cache_dir="", warn_on_demo=False)
+            >>> provider._parse_monthly_response("AAPL", {}, None, None) is None
+            True
+            >>> df = provider._parse_monthly_response("AAPL", {"Monthly Time Series": {"2024-01-31": {"1. open": "100.0", "2. high": "110.0", "3. low": "95.0", "4. close": "105.0", "5. volume": "1000"}}}, None, None)
+            >>> list(df.columns)
+            ['open', 'high', 'low', 'close', 'volume']
+            >>> df.shape
+            (1, 5)
+
         """
         time_series = data.get("Monthly Time Series")
         if not time_series:
