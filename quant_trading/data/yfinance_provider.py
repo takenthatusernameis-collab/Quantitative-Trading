@@ -561,6 +561,10 @@ class YFinanceProvider(DataProvider):
         Returns:
             A :class:`FetchResult` containing the latest data.
 
+        Examples:
+            >>> isinstance(YFinanceProvider(cache_dir="/tmp/yt_latest_doc", cache_ttl_hours=1).fetch_latest(["AAPL"]), FetchResult)
+            True
+
         """
         end = datetime.now()
         start = end - timedelta(days=2)
@@ -4191,6 +4195,10 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             A :class:`FetchResult` containing the latest quote data.
+
+        Examples:
+            >>> isinstance(AlphaVantageProvider(cache_dir="/tmp/av_latest_doc", warn_on_demo=False).fetch_latest(["AAPL"]), FetchResult)
+            True
 
         """
         return self._fetch_batch(symbols, None, None, "1m")
