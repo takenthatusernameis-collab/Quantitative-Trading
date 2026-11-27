@@ -487,6 +487,12 @@ class PortfolioRisk:
         Returns:
             Equal to ``total_market_value``.
 
+        Examples:
+            >>> from quant_trading.risk.manager import PortfolioRisk
+            >>> pr = PortfolioRisk(total_market_value=100000.0, cash=50000.0, positions_value=50000.0)
+            >>> pr.total_value
+            100000.0
+
         """
         return self.total_market_value
 
@@ -1182,6 +1188,15 @@ class RiskManager:
 
         Returns:
             Computed RiskMetrics object.
+
+        Examples:
+            >>> from quant_trading.risk.manager import RiskManager
+            >>> rm = RiskManager(initial_capital=100000.0)
+            >>> rm.update_portfolio_value({}, 100000.0)
+            >>> rm.equity_curve = [100000.0, 101000.0, 99000.0]
+            >>> metrics = rm.calculate_metrics()
+            >>> round(metrics.sharpe_ratio, 2)
+            -3.75
 
         """
         equity_series = pd.Series(self.equity_curve)
