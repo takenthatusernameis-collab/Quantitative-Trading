@@ -1234,6 +1234,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the FX_DAILY endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_fx_daily_params("USD", "EUR")
+            {'function': 'FX_DAILY', 'from_symbol': 'USD', 'to_symbol': 'EUR', 'apikey': 'demo', 'datatype': 'json'}
+
         """
         return {
             "function": "FX_DAILY",
