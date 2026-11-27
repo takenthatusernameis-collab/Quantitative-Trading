@@ -1,53 +1,47 @@
-## Session 2026-11-27 (allowlist cleanup - `fetch_latest`, both providers)
+## Session 2026-11-27 (allowlist cleanup - `fetch_many`, both providers)
 
 ### What changed
-- Documented `YFinanceProvider.fetch_latest` AND `AlphaVantageProvider.fetch_latest`
+- Documented `YFinanceProvider.fetch_many` AND `AlphaVantageProvider.fetch_many`
   in `quant_trading/data/yfinance_provider.py` with a deterministic single-line
-  doctest each: `isinstance(<provider>.fetch_latest(["AAPL"]), FetchResult)` -> `True`.
-- Removed the two identical `("quant_trading/data/yfinance_provider.py", "fetch_latest")`
+  doctest each: `isinstance(<provider>.fetch_many([{"symbols": ["AAPL"]}]), dict)` -> `True`.
+- Removed the two identical `("quant_trading/data/yfinance_provider.py", "fetch_many")`
   lines from `_EXAMPLES_ALLOWLIST` in `tests/test_repository_integrity.py`.
 - No production behavior changed (docstrings + allowlist only).
 
-### Why `isinstance` instead of a data-length assertion
-- `fetch_latest` hardcodes `interval="1m"` (YFinance) / BATCH real-time (AlphaVantage).
-  A `len(result.data)` assertion is NON-deterministic: the YFinance 1-minute window
-  (now-2d..now) is empty on Mondays/weekends/after-hours, so `len` flips between 0 and 1.
-- `isinstance(..., FetchResult)` is always `True` regardless of market hours, data
-  availability, or network state: both providers catch request/connection errors and
-  still return a `FetchResult` (YFinance `fetch` catches per-symbol; AlphaVantage
-  `_fetch_batch` catches `requests.RequestException`). So the doctest is deterministic
-  AND passes offline (no hang beyond each provider's request timeout).
-- `FetchResult` is a module-level import (line 13), so it resolves in the doctest
-  namespace without an explicit import (matches the existing `fetch` doctest style).
+### Why `isinstance(..., dict)` instead of a data-length assertion
+- `fetch_many` issues network downloads (yfinance `download` / Alpha Vantage
+  per-symbol or batch endpoints) whose result length depends on market
+  hours, data availability, and rate limits, so a `len(...)` assertion is
+  NON-deterministic.
+- Both providers catch request/connection errors and still return a `dict`
+  mapping request keys to `FetchResult`, so `isinstance(..., dict)` is always
+  `True` and deterministic regardless of network state.
+- `FetchResult` is a module-level import (line 13), resolving in the doctest
+  namespace without an explicit import (matches existing doctest style).
 
 ### What was actually verified (evidence)
 - `python -m pytest tests/test_repository_integrity.py --doctest-modules quant_trading/data/yfinance_provider.py`
-  -> 71 passed (was 69; +2 = the two new `fetch_latest` doctests executed).
+  -> 73 passed (was 71; +2 = the two new `fetch_many` doctests executed).
 - `python -m pytest tests/test_repository_integrity.py` -> 51 passed.
 - `python -m pytest tests/test_yfinance_provider.py tests/test_alphavantage_provider.py tests/test_data_providers.py tests/test_yfinance_fetch_many.py`
   -> 454 passed.
-- `python -m pytest tests/test_core_only_imports.py tests/test_packaging.py tests/test_synthetic.py`
-  -> 25 passed, 1 deselected.
 - `python -m ruff check .` -> All checks passed.
 - `python -m black --check quant_trading/ tests/ examples/` -> 166 files unchanged.
 - `git diff --check` -> clean. `git diff --stat` -> 2 files, +8/-2 only.
 
 ### Environment note (network)
-- A bare `https://query1.finance.yahoo.com` probe returns HTTP 429, but the actual
-  `yfinance` library path WORKS in this env (fresh `fetch(["AAPL"])` -> len 1).
-- AlphaVantage demo key returns no batch data (`fetch_latest(["AAPL"])` -> missing,
-  len 0). Both providers' error handling keeps the `isinstance` doctest green either way.
+- AlphaVantage demo key returns no batch data; both providers' error handling
+  keeps the `isinstance` doctest green either way.
 
 ### What remains unresolved
 - `quant_trading/data/yfinance_provider.py` still has many `_EXAMPLES_ALLOWLIST` entries.
 - Next identical-pair candidates (both providers), in allowlist order:
-  - `fetch_many` (next duplicated pair, immediately after where `fetch_latest` was)
-  - `name`
+  - `name` (next duplicated pair, immediately after where `fetch_many` was)
   - Many `_build_*` / `_parse_*` / `_fetch_*` method pairs (single-entry, not duplicated)
 
 ### Next task
 Inspect `_EXAMPLES_ALLOWLIST` for the next duplicated `(path, name)` pair in
-`quant_trading/data/yfinance_provider.py` (suggest `fetch_many` next), document both
+`quant_trading/data/yfinance_provider.py` (suggest `name` next), document both
 methods with a deterministic single-line doctest, then remove the two allowlist lines.
 Prefer a deterministic assertion (e.g. `isinstance(..., FetchResult)` or a structural
 check) over a data-length assertion whenever the method's result depends on market

@@ -315,6 +315,10 @@ class YFinanceProvider(DataProvider):
         Returns:
             Mapping of stable request key to :class:`FetchResult`.
 
+        Examples:
+            >>> isinstance(YFinanceProvider(cache_dir="/tmp/yt_many_doc", cache_ttl_hours=1).fetch_many([{"symbols": ["AAPL"]}]), dict)
+            True
+
         """
         yf = self._get_yf()
         results: dict[str, FetchResult] = {}
@@ -4085,6 +4089,10 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             Mapping of stable request key to :class:`FetchResult`.
+
+        Examples:
+            >>> isinstance(AlphaVantageProvider(cache_dir="/tmp/av_many_doc", warn_on_demo=False).fetch_many([{"symbols": ["AAPL"]}]), dict)
+            True
 
         """
         results: dict[str, FetchResult] = {}
