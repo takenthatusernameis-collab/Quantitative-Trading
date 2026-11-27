@@ -1942,8 +1942,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/data/yfinance_provider.py", "get_sma"),
         ("quant_trading/data/yfinance_provider.py", "get_stoch"),
         ("quant_trading/data/yfinance_provider.py", "get_technical_indicator"),
-        ("quant_trading/data/yfinance_provider.py", "name"),
-        ("quant_trading/data/yfinance_provider.py", "name"),
         ("quant_trading/data/yfinance_provider.py", "search_symbols"),
         ("quant_trading/monte_carlo/simulator.py", "__init__"),
         ("quant_trading/monte_carlo/simulator.py", "_ensure_simulations"),
