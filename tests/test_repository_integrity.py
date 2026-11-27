@@ -1813,7 +1813,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("examples/run_optimization.py", "main"),
         ("quant_trading/backtest/analysis.py", "analyze_regimes"),
         ("quant_trading/backtest/analysis.py", "current_regime"),
-        ("quant_trading/backtest/analysis.py", "from_dict"),
         ("quant_trading/backtest/analysis.py", "n_segments"),
         ("quant_trading/backtest/analysis.py", "regime_for_backtest"),
         ("quant_trading/backtest/analysis.py", "segments"),

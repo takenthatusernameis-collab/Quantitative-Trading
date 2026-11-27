@@ -377,6 +377,19 @@ class BacktestRegimeAnalysis:
         Returns:
             BacktestRegimeAnalysis object populated from the dictionary.
 
+        Examples:
+            >>> from quant_trading.backtest.analysis import BacktestRegimeAnalysis
+            >>> data = {"segments": [{"regime": "bull_low_vol", "start": "2024-01-01", "end": "2024-01-31", "start_index": 0, "end_index": 20, "volatility": 0.1, "return_pct": 5.0}]}
+            >>> analysis = BacktestRegimeAnalysis.from_dict(data)
+            >>> analysis.n_segments
+            1
+            >>> analysis.current_regime.value
+            'bull_low_vol'
+            >>> analysis.to_dict()["current_regime"]
+            'bull_low_vol'
+            >>> len(analysis.to_dataframe())
+            1
+
         """
         # Import here to avoid circular import at module load time
         from quant_trading.regime import Regime, RegimeResult, RegimeSegment
