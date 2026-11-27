@@ -1279,6 +1279,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the CURRENCY_EXCHANGE_RATE endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_currency_exchange_rate_params("USD", "EUR")
+            {'function': 'CURRENCY_EXCHANGE_RATE', 'from_currency': 'USD', 'to_currency': 'EUR', 'apikey': 'demo', 'datatype': 'json'}
+
         """
         return {
             "function": "CURRENCY_EXCHANGE_RATE",
