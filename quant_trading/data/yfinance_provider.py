@@ -2403,6 +2403,16 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             DataFrame indexed by date with a single ``value`` column, or ``None`` when no series is present.
 
+        Examples:
+            >>> provider = AlphaVantageProvider(cache_dir="", warn_on_demo=False)
+            >>> provider._parse_single_series_response({}, None, None) is None
+            True
+            >>> df = provider._parse_single_series_response({"data": [{"date": "2024-01-05", "value": "150.5"}]}, None, None)
+            >>> list(df.columns)
+            ['value']
+            >>> df.shape
+            (1, 1)
+
         """
         series = data.get("data")
         if not series:
