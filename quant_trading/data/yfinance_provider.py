@@ -1201,6 +1201,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the economic indicator endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_economic_indicator_params("REAL_GDP")
+            {'function': 'REAL_GDP', 'apikey': 'demo', 'datatype': 'json'}
+
         """
         params: dict[str, str] = {
             "function": function,
