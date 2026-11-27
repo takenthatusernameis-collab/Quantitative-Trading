@@ -1056,6 +1056,10 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             Dict of query parameters for the TIME_SERIES_MONTHLY endpoint.
 
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False)._build_monthly_params("AAPL")
+            {'function': 'TIME_SERIES_MONTHLY', 'symbol': 'AAPL', 'apikey': 'demo', 'datatype': 'json'}
+
         """
         return {
             "function": "TIME_SERIES_MONTHLY",
