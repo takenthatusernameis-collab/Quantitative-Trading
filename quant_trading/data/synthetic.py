@@ -190,6 +190,12 @@ class SyntheticDataProvider(DataProvider):
             data: Symbol-keyed OHLCV DataFrames to serve.
             name: Provider identifier. Defaults to ``"synthetic"``.
 
+        Examples:
+            >>> from quant_trading.data.synthetic import SyntheticDataProvider, create_synthetic_data
+            >>> provider = SyntheticDataProvider(create_synthetic_data(["AAPL"], days=5, seed=42))
+            >>> provider.name
+            'synthetic'
+
         """
         self._data = data
         self._name = name
@@ -200,6 +206,12 @@ class SyntheticDataProvider(DataProvider):
 
         Returns:
             The provider identifier set at construction time.
+
+        Examples:
+            >>> from quant_trading.data.synthetic import SyntheticDataProvider, create_synthetic_data
+            >>> provider = SyntheticDataProvider(create_synthetic_data(["AAPL"], days=5, seed=42), name="custom")
+            >>> provider.name
+            'custom'
 
         """
         return self._name
@@ -226,6 +238,15 @@ class SyntheticDataProvider(DataProvider):
 
         Returns:
             A :class:`FetchResult` with successful data and missing symbols.
+
+        Examples:
+            >>> from quant_trading.data.synthetic import create_synthetic_provider
+            >>> provider = create_synthetic_provider(["AAPL"], days=5)
+            >>> result = provider.fetch(["AAPL"])
+            >>> result.is_success
+            True
+            >>> "AAPL" in result.data
+            True
 
         """
         result = FetchResult()
@@ -256,6 +277,13 @@ class SyntheticDataProvider(DataProvider):
 
         Returns:
             A :class:`FetchResult` with successful data and missing symbols.
+
+        Examples:
+            >>> from quant_trading.data.synthetic import create_synthetic_provider
+            >>> provider = create_synthetic_provider(["AAPL"], days=5)
+            >>> result = provider.fetch_latest(["AAPL"])
+            >>> result.is_success
+            True
 
         """
         return self.fetch(symbols)
