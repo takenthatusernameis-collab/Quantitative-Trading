@@ -1343,6 +1343,14 @@ class RiskManager:
         Returns:
             None.
 
+        Examples:
+            >>> from quant_trading.risk.manager import RiskManager
+            >>> rm = RiskManager()
+            >>> rm.record_return("AAPL", 0.01)
+            >>> rm.reset_returns()
+            >>> rm.returns
+            {}
+
         """
         self._returns = {}
 
