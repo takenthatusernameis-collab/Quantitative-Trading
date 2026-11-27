@@ -1709,6 +1709,16 @@ class RiskManager:
         Returns:
             Stop loss price, or None if no position/invalid price.
 
+        Examples:
+            A long position is stopped out below its entry price::
+
+                >>> from quant_trading.risk.manager import RiskManager
+                >>> from quant_trading.strategies.base import Position
+                >>> rm = RiskManager(stop_loss_pct=0.05)
+                >>> rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+                >>> rm.get_position_stop_loss("AAPL")
+                95.0
+
         """
         position = self.positions.get(symbol)
         if position is None or not math.isfinite(position.avg_price) or position.avg_price <= 0:
@@ -1867,6 +1877,16 @@ class RiskManager:
         Returns:
             Take profit price, or None if no position/invalid price.
 
+        Examples:
+            A long position targets a price above its entry price::
+
+                >>> from quant_trading.risk.manager import RiskManager
+                >>> from quant_trading.strategies.base import Position
+                >>> rm = RiskManager(take_profit_pct=0.15)
+                >>> rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+                >>> round(rm.get_position_take_profit("AAPL"), 2)
+                115.0
+
         """
         position = self.positions.get(symbol)
         if position is None or not math.isfinite(position.avg_price) or position.avg_price <= 0:
@@ -1888,6 +1908,16 @@ class RiskManager:
 
         Returns:
             True if stop loss triggered.
+
+        Examples:
+            A long is stopped out once the price reaches its stop level::
+
+                >>> from quant_trading.risk.manager import RiskManager
+                >>> from quant_trading.strategies.base import Position
+                >>> rm = RiskManager(stop_loss_pct=0.05)
+                >>> rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+                >>> rm.should_stop_loss("AAPL", 94.0)
+                True
 
         """
         stop = self.get_position_stop_loss(symbol)
@@ -1911,6 +1941,16 @@ class RiskManager:
         Returns:
             True if take profit triggered.
 
+        Examples:
+            A long takes profit once the price reaches its target::
+
+                >>> from quant_trading.risk.manager import RiskManager
+                >>> from quant_trading.strategies.base import Position
+                >>> rm = RiskManager(take_profit_pct=0.15)
+                >>> rm.sync_position("AAPL", Position("AAPL", 100, 100.0, 100.0))
+                >>> rm.should_take_profit("AAPL", 116.0)
+                True
+
         """
         tp = self.get_position_take_profit(symbol)
         if tp is None:
@@ -1928,6 +1968,16 @@ class RiskManager:
 
         Returns:
             None.
+
+        Examples:
+            Resetting clears the recorded returns and the equity curve::
+
+                >>> from quant_trading.risk.manager import RiskManager
+                >>> rm = RiskManager(initial_capital=50000.0)
+                >>> rm.record_return("AAPL", 0.01)
+                >>> rm.reset()
+                >>> rm.returns
+                {}
 
         """
         self.portfolio_risk = PortfolioRisk(
@@ -1966,6 +2016,13 @@ class RiskManager:
 
         Returns:
             None.
+
+        Examples:
+            >>> from quant_trading.risk.manager import RiskManager
+            >>> rm = RiskManager()
+            >>> rm.disable()
+            >>> rm.risk_enabled
+            False
 
         """
         self.risk_enabled = False
