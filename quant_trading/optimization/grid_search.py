@@ -190,6 +190,14 @@ class GridSearch(BaseOptimizer):
                 return, volatility, Sharpe, Sortino and Calmar metrics.
             verbose: Whether to print progress.
 
+        Examples:
+            >>> from quant_trading.optimization.grid_search import GridSearch
+            >>> from quant_trading.optimization.base import ParameterGrid, ParameterSpace
+            >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
+            >>> optimizer = GridSearch(strategy_cls=None, param_grid=grid)
+            >>> optimizer.n_combinations
+            2
+
         """
         super().__init__(
             strategy_cls=strategy_cls,
@@ -490,7 +498,17 @@ class GridSearch(BaseOptimizer):
 
     @property
     def n_combinations(self) -> int:
-        """Total number of parameter combinations."""
+        """Total number of parameter combinations.
+
+        Examples:
+            >>> from quant_trading.optimization.grid_search import GridSearch
+            >>> from quant_trading.optimization.base import ParameterGrid, ParameterSpace
+            >>> grid = ParameterGrid().add(ParameterSpace("fast_period", values=[5, 10], param_type=int))
+            >>> optimizer = GridSearch(strategy_cls=None, param_grid=grid)
+            >>> optimizer.n_combinations
+            2
+
+        """
         return len(self._combinations)
 
 
