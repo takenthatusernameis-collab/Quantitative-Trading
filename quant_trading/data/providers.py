@@ -51,14 +51,30 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _iso(value: datetime | None) -> str | None:
-    """Return ISO-8601 string for a datetime, or None for None."""
+    """Return ISO-8601 string for a datetime, or None for None.
+
+    Examples:
+        >>> from quant_trading.data.providers import _iso
+        >>> _iso(None)
+        >>> _iso(datetime(2024, 1, 1))
+        '2024-01-01T00:00:00'
+
+    """
     if value is None:
         return None
     return value.isoformat()
 
 
 def _coerce_datetime(value: Any) -> datetime | None:
-    """Coerce a value to a datetime, accepting ISO-8601 strings."""
+    """Coerce a value to a datetime, accepting ISO-8601 strings.
+
+    Examples:
+        >>> from quant_trading.data.providers import _coerce_datetime
+        >>> _coerce_datetime(None)
+        >>> _coerce_datetime("2024-01-01").isoformat()
+        '2024-01-01T00:00:00'
+
+    """
     if value is None:
         return None
     if isinstance(value, datetime):
@@ -139,12 +155,9 @@ class MarketData:
         Examples:
             >>> import pandas as pd
             >>> from quant_trading.data.providers import MarketData
-            >>> md = MarketData(
-            ...     symbol="AAPL",
-            ...     data=pd.DataFrame({"close": [1.0]}),
-            ...     source="synthetic",
-            ...     fetched_at=pd.Timestamp("2024-01-01"),
-            ... )
+            >>> df = pd.DataFrame({"close": [1.0]})
+            >>> ts = pd.Timestamp("2024-01-01")
+            >>> md = MarketData(symbol="AAPL", data=df, source="synthetic", fetched_at=ts)
             >>> md.to_dict()["symbol"]
             'AAPL'
 
@@ -588,6 +601,11 @@ class DataManager:
             providers: Optional list of providers to register immediately.
                 Defaults to an empty list.
 
+        Examples:
+            >>> from quant_trading.data.providers import DataManager
+            >>> DataManager().providers
+            []
+
         """
         self.providers = providers or []
         self._cache: dict[str, FetchResult] = {}
@@ -853,6 +871,13 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
                     config: :class:`DataConfig` instance with synthetic
                         generation parameters.
 
+                Examples:
+                    >>> from quant_trading.config.settings import DataConfig
+                    >>> from quant_trading.data.providers import create_data_manager_from_config
+                    >>> manager = create_data_manager_from_config(DataConfig(provider="synthetic"))
+                    >>> manager.providers[0].name
+                    'synthetic'
+
                 """
                 self._config = config
                 self._initialized = False
@@ -868,6 +893,15 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
 
                 Returns:
                     None.
+
+                Examples:
+                    >>> from quant_trading.config.settings import DataConfig
+                    >>> from quant_trading.data.providers import create_data_manager_from_config
+                    >>> manager = create_data_manager_from_config(DataConfig(provider="synthetic"))
+                    >>> provider = manager.providers[0]
+                    >>> provider._ensure_initialized(["AAPL"])
+                    >>> provider._initialized
+                    True
 
                 """
                 if not self._initialized or set(symbols) != set(self._symbols or []):
