@@ -1,31 +1,31 @@
-## Session 2026-11-27 (allowlist cleanup - data/providers.py `fetch_many`)
+## Session 2026-11-27 (allowlist cleanup - yfinance_provider.py `_request_key`)
 
 ### What changed
-- Added valid, single-line doctest examples to `DataManager.fetch_many` in `quant_trading/data/providers.py:746` (uses offline synthetic provider; covers a fresh fetch and a cache hit):
-  - `>>> manager = create_data_manager_from_config(DataConfig(provider="synthetic"))`
-  - `>>> results = manager.fetch_many([{"symbols": ["AAPL", "MSFT"], "interval": "1d"}])`
-  - `>>> results["AAPL,MSFT|none|none|1d"].is_success` -> `True`
-  - `>>> again = manager.fetch_many([{"symbols": ["AAPL", "MSFT"], "interval": "1d"}])`
-  - `>>> again["AAPL,MSFT|none|none|1d"].is_success` -> `True`
-- Removed the one remaining `providers.py` allowlist entry:
-  - `("quant_trading/data/providers.py", "fetch_many")` from `_EXAMPLES_ALLOWLIST` in tests/test_repository_integrity.py:2063.
-- `providers.py` allowlist is now fully cleared for def-level entries; only the `_UNDOCUMENTED_PARAM_ALLOWLIST` 3-tuple entries for `_coerce_datetime`/`_iso` ("value") remain (separate param-documentation check, out of scope).
+- Added a valid, deterministic, single-line doctest to `AlphaVantageProvider._request_key` in `quant_trading/data/yfinance_provider.py:845`:
+  - `>>> AlphaVantageProvider._request_key(["MSFT", "AAPL"], datetime(2024, 1, 1), datetime(2024, 1, 15), "1d")`
+  - Expected output: `'AAPL,MSFT|2024-01-01T00:00:00|2024-01-15T00:00:00|1d'`
+- Removed the single matching `_request_key` entry from `_EXAMPLES_ALLOWLIST` in `tests/test_repository_integrity.py`.
+- No production behavior changed. The example is offline and does not instantiate a provider or perform I/O.
 
 ### What was actually verified
-- `python -m pytest tests/test_repository_integrity.py --doctest-modules quant_trading/data/providers.py` -> 77 passed, 1 skipped.
-- `python -m pytest --doctest-modules quant_trading/data/providers.py` -> 27 passed.
+- `python -m pytest tests/test_repository_integrity.py --doctest-modules quant_trading/data/yfinance_provider.py` -> 53 passed, 1 skipped.
+- `python -m pytest --doctest-modules quant_trading/data/yfinance_provider.py` -> 3 passed.
 - `python -m ruff check .` -> all checks passed.
 - `python -m black --check quant_trading/ tests/ examples/` -> 166 files unchanged.
-- `python -m pytest` (full suite) -> 5300 passed, 260 skipped, 151 deselected in 181.27s (was 5299 before; +1 from the new doctests).
-- `git diff --check` -> passed. Diff: providers.py +11, test file -1 (no unrelated changes).
-- Working tree left clean of uncommitted work (changes NOT committed).
+- `python -m pytest` (final state) -> 5301 passed, 260 skipped, 151 deselected in 186.43s.
+- `git diff --check` -> passed. Final code diff is limited to `yfinance_provider.py` (+6) and `tests/test_repository_integrity.py` (-1), plus this handoff update.
+- Changes are left uncommitted.
 
-### Approach that FAILED / constraints (do not repeat unchanged)
-- Do not remove allowlist entries without first adding valid examples; the integrity guard will fail.
-- Each `>>>` line must be a single parseable Python statement (`compile(code, "<doctest>", "exec")`). Do not split a call across multiple `>>>` lines or use `...` continuations.
-- Do not leave a blank line where adjacent allowlist entries were removed; Black rejects the resulting extra blank line.
-- Mypy is not available in this environment (`No module named mypy`); do not block on it.
-- Verified offline: `fetch_many` doctests use `DataConfig(provider="synthetic")` so no network is required; output is deterministic (`is_success` is `True`).
+### What remains unresolved
+- `quant_trading/data/yfinance_provider.py` still has many `_EXAMPLES_ALLOWLIST` entries. Continue one def per session, not the whole file at once.
+- The prior handoff reported that mypy is unavailable in this environment; mypy was not independently rerun this session.
+
+### Approaches/constraints to preserve
+- No new failed approach occurred this session.
+- Do not remove an allowlist entry before adding a valid example; the integrity guard will fail.
+- Every `>>>` line must be one parseable Python statement. Do not use `...` continuations or split calls across lines.
+- Do not leave an extra blank line where an allowlist entry was removed; Black rejects it.
+- Prefer pure helpers and offline examples. Avoid network-dependent `get_*`/fetch examples unless they can be fully faked without I/O.
 
 ### Next task
-Continue the allowlist cleanup on `quant_trading/data/yfinance_provider.py` (per the prior handoff's suggestion), following the same verify-first pattern: pick ONE def (e.g. `_request_key`, `_iso`, `_coerce_datetime`, or a `get_*` method), add valid single-line doctests using only offline/synthetic inputs, remove its `_EXAMPLES_ALLOWLIST` entry, then run: `pytest tests/test_repository_integrity.py --doctest-modules quant_trading/data/yfinance_provider.py`, `pytest --doctest-modules quant_trading/data/yfinance_provider.py`, `ruff check .`, `black --check quant_trading/ tests/ examples/`, and re-run the full suite before proceeding to the next def. Do not attempt to de-allowlist the whole yfinance_provider.py file in one session — it has ~70 entries; work one def at a time.
+Document `YFinanceProvider._group_cache_key` in `quant_trading/data/yfinance_provider.py` with a deterministic single-line doctest, then remove its unique allowlist entry (`("quant_trading/data/yfinance_provider.py", "_group_cache_key")`). Run the same focused integrity/module tests, Ruff, Black, `git diff --check`, and the full pytest suite before selecting another def.

@@ -861,6 +861,12 @@ class AlphaVantageProvider(DataProvider):
             A string of the form ``"symbols|start|end|interval"`` where
             missing dates are rendered as ``"none"``.
 
+        Examples:
+            >>> from datetime import datetime
+            >>> from quant_trading.data.yfinance_provider import AlphaVantageProvider
+            >>> AlphaVantageProvider._request_key(["MSFT", "AAPL"], datetime(2024, 1, 1), datetime(2024, 1, 15), "1d")
+            'AAPL,MSFT|2024-01-01T00:00:00|2024-01-15T00:00:00|1d'
+
         """
         symbols_str = ",".join(sorted(symbols))
         start_str = start.isoformat() if start else "none"
