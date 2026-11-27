@@ -69,6 +69,10 @@ class YFinanceProvider(DataProvider):
         Returns:
             The string ``"yfinance"``.
 
+        Examples:
+            >>> YFinanceProvider(cache_dir="").name
+            'yfinance'
+
         """
         return "yfinance"
 
@@ -788,6 +792,10 @@ class AlphaVantageProvider(DataProvider):
 
         Returns:
             The string ``"alphavantage"``.
+
+        Examples:
+            >>> AlphaVantageProvider(cache_dir="", warn_on_demo=False).name
+            'alphavantage'
 
         """
         return "alphavantage"
