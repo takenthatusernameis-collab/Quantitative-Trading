@@ -1,3 +1,51 @@
+## Session 2026-11-28 (config to_dict/from_dict asymmetry audit — no code change)
+
+### What changed
+- None. Completed the audit proposed as the prior session's next task: verify no
+  dataclass config has a `to_dict` that emits a non-JSON-native type which
+  `from_dict` fails to reconstruct.
+
+### What was actually verified (evidence)
+- Programmatic audit (one-off script): for `DataConfig`, `BacktestConfig`,
+  `RiskConfig`, `PortfolioConfig`, and `Config`, `json.dumps(cls().to_dict())`
+  succeeds (JSON-safe) AND `cls.from_dict(cls().to_dict()) == cls()` is True.
+  `DataConfig(synthetic_end_date=datetime(2024,6,1,12,30))` also round-trips
+  equal and stays JSON-safe (the previously-fixed field).
+- `MarketData` with a `DatetimeIndex` frame + `fetched_at` datetime: `to_dict`
+  is JSON-safe, `from_dict` reconstructs an equal frame (`df.equals` True) and
+  equal `fetched_at`; index dtype preserved as `datetime64[us]`.
+- Existing `tests/test_serialization_roundtrip.py` already parametrizes
+  `MarketData`, `FetchResult`, `Trade`, `BacktestResult`, `RegimeSegment`,
+  `WalkForwardWindow`, `TradeAnalysis`, `BacktestRegimeAnalysis`, etc., and
+  includes `test_every_dataclass_declares_to_dict_and_from_dict` as a guard.
+- `pytest tests/test_config.py` -> 220 passed;
+  `pytest --doctest-modules quant_trading/config/settings.py` -> 29 passed.
+- Full suite `pytest -q -p no:cacheprovider` -> 5474 passed, 170 skipped,
+  151 deselected, 0 failures in 248s (matches baseline exactly).
+- `ruff check` / `black --check` / `mypy quant_trading/config/settings.py`
+  -> all clean.
+
+### What remains unresolved
+- None. The config serialization audit is complete; no asymmetry found.
+
+### Approaches that already failed / rejected
+- None new this session.
+
+### Next task
+- No code defect outstanding; suite is green. If continuing, pick a NEW bounded
+  area rather than re-auditing config serialization (now proven complete). One
+  concrete candidate: audit the `to_dict`/`from_dict` pairs NOT yet in
+  `test_serialization_roundtrip.py` (e.g. `RiskMetrics`, `PortfolioRisk`,
+  `RiskAttribution`, `PositionLimit`, `PortfolioLimit`, `CheckResult`,
+  `Holding`/`Portfolio`, `RebalanceAction`/`RebalanceExecution`,
+  `MonteCarloResult`, `Signal`/`Position`) for JSON-safety + round-trip
+  fidelity, adding the missing ones to the parametrized round-trip test.
+  Constraint: do not change serialization formats that already round-trip;
+  verify with the full suite (expect 5474 passed / 0 failures) plus
+  `python -m ruff` / `python -m black --check` / `python -m mypy`.
+
+---
+
 ## Session 2026-11-28 (synthetic_end_date serialization round-trip fix)
 
 ### What changed
