@@ -274,10 +274,15 @@ class DataConfig:
             False
             >>> restored.synthetic_days
             365
+            >>> restored.synthetic_end_date is None
+            True
 
         """
         known = {f.name for f in fields(cls)}
         init_kwargs = {name: value for name, value in data.items() if name in known}
+        end_date = init_kwargs.get("synthetic_end_date")
+        if isinstance(end_date, str):
+            init_kwargs["synthetic_end_date"] = datetime.fromisoformat(end_date)
         return cls(**init_kwargs)
 
 

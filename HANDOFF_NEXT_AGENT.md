@@ -1,3 +1,47 @@
+## Session 2026-11-28 (synthetic_end_date serialization round-trip fix)
+
+### What changed
+- `quant_trading/config/settings.py`: `DataConfig.from_dict` now converts a string
+  `synthetic_end_date` back to `datetime` via `datetime.fromisoformat` before
+  constructing the dataclass. `to_dict` already serialized the field to an ISO string
+  (commit 34aa422), but `from_dict` passed the string straight to the constructor, where
+  `__post_init__` rejects non-`datetime` values. This broke `DataConfig.from_dict(d.to_dict())`,
+  `Config.from_dict`, and `Config.update(data={...})` whenever `synthetic_end_date` was set
+  (`ValueError: invalid synthetic_end_date: must be a datetime or None (got str)`).
+  The `from_yaml` path was unaffected because PyYAML auto-parses ISO timestamps to
+  `datetime`; the fix keeps `from_dict` consistent with it. Added a doctest line asserting
+  the default is `None`.
+- `tests/test_config.py`: added `TestDataConfigSyntheticEndDateSerialization` with 5 tests:
+  `from_dict` round-trip (incl. time component), `to_dict` emits ISO string,
+  `from_dict` parses ISO string, `Config.update(data=...)` merge, and YAML round-trip.
+
+### What was actually verified (evidence)
+- Direct repro before fix: `DataConfig.from_dict(DataConfig(synthetic_end_date=datetime(2024,6,1)).to_dict())`
+  raised `ValueError ... (got str)`. After fix: round-trips equal; `Config.update` and
+  `Config.to_yaml`/`from_yaml` also verified equal via a one-off script.
+- `pytest tests/test_config.py` -> 220 passed. `pytest --doctest-modules quant_trading/config/settings.py`
+  -> 29 passed.
+- Full suite `pytest -q -p no:cacheprovider` -> 5474 passed, 170 skipped, 151 deselected,
+  0 failures in 253s (was 5469 passed; +5 new tests, no new failures).
+- `ruff check` (changed files) -> All checks passed. `black --check` -> 2 files unchanged.
+  `mypy quant_trading/config/settings.py` -> Success: no issues.
+
+### What remains unresolved
+- None. (Historical note: earlier sessions' 3 yfinance doctest failures were resolved by
+  installing the optional dep; current baseline has 0 failures.)
+
+### Approaches that already failed / rejected
+- None new this session.
+
+### Next task
+- None required; suite is green. If continuing, audit other dataclass configs for fields
+  whose `to_dict` emits a non-JSON-native type that `from_dict` does not reconstruct
+  (only `DataConfig.synthetic_end_date` currently does this). Constraint: keep `to_dict`
+  output JSON-safe and `from_dict` its exact inverse; verify with the full suite
+  (expect 5474 passed / 0 failures) plus `python -m ruff`/`python -m black --check`/`python -m mypy`.
+
+---
+
 ## Session 2026-11-28 (synthetic OHLC invariant bug fix)
 
 ### What changed

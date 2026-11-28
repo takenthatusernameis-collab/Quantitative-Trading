@@ -719,6 +719,50 @@ class TestDataConfigSerialization:
         assert not hasattr(restored, "bogus")
 
 
+class TestDataConfigSyntheticEndDateSerialization:
+    """Regression tests for synthetic_end_date round-trips."""
+
+    def test_round_trip_with_synthetic_end_date(self) -> None:
+        from datetime import datetime
+
+        config = DataConfig(synthetic_end_date=datetime(2024, 6, 1, 12, 30))
+        restored = DataConfig.from_dict(config.to_dict())
+        assert restored == config
+        assert restored.synthetic_end_date == datetime(2024, 6, 1, 12, 30)
+
+    def test_to_dict_emits_iso_string(self) -> None:
+        from datetime import datetime
+
+        d = DataConfig(synthetic_end_date=datetime(2024, 6, 1)).to_dict()
+        assert d["synthetic_end_date"] == "2024-06-01T00:00:00"
+
+    def test_from_dict_parses_iso_string(self) -> None:
+        from datetime import datetime
+
+        restored = DataConfig.from_dict({"synthetic_end_date": "2024-06-01T00:00:00"})
+        assert restored.synthetic_end_date == datetime(2024, 6, 1)
+
+    def test_config_update_merges_synthetic_end_date(self) -> None:
+        from datetime import datetime
+
+        from quant_trading.config.settings import Config
+
+        config = Config()
+        config.update(data={"synthetic_end_date": "2024-06-01T00:00:00"})
+        assert config.data.synthetic_end_date == datetime(2024, 6, 1)
+
+    def test_yaml_round_trip_with_synthetic_end_date(self, tmp_path: Path) -> None:
+        from datetime import datetime
+
+        from quant_trading.config.settings import Config
+
+        config = Config(data=DataConfig(synthetic_end_date=datetime(2024, 6, 1)))
+        path = tmp_path / "config.yaml"
+        config.to_yaml(str(path))
+        loaded = Config.from_yaml(str(path))
+        assert loaded.data.synthetic_end_date == datetime(2024, 6, 1)
+
+
 class TestBacktestConfigSerialization:
     """Tests for BacktestConfig.to_dict / from_dict round-trips."""
 
