@@ -1,3 +1,31 @@
+## Session 2026-11-28 (rebalancer NaN/inf regression tests for generate_rebalance_actions/execute_actions)
+
+### What changed
+- `tests/test_rebalancer_extra_coverage.py` (new tests): 3 regression tests locking in the rebalancer's NaN/inf robustness for the `generate_rebalance_actions`/`execute_actions` paths (not covered by the existing constructor/`_risk_adjust_*` NaN tests):
+  - `test_generate_rebalance_actions_tolerates_non_finite_prices`: NaN/inf/-inf prices never crash; every emitted action has a finite, non-negative quantity.
+  - `test_generate_rebalance_actions_tolerates_non_finite_signals`: signals with NaN/inf strength/price never crash; all action quantities finite and >= 0.
+  - `test_execute_actions_tolerates_non_finite_quantity`: actions with NaN/inf/-inf quantity never crash; each reports `executed_quantity == 0.0`.
+- Imports added: `math`, `Signal` from `quant_trading.strategies.base`.
+
+### What was actually verified (evidence)
+- Probe first: `generate_rebalance_actions` with `{"AAPL": nan, "MSFT": inf, "GOOGL": -inf}` and NaN/inf signals returned empty actions, no crash (confirmed robust before testing).
+- `pytest tests/test_rebalancer_extra_coverage.py tests/test_rebalancer.py tests/test_portfolio_rebalancer.py` -> 178 passed (incl. 3 new).
+- `ruff check tests/test_rebalancer_extra_coverage.py` -> All checks passed (I001 import-sort fix applied via `ruff check --fix`).
+- `black --check tests/test_rebalancer_extra_coverage.py` -> 1 file unchanged.
+- `mypy tests/test_rebalancer_extra_coverage.py` -> Success: no issues.
+- Full suite `pytest -q -p no:cacheprovider` -> **5614 passed, 170 skipped, 151 deselected, 0 failures** in 355s (baseline 5611 + exactly the 3 new tests; no regressions, `test_repository_is_ruff_clean` green).
+
+### What remains unresolved
+- None. Suite is green.
+
+### Approaches that already failed / rejected
+- None new this session. Rebalancer NaN/inf was already robust at the unit level; only the `generate_rebalance_actions`/`execute_actions` entry points lacked a direct regression test, now added.
+
+### Next task
+- None required; suite is green and working tree contains only the new tests in `tests/test_rebalancer_extra_coverage.py`. No further bounded candidate outstanding from prior handoffs.
+
+---
+
 ## Session 2026-11-28 (config yaml/update robustness regression test added)
 
 ### What changed

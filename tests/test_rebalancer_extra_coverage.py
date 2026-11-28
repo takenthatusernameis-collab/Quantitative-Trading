@@ -1,8 +1,11 @@
+import math
+
 import pytest
 
 from quant_trading.portfolio.portfolio import Portfolio
 from quant_trading.portfolio.rebalancer import RebalanceAction, Rebalancer
 from quant_trading.risk.manager import RiskManager
+from quant_trading.strategies.base import Signal
 
 
 def test_execute_actions_unknown_action_raises() -> None:
@@ -129,3 +132,60 @@ def test_risk_adjust_buy_rejects_non_finite_inputs() -> None:
     assert rebalancer._risk_adjust_buy(plan, "AAPL", 10.0, float("nan"), 100000.0) == 0.0
     assert rebalancer._risk_adjust_buy(plan, "AAPL", 10.0, 100.0, float("inf")) == 0.0
     assert rebalancer._risk_adjust_buy(plan, "AAPL", 10.0, 100.0, float("-inf")) == 0.0
+
+
+def test_generate_rebalance_actions_tolerates_non_finite_prices() -> None:
+    """generate_rebalance_actions never crashes or emits non-finite quantities
+    when the prices map contains NaN/inf (rebalancer.py:631)."""
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    portfolio.add_holding("AAPL", 100, 150.0)
+    portfolio.add_holding("MSFT", 100, 300.0)
+    rebalancer = Rebalancer(
+        portfolio,
+        target_allocation={"AAPL": 0.4, "MSFT": 0.6},
+        rebalance_threshold=0.05,
+    )
+    actions = rebalancer.generate_rebalance_actions(
+        prices={"AAPL": float("nan"), "MSFT": float("inf"), "GOOGL": float("-inf")}
+    )
+    assert isinstance(actions, list)
+    for action in actions:
+        assert math.isfinite(action.quantity)
+        assert action.quantity >= 0.0
+
+
+def test_generate_rebalance_actions_tolerates_non_finite_signals() -> None:
+    """generate_rebalance_actions never crashes on signals with NaN/inf
+    strength or price (rebalancer.py:631)."""
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    rebalancer = Rebalancer(portfolio)
+    signals = [
+        Signal(symbol="GOOGL", action="buy", strength=float("nan"), price=float("inf")),
+        Signal(symbol="MSFT", action="sell", strength=float("inf"), price=float("nan")),
+        Signal(symbol="AAPL", action="buy", strength=1.0, price=float("nan")),
+    ]
+    actions = rebalancer.generate_rebalance_actions(signals=signals, prices={"GOOGL": 150.0})
+    assert isinstance(actions, list)
+    for action in actions:
+        assert math.isfinite(action.quantity)
+        assert action.quantity >= 0.0
+
+
+def test_execute_actions_tolerates_non_finite_quantity() -> None:
+    """execute_actions never crashes on an action with a non-finite quantity
+    and reports an executed quantity of 0.0 (rebalancer.py:937)."""
+    portfolio = Portfolio(cash=100000.0, initial_capital=100000.0)
+    portfolio.add_holding("AAPL", 100, 150.0)
+    rebalancer = Rebalancer(portfolio)
+    executions = rebalancer.execute_actions(
+        [
+            RebalanceAction(symbol="AAPL", action="buy", quantity=float("nan")),
+            RebalanceAction(symbol="AAPL", action="sell", quantity=float("inf")),
+            RebalanceAction(symbol="AAPL", action="sell", quantity=float("-inf")),
+        ],
+        prices={"AAPL": 150.0},
+    )
+    assert len(executions) == 3
+    for execution in executions:
+        assert math.isfinite(execution.executed_quantity)
+        assert execution.executed_quantity >= 0.0
