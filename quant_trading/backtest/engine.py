@@ -673,8 +673,8 @@ class BacktestResult:
 
         metrics = self.metrics
         data: dict[str, Any] = {
-            "start_date": self.start_date,
-            "end_date": self.end_date,
+            "start_date": self.start_date.isoformat(),
+            "end_date": self.end_date.isoformat(),
             "initial_capital": self.initial_capital,
             "final_value": self.final_value,
             "total_return": self.total_return,

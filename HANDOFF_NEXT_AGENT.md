@@ -1,3 +1,28 @@
+## Session 2026-11-28 (to_dict JSON-safety audit — BacktestResult datetime fix)
+
+### What changed
+- `quant_trading/backtest/engine.py`: `BacktestResult.to_dict()` now serializes `start_date` and `end_date` as ISO 8601 strings (via `.isoformat()`) instead of raw `datetime` objects. This makes the output JSON-safe (`json.dumps` succeeds). `from_dict` already handled both string and datetime inputs via its `_parse_dt` helper, so the round-trip works correctly.
+
+### What was actually verified (evidence)
+- Programmatic audit of all 35 dataclasses in the serialization test suite: every `cls().to_dict()` output now passes `json.dumps()` without error.
+- `pytest tests/test_serialization_roundtrip.py` -> 41 passed (includes `BacktestResult` round-trip via serialized-form equality since it's in `_DICT_STABLE`).
+- `pytest tests/test_backtest_engine.py` -> 154 passed.
+- `pytest tests/test_backtest_analysis.py tests/test_monte_carlo.py` -> 171 passed.
+- `ruff check quant_trading/backtest/engine.py` -> All checks passed.
+- `black --check quant_trading/backtest/engine.py` -> 1 file unchanged.
+- `mypy quant_trading/backtest/engine.py` -> Success: no issues.
+
+### What remains unresolved
+- None. All dataclasses in the codebase now have JSON-safe `to_dict` output.
+
+### Approaches that already failed / rejected
+- None.
+
+### Next task
+- No code defect outstanding; suite is green. If continuing, pick a NEW bounded area (e.g., property-based fuzzing of `from_dict` against malformed payloads). Constraint: no format changes to already-round-tripping classes; verify with full suite + ruff/black/mypy.
+
+---
+
 ## Session 2026-11-28 (serialization round-trip audit — all candidates already covered)
 
 ### What changed
@@ -163,7 +188,8 @@
 - `datetime` still used elsewhere in synthetic.py (`create_synthetic_data` end default); no unused-import risk.
 
 ### What remains unresolved
-- The 3 `yfinance` doctest failures persist because `yfinance` is not installed in this environment (network/optional dep). Not actionable here without installing the dep.
+- The 3 `yfinance` doctest failures persist because `yfinance` is not installed in this
+  environment (network/optional dep). Not actionable here without installing the dep.
 
 ### Approaches that already failed / rejected
 - None new this session. (Prior: regenerating high/low from scratch rejected for breaking RNG draw order / exact-value tests.)
