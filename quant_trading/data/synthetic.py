@@ -101,9 +101,13 @@ def create_synthetic_data(
 
     Each symbol is generated independently as a geometric random walk with
     a small positive drift. The open/high/low columns are jittered around the
-    close, and volume is drawn from a uniform range. Because the numpy global
-    RNG is seeded, calling this function twice with the same arguments
-    produces identical output.
+    close, and volume is drawn from a uniform range. The high and low columns
+    are clamped so the full OHLC invariant holds on every row
+    (``high >= max(open, close)`` and ``low <= min(open, close)``); without
+    this, independent jittering can yield ``high < open`` or ``low > open``,
+    which violates the assumptions of range-based indicators. Because the
+    numpy global RNG is seeded, calling this function twice with the same
+    arguments produces identical output.
 
     Args:
         symbols: List of symbol names to generate.
@@ -141,11 +145,17 @@ def create_synthetic_data(
         returns = np.random.normal(0.0005, 0.02, days)
         prices = 100 * np.exp(np.cumsum(returns))
 
+        open_ = prices * (1 + np.random.uniform(-0.005, 0.005, days))
+        high = prices * (1 + np.random.uniform(0, 0.01, days))
+        low = prices * (1 - np.random.uniform(0, 0.01, days))
+        high = np.maximum(high, np.maximum(open_, prices))
+        low = np.minimum(low, np.minimum(open_, prices))
+
         df = pd.DataFrame(
             {
-                "open": prices * (1 + np.random.uniform(-0.005, 0.005, days)),
-                "high": prices * (1 + np.random.uniform(0, 0.01, days)),
-                "low": prices * (1 - np.random.uniform(0, 0.01, days)),
+                "open": open_,
+                "high": high,
+                "low": low,
                 "close": prices,
                 "volume": np.random.randint(1000000, 10000000, days),
             },

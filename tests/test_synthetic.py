@@ -48,12 +48,20 @@ def test_create_synthetic_data_seed_changes_output() -> None:
 
 
 def test_create_synthetic_data_ohlc_invariants() -> None:
-    """Low <= close <= high on every row; volume positive."""
+    """Full OHLC invariant holds on every row; volume is positive and bounded.
+
+    Checks ``low <= min(open, close)`` and ``high >= max(open, close)`` in
+    addition to ``low <= close <= high``. Independent jittering of open/high/low
+    around the close can otherwise produce ``high < open`` or ``low > open``,
+    which breaks range-based indicators.
+    """
     data = create_synthetic_data(["AAPL", "MSFT"], days=30, seed=3)
 
     for df in data.values():
         assert (df["low"] <= df["close"]).all()
         assert (df["close"] <= df["high"]).all()
+        assert (df["high"] >= df[["open", "close"]].max(axis=1)).all()
+        assert (df["low"] <= df[["open", "close"]].min(axis=1)).all()
         assert (df["volume"] > 0).all()
         assert (df["volume"] <= 10_000_000).all()
 
