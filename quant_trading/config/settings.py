@@ -357,6 +357,14 @@ def _check_field_types(dataclass_type: type, values: dict[str, Any]) -> None:
     Raises:
         ValueError: If a value does not match the declared type of its field.
 
+    Examples:
+        >>> from quant_trading.config.settings import _check_field_types, DataConfig
+        >>> _check_field_types(DataConfig, {"provider": "yfinance", "synthetic_days": 30})
+        >>> _check_field_types(DataConfig, {"synthetic_days": True})
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid config field DataConfig.synthetic_days: expected <class 'int'>, got bool (True)
+
     """
     for field_obj in fields(dataclass_type):
         name = field_obj.name
