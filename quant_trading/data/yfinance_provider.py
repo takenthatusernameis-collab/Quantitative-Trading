@@ -440,6 +440,21 @@ class YFinanceProvider(DataProvider):
         Returns:
             A :class:`FetchResult` with data, errors, and missing symbols.
 
+        Examples:
+            >>> provider = YFinanceProvider(cache_dir="")
+            >>> provider._parse_download(None, ["AAPL"]).missing == ["AAPL"]
+            True
+            >>> idx = pd.date_range("2024-01-01", periods=2, freq="D")
+            >>> cols = pd.MultiIndex.from_product([["AAPL", "TSLA"], ["Open", "Close"]])
+            >>> df = pd.DataFrame([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]], index=idx, columns=cols)
+            >>> result = provider._parse_download(df, ["AAPL", "TSLA", "MSFT"])
+            >>> result.missing
+            ['MSFT']
+            >>> sorted(result.data)
+            ['AAPL', 'TSLA']
+            >>> result.data["AAPL"].data.shape
+            (2, 2)
+
         """
         result = FetchResult()
         if df is None or df.empty or not symbols:
