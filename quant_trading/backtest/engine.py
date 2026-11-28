@@ -844,8 +844,8 @@ class BacktestResult:
             total_return=total_return,
             total_return_pct=total_return_pct,
             portfolio_violations=(
-                list(data.get("portfolio_violations"))
-                if isinstance(data.get("portfolio_violations"), (list, tuple))
+                list(_violations)
+                if isinstance(_violations := data.get("portfolio_violations"), (list, tuple))
                 else []
             ),
             total_costs=_finite(data.get("total_costs", 0.0)),

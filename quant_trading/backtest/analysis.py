@@ -399,19 +399,19 @@ class BacktestRegimeAnalysis:
         regimes = []
         if isinstance(segments_data, (list, tuple)):
             for seg_data in segments_data:
-            regime = Regime(seg_data.get("regime", "unknown"))
-            segments.append(
-                RegimeSegment(
-                    regime=regime,
-                    start=pd.Timestamp(seg_data.get("start", pd.Timestamp.now())),
-                    end=pd.Timestamp(seg_data.get("end", pd.Timestamp.now())),
-                    start_index=int(_finite(seg_data.get("start_index", 0))),
-                    end_index=int(_finite(seg_data.get("end_index", 0))),
-                    volatility=_finite(seg_data.get("volatility", 0.0)),
-                    return_pct=_finite(seg_data.get("return_pct", 0.0)),
+                regime = Regime(seg_data.get("regime", "unknown"))
+                segments.append(
+                    RegimeSegment(
+                        regime=regime,
+                        start=pd.Timestamp(seg_data.get("start", pd.Timestamp.now())),
+                        end=pd.Timestamp(seg_data.get("end", pd.Timestamp.now())),
+                        start_index=int(_finite(seg_data.get("start_index", 0))),
+                        end_index=int(_finite(seg_data.get("end_index", 0))),
+                        volatility=_finite(seg_data.get("volatility", 0.0)),
+                        return_pct=_finite(seg_data.get("return_pct", 0.0)),
+                    )
                 )
-            )
-            regimes.append(regime)
+                regimes.append(regime)
 
         # Reconstruct RegimeResult. ``current_regime`` is derived from the
         # segments (last segment's regime, or UNKNOWN when empty) rather than
