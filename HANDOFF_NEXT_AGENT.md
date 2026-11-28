@@ -36,9 +36,5 @@
   clamp-after-draw approach preserves all other columns exactly.
 
 ### Next task
-- None required; this fix is complete and verified. If continuing, audit the other synthetic/
-  offline data paths for the same OHLC-invariant assumption: `quant_trading/data/providers.py`
-  and `examples/run_backtest_offline.py` consume this data; confirm no downstream code relied
-  on the previously-invalid `high < open` rows (grep for direct `high`/`low` equality asserts).
-  Constraint: keep RNG draw order stable; verify with the full suite (expect 5376 passed / 3
-  yfinance doctest failures) plus `ruff`/`black`/`mypy`.
+- None required; this audit is complete and verified. `quant_trading/data/providers.py` (LazySyntheticProvider delegates to `create_synthetic_data`, now invariant-safe) and `examples/run_backtest_offline.py` (consumes synthetic data via provider) contain no direct `high`/`low` equality asserts and rely on nothing from the previously-invalid `high < open` rows. No changes were needed to either file.
+- If continuing, consider addressing the remaining unresolved items above (yfinance dep, non-deterministic `fetched_at`). Constraint: keep RNG draw order stable; verify with the full suite (expect 5376 passed / 3 yfinance doctest failures) plus `python -m ruff`/`python -m black --check`/`python -m mypy`.
