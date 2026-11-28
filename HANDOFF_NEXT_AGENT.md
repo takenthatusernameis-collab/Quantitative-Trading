@@ -78,3 +78,26 @@
 
 ### Next task
 - None required; audit complete. If continuing, run broader property-based or integration checks as needed.
+
+---
+
+## Session 2026-11-28 (CLI offline monte-carlo/trade-analysis failures + black formatting)
+
+### What changed
+- `quant_trading/data/providers.py:921`: `LazySyntheticProvider._ensure_initialized` now defaults `end_date` to `datetime.now()` instead of `datetime(2024, 1, 1)` when `synthetic_end_date` is not set. Previously the generated synthetic data ended at 2024-01-01 while the CLI's `--days` fetch window is relative to `now` (2026), so `provider.fetch` returned empty DataFrames. The backtest then produced a 1-point equity curve (< 2 returns), making `MonteCarloSimulator._extract_returns` raise "Insufficient data for Monte Carlo simulation" and leaving all metrics at 0.0 (trade Sharpe identical across risk-free-rate/periods-per-year configs). This is consistent with `create_synthetic_data`'s own `end = end_date or datetime.now()` default (synthetic.py:147); price values are unchanged (seeded RNG), only the index dates shift.
+- `quant_trading/config/settings.py`: applied `black` reformatting (one line wrapped) so `test_repository_is_black_formatted` passes.
+
+### What was actually verified (evidence)
+- Direct CLI repro: `python examples/cli.py --offline --monte-carlo --mc-simulations 60 --mc-seed 42 --symbols AAPL --days 120` now prints "Probability of Profit: 76.67%" with no error (previously "Error running backtest: Insufficient data for Monte Carlo simulation", exit 1).
+- Previously failing tests now pass: `test_main_offline_monte_carlo_analysis`, `test_main_offline_trade_analysis`, `test_main_trade_analysis_uses_the_configured_risk_free_rate`, `test_main_trade_analysis_uses_the_configured_periods_per_year`, `test_main_combined_monte_carlo_and_trade_analysis`, `test_main_combined_monte_carlo_uses_the_configured_risk_free_rate`, `test_main_combined_trade_analysis_uses_the_configured_periods_per_year`, `test_offline_single_mode_with_analyses_and_output`, all `test_readme_cli_commands.py` monte-carlo commands (121 passed, 5 skipped, 3 deselected).
+- Full suite `pytest -q -p no:cacheprovider` -> 5469 passed, 170 skipped, 151 deselected, 0 failures in 253s (matches the pre-regression baseline exactly).
+- `ruff check` (changed files) -> All checks passed. `mypy quant_trading/data/providers.py quant_trading/config/settings.py` -> Success. `black --check quant_trading/ examples/` -> 100 files unchanged.
+
+### What remains unresolved
+- None.
+
+### Approaches that already failed / rejected
+- None new this session.
+
+### Next task
+- None required; the suite is green. If continuing, consider broader property-based or integration checks.

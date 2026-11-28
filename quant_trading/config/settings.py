@@ -247,7 +247,9 @@ class DataConfig:
             "offline": self.offline,
             "synthetic_days": self.synthetic_days,
             "synthetic_seed": self.synthetic_seed,
-            "synthetic_end_date": self.synthetic_end_date.isoformat() if self.synthetic_end_date else None,
+            "synthetic_end_date": (
+                self.synthetic_end_date.isoformat() if self.synthetic_end_date else None
+            ),
             "alphavantage_api_key": self.alphavantage_api_key,
         }
 
