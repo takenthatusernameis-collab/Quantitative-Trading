@@ -11,6 +11,7 @@ import pandas as pd
 
 from quant_trading.data.synthetic import (
     DEFAULT_SEED,
+    SYNTHETIC_FETCHED_AT,
     SyntheticDataProvider,
     create_synthetic_data,
     create_synthetic_provider,
@@ -120,6 +121,16 @@ def test_synthetic_provider_fetch_latest() -> None:
     result = provider.fetch_latest(["AAPL"])
     assert result.is_success
     assert "AAPL" in result.data
+
+
+def test_synthetic_provider_fetch_is_deterministic() -> None:
+    """Repeated fetches produce identical results, including fetched_at."""
+    provider = create_synthetic_provider(["AAPL", "MSFT"], days=20, seed=5)
+    first = provider.fetch(["AAPL", "MSFT"])
+    second = provider.fetch(["AAPL", "MSFT"])
+    assert first.to_dict() == second.to_dict()
+    for md in first.data.values():
+        assert md.fetched_at == SYNTHETIC_FETCHED_AT
 
 
 def test_default_seed_constant() -> None:

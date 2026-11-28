@@ -34,6 +34,13 @@ from quant_trading.data.providers import DataProvider, FetchResult, MarketData
 
 DEFAULT_SEED = 42
 
+# Fixed reference timestamp stamped on every ``MarketData`` served by
+# :class:`SyntheticDataProvider`. Synthetic data is deterministic and replayable;
+# using ``datetime.now()`` here would make ``FetchResult``/``MarketData`` differ
+# across calls, breaking equality assertions and serialization round-trips. A
+# constant keeps provider output stable for a given symbol set/window.
+SYNTHETIC_FETCHED_AT = datetime(2024, 1, 1)
+
 
 def _validate_synthetic_days(days: int) -> None:
     """Reject a non-positive or non-integer number of days.
@@ -271,7 +278,7 @@ class SyntheticDataProvider(DataProvider):
                     symbol=symbol,
                     data=df,
                     source=self.name,
-                    fetched_at=datetime.now(),
+                    fetched_at=SYNTHETIC_FETCHED_AT,
                 )
             else:
                 result.missing.append(symbol)
