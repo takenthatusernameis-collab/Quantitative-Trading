@@ -481,6 +481,43 @@ class TestConfig:
         assert config.logging_level == "DEBUG"
         assert config.output_dir == "./out"
 
+    @pytest.mark.parametrize("key", ["data", "backtest", "risk", "portfolio"])
+    @pytest.mark.parametrize("value", [5, [], None, "x"])
+    def test_update_rejects_non_mapping_subconfigs(self, key: str, value: Any) -> None:
+        config = Config()
+
+        with pytest.raises(ValueError, match="expected mapping"):
+            config.update(**{key: value})
+
+        assert getattr(config, key) == getattr(Config(), key)
+
+    @pytest.mark.parametrize(
+        "key,value,field",
+        [
+            ("data", {"offline": 1}, "DataConfig.offline"),
+            ("data", {"provider": 123}, "DataConfig.provider"),
+            ("portfolio", {"max_positions": 20.5}, "PortfolioConfig.max_positions"),
+        ],
+    )
+    def test_update_rejects_wrong_typed_nested_values(
+        self, key: str, value: dict[str, Any], field: str
+    ) -> None:
+        config = Config()
+
+        with pytest.raises(ValueError, match=f"invalid config field {field}"):
+            config.update(**{key: value})
+
+        assert getattr(config, key) == getattr(Config(), key)
+
+    @pytest.mark.parametrize("key,value", [("logging_level", 123), ("output_dir", [])])
+    def test_update_rejects_wrong_typed_scalar_values(self, key: str, value: Any) -> None:
+        config = Config()
+
+        with pytest.raises(ValueError, match=f"invalid config field Config.{key}"):
+            config.update(**{key: value})
+
+        assert getattr(config, key) == getattr(Config(), key)
+
     def test_update_nested_dict_without_merge_hooks_replaces_value(self) -> None:
         """If a nested sub-config lacks merge hooks, update falls back to setattr."""
         config = Config()

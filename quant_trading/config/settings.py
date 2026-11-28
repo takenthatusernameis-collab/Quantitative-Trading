@@ -1079,14 +1079,25 @@ class Config:
             if not hasattr(self, key):
                 continue
             field_type = self.__dataclass_fields__[key].type
-            if isinstance(value, dict) and is_dataclass(field_type):
+            if is_dataclass(field_type):
+                if not isinstance(value, dict):
+                    raise ValueError(
+                        f"invalid config field Config.{key}: expected mapping, "
+                        f"got {type(value).__name__} ({value!r})"
+                    )  # noqa: TRY004
                 current = getattr(self, key)
                 to_dict = getattr(current, "to_dict", None)
                 constructor = getattr(field_type, "from_dict", None)
                 if callable(to_dict) and callable(constructor):
                     merged = {**to_dict(), **value}
-                    setattr(self, key, constructor(merged))
+                    updated = constructor(merged)
+                    _check_field_types(
+                        field_type,
+                        {field.name: getattr(updated, field.name) for field in fields(field_type)},
+                    )
+                    setattr(self, key, updated)
                     continue
+            _check_field_types(Config, {key: value})
             setattr(self, key, value)
 
 
