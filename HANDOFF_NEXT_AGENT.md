@@ -1,3 +1,32 @@
+## Session 2026-11-28 (config yaml/update robustness regression test added)
+
+### What changed
+- `tests/test_config_yaml_update_robustness.py` (new): 71 tests locking in the wrong-typed-payload contract for `Config.update` and `Config.from_yaml`, the direct analog of `test_from_dict_robustness.py` for the YAML/update merge path:
+  - Every field of every sub-config (data/backtest/risk/portfolio) poisoned through `Config.update` asserts only `ValueError`/`TypeError` and that the sub-config is left untouched on rejection.
+  - Non-mapping sub-config values (`5`, `[]`, `None`, `"x"`, `object()`, `[1,2,3]`) through `update` assert `ValueError`/`TypeError` and untouched sub-config.
+  - Every poisoned top-level scalar field (`logging_level`, `output_dir`) through `update` asserts only `ValueError`/`TypeError`.
+  - Every field of every sub-config poisoned via YAML text (`Config.from_yaml`) asserts only `ValueError`/`TypeError` (no `AttributeError`/`KeyError` leak); non-mapping sub-configs in YAML fall back to defaults.
+
+### What was actually verified (evidence)
+- New tests: 71 passed.
+- `ruff check tests/test_config_yaml_update_robustness.py` -> All checks passed.
+- `black --check tests/test_config_yaml_update_robustness.py` -> 1 file unchanged.
+- `mypy tests/test_config_yaml_update_robustness.py` -> Success: no issues.
+- Related suites `test_config.py test_from_dict_robustness.py test_repository_integrity.py test_strategies_examples.py test_strategy_registry_coverage.py` -> 1086 passed.
+- Full suite `pytest -q -p no:cacheprovider` -> **5611 passed, 170 skipped, 151 deselected, 0 failures** in 360s (baseline 5540 + exactly the 71 new tests; no regressions).
+
+### What remains unresolved
+- None. Suite is green.
+
+### Approaches that already failed / rejected
+- `Config.update` / `Config.from_yaml` code change: NOT needed. Probed both paths with corrupted sub-config values (non-mapping sub-configs, wrong-typed every field, bad scalars) — every input already raises only `ValueError`/`TypeError` with no leaks, and failed nested updates leave the sub-config untouched. The code was already hardened; the gap was test coverage, now closed by the new file.
+- Strategy `generate_signals` with NaN/inf frames: probed all 52 registered strategies — no crashes (only harmless `RuntimeWarning`s), so already robust; left untested as a future candidate rather than changing working code.
+
+### Next task
+- None required; suite is green and working tree contains only the new test file. If continuing, a bounded candidate is property-based/deterministic fuzz of the `Rebalancer` with NaN/inf inputs (the other handoff candidate), verifying with the full suite + ruff/black/mypy. Do NOT re-run the from_dict malformed-payload audit or the config yaml/update audit — both proven complete.
+
+---
+
 ## Session 2026-11-28 (restore green baseline: fix ruff + mypy regressions in settings.py)
 
 ### What changed
