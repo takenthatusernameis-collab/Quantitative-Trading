@@ -1,41 +1,47 @@
-## Session 2026-11-27 (allowlist cleanup - `_parse_monthly_adjusted_response`)
+## Session 2026-11-28 (allowlist cleanup - `_parse_technical_indicator_response`)
 
 ### What changed
-- Documented `AlphaVantageProvider._parse_monthly_adjusted_response`
-  in `quant_trading/data/yfinance_provider.py` (def at line ~1854) with a
+- Documented `AlphaVantageProvider._parse_technical_indicator_response`
+  in `quant_trading/data/yfinance_provider.py` (def at line 2000) with a
   deterministic doctest projecting stable properties only: the `None` case,
   `list(df.columns)`, `df.shape`. Method is fully deterministic (no
   `datetime.now()`); its date index comes from the INPUT.
 - Removed the `("quant_trading/data/yfinance_provider.py",
-  "_parse_monthly_adjusted_response")` line from `_EXAMPLES_ALLOWLIST` in
+  "_parse_technical_indicator_response")` line from `_EXAMPLES_ALLOWLIST` in
   `tests/test_repository_integrity.py` (no blank line left behind).
 - No production behavior changed (docstring + allowlist only).
 
 ### What was actually verified (evidence)
 - `python -m pytest --doctest-modules quant_trading/data/yfinance_provider.py`
-  -> 62 passed (was 61; +1 for the new doctest).
+  -> 64 passed (was 63; +1 for the new doctest).
 - `python -m pytest tests/test_repository_integrity.py` -> 51 passed.
 - `python -m ruff check .` -> All checks passed.
 - `python -m black --check quant_trading/ tests/ examples/` -> 166 files unchanged.
 - `git diff --check` -> clean.
 - `python -m mypy quant_trading/ tests/ examples/` -> Success: no issues found.
-- `python -m pytest -q` (full) -> 5451 passed, 170 skipped, 151 deselected.
+- `python -m pytest -q` (full) -> 5453 passed, 170 skipped, 151 deselected.
 - `git diff --stat`: `quant_trading/data/yfinance_provider.py | 10 ++++++++++`,
   `tests/test_repository_integrity.py | 1 -`.
 - Doctest output confirmed with a live `python -c` snippet BEFORE writing:
-  `None` case True, columns `['open', 'high', 'low', 'close', 'adjusted_close', 'volume', 'dividend_amount', 'split_coefficient']`,
-  shape `(1, 8)`, index `['2024-01-31']`.
+  `None` case True, columns `['sma']`, shape `(2, 1)`, index `['2024-01-04', '2024-01-05']`.
 
 ### What remains unresolved
 - `quant_trading/data/yfinance_provider.py` still has many allowlist entries:
   `_fetch_*`, `_get_yf`, most `_parse_*`, `get_*`, `search_symbols`.
 - Remaining `_parse_*` allowlist entries (as of this session):
-  `_parse_batch_response`, `_parse_download`, `_parse_single_series_response`,
-  `_parse_technical_indicator_response`.
-- Determinism note for the next agent: `_parse_batch_response` (line ~1613)
-  builds a `date` index from `datetime.now().date()` -> NOT deterministic, skip
-  for now. The other remaining `_parse_*` methods
-  (download/single_series/technical) are FULLY deterministic - safe to print columns/shape/index.
+  `_parse_batch_response`, `_parse_download`.
+- Determinism notes:
+  - `_parse_batch_response` (line ~1633) builds a `date` index from
+    `datetime.now().date()` -> NOT deterministic, skip.
+  - `_parse_download` (line 429) is STILL in the allowlist but is NOT fully
+    deterministic: it sets `MarketData(fetched_at=datetime.now())`. A doctest
+    is still possible if it avoids printing `fetched_at` (e.g. assert
+    `result.missing`, `list(result.data)`, `result.data[symbol].data.shape`),
+    but the input requires building a MultiIndex `pd.DataFrame` (more
+    complex than the single-series/technical parsers).
+- NOTE: the prior session's claim that `_parse_download`/`_parse_single_series_response`
+  were "FULLY deterministic" was partially stale — `_parse_single_series_response`
+  was already done (doctests present, not in allowlist) before this session.
 
 ### Key lesson (constrains the next doctest)
 - `test_documented_examples_are_valid` compiles EACH `>>>` line in isolation
@@ -51,27 +57,16 @@
   order / `shape` / index BEFORE writing them into the docstring.
 
 ### Next task
-Continue the allowlist cleanup with `_parse_single_series_response`
-(def at line ~1760). Signature:
-`(self, symbol: str, data: dict, start: datetime | None, end: datetime | None)`.
-It is FULLY deterministic (no `datetime.now()`) and its date index comes from
-the INPUT, so it is stable. The following snippet was VERIFIED working this
-session (output shown) - keep the call on ONE `>>>` line:
-
-    >>> provider = AlphaVantageProvider(cache_dir="", warn_on_demo=False)
-    >>> provider._parse_single_series_response("AAPL", {}, None, None) is None
-    True
-    >>> df = provider._parse_single_series_response("AAPL", {"Time Series (Daily)": {"2024-01-05": {"1. open": "150.0", "2. high": "151.0", "3. low": "149.0", "4. close": "150.5", "5. volume": "1000"}}}, None, None)
-    >>> list(df.columns)
-    ['open', 'high', 'low', 'close', 'volume']
-    >>> df.shape
-    (1, 5)
-
-(For reference, the index is `2024-01-05`, i.e. `[str(i.date()) for i in df.index]`
--> `['2024-01-05']`.)
-
-Then remove `("quant_trading/data/yfinance_provider.py",
-"_parse_single_series_response")` from `_EXAMPLES_ALLOWLIST` and re-run the
-verification commands above (doctest module, integrity test, ruff, black,
-`git diff --check`, mypy, full `pytest`). Keep each `>>>` line independently
-compilable and single-line where a call has multiple args.
+Continue the allowlist cleanup with `_parse_download` (def at line 429).
+Signature: `(self, df: pd.DataFrame | None, symbols: list[str]) -> FetchResult`.
+It is NOT fully deterministic (`fetched_at=datetime.now()`), so write a doctest
+that only asserts deterministic fields (e.g. `result.missing`,
+`list(result.data)`, `result.data[symbol].data.shape`) and does NOT print
+`fetched_at` or the MarketData repr. The `None`/empty case:
+`provider._parse_download(None, ["AAPL"]).missing == ["AAPL"]` is deterministic.
+Then remove `("quant_trading/data/yfinance_provider.py", "_parse_download")`
+from `_EXAMPLES_ALLOWLIST` and re-run the verification commands above. Keep
+each `>>>` line independently compilable and single-line where a call has
+multiple args. If a clean deterministic doctest proves impractical for the
+MultiIndex input path, leave `_parse_download` in the allowlist and move on
+to the next deterministic `_parse_*`/get_* candidate.

@@ -2017,6 +2017,16 @@ class AlphaVantageProvider(DataProvider):
         Returns:
             DataFrame indexed by date with indicator values, or ``None`` when no series is present.
 
+        Examples:
+            >>> provider = AlphaVantageProvider(cache_dir="", warn_on_demo=False)
+            >>> provider._parse_technical_indicator_response("AAPL", "SMA", {}, None, None) is None
+            True
+            >>> df = provider._parse_technical_indicator_response("AAPL", "SMA", {"Technical Analysis: SMA": {"SMA": {"2024-01-05": {"SMA": "150.5"}, "2024-01-04": {"SMA": "149.0"}}}}, None, None)
+            >>> list(df.columns)
+            ['sma']
+            >>> df.shape
+            (2, 1)
+
         """
         # Look for key like "Technical Analysis: SMA"
         ta_key = None
