@@ -45,6 +45,13 @@ def _iso(value: datetime | None) -> str | None:
     :meth:`WalkForwardWindow.to_dict` emits JSON-safe values, consistent with
     every other ``to_dict`` in the codebase.
 
+    Examples:
+        >>> from datetime import datetime
+        >>> from quant_trading.optimization.walk_forward import _iso
+        >>> _iso(datetime(2024, 1, 15, 12, 30, 45))
+        '2024-01-15T12:30:45'
+        >>> _iso(None)
+
     """
     return value.isoformat() if value is not None else None
 
@@ -57,6 +64,15 @@ def _coerce_datetime(value: Any) -> datetime:
     missing value is passed through unchanged so that callers may apply their
     own defaults; malformed strings raise ``ValueError`` from
     :meth:`datetime.fromisoformat`.
+
+    Examples:
+        >>> from datetime import datetime
+        >>> from quant_trading.optimization.walk_forward import _coerce_datetime
+        >>> _coerce_datetime("2024-01-15")
+        datetime.datetime(2024, 1, 15, 0, 0)
+        >>> _coerce_datetime("2024-01-15T12:30:45")
+        datetime.datetime(2024, 1, 15, 12, 30, 45)
+        >>> _coerce_datetime(None)
 
     """
     if isinstance(value, datetime):
