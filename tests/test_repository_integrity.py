@@ -2416,8 +2416,6 @@ _UNDOCUMENTED_PARAM_ALLOWLIST: frozenset[tuple[str, str, str]] = frozenset(
         ("quant_trading/portfolio/portfolio.py", "from_dict", "data"),
         ("quant_trading/portfolio/rebalancer.py", "_coerce_datetime", "value"),
         ("quant_trading/portfolio/rebalancer.py", "_iso", "value"),
-        ("quant_trading/risk/limits.py", "_coerce_datetime", "value"),
-        ("quant_trading/risk/limits.py", "_iso", "value"),
         ("quant_trading/risk/metrics.py", "from_dict", "data"),
         ("quant_trading/strategies/examples.py", "_calculate_adl", "df"),
         ("quant_trading/strategies/examples.py", "_calculate_aroon", "high"),
