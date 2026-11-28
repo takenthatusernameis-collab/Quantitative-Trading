@@ -211,15 +211,7 @@ class Trade:
         Examples:
                 >>> from datetime import datetime
                 >>> from quant_trading.backtest.engine import Trade
-                >>> buy = Trade(
-                ...     symbol="AAPL",
-                ...     action="buy",
-                ...     quantity=100,
-                ...     price=150.0,
-                ...     timestamp=datetime.now(),
-                ...     commission=0.001,
-                ...     slippage=0.0005,
-                ... )
+                >>> buy = Trade(symbol="AAPL", action="buy", quantity=100, price=150.0, timestamp=datetime(2024, 1, 1), commission=0.001, slippage=0.0005)
                 >>> buy.fee
                 22.5
 
@@ -1730,6 +1722,15 @@ def _resolve_backtest_config(
     Returns:
         The backtest settings the run is driven by.
 
+    Examples:
+        >>> from quant_trading.backtest.engine import _resolve_backtest_config
+        >>> cfg = _resolve_backtest_config(None, None, None, None, None, None)
+        >>> cfg.initial_capital
+        100000.0
+        >>> cfg = _resolve_backtest_config(None, 50000.0, None, None, None, None)
+        >>> cfg.initial_capital
+        50000.0
+
     """
     base = config.backtest if isinstance(config, Config) else BacktestConfig()
     overrides: dict[str, Any] = {}
@@ -1768,6 +1769,13 @@ def _resolve_data_interval(
     Returns:
         The interval the run is driven by (``"1d"`` when nothing is
         configured).
+
+    Examples:
+        >>> from quant_trading.backtest.engine import _resolve_data_interval
+        >>> _resolve_data_interval(None, None)
+        '1d'
+        >>> _resolve_data_interval(None, "1h")
+        '1h'
 
     """
     if interval is not None:

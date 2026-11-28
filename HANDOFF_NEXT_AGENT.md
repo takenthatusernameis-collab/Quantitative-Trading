@@ -1,73 +1,76 @@
-## Session 2026-11-28 (allowlist cleanup - `_iso`, `_coerce_datetime`)
+## Session 2026-11-28 (allowlist cleanup - engine.py `fee`, `_resolve_backtest_config`, `_resolve_data_interval`)
 
 ### What changed
-- Documented `quant_trading.optimization.base._iso` (def at line ~899) and
-  `_coerce_datetime` (def at line ~906) with Examples sections containing
-  single-line `>>>` doctests. Verified outputs (live `python -c` before writing):
-  - `_iso(datetime(2024, 1, 15, 12, 30, 45))` -> `'2024-01-15T12:30:45'`
-  - `_iso(None)` -> None (no output)
-  - `_coerce_datetime("2024-01-15")` -> `datetime.datetime(2024, 1, 15, 0, 0)`
-  - `_coerce_datetime("2024-01-15T12:30:45")` -> `datetime.datetime(2024, 1, 15, 12, 30, 45)`
-  - `_coerce_datetime(None)` -> None (no output)
-- Removed the `("quant_trading/optimization/base.py", "_iso")` and
-  `("quant_trading/optimization/base.py", "_coerce_datetime")` lines from
-  `_EXAMPLES_ALLOWLIST` in `tests/test_repository_integrity.py` (no blank lines
-  left behind).
-- No production behavior changed (docstrings + allowlist only).
+- `quant_trading/backtest/engine.py`:
+  - `Trade.fee` (property, def ~line 200): replaced the multi-line `>>> buy = Trade(...)`
+    doctest (which failed the per-line parse guard with "(' was never closed") with a
+    single-line `Trade(...)` call using a fixed `timestamp=datetime(2024, 1, 1)`
+    (was `datetime.now()`). Output `22.5` unchanged.
+  - `_resolve_backtest_config` (def ~line 1699): added an `Examples:` section with two
+    single-line doctests (default `initial_capital` -> `100000.0`; override `50000.0`).
+  - `_resolve_data_interval` (def ~line 1749): added an `Examples:` section
+    (`_resolve_data_interval(None, None)` -> `'1d'`; `(None, "1h")` -> `'1h'`).
+- `tests/test_repository_integrity.py`: removed the three now-satisfied
+  `_EXAMPLES_ALLOWLIST` entries `("quant_trading/backtest/engine.py", "fee")`,
+  `... "_resolve_backtest_config"`, `... "_resolve_data_interval"` (no blank lines left).
+- No production behavior changed (docstrings + allowlist only). All doctest outputs were
+  confirmed with a live `python -c` run BEFORE writing them.
 
 ### What was actually verified (evidence)
-- `python -m pytest --doctest-modules quant_trading/optimization/base.py`
-  -> 24 passed.
+- `python -m pytest --doctest-modules quant_trading/backtest/engine.py` -> 33 passed.
 - `python -m pytest tests/test_repository_integrity.py` -> 51 passed.
 - `python -m ruff check .` -> All checks passed.
 - `python -m black --check quant_trading/ tests/ examples/` -> 166 files unchanged.
-- `python -m mypy quant_trading/ tests/ examples/` -> Success: no issues found.
+- `python -m mypy quant_trading/ tests/ examples/` -> Success: no issues found (166 files).
+- Full suite `python -m pytest -q` -> 5461 passed, 170 skipped, 151 deselected.
 
-### What remains unresolved
-- `quant_trading/optimization/base.py` still has allowlisted entries whose
-  functions have no Examples section: `__init__`, `_assert_dates`,
-  `_create_strategy`, `_evaluate_params`, `_run_single_backtest`, `add`,
-  `duration_seconds`, `from_dict` (x2), `generate_combinations`, `generate_grid`,
-  `get_top_n`, `maximize_calmar`, `maximize_profit_factor`, `maximize_sharpe`,
-  `maximize_sortino`, `maximize_total_return`, `maximize_win_rate`,
-  `minimize_max_drawdown`, `run`, `sample_random` (x2), `set_validator`,
-  `to_dataframe`. Most already carry doctests (maximize_*, generate_grid, etc.);
-  the remaining ones (`add`, `set_validator`, `duration_seconds`, `to_dataframe`,
-  `get_top_n`, `_assert_dates`, `_create_strategy`, `_run_single_backtest`,
-  `_evaluate_params`) either lack a clean deterministic doctest or return
-  non-stable reprs (DataFrame/ParameterGrid). No further base.py change made this
-  session.
-- `quant_trading/config/settings.py` allowlist entries: NONE (done).
-- `quant_trading/data/yfinance_provider.py` allowlist is exhausted of
-  deterministic candidates (network/`datetime.now()`/`ImportError` dependent).
-- The allowlist still has many entries in other files (backtest/engine.py,
-  backtest/report.py, monte_carlo/simulator.py, optimization/walk_forward.py,
-  portfolio/rebalancer.py, risk/limits.py, examples/cli.py, etc.). The cleanup is
-  NOT repo-wide complete.
+### What remains unresolved (engine.py)
+- Still allowlisted in engine.py (all need a fully configured `BacktestEngine` with
+  portfolio + risk manager + data manager and mutate state / append to lists, so they do
+  NOT admit a clean deterministic single-line doctest):
+  `_benchmark_returns`, `_cover_short`, `_open_long`, `_open_short`, `_process_signal`,
+  `_process_stop_exits`, `_reduce_long`, `run_backtest`.
+  `run_backtest` already HAS an Examples section (it is allowlisted only because its
+  `>>> run_backtest(` lines are multi-line and fail the per-line parse guard; converting
+  them to single-line calls would let its entry be dropped, but the calls are long).
+- engine.py is effectively exhausted of *clean* candidates; do not keep retrying it.
 
-### Key lesson (constrains the next doctest)
+### Key lesson (unchanged, still constrains every doctest)
 - `test_documented_examples_are_valid` compiles EACH `>>>` line in isolation
-  (`_validate_doctest_lines`). A multi-line call whose first `>>>` line opens a
-  paren FAILS with "(' was never closed". Every `>>>` line must be
-  independently valid Python. Prefer single-line statements.
-- The integrity guard only checks that `>>>` lines PARSE; the actual doctest
-  OUTPUT is executed by `pytest --doctest-modules`, so any shown output must
-  match exactly (no `datetime.now()`, no DataFrame repr unless stable).
-- A function with a docstring but NO Examples section is flagged unless
-  allowlisted; adding a non-empty Examples section with parseable doctests lets
-  you drop the allowlist entry.
-- Always run a quick `python -c "..."` snippet to confirm exact outputs
-  BEFORE writing them into the docstring.
+  (`_validate_doctest_lines`). Every `>>>` line must be independently valid Python;
+  multi-line `>>>` calls that open a paren FAIL. Prefer single-line statements.
+- The guard only checks that `>>>` lines PARSE; actual OUTPUT is executed by
+  `pytest --doctest-modules`, so shown output must match exactly (no `datetime.now()`,
+  no DataFrame/Figure repr unless stable).
+- A function with a docstring but NO Examples section is flagged unless allowlisted;
+  adding a non-empty Examples section with parseable single-line doctests lets you drop
+  the allowlist entry. Always confirm exact outputs with `python -c "..."` first.
 
-### Next task
-Continue the allowlist cleanup in `quant_trading/backtest/engine.py`. Inspect its
-remaining `_EXAMPLES_ALLOWLIST` entries (e.g. `_benchmark_returns`, `_cover_short`,
-`_open_long`, `_open_short`, `_process_signal`, `_process_stop_exits`, `_reduce_long`,
-`_resolve_backtest_config`, `_resolve_data_interval`, `fee`, `run_backtest`) and
-document any that admit a clean, deterministic single-line `>>>` doctest (pure
-helpers only; avoid network/`datetime.now()`/DataFrame-repr-dependent ones), then
-remove their allowlist entries and re-run the verification commands above. If no
-candidate in engine.py admits a clean doctest, move to `quant_trading/backtest/report.py`
-or `quant_trading/monte_carlo/simulator.py` and continue there.
+### Approaches that already failed / are dead ends (do not repeat)
+- Multi-line `>>>` calls in docstrings (the `fee` / `run_backtest` pattern) -> rejected by
+  the per-line parse guard. Use single-line calls only.
+- Trying to doctest the engine trade helpers (`_open_long`, `_reduce_long`, `_open_short`,
+  `_cover_short`, `_process_signal`, `_process_stop_exits`, `_benchmark_returns`) -> they
+  require a live engine/portfolio/risk-manager and mutate state; no clean deterministic
+  single-line doctest exists. Skip them.
 
-(End of file - total 77 lines)
+### Next task (precise, low-risk, high-value)
+Replicate the already-proven `_iso` / `_coerce_datetime` doctests into
+`quant_trading/risk/limits.py` (smallest target: only 2 allowlist entries,
+`_iso` at line 105 and `_coerce_datetime` at line 112). These are the SAME helpers the
+previous session documented in `quant_trading/optimization/base.py` (see that file's
+`Examples:` sections for the exact wording/outputs to copy):
+- `_iso(datetime(2024, 1, 15, 12, 30, 45))` -> `'2024-01-15T12:30:45'`
+- `_iso(None)` -> None (no output line)
+- `_coerce_datetime("2024-01-15")` -> `datetime.datetime(2024, 1, 15, 0, 0)`
+- `_coerce_datetime("2024-01-15T12:30:45")` -> `datetime.datetime(2024, 1, 15, 12, 30, 45)`
+- `_coerce_datetime(None)` -> None (no output line)
+Then remove the two `("quant_trading/risk/limits.py", ...)` lines from
+`_EXAMPLES_ALLOWLIST` (lines ~1988-1989) and re-run the five verification commands above.
+After limits.py, the identical `_iso`/`_coerce_datetime` pair also appears in
+`quant_trading/optimization/walk_forward.py` (lines 41/52) and
+`quant_trading/portfolio/rebalancer.py` (lines 85/92) and can be cleaned the same way.
+Note: `walk_forward._coerce_datetime` is typed `-> datetime` (not `| None`) — verify its
+None-handling output live before copying the `None` doctest.
+
+(End of file)
