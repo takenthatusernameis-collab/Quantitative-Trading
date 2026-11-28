@@ -233,15 +233,26 @@ def prepare_sensitivity_data(
 
     Returns:
         DataFrame with columns for each parameter and the score.
+
+    Raises:
+        TypeError: If an entry in ``all_results`` is not a dict, or if a
+            result's ``params`` is present but not a dict. Such a corrupted
+            result (for example a non-dict ``params`` read back from a JSON
+            cache) is reported as a clear ``TypeError`` instead of leaking an
+            ``AttributeError`` from ``.items()``/``in`` on the wrong type.
     """
     if not all_results:
         return pd.DataFrame()  # type: ignore[no-any-return]
 
     rows: list[dict[str, Any]] = []
     for result in all_results:
+        if not isinstance(result, dict):
+            raise TypeError(f"each result must be a dict, got {type(result).__name__}")
         if "params" not in result:
             continue
         params = result["params"]
+        if not isinstance(params, dict):
+            raise TypeError(f"params must be a dict, got {type(params).__name__}")
         score = result.get(score_key, np.nan)
         row: dict[str, Any] = {"score": score}
         if param_names is None:

@@ -812,12 +812,24 @@ class OptimizationResult:
         """Get top N results by score.
 
         Args:
-            n: Number of top results to return.
+            n: Number of top results to return. Must be a non-negative
+                integer; ``0`` returns an empty list.
 
         Returns:
             List of the n highest-scoring result dicts.
 
+        Raises:
+            TypeError: If ``n`` is a boolean or not an integer.
+            ValueError: If ``n`` is negative. A negative ``n`` would
+                otherwise silently drop results from the end of the sorted
+                list (``sorted_results[:-1]``) instead of returning the top
+                ``n``.
+
         """
+        if isinstance(n, bool) or not isinstance(n, int):
+            raise TypeError(f"invalid n: the value must be a non-negative integer (got {n!r})")
+        if n < 0:
+            raise ValueError(f"invalid n: the value must be a non-negative integer (got {n})")
         sorted_results = sorted(self.all_results, key=lambda x: x["score"], reverse=True)
         return sorted_results[:n]
 
