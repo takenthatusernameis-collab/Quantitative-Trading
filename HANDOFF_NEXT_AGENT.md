@@ -1,3 +1,26 @@
+## Session 2026-11-28 (restore green baseline: fix ruff + mypy regressions in settings.py)
+
+### What changed
+- `quant_trading/config/settings.py:369`: `_check_field_types(dataclass_type: type, ...)` → `dataclass_type: Any`. The `Config.update` merge path (hardened in the prior from_dict session) passes `self.__dataclass_fields__[key].type`, which mypy infers as `DataclassInstance | type[DataclassInstance]` (not assignable to `type`), breaking `test_repository_is_mypy_clean`. `Any` matches the existing `_filter_fields` helper and is sufficient since `_check_field_types` only introspects `__dataclass_fields__`/`__name__`.
+- `quant_trading/config/settings.py:1087`: Removed unused `# noqa: TRY004` on a plain `raise ValueError(...)` (no `raise from`), fixing `test_repository_is_ruff_clean` (RUF100).
+
+### What was actually verified (evidence)
+- `ruff check quant_trading/config/settings.py` -> All checks passed.
+- `mypy quant_trading/config/settings.py` -> Success: no issues found.
+- `pytest ...::test_repository_is_ruff_clean ...::test_repository_is_mypy_clean ...::test_repository_is_black_formatted` -> 3 passed.
+- Full suite `pytest -q -p no:cacheprovider` -> **5540 passed, 170 skipped, 151 deselected, 0 failures** in 356s (baseline was 5538 passed + 2 failures before this fix).
+
+### What remains unresolved
+- None. Suite is green.
+
+### Approaches that already failed / rejected
+- Annotating the local `field_type: Any` did NOT silence mypy at the call site (mypy's dataclass plugin re-infers the union after `is_dataclass()`); the callee-side signature change is what fixed it.
+
+### Next task
+- Baseline is green; no defect outstanding. If continuing, pick a NEW bounded area (do NOT re-run the from_dict malformed-payload audit — proven complete). Candidate: extend the wrong-typed-payload contract to `to_yaml`/`from_yaml` and the `Config.update` merge path with corrupted sub-config values, asserting only `ValueError`/`TypeError` rejections. Constraint: no serialization format changes; verify with the full suite (expect 5540 passed / 0 failures) + ruff/black/mypy.
+
+---
+
 ## Session 2026-11-28 (from_dict robustness: malformed-payload crashes fixed + fuzz regression test)
 
 > State: changes are UNCOMMITTED in the working tree (8 modified files + new `tests/test_from_dict_robustness.py`). No commit was made (not requested).

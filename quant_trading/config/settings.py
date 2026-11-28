@@ -366,7 +366,7 @@ def _type_matches(expected_type: Any, value: Any) -> bool:
     return True
 
 
-def _check_field_types(dataclass_type: type, values: dict[str, Any]) -> None:
+def _check_field_types(dataclass_type: Any, values: dict[str, Any]) -> None:
     """Validate each value in ``values`` against the dataclass annotations.
 
     Args:
@@ -1084,7 +1084,7 @@ class Config:
                     raise ValueError(
                         f"invalid config field Config.{key}: expected mapping, "
                         f"got {type(value).__name__} ({value!r})"
-                    )  # noqa: TRY004
+                    )
                 current = getattr(self, key)
                 to_dict = getattr(current, "to_dict", None)
                 constructor = getattr(field_type, "from_dict", None)
