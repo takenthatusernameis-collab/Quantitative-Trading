@@ -295,8 +295,13 @@ class Trade:
             'AAPL'
 
         """
-        timestamp_raw = data["timestamp"]
-        timestamp = datetime.fromisoformat(timestamp_raw)
+        timestamp_raw = data.get("timestamp")
+        if isinstance(timestamp_raw, datetime):
+            timestamp = timestamp_raw
+        elif isinstance(timestamp_raw, str):
+            timestamp = datetime.fromisoformat(timestamp_raw)
+        else:
+            timestamp = datetime(1970, 1, 1)
 
         def _finite(value: Any, default: Any = 0.0) -> Any:
             if (
@@ -312,10 +317,10 @@ class Trade:
             return result if math.isfinite(result) else default
 
         return cls(
-            symbol=data["symbol"],
-            action=data["action"],
-            quantity=_finite(data["quantity"]),
-            price=_finite(data["price"]),
+            symbol=data.get("symbol", ""),
+            action=data.get("action", "hold"),
+            quantity=_finite(data.get("quantity", 0.0)),
+            price=_finite(data.get("price", 0.0)),
             timestamp=timestamp,
             commission=_finite(data.get("commission", 0.0)),
             slippage=_finite(data.get("slippage", 0.0)),
@@ -838,7 +843,11 @@ class BacktestResult:
             final_value=final_value,
             total_return=total_return,
             total_return_pct=total_return_pct,
-            portfolio_violations=list(data.get("portfolio_violations", []) or []),
+            portfolio_violations=(
+                list(data.get("portfolio_violations"))
+                if isinstance(data.get("portfolio_violations"), (list, tuple))
+                else []
+            ),
             total_costs=_finite(data.get("total_costs", 0.0)),
         )
 

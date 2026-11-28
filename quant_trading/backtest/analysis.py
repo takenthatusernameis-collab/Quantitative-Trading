@@ -394,10 +394,11 @@ class BacktestRegimeAnalysis:
         # Import here to avoid circular import at module load time
         from quant_trading.regime import Regime, RegimeResult, RegimeSegment
 
-        # Reconstruct RegimeSegment objects from their dict representation
+        segments_data = data.get("segments", [])
         segments = []
         regimes = []
-        for seg_data in data.get("segments", []):
+        if isinstance(segments_data, (list, tuple)):
+            for seg_data in segments_data:
             regime = Regime(seg_data.get("regime", "unknown"))
             segments.append(
                 RegimeSegment(
