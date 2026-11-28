@@ -61,3 +61,20 @@
 
 ### Next task
 - If continuing, address the remaining yfinance dep issue. Constraint: keep RNG draw order stable; verify with the full suite (expect 5376 passed / 3 yfinance doctest failures) plus `python -m ruff`/`python -m black --check`/`python -m mypy`.
+
+---
+
+## Session 2026-11-28 (yfinance optional dep installed)
+
+### What changed
+- Installed `yfinance>=0.2.0` (and transitive deps) into the environment. No source changes required; the 3 pre-existing yfinance doctest failures in `quant_trading/data/yfinance_provider.py` are resolved.
+
+### What was actually verified (evidence)
+- `pytest --doctest-modules quant_trading/data/yfinance_provider.py` -> 65 passed.
+- Full suite `pytest -q -p no:cacheprovider` -> 5469 passed, 170 skipped, 151 deselected, 0 failures in 239s.
+
+### What remains unresolved
+- None. Optional dependency availability is an environment concern, not a code defect.
+
+### Next task
+- None required; audit complete. If continuing, run broader property-based or integration checks as needed.
