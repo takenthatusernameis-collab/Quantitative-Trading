@@ -315,6 +315,21 @@ def _type_matches(expected_type: Any, value: Any) -> bool:
         True when ``value`` is acceptable for a field of type
         ``expected_type``.
 
+    Examples:
+        >>> from quant_trading.config.settings import _type_matches
+        >>> _type_matches(int, 5)
+        True
+        >>> _type_matches(int, True)
+        False
+        >>> _type_matches(bool, 1)
+        False
+        >>> _type_matches(float, 5)
+        True
+        >>> _type_matches(str | None, None)
+        True
+        >>> _type_matches(str | None, 5)
+        False
+
     """
     if expected_type is None or expected_type is type(None):
         return value is None

@@ -1860,7 +1860,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/backtest/report.py", "to_dict"),
         ("quant_trading/config/settings.py", "_check_field_types"),
         ("quant_trading/config/settings.py", "_to_dict"),
-        ("quant_trading/config/settings.py", "_type_matches"),
         ("quant_trading/data/yfinance_provider.py", "_fetch_batch"),
         ("quant_trading/data/yfinance_provider.py", "_fetch_commodity"),
         ("quant_trading/data/yfinance_provider.py", "_fetch_crypto_daily"),
