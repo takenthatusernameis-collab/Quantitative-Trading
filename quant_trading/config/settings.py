@@ -1000,6 +1000,21 @@ class Config:
             Dictionary with ``data``, ``backtest``, ``risk``,
             ``portfolio``, ``logging_level``, and ``output_dir`` keys.
 
+        Examples:
+            >>> from quant_trading.config.settings import Config
+            >>> config = Config(logging_level="DEBUG", output_dir="./out")
+            >>> d = config._to_dict()
+            >>> d["logging_level"]
+            'DEBUG'
+            >>> d["output_dir"]
+            './out'
+            >>> d["data"]["provider"]
+            'yfinance'
+            >>> d["backtest"]["initial_capital"]
+            100000.0
+            >>> sorted(d.keys())
+            ['backtest', 'data', 'logging_level', 'output_dir', 'portfolio', 'risk']
+
         """
         return {
             "data": self.data.__dict__,
