@@ -56,6 +56,19 @@ def _make_empty_result() -> MonteCarloResult:
     )
 
 
+def _make_populated_result() -> MonteCarloResult:
+    """Build a MonteCarloResult with three known total-return simulations."""
+    sims = [BacktestMetrics(total_return_pct=r) for r in (-5.0, 2.0, 10.0)]
+    return MonteCarloResult(
+        simulations=sims,
+        original_metrics=BacktestMetrics(),
+        n_simulations=len(sims),
+        confidence_level=0.95,
+        start_time=datetime(2024, 1, 1),
+        end_time=datetime(2024, 1, 2),
+    )
+
+
 def test_monte_carlo_result_runs_n_simulations() -> None:
     result = _make_result()
     mc = MonteCarloSimulator(n_simulations=50, random_state=42)
@@ -261,6 +274,39 @@ def test_monte_carlo_result_expected_shortfall_empty_raises() -> None:
     res = _make_empty_result()
     with pytest.raises(ValueError, match="No simulations available"):
         res.expected_shortfall("total_return_pct", confidence=0.95)
+
+
+@pytest.mark.parametrize("percentile", [-1.0, 101.0, float("nan"), float("inf"), "x", None, True])
+def test_monte_carlo_get_percentile_rejects_invalid_percentile(percentile: object) -> None:
+    """get_percentile rejects an out-of-range or non-numeric percentile clearly."""
+    res = _make_populated_result()
+    with pytest.raises(ValueError, match="invalid percentile"):
+        res.get_percentile("total_return_pct", cast(float, percentile))
+
+
+@pytest.mark.parametrize("percentile", [0.0, 50.0, 100.0])
+def test_monte_carlo_get_percentile_accepts_boundary_percentiles(percentile: float) -> None:
+    """get_percentile accepts the closed [0, 100] boundary percentiles."""
+    res = _make_populated_result()
+    value = res.get_percentile("total_return_pct", percentile)
+    assert isinstance(value, float)
+
+
+@pytest.mark.parametrize(
+    "confidence", [0.0, 1.0, 1.5, -0.5, float("nan"), float("inf"), "x", None, True]
+)
+def test_monte_carlo_expected_shortfall_rejects_invalid_confidence(confidence: object) -> None:
+    """expected_shortfall rejects a non-(0,1) or non-numeric confidence clearly."""
+    res = _make_populated_result()
+    with pytest.raises(ValueError, match="invalid confidence"):
+        res.expected_shortfall("total_return_pct", cast(float, confidence))
+
+
+def test_monte_carlo_expected_shortfall_accepts_valid_confidence() -> None:
+    """expected_shortfall returns a finite float for a valid confidence level."""
+    res = _make_populated_result()
+    value = res.expected_shortfall("total_return_pct", confidence=0.95)
+    assert isinstance(value, float)
 
 
 def test_monte_carlo_parametric_constant_returns() -> None:

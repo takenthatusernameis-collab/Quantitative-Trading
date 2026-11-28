@@ -1,3 +1,32 @@
+## Session 2026-11-28 (monte carlo per-call percentile/confidence validation)
+
+### What changed
+- `quant_trading/monte_carlo/simulator.py`:
+  - Added `_validate_percentile(percentile)` helper (finite number in `[0, 100]`, rejects bool/NaN/inf/non-numeric with a clear `ValueError`), mirroring `quant_trading.risk.metrics._validate_confidence`.
+  - `MonteCarloResult.get_percentile` now validates `percentile` via `_validate_percentile` (previously an out-of-range/NaN/None/str percentile surfaced an opaque `numpy.percentile` error or `TypeError`).
+  - `MonteCarloResult.expected_shortfall` now validates `confidence` via the existing `_validate_confidence` (previously `confidence=0.0`/`1.0` silently returned a degenerate value, and `1.5`/NaN/inf/str/None raised opaque numpy/`TypeError` errors). Docstrings' `Raises:` sections updated.
+  - Imported `_validate_confidence` from `quant_trading.risk.metrics` (same cross-module private-helper pattern already used by `backtest/metrics.py`; no import cycle — `risk.metrics` does not import monte_carlo).
+- `tests/test_monte_carlo.py`: added `_make_populated_result()` helper + 4 new parametrized/explicit tests (20 cases): invalid percentile rejected, boundary percentiles `[0,50,100]` accepted, invalid confidence rejected, valid confidence returns float.
+
+### What was actually verified (evidence)
+- Probe before fix: `get_percentile(percentile in {-1,101,nan,inf,'x',None,True})` raised opaque `ValueError: Percentiles must be in the range [0, 100]` / `TypeError`; `expected_shortfall(confidence in {0.0,1.0})` silently returned `2.33`/`-5.0` (wrong), `{1.5,nan,inf}` raised opaque numpy error. After fix: every bad input raises a clear `ValueError: invalid percentile...` / `invalid confidence...`; valid inputs unchanged (`get_percentile(...,50)->2.0`, `expected_shortfall(...,0.95)->-5.0`).
+- `pytest tests/test_monte_carlo.py quant_trading/monte_carlo/simulator.py --doctest-modules` -> 153 passed (incl. new `_validate_percentile` doctest).
+- `pytest tests/test_monte_carlo.py tests/test_serialization_roundtrip.py tests/test_backtest_analysis.py tests/test_examples_smoke.py` -> 232 passed, 143 deselected.
+- `ruff check` / `black --check` / `mypy` on both changed files -> all clean.
+- `pytest tests/test_repository_integrity.py` -> 51 passed (ruff/black/mypy repo gates green).
+- Full suite `pytest -q -p no:cacheprovider` -> **6255 passed, 170 skipped, 151 deselected, 0 failures** in 362s (baseline 6234 + exactly the 20 new tests + 1 new doctest; no regressions).
+
+### What remains unresolved
+- None. Suite is green.
+
+### Approaches that already failed / rejected
+- No code change to `get_percentile`/`expected_shortfall` was previously attempted; the gap was unvalidated per-call numeric args. Reusing `_validate_confidence` (rather than a new confidence validator) keeps the `(0,1)` contract identical to the rest of the codebase. Weight/risk-contribution functions (`calculate_marginal_var`/`component_var`/`volatility_contributions`/`equal_risk_contribution`/`risk_budget`) were empirically fuzzed with empty/one-row/all-NaN/zero-variance/one-col inputs — no unexpected crashes, already robust; left unchanged.
+
+### Next task
+- Baseline green; no defect outstanding. Bounded candidate: audit `quant_trading/optimization/*` public entry points (`grid_search`/`random_search`/`bayesian`/`walk_forward`/`sensitivity`) for the same class of gap — per-call numeric args (e.g. `n_iterations`, CV folds, confidence) and empty/degenerate inputs that surface opaque third-party errors instead of clear `ValueError`/`TypeError`, and add regression tests. Do NOT re-run the monte carlo percentile/confidence audit (now complete) or the from_dict / config yaml-update audits (proven complete). Constraint: no behavior change for valid inputs; verify with the full suite (expect 6255 passed / 0 failures) + `ruff`/`black --check`/`mypy`.
+
+---
+
 ## Session 2026-11-28 (rebalancer NaN/inf regression tests for generate_rebalance_actions/execute_actions)
 
 ### What changed

@@ -50,6 +50,7 @@ import pandas as pd
 
 from quant_trading.backtest.engine import BacktestResult
 from quant_trading.backtest.metrics import BacktestMetrics
+from quant_trading.risk.metrics import _validate_confidence
 
 
 def _finite(value: Any, default: float = 0.0) -> float:
@@ -95,6 +96,49 @@ def _finite(value: Any, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
     return result if math.isfinite(result) else default
+
+
+def _validate_percentile(percentile: float) -> float:
+    """Validate a percentile argument for :meth:`MonteCarloResult.get_percentile`.
+
+    A percentile must be a finite number in the closed range ``[0, 100]`` so the
+    underlying ``numpy.percentile`` call receives a valid quantile. Values
+    outside that range (including ``NaN``/``inf``) previously surfaced as an
+    opaque third-party ``ValueError``; they are now rejected with a clear
+    message, mirroring :func:`quant_trading.risk.metrics._validate_confidence`.
+
+    Args:
+        percentile: Percentile to validate.
+
+    Returns:
+        The validated percentile as a float.
+
+    Raises:
+        ValueError: If ``percentile`` is not a finite number in ``[0, 100]``.
+
+    Examples:
+        >>> _validate_percentile(50)
+        50.0
+        >>> _validate_percentile(101)
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid percentile: the value must be in the range [0, 100] (got 101)
+        >>> _validate_percentile(float("nan"))
+        Traceback (most recent call last):
+            ...
+        ValueError: invalid percentile: the value must be in the range [0, 100] (got nan)
+
+    """
+    if (
+        isinstance(percentile, bool)
+        or not isinstance(percentile, (int, float))
+        or not math.isfinite(percentile)
+        or not (0.0 <= percentile <= 100.0)
+    ):
+        raise ValueError(
+            f"invalid percentile: the value must be in the range [0, 100] (got {percentile})"
+        )
+    return float(percentile)
 
 
 def _bootstrap_worker(
@@ -348,7 +392,8 @@ class MonteCarloResult:
             The requested percentile as a float.
 
         Raises:
-            ValueError: If no simulations are available.
+            ValueError: If no simulations are available, or if ``percentile`` is
+                not a finite number in the range ``[0, 100]``.
 
         Examples:
             >>> from datetime import datetime
@@ -361,6 +406,7 @@ class MonteCarloResult:
 
         """
         self._ensure_simulations()
+        percentile = _validate_percentile(percentile)
         values = [getattr(s, metric) for s in self.simulations]
         return float(np.percentile(values, percentile))
 
@@ -462,7 +508,8 @@ class MonteCarloResult:
             The expected shortfall value.
 
         Raises:
-            ValueError: If no simulations are available.
+            ValueError: If no simulations are available, or if ``confidence`` is
+                not a finite number strictly between 0 and 1.
 
         Examples:
             >>> from datetime import datetime
@@ -475,6 +522,7 @@ class MonteCarloResult:
 
         """
         self._ensure_simulations()
+        confidence = _validate_confidence(confidence)
         values = [getattr(s, metric) for s in self.simulations]
         var = np.percentile(values, (1 - confidence) * 100)
         tail_values = [v for v in values if v <= var]
