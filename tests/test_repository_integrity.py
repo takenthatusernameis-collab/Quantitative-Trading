@@ -1994,7 +1994,6 @@ _EXAMPLES_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("quant_trading/risk/manager.py", "_tracked_trailing_symbols"),
         ("quant_trading/risk/manager.py", "_validate_confidence"),
         ("quant_trading/risk/manager.py", "_validate_periods_per_year"),
-        ("quant_trading/risk/metrics.py", "_align_series"),
         ("quant_trading/strategies/base.py", "__init__"),
         ("quant_trading/strategies/base.py", "__init__"),
         ("quant_trading/strategies/base.py", "add_strategy"),

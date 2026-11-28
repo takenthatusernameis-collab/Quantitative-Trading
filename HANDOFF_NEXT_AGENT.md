@@ -73,4 +73,57 @@ After limits.py, the identical `_iso`/`_coerce_datetime` pair also appears in
 Note: `walk_forward._coerce_datetime` is typed `-> datetime` (not `| None`) — verify its
 None-handling output live before copying the `None` doctest.
 
+---
+
+## Session 2026-11-28 (follow-up: `risk/metrics.py` `_align_series`)
+
+### What changed
+- `quant_trading/risk/metrics.py`, `_align_series` (~line 589): added an `Examples:`
+  section with two single-line doctests using `.shape` output (DataFrame repr avoided
+  per the stability rule):
+  - `_align_series` with matching 3-point index -> `(3, 2)`
+  - `_align_series` with 2 vs 3 points -> `(2, 2)`
+- `tests/test_repository_integrity.py`: removed
+  `("quant_trading/risk/metrics.py", "_align_series")` from `_EXAMPLES_ALLOWLIST`.
+
+### What was actually verified (evidence)
+- limits.py / walk_forward.py / rebalancer.py `_iso`/`_coerce_datetime` doctests already
+  present from prior work; `pytest --doctest-modules` on all three -> 54 passed.
+- `pytest --doctest-modules quant_trading/risk/metrics.py` -> 31 passed.
+- `pytest tests/test_repository_integrity.py` -> 51 passed (allowlist entries all still
+  resolve to AST defs).
+- `ruff check .` -> passed; `black --check` -> 166 files unchanged; `mypy` -> success.
+- Full suite `python -m pytest -q` -> 5376 passed, 259 skipped, 151 deselected, **3 failed**:
+  all three are `quant_trading/data/yfinance_provider.py` (`fetch`, `fetch_latest`,
+  `fetch_many`) — network-dependent Yahoo Finance calls, pre-existing environmental
+  failures unrelated to this change.
+
+### What remains unresolved
+- Remaining `_EXAMPLES_ALLOWLIST` entries have no clean module-level pure-function
+  candidates:
+  - `quant_trading/strategies/examples.py` entries (`_ema`, `_atr`, `_rsi`, ...) are
+    **class methods** — doctest requires instantiation; not clean single-line calls.
+  - `quant_trading/strategies/factory.py` (`aliases_for`, `create`, `get`, `get_all`,
+    `list_strategies`, `strategy_keys`) mutate a process-global registry — output is
+    order/state dependent; not deterministic.
+  - `quant_trading/backtest/report.py` needs matplotlib; `yfinance_provider.py` needs
+    network; `risk/manager.py` + `engine.py` are stateful.
+- engine.py trade helpers remain allowlisted and exhausted of clean candidates (see
+  previous section).
+
+### Key lesson (unchanged)
+- Single-line `>>>` calls only; confirm exact outputs with `python -c` before writing;
+  avoid DataFrame/Figure repr unless stable (use `.shape`, `.tolist()`, scalars).
+
+### Approaches that already failed / are dead ends (do not repeat)
+- Multi-line `>>>` calls; doctesting stateful engine/risk helpers; doctesting
+  global-state factory functions; doctesting class methods without instances.
+
+### Next task (precise, low-risk)
+Confirm the remaining allowlist entries are non-clean (evidence above), then declare the
+`_EXAMPLES_ALLOWLIST` cleanup complete. If a new clean module-level pure function is
+added later, apply the same pattern: add single-line `Examples:` doctests, confirm
+outputs live, drop the allowlist entry, run the five verification commands. No further
+allowlist cleanup work is currently actionable in this repo.
+
 (End of file)

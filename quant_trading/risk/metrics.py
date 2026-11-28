@@ -607,6 +607,18 @@ def _align_series(returns: pd.Series, market_returns: pd.Series) -> pd.DataFrame
         The two series aligned on a common index (or positionally), with any
         NaN rows dropped.
 
+    Examples:
+        >>> import pandas as pd
+        >>> from quant_trading.risk.metrics import _align_series
+        >>> returns = pd.Series([0.01, 0.02, 0.03], index=["a", "b", "c"])
+        >>> market = pd.Series([0.02, 0.01, 0.04], index=["a", "b", "c"])
+        >>> _align_series(returns, market).shape
+        (3, 2)
+        >>> returns2 = pd.Series([0.01, 0.02])
+        >>> market2 = pd.Series([0.03, 0.04, 0.05])
+        >>> _align_series(returns2, market2).shape
+        (2, 2)
+
     """
     # Attempt label alignment first. Only fall back to positional alignment
     # when label alignment would produce a cartesian expansion (more rows than
