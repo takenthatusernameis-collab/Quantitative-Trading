@@ -31,6 +31,7 @@ import math
 import os
 import typing
 from dataclasses import dataclass, field, fields, is_dataclass
+from datetime import datetime
 from typing import Any
 
 import yaml
@@ -131,6 +132,8 @@ class DataConfig:
             data only.
         synthetic_days: Number of days to generate when synthesizing data.
         synthetic_seed: RNG seed for deterministic synthetic data generation.
+        synthetic_end_date: End date for synthetic data generation. Defaults to a
+            fixed date for determinism. If None, defaults to 2024-01-01.
         alphavantage_api_key: Optional Alpha Vantage API key, used when the
             provider is set to ``"alphavantage"``.
 
@@ -151,6 +154,7 @@ class DataConfig:
     offline: bool = False
     synthetic_days: int = 365
     synthetic_seed: int = 42
+    synthetic_end_date: datetime | None = None
     alphavantage_api_key: str | None = None
 
     def __post_init__(self) -> None:
@@ -208,6 +212,13 @@ class DataConfig:
             lambda v: 0 <= v <= max_seed,
             f"the value must be between 0 and {max_seed} and finite",
         )
+        if self.synthetic_end_date is not None and not isinstance(
+            self.synthetic_end_date, datetime
+        ):
+            raise ValueError(
+                f"invalid synthetic_end_date: must be a datetime or None "
+                f"(got {type(self.synthetic_end_date).__name__})"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the data configuration to a plain, JSON-safe dictionary.
@@ -236,6 +247,7 @@ class DataConfig:
             "offline": self.offline,
             "synthetic_days": self.synthetic_days,
             "synthetic_seed": self.synthetic_seed,
+            "synthetic_end_date": self.synthetic_end_date.isoformat() if self.synthetic_end_date else None,
             "alphavantage_api_key": self.alphavantage_api_key,
         }
 

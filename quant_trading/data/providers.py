@@ -918,7 +918,7 @@ def create_data_manager_from_config(config: "DataConfig") -> DataManager:
                 if not self._initialized or set(symbols) != set(self._symbols or []):
                     from quant_trading.data.synthetic import create_synthetic_data
 
-                    end_date = datetime.now()
+                    end_date = self._config.synthetic_end_date or datetime(2024, 1, 1)
                     data = create_synthetic_data(
                         symbols=symbols,
                         days=self._config.synthetic_days,

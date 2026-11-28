@@ -3308,6 +3308,7 @@ def test_evaluate_params_worker_grid_fallthrough_branch() -> None:
         provider="synthetic",
         synthetic_days=60,
         synthetic_seed=42,
+        synthetic_end_date=None,
     )
     _params, _score, result = _evaluate_params_worker(
         MovingAverageCrossover,
@@ -3441,6 +3442,7 @@ def test_evaluate_params_worker_random_fallthrough_branch() -> None:
         provider="synthetic",
         synthetic_days=60,
         synthetic_seed=42,
+        synthetic_end_date=None,
     )
     _params, _score, result = _evaluate_params_worker(
         MovingAverageCrossover,

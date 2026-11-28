@@ -697,6 +697,7 @@ class TestDataConfigSerialization:
             "offline": True,
             "synthetic_days": 100,
             "synthetic_seed": 42,
+            "synthetic_end_date": None,
             "alphavantage_api_key": None,
         }
 
