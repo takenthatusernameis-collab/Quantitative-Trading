@@ -1,3 +1,20 @@
+## Session 2026-11-28 (serialization round-trip audit — all candidates already covered)
+
+### What changed
+- None. Verified the round-trip candidate proposed by the prior handoff: `RiskMetrics`, `PortfolioRisk`, `RiskAttribution`, `PositionLimit`, `PortfolioLimit`, `CheckResult`, `Holding`/`Portfolio`, `RebalanceAction`/`RebalanceExecution`, `MonteCarloResult`, `Signal`/`Position` are all already present in `tests/test_serialization_roundtrip.py` and pass.
+
+### What was actually verified (evidence)
+- `pytest tests/test_serialization_roundtrip.py` -> 41 passed in 0.12s.
+- `mypy quant_trading/ examples/` -> Success: no issues in 100 source files.
+
+### What remains unresolved
+- None outstanding. Serialization round-trip coverage is complete for every dataclass covered by the parametrized test plus the introspection guard.
+
+### Next task
+- No code defect outstanding. If continuing, pick a NEW bounded area: audit `to_dict` JSON-safety (`json.dumps` succeeds) across ALL dataclasses, or add property-based fuzzing of `from_dict` against malformed payloads. Constraint: no format changes to already-round-tripping classes; verify with full suite + ruff/black/mypy.
+
+---
+
 ## Session 2026-11-28 (config to_dict/from_dict asymmetry audit — no code change)
 
 ### What changed
