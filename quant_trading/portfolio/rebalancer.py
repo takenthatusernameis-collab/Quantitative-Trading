@@ -438,7 +438,9 @@ class _RebalancePlan:
             {'AAPL': 5.0}
 
         """
-        raw_positions = data.get("positions", {}) or {}
+        raw_positions = data.get("positions")
+        if not isinstance(raw_positions, dict):
+            raw_positions = {}
         return cls(
             cash=_finite(data.get("cash", 0.0)),
             fee_rate=_finite(data.get("fee_rate", 0.0)),

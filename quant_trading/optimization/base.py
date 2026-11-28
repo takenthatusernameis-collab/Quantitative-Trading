@@ -432,9 +432,13 @@ class ParameterGrid:
             [{'x': 1.0}, {'x': 2.0}]
 
         """
+        raw_spaces = data.get("spaces")
+        if not isinstance(raw_spaces, dict):
+            raw_spaces = {}
         spaces = {
             name: ParameterSpace.from_dict(space_data)
-            for name, space_data in (data.get("spaces") or {}).items()
+            for name, space_data in raw_spaces.items()
+            if isinstance(space_data, dict)
         }
         return cls(spaces=spaces)
 

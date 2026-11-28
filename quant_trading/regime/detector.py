@@ -333,7 +333,14 @@ class RegimeResult:
             0.0
 
         """
-        segments = [RegimeSegment.from_dict(seg_data) for seg_data in data.get("segments", [])]
+        raw_segments = data.get("segments")
+        if not isinstance(raw_segments, (list, tuple)):
+            raw_segments = []
+        segments = [
+            RegimeSegment.from_dict(seg_data)
+            for seg_data in raw_segments
+            if isinstance(seg_data, dict)
+        ]
         regimes = [seg.regime for seg in segments]
         current_regime = segments[-1].regime if segments else Regime.UNKNOWN
 

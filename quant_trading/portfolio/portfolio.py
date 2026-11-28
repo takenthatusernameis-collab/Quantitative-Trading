@@ -261,6 +261,8 @@ class Holding:
                 return default
             return result if isfinite(result) else default
 
+        if "symbol" not in data:
+            raise ValueError("Holding.from_dict requires a 'symbol' key")
         return cls(
             symbol=data["symbol"],
             quantity=_finite(data.get("quantity", 0.0)),
@@ -841,8 +843,12 @@ class Portfolio:
         )
         portfolio.last_rebalance = last_rebalance
         portfolio.holdings = {}
-        holdings_data = data.get("holdings", {}) or {}
+        holdings_data = data.get("holdings")
+        if not isinstance(holdings_data, dict):
+            holdings_data = {}
         for sym, hdata in holdings_data.items():
+            if not isinstance(hdata, dict):
+                continue
             holding = Holding.from_dict(hdata)
             portfolio.holdings[sym] = holding
         # ``total_value`` is always cash plus the market value of the holdings

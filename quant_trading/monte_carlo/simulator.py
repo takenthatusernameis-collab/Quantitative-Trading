@@ -560,8 +560,13 @@ class MonteCarloResult:
             3
 
         """
-        simulations = [BacktestMetrics.from_dict(s) for s in data.get("simulations", []) or []]
-        original = data.get("original_metrics") or {}
+        raw_sims = data.get("simulations")
+        if not isinstance(raw_sims, (list, tuple)):
+            raw_sims = []
+        simulations = [BacktestMetrics.from_dict(s) for s in raw_sims if isinstance(s, dict)]
+        original = data.get("original_metrics")
+        if not isinstance(original, dict):
+            original = {}
         start_raw = data.get("start_time")
         end_raw = data.get("end_time")
         epoch = datetime(1970, 1, 1)

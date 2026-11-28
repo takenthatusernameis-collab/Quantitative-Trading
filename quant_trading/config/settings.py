@@ -918,10 +918,14 @@ class Config:
 
         """
         return cls(
-            data=DataConfig.from_dict(data.get("data", {})),
-            backtest=BacktestConfig.from_dict(data.get("backtest", {})),
-            risk=RiskConfig.from_dict(data.get("risk", {})),
-            portfolio=PortfolioConfig.from_dict(data.get("portfolio", {})),
+            data=DataConfig.from_dict(_filter_fields(DataConfig, data.get("data", {}))),
+            backtest=BacktestConfig.from_dict(
+                _filter_fields(BacktestConfig, data.get("backtest", {}))
+            ),
+            risk=RiskConfig.from_dict(_filter_fields(RiskConfig, data.get("risk", {}))),
+            portfolio=PortfolioConfig.from_dict(
+                _filter_fields(PortfolioConfig, data.get("portfolio", {}))
+            ),
             logging_level=str(data.get("logging_level", "INFO")),
             output_dir=str(data.get("output_dir", "./output")),
         )

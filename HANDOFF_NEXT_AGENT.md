@@ -1,3 +1,37 @@
+## Session 2026-11-28 (from_dict robustness: malformed-payload crashes fixed + fuzz regression test)
+
+> State: changes are UNCOMMITTED in the working tree (8 modified files + new `tests/test_from_dict_robustness.py`). No commit was made (not requested).
+
+### What changed
+- Hardened 8 `from_dict` implementations against corrupted (wrong-typed) payloads that previously leaked `AttributeError`/`KeyError` instead of the `ValueError`/`TypeError` contract. Root cause in every case: a field expected to be a mapping/list was used directly (`.items()`/`.get()` on a non-dict, iterating a non-list, or `data["symbol"]` on a missing key):
+  - `quant_trading/config/settings.py` `Config.from_dict`: each sub-config value now passed through `_filter_fields(...)` (returns `{}` for non-dict), so `data=5`/`backtest="x"` etc. fall back to sub-config defaults instead of `AttributeError: 'int' object has no attribute 'items'`.
+  - `quant_trading/data/providers.py` `MarketData.from_dict`: `data` field guarded with `isinstance(payload, dict)` (was `data.get("data") or {}`, which kept a truthy non-dict like `[1,2,3]`).
+  - `quant_trading/data/providers.py` `FetchResult.from_dict`: `data`/`errors` guarded to dicts.
+  - `quant_trading/portfolio/portfolio.py` `Holding.from_dict`: missing `symbol` now raises `ValueError` (was `KeyError`); `Portfolio.from_dict`: `holdings` guarded to dict and non-dict holding entries skipped.
+  - `quant_trading/portfolio/rebalancer.py` `_RebalancePlan.from_dict`: `positions` guarded to dict.
+  - `quant_trading/regime/detector.py` `RegimeResult.from_dict`: `segments` guarded to list and non-dict entries skipped.
+  - `quant_trading/monte_carlo/simulator.py` `MonteCarloResult.from_dict`: `simulations` guarded to list (non-dict items skipped), `original_metrics` guarded to dict.
+  - `quant_trading/optimization/base.py` `ParameterGrid.from_dict`: `spaces` guarded to dict and non-dict values skipped.
+- `tests/test_from_dict_robustness.py` (new): parametrized guard that discovers every dataclass with `from_dict` and feeds each a battery of wrong-typed payloads (each field poisoned in turn + empty + all-poisoned), asserting only `ValueError`/`TypeError` (or success) — 36 cases; plus 9 explicit per-bug regression tests.
+
+### What was actually verified (evidence)
+- Exploratory probe (5259 in-contract calls) went from 384 -> 0 unexpected exceptions after the fixes.
+- `pytest tests/test_from_dict_robustness.py` -> 45 passed.
+- Affected suites (`test_config/data_providers/portfolio/rebalancer/regime/monte_carlo/optimization/serialization_roundtrip`) -> 915 passed, 83 skipped.
+- Full suite `pytest -q -p no:cacheprovider` -> **5519 passed, 170 skipped, 151 deselected, 0 failures** in 251s (baseline 5474 + 45 new).
+- `ruff check` (repo) -> All checks passed. `black --check quant_trading/ tests/ examples/` -> 167 files unchanged. `mypy` on all 7 changed source files -> Success.
+
+### What remains unresolved
+- None. Suite green.
+
+### Approaches that already failed / rejected
+- None.
+
+### Next task
+- No defect outstanding; suite green. If continuing, pick a NEW bounded area (do NOT re-run the from_dict malformed-payload audit — now proven complete). Candidate: extend the same wrong-typed-payload contract to `to_yaml`/`from_yaml` and `Config.update` merge paths, or property-based fuzz of strategy `generate_signals`/`Rebalancer` with NaN/inf frames. Constraint: no serialization format changes; verify with full suite (expect 5519 passed / 0 failures) + ruff/black/mypy.
+
+---
+
 ## Session 2026-11-28 (fix unimportable package: analysis.py IndentationError + engine.py mypy narrowing)
 
 ### What changed

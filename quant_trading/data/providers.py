@@ -207,7 +207,9 @@ class MarketData:
             True
 
         """
-        payload = data.get("data") or {}
+        payload = data.get("data")
+        if not isinstance(payload, dict):
+            payload = {}
         columns = payload.get("columns")
         rows = payload.get("data") or []
         index = payload.get("index") or []
@@ -367,8 +369,12 @@ class FetchResult:
             True
 
         """
-        raw_data = data.get("data") or {}
-        raw_errors = data.get("errors") or {}
+        raw_data = data.get("data")
+        if not isinstance(raw_data, dict):
+            raw_data = {}
+        raw_errors = data.get("errors")
+        if not isinstance(raw_errors, dict):
+            raw_errors = {}
         restored_data = {
             k: (MarketData.from_dict(v) if isinstance(v, dict) else v) for k, v in raw_data.items()
         }
