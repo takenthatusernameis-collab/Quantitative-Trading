@@ -897,14 +897,46 @@ class OptimizationResult:
 
 
 def _iso(value: datetime | None) -> str | None:
-    """Return ISO-8601 string for a datetime, or None for None."""
+    """Return ISO-8601 string for a datetime, or None for None.
+
+    Args:
+        value: Datetime to serialize, or None.
+
+    Returns:
+        ISO-8601 string, or None when ``value`` is None.
+
+    Examples:
+        >>> from datetime import datetime
+        >>> from quant_trading.optimization.base import _iso
+        >>> _iso(datetime(2024, 1, 15, 12, 30, 45))
+        '2024-01-15T12:30:45'
+        >>> _iso(None)
+
+    """
     if value is None:
         return None
     return value.isoformat()
 
 
 def _coerce_datetime(value: Any) -> datetime | None:
-    """Coerce a value to a datetime, accepting ISO-8601 strings."""
+    """Coerce a value to a datetime, accepting ISO-8601 strings.
+
+    Args:
+        value: A datetime, an ISO-8601 string, or None.
+
+    Returns:
+        The parsed datetime, or None when ``value`` is None or not coercible.
+
+    Examples:
+        >>> from datetime import datetime
+        >>> from quant_trading.optimization.base import _coerce_datetime
+        >>> _coerce_datetime("2024-01-15")
+        datetime.datetime(2024, 1, 15, 0, 0)
+        >>> _coerce_datetime("2024-01-15T12:30:45")
+        datetime.datetime(2024, 1, 15, 12, 30, 45)
+        >>> _coerce_datetime(None)
+
+    """
     if value is None:
         return None
     if isinstance(value, datetime):
